@@ -1,11 +1,33 @@
 name: "eventkit"
 
 services:
-  app:
+  api:
     build: .
-    ports:
-      - "4000:4000"
     volumes:
       - .:/app
+    depends_on:
+      - redis
+    ports:
+      - "${PORT}:${PORT}"
     environment:
-      PORT: "4000"
+      PORT: ${PORT}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DATABASE: ${REDIS_DATABASE}
+
+  redis:
+    image: redis:7.4-alpine
+    restart: always
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    command: >
+      redis-server
+        --save 20 1
+        --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis:/data
+
+volumes:
+  redis:
+    driver: local

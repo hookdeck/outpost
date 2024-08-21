@@ -1,2 +1,5 @@
+# Environment variables
+.env
+
 # Binary from building the project
 /cmd/api/main
