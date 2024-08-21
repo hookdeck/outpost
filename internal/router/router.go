@@ -1,12 +1,14 @@
 package router
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+	"github.com/go-playground/validator/v10"
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/redis/go-redis/v9"
 )
@@ -34,17 +36,13 @@ func New() *chi.Mux {
 	})
 
 	r.Post("/hello", func(w http.ResponseWriter, r *http.Request) {
-		type Body = struct {
-			Name string `json:"name"`
-		}
-
-		body := &Body{}
-		if err := json.NewDecoder(r.Body).Decode(body); err != nil {
+		data := &Body{}
+		if err := render.Bind(r, data); err != nil {
 			log.Println(err)
 			return
 		}
 
-		if err := rdb.Set(r.Context(), "name", body.Name, 0).Err(); err != nil {
+		if err := rdb.Set(r.Context(), "name", data.Name, 0).Err(); err != nil {
 			log.Println(err)
 			return
 		}
@@ -53,4 +51,27 @@ func New() *chi.Mux {
 	})
 
 	return r
+}
+
+type Body struct {
+	Name string `json:"name" validate:"required"`
+}
+
+func (b *Body) Bind(r *http.Request) error {
+	validate := validator.New(validator.WithRequiredStructEnabled())
+
+	if err := validate.Struct(b); err != nil {
+		errs := errors.New("Validation failed")
+		for _, err := range err.(validator.ValidationErrors) {
+			errs = errors.Join(errs, fmt.Errorf(
+				"Field '%s': %s (value: '%v')",
+				err.Field(),
+				err.Tag(),
+				err.Value(),
+			))
+		}
+		return errs
+	}
+
+	return nil
 }
