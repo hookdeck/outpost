@@ -20,8 +20,9 @@ $ docker build -t myeventkit .
 
 ```sh
 # from hookdeck/EventKit/examples/with-yaml-config
+$ docker run -p 4000:4000 myeventkit # run all 3 services in one process
+# or
 $ docker run -p 4000:4000 myeventkit --service api
-$ docker run -p 4000:4000 myeventkit --service data
-$ docker run -p 4000:4000 myeventkit --service delivery
-$ docker run -p 4000:4000 myeventkit # or run all 3 services in one process
+$ docker run myeventkit --service data
+$ docker run myeventkit --service delivery
 ```
