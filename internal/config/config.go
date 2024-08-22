@@ -2,32 +2,47 @@ package config
 
 import (
 	"log"
-	"os"
 	"strconv"
+
+	"github.com/spf13/viper"
 )
 
 var (
-	Port = 0
+	Port int
 
-	RedisHost     = ""
-	RedisPort     = ""
-	RedisPassword = ""
-	RedisDatabase = 0
+	RedisHost     string
+	RedisPort     string
+	RedisPassword string
+	RedisDatabase int
 )
 
-func init() {
-	Port = mustInt(os.Getenv("PORT"))
+func Parse(configFile string) error {
+	if configFile != "" {
+		viper.SetConfigFile(configFile)
+		if err := viper.ReadInConfig(); err != nil {
+			return err
+		}
+	}
 
-	RedisHost = os.Getenv("REDIS_HOST")
-	RedisPort = os.Getenv("REDIS_PORT")
-	RedisPassword = os.Getenv("REDIS_PASSWORD")
-	RedisDatabase = mustInt(os.Getenv("REDIS_DATABASE"))
+	viper.BindEnv("PORT")
+	Port = mustInt("PORT")
+
+	viper.BindEnv("REDIS_HOST")
+	viper.BindEnv("REDIS_PORT")
+	viper.BindEnv("REDIS_PASSWORD")
+	viper.BindEnv("REDIS_DATABASE")
+	RedisHost = viper.GetString("REDIS_HOST")
+	RedisPort = viper.GetString("REDIS_PORT")
+	RedisPassword = viper.GetString("REDIS_PASSWORD")
+	RedisDatabase = mustInt("REDIS_DATABASE")
+
+	return nil
 }
 
-func mustInt(s string) int {
-	i, err := strconv.Atoi(s)
+func mustInt(configName string) int {
+	i, err := strconv.Atoi(viper.GetString(configName))
 	if err != nil {
-		log.Fatalf("failed to parse %s as int", s)
+		log.Fatalf("%s = '%s' is not int", configName, viper.GetString(configName))
 	}
 	return i
 }
