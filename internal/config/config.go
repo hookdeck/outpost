@@ -11,12 +11,24 @@ var (
 	Port int
 
 	RedisHost     string
-	RedisPort     string
+	RedisPort     int
 	RedisPassword string
 	RedisDatabase int
 )
 
+var defaultConfig = map[string]any{
+	"PORT":           3333,
+	"REDIS_HOST":     "127.0.0.1",
+	"REDIS_PORT":     6379,
+	"REDIS_PASSWORD": "",
+	"REDIS_DATABASE": 0,
+}
+
 func Parse(configFile string) error {
+	for key, value := range defaultConfig {
+		viper.SetDefault(key, value)
+	}
+
 	if configFile != "" {
 		viper.SetConfigFile(configFile)
 		if err := viper.ReadInConfig(); err != nil {
@@ -24,15 +36,11 @@ func Parse(configFile string) error {
 		}
 	}
 
-	viper.BindEnv("PORT")
-	Port = mustInt("PORT")
+	viper.AutomaticEnv()
 
-	viper.BindEnv("REDIS_HOST")
-	viper.BindEnv("REDIS_PORT")
-	viper.BindEnv("REDIS_PASSWORD")
-	viper.BindEnv("REDIS_DATABASE")
+	Port = mustInt("PORT")
 	RedisHost = viper.GetString("REDIS_HOST")
-	RedisPort = viper.GetString("REDIS_PORT")
+	RedisPort = mustInt("REDIS_PORT")
 	RedisPassword = viper.GetString("REDIS_PASSWORD")
 	RedisDatabase = mustInt("REDIS_DATABASE")
 
