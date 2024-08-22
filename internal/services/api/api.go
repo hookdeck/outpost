@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"context"
@@ -11,14 +11,14 @@ import (
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/config"
-	"github.com/hookdeck/EventKit/internal/router"
 )
 
-func run(ctx context.Context) error {
+func Run(ctx context.Context) error {
+	log.Println("running api service")
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
-	r := router.New()
+	r := NewRouter()
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.Port),
 		Handler: r,
@@ -45,12 +45,4 @@ func run(ctx context.Context) error {
 	wg.Wait()
 
 	return nil
-}
-
-func main() {
-	ctx := context.Background()
-	if err := run(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", err)
-		os.Exit(1)
-	}
 }

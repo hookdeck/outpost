@@ -1,4 +1,4 @@
-package router
+package api
 
 import (
 	"net/http"
@@ -7,7 +7,7 @@ import (
 	"github.com/hookdeck/EventKit/internal/destination"
 )
 
-func New() http.Handler {
+func NewRouter() http.Handler {
 	r := gin.Default()
 
 	r.GET("/healthz", func(c *gin.Context) {
