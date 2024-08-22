@@ -76,7 +76,7 @@ func run(ctx context.Context) error {
 	// Handle shutdown
 	fmt.Println("*********************************\nShutdown signal received\n*********************************")
 	cancel()  // Signal cancellation to context.Context
-	wg.Wait() // Block here until are workers are done
+	wg.Wait() // Block here until all workers are done
 
 	return nil
 }
