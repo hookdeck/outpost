@@ -4,11 +4,17 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/destination"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 func NewRouter() http.Handler {
 	r := gin.Default()
+
+	if config.OpenTelemetry != nil {
+		r.Use(otelgin.Middleware(config.Hostname))
+	}
 
 	r.GET("/healthz", func(c *gin.Context) {
 		c.Status(http.StatusOK)

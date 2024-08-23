@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/hookdeck/EventKit/internal/config"
+	"github.com/hookdeck/EventKit/internal/otel"
 	"github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/hookdeck/EventKit/internal/services/data"
 	"github.com/hookdeck/EventKit/internal/services/delivery"
@@ -35,10 +36,24 @@ func run(ctx context.Context) error {
 
 	// Set up cancellation context and waitgroup
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Set up OpenTelemetry.
+	if config.OpenTelemetry != nil {
+		otelShutdown, err := otel.SetupOTelSDK(ctx)
+		if err != nil {
+			return err
+		}
+		// Handle shutdown properly so nothing leaks.
+		defer func() {
+			err = errors.Join(err, otelShutdown(context.Background()))
+		}()
+	}
+
+	// Initialize waitgroup
 	wg := &sync.WaitGroup{}
 
+	// Construct services based on config
 	services := []Service{}
-
 	switch config.Service {
 	case config.ServiceTypeAPI:
 		services = append(services, api.NewService(ctx, wg))
@@ -56,7 +71,7 @@ func run(ctx context.Context) error {
 		return errors.New(fmt.Sprintf("unknown service: %s", flags.Service))
 	}
 
-	// Register services with waitgroup.
+	// Initialize how many services the waitgroup should expect.
 	// Once all services are done, we can exit.
 	// Each service will wait for the context to be cancelled before shutting down.
 	wg.Add(len(services))
