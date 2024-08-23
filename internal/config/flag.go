@@ -1,4 +1,4 @@
-package flag
+package config
 
 import "flag"
 
@@ -17,7 +17,7 @@ type Flags struct {
 	Config  string // Config file path
 }
 
-func Parse() Flags {
+func ParseFlags() Flags {
 	flag.Parse()
 	return Flags{
 		Service: service,

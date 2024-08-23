@@ -7,8 +7,13 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	Namespace = "EventKit"
+)
+
 var (
-	Port int
+	Service ServiceType
+	Port    int
 
 	RedisHost     string
 	RedisPort     int
@@ -24,13 +29,19 @@ var defaultConfig = map[string]any{
 	"REDIS_DATABASE": 0,
 }
 
-func Parse(configFile string) error {
+func Parse(flags Flags) error {
+	var err error
+	Service, err = ServiceTypeFromString(flags.Service)
+	if err != nil {
+		return err
+	}
+
 	for key, value := range defaultConfig {
 		viper.SetDefault(key, value)
 	}
 
-	if configFile != "" {
-		viper.SetConfigFile(configFile)
+	if flags.Config != "" {
+		viper.SetConfigFile(flags.Config)
 		if err := viper.ReadInConfig(); err != nil {
 			return err
 		}

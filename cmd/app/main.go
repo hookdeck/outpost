@@ -10,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/hookdeck/EventKit/internal/config"
-	"github.com/hookdeck/EventKit/internal/flag"
 	"github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/hookdeck/EventKit/internal/services/data"
 	"github.com/hookdeck/EventKit/internal/services/delivery"
@@ -29,8 +28,8 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	flags := flag.Parse()
-	if err := config.Parse(flags.Config); err != nil {
+	flags := config.ParseFlags()
+	if err := config.Parse(flags); err != nil {
 		return err
 	}
 
@@ -40,14 +39,14 @@ func run(ctx context.Context) error {
 
 	services := []Service{}
 
-	switch flags.Service {
-	case "api":
+	switch config.Service {
+	case config.ServiceTypeAPI:
 		services = append(services, api.NewService(ctx, wg))
-	case "data":
+	case config.ServiceTypeData:
 		services = append(services, data.NewService(ctx, wg))
-	case "delivery":
+	case config.ServiceTypeDelivery:
 		services = append(services, delivery.NewService(ctx, wg))
-	case "":
+	case config.ServiceTypeSingular:
 		services = append(services,
 			api.NewService(ctx, wg),
 			data.NewService(ctx, wg),
