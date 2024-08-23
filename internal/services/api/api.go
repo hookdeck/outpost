@@ -24,6 +24,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup) *APIService {
 	}
 
 	go func() {
+		wg.Add(1)
 		defer wg.Done()
 		<-ctx.Done()
 		log.Println("shutting down api service")

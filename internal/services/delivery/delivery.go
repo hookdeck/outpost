@@ -10,6 +10,7 @@ type DeliveryService struct{}
 
 func NewService(ctx context.Context, wg *sync.WaitGroup) *DeliveryService {
 	go func() {
+		wg.Add(1)
 		defer wg.Done()
 		<-ctx.Done()
 		log.Println("shutting down data service")

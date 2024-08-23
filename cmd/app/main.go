@@ -56,6 +56,8 @@ func run(ctx context.Context) error {
 	}
 
 	// Initialize waitgroup
+	// Once all services are done, we can exit.
+	// Each service will wait for the context to be cancelled before shutting down.
 	wg := &sync.WaitGroup{}
 
 	// Construct services based on config
@@ -76,11 +78,6 @@ func run(ctx context.Context) error {
 	default:
 		return errors.New(fmt.Sprintf("unknown service: %s", flags.Service))
 	}
-
-	// Initialize how many services the waitgroup should expect.
-	// Once all services are done, we can exit.
-	// Each service will wait for the context to be cancelled before shutting down.
-	wg.Add(len(services))
 
 	// Start services
 	for _, service := range services {
