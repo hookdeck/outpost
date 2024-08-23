@@ -5,4 +5,4 @@ COPY . .
 
 RUN go install -mod=mod github.com/githubnemo/CompileDaemon
 
-ENTRYPOINT CompileDaemon --build="go build -o ./bin/data ./cmd/app/main.go" --command="./bin/data data"
+ENTRYPOINT CompileDaemon --build="go build -o ./bin/data ./cmd/app/main.go" --command="./bin/data --service data"
