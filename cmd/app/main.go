@@ -11,6 +11,7 @@ import (
 
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/otel"
+	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/hookdeck/EventKit/internal/services/data"
 	"github.com/hookdeck/EventKit/internal/services/delivery"
@@ -47,6 +48,11 @@ func run(ctx context.Context) error {
 		defer func() {
 			err = errors.Join(err, otelShutdown(context.Background()))
 		}()
+
+		// QUESTION: what if a service doesn't need Redis? Is it unnecessary to initalize the client here?
+		if err := redis.InstrumentOpenTelemetry(); err != nil {
+			return err
+		}
 	}
 
 	// Initialize waitgroup

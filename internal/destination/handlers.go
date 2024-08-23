@@ -29,7 +29,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		ID:   id,
 		Name: json.Name,
 	}
-	if err := SetDestination(c, destination); err != nil {
+	if err := SetDestination(c.Request.Context(), destination); err != nil {
 		log.Println(err)
 		c.Status(http.StatusInternalServerError)
 		return
@@ -42,7 +42,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 
 func (h *DestinationHandlers) Retrieve(c *gin.Context) {
 	destinationID := c.Param("destinationID")
-	destination, err := GetDestination(c, destinationID)
+	destination, err := GetDestination(c.Request.Context(), destinationID)
 	if err != nil {
 		log.Println(err)
 		c.Status(http.StatusInternalServerError)
@@ -68,7 +68,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 
 	// Get destination.
 	destinationID := c.Param("destinationID")
-	destination, err := GetDestination(c, destinationID)
+	destination, err := GetDestination(c.Request.Context(), destinationID)
 	if err != nil {
 		log.Println(err)
 		c.Status(http.StatusInternalServerError)
@@ -81,7 +81,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 
 	// Update destination
 	destination.Name = json.Name
-	if err := SetDestination(c, *destination); err != nil {
+	if err := SetDestination(c.Request.Context(), *destination); err != nil {
 		log.Println(err)
 		c.Status(http.StatusInternalServerError)
 		return
@@ -94,7 +94,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 
 func (h *DestinationHandlers) Delete(c *gin.Context) {
 	destinationID := c.Param("destinationID")
-	destination, err := ClearDestination(c, destinationID)
+	destination, err := ClearDestination(c.Request.Context(), destinationID)
 	if err != nil {
 		log.Println(err)
 		c.Status(http.StatusInternalServerError)
