@@ -20,7 +20,7 @@ const (
 func Client() *r.Client {
 	once.Do(func() {
 		rdb = r.NewClient(&r.Options{
-			Addr:     fmt.Sprintf("%s:%s", config.RedisHost, config.RedisPort),
+			Addr:     fmt.Sprintf("%s:%d", config.RedisHost, config.RedisPort),
 			Password: config.RedisPassword,
 			DB:       config.RedisDatabase,
 		})
