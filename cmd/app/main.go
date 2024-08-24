@@ -26,6 +26,7 @@ type Service interface {
 func main() {
 	ctx := context.Background()
 	if err := run(ctx); err != nil {
+		// TODO: Question: Should this log be sent to OTEL too?
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
