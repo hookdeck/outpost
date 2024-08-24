@@ -2,7 +2,6 @@ package otel
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/config"
@@ -53,8 +52,6 @@ func newMeterProvider(ctx context.Context) (*metric.MeterProvider, error) {
 	if config.OpenTelemetry.Metrics == nil {
 		return nil, nil
 	}
-
-	fmt.Println(config.OpenTelemetry.Metrics)
 
 	var err error
 	var metricExporter metric.Exporter
