@@ -4,18 +4,24 @@ import (
 	"context"
 	"log"
 	"sync"
+
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
-type DeliveryService struct{}
+type DeliveryService struct {
+	logger *otelzap.Logger
+}
 
-func NewService(ctx context.Context, wg *sync.WaitGroup) *DeliveryService {
+func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger) *DeliveryService {
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		<-ctx.Done()
 		log.Println("shutting down data service")
 	}()
-	return &DeliveryService{}
+	return &DeliveryService{
+		logger: logger,
+	}
 }
 
 func (s *DeliveryService) Run(ctx context.Context) error {

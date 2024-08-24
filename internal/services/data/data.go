@@ -2,25 +2,29 @@ package data
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/redis"
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
-type DataService struct{}
+type DataService struct {
+	logger *otelzap.Logger
+}
 
-func NewService(ctx context.Context, wg *sync.WaitGroup) *DataService {
+func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger) *DataService {
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		<-ctx.Done()
 		log.Println("shutting down data service")
 	}()
-	return &DataService{}
+	return &DataService{
+		logger: logger,
+	}
 }
 
 func (s *DataService) Run(ctx context.Context) error {
@@ -37,7 +41,7 @@ func (s *DataService) Run(ctx context.Context) error {
 			log.Println(err)
 			continue
 		}
-		log.Println(fmt.Sprintf("%d destination(s)", len(keys)))
+		log.Printf("%d destination(s)\n", len(keys))
 	}
 
 	return nil

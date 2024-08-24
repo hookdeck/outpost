@@ -10,21 +10,25 @@ import (
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/config"
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
 type APIService struct {
 	server *http.Server
+	logger *otelzap.Logger
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup) *APIService {
+func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger) *APIService {
 	service := &APIService{}
+	service.logger = logger
 	service.server = &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.Port),
-		Handler: NewRouter(),
+		Handler: NewRouter(logger),
 	}
 
+	wg.Add(1)
+
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		<-ctx.Done()
 		log.Println("shutting down api service")

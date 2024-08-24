@@ -15,6 +15,8 @@ import (
 	"github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/hookdeck/EventKit/internal/services/data"
 	"github.com/hookdeck/EventKit/internal/services/delivery"
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"go.uber.org/zap"
 )
 
 type Service interface {
@@ -34,6 +36,15 @@ func run(mainContext context.Context) error {
 	if err := config.Parse(flags); err != nil {
 		return err
 	}
+
+	zapLogger, err := zap.NewProduction()
+	if err != nil {
+		return err
+	}
+	defer zapLogger.Sync()
+	logger := otelzap.New(zapLogger,
+		otelzap.WithMinLevel(zap.InfoLevel), // TODO: allow configuration
+	)
 
 	// Set up cancellation context and waitgroup
 	ctx, cancel := context.WithCancel(mainContext)
@@ -66,16 +77,16 @@ func run(mainContext context.Context) error {
 	services := []Service{}
 	switch config.Service {
 	case config.ServiceTypeAPI:
-		services = append(services, api.NewService(ctx, wg))
+		services = append(services, api.NewService(ctx, wg, logger))
 	case config.ServiceTypeData:
-		services = append(services, data.NewService(ctx, wg))
+		services = append(services, data.NewService(ctx, wg, logger))
 	case config.ServiceTypeDelivery:
-		services = append(services, delivery.NewService(ctx, wg))
+		services = append(services, delivery.NewService(ctx, wg, logger))
 	case config.ServiceTypeSingular:
 		services = append(services,
-			api.NewService(ctx, wg),
-			data.NewService(ctx, wg),
-			delivery.NewService(ctx, wg),
+			api.NewService(ctx, wg, logger),
+			data.NewService(ctx, wg, logger),
+			delivery.NewService(ctx, wg, logger),
 		)
 	default:
 		cancel()
