@@ -3,7 +3,10 @@ package otel
 import (
 	"context"
 	"errors"
+	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/host"
+	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 )
@@ -57,6 +60,17 @@ func SetupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, er
 	if meterProvider != nil {
 		shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
 		otel.SetMeterProvider(meterProvider)
+		err = runtime.Start(runtime.WithMinimumReadMemStatsInterval(time.Second))
+		if err != nil {
+			handleErr(err)
+			return
+		}
+
+		err = host.Start(host.WithMeterProvider(meterProvider))
+		if err != nil {
+			handleErr(err)
+			return
+		}
 	}
 
 	// // Set up logger provider.
