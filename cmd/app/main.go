@@ -29,19 +29,20 @@ func main() {
 	}
 }
 
-func run(ctx context.Context) error {
+func run(mainContext context.Context) error {
 	flags := config.ParseFlags()
 	if err := config.Parse(flags); err != nil {
 		return err
 	}
 
 	// Set up cancellation context and waitgroup
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(mainContext)
 
 	// Set up OpenTelemetry.
 	if config.OpenTelemetry != nil {
 		otelShutdown, err := otel.SetupOTelSDK(ctx)
 		if err != nil {
+			cancel()
 			return err
 		}
 		// Handle shutdown properly so nothing leaks.
@@ -51,6 +52,7 @@ func run(ctx context.Context) error {
 
 		// QUESTION: what if a service doesn't need Redis? Is it unnecessary to initalize the client here?
 		if err := redis.InstrumentOpenTelemetry(); err != nil {
+			cancel()
 			return err
 		}
 	}
@@ -76,7 +78,8 @@ func run(ctx context.Context) error {
 			delivery.NewService(ctx, wg),
 		)
 	default:
-		return errors.New(fmt.Sprintf("unknown service: %s", flags.Service))
+		cancel()
+		return fmt.Errorf("unknown service: %s", flags.Service)
 	}
 
 	// Start services
@@ -85,7 +88,7 @@ func run(ctx context.Context) error {
 	}
 
 	// Handle sigterm and await termChan signal
-	termChan := make(chan os.Signal)
+	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 
 	<-termChan // Blocks here until interrupted
