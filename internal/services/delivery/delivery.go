@@ -25,6 +25,6 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger)
 }
 
 func (s *DeliveryService) Run(ctx context.Context) error {
-	log.Println("running delivery service")
+	s.logger.Ctx(ctx).Info("running delivery service")
 	return nil
 }

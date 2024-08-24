@@ -11,6 +11,7 @@ import (
 
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"go.uber.org/zap"
 )
 
 type APIService struct {
@@ -45,8 +46,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger)
 }
 
 func (s *APIService) Run(ctx context.Context) error {
-	log.Println("running api service")
-	log.Printf("listening on %s\n", s.server.Addr)
+	s.logger.Ctx(ctx).Info("running api service", zap.String("address", s.server.Addr))
 	go func() {
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(os.Stderr, "error listening and serving: %s\n", err)

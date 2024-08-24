@@ -28,7 +28,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger)
 }
 
 func (s *DataService) Run(ctx context.Context) error {
-	log.Println("running data service")
+	s.logger.Ctx(ctx).Info("running data service")
 
 	if os.Getenv("DISABLED") == "true" {
 		log.Println("data service is disabled")
