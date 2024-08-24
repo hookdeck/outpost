@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/spf13/viper"
@@ -11,8 +10,8 @@ type OpenTelemetryProtocol string
 
 const (
 	OpenTelemetryProtocolGRPC         OpenTelemetryProtocol = "grpc"
-	OpenTelemetryProtocolHTTPProtobuf                       = "http/protobuf"
-	OpenTelemetryProtocolHTTPJSON                           = "http/json"
+	OpenTelemetryProtocolHTTPProtobuf OpenTelemetryProtocol = "http/protobuf"
+	OpenTelemetryProtocolHTTPJSON     OpenTelemetryProtocol = "http/json"
 )
 
 type OpenTelemetryTypeConfig struct {
@@ -120,5 +119,5 @@ func OpenTelemetryProtocolFromString(s string) (OpenTelemetryProtocol, error) {
 	case "http/json":
 		return OpenTelemetryProtocolHTTPJSON, nil
 	}
-	return OpenTelemetryProtocol(""), errors.New(fmt.Sprintf("unknown OpenTelemetry protocol: %s", s))
+	return OpenTelemetryProtocol(""), fmt.Errorf("unknown OpenTelemetry protocol: %s", s)
 }

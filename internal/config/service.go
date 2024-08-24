@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 )
 
@@ -39,5 +38,5 @@ func ServiceTypeFromString(s string) (ServiceType, error) {
 	case "delivery":
 		return ServiceTypeDelivery, nil
 	}
-	return ServiceType(-1), errors.New(fmt.Sprintf("unknown service: %s", s))
+	return ServiceType(-1), fmt.Errorf("unknown service: %s", s)
 }
