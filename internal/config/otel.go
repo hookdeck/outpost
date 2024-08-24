@@ -35,9 +35,6 @@ func parseOpenTelemetryConfig() (*OpenTelemetryConfig, error) {
 	}
 
 	defaultEndpoint := viper.GetString("OTEL_EXPORTER_OTLP_ENDPOINT")
-	if defaultEndpoint == "" {
-		defaultEndpoint = "localhost:4317"
-	}
 	defaultProtocol := viper.GetString("OTEL_EXPORTER_OTLP_PROTOCOL")
 	if defaultProtocol == "" {
 		defaultProtocol = "grpc"
@@ -67,37 +64,52 @@ func parseOpenTelemetryConfig() (*OpenTelemetryConfig, error) {
 }
 
 func parseTracesConfig(defaultEndpoint, defaultProtocol string) (*OpenTelemetryTypeConfig, error) {
+	endpoint := getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", defaultEndpoint)
+	if endpoint == "" {
+		return nil, nil
+	}
+
 	protocol, err := OpenTelemetryProtocolFromString(getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", defaultProtocol))
 	if err != nil {
 		return nil, err
 	}
 
 	return &OpenTelemetryTypeConfig{
-		Endpoint: getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", defaultEndpoint),
+		Endpoint: endpoint,
 		Protocol: protocol,
 	}, nil
 }
 
 func parseMetricsConfig(defaultEndpoint, defaultProtocol string) (*OpenTelemetryTypeConfig, error) {
+	endpoint := getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", defaultEndpoint)
+	if endpoint == "" {
+		return nil, nil
+	}
+
 	protocol, err := OpenTelemetryProtocolFromString(getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", defaultProtocol))
 	if err != nil {
 		return nil, err
 	}
 
 	return &OpenTelemetryTypeConfig{
-		Endpoint: getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", defaultEndpoint),
+		Endpoint: endpoint,
 		Protocol: protocol,
 	}, nil
 }
 
 func parseLogsConfig(defaultEndpoint, defaultProtocol string) (*OpenTelemetryTypeConfig, error) {
+	endpoint := getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", defaultEndpoint)
+	if endpoint == "" {
+		return nil, nil
+	}
+
 	protocol, err := OpenTelemetryProtocolFromString(getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", defaultProtocol))
 	if err != nil {
 		return nil, err
 	}
 
 	return &OpenTelemetryTypeConfig{
-		Endpoint: getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", defaultEndpoint),
+		Endpoint: endpoint,
 		Protocol: protocol,
 	}, nil
 }
