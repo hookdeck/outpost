@@ -45,7 +45,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger)
 }
 
 func (s *APIService) Run(ctx context.Context) error {
-	s.logger.Ctx(ctx).Info("running api service", zap.String("address", s.server.Addr))
+	s.logger.Ctx(ctx).Info("start service", zap.String("service", "api"))
 	go func() {
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.logger.Ctx(ctx).Error(fmt.Sprintf("error listening and serving: %s\n", err), zap.Error(err))
