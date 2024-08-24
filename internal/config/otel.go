@@ -53,9 +53,6 @@ func parseOpenTelemetryConfig() (*OpenTelemetryConfig, error) {
 		return nil, err
 	}
 
-	fmt.Println(tracesConfig)
-	fmt.Println(metricsConfig)
-
 	return &OpenTelemetryConfig{
 		Traces:  tracesConfig,
 		Metrics: metricsConfig,
