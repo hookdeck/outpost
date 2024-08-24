@@ -23,6 +23,6 @@ $ docker build -t myeventkit .
 $ docker run -p 4000:4000 myeventkit # run all 3 services in one process
 # or
 $ docker run -p 4000:4000 myeventkit --service api
-$ docker run myeventkit --service data
+$ docker run myeventkit --service log
 $ docker run myeventkit --service delivery
 ```

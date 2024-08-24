@@ -8,7 +8,7 @@ var (
 )
 
 func init() {
-	flag.StringVar(&service, "service", "", "service (e.g. api, data, delivery). If empty, all services will run.")
+	flag.StringVar(&service, "service", "", "service (e.g. api, delivery, log). If empty, all services will run.")
 	flag.StringVar(&config, "config", "", "config file (e.g. .env, config.yaml)")
 }
 

@@ -7,7 +7,7 @@ import (
 const (
 	ServiceTypeSingular ServiceType = iota
 	ServiceTypeAPI
-	ServiceTypeData
+	ServiceTypeLog
 	ServiceTypeDelivery
 )
 
@@ -19,8 +19,8 @@ func (s ServiceType) String() string {
 		return ""
 	case ServiceTypeAPI:
 		return "api"
-	case ServiceTypeData:
-		return "data"
+	case ServiceTypeLog:
+		return "log"
 	case ServiceTypeDelivery:
 		return "delievery"
 	}
@@ -33,8 +33,8 @@ func ServiceTypeFromString(s string) (ServiceType, error) {
 		return ServiceTypeSingular, nil
 	case "api":
 		return ServiceTypeAPI, nil
-	case "data":
-		return ServiceTypeData, nil
+	case "log":
+		return ServiceTypeLog, nil
 	case "delivery":
 		return ServiceTypeDelivery, nil
 	}

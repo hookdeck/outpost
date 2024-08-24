@@ -13,8 +13,8 @@ import (
 	"github.com/hookdeck/EventKit/internal/otel"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/hookdeck/EventKit/internal/services/api"
-	"github.com/hookdeck/EventKit/internal/services/data"
 	"github.com/hookdeck/EventKit/internal/services/delivery"
+	"github.com/hookdeck/EventKit/internal/services/log"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
@@ -78,14 +78,14 @@ func run(mainContext context.Context) error {
 	switch config.Service {
 	case config.ServiceTypeAPI:
 		services = append(services, api.NewService(ctx, wg, logger))
-	case config.ServiceTypeData:
-		services = append(services, data.NewService(ctx, wg, logger))
+	case config.ServiceTypeLog:
+		services = append(services, log.NewService(ctx, wg, logger))
 	case config.ServiceTypeDelivery:
 		services = append(services, delivery.NewService(ctx, wg, logger))
 	case config.ServiceTypeSingular:
 		services = append(services,
 			api.NewService(ctx, wg, logger),
-			data.NewService(ctx, wg, logger),
+			log.NewService(ctx, wg, logger),
 			delivery.NewService(ctx, wg, logger),
 		)
 	default:

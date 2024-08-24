@@ -17,7 +17,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger)
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		log.Println("shutting down data service")
+		log.Println("shutting down log service")
 	}()
 	return &DeliveryService{
 		logger: logger,

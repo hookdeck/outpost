@@ -28,10 +28,10 @@ services:
       REDIS_HOST: redis
       DISABLED: true # Temporary env variable to disable the service
 
-  data:
+  log:
     build:
       context: .
-      dockerfile: configs/dev/data.Dockerfile
+      dockerfile: configs/dev/log.Dockerfile
     volumes:
       - .:/app
     depends_on:

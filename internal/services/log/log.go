@@ -1,4 +1,4 @@
-package data
+package log
 
 import (
 	"context"
@@ -11,27 +11,27 @@ import (
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
-type DataService struct {
+type LogService struct {
 	logger *otelzap.Logger
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger) *DataService {
+func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger) *LogService {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		log.Println("shutting down data service")
+		log.Println("shutting down log service")
 	}()
-	return &DataService{
+	return &LogService{
 		logger: logger,
 	}
 }
 
-func (s *DataService) Run(ctx context.Context) error {
-	s.logger.Ctx(ctx).Info("running data service")
+func (s *LogService) Run(ctx context.Context) error {
+	s.logger.Ctx(ctx).Info("running log service")
 
 	if os.Getenv("DISABLED") == "true" {
-		log.Println("data service is disabled")
+		log.Println("log service is disabled")
 		return nil
 	}
 
