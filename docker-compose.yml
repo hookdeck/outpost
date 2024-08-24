@@ -4,7 +4,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: configs/api.Dockerfile
+      dockerfile: configs/dev/api.Dockerfile
     volumes:
       - .:/app
     depends_on:
@@ -18,7 +18,7 @@ services:
   delivery:
     build:
       context: .
-      dockerfile: configs/delivery.Dockerfile
+      dockerfile: configs/dev/delivery.Dockerfile
     volumes:
       - .:/app
     depends_on:
@@ -31,7 +31,7 @@ services:
   data:
     build:
       context: .
-      dockerfile: configs/data.Dockerfile
+      dockerfile: configs/dev/data.Dockerfile
     volumes:
       - .:/app
     depends_on:
