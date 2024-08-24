@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -82,8 +81,6 @@ func Parse(flags Flags) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("OpenTelemetry", OpenTelemetry, viper.GetString("OTEL_SERVICE_NAME"), os.Getenv("OTEL_SERVICE_NAME"))
 
 	return nil
 }
