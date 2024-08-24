@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/host"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
 )
 
@@ -73,14 +74,16 @@ func SetupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, er
 		}
 	}
 
-	// // Set up logger provider.
-	// loggerProvider, err := newLoggerProvider()
-	// if err != nil {
-	// 	handleErr(err)
-	// 	return
-	// }
-	// shutdownFuncs = append(shutdownFuncs, loggerProvider.Shutdown)
-	// global.SetLoggerProvider(loggerProvider)
+	// Set up logger provider.
+	loggerProvider, err := newLoggerProvider(ctx)
+	if err != nil {
+		handleErr(err)
+		return
+	}
+	if loggerProvider != nil {
+		shutdownFuncs = append(shutdownFuncs, loggerProvider.Shutdown)
+		global.SetLoggerProvider(loggerProvider)
+	}
 
 	return
 }

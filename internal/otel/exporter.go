@@ -5,13 +5,14 @@ import (
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/config"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 
-	// "go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
-
+	"go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/trace"
 )
@@ -34,6 +35,8 @@ func newTraceProvider(ctx context.Context) (*trace.TracerProvider, error) {
 			otlptracehttp.WithEndpointURL(ensureHTTPEndpoint("traces", config.OpenTelemetry.Traces.Endpoint)),
 		)
 	}
+	// traceExporter, err = stdouttrace.New()
+
 	if err != nil {
 		return nil, err
 	}
@@ -80,17 +83,34 @@ func newMeterProvider(ctx context.Context) (*metric.MeterProvider, error) {
 	return meterProvider, nil
 }
 
-// func newLoggerProvider() (*log.LoggerProvider, error) {
-// 	logExporter, err := stdoutlog.New()
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func newLoggerProvider(ctx context.Context) (*log.LoggerProvider, error) {
+	if config.OpenTelemetry.Logs == nil {
+		return nil, nil
+	}
 
-// 	loggerProvider := log.NewLoggerProvider(
-// 		log.WithProcessor(log.NewBatchProcessor(logExporter)),
-// 	)
-// 	return loggerProvider, nil
-// }
+	var err error
+	var logExporter log.Exporter
+	if config.OpenTelemetry.Logs.Protocol == config.OpenTelemetryProtocolGRPC {
+		logExporter, err = otlploggrpc.New(ctx,
+			otlploggrpc.WithInsecure(), // TODO: support TLS
+			otlploggrpc.WithEndpoint(config.OpenTelemetry.Logs.Endpoint),
+		)
+	} else {
+		logExporter, err = otlploghttp.New(ctx,
+			otlploghttp.WithInsecure(), // TODO: support TLS
+			otlploghttp.WithEndpointURL(ensureHTTPEndpoint("logs", config.OpenTelemetry.Logs.Endpoint)),
+		)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	loggerProvider := log.NewLoggerProvider(
+		log.WithProcessor(log.NewBatchProcessor(logExporter)),
+	)
+	return loggerProvider, nil
+}
 
 func ensureHTTPEndpoint(exporterType string, endpoint string) string {
 	fullEndpoint := endpoint
