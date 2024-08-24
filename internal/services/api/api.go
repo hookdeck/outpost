@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"sync"
@@ -32,14 +31,14 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger)
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		log.Println("shutting down api service")
+		logger.Ctx(ctx).Info("shutting down api service")
 		// make a new context for Shutdown
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := service.server.Shutdown(shutdownCtx); err != nil {
 			fmt.Fprintf(os.Stderr, "error shutting down http server: %s\n", err)
 		}
-		log.Println("http server shutted down")
+		logger.Ctx(ctx).Info("http server shutted down")
 	}()
 
 	return service
@@ -49,8 +48,7 @@ func (s *APIService) Run(ctx context.Context) error {
 	s.logger.Ctx(ctx).Info("running api service", zap.String("address", s.server.Addr))
 	go func() {
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Fprintf(os.Stderr, "error listening and serving: %s\n", err)
-			// return err
+			s.logger.Ctx(ctx).Error(fmt.Sprintf("error listening and serving: %s\n", err), zap.Error(err))
 		}
 	}()
 	return nil

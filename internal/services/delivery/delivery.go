@@ -2,10 +2,10 @@ package delivery
 
 import (
 	"context"
-	"log"
 	"sync"
 
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"go.uber.org/zap"
 )
 
 type DeliveryService struct {
@@ -17,7 +17,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger)
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		log.Println("shutting down log service")
+		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "delivery"))
 	}()
 	return &DeliveryService{
 		logger: logger,

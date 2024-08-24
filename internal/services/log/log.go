@@ -2,13 +2,13 @@ package log
 
 import (
 	"context"
-	"log"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"go.uber.org/zap"
 )
 
 type LogService struct {
@@ -20,7 +20,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger)
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		log.Println("shutting down log service")
+		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "log"))
 	}()
 	return &LogService{
 		logger: logger,
@@ -28,20 +28,22 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger)
 }
 
 func (s *LogService) Run(ctx context.Context) error {
-	s.logger.Ctx(ctx).Info("running log service")
+	s.logger.Ctx(ctx).Info("start service", zap.String("service", "log"))
 
 	if os.Getenv("DISABLED") == "true" {
-		log.Println("log service is disabled")
+		s.logger.Ctx(ctx).Info("service is disabled", zap.String("service", "log"))
 		return nil
 	}
 
 	for range time.Tick(time.Second * 1) {
 		keys, err := redis.Client().Keys(ctx, "destination:*").Result()
 		if err != nil {
-			log.Println(err)
+			s.logger.Ctx(ctx).Error("error",
+				zap.Error(err),
+			)
 			continue
 		}
-		log.Printf("%d destination(s)\n", len(keys))
+		s.logger.Ctx(ctx).Info("destination count", zap.Int("count", len(keys)))
 	}
 
 	return nil
