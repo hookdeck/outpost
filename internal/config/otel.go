@@ -48,7 +48,7 @@ func parseOpenTelemetryConfig() (*OpenTelemetryConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	logsConfig, err := parseLogsConfig(defaultEndpoint, "http/protobuf") // logs only supports http/protobuf for now
+	logsConfig, err := parseLogsConfig(defaultEndpoint, defaultProtocol)
 	if err != nil {
 		return nil, err
 	}
