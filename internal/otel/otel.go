@@ -3,7 +3,6 @@ package otel
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/host"
@@ -19,8 +18,6 @@ import (
 // SetupOTelSDK bootstraps the OpenTelemetry pipeline.
 // If it does not return an error, make sure to call shutdown for proper cleanup.
 func SetupOTelSDK(ctx context.Context, config *OpenTelemetryConfig) (shutdown func(context.Context) error, err error) {
-	fmt.Println("config", config)
-
 	var shutdownFuncs []func(context.Context) error
 
 	// shutdown calls cleanup functions registered via shutdownFuncs.

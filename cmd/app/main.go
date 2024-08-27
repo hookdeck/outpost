@@ -51,7 +51,6 @@ func run(mainContext context.Context) error {
 	ctx, cancel := context.WithCancel(mainContext)
 
 	// Set up OpenTelemetry.
-	fmt.Println("cfg.OpenTelemetry", cfg.OpenTelemetry)
 	if cfg.OpenTelemetry != nil {
 		otelShutdown, err := otel.SetupOTelSDK(ctx, cfg.OpenTelemetry)
 		if err != nil {
