@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -76,8 +75,6 @@ func Parse(flags Flags) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println(openTelemetry)
 
 	// Initialize config values
 	config := &Config{
