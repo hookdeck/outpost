@@ -11,6 +11,8 @@ import (
 )
 
 func TestDestinationModel(t *testing.T) {
+	t.Parallel()
+
 	redisClient := testutil.CreateTestRedisClient(t)
 	model := destination.NewDestinationModel(redisClient)
 
