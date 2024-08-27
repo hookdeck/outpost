@@ -6,24 +6,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/destination"
-	"github.com/hookdeck/EventKit/internal/redis"
+	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
-func getRedisClient() (*redis.Client, error) {
-	return redis.New(context.Background(), &redis.RedisConfig{
-		Host:     "localhost",
-		Port:     6379,
-		Password: "password",
-		Database: 0,
-	})
-}
-
 func TestDestinationModel(t *testing.T) {
-	redisClient, err := getRedisClient()
-	if err != nil {
-		t.Fatal(err)
-	}
+	redisClient := testutil.CreateTestRedisClient(t)
 	model := destination.NewDestinationModel(redisClient)
 
 	input := destination.Destination{
