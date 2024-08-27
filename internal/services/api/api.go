@@ -19,20 +19,20 @@ type APIService struct {
 	logger *otelzap.Logger
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, c *config.Config, logger *otelzap.Logger) (*APIService, error) {
+func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*APIService, error) {
 	wg.Add(1)
 
-	redisClient, err := redis.New(ctx, c)
+	redisClient, err := redis.New(ctx, cfg.Redis)
 	if err != nil {
 		return nil, err
 	}
 
-	router := NewRouter(c, logger, redisClient)
+	router := NewRouter(cfg, logger, redisClient)
 
 	service := &APIService{}
 	service.logger = logger
 	service.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", c.Port),
+		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: router,
 	}
 

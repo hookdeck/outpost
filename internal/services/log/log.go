@@ -17,7 +17,7 @@ type LogService struct {
 	redisClient *redis.Client
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, c *config.Config, logger *otelzap.Logger) (*LogService, error) {
+func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*LogService, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -25,7 +25,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, c *config.Config, logge
 		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "log"))
 	}()
 
-	redisClient, err := redis.New(ctx, c)
+	redisClient, err := redis.New(ctx, cfg.Redis)
 	if err != nil {
 		return nil, err
 	}

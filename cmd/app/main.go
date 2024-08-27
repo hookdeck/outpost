@@ -33,7 +33,7 @@ func main() {
 
 func run(mainContext context.Context) error {
 	flags := config.ParseFlags()
-	c, err := config.Parse(flags)
+	cfg, err := config.Parse(flags)
 	if err != nil {
 		return err
 	}
@@ -51,8 +51,9 @@ func run(mainContext context.Context) error {
 	ctx, cancel := context.WithCancel(mainContext)
 
 	// Set up OpenTelemetry.
-	if c.OpenTelemetry != nil {
-		otelShutdown, err := otel.SetupOTelSDK(ctx, c)
+	fmt.Println("cfg.OpenTelemetry", cfg.OpenTelemetry)
+	if cfg.OpenTelemetry != nil {
+		otelShutdown, err := otel.SetupOTelSDK(ctx, cfg.OpenTelemetry)
 		if err != nil {
 			cancel()
 			return err
@@ -71,24 +72,24 @@ func run(mainContext context.Context) error {
 	// Construct services based on config
 	services := []Service{}
 
-	if c.Service == config.ServiceTypeAPI || c.Service == config.ServiceTypeSingular {
-		service, err := api.NewService(ctx, wg, c, logger)
+	if cfg.Service == config.ServiceTypeAPI || cfg.Service == config.ServiceTypeSingular {
+		service, err := api.NewService(ctx, wg, cfg, logger)
 		if err != nil {
 			cancel()
 			return err
 		}
 		services = append(services, service)
 	}
-	if c.Service == config.ServiceTypeDelivery || c.Service == config.ServiceTypeSingular {
-		service, err := delivery.NewService(ctx, wg, c, logger)
+	if cfg.Service == config.ServiceTypeDelivery || cfg.Service == config.ServiceTypeSingular {
+		service, err := delivery.NewService(ctx, wg, cfg, logger)
 		if err != nil {
 			cancel()
 			return err
 		}
 		services = append(services, service)
 	}
-	if c.Service == config.ServiceTypeLog || c.Service == config.ServiceTypeSingular {
-		service, err := log.NewService(ctx, wg, c, logger)
+	if cfg.Service == config.ServiceTypeLog || cfg.Service == config.ServiceTypeSingular {
+		service, err := log.NewService(ctx, wg, cfg, logger)
 		if err != nil {
 			cancel()
 			return err

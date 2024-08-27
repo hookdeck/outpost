@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	r "github.com/redis/go-redis/v9"
 )
@@ -23,9 +22,9 @@ var (
 	initializationError error
 )
 
-func New(ctx context.Context, c *config.Config) (*r.Client, error) {
+func New(ctx context.Context, config *RedisConfig) (*r.Client, error) {
 	once.Do(func() {
-		initializeClient(ctx, c)
+		initializeClient(ctx, config)
 		initializationError = instrumentOpenTelemetry()
 	})
 	return client, initializationError
@@ -41,10 +40,10 @@ func instrumentOpenTelemetry() error {
 	return nil
 }
 
-func initializeClient(_ context.Context, c *config.Config) {
+func initializeClient(_ context.Context, config *RedisConfig) {
 	client = r.NewClient(&r.Options{
-		Addr:     fmt.Sprintf("%s:%d", c.RedisHost, c.RedisPort),
-		Password: c.RedisPassword,
-		DB:       c.RedisDatabase,
+		Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
+		Password: config.Password,
+		DB:       config.Database,
 	})
 }

@@ -1,35 +1,15 @@
 package config
 
 import (
-	"fmt"
-
-	"github.com/spf13/viper"
+	"github.com/hookdeck/EventKit/internal/otel"
+	v "github.com/spf13/viper"
 )
-
-type OpenTelemetryProtocol string
-
-const (
-	OpenTelemetryProtocolGRPC         OpenTelemetryProtocol = "grpc"
-	OpenTelemetryProtocolHTTPProtobuf OpenTelemetryProtocol = "http/protobuf"
-	OpenTelemetryProtocolHTTPJSON     OpenTelemetryProtocol = "http/json"
-)
-
-type OpenTelemetryTypeConfig struct {
-	Endpoint string
-	Protocol OpenTelemetryProtocol
-}
-
-type OpenTelemetryConfig struct {
-	Traces  *OpenTelemetryTypeConfig
-	Metrics *OpenTelemetryTypeConfig
-	Logs    *OpenTelemetryTypeConfig
-}
 
 // If the user has set OTEL_SERVICE_NAME, we assume they are managing their own OpenTelemetry configuration.
 // When parsing config, we assume if the user has set OTEL_EXPORTER_OTLP_ENDPOINT, they will use all 3
 // Traces, Metrics, and Logs.
 // If the user doesn't want to use all 3, they will have to specify each one individually.
-func parseOpenTelemetryConfig() (*OpenTelemetryConfig, error) {
+func parseOpenTelemetryConfig(viper *v.Viper) (*otel.OpenTelemetryConfig, error) {
 	if viper.GetString("OTEL_SERVICE_NAME") == "" {
 		return nil, nil
 	}
@@ -40,93 +20,81 @@ func parseOpenTelemetryConfig() (*OpenTelemetryConfig, error) {
 		defaultProtocol = "grpc"
 	}
 
-	tracesConfig, err := parseTracesConfig(defaultEndpoint, defaultProtocol)
+	tracesConfig, err := parseTracesConfig(viper, defaultEndpoint, defaultProtocol)
 	if err != nil {
 		return nil, err
 	}
-	metricsConfig, err := parseMetricsConfig(defaultEndpoint, defaultProtocol)
+	metricsConfig, err := parseMetricsConfig(viper, defaultEndpoint, defaultProtocol)
 	if err != nil {
 		return nil, err
 	}
-	logsConfig, err := parseLogsConfig(defaultEndpoint, defaultProtocol)
+	logsConfig, err := parseLogsConfig(viper, defaultEndpoint, defaultProtocol)
 	if err != nil {
 		return nil, err
 	}
 
-	return &OpenTelemetryConfig{
+	return &otel.OpenTelemetryConfig{
 		Traces:  tracesConfig,
 		Metrics: metricsConfig,
 		Logs:    logsConfig,
 	}, nil
 }
 
-func parseTracesConfig(defaultEndpoint, defaultProtocol string) (*OpenTelemetryTypeConfig, error) {
-	endpoint := getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", defaultEndpoint)
+func parseTracesConfig(viper *v.Viper, defaultEndpoint, defaultProtocol string) (*otel.OpenTelemetryTypeConfig, error) {
+	endpoint := getTypeSpecificWithDefault(viper, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", defaultEndpoint)
 	if endpoint == "" {
 		return nil, nil
 	}
 
-	protocol, err := OpenTelemetryProtocolFromString(getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", defaultProtocol))
+	protocol, err := otel.OpenTelemetryProtocolFromString(getTypeSpecificWithDefault(viper, "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", defaultProtocol))
 	if err != nil {
 		return nil, err
 	}
 
-	return &OpenTelemetryTypeConfig{
+	return &otel.OpenTelemetryTypeConfig{
 		Endpoint: endpoint,
 		Protocol: protocol,
 	}, nil
 }
 
-func parseMetricsConfig(defaultEndpoint, defaultProtocol string) (*OpenTelemetryTypeConfig, error) {
-	endpoint := getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", defaultEndpoint)
+func parseMetricsConfig(viper *v.Viper, defaultEndpoint, defaultProtocol string) (*otel.OpenTelemetryTypeConfig, error) {
+	endpoint := getTypeSpecificWithDefault(viper, "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", defaultEndpoint)
 	if endpoint == "" {
 		return nil, nil
 	}
 
-	protocol, err := OpenTelemetryProtocolFromString(getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", defaultProtocol))
+	protocol, err := otel.OpenTelemetryProtocolFromString(getTypeSpecificWithDefault(viper, "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", defaultProtocol))
 	if err != nil {
 		return nil, err
 	}
 
-	return &OpenTelemetryTypeConfig{
+	return &otel.OpenTelemetryTypeConfig{
 		Endpoint: endpoint,
 		Protocol: protocol,
 	}, nil
 }
 
-func parseLogsConfig(defaultEndpoint, defaultProtocol string) (*OpenTelemetryTypeConfig, error) {
-	endpoint := getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", defaultEndpoint)
+func parseLogsConfig(viper *v.Viper, defaultEndpoint, defaultProtocol string) (*otel.OpenTelemetryTypeConfig, error) {
+	endpoint := getTypeSpecificWithDefault(viper, "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", defaultEndpoint)
 	if endpoint == "" {
 		return nil, nil
 	}
 
-	protocol, err := OpenTelemetryProtocolFromString(getTypeSpecificWithDefault("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", defaultProtocol))
+	protocol, err := otel.OpenTelemetryProtocolFromString(getTypeSpecificWithDefault(viper, "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", defaultProtocol))
 	if err != nil {
 		return nil, err
 	}
 
-	return &OpenTelemetryTypeConfig{
+	return &otel.OpenTelemetryTypeConfig{
 		Endpoint: endpoint,
 		Protocol: protocol,
 	}, nil
 }
 
-func getTypeSpecificWithDefault(otelTypeKey string, defaultValue string) string {
+func getTypeSpecificWithDefault(viper *v.Viper, otelTypeKey string, defaultValue string) string {
 	value := viper.GetString(otelTypeKey)
 	if value == "" {
 		return defaultValue
 	}
 	return value
-}
-
-func OpenTelemetryProtocolFromString(s string) (OpenTelemetryProtocol, error) {
-	switch s {
-	case "grpc":
-		return OpenTelemetryProtocolGRPC, nil
-	case "http/protobuf":
-		return OpenTelemetryProtocolHTTPProtobuf, nil
-	case "http/json":
-		return OpenTelemetryProtocolHTTPJSON, nil
-	}
-	return OpenTelemetryProtocol(""), fmt.Errorf("unknown OpenTelemetry protocol: %s", s)
 }

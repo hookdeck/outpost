@@ -1,10 +1,13 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
 
+	"github.com/hookdeck/EventKit/internal/otel"
+	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/joho/godotenv"
 	v "github.com/spf13/viper"
 )
@@ -18,12 +21,8 @@ type Config struct {
 	Port     int
 	Hostname string
 
-	RedisHost     string
-	RedisPort     int
-	RedisPassword string
-	RedisDatabase int
-
-	OpenTelemetry *OpenTelemetryConfig
+	Redis         *redis.RedisConfig
+	OpenTelemetry *otel.OpenTelemetryConfig
 }
 
 var defaultConfig = map[string]any{
@@ -73,22 +72,24 @@ func Parse(flags Flags) (*Config, error) {
 	// Bind environemnt variable to viper
 	viper.AutomaticEnv()
 
-	openTelemetry, err := parseOpenTelemetryConfig()
+	openTelemetry, err := parseOpenTelemetryConfig(viper)
 	if err != nil {
 		return nil, err
 	}
 
-	viper.Get("PORT")
+	fmt.Println(openTelemetry)
 
 	// Initialize config values
 	config := &Config{
-		Hostname:      hostname,
-		Service:       service,
-		Port:          mustInt(viper, "PORT"),
-		RedisHost:     viper.GetString("REDIS_HOST"),
-		RedisPort:     mustInt(viper, "REDIS_PORT"),
-		RedisPassword: viper.GetString("REDIS_PASSWORD"),
-		RedisDatabase: mustInt(viper, "REDIS_DATABASE"),
+		Hostname: hostname,
+		Service:  service,
+		Port:     mustInt(viper, "PORT"),
+		Redis: &redis.RedisConfig{
+			Host:     viper.GetString("REDIS_HOST"),
+			Port:     mustInt(viper, "REDIS_PORT"),
+			Password: viper.GetString("REDIS_PASSWORD"),
+			Database: mustInt(viper, "REDIS_DATABASE"),
+		},
 		OpenTelemetry: openTelemetry,
 	}
 

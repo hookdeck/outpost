@@ -13,7 +13,7 @@ type DeliveryService struct {
 	logger *otelzap.Logger
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, c *config.Config, logger *otelzap.Logger) (*DeliveryService, error) {
+func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*DeliveryService, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

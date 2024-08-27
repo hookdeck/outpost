@@ -11,9 +11,9 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
-func NewRouter(c *config.Config, logger *otelzap.Logger, redisClient *redis.Client) http.Handler {
+func NewRouter(cfg *config.Config, logger *otelzap.Logger, redisClient *redis.Client) http.Handler {
 	r := gin.Default()
-	r.Use(otelgin.Middleware(c.Hostname))
+	r.Use(otelgin.Middleware(cfg.Hostname))
 
 	r.GET("/healthz", func(c *gin.Context) {
 		logger.Ctx(c.Request.Context()).Info("health check")
