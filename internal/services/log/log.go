@@ -6,25 +6,35 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
 type LogService struct {
-	logger *otelzap.Logger
+	logger      *otelzap.Logger
+	redisClient *redis.Client
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger) *LogService {
+func NewService(ctx context.Context, wg *sync.WaitGroup, c *config.Config, logger *otelzap.Logger) (*LogService, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
 		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "log"))
 	}()
-	return &LogService{
-		logger: logger,
+
+	redisClient, err := redis.New(ctx, c)
+	if err != nil {
+		return nil, err
 	}
+
+	service := &LogService{}
+	service.logger = logger
+	service.redisClient = redisClient
+
+	return service, nil
 }
 
 func (s *LogService) Run(ctx context.Context) error {
@@ -36,7 +46,7 @@ func (s *LogService) Run(ctx context.Context) error {
 	}
 
 	for range time.Tick(time.Second * 1) {
-		keys, err := redis.Client().Keys(ctx, "destination:*").Result()
+		keys, err := s.redisClient.Keys(ctx, "destination:*").Result()
 		if err != nil {
 			s.logger.Ctx(ctx).Error("error",
 				zap.Error(err),

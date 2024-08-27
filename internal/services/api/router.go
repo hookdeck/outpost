@@ -6,23 +6,21 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/destination"
+	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
-func NewRouter(logger *otelzap.Logger) http.Handler {
+func NewRouter(c *config.Config, logger *otelzap.Logger, redisClient *redis.Client) http.Handler {
 	r := gin.Default()
-
-	if config.OpenTelemetry != nil {
-		r.Use(otelgin.Middleware(config.Hostname))
-	}
+	r.Use(otelgin.Middleware(c.Hostname))
 
 	r.GET("/healthz", func(c *gin.Context) {
 		logger.Ctx(c.Request.Context()).Info("health check")
 		c.Status(http.StatusOK)
 	})
 
-	destinationHandlers := destination.NewHandlers()
+	destinationHandlers := destination.NewHandlers(redisClient)
 
 	r.GET("/destinations", destinationHandlers.List)
 	r.POST("/destinations", destinationHandlers.Create)

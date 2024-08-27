@@ -6,14 +6,14 @@ import (
 	"strconv"
 
 	"github.com/joho/godotenv"
-	"github.com/spf13/viper"
+	v "github.com/spf13/viper"
 )
 
 const (
 	Namespace = "EventKit"
 )
 
-var (
+type Config struct {
 	Service  ServiceType
 	Port     int
 	Hostname string
@@ -24,7 +24,7 @@ var (
 	RedisDatabase int
 
 	OpenTelemetry *OpenTelemetryConfig
-)
+}
 
 var defaultConfig = map[string]any{
 	"PORT":           3333,
@@ -34,12 +34,15 @@ var defaultConfig = map[string]any{
 	"REDIS_DATABASE": 0,
 }
 
-func Parse(flags Flags) error {
+func Parse(flags Flags) (*Config, error) {
 	var err error
 
-	Hostname, err = os.Hostname()
+	// Use a local Viper instance to avoid leaking configuration to global scope
+	viper := v.New()
+
+	hostname, err := os.Hostname()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Load .env file to environment variables
@@ -49,9 +52,9 @@ func Parse(flags Flags) error {
 	}
 
 	// Parse service type from flag
-	Service, err = ServiceTypeFromString(flags.Service)
+	service, err := ServiceTypeFromString(flags.Service)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Set default config values
@@ -63,29 +66,36 @@ func Parse(flags Flags) error {
 	if flags.Config != "" {
 		viper.SetConfigFile(flags.Config)
 		if err := viper.ReadInConfig(); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	// Bind environemnt variable to viper
 	viper.AutomaticEnv()
 
-	// Initialize config values
-	Port = mustInt("PORT")
-	RedisHost = viper.GetString("REDIS_HOST")
-	RedisPort = mustInt("REDIS_PORT")
-	RedisPassword = viper.GetString("REDIS_PASSWORD")
-	RedisDatabase = mustInt("REDIS_DATABASE")
-
-	OpenTelemetry, err = parseOpenTelemetryConfig()
+	openTelemetry, err := parseOpenTelemetryConfig()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	viper.Get("PORT")
+
+	// Initialize config values
+	config := &Config{
+		Hostname:      hostname,
+		Service:       service,
+		Port:          mustInt(viper, "PORT"),
+		RedisHost:     viper.GetString("REDIS_HOST"),
+		RedisPort:     mustInt(viper, "REDIS_PORT"),
+		RedisPassword: viper.GetString("REDIS_PASSWORD"),
+		RedisDatabase: mustInt(viper, "REDIS_DATABASE"),
+		OpenTelemetry: openTelemetry,
+	}
+
+	return config, nil
 }
 
-func mustInt(configName string) int {
+func mustInt(viper *v.Viper, configName string) int {
 	i, err := strconv.Atoi(viper.GetString(configName))
 	if err != nil {
 		log.Fatalf("%s = '%s' is not int", configName, viper.GetString(configName))

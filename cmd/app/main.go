@@ -11,7 +11,6 @@ import (
 
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/otel"
-	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/hookdeck/EventKit/internal/services/delivery"
 	"github.com/hookdeck/EventKit/internal/services/log"
@@ -34,7 +33,8 @@ func main() {
 
 func run(mainContext context.Context) error {
 	flags := config.ParseFlags()
-	if err := config.Parse(flags); err != nil {
+	c, err := config.Parse(flags)
+	if err != nil {
 		return err
 	}
 
@@ -51,8 +51,8 @@ func run(mainContext context.Context) error {
 	ctx, cancel := context.WithCancel(mainContext)
 
 	// Set up OpenTelemetry.
-	if config.OpenTelemetry != nil {
-		otelShutdown, err := otel.SetupOTelSDK(ctx)
+	if c.OpenTelemetry != nil {
+		otelShutdown, err := otel.SetupOTelSDK(ctx, c)
 		if err != nil {
 			cancel()
 			return err
@@ -61,12 +61,6 @@ func run(mainContext context.Context) error {
 		defer func() {
 			err = errors.Join(err, otelShutdown(context.Background()))
 		}()
-
-		// QUESTION: what if a service doesn't need Redis? Is it unnecessary to initalize the client here?
-		if err := redis.InstrumentOpenTelemetry(); err != nil {
-			cancel()
-			return err
-		}
 	}
 
 	// Initialize waitgroup
@@ -76,22 +70,30 @@ func run(mainContext context.Context) error {
 
 	// Construct services based on config
 	services := []Service{}
-	switch config.Service {
-	case config.ServiceTypeAPI:
-		services = append(services, api.NewService(ctx, wg, logger))
-	case config.ServiceTypeLog:
-		services = append(services, log.NewService(ctx, wg, logger))
-	case config.ServiceTypeDelivery:
-		services = append(services, delivery.NewService(ctx, wg, logger))
-	case config.ServiceTypeSingular:
-		services = append(services,
-			api.NewService(ctx, wg, logger),
-			log.NewService(ctx, wg, logger),
-			delivery.NewService(ctx, wg, logger),
-		)
-	default:
-		cancel()
-		return fmt.Errorf("unknown service: %s", flags.Service)
+
+	if c.Service == config.ServiceTypeAPI || c.Service == config.ServiceTypeSingular {
+		service, err := api.NewService(ctx, wg, c, logger)
+		if err != nil {
+			cancel()
+			return err
+		}
+		services = append(services, service)
+	}
+	if c.Service == config.ServiceTypeDelivery || c.Service == config.ServiceTypeSingular {
+		service, err := delivery.NewService(ctx, wg, c, logger)
+		if err != nil {
+			cancel()
+			return err
+		}
+		services = append(services, service)
+	}
+	if c.Service == config.ServiceTypeLog || c.Service == config.ServiceTypeSingular {
+		service, err := log.NewService(ctx, wg, c, logger)
+		if err != nil {
+			cancel()
+			return err
+		}
+		services = append(services, service)
 	}
 
 	// Start services

@@ -11,28 +11,27 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-
 	"go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/trace"
 )
 
-func newTraceProvider(ctx context.Context) (*trace.TracerProvider, error) {
-	if config.OpenTelemetry.Traces == nil {
+func newTraceProvider(ctx context.Context, c *config.Config) (*trace.TracerProvider, error) {
+	if c.OpenTelemetry.Traces == nil {
 		return nil, nil
 	}
 
 	var err error
 	var traceExporter trace.SpanExporter
-	if config.OpenTelemetry.Traces.Protocol == config.OpenTelemetryProtocolGRPC {
+	if c.OpenTelemetry.Traces.Protocol == config.OpenTelemetryProtocolGRPC {
 		traceExporter, err = otlptracegrpc.New(ctx,
 			otlptracegrpc.WithInsecure(), // TODO: support TLS
-			otlptracegrpc.WithEndpoint(config.OpenTelemetry.Traces.Endpoint),
+			otlptracegrpc.WithEndpoint(c.OpenTelemetry.Traces.Endpoint),
 		)
 	} else {
 		traceExporter, err = otlptracehttp.New(ctx,
 			otlptracehttp.WithInsecure(), // TODO: support TLS
-			otlptracehttp.WithEndpointURL(ensureHTTPEndpoint("traces", config.OpenTelemetry.Traces.Endpoint)),
+			otlptracehttp.WithEndpointURL(ensureHTTPEndpoint("traces", c.OpenTelemetry.Traces.Endpoint)),
 		)
 	}
 	// traceExporter, err = stdouttrace.New()
@@ -51,22 +50,22 @@ func newTraceProvider(ctx context.Context) (*trace.TracerProvider, error) {
 	return traceProvider, nil
 }
 
-func newMeterProvider(ctx context.Context) (*metric.MeterProvider, error) {
-	if config.OpenTelemetry.Metrics == nil {
+func newMeterProvider(ctx context.Context, c *config.Config) (*metric.MeterProvider, error) {
+	if c.OpenTelemetry.Metrics == nil {
 		return nil, nil
 	}
 
 	var err error
 	var metricExporter metric.Exporter
-	if config.OpenTelemetry.Metrics.Protocol == config.OpenTelemetryProtocolGRPC {
+	if c.OpenTelemetry.Metrics.Protocol == config.OpenTelemetryProtocolGRPC {
 		metricExporter, err = otlpmetricgrpc.New(ctx,
 			otlpmetricgrpc.WithInsecure(), // TODO: support TLS
-			otlpmetricgrpc.WithEndpoint(config.OpenTelemetry.Metrics.Endpoint),
+			otlpmetricgrpc.WithEndpoint(c.OpenTelemetry.Metrics.Endpoint),
 		)
 	} else {
 		metricExporter, err = otlpmetrichttp.New(ctx,
 			otlpmetrichttp.WithInsecure(), // TODO: support TLS
-			otlpmetrichttp.WithEndpointURL(ensureHTTPEndpoint("metrics", config.OpenTelemetry.Metrics.Endpoint)),
+			otlpmetrichttp.WithEndpointURL(ensureHTTPEndpoint("metrics", c.OpenTelemetry.Metrics.Endpoint)),
 		)
 	}
 
@@ -83,22 +82,22 @@ func newMeterProvider(ctx context.Context) (*metric.MeterProvider, error) {
 	return meterProvider, nil
 }
 
-func newLoggerProvider(ctx context.Context) (*log.LoggerProvider, error) {
-	if config.OpenTelemetry.Logs == nil {
+func newLoggerProvider(ctx context.Context, c *config.Config) (*log.LoggerProvider, error) {
+	if c.OpenTelemetry.Logs == nil {
 		return nil, nil
 	}
 
 	var err error
 	var logExporter log.Exporter
-	if config.OpenTelemetry.Logs.Protocol == config.OpenTelemetryProtocolGRPC {
+	if c.OpenTelemetry.Logs.Protocol == config.OpenTelemetryProtocolGRPC {
 		logExporter, err = otlploggrpc.New(ctx,
 			otlploggrpc.WithInsecure(), // TODO: support TLS
-			otlploggrpc.WithEndpoint(config.OpenTelemetry.Logs.Endpoint),
+			otlploggrpc.WithEndpoint(c.OpenTelemetry.Logs.Endpoint),
 		)
 	} else {
 		logExporter, err = otlploghttp.New(ctx,
 			otlploghttp.WithInsecure(), // TODO: support TLS
-			otlploghttp.WithEndpointURL(ensureHTTPEndpoint("logs", config.OpenTelemetry.Logs.Endpoint)),
+			otlploghttp.WithEndpointURL(ensureHTTPEndpoint("logs", c.OpenTelemetry.Logs.Endpoint)),
 		)
 	}
 

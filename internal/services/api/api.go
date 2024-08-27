@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/config"
+	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
@@ -18,15 +19,22 @@ type APIService struct {
 	logger *otelzap.Logger
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger) *APIService {
+func NewService(ctx context.Context, wg *sync.WaitGroup, c *config.Config, logger *otelzap.Logger) (*APIService, error) {
+	wg.Add(1)
+
+	redisClient, err := redis.New(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+
+	router := NewRouter(c, logger, redisClient)
+
 	service := &APIService{}
 	service.logger = logger
 	service.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", config.Port),
-		Handler: NewRouter(logger),
+		Addr:    fmt.Sprintf(":%d", c.Port),
+		Handler: router,
 	}
-
-	wg.Add(1)
 
 	go func() {
 		defer wg.Done()
@@ -41,7 +49,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger)
 		logger.Ctx(ctx).Info("http server shutted down")
 	}()
 
-	return service
+	return service, nil
 }
 
 func (s *APIService) Run(ctx context.Context) error {

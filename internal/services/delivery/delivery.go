@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
@@ -12,16 +13,19 @@ type DeliveryService struct {
 	logger *otelzap.Logger
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, logger *otelzap.Logger) *DeliveryService {
+func NewService(ctx context.Context, wg *sync.WaitGroup, c *config.Config, logger *otelzap.Logger) (*DeliveryService, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
 		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "delivery"))
 	}()
-	return &DeliveryService{
+
+	service := &DeliveryService{
 		logger: logger,
 	}
+
+	return service, nil
 }
 
 func (s *DeliveryService) Run(ctx context.Context) error {
