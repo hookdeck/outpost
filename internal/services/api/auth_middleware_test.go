@@ -12,7 +12,7 @@ import (
 func setupRouter(apiKey string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.Default()
-	r.Use(authMiddleware(apiKey))
+	r.Use(apiKeyAuthMiddleware(apiKey))
 	r.GET("/healthz", func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
@@ -51,7 +51,7 @@ func TestPublicRouter(t *testing.T) {
 	})
 }
 
-func TestPrivateRouter(t *testing.T) {
+func TestPrivateAPIKeyRouter(t *testing.T) {
 	t.Parallel()
 
 	const apiKey = "key"

@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func authMiddleware(apiKey string) gin.HandlerFunc {
+func apiKeyAuthMiddleware(apiKey string) gin.HandlerFunc {
 	if apiKey == "" {
 		return func(c *gin.Context) {
 			c.Next()
