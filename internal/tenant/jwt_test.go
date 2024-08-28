@@ -35,6 +35,13 @@ func TestJWT(t *testing.T) {
 		assert.True(t, valid)
 	})
 
+	t.Run("should reject an invalid token", func(t *testing.T) {
+		t.Parallel()
+		valid, err := tenant.JWT.Verify(jwtKey, "invalid_token", tenantID)
+		assert.ErrorContains(t, err, "token is malformed")
+		assert.NotEqual(t, true, valid)
+	})
+
 	t.Run("should reject a token from a different issuer", func(t *testing.T) {
 		t.Parallel()
 		now := time.Now()
