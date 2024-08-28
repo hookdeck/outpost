@@ -7,6 +7,7 @@ import (
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/destination"
 	"github.com/hookdeck/EventKit/internal/redis"
+	"github.com/hookdeck/EventKit/internal/tenant"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
@@ -20,6 +21,13 @@ func NewRouter(cfg *config.Config, logger *otelzap.Logger, redisClient *redis.Cl
 		logger.Ctx(c.Request.Context()).Info("health check")
 		c.Status(http.StatusOK)
 	})
+
+	tenantHandlers := tenant.NewHandlers(logger, redisClient)
+
+	r.PUT("/:tenantID", tenantHandlers.Upsert)
+	r.GET("/:tenantID", tenantHandlers.Retrieve)
+	r.DELETE("/:tenantID", tenantHandlers.Delete)
+	r.GET("/:tenantID/portal", tenantHandlers.RetrievePortal)
 
 	destinationHandlers := destination.NewHandlers(redisClient)
 
