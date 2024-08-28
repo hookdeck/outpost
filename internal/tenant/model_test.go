@@ -32,11 +32,11 @@ func TestTenantModel(t *testing.T) {
 		err := model.Set(context.Background(), input)
 		assert.Nil(t, err, "model.Set() should not return an error")
 
-		value, err := redisClient.Get(context.Background(), "tenant:"+input.ID).Result()
+		hash, err := redisClient.HGetAll(context.Background(), "tenant:"+input.ID).Result()
 		if err != nil {
 			t.Fatal(err)
 		}
-		assert.Equal(t, input.CreatedAt, value, "model.Set() should set tenant created timestamp %s", input.CreatedAt)
+		assert.Equal(t, input.CreatedAt, hash["created_at"], "model.Set() should set tenant created timestamp %s", input.CreatedAt)
 	})
 
 	t.Run("gets", func(t *testing.T) {

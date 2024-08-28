@@ -8,8 +8,8 @@ import (
 )
 
 type Tenant struct {
-	ID        string `json:"id"`
-	CreatedAt string `json:"created_at"`
+	ID        string `json:"id" redis:"id"`
+	CreatedAt string `json:"created_at" redis:"created_at"`
 }
 
 type TenantModel struct {
@@ -23,37 +23,51 @@ func NewTenantModel(redisClient *redis.Client) *TenantModel {
 }
 
 func (m *TenantModel) Get(c context.Context, id string) (*Tenant, error) {
-	destination, err := m.redisClient.Get(c, redisTenantID(id)).Result()
-	if err == redis.Nil {
-		return nil, nil
-	} else if err != nil {
+	hash, err := m.redisClient.HGetAll(c, redisTenantID(id)).Result()
+	if err != nil {
 		return nil, err
 	}
-	return &Tenant{
-		ID:        id,
-		CreatedAt: destination,
-	}, nil
+	if len(hash) == 0 {
+		return nil, nil
+	}
+	tenant := &Tenant{}
+	if err = tenant.parseRedisHash(hash); err != nil {
+		return nil, err
+	}
+	return tenant, nil
 }
 
 func (m *TenantModel) Set(c context.Context, tenant Tenant) error {
-	if err := m.redisClient.Set(c, redisTenantID(tenant.ID), tenant.CreatedAt, 0).Err(); err != nil {
+	if err := m.redisClient.HSet(c, redisTenantID(tenant.ID), tenant).Err(); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (m *TenantModel) Clear(c context.Context, id string) (*Tenant, error) {
-	destination, err := m.Get(c, id)
+	tenant, err := m.Get(c, id)
 	if err != nil {
 		return nil, err
 	}
-	if destination == nil {
+	if tenant == nil {
 		return nil, nil
 	}
 	if err := m.redisClient.Del(c, redisTenantID(id)).Err(); err != nil {
 		return nil, err
 	}
-	return destination, nil
+	return tenant, nil
+}
+
+func (t *Tenant) parseRedisHash(hash map[string]string) error {
+	if hash["id"] == "" {
+		return fmt.Errorf("missing id")
+	}
+	t.ID = hash["id"]
+	if hash["created_at"] == "" {
+		return fmt.Errorf("missing created_at")
+	}
+	t.CreatedAt = hash["created_at"]
+	return nil
 }
 
 func redisTenantID(tenantID string) string {
