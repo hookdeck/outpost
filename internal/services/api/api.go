@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/config"
+	"github.com/hookdeck/EventKit/internal/destination"
 	"github.com/hookdeck/EventKit/internal/redis"
+	"github.com/hookdeck/EventKit/internal/tenant"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
@@ -27,7 +29,15 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		return nil, err
 	}
 
-	router := NewRouter(cfg, logger, redisClient)
+	router := NewRouter(
+		RouterConfig{
+			Hostname:  cfg.Hostname,
+			APIKey:    cfg.APIKey,
+			JWTSecret: cfg.JWTSecret,
+		},
+		tenant.NewHandlers(logger, redisClient, cfg.JWTSecret),
+		destination.NewHandlers(redisClient),
+	)
 
 	service := &APIService{}
 	service.logger = logger

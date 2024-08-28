@@ -4,25 +4,28 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/destination"
-	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/hookdeck/EventKit/internal/tenant"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
-func NewRouter(cfg *config.Config, logger *otelzap.Logger, redisClient *redis.Client) http.Handler {
+type RouterConfig struct {
+	Hostname  string
+	APIKey    string
+	JWTSecret string
+}
+
+func NewRouter(
+	cfg RouterConfig,
+	tenantHandlers *tenant.TenantHandlers,
+	destinationHandlers *destination.DestinationHandlers,
+) http.Handler {
 	r := gin.Default()
 	r.Use(otelgin.Middleware(cfg.Hostname))
 
 	r.GET("/healthz", func(c *gin.Context) {
-		logger.Ctx(c.Request.Context()).Info("health check")
 		c.Status(http.StatusOK)
 	})
-
-	tenantHandlers := tenant.NewHandlers(logger, redisClient, cfg.JWTSecret)
-	destinationHandlers := destination.NewHandlers(redisClient)
 
 	// Admin router is a router group with the API key auth mechanism.
 	adminRouter := r.Group("/", apiKeyAuthMiddleware(cfg.APIKey))

@@ -66,6 +66,9 @@ func apiKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFu
 }
 
 func extractBearerToken(header string) (string, error) {
+	if header == "" {
+		return "", nil
+	}
 	if !strings.HasPrefix(header, "Bearer ") {
 		return "", errors.New("invalid bearer token")
 	}
