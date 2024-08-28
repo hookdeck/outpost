@@ -15,7 +15,6 @@ import (
 func NewRouter(cfg *config.Config, logger *otelzap.Logger, redisClient *redis.Client) http.Handler {
 	r := gin.Default()
 	r.Use(otelgin.Middleware(cfg.Hostname))
-	r.Use(apiKeyAuthMiddleware(cfg.APIKey))
 
 	r.GET("/healthz", func(c *gin.Context) {
 		logger.Ctx(c.Request.Context()).Info("health check")
@@ -23,13 +22,25 @@ func NewRouter(cfg *config.Config, logger *otelzap.Logger, redisClient *redis.Cl
 	})
 
 	tenantHandlers := tenant.NewHandlers(logger, redisClient, cfg.JWTSecret)
-
-	r.PUT("/:tenantID", tenantHandlers.Upsert)
-	r.GET("/:tenantID", tenantHandlers.Retrieve)
-	r.DELETE("/:tenantID", tenantHandlers.Delete)
-	r.GET("/:tenantID/portal", tenantHandlers.RetrievePortal)
-
 	destinationHandlers := destination.NewHandlers(redisClient)
+
+	// Admin router is a router group with the API key auth mechanism.
+	adminRouter := r.Group("/", apiKeyAuthMiddleware(cfg.APIKey))
+
+	adminRouter.PUT("/:tenantID", tenantHandlers.Upsert)
+	adminRouter.GET("/:tenantID/portal", tenantHandlers.RetrievePortal)
+
+	// Tenant router is a router group that accepts either
+	// - a tenant's JWT token OR
+	// - the preconfigured API key
+	//
+	// If the EventKit service deployment isn't configured with an API key, then
+	// it's assumed that the service runs in a secure environment
+	// and the JWT check is NOT necessary either.
+	tenantRouter := r.Group("/", apiKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret))
+
+	tenantRouter.GET("/:tenantID", tenantHandlers.Retrieve)
+	tenantRouter.DELETE("/:tenantID", tenantHandlers.Delete)
 
 	r.GET("/destinations", destinationHandlers.List)
 	r.POST("/destinations", destinationHandlers.Create)

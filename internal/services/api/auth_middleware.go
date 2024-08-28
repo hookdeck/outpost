@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hookdeck/EventKit/internal/tenant"
 )
 
 func apiKeyAuthMiddleware(apiKey string) gin.HandlerFunc {
@@ -24,6 +25,37 @@ func apiKeyAuthMiddleware(apiKey string) gin.HandlerFunc {
 			return
 		}
 		if authorizationToken != apiKey {
+			// TODO: Consider sending a more detailed error message.
+			// Currently we don't have clear specs on how to send back error message.
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		c.Next()
+	}
+}
+
+func apiKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authorizationToken, err := extractBearerToken(c.GetHeader("Authorization"))
+		if err != nil {
+			// TODO: Consider sending a more detailed error message.
+			// Currently we don't have clear specs on how to send back error message.
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		if authorizationToken == apiKey {
+			c.Next()
+			return
+		}
+		tenantID := c.Param("tenantID")
+		valid, err := tenant.JWT.Verify(jwtKey, authorizationToken, tenantID)
+		if err != nil {
+			// TODO: Consider sending a more detailed error message.
+			// Currently we don't have clear specs on how to send back error message.
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		if !valid {
 			// TODO: Consider sending a more detailed error message.
 			// Currently we don't have clear specs on how to send back error message.
 			c.AbortWithStatus(http.StatusUnauthorized)
