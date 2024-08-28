@@ -14,6 +14,7 @@ import (
 func NewRouter(cfg *config.Config, logger *otelzap.Logger, redisClient *redis.Client) http.Handler {
 	r := gin.Default()
 	r.Use(otelgin.Middleware(cfg.Hostname))
+	r.Use(authMiddleware(cfg.APIKey))
 
 	r.GET("/healthz", func(c *gin.Context) {
 		logger.Ctx(c.Request.Context()).Info("health check")

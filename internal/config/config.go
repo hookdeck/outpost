@@ -19,6 +19,7 @@ type Config struct {
 	Service  ServiceType
 	Port     int
 	Hostname string
+	APIKey   string
 
 	Redis         *redis.RedisConfig
 	OpenTelemetry *otel.OpenTelemetryConfig
@@ -81,6 +82,7 @@ func Parse(flags Flags) (*Config, error) {
 		Hostname: hostname,
 		Service:  service,
 		Port:     getPort(viper),
+		APIKey:   viper.GetString("API_KEY"),
 		Redis: &redis.RedisConfig{
 			Host:     viper.GetString("REDIS_HOST"),
 			Port:     mustInt(viper, "REDIS_PORT"),
