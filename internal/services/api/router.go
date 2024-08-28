@@ -22,7 +22,7 @@ func NewRouter(cfg *config.Config, logger *otelzap.Logger, redisClient *redis.Cl
 		c.Status(http.StatusOK)
 	})
 
-	tenantHandlers := tenant.NewHandlers(logger, redisClient)
+	tenantHandlers := tenant.NewHandlers(logger, redisClient, cfg.JWTSecret)
 
 	r.PUT("/:tenantID", tenantHandlers.Upsert)
 	r.GET("/:tenantID", tenantHandlers.Retrieve)

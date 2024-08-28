@@ -11,14 +11,16 @@ import (
 )
 
 type TenantHandlers struct {
-	logger *otelzap.Logger
-	model  *TenantModel
+	logger    *otelzap.Logger
+	model     *TenantModel
+	jwtSecret string
 }
 
-func NewHandlers(logger *otelzap.Logger, redisClient *redis.Client) *TenantHandlers {
+func NewHandlers(logger *otelzap.Logger, redisClient *redis.Client, jwtSecret string) *TenantHandlers {
 	return &TenantHandlers{
-		logger: logger,
-		model:  NewTenantModel(redisClient),
+		logger:    logger,
+		model:     NewTenantModel(redisClient),
+		jwtSecret: jwtSecret,
 	}
 }
 
@@ -95,5 +97,25 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 }
 
 func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
-	c.Status(http.StatusNotImplemented)
+	logger := h.logger.Ctx(c.Request.Context())
+	tenantID := c.Param("tenantID")
+	tenant, err := h.model.Get(c.Request.Context(), tenantID)
+	if err != nil {
+		logger.Error("failed to get tenant", zap.Error(err))
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	if tenant == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	jwtToken, err := JWT.New(h.jwtSecret, tenantID)
+	if err != nil {
+		logger.Error("failed to create jwt token", zap.Error(err))
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"redirect_url": "https://example.com?token=" + jwtToken,
+	})
 }

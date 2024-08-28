@@ -31,7 +31,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
 	model := tenant.NewTenantModel(redisClient)
-	handlers := tenant.NewHandlers(logger, redisClient)
+	handlers := tenant.NewHandlers(logger, redisClient, "")
 	router := setupRouter(handlers)
 
 	t.Run("should create when there's no existing tenant", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
 	model := tenant.NewTenantModel(redisClient)
-	handlers := tenant.NewHandlers(logger, redisClient)
+	handlers := tenant.NewHandlers(logger, redisClient, "")
 	router := setupRouter(handlers)
 
 	t.Run("should return 404 when there's no tenant", func(t *testing.T) {
@@ -138,7 +138,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
 	model := tenant.NewTenantModel(redisClient)
-	handlers := tenant.NewHandlers(logger, redisClient)
+	handlers := tenant.NewHandlers(logger, redisClient, "")
 	router := setupRouter(handlers)
 
 	t.Run("should return 404 when there's no tenant", func(t *testing.T) {
