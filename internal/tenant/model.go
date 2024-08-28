@@ -3,13 +3,14 @@ package tenant
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hookdeck/EventKit/internal/redis"
 )
 
 type Tenant struct {
-	ID        string `json:"id" redis:"id"`
-	CreatedAt string `json:"created_at" redis:"created_at"`
+	ID        string    `json:"id" redis:"id"`
+	CreatedAt time.Time `json:"created_at" redis:"created_at"`
 }
 
 type TenantModel struct {
@@ -66,7 +67,11 @@ func (t *Tenant) parseRedisHash(hash map[string]string) error {
 	if hash["created_at"] == "" {
 		return fmt.Errorf("missing created_at")
 	}
-	t.CreatedAt = hash["created_at"]
+	createdAt, err := time.Parse(time.RFC3339Nano, hash["created_at"])
+	if err != nil {
+		return err
+	}
+	t.CreatedAt = createdAt
 	return nil
 }
 

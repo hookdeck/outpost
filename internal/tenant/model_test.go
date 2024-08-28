@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/tenant"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
@@ -19,7 +20,7 @@ func TestTenantModel(t *testing.T) {
 
 	input := tenant.Tenant{
 		ID:        uuid.New().String(),
-		CreatedAt: time.Now().String(),
+		CreatedAt: time.Now(),
 	}
 
 	t.Run("gets empty", func(t *testing.T) {
@@ -36,30 +37,34 @@ func TestTenantModel(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		assert.Equal(t, input.CreatedAt, hash["created_at"], "model.Set() should set tenant created timestamp %s", input.CreatedAt)
+		createdAt, err := time.Parse(time.RFC3339Nano, hash["created_at"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.True(t, input.CreatedAt.Equal(createdAt), "model.Set() should set tenant created timestamp %s", input.CreatedAt)
 	})
 
 	t.Run("gets", func(t *testing.T) {
 		actual, err := model.Get(context.Background(), input.ID)
 		assert.Nil(t, err, "model.Get() should not return an error")
-		assert.Equal(t, input, *actual, "model.Get() should return %s", input)
+		assert.True(t, cmp.Equal(input, *actual), "model.Get() should return %s", input)
 	})
 
 	t.Run("overrides", func(t *testing.T) {
-		input.CreatedAt = time.Now().String()
+		input.CreatedAt = time.Now()
 
 		err := model.Set(context.Background(), input)
-		assert.Nil(t, err, "model.Set() should not return an error", input)
+		assert.Nil(t, err, "model.Set() should not return an error")
 
 		actual, err := model.Get(context.Background(), input.ID)
 		assert.Nil(t, err, "model.Get() should not return an error")
-		assert.Equal(t, input, *actual, "model.Get() should return %s", input)
+		assert.True(t, cmp.Equal(input, *actual), "model.Get() should return %s", input)
 	})
 
 	t.Run("clears", func(t *testing.T) {
 		deleted, err := model.Clear(context.Background(), input.ID)
 		assert.Nil(t, err, "model.Clear() should not return an error")
-		assert.Equal(t, *deleted, input, "model.Clear() should return deleted value", input)
+		assert.True(t, cmp.Equal(*deleted, input), "model.Clear() should return deleted value")
 
 		actual, err := model.Get(context.Background(), input.ID)
 		assert.Nil(t, actual, "model.Clear() should properly remove value")

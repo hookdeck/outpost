@@ -43,7 +43,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	// Create new tenant.
 	tenant = &Tenant{
 		ID:        tenantID,
-		CreatedAt: time.Now().String(),
+		CreatedAt: time.Now(),
 	}
 	if err := h.model.Set(c.Request.Context(), *tenant); err != nil {
 		logger.Error("failed to set tenant", zap.Error(err))

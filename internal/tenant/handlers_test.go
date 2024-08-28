@@ -57,7 +57,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 		// Setup
 		existingResource := tenant.Tenant{
 			ID:        uuid.New().String(),
-			CreatedAt: time.Now().String(),
+			CreatedAt: time.Now(),
 		}
 		model.Set(context.Background(), existingResource)
 
@@ -71,7 +71,11 @@ func TestDestinationUpsertHandler(t *testing.T) {
 		// Test
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, existingResource.ID, response["id"])
-		assert.Equal(t, existingResource.CreatedAt, response["created_at"])
+		createdAt, err := time.Parse(time.RFC3339Nano, response["created_at"].(string))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.True(t, existingResource.CreatedAt.Equal(createdAt))
 
 		// Cleanup
 		model.Clear(context.Background(), existingResource.ID)
@@ -103,7 +107,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 		// Setup
 		existingResource := tenant.Tenant{
 			ID:        uuid.New().String(),
-			CreatedAt: time.Now().String(),
+			CreatedAt: time.Now(),
 		}
 		model.Set(context.Background(), existingResource)
 
@@ -114,10 +118,14 @@ func TestTenantRetrieveHandler(t *testing.T) {
 		var response map[string]any
 		json.Unmarshal(w.Body.Bytes(), &response)
 
-		// Assert
+		// Test
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, existingResource.ID, response["id"])
-		assert.Equal(t, existingResource.CreatedAt, response["created_at"])
+		createdAt, err := time.Parse(time.RFC3339Nano, response["created_at"].(string))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.True(t, existingResource.CreatedAt.Equal(createdAt))
 
 		// Cleanup
 		model.Clear(context.Background(), existingResource.ID)
@@ -149,7 +157,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 		// Setup
 		existingResource := tenant.Tenant{
 			ID:        uuid.New().String(),
-			CreatedAt: time.Now().String(),
+			CreatedAt: time.Now(),
 		}
 		model.Set(context.Background(), existingResource)
 
