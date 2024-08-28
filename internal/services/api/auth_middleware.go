@@ -2,7 +2,6 @@ package api
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -24,15 +23,12 @@ func authMiddleware(apiKey string) gin.HandlerFunc {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-
-		fmt.Println(apiKey)
 		if authorizationToken != apiKey {
 			// TODO: Consider sending a more detailed error message.
 			// Currently we don't have clear specs on how to send back error message.
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-
 		c.Next()
 	}
 }
