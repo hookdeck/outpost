@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .Chart.Name }}"
+  labels:
+    app: eventkit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eventkit-api
+  template:
+    metadata:
+      labels:
+        app: eventkit-api
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}-api
+          image: "{{ .Values.eventkit.image.repository }}:{{ .Values.eventkit.image.tag }}"
+          imagePullPolicy: {{ .Values.eventkit.image.pullPolicy }}
+          command: ["/bin/eventkit", "--service", "api"]
+          env:
+            - name: REDIS_HOST
+              value: "{{ .Values.eventkit.config.redis.host }}"
+            - name: REDIS_PORT
+              value: "{{ .Values.eventkit.config.redis.port }}"
+            - name: REDIS_PASSWORD
+              {{- if ne "" .Values.eventkit.config.redis.passwordSecretName }}
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ .Values.eventkit.config.redis.passwordSecretName }}"
+                  key: "{{ .Values.eventkit.config.redis.passwordSecretKey }}"
+              {{- else }}
+              value: "{{ .Values.eventkit.config.redis.password }}"
+              {{- end }}
+            - name: REDIS_DATABASE
+              value: "{{ .Values.eventkit.config.redis.database }}"

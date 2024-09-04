@@ -1,0 +1,6 @@
+eventkit:
+  config:
+    redis:
+      host: "eventkit-redis-master"
+      passwordSecretName: "eventkit-redis"
+      passwordSecretKey: "redis-password"
