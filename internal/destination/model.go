@@ -41,7 +41,6 @@ func NewDestinationModel(redisClient *redis.Client) *DestinationModel {
 func (m *DestinationModel) Get(c context.Context, id string) (*Destination, error) {
 	cmd := m.redisClient.HGetAll(c, redisDestinationID(id))
 	hash, err := cmd.Result()
-	fmt.Println(hash)
 	if err != nil {
 		return nil, err
 	}
