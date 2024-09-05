@@ -1,4 +1,4 @@
-package tenant_test
+package api_test
 
 import (
 	"context"
@@ -8,32 +8,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/tenant"
-	"github.com/hookdeck/EventKit/internal/util/testutil"
+	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/stretchr/testify/assert"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
-
-func setupRouter(tenantHandlers *tenant.TenantHandlers, logger *otelzap.Logger, model *tenant.TenantModel) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	r := gin.Default()
-	r.PUT("/:tenantID", tenantHandlers.Upsert)
-	r.GET("/:tenantID", tenant.RequireTenantMiddleware(logger, model), tenantHandlers.Retrieve)
-	r.DELETE("/:tenantID", tenant.RequireTenantMiddleware(logger, model), tenantHandlers.Delete)
-	r.GET("/:tenantID/portal", tenantHandlers.RetrievePortal)
-	return r
-}
 
 func TestDestinationUpsertHandler(t *testing.T) {
 	t.Parallel()
 
-	logger := testutil.CreateTestLogger(t)
-	redisClient := testutil.CreateTestRedisClient(t)
-	model := tenant.NewTenantModel(redisClient)
-	handlers := tenant.NewTenantHandlers(logger, redisClient, "")
-	router := setupRouter(handlers, logger, model)
+	router, _, redisClient := setupTestRouter(t, "", "")
+	model := models.NewTenantModel(redisClient)
 
 	t.Run("should create when there's no existing tenant", func(t *testing.T) {
 		t.Parallel()
@@ -56,7 +40,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 		t.Parallel()
 
 		// Setup
-		existingResource := tenant.Tenant{
+		existingResource := models.Tenant{
 			ID:        uuid.New().String(),
 			CreatedAt: time.Now(),
 		}
@@ -86,11 +70,8 @@ func TestDestinationUpsertHandler(t *testing.T) {
 func TestTenantRetrieveHandler(t *testing.T) {
 	t.Parallel()
 
-	logger := testutil.CreateTestLogger(t)
-	redisClient := testutil.CreateTestRedisClient(t)
-	model := tenant.NewTenantModel(redisClient)
-	handlers := tenant.NewTenantHandlers(logger, redisClient, "")
-	router := setupRouter(handlers, logger, model)
+	router, _, redisClient := setupTestRouter(t, "", "")
+	model := models.NewTenantModel(redisClient)
 
 	t.Run("should return 404 when there's no tenant", func(t *testing.T) {
 		t.Parallel()
@@ -106,7 +87,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 		t.Parallel()
 
 		// Setup
-		existingResource := tenant.Tenant{
+		existingResource := models.Tenant{
 			ID:        uuid.New().String(),
 			CreatedAt: time.Now(),
 		}
@@ -136,11 +117,8 @@ func TestTenantRetrieveHandler(t *testing.T) {
 func TestTenantDeleteHandler(t *testing.T) {
 	t.Parallel()
 
-	logger := testutil.CreateTestLogger(t)
-	redisClient := testutil.CreateTestRedisClient(t)
-	model := tenant.NewTenantModel(redisClient)
-	handlers := tenant.NewTenantHandlers(logger, redisClient, "")
-	router := setupRouter(handlers, logger, model)
+	router, _, redisClient := setupTestRouter(t, "", "")
+	model := models.NewTenantModel(redisClient)
 
 	t.Run("should return 404 when there's no tenant", func(t *testing.T) {
 		t.Parallel()
@@ -156,7 +134,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 		t.Parallel()
 
 		// Setup
-		existingResource := tenant.Tenant{
+		existingResource := models.Tenant{
 			ID:        uuid.New().String(),
 			CreatedAt: time.Now(),
 		}

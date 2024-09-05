@@ -6,10 +6,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hookdeck/EventKit/internal/tenant"
 )
 
-func apiKeyAuthMiddleware(apiKey string) gin.HandlerFunc {
+func APIKeyAuthMiddleware(apiKey string) gin.HandlerFunc {
 	if apiKey == "" {
 		return func(c *gin.Context) {
 			c.Next()
@@ -34,7 +33,7 @@ func apiKeyAuthMiddleware(apiKey string) gin.HandlerFunc {
 	}
 }
 
-func apiKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
+func APIKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authorizationToken, err := extractBearerToken(c.GetHeader("Authorization"))
 		if err != nil {
@@ -48,7 +47,7 @@ func apiKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFu
 			return
 		}
 		tenantID := c.Param("tenantID")
-		valid, err := tenant.JWT.Verify(jwtKey, authorizationToken, tenantID)
+		valid, err := JWT.Verify(jwtKey, authorizationToken, tenantID)
 		if err != nil {
 			// TODO: Consider sending a more detailed error message.
 			// Currently we don't have clear specs on how to send back error message.

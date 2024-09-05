@@ -1,4 +1,4 @@
-package tenant_test
+package models_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/tenant"
+	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,9 +16,9 @@ func TestTenantModel(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	model := tenant.NewTenantModel(redisClient)
+	model := models.NewTenantModel(redisClient)
 
-	input := tenant.Tenant{
+	input := models.Tenant{
 		ID:        uuid.New().String(),
 		CreatedAt: time.Now(),
 	}

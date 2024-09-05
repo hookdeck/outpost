@@ -4,8 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hookdeck/EventKit/internal/destination"
-	"github.com/hookdeck/EventKit/internal/tenant"
+	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
@@ -18,10 +17,9 @@ type RouterConfig struct {
 
 func NewRouter(
 	cfg RouterConfig,
-	tenantHandlers *tenant.TenantHandlers,
-	destinationHandlers *destination.DestinationHandlers,
-	tenantModel *tenant.TenantModel,
 	logger *otelzap.Logger,
+	tenantModel *models.TenantModel,
+	destinationModel *models.DestinationModel,
 ) http.Handler {
 	r := gin.Default()
 	r.Use(otelgin.Middleware(cfg.Hostname))
@@ -30,8 +28,11 @@ func NewRouter(
 		c.Status(http.StatusOK)
 	})
 
+	tenantHandlers := NewTenantHandlers(logger, tenantModel, cfg.JWTSecret)
+	destinationHandlers := NewDestinationHandlers(logger, destinationModel)
+
 	// Admin router is a router group with the API key auth mechanism.
-	adminRouter := r.Group("/", apiKeyAuthMiddleware(cfg.APIKey))
+	adminRouter := r.Group("/", APIKeyAuthMiddleware(cfg.APIKey))
 
 	adminRouter.PUT("/:tenantID", tenantHandlers.Upsert)
 	adminRouter.GET("/:tenantID/portal", tenantHandlers.RetrievePortal)
@@ -43,7 +44,7 @@ func NewRouter(
 	// If the EventKit service deployment isn't configured with an API key, then
 	// it's assumed that the service runs in a secure environment
 	// and the JWT check is NOT necessary either.
-	tenantRouter := r.Group("/", apiKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret), tenant.RequireTenantMiddleware(logger, tenantModel))
+	tenantRouter := r.Group("/", APIKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret), requireTenantMiddleware(logger, tenantModel))
 
 	tenantRouter.GET("/:tenantID", tenantHandlers.Retrieve)
 	tenantRouter.DELETE("/:tenantID", tenantHandlers.Delete)

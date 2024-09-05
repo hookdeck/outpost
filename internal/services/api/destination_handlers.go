@@ -1,4 +1,4 @@
-package destination
+package api
 
 import (
 	"log"
@@ -7,20 +7,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/redis"
+	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
 type DestinationHandlers struct {
 	logger *otelzap.Logger
-	model  *DestinationModel
+	model  *models.DestinationModel
 }
 
-func NewDestinationHandlers(logger *otelzap.Logger, redisClient *redis.Client) *DestinationHandlers {
+func NewDestinationHandlers(logger *otelzap.Logger, model *models.DestinationModel) *DestinationHandlers {
 	return &DestinationHandlers{
 		logger: logger,
-		model:  NewDestinationModel(redisClient),
+		model:  model,
 	}
 }
 
@@ -35,7 +35,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		return
 	}
 	id := uuid.New().String()
-	destination := Destination{
+	destination := models.Destination{
 		ID:         id,
 		Type:       json.Type,
 		Topics:     json.Topics,
@@ -112,4 +112,16 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, destination)
+}
+
+// ===== Requests =====
+
+type CreateDestinationRequest struct {
+	Type   string   `json:"type" binding:"required"`
+	Topics []string `json:"topics" binding:"required"`
+}
+
+type UpdateDestinationRequest struct {
+	Type   string   `json:"type" binding:"-"`
+	Topics []string `json:"topics" binding:"-"`
 }

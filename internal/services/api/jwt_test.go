@@ -1,11 +1,11 @@
-package tenant_test
+package api_test
 
 import (
 	"testing"
 	"time"
 
-	jwt "github.com/golang-jwt/jwt/v5"
-	"github.com/hookdeck/EventKit/internal/tenant"
+	"github.com/golang-jwt/jwt/v5"
+	api "github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,25 +19,25 @@ func TestJWT(t *testing.T) {
 
 	t.Run("should generate a new jwt token", func(t *testing.T) {
 		t.Parallel()
-		token, err := tenant.JWT.New(jwtKey, tenantID)
+		token, err := api.JWT.New(jwtKey, tenantID)
 		assert.Nil(t, err)
 		assert.NotEqual(t, "", token)
 	})
 
 	t.Run("should verify a valid jwt token", func(t *testing.T) {
 		t.Parallel()
-		token, err := tenant.JWT.New(jwtKey, tenantID)
+		token, err := api.JWT.New(jwtKey, tenantID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		valid, err := tenant.JWT.Verify(jwtKey, token, tenantID)
+		valid, err := api.JWT.Verify(jwtKey, token, tenantID)
 		assert.Nil(t, err)
 		assert.True(t, valid)
 	})
 
 	t.Run("should reject an invalid token", func(t *testing.T) {
 		t.Parallel()
-		valid, err := tenant.JWT.Verify(jwtKey, "invalid_token", tenantID)
+		valid, err := api.JWT.Verify(jwtKey, "invalid_token", tenantID)
 		assert.ErrorContains(t, err, "token is malformed")
 		assert.NotEqual(t, true, valid)
 	})
@@ -55,7 +55,7 @@ func TestJWT(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		valid, err := tenant.JWT.Verify(jwtKey, token, tenantID)
+		valid, err := api.JWT.Verify(jwtKey, token, tenantID)
 		assert.ErrorContains(t, err, "token has invalid claims: token has invalid issuer")
 		assert.NotEqual(t, true, valid)
 	})
@@ -73,7 +73,7 @@ func TestJWT(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		valid, err := tenant.JWT.Verify(jwtKey, token, tenantID)
+		valid, err := api.JWT.Verify(jwtKey, token, tenantID)
 		assert.ErrorContains(t, err, "token has invalid claims: token has invalid subject")
 		assert.NotEqual(t, true, valid)
 	})
@@ -91,7 +91,7 @@ func TestJWT(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		valid, err := tenant.JWT.Verify(jwtKey, token, tenantID)
+		valid, err := api.JWT.Verify(jwtKey, token, tenantID)
 		assert.ErrorContains(t, err, "token has invalid claims: token is expired")
 		assert.NotEqual(t, true, valid)
 	})

@@ -1,9 +1,9 @@
-package tenant
+package api
 
 import (
 	"time"
 
-	jwt "github.com/golang-jwt/jwt/v5"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 const issuer = "eventkit"

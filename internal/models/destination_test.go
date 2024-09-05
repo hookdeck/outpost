@@ -1,4 +1,4 @@
-package destination_test
+package models_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/destination"
+	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,9 +16,9 @@ func TestDestinationModel(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	model := destination.NewDestinationModel(redisClient)
+	model := models.NewDestinationModel(redisClient)
 
-	input := destination.Destination{
+	input := models.Destination{
 		ID:         uuid.New().String(),
 		Type:       "webhooks",
 		Topics:     []string{"user.created", "user.updated"},
@@ -65,7 +65,7 @@ func TestDestinationModel(t *testing.T) {
 	})
 }
 
-func assertEqualDestination(t *testing.T, expected, actual destination.Destination) {
+func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assert.Equal(t, expected.ID, actual.ID)
 	assert.Equal(t, expected.Type, actual.Type)
 	assert.Equal(t, expected.Topics, actual.Topics)

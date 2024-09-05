@@ -1,4 +1,4 @@
-package destination_test
+package api_test
 
 import (
 	"context"
@@ -9,10 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/destination"
-	"github.com/hookdeck/EventKit/internal/util/testutil"
+	"github.com/hookdeck/EventKit/internal/models"
+	api "github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,24 +21,10 @@ func baseTenantPath(id string) string {
 	return "/" + id
 }
 
-func setupRouter(destinationHandlers *destination.DestinationHandlers) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	r := gin.Default()
-	r.GET("/:tenantID/destinations", destinationHandlers.List)
-	r.POST("/:tenantID/destinations", destinationHandlers.Create)
-	r.GET("/:tenantID/destinations/:destinationID", destinationHandlers.Retrieve)
-	r.PATCH("/:tenantID/destinations/:destinationID", destinationHandlers.Update)
-	r.DELETE("/:tenantID/destinations/:destinationID", destinationHandlers.Delete)
-	return r
-}
-
 func TestDestinationListHandler(t *testing.T) {
 	t.Parallel()
 
-	redisClient := testutil.CreateTestRedisClient(t)
-	logger := testutil.CreateTestLogger(t)
-	handlers := destination.NewDestinationHandlers(logger, redisClient)
-	router := setupRouter(handlers)
+	router, _, _ := setupTestRouter(t, "", "")
 
 	t.Run("should return 501", func(t *testing.T) {
 		t.Parallel()
@@ -53,17 +38,14 @@ func TestDestinationListHandler(t *testing.T) {
 func TestDestinationCreateHandler(t *testing.T) {
 	t.Parallel()
 
-	redisClient := testutil.CreateTestRedisClient(t)
-	logger := testutil.CreateTestLogger(t)
-	handlers := destination.NewDestinationHandlers(logger, redisClient)
-	router := setupRouter(handlers)
+	router, _, _ := setupTestRouter(t, "", "")
 
 	t.Run("should create", func(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
 
-		exampleDestination := destination.CreateDestinationRequest{
+		exampleDestination := api.CreateDestinationRequest{
 			Type:   "webhooks",
 			Topics: []string{"user.created", "user.updated"},
 		}
@@ -85,11 +67,8 @@ func TestDestinationCreateHandler(t *testing.T) {
 func TestDestinationRetrieveHandler(t *testing.T) {
 	t.Parallel()
 
-	redisClient := testutil.CreateTestRedisClient(t)
-	logger := testutil.CreateTestLogger(t)
-	handlers := destination.NewDestinationHandlers(logger, redisClient)
-	model := destination.NewDestinationModel(redisClient)
-	router := setupRouter(handlers)
+	router, _, redisClient := setupTestRouter(t, "", "")
+	model := models.NewDestinationModel(redisClient)
 
 	t.Run("should return 404 when there's no destination", func(t *testing.T) {
 		t.Parallel()
@@ -105,7 +84,7 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 		t.Parallel()
 
 		// Setup test destination
-		exampleDestination := destination.Destination{
+		exampleDestination := models.Destination{
 			ID:        uuid.New().String(),
 			Type:      "webhooks",
 			Topics:    []string{"user.created", "user.updated"},
@@ -135,20 +114,17 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 func TestDestinationUpdateHandler(t *testing.T) {
 	t.Parallel()
 
-	redisClient := testutil.CreateTestRedisClient(t)
-	logger := testutil.CreateTestLogger(t)
-	handlers := destination.NewDestinationHandlers(logger, redisClient)
-	model := destination.NewDestinationModel(redisClient)
-	router := setupRouter(handlers)
+	router, _, redisClient := setupTestRouter(t, "", "")
+	model := models.NewDestinationModel(redisClient)
 
-	initialDestination := destination.Destination{
+	initialDestination := models.Destination{
 		ID:        uuid.New().String(),
 		Type:      "webhooks",
 		Topics:    []string{"user.created", "user.updated"},
 		CreatedAt: time.Now(),
 	}
 
-	updateDestinationRequest := destination.UpdateDestinationRequest{
+	updateDestinationRequest := api.UpdateDestinationRequest{
 		Type: "not-webhooks",
 	}
 	updateDestinationJSON, _ := json.Marshal(updateDestinationRequest)
@@ -199,11 +175,8 @@ func TestDestinationUpdateHandler(t *testing.T) {
 }
 
 func TestDestinationDeleteHandler(t *testing.T) {
-	redisClient := testutil.CreateTestRedisClient(t)
-	logger := testutil.CreateTestLogger(t)
-	handlers := destination.NewDestinationHandlers(logger, redisClient)
-	model := destination.NewDestinationModel(redisClient)
-	router := setupRouter(handlers)
+	router, _, redisClient := setupTestRouter(t, "", "")
+	model := models.NewDestinationModel(redisClient)
 
 	t.Run("should return 404 when there's no destination", func(t *testing.T) {
 		t.Parallel()
@@ -219,7 +192,7 @@ func TestDestinationDeleteHandler(t *testing.T) {
 		t.Parallel()
 
 		// Setup initial destination
-		newDestination := destination.Destination{
+		newDestination := models.Destination{
 			ID:        uuid.New().String(),
 			Type:      "webhooks",
 			Topics:    []string{"user.created", "user.updated"},

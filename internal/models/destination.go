@@ -1,4 +1,4 @@
-package destination
+package models
 
 import (
 	"context"
@@ -16,16 +16,6 @@ type Destination struct {
 	Topics     strings    `json:"topics" redis:"-"` // type not supported by redis-go
 	CreatedAt  time.Time  `json:"created_at" redis:"created_at"`
 	DisabledAt *time.Time `json:"disabled_at" redis:"disabled_at"`
-}
-
-type CreateDestinationRequest struct {
-	Type   string   `json:"type" binding:"required"`
-	Topics []string `json:"topics" binding:"required"`
-}
-
-type UpdateDestinationRequest struct {
-	Type   string   `json:"type" binding:"-"`
-	Topics []string `json:"topics" binding:"-"`
 }
 
 type DestinationModel struct {
