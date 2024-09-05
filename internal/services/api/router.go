@@ -44,16 +44,16 @@ func NewRouter(
 	// If the EventKit service deployment isn't configured with an API key, then
 	// it's assumed that the service runs in a secure environment
 	// and the JWT check is NOT necessary either.
-	tenantRouter := r.Group("/", APIKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret), requireTenantMiddleware(logger, tenantModel))
+	tenantRouter := r.Group("/", APIKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret), RequireTenantMiddleware(logger, tenantModel))
 
 	tenantRouter.GET("/:tenantID", tenantHandlers.Retrieve)
 	tenantRouter.DELETE("/:tenantID", tenantHandlers.Delete)
 
-	r.GET("/:tenantID/destinations", destinationHandlers.List)
-	r.POST("/:tenantID/destinations", destinationHandlers.Create)
-	r.GET("/:tenantID/destinations/:destinationID", destinationHandlers.Retrieve)
-	r.PATCH("/:tenantID/destinations/:destinationID", destinationHandlers.Update)
-	r.DELETE("/:tenantID/destinations/:destinationID", destinationHandlers.Delete)
+	tenantRouter.GET("/:tenantID/destinations", destinationHandlers.List)
+	tenantRouter.POST("/:tenantID/destinations", destinationHandlers.Create)
+	tenantRouter.GET("/:tenantID/destinations/:destinationID", destinationHandlers.Retrieve)
+	tenantRouter.PATCH("/:tenantID/destinations/:destinationID", destinationHandlers.Update)
+	tenantRouter.DELETE("/:tenantID/destinations/:destinationID", destinationHandlers.Delete)
 
 	return r
 }

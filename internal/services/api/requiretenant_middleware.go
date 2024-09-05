@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,10 +10,12 @@ import (
 	"go.uber.org/zap"
 )
 
-func requireTenantMiddleware(logger *otelzap.Logger, model *models.TenantModel) gin.HandlerFunc {
+func RequireTenantMiddleware(logger *otelzap.Logger, model *models.TenantModel) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantID := c.Param("tenantID")
+		fmt.Println("=================================================================", tenantID)
 		tenant, err := model.Get(c.Request.Context(), tenantID)
+		fmt.Println("=================================================================", tenantID, tenant)
 		if err != nil {
 			logger.Error("failed to get tenant", zap.Error(err))
 			c.AbortWithStatus(http.StatusInternalServerError)

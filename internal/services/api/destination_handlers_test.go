@@ -11,20 +11,33 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/models"
+	"github.com/hookdeck/EventKit/internal/redis"
 	api "github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/stretchr/testify/assert"
 )
-
-var tenantID = uuid.New().String()
 
 func baseTenantPath(id string) string {
 	return "/" + id
 }
 
+func setupExistingTenant(t *testing.T, redisClient *redis.Client) string {
+	tenant := models.Tenant{
+		ID:        uuid.New().String(),
+		CreatedAt: time.Now(),
+	}
+	model := models.NewTenantModel(redisClient)
+	err := model.Set(context.Background(), tenant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tenant.ID
+}
+
 func TestDestinationListHandler(t *testing.T) {
 	t.Parallel()
 
-	router, _, _ := setupTestRouter(t, "", "")
+	router, _, redisClient := setupTestRouter(t, "", "")
+	tenantID := setupExistingTenant(t, redisClient)
 
 	t.Run("should return 501", func(t *testing.T) {
 		t.Parallel()
@@ -38,7 +51,8 @@ func TestDestinationListHandler(t *testing.T) {
 func TestDestinationCreateHandler(t *testing.T) {
 	t.Parallel()
 
-	router, _, _ := setupTestRouter(t, "", "")
+	router, _, redisClient := setupTestRouter(t, "", "")
+	tenantID := setupExistingTenant(t, redisClient)
 
 	t.Run("should create", func(t *testing.T) {
 		t.Parallel()
@@ -69,6 +83,7 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 
 	router, _, redisClient := setupTestRouter(t, "", "")
 	model := models.NewDestinationModel(redisClient)
+	tenantID := setupExistingTenant(t, redisClient)
 
 	t.Run("should return 404 when there's no destination", func(t *testing.T) {
 		t.Parallel()
@@ -116,6 +131,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 
 	router, _, redisClient := setupTestRouter(t, "", "")
 	model := models.NewDestinationModel(redisClient)
+	tenantID := setupExistingTenant(t, redisClient)
 
 	initialDestination := models.Destination{
 		ID:        uuid.New().String(),
@@ -175,8 +191,11 @@ func TestDestinationUpdateHandler(t *testing.T) {
 }
 
 func TestDestinationDeleteHandler(t *testing.T) {
+	t.Parallel()
+
 	router, _, redisClient := setupTestRouter(t, "", "")
 	model := models.NewDestinationModel(redisClient)
+	tenantID := setupExistingTenant(t, redisClient)
 
 	t.Run("should return 404 when there's no destination", func(t *testing.T) {
 		t.Parallel()
