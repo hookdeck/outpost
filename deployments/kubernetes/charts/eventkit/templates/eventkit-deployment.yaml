@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: "{{ .Chart.Name }}"
+  name: "{{ .Chart.Name }}-api"
   labels:
     app: eventkit
 spec:
@@ -15,23 +15,57 @@ spec:
         app: eventkit-api
     spec:
       containers:
-        - name: {{ .Chart.Name }}-api
+        - name: "{{ .Chart.Name }}-api"
           image: "{{ .Values.eventkit.image.repository }}:{{ .Values.eventkit.image.tag }}"
           imagePullPolicy: {{ .Values.eventkit.image.pullPolicy }}
           command: ["/bin/eventkit", "--service", "api"]
           env:
-            - name: REDIS_HOST
-              value: "{{ .Values.eventkit.config.redis.host }}"
-            - name: REDIS_PORT
-              value: "{{ .Values.eventkit.config.redis.port }}"
-            - name: REDIS_PASSWORD
-              {{- if ne "" .Values.eventkit.config.redis.passwordSecretName }}
-              valueFrom:
-                secretKeyRef:
-                  name: "{{ .Values.eventkit.config.redis.passwordSecretName }}"
-                  key: "{{ .Values.eventkit.config.redis.passwordSecretKey }}"
-              {{- else }}
-              value: "{{ .Values.eventkit.config.redis.password }}"
-              {{- end }}
-            - name: REDIS_DATABASE
-              value: "{{ .Values.eventkit.config.redis.database }}"
+{{ include "eventkit.env" . | indent 12 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .Chart.Name }}-delivery"
+  labels:
+    app: eventkit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eventkit-delivery
+  template:
+    metadata:
+      labels:
+        app: eventkit-delivery
+    spec:
+      containers:
+        - name: "{{ .Chart.Name }}-delivery"
+          image: "{{ .Values.eventkit.image.repository }}:{{ .Values.eventkit.image.tag }}"
+          imagePullPolicy: {{ .Values.eventkit.image.pullPolicy }}
+          command: ["/bin/eventkit", "--service", "delivery"]
+          env:
+{{ include "eventkit.env" . | indent 12 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .Chart.Name }}-log"
+  labels:
+    app: eventkit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eventkit-log
+  template:
+    metadata:
+      labels:
+        app: eventkit-log
+    spec:
+      containers:
+        - name: "{{ .Chart.Name }}-log"
+          image: "{{ .Values.eventkit.image.repository }}:{{ .Values.eventkit.image.tag }}"
+          imagePullPolicy: {{ .Values.eventkit.image.pullPolicy }}
+          command: ["/bin/eventkit", "--service", "log"]
+          env:
+{{ include "eventkit.env" . | indent 12 }}
