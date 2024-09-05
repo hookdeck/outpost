@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -30,7 +31,8 @@ func TestDestinationListHandler(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	handlers := destination.NewHandlers(redisClient)
+	logger := testutil.CreateTestLogger(t)
+	handlers := destination.NewHandlers(logger, redisClient)
 	router := setupRouter(handlers)
 
 	t.Run("should return 501", func(t *testing.T) {
@@ -46,7 +48,8 @@ func TestDestinationCreateHandler(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	handlers := destination.NewHandlers(redisClient)
+	logger := testutil.CreateTestLogger(t)
+	handlers := destination.NewHandlers(logger, redisClient)
 	router := setupRouter(handlers)
 
 	t.Run("should create", func(t *testing.T) {
@@ -55,7 +58,8 @@ func TestDestinationCreateHandler(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		exampleDestination := destination.CreateDestinationRequest{
-			Name: "Test Destination",
+			Type:   "webhooks",
+			Topics: []string{"user.created", "user.updated"},
 		}
 		destinationJSON, _ := json.Marshal(exampleDestination)
 		req, _ := http.NewRequest("POST", "/destinations", strings.NewReader(string(destinationJSON)))
@@ -65,8 +69,10 @@ func TestDestinationCreateHandler(t *testing.T) {
 		json.Unmarshal(w.Body.Bytes(), &destinationResponse)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
-		assert.Equal(t, exampleDestination.Name, destinationResponse["name"])
+		assert.Equal(t, exampleDestination.Type, destinationResponse["type"])
+		assertMarshalEqual(t, exampleDestination.Topics, destinationResponse["topics"])
 		assert.NotEqual(t, "", destinationResponse["id"])
+		assert.NotEqual(t, "", destinationResponse["created_at"])
 	})
 }
 
@@ -74,7 +80,9 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	handlers := destination.NewHandlers(redisClient)
+	logger := testutil.CreateTestLogger(t)
+	handlers := destination.NewHandlers(logger, redisClient)
+	model := destination.NewDestinationModel(redisClient)
 	router := setupRouter(handlers)
 
 	t.Run("should return 404 when there's no destination", func(t *testing.T) {
@@ -92,10 +100,12 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 
 		// Setup test destination
 		exampleDestination := destination.Destination{
-			ID:   uuid.New().String(),
-			Name: "Test Destination",
+			ID:        uuid.New().String(),
+			Type:      "webhooks",
+			Topics:    []string{"user.created", "user.updated"},
+			CreatedAt: time.Now(),
 		}
-		redisClient.Set(context.Background(), "destination:"+exampleDestination.ID, exampleDestination.Name, 0)
+		model.Set(context.Background(), exampleDestination)
 
 		// Test HTTP request
 		w := httptest.NewRecorder()
@@ -107,7 +117,9 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, exampleDestination.ID, destinationResponse["id"])
-		assert.Equal(t, exampleDestination.Name, destinationResponse["name"])
+		assert.Equal(t, exampleDestination.Type, destinationResponse["type"])
+		assertMarshalEqual(t, exampleDestination.Topics, destinationResponse["topics"])
+		assert.Equal(t, exampleDestination.CreatedAt.Format(time.RFC3339Nano), destinationResponse["created_at"])
 
 		// Clean up
 		redisClient.Del(context.Background(), "destination:"+exampleDestination.ID)
@@ -118,15 +130,20 @@ func TestDestinationUpdateHandler(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	handlers := destination.NewHandlers(redisClient)
+	logger := testutil.CreateTestLogger(t)
+	handlers := destination.NewHandlers(logger, redisClient)
+	model := destination.NewDestinationModel(redisClient)
 	router := setupRouter(handlers)
 
 	initialDestination := destination.Destination{
-		Name: "Test Destination",
+		ID:        uuid.New().String(),
+		Type:      "webhooks",
+		Topics:    []string{"user.created", "user.updated"},
+		CreatedAt: time.Now(),
 	}
 
 	updateDestinationRequest := destination.UpdateDestinationRequest{
-		Name: "Updated Destination",
+		Type: "not-webhooks",
 	}
 	updateDestinationJSON, _ := json.Marshal(updateDestinationRequest)
 
@@ -154,30 +171,32 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		t.Parallel()
 
 		// Setup initial destination
-		newDestination := initialDestination
-		newDestination.ID = uuid.New().String()
-		redisClient.Set(context.Background(), "destination:"+newDestination.ID, newDestination.Name, 0)
+		model.Set(context.Background(), initialDestination)
 
 		// Test HTTP request
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PATCH", "/destinations/"+newDestination.ID, strings.NewReader(string(updateDestinationJSON)))
+		req, _ := http.NewRequest("PATCH", "/destinations/"+initialDestination.ID, strings.NewReader(string(updateDestinationJSON)))
 		router.ServeHTTP(w, req)
 
 		var destinationResponse map[string]any
 		json.Unmarshal(w.Body.Bytes(), &destinationResponse)
 
 		assert.Equal(t, http.StatusAccepted, w.Code)
-		assert.Equal(t, newDestination.ID, destinationResponse["id"])
-		assert.Equal(t, updateDestinationRequest.Name, destinationResponse["name"])
+		assert.Equal(t, initialDestination.ID, destinationResponse["id"])
+		assert.Equal(t, updateDestinationRequest.Type, destinationResponse["type"])
+		assertMarshalEqual(t, updateDestinationRequest.Topics, destinationResponse["topics"])
+		assert.Equal(t, initialDestination.CreatedAt.Format(time.RFC3339Nano), destinationResponse["created_at"])
 
 		// Clean up
-		redisClient.Del(context.Background(), "destination:"+newDestination.ID)
+		redisClient.Del(context.Background(), "destination:"+initialDestination.ID)
 	})
 }
 
 func TestDestinationDeleteHandler(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
-	handlers := destination.NewHandlers(redisClient)
+	logger := testutil.CreateTestLogger(t)
+	handlers := destination.NewHandlers(logger, redisClient)
+	model := destination.NewDestinationModel(redisClient)
 	router := setupRouter(handlers)
 
 	t.Run("should return 404 when there's no destination", func(t *testing.T) {
@@ -195,11 +214,14 @@ func TestDestinationDeleteHandler(t *testing.T) {
 
 		// Setup initial destination
 		newDestination := destination.Destination{
-			ID:   uuid.New().String(),
-			Name: "Test Destination",
+			ID:        uuid.New().String(),
+			Type:      "webhooks",
+			Topics:    []string{"user.created", "user.updated"},
+			CreatedAt: time.Now(),
 		}
-		redisClient.Set(context.Background(), "destination:"+newDestination.ID, newDestination.Name, 0)
+		model.Set(context.Background(), newDestination)
 
+		// Test HTTP request
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("DELETE", "/destinations/"+newDestination.ID, nil)
 		router.ServeHTTP(w, req)
@@ -209,6 +231,21 @@ func TestDestinationDeleteHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, newDestination.ID, destinationResponse["id"])
-		assert.Equal(t, newDestination.Name, destinationResponse["name"])
+		assert.Equal(t, newDestination.Type, destinationResponse["type"])
+		assertMarshalEqual(t, newDestination.Topics, destinationResponse["topics"])
+		assert.Equal(t, newDestination.CreatedAt.Format(time.RFC3339Nano), destinationResponse["created_at"])
 	})
+}
+
+// assertMarshalEqual asserts two value by marshalling them to JSON and comparing the result.
+func assertMarshalEqual(t *testing.T, expected any, actual any, msgAndArgs ...interface{}) {
+	expectedJSON, err := json.Marshal(expected)
+	if err != nil {
+		t.Fatal(err, "failed to marshal value: %v", expected)
+	}
+	actualJSON, _ := json.Marshal(actual)
+	if err != nil {
+		t.Fatal(err, "failed to marshal value: %v", actual)
+	}
+	assert.Equal(t, string(expectedJSON), string(actualJSON), msgAndArgs...)
 }

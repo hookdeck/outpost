@@ -15,6 +15,7 @@ const (
 )
 
 type Client = r.Client
+type Pipeliner = r.Pipeliner
 
 var (
 	once                sync.Once

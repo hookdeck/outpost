@@ -3,7 +3,9 @@ package destination_test
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/destination"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
@@ -17,51 +19,56 @@ func TestDestinationModel(t *testing.T) {
 	model := destination.NewDestinationModel(redisClient)
 
 	input := destination.Destination{
-		ID:   uuid.New().String(),
-		Name: "Test Destination",
+		ID:         uuid.New().String(),
+		Type:       "webhooks",
+		Topics:     []string{"user.created", "user.updated"},
+		CreatedAt:  time.Now(),
+		DisabledAt: nil,
 	}
 
 	t.Run("gets empty", func(t *testing.T) {
 		actual, err := model.Get(context.Background(), input.ID)
-		assert.Nil(t, actual, "model.Get() should return nil when there's no value")
-		assert.Nil(t, err, "model.Get() should not return an error when there's no value")
+		assert.Nil(t, actual)
+		assert.Nil(t, err)
 	})
 
 	t.Run("sets", func(t *testing.T) {
 		err := model.Set(context.Background(), input)
-		assert.Nil(t, err, "model.Set() should not return an error")
-
-		value, err := redisClient.Get(context.Background(), "destination:"+input.ID).Result()
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert.Equal(t, input.Name, value, "model.Set() should set destination name %s", input.Name)
+		assert.Nil(t, err)
 	})
 
 	t.Run("gets", func(t *testing.T) {
 		actual, err := model.Get(context.Background(), input.ID)
-		assert.Nil(t, err, "model.Get() should not return an error")
-		assert.Equal(t, input, *actual, "model.Get() should return %s", input)
+		assert.Nil(t, err)
+		assertEqualDestination(t, input, *actual)
 	})
 
 	t.Run("overrides", func(t *testing.T) {
-		input.Name = "Test Destination 2"
+		input.Type = "not-webhooks"
 
 		err := model.Set(context.Background(), input)
-		assert.Nil(t, err, "model.Set() should not return an error", input)
+		assert.Nil(t, err)
 
 		actual, err := model.Get(context.Background(), input.ID)
-		assert.Nil(t, err, "model.Get() should not return an error")
-		assert.Equal(t, input, *actual, "model.Get() should return %s", input)
+		assert.Nil(t, err)
+		assertEqualDestination(t, input, *actual)
 	})
 
 	t.Run("clears", func(t *testing.T) {
 		deleted, err := model.Clear(context.Background(), input.ID)
-		assert.Nil(t, err, "model.Clear() should not return an error")
-		assert.Equal(t, *deleted, input, "model.Clear() should return deleted value", input)
+		assert.Nil(t, err)
+		assertEqualDestination(t, input, *deleted)
 
 		actual, err := model.Get(context.Background(), input.ID)
-		assert.Nil(t, actual, "model.Clear() should properly remove value")
-		assert.Nil(t, err, "model.Clear() should properly remove value")
+		assert.Nil(t, actual)
+		assert.Nil(t, err)
 	})
+}
+
+func assertEqualDestination(t *testing.T, expected, actual destination.Destination) {
+	assert.Equal(t, expected.ID, actual.ID)
+	assert.Equal(t, expected.Type, actual.Type)
+	assert.Equal(t, expected.Topics, actual.Topics)
+	assert.True(t, cmp.Equal(expected.CreatedAt, actual.CreatedAt))
+	assert.True(t, cmp.Equal(expected.DisabledAt, actual.DisabledAt))
 }
