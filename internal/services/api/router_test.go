@@ -29,7 +29,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 			JWTSecret: jwtSecret,
 		},
 		tenant.NewHandlers(logger, redisClient, jwtSecret),
-		destination.NewHandlers(redisClient),
+		destination.NewHandlers(logger, redisClient),
 	)
 
 	tenantID := "tenantID"
@@ -153,7 +153,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 			JWTSecret: jwtSecret,
 		},
 		tenant.NewHandlers(logger, redisClient, jwtSecret),
-		destination.NewHandlers(redisClient),
+		destination.NewHandlers(logger, redisClient),
 	)
 
 	tenantID := "tenantID"
