@@ -7,7 +7,7 @@ This is a simplified version of the official [Uptrace's Docker example](https://
 **Step 1**. Start the services with Docker
 
 ```sh
-# from hookdeck/EventKit/configs/dev/uptrace
+# from hookdeck/EventKit/build/dev/uptrace
 
 # Pull required images
 $ docker compose pull

@@ -3,40 +3,40 @@ name: "eventkit"
 services:
   api:
     build:
-      context: .
-      dockerfile: configs/dev/api.Dockerfile
+      context: ../../
+      dockerfile: ./build/dev/api.Dockerfile
     volumes:
-      - .:/app
+      - ../../:/app
     depends_on:
       - redis
     ports:
       - "${PORT}:${PORT}"
-    env_file: .env
+    env_file: ../../.env
     environment:
       REDIS_HOST: redis
 
   delivery:
     build:
-      context: .
-      dockerfile: configs/dev/delivery.Dockerfile
+      context: ../../
+      dockerfile: ./build/dev/delivery.Dockerfile
     volumes:
-      - .:/app
+      - ../..:/app
     depends_on:
       - redis
-    env_file: .env
+    env_file: ../../.env
     environment:
       REDIS_HOST: redis
       DISABLED: true # Temporary env variable to disable the service
 
   log:
     build:
-      context: .
-      dockerfile: configs/dev/log.Dockerfile
+      context: ../../
+      dockerfile: ./build/dev/log.Dockerfile
     volumes:
-      - .:/app
+      - ../..:/app
     depends_on:
       - redis
-    env_file: .env
+    env_file: ../../.env
     environment:
       REDIS_HOST: redis
       DISABLED: true # Temporary env variable to disable the service
