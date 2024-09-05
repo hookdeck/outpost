@@ -4,7 +4,7 @@ FROM golang:1.23-alpine
 WORKDIR /app
 COPY . .
 
-RUN go build -o ./bin/eventkit ./cmd/app/main.go
+RUN go build -o ./bin/eventkit ./cmd/eventkit/main.go
 
 # Stage 1
 # Copy binary to a new image

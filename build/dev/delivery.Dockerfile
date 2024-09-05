@@ -5,4 +5,4 @@ COPY . .
 
 RUN go install -mod=mod github.com/githubnemo/CompileDaemon
 
-ENTRYPOINT CompileDaemon --build="go build -o ./bin/delivery ./cmd/app/main.go" --command="./bin/delivery --service delivery"
+ENTRYPOINT CompileDaemon --build="go build -o ./bin/delivery ./cmd/eventkit/main.go" --command="./bin/delivery --service delivery"
