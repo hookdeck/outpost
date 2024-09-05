@@ -16,7 +16,7 @@ type TenantHandlers struct {
 	jwtSecret string
 }
 
-func NewHandlers(logger *otelzap.Logger, redisClient *redis.Client, jwtSecret string) *TenantHandlers {
+func NewTenantHandlers(logger *otelzap.Logger, redisClient *redis.Client, jwtSecret string) *TenantHandlers {
 	return &TenantHandlers{
 		logger:    logger,
 		model:     NewTenantModel(redisClient),
@@ -56,35 +56,15 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 }
 
 func (h *TenantHandlers) Retrieve(c *gin.Context) {
-	logger := h.logger.Ctx(c.Request.Context())
-	tenantID := c.Param("tenantID")
-	tenant, err := h.model.Get(c.Request.Context(), tenantID)
-	if err != nil {
-		logger.Error("failed to get tenant", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
-		return
-	}
-	if tenant == nil {
-		c.Status(http.StatusNotFound)
-		return
-	}
+	tenant := MustTenantFromContext(c)
 	c.JSON(http.StatusOK, tenant)
 }
 
 func (h *TenantHandlers) Delete(c *gin.Context) {
 	logger := h.logger.Ctx(c.Request.Context())
+
 	tenantID := c.Param("tenantID")
-	tenant, err := h.model.Get(c.Request.Context(), tenantID)
-	if err != nil {
-		logger.Error("failed to get tenant", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
-		return
-	}
-	if tenant == nil {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	tenant, err = h.model.Clear(c.Request.Context(), tenantID)
+	_, err := h.model.Clear(c.Request.Context(), tenantID)
 	if err != nil {
 		logger.Error("failed to delete tenant", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -98,18 +78,8 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 
 func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
 	logger := h.logger.Ctx(c.Request.Context())
-	tenantID := c.Param("tenantID")
-	tenant, err := h.model.Get(c.Request.Context(), tenantID)
-	if err != nil {
-		logger.Error("failed to get tenant", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
-		return
-	}
-	if tenant == nil {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	jwtToken, err := JWT.New(h.jwtSecret, tenantID)
+	tenant := MustTenantFromContext(c)
+	jwtToken, err := JWT.New(h.jwtSecret, tenant.ID)
 	if err != nil {
 		logger.Error("failed to create jwt token", zap.Error(err))
 		c.Status(http.StatusInternalServerError)

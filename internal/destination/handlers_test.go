@@ -38,7 +38,7 @@ func TestDestinationListHandler(t *testing.T) {
 
 	redisClient := testutil.CreateTestRedisClient(t)
 	logger := testutil.CreateTestLogger(t)
-	handlers := destination.NewHandlers(logger, redisClient)
+	handlers := destination.NewDestinationHandlers(logger, redisClient)
 	router := setupRouter(handlers)
 
 	t.Run("should return 501", func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestDestinationCreateHandler(t *testing.T) {
 
 	redisClient := testutil.CreateTestRedisClient(t)
 	logger := testutil.CreateTestLogger(t)
-	handlers := destination.NewHandlers(logger, redisClient)
+	handlers := destination.NewDestinationHandlers(logger, redisClient)
 	router := setupRouter(handlers)
 
 	t.Run("should create", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 
 	redisClient := testutil.CreateTestRedisClient(t)
 	logger := testutil.CreateTestLogger(t)
-	handlers := destination.NewHandlers(logger, redisClient)
+	handlers := destination.NewDestinationHandlers(logger, redisClient)
 	model := destination.NewDestinationModel(redisClient)
 	router := setupRouter(handlers)
 
@@ -137,7 +137,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 
 	redisClient := testutil.CreateTestRedisClient(t)
 	logger := testutil.CreateTestLogger(t)
-	handlers := destination.NewHandlers(logger, redisClient)
+	handlers := destination.NewDestinationHandlers(logger, redisClient)
 	model := destination.NewDestinationModel(redisClient)
 	router := setupRouter(handlers)
 
@@ -201,7 +201,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 func TestDestinationDeleteHandler(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
 	logger := testutil.CreateTestLogger(t)
-	handlers := destination.NewHandlers(logger, redisClient)
+	handlers := destination.NewDestinationHandlers(logger, redisClient)
 	model := destination.NewDestinationModel(redisClient)
 	router := setupRouter(handlers)
 

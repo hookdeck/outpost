@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/EventKit/internal/destination"
 	"github.com/hookdeck/EventKit/internal/tenant"
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
@@ -19,6 +20,8 @@ func NewRouter(
 	cfg RouterConfig,
 	tenantHandlers *tenant.TenantHandlers,
 	destinationHandlers *destination.DestinationHandlers,
+	tenantModel *tenant.TenantModel,
+	logger *otelzap.Logger,
 ) http.Handler {
 	r := gin.Default()
 	r.Use(otelgin.Middleware(cfg.Hostname))
@@ -40,7 +43,7 @@ func NewRouter(
 	// If the EventKit service deployment isn't configured with an API key, then
 	// it's assumed that the service runs in a secure environment
 	// and the JWT check is NOT necessary either.
-	tenantRouter := r.Group("/", apiKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret))
+	tenantRouter := r.Group("/", apiKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret), tenant.RequireTenantMiddleware(logger, tenantModel))
 
 	tenantRouter.GET("/:tenantID", tenantHandlers.Retrieve)
 	tenantRouter.DELETE("/:tenantID", tenantHandlers.Delete)

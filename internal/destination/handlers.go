@@ -17,7 +17,7 @@ type DestinationHandlers struct {
 	model  *DestinationModel
 }
 
-func NewHandlers(logger *otelzap.Logger, redisClient *redis.Client) *DestinationHandlers {
+func NewDestinationHandlers(logger *otelzap.Logger, redisClient *redis.Client) *DestinationHandlers {
 	return &DestinationHandlers{
 		logger: logger,
 		model:  NewDestinationModel(redisClient),
