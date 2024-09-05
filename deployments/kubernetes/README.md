@@ -103,6 +103,8 @@ $ minikube image ls | grep -w hookdeck/eventkit
 
 **Step 5**: Install EventKit using Helm chart
 
+This installation assumes you have followed the steps above to set up Redis cluster with Bitnami. We're using the Redis's password secret by providing the custom `values.yaml` file. If you use a different Redis setup, please feel free to provide your own values when installing the chart.
+
 ```sh
 # Navigate to the right directory
 # at .../hookdeck/EventKit
@@ -205,3 +207,11 @@ $ kubectl delete all --all
 ```
 
 However, this command doesn't include some resources like `configmaps` or `secrets`, so you may need to use other tools (Minikube dashboard) to manually delete them.
+
+## TODO for production Helm chart
+
+- [] Support [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/)
+- [] Consider supporting Redis (and ClickHouse) directly
+- [] Full Chart.yaml (see [Bitnami's Redis chart](https://github.com/bitnami/charts/blob/main/bitnami/redis/Chart.yaml) for reference)
+- [] NOTES.txt
+- [] values.schema.json
