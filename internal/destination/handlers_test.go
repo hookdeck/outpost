@@ -16,14 +16,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var tenantID = uuid.New().String()
+
+func baseTenantPath(id string) string {
+	return "/" + id
+}
+
 func setupRouter(destinationHandlers *destination.DestinationHandlers) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.Default()
-	r.GET("/destinations", destinationHandlers.List)
-	r.POST("/destinations", destinationHandlers.Create)
-	r.GET("/destinations/:destinationID", destinationHandlers.Retrieve)
-	r.PATCH("/destinations/:destinationID", destinationHandlers.Update)
-	r.DELETE("/destinations/:destinationID", destinationHandlers.Delete)
+	r.GET("/:tenantID/destinations", destinationHandlers.List)
+	r.POST("/:tenantID/destinations", destinationHandlers.Create)
+	r.GET("/:tenantID/destinations/:destinationID", destinationHandlers.Retrieve)
+	r.PATCH("/:tenantID/destinations/:destinationID", destinationHandlers.Update)
+	r.DELETE("/:tenantID/destinations/:destinationID", destinationHandlers.Delete)
 	return r
 }
 
@@ -38,7 +44,7 @@ func TestDestinationListHandler(t *testing.T) {
 	t.Run("should return 501", func(t *testing.T) {
 		t.Parallel()
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/destinations", nil)
+		req, _ := http.NewRequest("GET", baseTenantPath(tenantID)+"/destinations", nil)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotImplemented, w.Code)
 	})
@@ -62,7 +68,7 @@ func TestDestinationCreateHandler(t *testing.T) {
 			Topics: []string{"user.created", "user.updated"},
 		}
 		destinationJSON, _ := json.Marshal(exampleDestination)
-		req, _ := http.NewRequest("POST", "/destinations", strings.NewReader(string(destinationJSON)))
+		req, _ := http.NewRequest("POST", baseTenantPath(tenantID)+"/destinations", strings.NewReader(string(destinationJSON)))
 		router.ServeHTTP(w, req)
 
 		var destinationResponse map[string]any
@@ -89,7 +95,7 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/destinations/invalid_id", nil)
+		req, _ := http.NewRequest("GET", baseTenantPath(tenantID)+"/destinations/invalid_id", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -109,7 +115,7 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 
 		// Test HTTP request
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/destinations/"+exampleDestination.ID, nil)
+		req, _ := http.NewRequest("GET", baseTenantPath(tenantID)+"/destinations/"+exampleDestination.ID, nil)
 		router.ServeHTTP(w, req)
 
 		var destinationResponse map[string]any
@@ -151,7 +157,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PATCH", "/destinations/invalid_id", nil)
+		req, _ := http.NewRequest("PATCH", baseTenantPath(tenantID)+"/destinations/invalid_id", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -161,7 +167,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PATCH", "/destinations/invalid_id", strings.NewReader(string(updateDestinationJSON)))
+		req, _ := http.NewRequest("PATCH", baseTenantPath(tenantID)+"/destinations/invalid_id", strings.NewReader(string(updateDestinationJSON)))
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -175,7 +181,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 
 		// Test HTTP request
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PATCH", "/destinations/"+initialDestination.ID, strings.NewReader(string(updateDestinationJSON)))
+		req, _ := http.NewRequest("PATCH", baseTenantPath(tenantID)+"/destinations/"+initialDestination.ID, strings.NewReader(string(updateDestinationJSON)))
 		router.ServeHTTP(w, req)
 
 		var destinationResponse map[string]any
@@ -203,7 +209,7 @@ func TestDestinationDeleteHandler(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("DELETE", "/destinations/invalid_id", nil)
+		req, _ := http.NewRequest("DELETE", baseTenantPath(tenantID)+"/destinations/invalid_id", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -223,7 +229,7 @@ func TestDestinationDeleteHandler(t *testing.T) {
 
 		// Test HTTP request
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("DELETE", "/destinations/"+newDestination.ID, nil)
+		req, _ := http.NewRequest("DELETE", baseTenantPath(tenantID)+"/destinations/"+newDestination.ID, nil)
 		router.ServeHTTP(w, req)
 
 		var destinationResponse map[string]any

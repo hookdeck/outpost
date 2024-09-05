@@ -45,11 +45,11 @@ func NewRouter(
 	tenantRouter.GET("/:tenantID", tenantHandlers.Retrieve)
 	tenantRouter.DELETE("/:tenantID", tenantHandlers.Delete)
 
-	r.GET("/destinations", destinationHandlers.List)
-	r.POST("/destinations", destinationHandlers.Create)
-	r.GET("/destinations/:destinationID", destinationHandlers.Retrieve)
-	r.PATCH("/destinations/:destinationID", destinationHandlers.Update)
-	r.DELETE("/destinations/:destinationID", destinationHandlers.Delete)
+	r.GET("/:tenantID/destinations", destinationHandlers.List)
+	r.POST("/:tenantID/destinations", destinationHandlers.Create)
+	r.GET("/:tenantID/destinations/:destinationID", destinationHandlers.Retrieve)
+	r.PATCH("/:tenantID/destinations/:destinationID", destinationHandlers.Update)
+	r.DELETE("/:tenantID/destinations/:destinationID", destinationHandlers.Delete)
 
 	return r
 }
