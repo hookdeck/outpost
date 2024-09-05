@@ -24,10 +24,11 @@ func TestDestinationModel(t *testing.T) {
 		Topics:     []string{"user.created", "user.updated"},
 		CreatedAt:  time.Now(),
 		DisabledAt: nil,
+		TenantID:   uuid.New().String(),
 	}
 
 	t.Run("gets empty", func(t *testing.T) {
-		actual, err := model.Get(context.Background(), input.ID)
+		actual, err := model.Get(context.Background(), input.ID, input.TenantID)
 		assert.Nil(t, actual)
 		assert.Nil(t, err)
 	})
@@ -38,7 +39,7 @@ func TestDestinationModel(t *testing.T) {
 	})
 
 	t.Run("gets", func(t *testing.T) {
-		actual, err := model.Get(context.Background(), input.ID)
+		actual, err := model.Get(context.Background(), input.ID, input.TenantID)
 		assert.Nil(t, err)
 		assertEqualDestination(t, input, *actual)
 	})
@@ -49,17 +50,17 @@ func TestDestinationModel(t *testing.T) {
 		err := model.Set(context.Background(), input)
 		assert.Nil(t, err)
 
-		actual, err := model.Get(context.Background(), input.ID)
+		actual, err := model.Get(context.Background(), input.ID, input.TenantID)
 		assert.Nil(t, err)
 		assertEqualDestination(t, input, *actual)
 	})
 
 	t.Run("clears", func(t *testing.T) {
-		deleted, err := model.Clear(context.Background(), input.ID)
+		deleted, err := model.Clear(context.Background(), input.ID, input.TenantID)
 		assert.Nil(t, err)
 		assertEqualDestination(t, input, *deleted)
 
-		actual, err := model.Get(context.Background(), input.ID)
+		actual, err := model.Get(context.Background(), input.ID, input.TenantID)
 		assert.Nil(t, actual)
 		assert.Nil(t, err)
 	})

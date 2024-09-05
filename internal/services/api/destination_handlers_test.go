@@ -104,6 +104,7 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 			Type:      "webhooks",
 			Topics:    []string{"user.created", "user.updated"},
 			CreatedAt: time.Now(),
+			TenantID:  tenantID,
 		}
 		model.Set(context.Background(), exampleDestination)
 
@@ -138,6 +139,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		Type:      "webhooks",
 		Topics:    []string{"user.created", "user.updated"},
 		CreatedAt: time.Now(),
+		TenantID:  tenantID,
 	}
 
 	updateDestinationRequest := api.UpdateDestinationRequest{
@@ -216,6 +218,7 @@ func TestDestinationDeleteHandler(t *testing.T) {
 			Type:      "webhooks",
 			Topics:    []string{"user.created", "user.updated"},
 			CreatedAt: time.Now(),
+			TenantID:  tenantID,
 		}
 		model.Set(context.Background(), newDestination)
 

@@ -41,6 +41,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		Topics:     json.Topics,
 		CreatedAt:  time.Now(),
 		DisabledAt: nil,
+		TenantID:   c.Param("tenantID"),
 	}
 	if err := h.model.Set(c.Request.Context(), destination); err != nil {
 		h.logger.Ctx(c.Request.Context()).Error("failed to set destination", zap.Error(err))
@@ -51,8 +52,9 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 }
 
 func (h *DestinationHandlers) Retrieve(c *gin.Context) {
+	tenantID := c.Param("tenantID")
 	destinationID := c.Param("destinationID")
-	destination, err := h.model.Get(c.Request.Context(), destinationID)
+	destination, err := h.model.Get(c.Request.Context(), destinationID, tenantID)
 	if err != nil {
 		log.Println(err)
 		c.Status(http.StatusInternalServerError)
@@ -76,8 +78,9 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	}
 
 	// Get destination.
+	tenantID := c.Param("tenantID")
 	destinationID := c.Param("destinationID")
-	destination, err := h.model.Get(c.Request.Context(), destinationID)
+	destination, err := h.model.Get(c.Request.Context(), destinationID, tenantID)
 	if err != nil {
 		logger.Error("failed to get destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -100,8 +103,9 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 }
 
 func (h *DestinationHandlers) Delete(c *gin.Context) {
+	tenantID := c.Param("tenantID")
 	destinationID := c.Param("destinationID")
-	destination, err := h.model.Clear(c.Request.Context(), destinationID)
+	destination, err := h.model.Clear(c.Request.Context(), destinationID, tenantID)
 	if err != nil {
 		h.logger.Ctx(c.Request.Context()).Error("failed to clear destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)

@@ -16,6 +16,7 @@ type Destination struct {
 	Topics     strings    `json:"topics" redis:"-"` // type not supported by redis-go
 	CreatedAt  time.Time  `json:"created_at" redis:"created_at"`
 	DisabledAt *time.Time `json:"disabled_at" redis:"disabled_at"`
+	TenantID   string     `json:"-" redis:"-"`
 }
 
 type DestinationModel struct {
@@ -28,8 +29,8 @@ func NewDestinationModel(redisClient *redis.Client) *DestinationModel {
 	}
 }
 
-func (m *DestinationModel) Get(c context.Context, id string) (*Destination, error) {
-	cmd := m.redisClient.HGetAll(c, redisDestinationID(id))
+func (m *DestinationModel) Get(c context.Context, id, tenantID string) (*Destination, error) {
+	cmd := m.redisClient.HGetAll(c, redisDestinationID(id, tenantID))
 	hash, err := cmd.Result()
 	if err != nil {
 		return nil, err
@@ -38,6 +39,7 @@ func (m *DestinationModel) Get(c context.Context, id string) (*Destination, erro
 		return nil, nil
 	}
 	destination := &Destination{}
+	destination.TenantID = tenantID
 	if err = cmd.Scan(destination); err != nil {
 		return nil, err
 	}
@@ -49,7 +51,7 @@ func (m *DestinationModel) Get(c context.Context, id string) (*Destination, erro
 }
 
 func (m *DestinationModel) Set(ctx context.Context, destination Destination) error {
-	key := redisDestinationID(destination.ID)
+	key := redisDestinationID(destination.ID, destination.TenantID)
 	_, err := m.redisClient.Pipelined(ctx, func(r redis.Pipeliner) error {
 		r.HSet(ctx, key, "id", destination.ID)
 		r.HSet(ctx, key, "type", destination.Type)
@@ -63,22 +65,22 @@ func (m *DestinationModel) Set(ctx context.Context, destination Destination) err
 	return err
 }
 
-func (m *DestinationModel) Clear(c context.Context, id string) (*Destination, error) {
-	destination, err := m.Get(c, id)
+func (m *DestinationModel) Clear(c context.Context, id, tenantID string) (*Destination, error) {
+	destination, err := m.Get(c, id, tenantID)
 	if err != nil {
 		return nil, err
 	}
 	if destination == nil {
 		return nil, nil
 	}
-	if err := m.redisClient.Del(c, redisDestinationID(id)).Err(); err != nil {
+	if err := m.redisClient.Del(c, redisDestinationID(id, tenantID)).Err(); err != nil {
 		return nil, err
 	}
 	return destination, nil
 }
 
-func redisDestinationID(destinationID string) string {
-	return fmt.Sprintf("destination:%s", destinationID)
+func redisDestinationID(destinationID, tenantID string) string {
+	return fmt.Sprintf("tenant:%s:destination:%s", tenantID, destinationID)
 }
 
 type strings []string
