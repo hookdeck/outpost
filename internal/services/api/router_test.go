@@ -26,8 +26,9 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *ote
 			JWTSecret: jwtSecret,
 		},
 		logger,
-		models.NewTenantModel(redisClient),
-		models.NewDestinationModel(redisClient),
+		redisClient,
+		models.NewTenantModel(),
+		models.NewDestinationModel(),
 	)
 	return router, logger, redisClient
 }

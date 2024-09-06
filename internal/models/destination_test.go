@@ -16,7 +16,7 @@ func TestDestinationModel(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	model := models.NewDestinationModel(redisClient)
+	model := models.NewDestinationModel()
 
 	input := models.Destination{
 		ID:         uuid.New().String(),
@@ -28,18 +28,18 @@ func TestDestinationModel(t *testing.T) {
 	}
 
 	t.Run("gets empty", func(t *testing.T) {
-		actual, err := model.Get(context.Background(), input.ID, input.TenantID)
+		actual, err := model.Get(context.Background(), redisClient, input.ID, input.TenantID)
 		assert.Nil(t, actual)
 		assert.Nil(t, err)
 	})
 
 	t.Run("sets", func(t *testing.T) {
-		err := model.Set(context.Background(), input)
+		err := model.Set(context.Background(), redisClient, input)
 		assert.Nil(t, err)
 	})
 
 	t.Run("gets", func(t *testing.T) {
-		actual, err := model.Get(context.Background(), input.ID, input.TenantID)
+		actual, err := model.Get(context.Background(), redisClient, input.ID, input.TenantID)
 		assert.Nil(t, err)
 		assertEqualDestination(t, input, *actual)
 	})
@@ -47,19 +47,19 @@ func TestDestinationModel(t *testing.T) {
 	t.Run("overrides", func(t *testing.T) {
 		input.Type = "not-webhooks"
 
-		err := model.Set(context.Background(), input)
+		err := model.Set(context.Background(), redisClient, input)
 		assert.Nil(t, err)
 
-		actual, err := model.Get(context.Background(), input.ID, input.TenantID)
+		actual, err := model.Get(context.Background(), redisClient, input.ID, input.TenantID)
 		assert.Nil(t, err)
 		assertEqualDestination(t, input, *actual)
 	})
 
 	t.Run("clears", func(t *testing.T) {
-		err := model.Clear(context.Background(), input.ID, input.TenantID)
+		err := model.Clear(context.Background(), redisClient, input.ID, input.TenantID)
 		assert.Nil(t, err)
 
-		actual, err := model.Get(context.Background(), input.ID, input.TenantID)
+		actual, err := model.Get(context.Background(), redisClient, input.ID, input.TenantID)
 		assert.Nil(t, actual)
 		assert.Nil(t, err)
 	})
@@ -69,14 +69,14 @@ func TestDestinationModel_ClearMany(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	model := models.NewDestinationModel(redisClient)
+	model := models.NewDestinationModel()
 
 	t.Run("clears many", func(t *testing.T) {
 		tenantID := uuid.New().String()
 		ids := make([]string, 5)
 		for i := 0; i < 5; i++ {
 			ids[i] = uuid.New().String()
-			model.Set(context.Background(), models.Destination{
+			model.Set(context.Background(), redisClient, models.Destination{
 				ID:         ids[i],
 				Type:       "webhooks",
 				Topics:     []string{"user.created", "user.updated"},
@@ -86,12 +86,12 @@ func TestDestinationModel_ClearMany(t *testing.T) {
 			})
 		}
 
-		count, err := model.ClearMany(context.Background(), tenantID, ids...)
+		count, err := model.ClearMany(context.Background(), redisClient, tenantID, ids...)
 		assert.Nil(t, err)
 		assert.Equal(t, int64(5), count)
 
 		for _, id := range ids {
-			actual, err := model.Get(context.Background(), id, tenantID)
+			actual, err := model.Get(context.Background(), redisClient, id, tenantID)
 			assert.Nil(t, actual)
 			assert.Nil(t, err)
 		}
@@ -102,11 +102,11 @@ func TestDestinationModel_List(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	model := models.NewDestinationModel(redisClient)
+	model := models.NewDestinationModel()
 
 	t.Run("returns empty", func(t *testing.T) {
 		t.Parallel()
-		destinations, err := model.List(context.Background(), uuid.New().String())
+		destinations, err := model.List(context.Background(), redisClient, uuid.New().String())
 		assert.Nil(t, err)
 		assert.Empty(t, destinations)
 	})
@@ -125,10 +125,10 @@ func TestDestinationModel_List(t *testing.T) {
 			ids[i] = uuid.New().String()
 			inputDestination.ID = ids[i]
 			inputDestination.CreatedAt = time.Now()
-			model.Set(context.Background(), inputDestination)
+			model.Set(context.Background(), redisClient, inputDestination)
 		}
 
-		destinations, err := model.List(context.Background(), tenantID)
+		destinations, err := model.List(context.Background(), redisClient, tenantID)
 		assert.Nil(t, err)
 		assert.Len(t, destinations, 5)
 		for index, destination := range destinations {

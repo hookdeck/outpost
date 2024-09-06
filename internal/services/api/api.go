@@ -35,8 +35,9 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 			JWTSecret: cfg.JWTSecret,
 		},
 		logger,
-		models.NewTenantModel(redisClient),
-		models.NewDestinationModel(redisClient),
+		redisClient,
+		models.NewTenantModel(),
+		models.NewDestinationModel(),
 	)
 
 	service := &APIService{}

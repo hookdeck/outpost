@@ -20,24 +20,20 @@ type Destination struct {
 	TenantID   string     `json:"-" redis:"-"`
 }
 
-type DestinationModel struct {
-	redisClient *redis.Client
+type DestinationModel struct{}
+
+func NewDestinationModel() *DestinationModel {
+	return &DestinationModel{}
 }
 
-func NewDestinationModel(redisClient *redis.Client) *DestinationModel {
-	return &DestinationModel{
-		redisClient: redisClient,
-	}
-}
-
-func (m *DestinationModel) Get(c context.Context, id, tenantID string) (*Destination, error) {
-	cmd := m.redisClient.HGetAll(c, redisDestinationID(id, tenantID))
+func (m *DestinationModel) Get(c context.Context, cmdable redis.Cmdable, id, tenantID string) (*Destination, error) {
+	cmd := cmdable.HGetAll(c, redisDestinationID(id, tenantID))
 	return m.parse(c, tenantID, cmd)
 }
 
-func (m *DestinationModel) Set(ctx context.Context, destination Destination) error {
+func (m *DestinationModel) Set(ctx context.Context, cmdable redis.Cmdable, destination Destination) error {
 	key := redisDestinationID(destination.ID, destination.TenantID)
-	_, err := m.redisClient.Pipelined(ctx, func(r redis.Pipeliner) error {
+	_, err := cmdable.Pipelined(ctx, func(r redis.Pipeliner) error {
 		r.HSet(ctx, key, "id", destination.ID)
 		r.HSet(ctx, key, "type", destination.Type)
 		r.HSet(ctx, key, "topics", &destination.Topics)
@@ -50,11 +46,11 @@ func (m *DestinationModel) Set(ctx context.Context, destination Destination) err
 	return err
 }
 
-func (m *DestinationModel) Clear(c context.Context, id, tenantID string) error {
-	return m.redisClient.Del(c, redisDestinationID(id, tenantID)).Err()
+func (m *DestinationModel) Clear(c context.Context, cmdable redis.Cmdable, id, tenantID string) error {
+	return cmdable.Del(c, redisDestinationID(id, tenantID)).Err()
 }
 
-func (m *DestinationModel) ClearMany(c context.Context, tenantID string, ids ...string) (int64, error) {
+func (m *DestinationModel) ClearMany(c context.Context, cmdable redis.Cmdable, tenantID string, ids ...string) (int64, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
@@ -62,7 +58,7 @@ func (m *DestinationModel) ClearMany(c context.Context, tenantID string, ids ...
 	for i, id := range ids {
 		keys[i] = redisDestinationID(id, tenantID)
 	}
-	return m.redisClient.Del(c, keys...).Result()
+	return cmdable.Del(c, keys...).Result()
 }
 
 // TODO: get this from config
@@ -70,13 +66,14 @@ const MAX_DESTINATIONS_PER_TENANT = 100
 
 // TODO: consider splitting this into two methods, one for getting keys and one for getting values
 // in case the flow doesn't require the destination values (DELETE /:tenantID)
-func (m *DestinationModel) List(c context.Context, tenantID string) ([]Destination, error) {
-	keys, _, err := m.redisClient.Scan(c, 0, redisDestinationID("*", tenantID), MAX_DESTINATIONS_PER_TENANT).Result()
+// NOTE: this method requires its own client as it uses an internal pipeline.
+func (m *DestinationModel) List(c context.Context, client *redis.Client, tenantID string) ([]Destination, error) {
+	keys, _, err := client.Scan(c, 0, redisDestinationID("*", tenantID), MAX_DESTINATIONS_PER_TENANT).Result()
 	if err != nil {
 		return nil, err
 	}
 
-	pipe := m.redisClient.Pipeline()
+	pipe := client.Pipeline()
 	cmds := make([]*redis.MapStringStringCmd, len(keys))
 	for i, key := range keys {
 		cmds[i] = pipe.HGetAll(c, key)

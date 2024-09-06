@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/EventKit/internal/models"
+	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
@@ -18,6 +19,7 @@ type RouterConfig struct {
 func NewRouter(
 	cfg RouterConfig,
 	logger *otelzap.Logger,
+	redisClient *redis.Client,
 	tenantModel *models.TenantModel,
 	destinationModel *models.DestinationModel,
 ) http.Handler {
@@ -28,8 +30,8 @@ func NewRouter(
 		c.Status(http.StatusOK)
 	})
 
-	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, tenantModel, destinationModel)
-	destinationHandlers := NewDestinationHandlers(logger, destinationModel)
+	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, redisClient, tenantModel, destinationModel)
+	destinationHandlers := NewDestinationHandlers(logger, redisClient, destinationModel)
 
 	// Admin router is a router group with the API key auth mechanism.
 	adminRouter := r.Group("/", APIKeyAuthMiddleware(cfg.APIKey))
@@ -44,7 +46,10 @@ func NewRouter(
 	// If the EventKit service deployment isn't configured with an API key, then
 	// it's assumed that the service runs in a secure environment
 	// and the JWT check is NOT necessary either.
-	tenantRouter := r.Group("/", APIKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret), RequireTenantMiddleware(logger, tenantModel))
+	tenantRouter := r.Group("/",
+		APIKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret),
+		RequireTenantMiddleware(logger, redisClient, tenantModel),
+	)
 
 	tenantRouter.GET("/:tenantID", tenantHandlers.Retrieve)
 	tenantRouter.DELETE("/:tenantID", tenantHandlers.Delete)

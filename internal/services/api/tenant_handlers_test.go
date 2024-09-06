@@ -17,7 +17,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	model := models.NewTenantModel(redisClient)
+	model := models.NewTenantModel()
 
 	t.Run("should create when there's no existing tenant", func(t *testing.T) {
 		t.Parallel()
@@ -44,7 +44,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 			ID:        uuid.New().String(),
 			CreatedAt: time.Now(),
 		}
-		model.Set(context.Background(), existingResource)
+		model.Set(context.Background(), redisClient, existingResource)
 
 		// Request
 		w := httptest.NewRecorder()
@@ -63,7 +63,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 		assert.True(t, existingResource.CreatedAt.Equal(createdAt))
 
 		// Cleanup
-		model.Clear(context.Background(), existingResource.ID)
+		model.Clear(context.Background(), redisClient, existingResource.ID)
 	})
 }
 
@@ -71,7 +71,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	model := models.NewTenantModel(redisClient)
+	model := models.NewTenantModel()
 
 	t.Run("should return 404 when there's no tenant", func(t *testing.T) {
 		t.Parallel()
@@ -91,7 +91,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 			ID:        uuid.New().String(),
 			CreatedAt: time.Now(),
 		}
-		model.Set(context.Background(), existingResource)
+		model.Set(context.Background(), redisClient, existingResource)
 
 		// Request
 		w := httptest.NewRecorder()
@@ -110,7 +110,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 		assert.True(t, existingResource.CreatedAt.Equal(createdAt))
 
 		// Cleanup
-		model.Clear(context.Background(), existingResource.ID)
+		model.Clear(context.Background(), redisClient, existingResource.ID)
 	})
 }
 
@@ -118,8 +118,8 @@ func TestTenantDeleteHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	model := models.NewTenantModel(redisClient)
-	destinationModel := models.NewDestinationModel(redisClient)
+	model := models.NewTenantModel()
+	destinationModel := models.NewDestinationModel()
 
 	t.Run("should return 404 when there's no tenant", func(t *testing.T) {
 		t.Parallel()
@@ -139,7 +139,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 			ID:        uuid.New().String(),
 			CreatedAt: time.Now(),
 		}
-		model.Set(context.Background(), existingResource)
+		model.Set(context.Background(), redisClient, existingResource)
 
 		// Request
 		w := httptest.NewRecorder()
@@ -151,7 +151,6 @@ func TestTenantDeleteHandler(t *testing.T) {
 		// Test
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, true, response["success"])
-
 	})
 
 	t.Run("should delete tenant and associated destinations", func(t *testing.T) {
@@ -162,7 +161,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 			ID:        uuid.New().String(),
 			CreatedAt: time.Now(),
 		}
-		model.Set(context.Background(), existingResource)
+		model.Set(context.Background(), redisClient, existingResource)
 		inputDestination := models.Destination{
 			Type:       "webhooks",
 			Topics:     []string{"user.created", "user.updated"},
@@ -174,7 +173,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 			ids[i] = uuid.New().String()
 			inputDestination.ID = ids[i]
 			inputDestination.CreatedAt = time.Now()
-			destinationModel.Set(context.Background(), inputDestination)
+			destinationModel.Set(context.Background(), redisClient, inputDestination)
 		}
 
 		// Request
@@ -188,7 +187,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, true, response["success"])
 
-		destinations, err := destinationModel.List(context.Background(), existingResource.ID)
+		destinations, err := destinationModel.List(context.Background(), redisClient, existingResource.ID)
 		assert.Nil(t, err)
 		assert.Equal(t, 0, len(destinations))
 	})

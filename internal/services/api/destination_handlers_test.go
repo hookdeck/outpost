@@ -25,8 +25,8 @@ func setupExistingTenant(t *testing.T, redisClient *redis.Client) string {
 		ID:        uuid.New().String(),
 		CreatedAt: time.Now(),
 	}
-	model := models.NewTenantModel(redisClient)
-	err := model.Set(context.Background(), tenant)
+	model := models.NewTenantModel()
+	err := model.Set(context.Background(), redisClient, tenant)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	model := models.NewDestinationModel(redisClient)
+	model := models.NewDestinationModel()
 	tenantID := setupExistingTenant(t, redisClient)
 
 	t.Run("should return 404 when there's no destination", func(t *testing.T) {
@@ -106,7 +106,7 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 			CreatedAt: time.Now(),
 			TenantID:  tenantID,
 		}
-		model.Set(context.Background(), exampleDestination)
+		model.Set(context.Background(), redisClient, exampleDestination)
 
 		// Test HTTP request
 		w := httptest.NewRecorder()
@@ -131,7 +131,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	model := models.NewDestinationModel(redisClient)
+	model := models.NewDestinationModel()
 	tenantID := setupExistingTenant(t, redisClient)
 
 	initialDestination := models.Destination{
@@ -171,7 +171,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		t.Parallel()
 
 		// Setup initial destination
-		model.Set(context.Background(), initialDestination)
+		model.Set(context.Background(), redisClient, initialDestination)
 
 		// Test HTTP request
 		w := httptest.NewRecorder()
@@ -196,7 +196,7 @@ func TestDestinationDeleteHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	model := models.NewDestinationModel(redisClient)
+	model := models.NewDestinationModel()
 	tenantID := setupExistingTenant(t, redisClient)
 
 	t.Run("should return 404 when there's no destination", func(t *testing.T) {
@@ -220,7 +220,7 @@ func TestDestinationDeleteHandler(t *testing.T) {
 			CreatedAt: time.Now(),
 			TenantID:  tenantID,
 		}
-		model.Set(context.Background(), newDestination)
+		model.Set(context.Background(), redisClient, newDestination)
 
 		// Test HTTP request
 		w := httptest.NewRecorder()

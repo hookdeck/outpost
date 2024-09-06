@@ -8,19 +8,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/models"
+	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
 type DestinationHandlers struct {
-	logger *otelzap.Logger
-	model  *models.DestinationModel
+	logger      *otelzap.Logger
+	redisClient *redis.Client
+	model       *models.DestinationModel
 }
 
-func NewDestinationHandlers(logger *otelzap.Logger, model *models.DestinationModel) *DestinationHandlers {
+func NewDestinationHandlers(logger *otelzap.Logger, redisClient *redis.Client, model *models.DestinationModel) *DestinationHandlers {
 	return &DestinationHandlers{
-		logger: logger,
-		model:  model,
+		logger:      logger,
+		redisClient: redisClient,
+		model:       model,
 	}
 }
 
@@ -43,7 +46,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		DisabledAt: nil,
 		TenantID:   c.Param("tenantID"),
 	}
-	if err := h.model.Set(c.Request.Context(), destination); err != nil {
+	if err := h.model.Set(c.Request.Context(), h.redisClient, destination); err != nil {
 		h.logger.Ctx(c.Request.Context()).Error("failed to set destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
 		return
@@ -54,7 +57,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 func (h *DestinationHandlers) Retrieve(c *gin.Context) {
 	tenantID := c.Param("tenantID")
 	destinationID := c.Param("destinationID")
-	destination, err := h.model.Get(c.Request.Context(), destinationID, tenantID)
+	destination, err := h.model.Get(c.Request.Context(), h.redisClient, destinationID, tenantID)
 	if err != nil {
 		log.Println(err)
 		c.Status(http.StatusInternalServerError)
@@ -80,7 +83,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	// Get destination.
 	tenantID := c.Param("tenantID")
 	destinationID := c.Param("destinationID")
-	destination, err := h.model.Get(c.Request.Context(), destinationID, tenantID)
+	destination, err := h.model.Get(c.Request.Context(), h.redisClient, destinationID, tenantID)
 	if err != nil {
 		logger.Error("failed to get destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -94,7 +97,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	// Update destination
 	destination.Type = json.Type
 	destination.Topics = json.Topics
-	if err := h.model.Set(c.Request.Context(), *destination); err != nil {
+	if err := h.model.Set(c.Request.Context(), h.redisClient, *destination); err != nil {
 		logger.Error("failed to set destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
 		return
@@ -105,7 +108,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 func (h *DestinationHandlers) Delete(c *gin.Context) {
 	tenantID := c.Param("tenantID")
 	destinationID := c.Param("destinationID")
-	destination, err := h.model.Get(c.Request.Context(), destinationID, tenantID)
+	destination, err := h.model.Get(c.Request.Context(), h.redisClient, destinationID, tenantID)
 	if err != nil {
 		h.logger.Ctx(c.Request.Context()).Error("failed to get destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -115,7 +118,7 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 		return
 	}
-	err = h.model.Clear(c.Request.Context(), destinationID, tenantID)
+	err = h.model.Clear(c.Request.Context(), h.redisClient, destinationID, tenantID)
 	if err != nil {
 		h.logger.Ctx(c.Request.Context()).Error("failed to clear destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)

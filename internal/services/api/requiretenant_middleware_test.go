@@ -2,7 +2,6 @@ package api_test
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -32,12 +31,11 @@ func TestRequireTenantMiddleware(t *testing.T) {
 		tenant := models.Tenant{
 			ID: uuid.New().String(),
 		}
-		model := models.NewTenantModel(redisClient)
-		err := model.Set(context.Background(), tenant)
+		model := models.NewTenantModel()
+		err := model.Set(context.Background(), redisClient, tenant)
 		if err != nil {
 			t.Fatal(err)
 		}
-		fmt.Println(model.Get(context.Background(), tenant.ID))
 
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/"+tenant.ID+"/destinations", nil)
