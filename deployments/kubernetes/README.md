@@ -85,7 +85,7 @@ Build EventKit:
 
 ```
 # at .../hookdeck/EventKit directory
-$ docker build -t hookdeck/eventkit -f configs/Dockerfile .
+$ docker build -t hookdeck/eventkit -f build/Dockerfile .
 
 # verify that the built image exists
 $ docker image ls | grep -w hookdeck/eventkit
