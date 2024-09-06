@@ -80,9 +80,14 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
-	for _, destination := range destinations {
-		if err := h.destinationModel.Clear(c.Request.Context(), destination.ID, tenantID); err != nil {
-			logger.Error("failed to delete destination", zap.Error(err))
+	if len(destinations) > 0 {
+		destinationIDs := make([]string, len(destinations))
+		for i, destination := range destinations {
+			destinationIDs[i] = destination.ID
+		}
+		_, err = h.destinationModel.ClearMany(c.Request.Context(), tenantID, destinationIDs...)
+		if err != nil {
+			logger.Error("failed to delete destinations", zap.Error(err))
 			c.Status(http.StatusInternalServerError)
 			return
 		}

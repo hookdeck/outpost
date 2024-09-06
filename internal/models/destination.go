@@ -54,6 +54,17 @@ func (m *DestinationModel) Clear(c context.Context, id, tenantID string) error {
 	return m.redisClient.Del(c, redisDestinationID(id, tenantID)).Err()
 }
 
+func (m *DestinationModel) ClearMany(c context.Context, tenantID string, ids ...string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = redisDestinationID(id, tenantID)
+	}
+	return m.redisClient.Del(c, keys...).Result()
+}
+
 // TODO: get this from config
 const MAX_DESTINATIONS_PER_TENANT = 100
 

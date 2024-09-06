@@ -121,38 +121,38 @@ func TestTenantDeleteHandler(t *testing.T) {
 	model := models.NewTenantModel(redisClient)
 	destinationModel := models.NewDestinationModel(redisClient)
 
-	// t.Run("should return 404 when there's no tenant", func(t *testing.T) {
-	// 	t.Parallel()
+	t.Run("should return 404 when there's no tenant", func(t *testing.T) {
+		t.Parallel()
 
-	// 	w := httptest.NewRecorder()
-	// 	req, _ := http.NewRequest("DELETE", "/invalid_id", nil)
-	// 	router.ServeHTTP(w, req)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", "/invalid_id", nil)
+		router.ServeHTTP(w, req)
 
-	// 	assert.Equal(t, http.StatusNotFound, w.Code)
-	// })
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
 
-	// t.Run("should delete tenant", func(t *testing.T) {
-	// 	t.Parallel()
+	t.Run("should delete tenant", func(t *testing.T) {
+		t.Parallel()
 
-	// 	// Setup
-	// 	existingResource := models.Tenant{
-	// 		ID:        uuid.New().String(),
-	// 		CreatedAt: time.Now(),
-	// 	}
-	// 	model.Set(context.Background(), existingResource)
+		// Setup
+		existingResource := models.Tenant{
+			ID:        uuid.New().String(),
+			CreatedAt: time.Now(),
+		}
+		model.Set(context.Background(), existingResource)
 
-	// 	// Request
-	// 	w := httptest.NewRecorder()
-	// 	req, _ := http.NewRequest("DELETE", "/"+existingResource.ID, nil)
-	// 	router.ServeHTTP(w, req)
-	// 	var response map[string]any
-	// 	json.Unmarshal(w.Body.Bytes(), &response)
+		// Request
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", "/"+existingResource.ID, nil)
+		router.ServeHTTP(w, req)
+		var response map[string]any
+		json.Unmarshal(w.Body.Bytes(), &response)
 
-	// 	// Test
-	// 	assert.Equal(t, http.StatusOK, w.Code)
-	// 	assert.Equal(t, true, response["success"])
+		// Test
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, true, response["success"])
 
-	// })
+	})
 
 	t.Run("should delete tenant and associated destinations", func(t *testing.T) {
 		t.Parallel()

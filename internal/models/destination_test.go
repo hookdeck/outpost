@@ -65,6 +65,39 @@ func TestDestinationModel(t *testing.T) {
 	})
 }
 
+func TestDestinationModel_ClearMany(t *testing.T) {
+	t.Parallel()
+
+	redisClient := testutil.CreateTestRedisClient(t)
+	model := models.NewDestinationModel(redisClient)
+
+	t.Run("clears many", func(t *testing.T) {
+		tenantID := uuid.New().String()
+		ids := make([]string, 5)
+		for i := 0; i < 5; i++ {
+			ids[i] = uuid.New().String()
+			model.Set(context.Background(), models.Destination{
+				ID:         ids[i],
+				Type:       "webhooks",
+				Topics:     []string{"user.created", "user.updated"},
+				CreatedAt:  time.Now(),
+				DisabledAt: nil,
+				TenantID:   tenantID,
+			})
+		}
+
+		count, err := model.ClearMany(context.Background(), tenantID, ids...)
+		assert.Nil(t, err)
+		assert.Equal(t, int64(5), count)
+
+		for _, id := range ids {
+			actual, err := model.Get(context.Background(), id, tenantID)
+			assert.Nil(t, actual)
+			assert.Nil(t, err)
+		}
+	})
+}
+
 func TestDestinationModel_List(t *testing.T) {
 	t.Parallel()
 
