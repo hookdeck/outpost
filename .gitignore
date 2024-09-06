@@ -4,5 +4,5 @@
 # Built binaries
 /bin
 
-# Go test coverage output
-coverage.out
+# Golang test coverage
+/*.out
