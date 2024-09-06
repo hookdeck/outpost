@@ -27,8 +27,15 @@ func NewDestinationHandlers(logger *otelzap.Logger, redisClient *redis.Client, m
 	}
 }
 
+// TODO: support type & topics params
 func (h *DestinationHandlers) List(c *gin.Context) {
-	c.Status(http.StatusNotImplemented)
+	destinations, err := h.model.List(c.Request.Context(), h.redisClient, c.Param("tenantID"))
+	if err != nil {
+		h.logger.Ctx(c.Request.Context()).Error("failed to list destinations", zap.Error(err))
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	c.JSON(http.StatusOK, destinations)
 }
 
 func (h *DestinationHandlers) Create(c *gin.Context) {
@@ -102,7 +109,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
-	c.JSON(http.StatusAccepted, destination)
+	c.JSON(http.StatusOK, destination)
 }
 
 func (h *DestinationHandlers) Delete(c *gin.Context) {

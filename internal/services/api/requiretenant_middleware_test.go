@@ -40,6 +40,6 @@ func TestRequireTenantMiddleware(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/"+tenant.ID+"/destinations", nil)
 		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }

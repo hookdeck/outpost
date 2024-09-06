@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,14 +38,58 @@ func TestDestinationListHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	tenantID := setupExistingTenant(t, redisClient)
 
-	t.Run("should return 501", func(t *testing.T) {
+	t.Run("should return empty list", func(t *testing.T) {
 		t.Parallel()
+		tenantID := setupExistingTenant(t, redisClient)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", baseTenantPath(tenantID)+"/destinations", nil)
 		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, `[]`, w.Body.String())
+	})
+
+	t.Run("should return list with existing destinations", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		tenantID := setupExistingTenant(t, redisClient)
+		inputDestination := models.Destination{
+			Type:       "webhooks",
+			Topics:     []string{"user.created", "user.updated"},
+			DisabledAt: nil,
+			TenantID:   tenantID,
+		}
+		destinationModel := models.NewDestinationModel()
+		ids := make([]string, 5)
+		timestamps := make([]time.Time, 5)
+		for i := 0; i < 5; i++ {
+			ids[i] = uuid.New().String()
+			timestamps[i] = time.Now()
+			inputDestination.ID = ids[i]
+			inputDestination.CreatedAt = timestamps[i]
+			destinationModel.Set(context.Background(), redisClient, inputDestination)
+		}
+
+		// Act
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseTenantPath(tenantID)+"/destinations", nil)
+		router.ServeHTTP(w, req)
+
+		// Assert
+		destinationResponse := []any{}
+		json.Unmarshal(w.Body.Bytes(), &destinationResponse)
+		fmt.Println(len(destinationResponse))
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, 5, len(destinationResponse))
+		for i, destinationJSON := range destinationResponse {
+			destination := destinationJSON.(map[string]any)
+			assert.Equal(t, ids[i], destination["id"])
+			assert.Equal(t, inputDestination.Type, destination["type"])
+			assertMarshalEqual(t, inputDestination.Topics, destination["topics"])
+			assert.Equal(t, timestamps[i].Format(time.RFC3339Nano), destination["created_at"])
+		}
 	})
 }
 
@@ -181,7 +226,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		var destinationResponse map[string]any
 		json.Unmarshal(w.Body.Bytes(), &destinationResponse)
 
-		assert.Equal(t, http.StatusAccepted, w.Code)
+		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, initialDestination.ID, destinationResponse["id"])
 		assert.Equal(t, updateDestinationRequest.Type, destinationResponse["type"])
 		assertMarshalEqual(t, updateDestinationRequest.Topics, destinationResponse["topics"])

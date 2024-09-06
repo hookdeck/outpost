@@ -132,7 +132,7 @@ func TestDestinationModel_List(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Len(t, destinations, 5)
 		for index, destination := range destinations {
-			assert.Contains(t, ids[index], destination.ID)
+			assert.Equal(t, ids[index], destination.ID)
 			assert.Equal(t, inputDestination.Type, destination.Type)
 			assert.Equal(t, inputDestination.Topics, destination.Topics)
 			assert.Equal(t, inputDestination.TenantID, destination.TenantID)
