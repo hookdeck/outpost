@@ -62,9 +62,8 @@ func TestTenantModel(t *testing.T) {
 	})
 
 	t.Run("clears", func(t *testing.T) {
-		deleted, err := model.Clear(context.Background(), input.ID)
+		err := model.Clear(context.Background(), input.ID)
 		assert.Nil(t, err, "model.Clear() should not return an error")
-		assert.True(t, cmp.Equal(*deleted, input), "model.Clear() should return deleted value")
 
 		actual, err := model.Get(context.Background(), input.ID)
 		assert.Nil(t, actual, "model.Clear() should properly remove value")

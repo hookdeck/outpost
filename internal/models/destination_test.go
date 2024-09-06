@@ -56,9 +56,8 @@ func TestDestinationModel(t *testing.T) {
 	})
 
 	t.Run("clears", func(t *testing.T) {
-		deleted, err := model.Clear(context.Background(), input.ID, input.TenantID)
+		err := model.Clear(context.Background(), input.ID, input.TenantID)
 		assert.Nil(t, err)
-		assertEqualDestination(t, input, *deleted)
 
 		actual, err := model.Get(context.Background(), input.ID, input.TenantID)
 		assert.Nil(t, actual)

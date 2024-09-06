@@ -50,23 +50,15 @@ func (m *DestinationModel) Set(ctx context.Context, destination Destination) err
 	return err
 }
 
-func (m *DestinationModel) Clear(c context.Context, id, tenantID string) (*Destination, error) {
-	destination, err := m.Get(c, id, tenantID)
-	if err != nil {
-		return nil, err
-	}
-	if destination == nil {
-		return nil, nil
-	}
-	if err := m.redisClient.Del(c, redisDestinationID(id, tenantID)).Err(); err != nil {
-		return nil, err
-	}
-	return destination, nil
+func (m *DestinationModel) Clear(c context.Context, id, tenantID string) error {
+	return m.redisClient.Del(c, redisDestinationID(id, tenantID)).Err()
 }
 
 // TODO: get this from config
 const MAX_DESTINATIONS_PER_TENANT = 100
 
+// TODO: consider splitting this into two methods, one for getting keys and one for getting values
+// in case the flow doesn't require the destination values (DELETE /:tenantID)
 func (m *DestinationModel) List(c context.Context, tenantID string) ([]Destination, error) {
 	keys, _, err := m.redisClient.Scan(c, 0, redisDestinationID("*", tenantID), MAX_DESTINATIONS_PER_TENANT).Result()
 	if err != nil {

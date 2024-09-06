@@ -39,24 +39,11 @@ func (m *TenantModel) Get(c context.Context, id string) (*Tenant, error) {
 }
 
 func (m *TenantModel) Set(c context.Context, tenant Tenant) error {
-	if err := m.redisClient.HSet(c, redisTenantID(tenant.ID), tenant).Err(); err != nil {
-		return err
-	}
-	return nil
+	return m.redisClient.HSet(c, redisTenantID(tenant.ID), tenant).Err()
 }
 
-func (m *TenantModel) Clear(c context.Context, id string) (*Tenant, error) {
-	tenant, err := m.Get(c, id)
-	if err != nil {
-		return nil, err
-	}
-	if tenant == nil {
-		return nil, nil
-	}
-	if err := m.redisClient.Del(c, redisTenantID(id)).Err(); err != nil {
-		return nil, err
-	}
-	return tenant, nil
+func (m *TenantModel) Clear(c context.Context, id string) error {
+	return m.redisClient.Del(c, redisTenantID(id)).Err()
 }
 
 func (t *Tenant) parseRedisHash(hash map[string]string) error {
