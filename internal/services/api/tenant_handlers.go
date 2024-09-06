@@ -11,16 +11,18 @@ import (
 )
 
 type TenantHandlers struct {
-	logger    *otelzap.Logger
-	model     *models.TenantModel
-	jwtSecret string
+	logger           *otelzap.Logger
+	jwtSecret        string
+	tenantModel      *models.TenantModel
+	destinationModel *models.DestinationModel
 }
 
-func NewTenantHandlers(logger *otelzap.Logger, model *models.TenantModel, jwtSecret string) *TenantHandlers {
+func NewTenantHandlers(logger *otelzap.Logger, jwtSecret string, tenantModel *models.TenantModel, destinationModel *models.DestinationModel) *TenantHandlers {
 	return &TenantHandlers{
-		logger:    logger,
-		model:     model,
-		jwtSecret: jwtSecret,
+		logger:           logger,
+		jwtSecret:        jwtSecret,
+		tenantModel:      tenantModel,
+		destinationModel: destinationModel,
 	}
 }
 
@@ -29,7 +31,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	tenantID := c.Param("tenantID")
 
 	// Check existing tenant.
-	tenant, err := h.model.Get(c.Request.Context(), tenantID)
+	tenant, err := h.tenantModel.Get(c.Request.Context(), tenantID)
 	if err != nil {
 		logger.Error("failed to get tenant", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -47,7 +49,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 		ID:        tenantID,
 		CreatedAt: time.Now(),
 	}
-	if err := h.model.Set(c.Request.Context(), *tenant); err != nil {
+	if err := h.tenantModel.Set(c.Request.Context(), *tenant); err != nil {
 		logger.Error("failed to set tenant", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
 		return
@@ -64,14 +66,26 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 	logger := h.logger.Ctx(c.Request.Context())
 
 	tenantID := c.Param("tenantID")
-	_, err := h.model.Clear(c.Request.Context(), tenantID)
+	_, err := h.tenantModel.Clear(c.Request.Context(), tenantID)
 	if err != nil {
 		logger.Error("failed to delete tenant", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
 		return
 	}
 
-	// TODO: delete associated destinations
+	destinations, err := h.destinationModel.List(c.Request.Context(), tenantID)
+	if err != nil {
+		logger.Error("failed to list destinations", zap.Error(err))
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	for _, destination := range destinations {
+		if _, err := h.destinationModel.Clear(c.Request.Context(), destination.ID, tenantID); err != nil {
+			logger.Error("failed to delete destination", zap.Error(err))
+			c.Status(http.StatusInternalServerError)
+			return
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }

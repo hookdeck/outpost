@@ -28,7 +28,7 @@ func NewRouter(
 		c.Status(http.StatusOK)
 	})
 
-	tenantHandlers := NewTenantHandlers(logger, tenantModel, cfg.JWTSecret)
+	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, tenantModel, destinationModel)
 	destinationHandlers := NewDestinationHandlers(logger, destinationModel)
 
 	// Admin router is a router group with the API key auth mechanism.

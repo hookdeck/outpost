@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/redis"
@@ -17,6 +18,7 @@ import (
 func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *otelzap.Logger, *redis.Client) {
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
+	gin.SetMode(gin.TestMode)
 	router := api.NewRouter(
 		api.RouterConfig{
 			Hostname:  "",
