@@ -16,6 +16,7 @@ const (
 
 type Client = r.Client
 type Pipeliner = r.Pipeliner
+type MapStringStringCmd = r.MapStringStringCmd
 
 var (
 	once                sync.Once

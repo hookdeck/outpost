@@ -5,6 +5,7 @@ import (
 	"encoding"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/redis"
@@ -13,7 +14,7 @@ import (
 type Destination struct {
 	ID         string     `json:"id" redis:"id"`
 	Type       string     `json:"type" redis:"type"`
-	Topics     strings    `json:"topics" redis:"-"` // type not supported by redis-go
+	Topics     Strings    `json:"topics" redis:"-"` // type not supported by redis-go
 	CreatedAt  time.Time  `json:"created_at" redis:"created_at"`
 	DisabledAt *time.Time `json:"disabled_at" redis:"disabled_at"`
 	TenantID   string     `json:"-" redis:"-"`
@@ -31,23 +32,7 @@ func NewDestinationModel(redisClient *redis.Client) *DestinationModel {
 
 func (m *DestinationModel) Get(c context.Context, id, tenantID string) (*Destination, error) {
 	cmd := m.redisClient.HGetAll(c, redisDestinationID(id, tenantID))
-	hash, err := cmd.Result()
-	if err != nil {
-		return nil, err
-	}
-	if len(hash) == 0 {
-		return nil, nil
-	}
-	destination := &Destination{}
-	destination.TenantID = tenantID
-	if err = cmd.Scan(destination); err != nil {
-		return nil, err
-	}
-	err = destination.Topics.UnmarshalBinary([]byte(hash["topics"]))
-	if err != nil {
-		return nil, fmt.Errorf("invalid topics: %w", err)
-	}
-	return destination, nil
+	return m.parse(c, tenantID, cmd)
 }
 
 func (m *DestinationModel) Set(ctx context.Context, destination Destination) error {
@@ -79,19 +64,74 @@ func (m *DestinationModel) Clear(c context.Context, id, tenantID string) (*Desti
 	return destination, nil
 }
 
+// TODO: get this from config
+const MAX_DESTINATIONS_PER_TENANT = 100
+
+func (m *DestinationModel) List(c context.Context, tenantID string) ([]Destination, error) {
+	keys, _, err := m.redisClient.Scan(c, 0, redisDestinationID("*", tenantID), MAX_DESTINATIONS_PER_TENANT).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	pipe := m.redisClient.Pipeline()
+	cmds := make([]*redis.MapStringStringCmd, len(keys))
+	for i, key := range keys {
+		cmds[i] = pipe.HGetAll(c, key)
+	}
+	_, err = pipe.Exec(c)
+	if err != nil {
+		return nil, err
+	}
+
+	destinations := make([]Destination, len(keys))
+	for i, cmd := range cmds {
+		destination, err := m.parse(c, tenantID, cmd)
+		if err != nil {
+			return []Destination{}, err
+		}
+		destinations[i] = *destination
+	}
+
+	sort.Slice(destinations, func(i, j int) bool {
+		return destinations[i].CreatedAt.Before(destinations[j].CreatedAt)
+	})
+
+	return destinations, nil
+}
+
+func (m *DestinationModel) parse(_ context.Context, tenantID string, cmd *redis.MapStringStringCmd) (*Destination, error) {
+	hash, err := cmd.Result()
+	if err != nil {
+		return nil, err
+	}
+	if len(hash) == 0 {
+		return nil, nil
+	}
+	destination := &Destination{}
+	destination.TenantID = tenantID
+	if err = cmd.Scan(destination); err != nil {
+		return nil, err
+	}
+	err = destination.Topics.UnmarshalBinary([]byte(hash["topics"]))
+	if err != nil {
+		return nil, fmt.Errorf("invalid topics: %w", err)
+	}
+	return destination, nil
+}
+
 func redisDestinationID(destinationID, tenantID string) string {
 	return fmt.Sprintf("tenant:%s:destination:%s", tenantID, destinationID)
 }
 
-type strings []string
+type Strings []string
 
-var _ encoding.BinaryMarshaler = &strings{}
-var _ encoding.BinaryUnmarshaler = &strings{}
+var _ encoding.BinaryMarshaler = &Strings{}
+var _ encoding.BinaryUnmarshaler = &Strings{}
 
-func (s *strings) MarshalBinary() ([]byte, error) {
+func (s *Strings) MarshalBinary() ([]byte, error) {
 	return json.Marshal(s)
 }
 
-func (s *strings) UnmarshalBinary(data []byte) error {
+func (s *Strings) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, s)
 }

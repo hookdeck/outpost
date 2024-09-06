@@ -66,6 +66,48 @@ func TestDestinationModel(t *testing.T) {
 	})
 }
 
+func TestDestinationModel_List(t *testing.T) {
+	t.Parallel()
+
+	redisClient := testutil.CreateTestRedisClient(t)
+	model := models.NewDestinationModel(redisClient)
+
+	t.Run("returns empty", func(t *testing.T) {
+		t.Parallel()
+		destinations, err := model.List(context.Background(), uuid.New().String())
+		assert.Nil(t, err)
+		assert.Empty(t, destinations)
+	})
+
+	t.Run("returns list", func(t *testing.T) {
+		tenantID := uuid.New().String()
+		inputDestination := models.Destination{
+			Type:       "webhooks",
+			Topics:     []string{"user.created", "user.updated"},
+			DisabledAt: nil,
+			TenantID:   tenantID,
+		}
+
+		ids := make([]string, 5)
+		for i := 0; i < 5; i++ {
+			ids[i] = uuid.New().String()
+			inputDestination.ID = ids[i]
+			inputDestination.CreatedAt = time.Now()
+			model.Set(context.Background(), inputDestination)
+		}
+
+		destinations, err := model.List(context.Background(), tenantID)
+		assert.Nil(t, err)
+		assert.Len(t, destinations, 5)
+		for index, destination := range destinations {
+			assert.Contains(t, ids[index], destination.ID)
+			assert.Equal(t, inputDestination.Type, destination.Type)
+			assert.Equal(t, inputDestination.Topics, destination.Topics)
+			assert.Equal(t, inputDestination.TenantID, destination.TenantID)
+		}
+	})
+}
+
 func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assert.Equal(t, expected.ID, actual.ID)
 	assert.Equal(t, expected.Type, actual.Type)
