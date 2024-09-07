@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/config"
+	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
@@ -38,6 +39,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		redisClient,
 		models.NewTenantModel(),
 		models.NewDestinationModel(),
+		ingest.New(logger, redisClient),
 	)
 
 	service := &APIService{}
