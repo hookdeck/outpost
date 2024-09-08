@@ -83,3 +83,7 @@ func (i *Ingestor) publish(ctx context.Context, messageBody []byte) error {
 		Body: messageBody,
 	})
 }
+
+func (e *Event) FromMessage(msg *pubsub.Message) error {
+	return json.Unmarshal(msg.Body, e)
+}

@@ -5,6 +5,7 @@ import (
 	"encoding"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -97,6 +98,22 @@ func (m *DestinationModel) List(c context.Context, client *redis.Client, tenantI
 	})
 
 	return destinations, nil
+}
+
+func FilterTopics(destinations []Destination, topic string) []Destination {
+	if topic == "" {
+		return destinations
+	}
+
+	filteredDestinations := []Destination{}
+
+	for _, destination := range destinations {
+		if destination.Topics[0] == "*" || slices.Contains(destination.Topics, topic) {
+			filteredDestinations = append(filteredDestinations, destination)
+		}
+	}
+
+	return filteredDestinations
 }
 
 func (m *DestinationModel) parse(_ context.Context, tenantID string, cmd *redis.MapStringStringCmd) (*Destination, error) {
