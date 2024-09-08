@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,9 +18,11 @@ import (
 )
 
 func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *otelzap.Logger, *redis.Client) {
+	gin.SetMode(gin.TestMode)
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
-	gin.SetMode(gin.TestMode)
+	ingestor := ingest.New(logger, redisClient)
+	ingestor.OpenDeliveryTopic(context.Background())
 	router := api.NewRouter(
 		api.RouterConfig{
 			Hostname:  "",
@@ -30,7 +33,7 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *ote
 		redisClient,
 		models.NewTenantModel(),
 		models.NewDestinationModel(),
-		ingest.New(logger, redisClient),
+		ingestor,
 	)
 	return router, logger, redisClient
 }

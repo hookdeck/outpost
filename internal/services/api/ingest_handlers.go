@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
@@ -60,8 +61,12 @@ type PublishedEvent struct {
 }
 
 func (p *PublishedEvent) toEvent() ingest.Event {
+	id := p.ID
+	if id == "" {
+		id = uuid.New().String()
+	}
 	return ingest.Event{
-		ID:               p.ID,
+		ID:               id,
 		TenantID:         p.TenantID,
 		DestinationID:    p.DestinationID,
 		Topic:            p.Topic,

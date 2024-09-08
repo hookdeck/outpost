@@ -17,6 +17,8 @@ func TestIngester_Ingest(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
 	ingestor := ingest.New(logger, redisClient)
+	closeDeliveryTopic, _ := ingestor.OpenDeliveryTopic(context.Background())
+	defer closeDeliveryTopic()
 
 	t.Run("ingests without error", func(t *testing.T) {
 		event := ingest.Event{
