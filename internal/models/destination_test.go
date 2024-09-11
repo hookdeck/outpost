@@ -19,9 +19,12 @@ func TestDestinationModel(t *testing.T) {
 	model := models.NewDestinationModel()
 
 	input := models.Destination{
-		ID:         uuid.New().String(),
-		Type:       "webhooks",
-		Topics:     []string{"user.created", "user.updated"},
+		ID:     uuid.New().String(),
+		Type:   "webhooks",
+		Topics: []string{"user.created", "user.updated"},
+		Config: map[string]string{
+			"url": "https://example.com",
+		},
 		CreatedAt:  time.Now(),
 		DisabledAt: nil,
 		TenantID:   uuid.New().String(),
@@ -80,6 +83,7 @@ func TestDestinationModel_ClearMany(t *testing.T) {
 				ID:         ids[i],
 				Type:       "webhooks",
 				Topics:     []string{"user.created", "user.updated"},
+				Config:     map[string]string{"url": "https://example.com"},
 				CreatedAt:  time.Now(),
 				DisabledAt: nil,
 				TenantID:   tenantID,
@@ -135,6 +139,7 @@ func TestDestinationModel_List(t *testing.T) {
 			assert.Equal(t, ids[index], destination.ID)
 			assert.Equal(t, inputDestination.Type, destination.Type)
 			assert.Equal(t, inputDestination.Topics, destination.Topics)
+			assert.Equal(t, inputDestination.Config, destination.Config)
 			assert.Equal(t, inputDestination.TenantID, destination.TenantID)
 		}
 	})
@@ -144,6 +149,50 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assert.Equal(t, expected.ID, actual.ID)
 	assert.Equal(t, expected.Type, actual.Type)
 	assert.Equal(t, expected.Topics, actual.Topics)
+	assert.Equal(t, expected.Config, actual.Config)
 	assert.True(t, cmp.Equal(expected.CreatedAt, actual.CreatedAt))
 	assert.True(t, cmp.Equal(expected.DisabledAt, actual.DisabledAt))
+}
+
+func TestDestination_Validate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("validates valid", func(t *testing.T) {
+		destination := models.Destination{
+			ID:         uuid.New().String(),
+			Type:       "webhooks",
+			Topics:     []string{"user.created", "user.updated"},
+			Config:     map[string]string{"url": "https://example.com"},
+			CreatedAt:  time.Now(),
+			TenantID:   uuid.New().String(),
+			DisabledAt: nil,
+		}
+		assert.Nil(t, destination.Validate(context.Background()))
+	})
+
+	t.Run("validates invalid config", func(t *testing.T) {
+		destination := models.Destination{
+			ID:         uuid.New().String(),
+			Type:       "webhooks",
+			Topics:     []string{"user.created", "user.updated"},
+			Config:     map[string]string{},
+			CreatedAt:  time.Now(),
+			TenantID:   uuid.New().String(),
+			DisabledAt: nil,
+		}
+		assert.ErrorContains(t, destination.Validate(context.Background()), "url is required for webhook destination config")
+	})
+
+	t.Run("validates invalid type", func(t *testing.T) {
+		destination := models.Destination{
+			ID:         uuid.New().String(),
+			Type:       "invalid",
+			Topics:     []string{"user.created", "user.updated"},
+			Config:     map[string]string{},
+			CreatedAt:  time.Now(),
+			TenantID:   uuid.New().String(),
+			DisabledAt: nil,
+		}
+		assert.ErrorContains(t, destination.Validate(context.Background()), "invalid destination type")
+	})
 }

@@ -9,13 +9,16 @@ import (
 	"sort"
 	"time"
 
+	"github.com/hookdeck/EventKit/internal/destinationadapter"
+	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/redis"
 )
 
 type Destination struct {
 	ID         string     `json:"id" redis:"id"`
 	Type       string     `json:"type" redis:"type"`
-	Topics     Strings    `json:"topics" redis:"-"` // type not supported by redis-go
+	Topics     Strings    `json:"topics" redis:"-"`
+	Config     Config     `json:"config" redis:"-"`
 	CreatedAt  time.Time  `json:"created_at" redis:"created_at"`
 	DisabledAt *time.Time `json:"disabled_at" redis:"disabled_at"`
 	TenantID   string     `json:"-" redis:"-"`
@@ -33,11 +36,16 @@ func (m *DestinationModel) Get(c context.Context, cmdable redis.Cmdable, id, ten
 }
 
 func (m *DestinationModel) Set(ctx context.Context, cmdable redis.Cmdable, destination Destination) error {
+	// err := destination.Validate(ctx)
+	// if err != nil {
+	// 	return err
+	// }
 	key := redisDestinationID(destination.ID, destination.TenantID)
 	_, err := cmdable.Pipelined(ctx, func(r redis.Pipeliner) error {
 		r.HSet(ctx, key, "id", destination.ID)
 		r.HSet(ctx, key, "type", destination.Type)
 		r.HSet(ctx, key, "topics", &destination.Topics)
+		r.HSet(ctx, key, "config", &destination.Config)
 		r.HSet(ctx, key, "created_at", destination.CreatedAt)
 		if destination.DisabledAt != nil {
 			r.HSet(ctx, key, "disabled_at", destination.DisabledAt)
@@ -133,6 +141,10 @@ func (m *DestinationModel) parse(_ context.Context, tenantID string, cmd *redis.
 	if err != nil {
 		return nil, fmt.Errorf("invalid topics: %w", err)
 	}
+	err = destination.Config.UnmarshalBinary([]byte(hash["config"]))
+	if err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
 	return destination, nil
 }
 
@@ -151,4 +163,47 @@ func (s *Strings) MarshalBinary() ([]byte, error) {
 
 func (s *Strings) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, s)
+}
+
+type Config map[string]string
+
+var _ encoding.BinaryMarshaler = &Config{}
+var _ encoding.BinaryUnmarshaler = &Config{}
+
+func (c *Config) MarshalBinary() ([]byte, error) {
+	return json.Marshal(c)
+}
+
+func (c *Config) UnmarshalBinary(data []byte) error {
+	return json.Unmarshal(data, c)
+}
+
+func (d *Destination) Validate(ctx context.Context) error {
+	adapter, err := destinationadapter.NewAdapater(d.Type)
+	if err != nil {
+		return err
+	}
+	return adapter.Validate(ctx, destinationadapter.Destination{
+		ID:          d.ID,
+		Type:        d.Type,
+		Config:      d.Config,
+		Credentials: map[string]string{},
+	})
+}
+
+func (d *Destination) Publish(ctx context.Context, event *ingest.Event) error {
+	adapter, err := destinationadapter.NewAdapater(d.Type)
+	if err != nil {
+		return err
+	}
+	return adapter.Publish(
+		ctx,
+		destinationadapter.Destination{
+			ID:          d.ID,
+			Type:        d.Type,
+			Config:      d.Config,
+			Credentials: map[string]string{},
+		},
+		event,
+	)
 }

@@ -107,6 +107,7 @@ func TestDestinationCreateHandler(t *testing.T) {
 		exampleDestination := api.CreateDestinationRequest{
 			Type:   "webhooks",
 			Topics: []string{"user.created", "user.updated"},
+			Config: map[string]string{"url": "https://example.com"},
 		}
 		destinationJSON, _ := json.Marshal(exampleDestination)
 		req, _ := http.NewRequest("POST", baseTenantPath(tenantID)+"/destinations", strings.NewReader(string(destinationJSON)))
@@ -150,6 +151,7 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 			Topics:    []string{"user.created", "user.updated"},
 			CreatedAt: time.Now(),
 			TenantID:  tenantID,
+			Config:    map[string]string{"url": "https://example.com"},
 		}
 		model.Set(context.Background(), redisClient, exampleDestination)
 
@@ -185,10 +187,11 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		Topics:    []string{"user.created", "user.updated"},
 		CreatedAt: time.Now(),
 		TenantID:  tenantID,
+		Config:    map[string]string{"url": "https://example.com"},
 	}
 
 	updateDestinationRequest := api.UpdateDestinationRequest{
-		Type: "not-webhooks",
+		Topics: []string{"*"},
 	}
 	updateDestinationJSON, _ := json.Marshal(updateDestinationRequest)
 
@@ -228,7 +231,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, initialDestination.ID, destinationResponse["id"])
-		assert.Equal(t, updateDestinationRequest.Type, destinationResponse["type"])
+		assert.Equal(t, initialDestination.Type, destinationResponse["type"])
 		assertMarshalEqual(t, updateDestinationRequest.Topics, destinationResponse["topics"])
 		assert.Equal(t, initialDestination.CreatedAt.Format(time.RFC3339Nano), destinationResponse["created_at"])
 

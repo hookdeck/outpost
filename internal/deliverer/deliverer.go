@@ -27,6 +27,7 @@ func (d *Delivery) Deliver(ctx context.Context, destination *models.Destination,
 	)
 
 	// ... deliver event to destination
+	destination.Publish(ctx, event)
 
 	return nil
 }

@@ -102,8 +102,15 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	}
 
 	// Update destination
-	destination.Type = json.Type
-	destination.Topics = json.Topics
+	if json.Type != "" {
+		destination.Type = json.Type
+	}
+	if json.Topics != nil {
+		destination.Topics = json.Topics
+	}
+	if json.Config != nil {
+		destination.Config = json.Config
+	}
 	if err := h.model.Set(c.Request.Context(), h.redisClient, *destination); err != nil {
 		logger.Error("failed to set destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -137,11 +144,13 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 // ===== Requests =====
 
 type CreateDestinationRequest struct {
-	Type   string   `json:"type" binding:"required"`
-	Topics []string `json:"topics" binding:"required"`
+	Type   string            `json:"type" binding:"required"`
+	Topics []string          `json:"topics" binding:"required"`
+	Config map[string]string `json:"config" binding:"required"`
 }
 
 type UpdateDestinationRequest struct {
-	Type   string   `json:"type" binding:"-"`
-	Topics []string `json:"topics" binding:"-"`
+	Type   string            `json:"type" binding:"-"`
+	Topics []string          `json:"topics" binding:"-"`
+	Config map[string]string `json:"config" binding:"-"`
 }
