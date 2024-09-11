@@ -19,12 +19,10 @@ func TestDestinationModel(t *testing.T) {
 	model := models.NewDestinationModel()
 
 	input := models.Destination{
-		ID:     uuid.New().String(),
-		Type:   "webhooks",
-		Topics: []string{"user.created", "user.updated"},
-		Config: map[string]string{
-			"url": "https://example.com",
-		},
+		ID:         uuid.New().String(),
+		Type:       "webhooks",
+		Topics:     []string{"user.created", "user.updated"},
+		Config:     map[string]string{"url": "https://example.com"},
 		CreatedAt:  time.Now(),
 		DisabledAt: nil,
 		TenantID:   uuid.New().String(),
@@ -48,7 +46,7 @@ func TestDestinationModel(t *testing.T) {
 	})
 
 	t.Run("overrides", func(t *testing.T) {
-		input.Type = "not-webhooks"
+		input.Topics = []string{"*"}
 
 		err := model.Set(context.Background(), redisClient, input)
 		assert.Nil(t, err)
@@ -120,6 +118,7 @@ func TestDestinationModel_List(t *testing.T) {
 		inputDestination := models.Destination{
 			Type:       "webhooks",
 			Topics:     []string{"user.created", "user.updated"},
+			Config:     map[string]string{"url": "https://example.com"},
 			DisabledAt: nil,
 			TenantID:   tenantID,
 		}

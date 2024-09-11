@@ -57,6 +57,7 @@ func TestDestinationListHandler(t *testing.T) {
 		inputDestination := models.Destination{
 			Type:       "webhooks",
 			Topics:     []string{"user.created", "user.updated"},
+			Config:     map[string]string{"url": "https://example.com"},
 			DisabledAt: nil,
 			TenantID:   tenantID,
 		}
@@ -185,9 +186,9 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		ID:        uuid.New().String(),
 		Type:      "webhooks",
 		Topics:    []string{"user.created", "user.updated"},
+		Config:    map[string]string{"url": "https://example.com"},
 		CreatedAt: time.Now(),
 		TenantID:  tenantID,
-		Config:    map[string]string{"url": "https://example.com"},
 	}
 
 	updateDestinationRequest := api.UpdateDestinationRequest{
@@ -265,6 +266,7 @@ func TestDestinationDeleteHandler(t *testing.T) {
 			ID:        uuid.New().String(),
 			Type:      "webhooks",
 			Topics:    []string{"user.created", "user.updated"},
+			Config:    map[string]string{"url": "https://example.com"},
 			CreatedAt: time.Now(),
 			TenantID:  tenantID,
 		}
