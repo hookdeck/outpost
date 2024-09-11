@@ -3,6 +3,7 @@ package api
 import (
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -49,11 +50,16 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		ID:         id,
 		Type:       json.Type,
 		Topics:     json.Topics,
+		Config:     json.Config,
 		CreatedAt:  time.Now(),
 		DisabledAt: nil,
 		TenantID:   c.Param("tenantID"),
 	}
 	if err := h.model.Set(c.Request.Context(), h.redisClient, destination); err != nil {
+		if strings.Contains(err.Error(), "validation failed") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		h.logger.Ctx(c.Request.Context()).Error("failed to set destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
 		return
@@ -112,6 +118,10 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		destination.Config = json.Config
 	}
 	if err := h.model.Set(c.Request.Context(), h.redisClient, *destination); err != nil {
+		if strings.Contains(err.Error(), "validation failed") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		logger.Error("failed to set destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
 		return

@@ -36,12 +36,12 @@ func (m *DestinationModel) Get(c context.Context, cmdable redis.Cmdable, id, ten
 }
 
 func (m *DestinationModel) Set(ctx context.Context, cmdable redis.Cmdable, destination Destination) error {
-	// err := destination.Validate(ctx)
-	// if err != nil {
-	// 	return err
-	// }
+	err := destination.Validate(ctx)
+	if err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
 	key := redisDestinationID(destination.ID, destination.TenantID)
-	_, err := cmdable.Pipelined(ctx, func(r redis.Pipeliner) error {
+	_, err = cmdable.Pipelined(ctx, func(r redis.Pipeliner) error {
 		r.HSet(ctx, key, "id", destination.ID)
 		r.HSet(ctx, key, "type", destination.Type)
 		r.HSet(ctx, key, "topics", &destination.Topics)
