@@ -123,6 +123,46 @@ func TestDestinationCreateHandler(t *testing.T) {
 		assert.NotEqual(t, "", destinationResponse["id"])
 		assert.NotEqual(t, "", destinationResponse["created_at"])
 	})
+
+	t.Run("should do basic validation", func(t *testing.T) {
+		t.Parallel()
+
+		w := httptest.NewRecorder()
+
+		exampleDestination := api.CreateDestinationRequest{
+			Type: "webhooks",
+		}
+		destinationJSON, _ := json.Marshal(exampleDestination)
+		req, _ := http.NewRequest("POST", baseTenantPath(tenantID)+"/destinations", strings.NewReader(string(destinationJSON)))
+		router.ServeHTTP(w, req)
+
+		var destinationResponse map[string]any
+		json.Unmarshal(w.Body.Bytes(), &destinationResponse)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, destinationResponse["error"], "Error:Field validation")
+	})
+
+	t.Run("should do destination validation", func(t *testing.T) {
+		t.Parallel()
+
+		w := httptest.NewRecorder()
+
+		exampleDestination := api.CreateDestinationRequest{
+			Type:   "webhooks",
+			Topics: []string{"user.created", "user.updated"},
+			Config: map[string]string{"invalid_config": "https://example.com"},
+		}
+		destinationJSON, _ := json.Marshal(exampleDestination)
+		req, _ := http.NewRequest("POST", baseTenantPath(tenantID)+"/destinations", strings.NewReader(string(destinationJSON)))
+		router.ServeHTTP(w, req)
+
+		var destinationResponse map[string]any
+		json.Unmarshal(w.Body.Bytes(), &destinationResponse)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, destinationResponse["error"], "validation failed:")
+	})
 }
 
 func TestDestinationRetrieveHandler(t *testing.T) {
@@ -216,6 +256,23 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
+	t.Run("should validate destination", func(t *testing.T) {
+		t.Parallel()
+
+		model.Set(context.Background(), redisClient, initialDestination)
+
+		invalidRequest := api.UpdateDestinationRequest{
+			Type: "invalid",
+		}
+		invalidRequestJSON, _ := json.Marshal(invalidRequest)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PATCH", baseTenantPath(tenantID)+"/destinations/"+initialDestination.ID, strings.NewReader(string(invalidRequestJSON)))
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
 	t.Run("should update destination", func(t *testing.T) {
 		t.Parallel()
 
@@ -234,6 +291,39 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		assert.Equal(t, initialDestination.ID, destinationResponse["id"])
 		assert.Equal(t, initialDestination.Type, destinationResponse["type"])
 		assertMarshalEqual(t, updateDestinationRequest.Topics, destinationResponse["topics"])
+		assert.Equal(t, initialDestination.CreatedAt.Format(time.RFC3339Nano), destinationResponse["created_at"])
+
+		// Clean up
+		redisClient.Del(context.Background(), "destination:"+initialDestination.ID)
+	})
+
+	t.Run("should update destination type", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup initial destination
+		model.Set(context.Background(), redisClient, initialDestination)
+
+		// Test HTTP request
+		updated := api.UpdateDestinationRequest{
+			Type: "rabbitmq",
+			Config: map[string]string{
+				"server_url": "https://example.com",
+				"exchange":   "events",
+			},
+		}
+		updatedJSON, _ := json.Marshal(updated)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PATCH", baseTenantPath(tenantID)+"/destinations/"+initialDestination.ID, strings.NewReader(string(updatedJSON)))
+		router.ServeHTTP(w, req)
+
+		var destinationResponse map[string]any
+		json.Unmarshal(w.Body.Bytes(), &destinationResponse)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, initialDestination.ID, destinationResponse["id"])
+		assert.Equal(t, updated.Type, destinationResponse["type"])
+		assertMarshalEqual(t, updated.Config, destinationResponse["config"])
 		assert.Equal(t, initialDestination.CreatedAt.Format(time.RFC3339Nano), destinationResponse["created_at"])
 
 		// Clean up
