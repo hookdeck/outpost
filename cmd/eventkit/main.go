@@ -80,7 +80,7 @@ func run(mainContext context.Context) error {
 		services = append(services, service)
 	}
 	if cfg.Service == config.ServiceTypeDelivery || cfg.Service == config.ServiceTypeSingular {
-		service, err := delivery.NewService(ctx, wg, cfg, logger)
+		service, err := delivery.NewService(ctx, wg, cfg, logger, nil)
 		if err != nil {
 			cancel()
 			return err

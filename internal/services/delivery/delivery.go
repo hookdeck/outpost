@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/hookdeck/EventKit/internal/config"
-	"github.com/hookdeck/EventKit/internal/deliverer"
 	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/redis"
@@ -15,11 +14,12 @@ import (
 )
 
 type DeliveryService struct {
-	logger      *otelzap.Logger
-	redisClient *redis.Client
+	logger       *otelzap.Logger
+	redisClient  *redis.Client
+	eventHandler EventHandler
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*DeliveryService, error) {
+func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger, handler EventHandler) (*DeliveryService, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -32,9 +32,18 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		return nil, err
 	}
 
+	if handler == nil {
+		handler = &eventHandler{
+			logger:           logger,
+			redisClient:      redisClient,
+			destinationModel: models.NewDestinationModel(),
+		}
+	}
+
 	service := &DeliveryService{
-		logger:      logger,
-		redisClient: redisClient,
+		logger:       logger,
+		redisClient:  redisClient,
+		eventHandler: handler,
 	}
 
 	return service, nil
@@ -53,41 +62,36 @@ func (s *DeliveryService) Run(ctx context.Context) error {
 		return err
 	}
 
-	destinationModel := models.NewDestinationModel()
-
 	for {
 		msg, err := subscription.Receive(ctx)
+		logger := s.logger.Ctx(ctx)
 		if err != nil {
+			if err == context.Canceled {
+				logger.Info("context canceled")
+				break
+			}
 			// Errors from Receive indicate that Receive will no longer succeed.
-			s.logger.Ctx(ctx).Error("failed to receive message", zap.Error(err))
+			logger.Error("failed to receive message", zap.Error(err))
 			break
 		}
 
 		// Do work based on the message.
 		// TODO: use goroutine to process messages concurrently.
 		// ref: https://gocloud.dev/howto/pubsub/subscribe/#receiving
-
+		logger.Info("received message", zap.String("message", string(msg.Body)))
 		event := ingest.Event{}
 		err = event.FromMessage(msg)
 		if err != nil {
-			s.logger.Ctx(ctx).Error("failed to unmarshal event", zap.Error(err))
+			logger.Error("failed to unmarshal event", zap.Error(err))
 			msg.Nack()
-			continue
+			return err
 		}
-
-		destinations, err := destinationModel.List(ctx, s.redisClient, event.TenantID)
+		err = s.eventHandler.Handle(ctx, event)
 		if err != nil {
-			s.logger.Ctx(ctx).Error("failed to list destinations", zap.Error(err))
+			logger.Error("failed to handle message", zap.Error(err))
 			msg.Nack()
-			continue
+			return err
 		}
-		destinations = models.FilterTopics(destinations, event.Topic)
-
-		// TODO: handle via goroutine or MQ.
-		for _, destination := range destinations {
-			deliverer.New(s.logger).Deliver(ctx, &destination, &event)
-		}
-
 		msg.Ack()
 	}
 
