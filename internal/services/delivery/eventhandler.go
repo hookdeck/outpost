@@ -3,7 +3,6 @@ package delivery
 import (
 	"context"
 
-	"github.com/hookdeck/EventKit/internal/deliverer"
 	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/redis"
@@ -20,6 +19,14 @@ type eventHandler struct {
 	destinationModel *models.DestinationModel
 }
 
+func NewEventHandler(logger *otelzap.Logger, redisClient *redis.Client, destinationModel *models.DestinationModel) EventHandler {
+	return &eventHandler{
+		logger:           logger,
+		redisClient:      redisClient,
+		destinationModel: destinationModel,
+	}
+}
+
 var _ EventHandler = (*eventHandler)(nil)
 
 func (h *eventHandler) Handle(ctx context.Context, event ingest.Event) error {
@@ -31,7 +38,7 @@ func (h *eventHandler) Handle(ctx context.Context, event ingest.Event) error {
 
 	// TODO: handle via goroutine or MQ.
 	for _, destination := range destinations {
-		deliverer.New(h.logger).Deliver(ctx, &destination, &event)
+		destination.Publish(ctx, &event)
 	}
 
 	return nil
