@@ -1,0 +1,83 @@
+# Destinations
+
+## Local Development
+
+### RabbitMQ
+
+To test RabbitMQ destination, make sure you have a running RabbitMQ instance. You can do so locally using the MQs Docker Compose file in this project.
+
+```sh
+$ cd build/dev/mqs
+# .../hookdeck/EventKit/build/dev/mqs
+$ docker-compose up -d
+```
+
+You can visit the [RabbitMQ Management Interface](http://localhost:15672) to confirm that you have RabbitMQ running. (Small tip: the default credentials for the dashboard is `guest`:`guest`)
+
+From then, you can run the local dev script to declare a simple exchange & with a queue subscripiton:
+
+```sh
+# back at root .../hookdeck/EventKit directory
+$ go run cmd/destinations/rabbitmq/main.go
+```
+
+The test exchange is `destination_exchange` and the test queue is `destination_queue`.
+
+You can create a RabbitMQ destination to start receiving events:
+
+```sh
+$ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: ••••••' \
+--data '{
+    "type": "rabbitmq",
+    "topics": ["*"],
+    "config": {
+        "server_url": "amqp://guest:guest@localhost:5672",
+        "exchange": "destination_exchange"
+    }
+}'
+```
+
+### Webhooks
+
+To test local webhooks destination, you can run a local mock server:
+
+```sh
+$ go run cmd/destinations/webhooks/main.go
+# [*] Server listening on port :4000
+
+# or specify a preferred PORT
+$ PORT=3000 go run cmd/destinations/webhooks/main.go
+# [*] Server listening on port :3000
+```
+
+You can create a webhooks destination to start receiving events:
+
+```sh
+$ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: ••••••' \
+--data '{
+    "type": "webhooks",
+    "topics": ["*"],
+    "config": {
+        "url": "http://localhost:4444"
+    }
+}'
+```
+
+```json
+{
+  "id": "...",
+  "type": "webhooks",
+  "topics": [
+    "*"
+  ],
+  "config": {
+    "url": "http://localhost:4444"
+  },
+  "created_at": "...",
+  "disabled_at": null
+}
+```
