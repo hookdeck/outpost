@@ -39,6 +39,23 @@ $ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
 }'
 ```
 
+```json
+{
+  "id": "...",
+  "type": "rabbitmq",
+  "topics": [
+    "*"
+  ],
+  "config": {
+    "server_url": "amqp://guest:guest@localhost:5672",
+    "exchange": "destination_exchange"
+  },
+  "created_at": "...",
+  "disabled_at": null
+}
+```
+
+
 ### Webhooks
 
 To test local webhooks destination, you can run a local mock server:
