@@ -1,0 +1,13 @@
+name: "eventkit-mqs"
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+volumes:
+  rabbitmq_data:
