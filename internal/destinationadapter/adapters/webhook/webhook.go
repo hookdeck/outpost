@@ -34,7 +34,7 @@ func (d *WebhookDestination) Publish(ctx context.Context, destination adapters.D
 	if err != nil {
 		return err
 	}
-	return makeRequest(config.URL, event.Data)
+	return makeRequest(ctx, config.URL, event.Data)
 }
 
 func parseConfig(destination adapters.DestinationAdapterValue) (*WebhookDestinationConfig, error) {
@@ -42,24 +42,24 @@ func parseConfig(destination adapters.DestinationAdapterValue) (*WebhookDestinat
 		return nil, errors.New("invalid destination type")
 	}
 
-	webhookDestinationConfig := &WebhookDestinationConfig{
+	destinationConfig := &WebhookDestinationConfig{
 		URL: destination.Config["url"],
 	}
 
-	if webhookDestinationConfig.URL == "" {
+	if destinationConfig.URL == "" {
 		return nil, errors.New("url is required for webhook destination config")
 	}
 
-	return webhookDestinationConfig, nil
+	return destinationConfig, nil
 }
 
-func makeRequest(url string, data map[string]interface{}) error {
+func makeRequest(ctx context.Context, url string, data map[string]interface{}) error {
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(dataBytes))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(dataBytes))
 	if err != nil {
 		return err
 	}
