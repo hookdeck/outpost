@@ -122,7 +122,7 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		finalDestination := destination
 		finalDestination.Config["url"] = serverURL
 
-		err := webhookDestination.Publish(nil, finalDestination, &ingest.Event{
+		err := webhookDestination.Publish(context.Background(), finalDestination, &ingest.Event{
 			ID:               uuid.New().String(),
 			TenantID:         uuid.New().String(),
 			DestinationID:    uuid.New().String(),
