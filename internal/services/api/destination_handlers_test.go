@@ -223,7 +223,6 @@ func TestDestinationUpdateHandler(t *testing.T) {
 	tenantID := setupExistingTenant(t, redisClient)
 
 	initialDestination := models.Destination{
-		ID:        uuid.New().String(),
 		Type:      "webhooks",
 		Topics:    []string{"user.created", "user.updated"},
 		Config:    map[string]string{"url": "https://example.com"},
@@ -259,7 +258,9 @@ func TestDestinationUpdateHandler(t *testing.T) {
 	t.Run("should validate destination", func(t *testing.T) {
 		t.Parallel()
 
-		model.Set(context.Background(), redisClient, initialDestination)
+		destination := initialDestination
+		destination.ID = uuid.New().String()
+		model.Set(context.Background(), redisClient, destination)
 
 		invalidRequest := api.UpdateDestinationRequest{
 			Type: "invalid",
@@ -267,7 +268,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		invalidRequestJSON, _ := json.Marshal(invalidRequest)
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PATCH", baseTenantPath(tenantID)+"/destinations/"+initialDestination.ID, strings.NewReader(string(invalidRequestJSON)))
+		req, _ := http.NewRequest("PATCH", baseTenantPath(tenantID)+"/destinations/"+destination.ID, strings.NewReader(string(invalidRequestJSON)))
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -277,31 +278,35 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		t.Parallel()
 
 		// Setup initial destination
-		model.Set(context.Background(), redisClient, initialDestination)
+		destination := initialDestination
+		destination.ID = uuid.New().String()
+		model.Set(context.Background(), redisClient, destination)
 
 		// Test HTTP request
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PATCH", baseTenantPath(tenantID)+"/destinations/"+initialDestination.ID, strings.NewReader(string(updateDestinationJSON)))
+		req, _ := http.NewRequest("PATCH", baseTenantPath(tenantID)+"/destinations/"+destination.ID, strings.NewReader(string(updateDestinationJSON)))
 		router.ServeHTTP(w, req)
 
 		var destinationResponse map[string]any
 		json.Unmarshal(w.Body.Bytes(), &destinationResponse)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, initialDestination.ID, destinationResponse["id"])
-		assert.Equal(t, initialDestination.Type, destinationResponse["type"])
+		assert.Equal(t, destination.ID, destinationResponse["id"])
+		assert.Equal(t, destination.Type, destinationResponse["type"])
 		assertMarshalEqual(t, updateDestinationRequest.Topics, destinationResponse["topics"])
-		assert.Equal(t, initialDestination.CreatedAt.Format(time.RFC3339Nano), destinationResponse["created_at"])
+		assert.Equal(t, destination.CreatedAt.Format(time.RFC3339Nano), destinationResponse["created_at"])
 
 		// Clean up
-		redisClient.Del(context.Background(), "destination:"+initialDestination.ID)
+		redisClient.Del(context.Background(), "destination:"+destination.ID)
 	})
 
 	t.Run("should update destination type", func(t *testing.T) {
 		t.Parallel()
 
 		// Setup initial destination
-		model.Set(context.Background(), redisClient, initialDestination)
+		destination := initialDestination
+		destination.ID = uuid.New().String()
+		model.Set(context.Background(), redisClient, destination)
 
 		// Test HTTP request
 		updated := api.UpdateDestinationRequest{
@@ -314,20 +319,20 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		updatedJSON, _ := json.Marshal(updated)
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PATCH", baseTenantPath(tenantID)+"/destinations/"+initialDestination.ID, strings.NewReader(string(updatedJSON)))
+		req, _ := http.NewRequest("PATCH", baseTenantPath(tenantID)+"/destinations/"+destination.ID, strings.NewReader(string(updatedJSON)))
 		router.ServeHTTP(w, req)
 
 		var destinationResponse map[string]any
 		json.Unmarshal(w.Body.Bytes(), &destinationResponse)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, initialDestination.ID, destinationResponse["id"])
+		assert.Equal(t, destination.ID, destinationResponse["id"])
 		assert.Equal(t, updated.Type, destinationResponse["type"])
 		assertMarshalEqual(t, updated.Config, destinationResponse["config"])
-		assert.Equal(t, initialDestination.CreatedAt.Format(time.RFC3339Nano), destinationResponse["created_at"])
+		assert.Equal(t, destination.CreatedAt.Format(time.RFC3339Nano), destinationResponse["created_at"])
 
 		// Clean up
-		redisClient.Del(context.Background(), "destination:"+initialDestination.ID)
+		redisClient.Del(context.Background(), "destination:"+destination.ID)
 	})
 }
 
