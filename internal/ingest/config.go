@@ -164,7 +164,7 @@ func (c *IngestConfig) validateGCPPubSubConfig() error {
 
 const (
 	DefaultRabbitMQPublishExchange = "eventkit"
-	DefaultRabbitMQPublishQueue    = "eventkit_publish"
+	DefaultRabbitMQPublishQueue    = "eventkit.publish"
 )
 
 func (c *IngestConfig) parseRabbitMQConfig(viper *viper.Viper) {

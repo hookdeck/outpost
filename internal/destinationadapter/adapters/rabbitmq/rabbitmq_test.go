@@ -11,10 +11,10 @@ import (
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters/rabbitmq"
 	"github.com/hookdeck/EventKit/internal/ingest"
+	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
-
-	testrabbitmq "github.com/testcontainers/testcontainers-go/modules/rabbitmq"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRabbitMQDestination_Validate(t *testing.T) {
@@ -104,11 +104,9 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 
 	t.Parallel()
 
-	rabbitmqURL, terminate, err := startTestcontainerRabbitMQ()
+	rabbitmqURL, terminate, err := testutil.StartTestcontainerRabbitMQ()
+	require.Nil(t, err)
 	defer terminate()
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	RABBIT_SERVER_URL := rabbitmqURL
 	const (
@@ -220,31 +218,4 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert.Equal(t, event.Data, body)
-}
-
-func startTestcontainerRabbitMQ() (string, func(), error) {
-	ctx := context.Background()
-
-	rabbitmqContainer, err := testrabbitmq.Run(ctx,
-		"rabbitmq:3-management-alpine",
-	)
-
-	if err != nil {
-		log.Printf("failed to start container: %s", err)
-		return "", func() {}, err
-	}
-
-	endpoint, err := rabbitmqContainer.PortEndpoint(ctx, "5672/tcp", "")
-	if err != nil {
-		log.Printf("failed to get endpoint: %s", err)
-		return "", func() {}, err
-	}
-	log.Printf("RabbitMQ running at %s", endpoint)
-	return "amqp://guest:guest@" + endpoint,
-		func() {
-			if err := rabbitmqContainer.Terminate(ctx); err != nil {
-				log.Printf("failed to terminate container: %s", err)
-			}
-		},
-		nil
 }

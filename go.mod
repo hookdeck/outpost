@@ -32,6 +32,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.29.0
 	go.uber.org/zap v1.27.0
 	gocloud.dev v0.39.0
+	gocloud.dev/pubsub/rabbitpubsub v0.39.0
 )
 
 require (
