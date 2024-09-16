@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"crypto/rand"
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -47,4 +49,10 @@ func CreateTestLogger(t *testing.T) *otelzap.Logger {
 		otelzap.WithMinLevel(zap.InfoLevel),
 	)
 	return logger
+}
+
+func RandomString(length int) string {
+	b := make([]byte, length+2)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)[2 : length+2]
 }

@@ -21,7 +21,7 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *ote
 	gin.SetMode(gin.TestMode)
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
-	ingestor := ingest.New(logger, &ingest.IngestConfig{})
+	ingestor, _ := ingest.New(&ingest.IngestConfig{})
 	ingestor.Init(context.Background())
 	router := api.NewRouter(
 		api.RouterConfig{

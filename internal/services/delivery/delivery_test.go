@@ -13,17 +13,16 @@ import (
 	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"github.com/stretchr/testify/require"
 )
 
-func setupTestDeliveryService(t *testing.T, handler delivery.EventHandler) (*delivery.DeliveryService, error, *otelzap.Logger, *ingest.Ingestor) {
+func setupTestDeliveryService(t *testing.T, handler delivery.EventHandler, ingestor *ingest.Ingestor) (*delivery.DeliveryService, error) {
 	logger := testutil.CreateTestLogger(t)
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	config := config.Config{Redis: redisConfig}
 	wg := sync.WaitGroup{}
-	ingestor := ingest.New(logger, &ingest.IngestConfig{})
 	service, err := delivery.NewService(context.Background(), &wg, &config, logger, ingestor, handler)
-	return service, err, logger, ingestor
+	return service, err
 }
 
 func TestDeliveryService(t *testing.T) {
@@ -32,8 +31,14 @@ func TestDeliveryService(t *testing.T) {
 	t.Run("should run without error", func(t *testing.T) {
 		t.Parallel()
 
-		service, err, _, _ := setupTestDeliveryService(t, nil)
-		assert.Nil(t, err)
+		ingestor, err := ingest.New(&ingest.IngestConfig{InMemory: &ingest.InMemoryConfig{Name: testutil.RandomString(5)}})
+		require.Nil(t, err)
+		cleanup, err := ingestor.Init(context.Background())
+		require.Nil(t, err)
+		defer cleanup()
+
+		service, err := setupTestDeliveryService(t, nil, ingestor)
+		require.Nil(t, err)
 
 		errchan := make(chan error)
 		context, cancel := context.WithCancel(context.Background())
@@ -67,21 +72,20 @@ func TestDeliveryService(t *testing.T) {
 			Data:             map[string]interface{}{},
 		}
 
+		ingestor, err := ingest.New(&ingest.IngestConfig{InMemory: &ingest.InMemoryConfig{Name: testutil.RandomString(5)}})
+		require.Nil(t, err)
+		cleanup, err := ingestor.Init(context.Background())
+		require.Nil(t, err)
+		defer cleanup()
+
 		handler := new(MockEventHandler)
 		handler.On(
 			"Handle",
 			mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			mock.MatchedBy(func(i ingest.Event) bool { return true }),
 		).Return(nil)
-		service, err, _, ingestor := setupTestDeliveryService(t, handler)
-		if err != nil {
-			t.Fatal(err)
-		}
-		cleanup, err := ingestor.Init(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer cleanup()
+		service, err := setupTestDeliveryService(t, handler, ingestor)
+		require.Nil(t, err)
 
 		errchan := make(chan error)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -96,7 +100,7 @@ func TestDeliveryService(t *testing.T) {
 		}()
 
 		// Act
-		ingestor.Ingest(ctx, event)
+		ingestor.Publish(ctx, event)
 
 		// Assert
 		// wait til service has stopped

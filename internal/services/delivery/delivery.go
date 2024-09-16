@@ -45,6 +45,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		logger:       logger,
 		redisClient:  redisClient,
 		eventHandler: handler,
+		ingestor:     ingestor,
 	}
 
 	return service, nil
@@ -53,9 +54,9 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 func (s *DeliveryService) Run(ctx context.Context) error {
 	s.logger.Ctx(ctx).Info("start service", zap.String("service", "delivery"))
 
-	subscription, err := s.ingestor.OpenSubscriptionDeliveryTopic(ctx)
+	subscription, err := s.ingestor.Subscribe(ctx)
 	if err != nil {
-		s.logger.Ctx(ctx).Error("failed to open subscription", zap.Error(err))
+		s.logger.Ctx(ctx).Error("failed to susbcribe to ingestion events", zap.Error(err))
 		return err
 	}
 
@@ -75,15 +76,8 @@ func (s *DeliveryService) Run(ctx context.Context) error {
 		// Do work based on the message.
 		// TODO: use goroutine to process messages concurrently.
 		// ref: https://gocloud.dev/howto/pubsub/subscribe/#receiving
-		logger.Info("received message", zap.String("message", string(msg.Body)))
-		event := ingest.Event{}
-		err = event.FromMessage(msg)
-		if err != nil {
-			logger.Error("failed to unmarshal event", zap.Error(err))
-			msg.Nack()
-			return err
-		}
-		err = s.eventHandler.Handle(ctx, event)
+		logger.Info("received event", zap.String("event", string(msg.Event.ID)))
+		err = s.eventHandler.Handle(ctx, msg.Event)
 		if err != nil {
 			logger.Error("failed to handle message", zap.Error(err))
 			msg.Nack()

@@ -38,7 +38,7 @@ func (h *IngestHandlers) Ingest(c *gin.Context) {
 		return
 	}
 
-	err := h.ingestor.Ingest(c.Request.Context(), publishedEvent.toEvent())
+	err := h.ingestor.Publish(c.Request.Context(), publishedEvent.toEvent())
 	if err != nil {
 		h.logger.Error("failed to ingest event", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to ingest event"})

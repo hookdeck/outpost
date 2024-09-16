@@ -11,6 +11,8 @@ type IngestConfig struct {
 	AzureServiceBus *AzureServiceBusConfig
 	GCPPubSub       *GCPPubSubConfig
 	RabbitMQ        *RabbitMQConfig
+	// mainly for testing purposes
+	InMemory *InMemoryConfig
 }
 
 type AWSSQSConfig struct {
@@ -28,6 +30,10 @@ type RabbitMQConfig struct {
 	ServerURL       string
 	PublishExchange string
 	PublishQueue    string
+}
+
+type InMemoryConfig struct {
+	Name string
 }
 
 func ParseIngestConfig(viper *viper.Viper) (*IngestConfig, error) {

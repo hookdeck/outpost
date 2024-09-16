@@ -51,8 +51,16 @@ func run(mainContext context.Context) error {
 	// Set up cancellation context and waitgroup
 	ctx, cancel := context.WithCancel(mainContext)
 
-	ingestor := ingest.New(logger, cfg.Ingest)
+	ingestor, err := ingest.New(cfg.Ingest)
+	if err != nil {
+		cancel()
+		return err
+	}
 	cleanupIngestor, err := ingestor.Init(ctx)
+	if err != nil {
+		cancel()
+		return err
+	}
 	defer cleanupIngestor()
 
 	// Set up OpenTelemetry.
