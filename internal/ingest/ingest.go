@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 	"gocloud.dev/pubsub"
@@ -24,23 +23,31 @@ type Event struct {
 }
 
 type Ingestor struct {
-	logger      *otelzap.Logger
-	redisClient *redis.Client
-	topic       *pubsub.Topic
+	logger *otelzap.Logger
+	config *IngestConfig
+	topic  *pubsub.Topic
 }
 
 func getDeliveryTopic() string {
 	return "mem://delivery"
 }
 
-func New(logger *otelzap.Logger, redisClient *redis.Client) *Ingestor {
+func New(logger *otelzap.Logger, config *IngestConfig) *Ingestor {
 	return &Ingestor{
-		logger:      logger,
-		redisClient: redisClient,
+		logger: logger,
+		config: config,
 	}
 }
 
-func (i *Ingestor) OpenDeliveryTopic(ctx context.Context) (func(), error) {
+func (i *Ingestor) Init(ctx context.Context) (func(), error) {
+	closeTopic, err := i.openDeliveryTopic(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return closeTopic, nil
+}
+
+func (i *Ingestor) openDeliveryTopic(ctx context.Context) (func(), error) {
 	topic, err := pubsub.OpenTopic(ctx, getDeliveryTopic())
 	if err != nil {
 		return nil, err
@@ -62,13 +69,6 @@ func (i *Ingestor) Ingest(ctx context.Context, event Event) error {
 		return err
 	}
 	i.logger.Ctx(ctx).Info("ingest", zap.String("event", string(marshaledEvent)))
-
-	// Temporarily save the event in Redis for debugging purposes.
-	err = i.redisClient.Set(ctx, "event:"+event.ID, marshaledEvent, 0).Err()
-	if err != nil {
-		i.logger.Ctx(ctx).Error("failed to save event", zap.Error(err))
-		return err
-	}
 
 	err = i.publish(ctx, marshaledEvent)
 	if err != nil {

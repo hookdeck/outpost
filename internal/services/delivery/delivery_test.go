@@ -2,7 +2,6 @@ package delivery_test
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -12,19 +11,19 @@ import (
 	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/services/delivery"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
-	r "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
-func setupTestDeliveryService(t *testing.T, handler delivery.EventHandler) (*delivery.DeliveryService, error, *otelzap.Logger, *config.Config) {
+func setupTestDeliveryService(t *testing.T, handler delivery.EventHandler) (*delivery.DeliveryService, error, *otelzap.Logger, *ingest.Ingestor) {
 	logger := testutil.CreateTestLogger(t)
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	config := config.Config{Redis: redisConfig}
 	wg := sync.WaitGroup{}
-	service, err := delivery.NewService(context.Background(), &wg, &config, logger, handler)
-	return service, err, logger, &config
+	ingestor := ingest.New(logger, &ingest.IngestConfig{})
+	service, err := delivery.NewService(context.Background(), &wg, &config, logger, ingestor, handler)
+	return service, err, logger, ingestor
 }
 
 func TestDeliveryService(t *testing.T) {
@@ -74,22 +73,18 @@ func TestDeliveryService(t *testing.T) {
 			mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			mock.MatchedBy(func(i ingest.Event) bool { return true }),
 		).Return(nil)
-		service, err, logger, config := setupTestDeliveryService(t, handler)
+		service, err, _, ingestor := setupTestDeliveryService(t, handler)
 		if err != nil {
 			t.Fatal(err)
 		}
+		cleanup, err := ingestor.Init(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cleanup()
 
 		errchan := make(chan error)
 		ctx, cancel := context.WithCancel(context.Background())
-
-		redisClient := r.NewClient(&r.Options{
-			Addr:     fmt.Sprintf("%s:%d", config.Redis.Host, config.Redis.Port),
-			Password: config.Redis.Password,
-			DB:       config.Redis.Database,
-		})
-		ingestor := ingest.New(logger, redisClient)
-		closeDeliveryTopic, err := ingestor.OpenDeliveryTopic(ctx)
-		defer closeDeliveryTopic()
 
 		go func() {
 			errchan <- service.Run(ctx)

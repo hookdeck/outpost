@@ -2,7 +2,6 @@ package ingest_test
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -15,10 +14,9 @@ func TestIngester_Ingest(t *testing.T) {
 	t.Parallel()
 
 	logger := testutil.CreateTestLogger(t)
-	redisClient := testutil.CreateTestRedisClient(t)
-	ingestor := ingest.New(logger, redisClient)
-	closeDeliveryTopic, _ := ingestor.OpenDeliveryTopic(context.Background())
-	defer closeDeliveryTopic()
+	ingestor := ingest.New(logger, &ingest.IngestConfig{})
+	cleanup, _ := ingestor.Init(context.Background())
+	defer cleanup()
 
 	t.Run("ingests without error", func(t *testing.T) {
 		event := ingest.Event{
@@ -34,8 +32,5 @@ func TestIngester_Ingest(t *testing.T) {
 		err := ingestor.Ingest(context.Background(), event)
 
 		assert.Nil(t, err)
-		savedEvent, _ := redisClient.Get(context.Background(), "event:"+event.ID).Result()
-		marshaledEvent, _ := json.Marshal(event)
-		assert.Equal(t, string(marshaledEvent), savedEvent)
 	})
 }

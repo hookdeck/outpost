@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/hookdeck/EventKit/internal/config"
+	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/otel"
 	"github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/hookdeck/EventKit/internal/services/delivery"
@@ -50,6 +51,10 @@ func run(mainContext context.Context) error {
 	// Set up cancellation context and waitgroup
 	ctx, cancel := context.WithCancel(mainContext)
 
+	ingestor := ingest.New(logger, cfg.Ingest)
+	cleanupIngestor, err := ingestor.Init(ctx)
+	defer cleanupIngestor()
+
 	// Set up OpenTelemetry.
 	if cfg.OpenTelemetry != nil {
 		otelShutdown, err := otel.SetupOTelSDK(ctx, cfg.OpenTelemetry)
@@ -72,7 +77,7 @@ func run(mainContext context.Context) error {
 	services := []Service{}
 
 	if cfg.Service == config.ServiceTypeAPI || cfg.Service == config.ServiceTypeSingular {
-		service, err := api.NewService(ctx, wg, cfg, logger)
+		service, err := api.NewService(ctx, wg, cfg, logger, ingestor)
 		if err != nil {
 			cancel()
 			return err
@@ -80,7 +85,7 @@ func run(mainContext context.Context) error {
 		services = append(services, service)
 	}
 	if cfg.Service == config.ServiceTypeDelivery || cfg.Service == config.ServiceTypeSingular {
-		service, err := delivery.NewService(ctx, wg, cfg, logger, nil)
+		service, err := delivery.NewService(ctx, wg, cfg, logger, ingestor, nil)
 		if err != nil {
 			cancel()
 			return err

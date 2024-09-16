@@ -16,10 +16,11 @@ import (
 type DeliveryService struct {
 	logger       *otelzap.Logger
 	redisClient  *redis.Client
+	ingestor     *ingest.Ingestor
 	eventHandler EventHandler
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger, handler EventHandler) (*DeliveryService, error) {
+func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger, ingestor *ingest.Ingestor, handler EventHandler) (*DeliveryService, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -52,11 +53,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 func (s *DeliveryService) Run(ctx context.Context) error {
 	s.logger.Ctx(ctx).Info("start service", zap.String("service", "delivery"))
 
-	ingestor := ingest.New(s.logger, nil)
-	closeDeliveryTopic, err := ingestor.OpenDeliveryTopic(ctx)
-	defer closeDeliveryTopic()
-
-	subscription, err := ingestor.OpenSubscriptionDeliveryTopic(ctx)
+	subscription, err := s.ingestor.OpenSubscriptionDeliveryTopic(ctx)
 	if err != nil {
 		s.logger.Ctx(ctx).Error("failed to open subscription", zap.Error(err))
 		return err

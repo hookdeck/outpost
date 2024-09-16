@@ -1,7 +1,6 @@
 package api_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -17,7 +16,7 @@ import (
 func TestIngestHandlers(t *testing.T) {
 	t.Parallel()
 
-	router, _, redisClient := setupTestRouter(t, "", "")
+	router, _, _ := setupTestRouter(t, "", "")
 
 	t.Run("should ingest events", func(t *testing.T) {
 		t.Parallel()
@@ -41,8 +40,5 @@ func TestIngestHandlers(t *testing.T) {
 		json.Unmarshal(w.Body.Bytes(), &response)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-
-		savedEvent, _ := redisClient.Get(context.Background(), "event:"+testEvent.ID).Result()
-		assert.Equal(t, string(testEventJSON), savedEvent)
 	})
 }

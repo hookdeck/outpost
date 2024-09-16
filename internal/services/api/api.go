@@ -21,16 +21,13 @@ type APIService struct {
 	logger *otelzap.Logger
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*APIService, error) {
+func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger, ingestor *ingest.Ingestor) (*APIService, error) {
 	wg.Add(1)
 
 	redisClient, err := redis.New(ctx, cfg.Redis)
 	if err != nil {
 		return nil, err
 	}
-
-	ingestor := ingest.New(logger, redisClient)
-	closeDeliveryTopic, err := ingestor.OpenDeliveryTopic(ctx)
 
 	router := NewRouter(
 		RouterConfig{
@@ -63,7 +60,6 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 			fmt.Fprintf(os.Stderr, "error shutting down http server: %s\n", err)
 		}
 		logger.Ctx(ctx).Info("http server shutted down")
-		closeDeliveryTopic()
 	}()
 
 	return service, nil
