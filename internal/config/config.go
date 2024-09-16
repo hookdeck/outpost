@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/otel"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/joho/godotenv"
@@ -24,6 +25,7 @@ type Config struct {
 
 	Redis         *redis.RedisConfig
 	OpenTelemetry *otel.OpenTelemetryConfig
+	Ingest        *ingest.IngestConfig
 }
 
 var defaultConfig = map[string]any{
@@ -78,6 +80,11 @@ func Parse(flags Flags) (*Config, error) {
 		return nil, err
 	}
 
+	ingestConfig, err := ingest.ParseIngestConfig(viper)
+	if err != nil {
+		return nil, err
+	}
+
 	// Initialize config values
 	config := &Config{
 		Hostname:  hostname,
@@ -92,6 +99,7 @@ func Parse(flags Flags) (*Config, error) {
 			Database: mustInt(viper, "REDIS_DATABASE"),
 		},
 		OpenTelemetry: openTelemetry,
+		Ingest:        ingestConfig,
 	}
 
 	return config, nil
