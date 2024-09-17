@@ -18,6 +18,7 @@ type IngestQueue interface {
 
 type Subscription interface {
 	Receive(ctx context.Context) (*Message, error)
+	Shutdown(ctx context.Context) error
 }
 
 type QueueMessage interface {
@@ -193,6 +194,10 @@ func (s *WrappedSubscription) Receive(ctx context.Context) (*Message, error) {
 		QueueMessage: msg,
 		Event:        event,
 	}, nil
+}
+
+func (s *WrappedSubscription) Shutdown(ctx context.Context) error {
+	return s.subscription.Shutdown(ctx)
 }
 
 func wrappedSubscription(subscription *pubsub.Subscription) (Subscription, error) {

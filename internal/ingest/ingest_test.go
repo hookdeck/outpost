@@ -54,17 +54,19 @@ func testIngestor(t *testing.T, makeConfig func() ingest.IngestConfig) {
 	})
 
 	t.Run("should publish and receive message", func(t *testing.T) {
+		ctx := context.Background()
 		config := makeConfig()
 		ingestor, err := ingest.New(&config)
-		cleanup, _ := ingestor.Init(context.Background())
+		cleanup, _ := ingestor.Init(ctx)
 		defer cleanup()
 
 		msgchan := make(chan *ingest.Message)
-		subscription, err := ingestor.Subscribe(context.Background())
+		subscription, err := ingestor.Subscribe(ctx)
 		require.Nil(t, err)
+		defer subscription.Shutdown(ctx)
 
 		go func() {
-			msg, err := subscription.Receive(context.Background())
+			msg, err := subscription.Receive(ctx)
 			if err != nil {
 				log.Println("subscription error", err)
 			}
@@ -80,15 +82,13 @@ func testIngestor(t *testing.T, makeConfig func() ingest.IngestConfig) {
 			Metadata:      map[string]string{"key": "value"},
 			Data:          map[string]interface{}{"key": "value"},
 		}
-		err = ingestor.Publish(context.Background(), event)
+		err = ingestor.Publish(ctx, event)
 		require.Nil(t, err)
 
 		receivedMsg := <-msgchan
-		defer func() {
-			receivedMsg.Ack()
-			time.Sleep(time.Second / 2) // wait for ack to be processed
-		}()
 		require.NotNil(t, receivedMsg)
 		assert.Equal(t, event.ID, receivedMsg.Event.ID)
+
+		receivedMsg.Ack()
 	})
 }
