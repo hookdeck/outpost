@@ -13,6 +13,10 @@ import (
 )
 
 func TestIntegrationIngester_InMemory(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
 	t.Parallel()
 
 	testIngestor(t, func() ingest.IngestConfig {
@@ -21,6 +25,10 @@ func TestIntegrationIngester_InMemory(t *testing.T) {
 }
 
 func TestIntegrationIngester_RabbitMQ(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
 	t.Parallel()
 
 	rabbitmqURL, terminate, err := testutil.StartTestcontainerRabbitMQ()
