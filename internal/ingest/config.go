@@ -21,12 +21,6 @@ type AzureServiceBusConfig struct {
 type GCPPubSubConfig struct {
 }
 
-type RabbitMQConfig struct {
-	ServerURL       string
-	PublishExchange string
-	PublishQueue    string
-}
-
 type InMemoryConfig struct {
 	Name string
 }
@@ -120,56 +114,6 @@ func (c *IngestConfig) parseGCPPubSubConfig(viper *viper.Viper) {
 func (c *IngestConfig) validateGCPPubSubConfig() error {
 	if c.GCPPubSub == nil {
 		return nil
-	}
-
-	return nil
-}
-
-// ==================================== RabbitMQ ====================================
-
-const (
-	DefaultRabbitMQPublishExchange = "eventkit"
-	DefaultRabbitMQPublishQueue    = "eventkit.publish"
-)
-
-func (c *IngestConfig) parseRabbitMQConfig(viper *viper.Viper) {
-	if !viper.IsSet("RABBITMQ_SERVER_URL") {
-		return
-	}
-
-	config := &RabbitMQConfig{}
-	config.ServerURL = viper.GetString("RABBITMQ_SERVER_URL")
-
-	if viper.IsSet("RABBITMQ_PUBLISH_EXCHANGE") {
-		config.PublishExchange = viper.GetString("RABBITMQ_PUBLISH_EXCHANGE")
-	} else {
-		config.PublishExchange = DefaultRabbitMQPublishExchange
-	}
-
-	if viper.IsSet("RABBITMQ_PUBLISH_QUEUE") {
-		config.PublishQueue = viper.GetString("RABBITMQ_PUBLISH_QUEUE")
-	} else {
-		config.PublishQueue = DefaultRabbitMQPublishQueue
-	}
-
-	c.RabbitMQ = config
-}
-
-func (c *IngestConfig) validateRabbitMQConfig() error {
-	if c.RabbitMQ == nil {
-		return nil
-	}
-
-	if c.RabbitMQ.ServerURL == "" {
-		return errors.New("RabbitMQ Server URL is not set")
-	}
-
-	if c.RabbitMQ.PublishExchange == "" {
-		return errors.New("RabbitMQ Publish Exchange is not set")
-	}
-
-	if c.RabbitMQ.PublishQueue == "" {
-		return errors.New("RabbitMQ Publish Queue is not set")
 	}
 
 	return nil
