@@ -44,15 +44,32 @@ func TestIntegrationIngester_RabbitMQ(t *testing.T) {
 	testIngestor(t, func() ingest.IngestConfig { return config })
 }
 
+func TestIntegrationIngestor_AWS(t *testing.T) {
+	t.Parallel()
+
+	awsEndpoint, terminate, err := testutil.StartTestcontainerLocalstack()
+	require.Nil(t, err)
+	defer terminate()
+
+	config := ingest.IngestConfig{AWSSQS: &ingest.AWSSQSConfig{
+		Endpoint:                  awsEndpoint,
+		Region:                    "eu-central-1",
+		ServiceAccountCredentials: "test:test:",
+		PublishTopic:              "eventkit",
+	}}
+
+	testIngestor(t, func() ingest.IngestConfig { return config })
+}
+
 func testIngestor(t *testing.T, makeConfig func() ingest.IngestConfig) {
 	t.Run("should initialize without error", func(t *testing.T) {
 		config := makeConfig()
 		ingestor, err := ingest.New(&config)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		cleanup, err := ingestor.Init(context.Background())
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		subscription, err := ingestor.Subscribe(context.Background())
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 		msg, err := subscription.Receive(ctx)
@@ -65,7 +82,9 @@ func testIngestor(t *testing.T, makeConfig func() ingest.IngestConfig) {
 		ctx := context.Background()
 		config := makeConfig()
 		ingestor, err := ingest.New(&config)
-		cleanup, _ := ingestor.Init(ctx)
+		require.Nil(t, err)
+		cleanup, err := ingestor.Init(ctx)
+		require.Nil(t, err)
 		defer cleanup()
 
 		msgchan := make(chan *ingest.Message)

@@ -33,7 +33,7 @@ type Message struct {
 
 func NewQueue(config *IngestConfig) (IngestQueue, error) {
 	if config.AWSSQS != nil {
-		return nil, errors.New("AWS SQS queue is not implemented")
+		return NewAWSQueue(config.AWSSQS), nil
 	} else if config.AzureServiceBus != nil {
 		return nil, errors.New("Azure Service Bus queue is not implemented")
 	} else if config.GCPPubSub != nil {

@@ -15,11 +15,6 @@ type IngestConfig struct {
 	InMemory *InMemoryConfig
 }
 
-type AWSSQSConfig struct {
-	ServiceAccountCredentials string
-	PublishTopic              string
-}
-
 type AzureServiceBusConfig struct {
 }
 
@@ -85,36 +80,6 @@ func (c *IngestConfig) Validate() error {
 
 	if configCount > 1 {
 		return errors.New("only one of AWS SQS, GCP PubSub, Azure Service Bus, or RabbitMQ should be configured")
-	}
-
-	return nil
-}
-
-// ==================================== AWS SQS ====================================
-
-func (c *IngestConfig) parseAWSSQSConfig(viper *viper.Viper) {
-	if !viper.IsSet("AWS_SQS_SERVICE_ACCOUNT_CREDS") {
-		return
-	}
-
-	config := &AWSSQSConfig{}
-	config.ServiceAccountCredentials = viper.GetString("AWS_SQS_SERVICE_ACCOUNT_CREDS")
-	config.PublishTopic = viper.GetString("AWS_SQS_PUBLISH_TOPIC")
-
-	c.AWSSQS = config
-}
-
-func (c *IngestConfig) validateAWSSQSConfig() error {
-	if c.AWSSQS == nil {
-		return nil
-	}
-
-	if c.AWSSQS.ServiceAccountCredentials == "" {
-		return errors.New("AWS SQS Service Account Credentials is not set")
-	}
-
-	if c.AWSSQS.PublishTopic == "" {
-		return errors.New("AWS SQS Publish Topic is not set")
 	}
 
 	return nil

@@ -6,6 +6,7 @@ import (
 	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig_Validate(t *testing.T) {
@@ -22,8 +23,9 @@ func TestConfig_Validate(t *testing.T) {
 		t.Parallel()
 		config := ingest.IngestConfig{
 			AWSSQS: &ingest.AWSSQSConfig{
-				ServiceAccountCredentials: "credentials",
+				ServiceAccountCredentials: "test:test:",
 				PublishTopic:              "topic",
+				Region:                    "eu-central-1",
 			},
 			RabbitMQ: &ingest.RabbitMQConfig{
 				ServerURL:       "url",
@@ -84,25 +86,33 @@ func TestConfig_Parse_AWSSQS(t *testing.T) {
 
 	t.Run("should parse", func(t *testing.T) {
 		v := viper.New()
-		v.Set("AWS_SQS_SERVICE_ACCOUNT_CREDS", "credentials")
+		v.Set("AWS_SQS_SERVICE_ACCOUNT_CREDS", "test:test:")
 		v.Set("AWS_SQS_PUBLISH_TOPIC", "publish")
+		v.Set("AWS_SQS_REGION", "eu-central-1")
 		config, err := ingest.ParseIngestConfig(v)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if config == nil {
-			t.Fatal("config is nil")
-		}
-		assert.Equal(t, config.AWSSQS.ServiceAccountCredentials, "credentials")
+		require.Nil(t, err, "should parse without error")
+		assert.Equal(t, config.AWSSQS.ServiceAccountCredentials, "test:test:")
 		assert.Equal(t, config.AWSSQS.PublishTopic, "publish")
+		assert.Equal(t, config.AWSSQS.Region, "eu-central-1")
 	})
 
-	t.Run("should validate", func(t *testing.T) {
+	t.Run("should validate required config.topic", func(t *testing.T) {
 		v := viper.New()
-		v.Set("AWS_SQS_SERVICE_ACCOUNT_CREDS", "credentials")
+		v.Set("AWS_SQS_SERVICE_ACCOUNT_CREDS", "test:test:")
+		v.Set("AWS_SQS_REGION", "eu-central-1")
 		config, err := ingest.ParseIngestConfig(v)
 		assert.Nil(t, config, "should return nil config")
 		assert.ErrorContains(t, err, "AWS SQS Publish Topic is not set")
+	})
+
+	t.Run("should validate credentails", func(t *testing.T) {
+		v := viper.New()
+		v.Set("AWS_SQS_SERVICE_ACCOUNT_CREDS", "invalid")
+		v.Set("AWS_SQS_PUBLISH_TOPIC", "publish")
+		v.Set("AWS_SQS_REGION", "eu-central-1")
+		config, err := ingest.ParseIngestConfig(v)
+		assert.Nil(t, config, "should return nil config")
+		assert.ErrorContains(t, err, "Invalid AWS Service Account Credentials")
 	})
 }
 
@@ -115,9 +125,7 @@ func TestConfig_Parse_RabbitMQ(t *testing.T) {
 		v.Set("RABBITMQ_PUBLISH_EXCHANGE", "exchange")
 		v.Set("RABBITMQ_PUBLISH_QUEUE", "queue")
 		config, err := ingest.ParseIngestConfig(v)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.Nil(t, err, "should parse without error")
 		assert.Equal(t, config.RabbitMQ.ServerURL, "amqp://guest:guest@localhost:5672")
 		assert.Equal(t, config.RabbitMQ.PublishExchange, "exchange")
 		assert.Equal(t, config.RabbitMQ.PublishQueue, "queue")
@@ -127,7 +135,7 @@ func TestConfig_Parse_RabbitMQ(t *testing.T) {
 		v := viper.New()
 		v.Set("RABBITMQ_SERVER_URL", "amqp://guest:guest@localhost:5672")
 		config, err := ingest.ParseIngestConfig(v)
-		assert.Nil(t, err, "should not return error")
+		require.Nil(t, err, "should not return error")
 		assert.Equal(t, config.RabbitMQ.ServerURL, "amqp://guest:guest@localhost:5672")
 		assert.Equal(t, config.RabbitMQ.PublishExchange, ingest.DefaultRabbitMQPublishExchange)
 		assert.Equal(t, config.RabbitMQ.PublishQueue, ingest.DefaultRabbitMQPublishQueue)
