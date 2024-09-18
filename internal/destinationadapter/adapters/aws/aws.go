@@ -23,6 +23,12 @@ type AWSDestinationConfig struct {
 	QueueURL string
 }
 
+type AWSDestinationCredentials struct {
+	Key     string
+	Secret  string
+	Session string // optional
+}
+
 var _ adapters.DestinationAdapter = (*AWSDestination)(nil)
 
 func New() *AWSDestination {
@@ -31,6 +37,10 @@ func New() *AWSDestination {
 
 func (d *AWSDestination) Validate(ctx context.Context, destination adapters.DestinationAdapterValue) error {
 	_, err := parseConfig(destination)
+	if err != nil {
+		return err
+	}
+	_, err = parseCredentials(destination)
 	return err
 }
 
@@ -39,7 +49,11 @@ func (d *AWSDestination) Publish(ctx context.Context, destination adapters.Desti
 	if err != nil {
 		return err
 	}
-	return publishEvent(ctx, config, event)
+	credentials, err := parseCredentials(destination)
+	if err != nil {
+		return err
+	}
+	return publishEvent(ctx, config, credentials, event)
 }
 
 func parseConfig(destination adapters.DestinationAdapterValue) (*AWSDestinationConfig, error) {
@@ -59,7 +73,29 @@ func parseConfig(destination adapters.DestinationAdapterValue) (*AWSDestinationC
 	return destinationConfig, nil
 }
 
-func publishEvent(ctx context.Context, cfg *AWSDestinationConfig, event *ingest.Event) error {
+func parseCredentials(destination adapters.DestinationAdapterValue) (*AWSDestinationCredentials, error) {
+	if destination.Type != "aws" {
+		return nil, errors.New("invalid destination type")
+	}
+
+	destinationCredentials := &AWSDestinationCredentials{
+		Key:     destination.Credentials["key"],
+		Secret:  destination.Credentials["secret"],
+		Session: destination.Credentials["session"],
+	}
+
+	if destinationCredentials.Key == "" {
+		return nil, errors.New("key is required for aws destination credentials")
+	}
+
+	if destinationCredentials.Secret == "" {
+		return nil, errors.New("secret is required for aws destination credentials")
+	}
+
+	return destinationCredentials, nil
+}
+
+func publishEvent(ctx context.Context, cfg *AWSDestinationConfig, creds *AWSDestinationCredentials, event *ingest.Event) error {
 	dataBytes, err := json.Marshal(event.Data)
 	if err != nil {
 		return err
@@ -67,7 +103,7 @@ func publishEvent(ctx context.Context, cfg *AWSDestinationConfig, event *ingest.
 
 	sdkConfig, err := config.LoadDefaultConfig(ctx,
 		// TODO: use proper credentials
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("test", "test", "")),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(creds.Key, creds.Secret, creds.Session)),
 	)
 	if err != nil {
 		return err

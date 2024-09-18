@@ -32,7 +32,11 @@ func TestAWSDestination_Validate(t *testing.T) {
 		Config: map[string]string{
 			"queue_url": "url",
 		},
-		Credentials: map[string]string{},
+		Credentials: map[string]string{
+			"key":    "key",
+			"secret": "secret",
+			"token":  "token",
+		},
 	}
 
 	awsdestination := awsadapter.New()
@@ -63,6 +67,47 @@ func TestAWSDestination_Validate(t *testing.T) {
 		err := awsdestination.Validate(nil, invalidDestination)
 
 		assert.ErrorContains(t, err, "queue_url is required for aws destination config")
+	})
+
+	t.Run("should validate credentials.key", func(t *testing.T) {
+		t.Parallel()
+
+		invalidDestination := validDestination
+		invalidDestination.Credentials = map[string]string{
+			"notkey":  "key",
+			"secret":  "secret",
+			"session": "session",
+		}
+		err := awsdestination.Validate(nil, invalidDestination)
+
+		assert.ErrorContains(t, err, "key is required for aws destination credentials")
+	})
+
+	t.Run("should validate credentials.secret", func(t *testing.T) {
+		t.Parallel()
+
+		invalidDestination := validDestination
+		invalidDestination.Credentials = map[string]string{
+			"key":       "key",
+			"notsecret": "secret",
+			"session":   "session",
+		}
+		err := awsdestination.Validate(nil, invalidDestination)
+
+		assert.ErrorContains(t, err, "secret is required for aws destination credentials")
+	})
+
+	t.Run("should allow empty credentials.session", func(t *testing.T) {
+		t.Parallel()
+
+		anotherDestination := validDestination
+		anotherDestination.Credentials = map[string]string{
+			"key":    "key",
+			"secret": "secret",
+		}
+		err := awsdestination.Validate(nil, anotherDestination)
+
+		assert.Nil(t, err)
 	})
 }
 
@@ -104,7 +149,10 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 			"endpoint":  awsEndpoint,
 			"queue_url": queueURL,
 		},
-		Credentials: map[string]string{},
+		Credentials: map[string]string{
+			"key":    "key",
+			"secret": "secret",
+		},
 	}
 
 	// Subscribe to messages
