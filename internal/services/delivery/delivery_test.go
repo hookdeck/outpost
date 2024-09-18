@@ -88,26 +88,22 @@ func TestDeliveryService(t *testing.T) {
 		require.Nil(t, err)
 
 		errchan := make(chan error)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second/2)
+		defer cancel()
 
 		go func() {
 			errchan <- service.Run(ctx)
 		}()
 
-		go func() {
-			time.Sleep(time.Second / 2)
-			cancel()
-		}()
-
 		// Act
+		time.Sleep(time.Second / 5) // wait for service to start
 		ingestor.Publish(ctx, event)
 
 		// Assert
 		// wait til service has stopped
 		err = <-errchan
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.Nil(t, err)
+
 		handler.AssertCalled(t, "Handle",
 			mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			mock.MatchedBy(func(i interface{}) bool {
