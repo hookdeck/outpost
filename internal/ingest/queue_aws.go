@@ -109,7 +109,6 @@ func (q *AWSQueue) Publish(ctx context.Context, event Event) error {
 }
 
 func (q *AWSQueue) Subscribe(ctx context.Context) (Subscription, error) {
-	log.Println(q.sqsQueueURL)
 	subscription := awssnssqs.OpenSubscriptionV2(ctx, q.sqsClient, q.sqsQueueURL, nil)
 	return wrappedSubscription(subscription)
 }
