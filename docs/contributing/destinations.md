@@ -1,81 +1,156 @@
-# Getting Started
+# Destinations
 
-## Development
+## Local Development
 
-### 0. Environment
+### AWS
 
-Copy `.env.example` to `.env` to use the default environment variables.
+> We currently only support AWS SQS destination.
 
-```sh
-$ cp .env.example .env
-```
-
-### 1. Start services
-
-**Option 1**: Using Docker
-
-You can use Docker to manage your development environment. Here are the 2 `make` commands you can use:
+To test AWS SQS destination locally, you can use [localstack](https://github.com/localstack/localstack) which is a fully functional local AWS cloud stack. You can run the Docker image using the MQs Docker Compose file in this project.
 
 ```sh
-# start development
-$ make up
-
-# stop
-$ make down
+$ cd build/dev/mqs
+# .../hookdeck/EventKit/build/dev/mqs
+$ docker-compose up -d
 ```
 
-The Docker environment is configured with live reload along with all the infra dependencies (Redis) you need, so you can start coding right away.
-
-**Option 2**: Manual
-
-As EventKit has dependency on Redis, please make sure you have a running instance ready. By default, EventKit will connect with Redis at localhost:6379. You can customize the Redis address in the `.env` file.
-
-To start EventKit services:
+You can run the local dev script to configure and subscribe to a SQS queue:
 
 ```sh
-# Start all services
-$ go run cmd/eventkit/main.go
-
-# You can specify which service you want to run
-$ go run cmd/eventkit/main.go --service api
-$ go run cmd/eventkit/main.go --service delivery
-$ go run cmd/eventkit/main.go --service log
+# back at root .../hookdeck/EventKit directory
+$ go run cmd/destinations/aws/main.go
+.......... [*] Ready to receive messages.
+	Endpoint: http://localhost:4566
+	Queue: http://sqs.eu-central-1.localhost.localstack.cloud:4566/000000000000/destination_sqs_queue
+.......... [*] Waiting for logs. To exit press CTRL+C
 ```
 
-To set up live reload, you can use [`air`](https://github.com/air-verse/air) or a similar tool. We can consider setting the project up with it as well.
-
-### Tests
-
-Some basic commands:
+Using this credential, you can create an AWS destination and start receiving events:
 
 ```sh
-# Run all tests
-$ make test
-
-# Run unit / integration tests
-$ make test/unit
-$ make test/integration
-
-# Run test coverage
-$ make test/coverage
-# then visualize it
-$ make test/coverage/html
-
-# Run specific test suite / package
-$ TEST=./internal/model make test
-$ TEST=./internal/model TESTARGS='-v -run "TestDestinationModel"' make test
+$ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: ••••••' \
+--data '{
+    "type": "aws",
+    "topics": ["*"],
+    "config": {
+        "endpoint": "http://localhost:4566",
+        "queue_url": "http://sqs.eu-central-1.localhost.localstack.cloud:4566/000000000000/destination_sqs_queue"
+    }
+}'
 ```
 
-See the [Test](test.md) documentation for further information.
+```json
+{
+  "id": "...",
+  "type": "aws",
+  "topics": [
+    "*"
+  ],
+  "config": {
+    "endpoint": "http://localhost:4566",
+    "queue_url": "http://sqs.eu-central-1.localhost.localstack.cloud:4566/000000000000/destination_sqs_queue"
+  },
+  "created_at": "...",
+  "disabled_at": null
+}
 
-### Others
+```
 
-**(Optional) OpenTelemetry**
+### RabbitMQ
 
-Currently, EventKit OpenTelemetry configuration is handled via environemnt variables. You can you any OpenTelemetry backend you'd like. OTEL is off by default. Feel free to customize your configuration accordingly.
+To test RabbitMQ destination, make sure you have a running RabbitMQ instance. You can do so locally using the MQs Docker Compose file in this project.
 
-There's a sample [Uptrace](https://uptrace.dev/) Docker set up you can use in [this repository](https://github.com/hookdeck/EventKit/tree/main/build/dev/uptrace). Please follow the instruction there if you'd like to use Uptrace for your OTEL backend.
+```sh
+$ cd build/dev/mqs
+# .../hookdeck/EventKit/build/dev/mqs
+$ docker-compose up -d
+```
 
-**(Optional) Kubernetes**
+You can visit the [RabbitMQ Management Interface](http://localhost:15672) to confirm that you have RabbitMQ running. (Small tip: the default credentials for the dashboard is `guest`:`guest`)
 
-If you want to deploy EventKit to your local Kubernetes (for some reason), there's a [guide](https://github.com/hookdeck/EventKit/tree/main/deployments/kubernetes) for that too. Enjoy!
+From then, you can run the local dev script to declare a simple exchange & with a queue subscripiton:
+
+```sh
+# back at root .../hookdeck/EventKit directory
+$ go run cmd/destinations/rabbitmq/main.go
+```
+
+The test exchange is `destination_exchange` and the test queue is `destination_queue`.
+
+You can create a RabbitMQ destination to start receiving events:
+
+```sh
+$ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: ••••••' \
+--data '{
+    "type": "rabbitmq",
+    "topics": ["*"],
+    "config": {
+        "server_url": "amqp://guest:guest@localhost:5672",
+        "exchange": "destination_exchange"
+    }
+}'
+```
+
+```json
+{
+  "id": "...",
+  "type": "rabbitmq",
+  "topics": [
+    "*"
+  ],
+  "config": {
+    "server_url": "amqp://guest:guest@localhost:5672",
+    "exchange": "destination_exchange"
+  },
+  "created_at": "...",
+  "disabled_at": null
+}
+```
+
+
+### Webhooks
+
+To test local webhooks destination, you can run a local mock server:
+
+```sh
+$ go run cmd/destinations/webhooks/main.go
+# [*] Server listening on port :4000
+
+# or specify a preferred PORT
+$ PORT=3000 go run cmd/destinations/webhooks/main.go
+# [*] Server listening on port :3000
+```
+
+You can create a webhooks destination to start receiving events:
+
+```sh
+$ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: ••••••' \
+--data '{
+    "type": "webhooks",
+    "topics": ["*"],
+    "config": {
+        "url": "http://localhost:4444"
+    }
+}'
+```
+
+```json
+{
+  "id": "...",
+  "type": "webhooks",
+  "topics": [
+    "*"
+  ],
+  "config": {
+    "url": "http://localhost:4444"
+  },
+  "created_at": "...",
+  "disabled_at": null
+}
+```
