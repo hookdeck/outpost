@@ -2,6 +2,62 @@
 
 ## Local Development
 
+### AWS
+
+> We currently only support AWS SQS destination.
+
+To test AWS SQS destination locally, you can use [localstack](https://github.com/localstack/localstack) which is a fully functional local AWS cloud stack. You can run the Docker image using the MQs Docker Compose file in this project.
+
+```sh
+$ cd build/dev/mqs
+# .../hookdeck/EventKit/build/dev/mqs
+$ docker-compose up -d
+```
+
+You can run the local dev script to configure and subscribe to a SQS queue:
+
+```sh
+# back at root .../hookdeck/EventKit directory
+$ go run cmd/destinations/aws/main.go
+.......... [*] Ready to receive messages.
+	Endpoint: http://localhost:4566
+	Queue: http://sqs.eu-central-1.localhost.localstack.cloud:4566/000000000000/destination_sqs_queue
+.......... [*] Waiting for logs. To exit press CTRL+C
+```
+
+Using this credential, you can create an AWS destination and start receiving events:
+
+```sh
+$ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: ••••••' \
+--data '{
+    "type": "aws",
+    "topics": ["*"],
+    "config": {
+        "endpoint": "http://localhost:4566",
+        "queue_url": "http://sqs.eu-central-1.localhost.localstack.cloud:4566/000000000000/destination_sqs_queue"
+    }
+}'
+```
+
+```json
+{
+  "id": "...",
+  "type": "aws",
+  "topics": [
+    "*"
+  ],
+  "config": {
+    "endpoint": "http://localhost:4566",
+    "queue_url": "http://sqs.eu-central-1.localhost.localstack.cloud:4566/000000000000/destination_sqs_queue"
+  },
+  "created_at": "...",
+  "disabled_at": null
+}
+
+```
+
 ### RabbitMQ
 
 To test RabbitMQ destination, make sure you have a running RabbitMQ instance. You can do so locally using the MQs Docker Compose file in this project.
