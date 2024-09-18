@@ -74,7 +74,7 @@ func publishEvent(ctx context.Context, config *RabbitMQDestinationConfig, event 
 	}
 	defer ch.Close()
 
-	ch.PublishWithContext(ctx,
+	return ch.PublishWithContext(ctx,
 		config.Exchange, // exchange
 		"",              // routing key
 		false,           // mandatory
@@ -84,6 +84,4 @@ func publishEvent(ctx context.Context, config *RabbitMQDestinationConfig, event 
 			Body:        []byte(dataBytes),
 		},
 	)
-
-	return nil
 }
