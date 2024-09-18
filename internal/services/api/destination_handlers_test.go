@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -106,9 +107,10 @@ func TestDestinationCreateHandler(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		exampleDestination := api.CreateDestinationRequest{
-			Type:   "webhooks",
-			Topics: []string{"user.created", "user.updated"},
-			Config: map[string]string{"url": "https://example.com"},
+			Type:        "webhooks",
+			Topics:      []string{"user.created", "user.updated"},
+			Config:      map[string]string{"url": "https://example.com"},
+			Credentials: map[string]string{},
 		}
 		destinationJSON, _ := json.Marshal(exampleDestination)
 		req, _ := http.NewRequest("POST", baseTenantPath(tenantID)+"/destinations", strings.NewReader(string(destinationJSON)))
@@ -149,9 +151,10 @@ func TestDestinationCreateHandler(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		exampleDestination := api.CreateDestinationRequest{
-			Type:   "webhooks",
-			Topics: []string{"user.created", "user.updated"},
-			Config: map[string]string{"invalid_config": "https://example.com"},
+			Type:        "webhooks",
+			Topics:      []string{"user.created", "user.updated"},
+			Config:      map[string]string{"invalid_config": "https://example.com"},
+			Credentials: map[string]string{},
 		}
 		destinationJSON, _ := json.Marshal(exampleDestination)
 		req, _ := http.NewRequest("POST", baseTenantPath(tenantID)+"/destinations", strings.NewReader(string(destinationJSON)))
@@ -187,12 +190,13 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 
 		// Setup test destination
 		exampleDestination := models.Destination{
-			ID:        uuid.New().String(),
-			Type:      "webhooks",
-			Topics:    []string{"user.created", "user.updated"},
-			CreatedAt: time.Now(),
-			TenantID:  tenantID,
-			Config:    map[string]string{"url": "https://example.com"},
+			ID:          uuid.New().String(),
+			Type:        "webhooks",
+			Topics:      []string{"user.created", "user.updated"},
+			Config:      map[string]string{"url": "https://example.com"},
+			Credentials: map[string]string{},
+			CreatedAt:   time.Now(),
+			TenantID:    tenantID,
 		}
 		model.Set(context.Background(), redisClient, exampleDestination)
 
@@ -223,11 +227,12 @@ func TestDestinationUpdateHandler(t *testing.T) {
 	tenantID := setupExistingTenant(t, redisClient)
 
 	initialDestination := models.Destination{
-		Type:      "webhooks",
-		Topics:    []string{"user.created", "user.updated"},
-		Config:    map[string]string{"url": "https://example.com"},
-		CreatedAt: time.Now(),
-		TenantID:  tenantID,
+		Type:        "webhooks",
+		Topics:      []string{"user.created", "user.updated"},
+		Config:      map[string]string{"url": "https://example.com"},
+		Credentials: map[string]string{},
+		CreatedAt:   time.Now(),
+		TenantID:    tenantID,
 	}
 
 	updateDestinationRequest := api.UpdateDestinationRequest{
@@ -312,8 +317,12 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		updated := api.UpdateDestinationRequest{
 			Type: "rabbitmq",
 			Config: map[string]string{
-				"server_url": "https://example.com",
+				"server_url": "localhost:5672",
 				"exchange":   "events",
+			},
+			Credentials: map[string]string{
+				"username": "guest",
+				"password": "guest",
 			},
 		}
 		updatedJSON, _ := json.Marshal(updated)
@@ -325,15 +334,19 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		var destinationResponse map[string]any
 		json.Unmarshal(w.Body.Bytes(), &destinationResponse)
 
+		log.Println(destinationResponse)
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, destination.ID, destinationResponse["id"])
 		assert.Equal(t, updated.Type, destinationResponse["type"])
 		assertMarshalEqual(t, updated.Config, destinationResponse["config"])
+		assertMarshalEqual(t, updated.Credentials, destinationResponse["credentials"])
 		assert.Equal(t, destination.CreatedAt.Format(time.RFC3339Nano), destinationResponse["created_at"])
 
 		// Clean up
 		redisClient.Del(context.Background(), "destination:"+destination.ID)
 	})
+
+	// TODO: add test for updating config & credentials
 }
 
 func TestDestinationDeleteHandler(t *testing.T) {
@@ -358,12 +371,13 @@ func TestDestinationDeleteHandler(t *testing.T) {
 
 		// Setup initial destination
 		newDestination := models.Destination{
-			ID:        uuid.New().String(),
-			Type:      "webhooks",
-			Topics:    []string{"user.created", "user.updated"},
-			Config:    map[string]string{"url": "https://example.com"},
-			CreatedAt: time.Now(),
-			TenantID:  tenantID,
+			ID:          uuid.New().String(),
+			Type:        "webhooks",
+			Topics:      []string{"user.created", "user.updated"},
+			Config:      map[string]string{"url": "https://example.com"},
+			Credentials: map[string]string{},
+			CreatedAt:   time.Now(),
+			TenantID:    tenantID,
 		}
 		model.Set(context.Background(), redisClient, newDestination)
 

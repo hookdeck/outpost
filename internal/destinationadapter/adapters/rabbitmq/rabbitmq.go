@@ -14,8 +14,13 @@ type RabbitMQDestination struct {
 }
 
 type RabbitMQDestinationConfig struct {
-	ServerURL string
+	ServerURL string // TODO: consider renaming
 	Exchange  string
+}
+
+type RabbitMQDestinationCredentials struct {
+	Username string
+	Password string
 }
 
 var _ adapters.DestinationAdapter = (*RabbitMQDestination)(nil)
@@ -26,6 +31,10 @@ func New() *RabbitMQDestination {
 
 func (d *RabbitMQDestination) Validate(ctx context.Context, destination adapters.DestinationAdapterValue) error {
 	_, err := parseConfig(destination)
+	if err != nil {
+		return err
+	}
+	_, err = parseCredentials(destination)
 	return err
 }
 
@@ -34,7 +43,13 @@ func (d *RabbitMQDestination) Publish(ctx context.Context, destination adapters.
 	if err != nil {
 		return err
 	}
-	return publishEvent(ctx, config, event)
+	credentials, err := parseCredentials(destination)
+	if err != nil {
+		return err
+	}
+	url := rabbitURL(config, credentials)
+	exchange := config.Exchange
+	return publishEvent(ctx, url, exchange, event)
 }
 
 func parseConfig(destination adapters.DestinationAdapterValue) (*RabbitMQDestinationConfig, error) {
@@ -57,13 +72,37 @@ func parseConfig(destination adapters.DestinationAdapterValue) (*RabbitMQDestina
 	return destinationConfig, nil
 }
 
-func publishEvent(ctx context.Context, config *RabbitMQDestinationConfig, event *ingest.Event) error {
+func parseCredentials(destination adapters.DestinationAdapterValue) (*RabbitMQDestinationCredentials, error) {
+	if destination.Type != "rabbitmq" {
+		return nil, errors.New("invalid destination type")
+	}
+
+	destinationCredentials := &RabbitMQDestinationCredentials{
+		Username: destination.Credentials["username"],
+		Password: destination.Credentials["password"],
+	}
+
+	if destinationCredentials.Username == "" {
+		return nil, errors.New("username is required for rabbitmq destination credentials")
+	}
+	if destinationCredentials.Password == "" {
+		return nil, errors.New("password is required for rabbitmq destination credentials")
+	}
+
+	return destinationCredentials, nil
+}
+
+func rabbitURL(config *RabbitMQDestinationConfig, credentials *RabbitMQDestinationCredentials) string {
+	return "amqp://" + credentials.Username + ":" + credentials.Password + "@" + config.ServerURL
+}
+
+func publishEvent(ctx context.Context, url string, exchange string, event *ingest.Event) error {
 	dataBytes, err := json.Marshal(event.Data)
 	if err != nil {
 		return err
 	}
 
-	conn, err := amqp091.Dial(config.ServerURL)
+	conn, err := amqp091.Dial(url)
 	if err != nil {
 		return err
 	}
@@ -75,10 +114,10 @@ func publishEvent(ctx context.Context, config *RabbitMQDestinationConfig, event 
 	defer ch.Close()
 
 	return ch.PublishWithContext(ctx,
-		config.Exchange, // exchange
-		"",              // routing key
-		false,           // mandatory
-		false,           // immediate
+		exchange, // exchange
+		"",       // routing key
+		false,    // mandatory
+		false,    // immediate
 		amqp091.Publishing{
 			ContentType: "application/json",
 			Body:        []byte(dataBytes),

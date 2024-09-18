@@ -24,10 +24,13 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		ID:   uuid.New().String(),
 		Type: "rabbitmq",
 		Config: map[string]string{
-			"server_url": "amqp://guest:guest@localhost:5672",
+			"server_url": "localhost:5672",
 			"exchange":   "test",
 		},
-		Credentials: map[string]string{},
+		Credentials: map[string]string{
+			"username": "guest",
+			"password": "guest",
+		},
 	}
 
 	rabbitmqDestination := rabbitmq.New()
@@ -64,10 +67,30 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		t.Parallel()
 
 		invalidDestination := validDestination
-		invalidDestination.Config = map[string]string{"server_url": "amqp://guest:guest@localhost:5672"}
+		invalidDestination.Config = map[string]string{"server_url": "localhost:5672"}
 		err := rabbitmqDestination.Validate(nil, invalidDestination)
 
 		assert.ErrorContains(t, err, "exchange is required for rabbitmq destination config")
+	})
+
+	t.Run("should validate credentials.username", func(t *testing.T) {
+		t.Parallel()
+
+		invalidDestination := validDestination
+		invalidDestination.Credentials = map[string]string{"password": "password"}
+		err := rabbitmqDestination.Validate(nil, invalidDestination)
+
+		assert.ErrorContains(t, err, "username is required for rabbitmq destination credentials")
+	})
+
+	t.Run("should validate credentials.password", func(t *testing.T) {
+		t.Parallel()
+
+		invalidDestination := validDestination
+		invalidDestination.Credentials = map[string]string{"username": "username"}
+		err := rabbitmqDestination.Validate(nil, invalidDestination)
+
+		assert.ErrorContains(t, err, "password is required for rabbitmq destination credentials")
 	})
 }
 
@@ -80,10 +103,13 @@ func TestRabbitMQDestination_Publish(t *testing.T) {
 		ID:   uuid.New().String(),
 		Type: "rabbitmq",
 		Config: map[string]string{
-			"server_url": "amqp://guest:guest@localhost:5672",
+			"server_url": "localhost:5672",
 			"exchange":   "test",
 		},
-		Credentials: map[string]string{},
+		Credentials: map[string]string{
+			"username": "guest",
+			"password": "guest",
+		},
 	}
 
 	t.Run("should validate before publish", func(t *testing.T) {
@@ -120,10 +146,13 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 		ID:   uuid.New().String(),
 		Type: "rabbitmq",
 		Config: map[string]string{
-			"server_url": RABBIT_SERVER_URL,
+			"server_url": testutil.ExtractRabbitURL(RABBIT_SERVER_URL),
 			"exchange":   RABBIT_EXCHANGE,
 		},
-		Credentials: map[string]string{},
+		Credentials: map[string]string{
+			"username": testutil.ExtractRabbitUsername(RABBIT_SERVER_URL),
+			"password": testutil.ExtractRabbitPassword(RABBIT_SERVER_URL),
+		},
 	}
 
 	event := &ingest.Event{

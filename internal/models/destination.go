@@ -15,13 +15,14 @@ import (
 )
 
 type Destination struct {
-	ID         string     `json:"id" redis:"id"`
-	Type       string     `json:"type" redis:"type"`
-	Topics     Strings    `json:"topics" redis:"-"`
-	Config     Config     `json:"config" redis:"-"`
-	CreatedAt  time.Time  `json:"created_at" redis:"created_at"`
-	DisabledAt *time.Time `json:"disabled_at" redis:"disabled_at"`
-	TenantID   string     `json:"-" redis:"-"`
+	ID          string      `json:"id" redis:"id"`
+	Type        string      `json:"type" redis:"type"`
+	Topics      Strings     `json:"topics" redis:"-"`
+	Config      Config      `json:"config" redis:"-"`
+	Credentials Credentials `json:"credentials" redis:"-"`
+	CreatedAt   time.Time   `json:"created_at" redis:"created_at"`
+	DisabledAt  *time.Time  `json:"disabled_at" redis:"disabled_at"`
+	TenantID    string      `json:"-" redis:"-"`
 }
 
 type DestinationModel struct{}
@@ -46,6 +47,7 @@ func (m *DestinationModel) Set(ctx context.Context, cmdable redis.Cmdable, desti
 		r.HSet(ctx, key, "type", destination.Type)
 		r.HSet(ctx, key, "topics", &destination.Topics)
 		r.HSet(ctx, key, "config", &destination.Config)
+		r.HSet(ctx, key, "credentials", &destination.Credentials)
 		r.HSet(ctx, key, "created_at", destination.CreatedAt)
 		if destination.DisabledAt != nil {
 			r.HSet(ctx, key, "disabled_at", destination.DisabledAt)
@@ -145,12 +147,18 @@ func (m *DestinationModel) parse(_ context.Context, tenantID string, cmd *redis.
 	if err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
+	err = destination.Credentials.UnmarshalBinary([]byte(hash["credentials"]))
+	if err != nil {
+		return nil, fmt.Errorf("invalid credentials: %w", err)
+	}
 	return destination, nil
 }
 
 func redisDestinationID(destinationID, tenantID string) string {
 	return fmt.Sprintf("tenant:%s:destination:%s", tenantID, destinationID)
 }
+
+// ============================== Types ==============================
 
 type Strings []string
 
@@ -178,6 +186,21 @@ func (c *Config) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, c)
 }
 
+type Credentials map[string]string
+
+var _ encoding.BinaryMarshaler = &Credentials{}
+var _ encoding.BinaryUnmarshaler = &Credentials{}
+
+func (c *Credentials) MarshalBinary() ([]byte, error) {
+	return json.Marshal(c)
+}
+
+func (c *Credentials) UnmarshalBinary(data []byte) error {
+	return json.Unmarshal(data, c)
+}
+
+// ============================== Destination ==============================
+
 func (d *Destination) Validate(ctx context.Context) error {
 	adapter, err := destinationadapter.NewAdapater(d.Type)
 	if err != nil {
@@ -187,7 +210,7 @@ func (d *Destination) Validate(ctx context.Context) error {
 		ID:          d.ID,
 		Type:        d.Type,
 		Config:      d.Config,
-		Credentials: map[string]string{},
+		Credentials: d.Credentials,
 	})
 }
 
@@ -202,7 +225,7 @@ func (d *Destination) Publish(ctx context.Context, event *ingest.Event) error {
 			ID:          d.ID,
 			Type:        d.Type,
 			Config:      d.Config,
-			Credentials: map[string]string{},
+			Credentials: d.Credentials,
 		},
 		event,
 	)
