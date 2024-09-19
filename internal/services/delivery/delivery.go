@@ -35,9 +35,11 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 
 	if handler == nil {
 		handler = &eventHandler{
-			logger:           logger,
-			redisClient:      redisClient,
-			destinationModel: models.NewDestinationModel(),
+			logger:      logger,
+			redisClient: redisClient,
+			destinationModel: models.NewDestinationModel(
+				models.DestinationModelWithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
+			),
 		}
 	}
 

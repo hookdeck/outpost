@@ -17,11 +17,12 @@ const (
 )
 
 type Config struct {
-	Service   ServiceType
-	Port      int
-	Hostname  string
-	APIKey    string
-	JWTSecret string
+	Service          ServiceType
+	Port             int
+	Hostname         string
+	APIKey           string
+	JWTSecret        string
+	EncryptionSecret string
 
 	Redis         *redis.RedisConfig
 	OpenTelemetry *otel.OpenTelemetryConfig
@@ -87,11 +88,12 @@ func Parse(flags Flags) (*Config, error) {
 
 	// Initialize config values
 	config := &Config{
-		Hostname:  hostname,
-		Service:   service,
-		Port:      getPort(viper),
-		APIKey:    viper.GetString("API_KEY"),
-		JWTSecret: viper.GetString("JWT_SECRET"),
+		Hostname:         hostname,
+		Service:          service,
+		Port:             getPort(viper),
+		APIKey:           viper.GetString("API_KEY"),
+		JWTSecret:        viper.GetString("JWT_SECRET"),
+		EncryptionSecret: viper.GetString("ENCRYPTION_SECRET"),
 		Redis: &redis.RedisConfig{
 			Host:     viper.GetString("REDIS_HOST"),
 			Port:     mustInt(viper, "REDIS_PORT"),

@@ -38,7 +38,9 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		logger,
 		redisClient,
 		models.NewTenantModel(),
-		models.NewDestinationModel(),
+		models.NewDestinationModel(
+			models.DestinationModelWithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
+		),
 		ingestor,
 	)
 
