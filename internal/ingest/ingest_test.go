@@ -21,46 +21,45 @@ func TestIntegrationIngester_InMemory(t *testing.T) {
 	t.Parallel()
 
 	testIngestor(t, func() mqs.QueueConfig {
-		return mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}
+		config := mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}
+		return config
 	})
 }
 
-// func TestIntegrationIngester_RabbitMQ(t *testing.T) {
-// 	if testing.Short() {
-// 		t.Skip("skipping integration test")
-// 	}
+func TestIntegrationIngester_RabbitMQ(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 
-// 	t.Parallel()
+	t.Parallel()
 
-// 	rabbitmqURL, terminate, err := testutil.StartTestcontainerRabbitMQ()
-// 	require.Nil(t, err)
-// 	defer terminate()
+	rabbitmqURL, terminate, err := testutil.StartTestcontainerRabbitMQ()
+	require.Nil(t, err)
+	defer terminate()
 
-// 	config := ingest.IngestConfig{RabbitMQ: &ingest.RabbitMQConfig{
-// 		ServerURL:        rabbitmqURL,
-// 		DeliveryExchange: "eventkit",
-// 		DeliveryQueue:    "eventkit.delivery",
-// 	}}
+	config := mqs.QueueConfig{RabbitMQ: &mqs.RabbitMQConfig{
+		ServerURL:        rabbitmqURL,
+		DeliveryExchange: "eventkit",
+		DeliveryQueue:    "eventkit.delivery",
+	}}
+	testIngestor(t, func() mqs.QueueConfig { return config })
+}
 
-// 	testIngestor(t, func() ingest.IngestConfig { return config })
-// }
+func TestIntegrationIngestor_AWS(t *testing.T) {
+	t.Parallel()
 
-// func TestIntegrationIngestor_AWS(t *testing.T) {
-// 	t.Parallel()
+	awsEndpoint, terminate, err := testutil.StartTestcontainerLocalstack()
+	require.Nil(t, err)
+	defer terminate()
 
-// 	awsEndpoint, terminate, err := testutil.StartTestcontainerLocalstack()
-// 	require.Nil(t, err)
-// 	defer terminate()
-
-// 	config := ingest.IngestConfig{AWSSQS: &ingest.AWSSQSConfig{
-// 		Endpoint:                  awsEndpoint,
-// 		Region:                    "eu-central-1",
-// 		ServiceAccountCredentials: "test:test:",
-// 		DeliveryTopic:             "eventkit",
-// 	}}
-
-// 	testIngestor(t, func() ingest.IngestConfig { return config })
-// }
+	config := mqs.QueueConfig{AWSSQS: &mqs.AWSSQSConfig{
+		Endpoint:                  awsEndpoint,
+		Region:                    "eu-central-1",
+		ServiceAccountCredentials: "test:test:",
+		DeliveryTopic:             "eventkit",
+	}}
+	testIngestor(t, func() mqs.QueueConfig { return config })
+}
 
 func testIngestor(t *testing.T, makeConfig func() mqs.QueueConfig) {
 	t.Run("should initialize without error", func(t *testing.T) {

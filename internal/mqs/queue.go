@@ -39,15 +39,13 @@ func NewQueue(config *QueueConfig) Queue {
 		return NewInMemoryQueue(nil)
 	}
 	if config.AWSSQS != nil {
-		return &UnimplementedQueue{}
-		// return NewAWSQueue(config.AWSSQS), nil
+		return NewAWSQueue(config.AWSSQS)
 	} else if config.AzureServiceBus != nil {
 		return &UnimplementedQueue{}
 	} else if config.GCPPubSub != nil {
 		return &UnimplementedQueue{}
 	} else if config.RabbitMQ != nil {
-		return &UnimplementedQueue{}
-		// return NewRabbitMQQueue(config.RabbitMQ), nil
+		return NewRabbitMQQueue(config.RabbitMQ)
 	} else {
 		return NewInMemoryQueue(config.InMemory)
 	}
