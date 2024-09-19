@@ -29,9 +29,29 @@ type DestinationModel struct {
 	cipher Cipher
 }
 
-func NewDestinationModel() *DestinationModel {
+type DestinationModelOptions struct {
+	Cipher Cipher
+}
+
+func DestinationModelWithCipher(cipher Cipher) func(opts *DestinationModelOptions) {
+	return func(opts *DestinationModelOptions) {
+		opts.Cipher = cipher
+	}
+}
+
+func NewDestinationModel(opts ...func(opts *DestinationModelOptions)) *DestinationModel {
+	options := &DestinationModelOptions{}
+
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	if options.Cipher == nil {
+		options.Cipher = NewAESCipher("")
+	}
+
 	return &DestinationModel{
-		cipher: NewAESCipher("secret"),
+		cipher: options.Cipher,
 	}
 }
 
