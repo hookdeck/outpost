@@ -25,10 +25,14 @@ type Destination struct {
 	TenantID    string      `json:"-" redis:"-"`
 }
 
-type DestinationModel struct{}
+type DestinationModel struct {
+	cipher Cipher
+}
 
 func NewDestinationModel() *DestinationModel {
-	return &DestinationModel{}
+	return &DestinationModel{
+		cipher: NewAESCipher("secret"),
+	}
 }
 
 func (m *DestinationModel) Get(c context.Context, cmdable redis.Cmdable, id, tenantID string) (*Destination, error) {
@@ -43,11 +47,20 @@ func (m *DestinationModel) Set(ctx context.Context, cmdable redis.Cmdable, desti
 	}
 	key := redisDestinationID(destination.ID, destination.TenantID)
 	_, err = cmdable.Pipelined(ctx, func(r redis.Pipeliner) error {
+		credentialsBytes, err := destination.Credentials.MarshalBinary()
+		if err != nil {
+			return err
+		}
+		encryptedCredentials, err := m.cipher.Encrypt(credentialsBytes)
+		if err != nil {
+			return err
+		}
+
 		r.HSet(ctx, key, "id", destination.ID)
 		r.HSet(ctx, key, "type", destination.Type)
 		r.HSet(ctx, key, "topics", &destination.Topics)
 		r.HSet(ctx, key, "config", &destination.Config)
-		r.HSet(ctx, key, "credentials", &destination.Credentials)
+		r.HSet(ctx, key, "credentials", encryptedCredentials)
 		r.HSet(ctx, key, "created_at", destination.CreatedAt)
 		if destination.DisabledAt != nil {
 			r.HSet(ctx, key, "disabled_at", destination.DisabledAt)
@@ -147,7 +160,11 @@ func (m *DestinationModel) parse(_ context.Context, tenantID string, cmd *redis.
 	if err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
-	err = destination.Credentials.UnmarshalBinary([]byte(hash["credentials"]))
+	credentialsBytes, err := m.cipher.Decrypt([]byte(hash["credentials"]))
+	if err != nil {
+		return nil, fmt.Errorf("invalid credentials: %w", err)
+	}
+	err = destination.Credentials.UnmarshalBinary(credentialsBytes)
 	if err != nil {
 		return nil, fmt.Errorf("invalid credentials: %w", err)
 	}
