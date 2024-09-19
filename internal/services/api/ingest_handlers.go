@@ -6,7 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/ingest"
+	"github.com/hookdeck/EventKit/internal/deliverymq"
+	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
@@ -15,18 +16,18 @@ import (
 type IngestHandlers struct {
 	logger      *otelzap.Logger
 	redisClient *redis.Client
-	ingestor    *ingest.Ingestor
+	deliveryMQ  *deliverymq.DeliveryMQ
 }
 
 func NewIngestHandlers(
 	logger *otelzap.Logger,
 	redisClient *redis.Client,
-	ingestor *ingest.Ingestor,
+	deliveryMQ *deliverymq.DeliveryMQ,
 ) *IngestHandlers {
 	return &IngestHandlers{
 		logger:      logger,
 		redisClient: redisClient,
-		ingestor:    ingestor,
+		deliveryMQ:  deliveryMQ,
 	}
 }
 
@@ -38,7 +39,7 @@ func (h *IngestHandlers) Ingest(c *gin.Context) {
 		return
 	}
 
-	err := h.ingestor.Publish(c.Request.Context(), publishedEvent.toEvent())
+	err := h.deliveryMQ.Publish(c.Request.Context(), publishedEvent.toEvent())
 	if err != nil {
 		h.logger.Error("failed to ingest event", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to ingest event"})
@@ -60,12 +61,12 @@ type PublishedEvent struct {
 	Data             map[string]interface{} `json:"data"`
 }
 
-func (p *PublishedEvent) toEvent() ingest.Event {
+func (p *PublishedEvent) toEvent() models.Event {
 	id := p.ID
 	if id == "" {
 		id = uuid.New().String()
 	}
-	return ingest.Event{
+	return models.Event{
 		ID:               id,
 		TenantID:         p.TenantID,
 		DestinationID:    p.DestinationID,

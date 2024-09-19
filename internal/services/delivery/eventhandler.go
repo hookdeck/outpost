@@ -3,14 +3,13 @@ package delivery
 import (
 	"context"
 
-	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
 type EventHandler interface {
-	Handle(ctx context.Context, event ingest.Event) error
+	Handle(ctx context.Context, event models.Event) error
 }
 
 type eventHandler struct {
@@ -29,7 +28,7 @@ func NewEventHandler(logger *otelzap.Logger, redisClient *redis.Client, destinat
 
 var _ EventHandler = (*eventHandler)(nil)
 
-func (h *eventHandler) Handle(ctx context.Context, event ingest.Event) error {
+func (h *eventHandler) Handle(ctx context.Context, event models.Event) error {
 	destinations, err := h.destinationModel.List(ctx, h.redisClient, event.TenantID)
 	if err != nil {
 		return err

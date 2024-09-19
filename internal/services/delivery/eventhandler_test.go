@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/services/delivery"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
@@ -23,7 +22,7 @@ func TestEventHandler(t *testing.T) {
 
 	// TODO: Question: Should we return error here?
 	t.Run("should not return error when there's no tenant or destination", func(t *testing.T) {
-		event := ingest.Event{
+		event := models.Event{
 			ID:               uuid.New().String(),
 			TenantID:         uuid.New().String(),
 			DestinationID:    uuid.New().String(),

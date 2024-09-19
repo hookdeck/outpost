@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/hookdeck/EventKit/internal/config"
-	"github.com/hookdeck/EventKit/internal/ingest"
+	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
@@ -16,11 +16,11 @@ import (
 type DeliveryService struct {
 	logger       *otelzap.Logger
 	redisClient  *redis.Client
-	ingestor     *ingest.Ingestor
+	deliveryMQ   *deliverymq.DeliveryMQ
 	eventHandler EventHandler
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger, ingestor *ingest.Ingestor, handler EventHandler) (*DeliveryService, error) {
+func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger, deliveryMQ *deliverymq.DeliveryMQ, handler EventHandler) (*DeliveryService, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -47,7 +47,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		logger:       logger,
 		redisClient:  redisClient,
 		eventHandler: handler,
-		ingestor:     ingestor,
+		deliveryMQ:   deliveryMQ,
 	}
 
 	return service, nil
@@ -56,7 +56,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 func (s *DeliveryService) Run(ctx context.Context) error {
 	s.logger.Ctx(ctx).Info("start service", zap.String("service", "delivery"))
 
-	subscription, err := s.ingestor.Subscribe(ctx)
+	subscription, err := s.deliveryMQ.Subscribe(ctx)
 	if err != nil {
 		s.logger.Ctx(ctx).Error("failed to susbcribe to ingestion events", zap.Error(err))
 		return err
@@ -74,7 +74,7 @@ func (s *DeliveryService) Run(ctx context.Context) error {
 			logger.Error("failed to receive message", zap.Error(err))
 			break
 		}
-		event := ingest.Event{}
+		event := models.Event{}
 		err = event.FromMessage(msg)
 		if err != nil {
 			logger.Error("failed to parse message", zap.Error(err))

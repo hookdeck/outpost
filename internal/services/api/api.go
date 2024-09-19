@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/config"
-	"github.com/hookdeck/EventKit/internal/ingest"
+	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
@@ -21,7 +21,7 @@ type APIService struct {
 	logger *otelzap.Logger
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger, ingestor *ingest.Ingestor) (*APIService, error) {
+func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger, deliveryMQ *deliverymq.DeliveryMQ) (*APIService, error) {
 	wg.Add(1)
 
 	redisClient, err := redis.New(ctx, cfg.Redis)
@@ -41,7 +41,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		models.NewDestinationModel(
 			models.DestinationModelWithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
 		),
-		ingestor,
+		deliveryMQ,
 	)
 
 	service := &APIService{}

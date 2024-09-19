@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/hookdeck/EventKit/internal/config"
-	"github.com/hookdeck/EventKit/internal/ingest"
+	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/otel"
 	"github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/hookdeck/EventKit/internal/services/delivery"
@@ -51,13 +51,13 @@ func run(mainContext context.Context) error {
 	// Set up cancellation context and waitgroup
 	ctx, cancel := context.WithCancel(mainContext)
 
-	ingestor := ingest.New(ingest.WithQueue(cfg.DeliveryQueueConfig))
-	cleanupIngestor, err := ingestor.Init(ctx)
+	deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig))
+	cleanupDeliveryMQ, err := deliveryMQ.Init(ctx)
 	if err != nil {
 		cancel()
 		return err
 	}
-	defer cleanupIngestor()
+	defer cleanupDeliveryMQ()
 
 	// Set up OpenTelemetry.
 	if cfg.OpenTelemetry != nil {
@@ -81,7 +81,7 @@ func run(mainContext context.Context) error {
 	services := []Service{}
 
 	if cfg.Service == config.ServiceTypeAPI || cfg.Service == config.ServiceTypeSingular {
-		service, err := api.NewService(ctx, wg, cfg, logger, ingestor)
+		service, err := api.NewService(ctx, wg, cfg, logger, deliveryMQ)
 		if err != nil {
 			cancel()
 			return err
@@ -89,7 +89,7 @@ func run(mainContext context.Context) error {
 		services = append(services, service)
 	}
 	if cfg.Service == config.ServiceTypeDelivery || cfg.Service == config.ServiceTypeSingular {
-		service, err := delivery.NewService(ctx, wg, cfg, logger, ingestor, nil)
+		service, err := delivery.NewService(ctx, wg, cfg, logger, deliveryMQ, nil)
 		if err != nil {
 			cancel()
 			return err

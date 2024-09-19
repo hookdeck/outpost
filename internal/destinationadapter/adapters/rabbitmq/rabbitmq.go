@@ -6,7 +6,6 @@ import (
 	"errors"
 
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
-	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/rabbitmq/amqp091-go"
 )
 
@@ -38,7 +37,7 @@ func (d *RabbitMQDestination) Validate(ctx context.Context, destination adapters
 	return err
 }
 
-func (d *RabbitMQDestination) Publish(ctx context.Context, destination adapters.DestinationAdapterValue, event *ingest.Event) error {
+func (d *RabbitMQDestination) Publish(ctx context.Context, destination adapters.DestinationAdapterValue, event *adapters.Event) error {
 	config, err := parseConfig(destination)
 	if err != nil {
 		return err
@@ -96,7 +95,7 @@ func rabbitURL(config *RabbitMQDestinationConfig, credentials *RabbitMQDestinati
 	return "amqp://" + credentials.Username + ":" + credentials.Password + "@" + config.ServerURL
 }
 
-func publishEvent(ctx context.Context, url string, exchange string, event *ingest.Event) error {
+func publishEvent(ctx context.Context, url string, exchange string, event *adapters.Event) error {
 	dataBytes, err := json.Marshal(event.Data)
 	if err != nil {
 		return err

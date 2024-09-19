@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
-	"github.com/hookdeck/EventKit/internal/ingest"
 )
 
 type WebhookDestination struct {
@@ -29,7 +28,7 @@ func (d *WebhookDestination) Validate(ctx context.Context, destination adapters.
 	return err
 }
 
-func (d *WebhookDestination) Publish(ctx context.Context, destination adapters.DestinationAdapterValue, event *ingest.Event) error {
+func (d *WebhookDestination) Publish(ctx context.Context, destination adapters.DestinationAdapterValue, event *adapters.Event) error {
 	config, err := parseConfig(destination)
 	if err != nil {
 		return err

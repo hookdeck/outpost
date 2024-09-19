@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters/rabbitmq"
-	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
@@ -155,7 +154,7 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 		},
 	}
 
-	event := &ingest.Event{
+	event := &adapters.Event{
 		ID:               uuid.New().String(),
 		TenantID:         uuid.New().String(),
 		DestinationID:    destination.ID,

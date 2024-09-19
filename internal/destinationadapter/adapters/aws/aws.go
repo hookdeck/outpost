@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
-	"github.com/hookdeck/EventKit/internal/ingest"
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/awssnssqs"
 )
@@ -44,7 +43,7 @@ func (d *AWSDestination) Validate(ctx context.Context, destination adapters.Dest
 	return err
 }
 
-func (d *AWSDestination) Publish(ctx context.Context, destination adapters.DestinationAdapterValue, event *ingest.Event) error {
+func (d *AWSDestination) Publish(ctx context.Context, destination adapters.DestinationAdapterValue, event *adapters.Event) error {
 	config, err := parseConfig(destination)
 	if err != nil {
 		return err
@@ -95,7 +94,7 @@ func parseCredentials(destination adapters.DestinationAdapterValue) (*AWSDestina
 	return destinationCredentials, nil
 }
 
-func publishEvent(ctx context.Context, cfg *AWSDestinationConfig, creds *AWSDestinationCredentials, event *ingest.Event) error {
+func publishEvent(ctx context.Context, cfg *AWSDestinationConfig, creds *AWSDestinationCredentials, event *adapters.Event) error {
 	dataBytes, err := json.Marshal(event.Data)
 	if err != nil {
 		return err

@@ -8,7 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/config"
-	"github.com/hookdeck/EventKit/internal/ingest"
+	"github.com/hookdeck/EventKit/internal/deliverymq"
+	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/mqs"
 	"github.com/hookdeck/EventKit/internal/services/delivery"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
@@ -17,12 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestDeliveryService(t *testing.T, handler delivery.EventHandler, ingestor *ingest.Ingestor) (*delivery.DeliveryService, error) {
+func setupTestDeliveryService(t *testing.T, handler delivery.EventHandler, deliveryMQ *deliverymq.DeliveryMQ) (*delivery.DeliveryService, error) {
 	logger := testutil.CreateTestLogger(t)
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	config := config.Config{Redis: redisConfig}
 	wg := sync.WaitGroup{}
-	service, err := delivery.NewService(context.Background(), &wg, &config, logger, ingestor, handler)
+	service, err := delivery.NewService(context.Background(), &wg, &config, logger, deliveryMQ, handler)
 	return service, err
 }
 
@@ -32,12 +33,12 @@ func TestDeliveryService(t *testing.T) {
 	t.Run("should run without error", func(t *testing.T) {
 		t.Parallel()
 
-		ingestor := ingest.New(ingest.WithQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}))
-		cleanup, err := ingestor.Init(context.Background())
+		deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}))
+		cleanup, err := deliveryMQ.Init(context.Background())
 		require.Nil(t, err)
 		defer cleanup()
 
-		service, err := setupTestDeliveryService(t, nil, ingestor)
+		service, err := setupTestDeliveryService(t, nil, deliveryMQ)
 		require.Nil(t, err)
 
 		errchan := make(chan error)
@@ -61,7 +62,7 @@ func TestDeliveryService(t *testing.T) {
 		t.Parallel()
 
 		// Arrange
-		event := ingest.Event{
+		event := models.Event{
 			ID:               uuid.New().String(),
 			TenantID:         uuid.New().String(),
 			DestinationID:    uuid.New().String(),
@@ -72,8 +73,8 @@ func TestDeliveryService(t *testing.T) {
 			Data:             map[string]interface{}{},
 		}
 
-		ingestor := ingest.New(ingest.WithQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}))
-		cleanup, err := ingestor.Init(context.Background())
+		deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}))
+		cleanup, err := deliveryMQ.Init(context.Background())
 		require.Nil(t, err)
 		defer cleanup()
 
@@ -81,9 +82,9 @@ func TestDeliveryService(t *testing.T) {
 		handler.On(
 			"Handle",
 			mock.MatchedBy(func(ctx context.Context) bool { return true }),
-			mock.MatchedBy(func(i ingest.Event) bool { return true }),
+			mock.MatchedBy(func(i models.Event) bool { return true }),
 		).Return(nil)
-		service, err := setupTestDeliveryService(t, handler, ingestor)
+		service, err := setupTestDeliveryService(t, handler, deliveryMQ)
 		require.Nil(t, err)
 
 		errchan := make(chan error)
@@ -96,7 +97,7 @@ func TestDeliveryService(t *testing.T) {
 
 		// Act
 		time.Sleep(time.Second / 5) // wait for service to start
-		ingestor.Publish(ctx, event)
+		deliveryMQ.Publish(ctx, event)
 
 		// Assert
 		// wait til service has stopped
@@ -106,7 +107,7 @@ func TestDeliveryService(t *testing.T) {
 		handler.AssertCalled(t, "Handle",
 			mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			mock.MatchedBy(func(i interface{}) bool {
-				e, ok := i.(ingest.Event)
+				e, ok := i.(models.Event)
 				if !ok {
 					return false
 				}
@@ -122,7 +123,7 @@ type MockEventHandler struct {
 
 var _ delivery.EventHandler = (*MockEventHandler)(nil)
 
-func (h *MockEventHandler) Handle(ctx context.Context, event ingest.Event) error {
+func (h *MockEventHandler) Handle(ctx context.Context, event models.Event) error {
 	args := h.Called(ctx, event)
 	return args.Error(0)
 }

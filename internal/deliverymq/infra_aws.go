@@ -1,4 +1,4 @@
-package ingest
+package deliverymq
 
 import (
 	"context"
