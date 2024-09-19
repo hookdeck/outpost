@@ -30,11 +30,13 @@ type Config struct {
 }
 
 var defaultConfig = map[string]any{
-	"PORT":           3333,
-	"REDIS_HOST":     "127.0.0.1",
-	"REDIS_PORT":     6379,
-	"REDIS_PASSWORD": "",
-	"REDIS_DATABASE": 0,
+	"PORT":                       3333,
+	"REDIS_HOST":                 "127.0.0.1",
+	"REDIS_PORT":                 6379,
+	"REDIS_PASSWORD":             "",
+	"REDIS_DATABASE":             0,
+	"DELIVERY_RABBITMQ_EXCHANGE": "eventkit",
+	"DELIVERY_RABBITMQ_QUEUE":    "eventkit.delivery",
 }
 
 func Parse(flags Flags) (*Config, error) {
@@ -81,7 +83,7 @@ func Parse(flags Flags) (*Config, error) {
 		return nil, err
 	}
 
-	deliveryQueueConfig, err := mqs.ParseQueueConfig(viper)
+	deliveryQueueConfig, err := mqs.ParseQueueConfig(viper, "DELIVERY")
 	if err != nil {
 		return nil, err
 	}

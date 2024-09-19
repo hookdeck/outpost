@@ -25,13 +25,13 @@ type InMemoryConfig struct {
 	Name string
 }
 
-func ParseQueueConfig(viper *viper.Viper) (*QueueConfig, error) {
+func ParseQueueConfig(viper *viper.Viper, prefix string) (*QueueConfig, error) {
 	config := &QueueConfig{}
 	config.GCPPubSub = nil
 	config.AzureServiceBus = nil
 
-	config.parseAWSSQSConfig(viper)
-	config.parseRabbitMQConfig(viper)
+	config.parseAWSSQSConfig(viper, prefix)
+	config.parseRabbitMQConfig(viper, prefix)
 
 	validationErr := config.Validate()
 	if validationErr != nil {
