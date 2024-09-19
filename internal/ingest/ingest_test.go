@@ -36,9 +36,9 @@ func TestIntegrationIngester_RabbitMQ(t *testing.T) {
 	defer terminate()
 
 	config := ingest.IngestConfig{RabbitMQ: &ingest.RabbitMQConfig{
-		ServerURL:       rabbitmqURL,
-		PublishExchange: "eventkit",
-		PublishQueue:    "eventkit.publish",
+		ServerURL:        rabbitmqURL,
+		DeliveryExchange: "eventkit",
+		DeliveryQueue:    "eventkit.delivery",
 	}}
 
 	testIngestor(t, func() ingest.IngestConfig { return config })
@@ -55,7 +55,7 @@ func TestIntegrationIngestor_AWS(t *testing.T) {
 		Endpoint:                  awsEndpoint,
 		Region:                    "eu-central-1",
 		ServiceAccountCredentials: "test:test:",
-		PublishTopic:              "eventkit",
+		DeliveryTopic:             "eventkit",
 	}}
 
 	testIngestor(t, func() ingest.IngestConfig { return config })

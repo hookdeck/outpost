@@ -23,19 +23,19 @@ type AWSSQSConfig struct {
 	Endpoint                  string // optional - dev-focused
 	Region                    string
 	ServiceAccountCredentials string
-	PublishTopic              string
+	DeliveryTopic             string
 }
 
 func (c *IngestConfig) parseAWSSQSConfig(viper *viper.Viper) {
-	if !viper.IsSet("AWS_SQS_SERVICE_ACCOUNT_CREDS") {
+	if !viper.IsSet("DELIVERY_AWS_SQS_SERVICE_ACCOUNT_CREDS") {
 		return
 	}
 
 	config := &AWSSQSConfig{}
-	config.Endpoint = viper.GetString("AWS_SQS_ENDPOINT")
-	config.Region = viper.GetString("AWS_SQS_REGION")
-	config.ServiceAccountCredentials = viper.GetString("AWS_SQS_SERVICE_ACCOUNT_CREDS")
-	config.PublishTopic = viper.GetString("AWS_SQS_PUBLISH_TOPIC")
+	config.Endpoint = viper.GetString("DELIVERY_AWS_SQS_ENDPOINT")
+	config.Region = viper.GetString("DELIVERY_AWS_SQS_REGION")
+	config.ServiceAccountCredentials = viper.GetString("DELIVERY_AWS_SQS_SERVICE_ACCOUNT_CREDS")
+	config.DeliveryTopic = viper.GetString("DELIVERY_AWS_SQS_TOPIC")
 
 	c.AWSSQS = config
 }
@@ -58,8 +58,8 @@ func (c *IngestConfig) validateAWSSQSConfig() error {
 		return errors.New("AWS SQS Region is not set")
 	}
 
-	if c.AWSSQS.PublishTopic == "" {
-		return errors.New("AWS SQS Publish Topic is not set")
+	if c.AWSSQS.DeliveryTopic == "" {
+		return errors.New("AWS SQS Delivery Topic is not set")
 	}
 
 	return nil
@@ -134,7 +134,7 @@ func (q *AWSQueue) init(ctx context.Context) error {
 	})
 	q.sqsClient = sqsClient
 
-	queueURL, err := ensureQueue(ctx, sqsClient, q.config.PublishTopic)
+	queueURL, err := ensureQueue(ctx, sqsClient, q.config.DeliveryTopic)
 	if err != nil {
 		return err
 	}
