@@ -38,9 +38,9 @@ func TestIntegrationIngester_RabbitMQ(t *testing.T) {
 	defer terminate()
 
 	config := mqs.QueueConfig{RabbitMQ: &mqs.RabbitMQConfig{
-		ServerURL:        rabbitmqURL,
-		DeliveryExchange: "eventkit",
-		DeliveryQueue:    "eventkit.delivery",
+		ServerURL: rabbitmqURL,
+		Exchange:  "eventkit",
+		Queue:     "eventkit.delivery",
 	}}
 	testIngestor(t, func() mqs.QueueConfig { return config })
 }
@@ -56,7 +56,7 @@ func TestIntegrationIngestor_AWS(t *testing.T) {
 		Endpoint:                  awsEndpoint,
 		Region:                    "eu-central-1",
 		ServiceAccountCredentials: "test:test:",
-		DeliveryTopic:             "eventkit",
+		Topic:                     "eventkit",
 	}}
 	testIngestor(t, func() mqs.QueueConfig { return config })
 }

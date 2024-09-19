@@ -13,35 +13,25 @@ import (
 // ============================== Config ==============================
 
 type RabbitMQConfig struct {
-	ServerURL        string
-	DeliveryExchange string
-	DeliveryQueue    string
+	ServerURL string
+	Exchange  string
+	Queue     string
 }
 
-const (
-	DefaultRabbitMQDeliveryExchange = "eventkit"
-	DefaultRabbitMQDeliveryQueue    = "eventkit.delivery"
-)
+// const (
+// 	DefaultRabbitMQDeliveryExchange = "eventkit"
+// 	DefaultRabbitMQDeliveryQueue    = "eventkit.delivery"
+// )
 
-func (c *QueueConfig) parseRabbitMQConfig(viper *viper.Viper) {
-	if !viper.IsSet("DELIVERY_RABBITMQ_SERVER_URL") {
+func (c *QueueConfig) parseRabbitMQConfig(viper *viper.Viper, prefix string) {
+	if !viper.IsSet(prefix + "_RABBITMQ_SERVER_URL") {
 		return
 	}
 
 	config := &RabbitMQConfig{}
-	config.ServerURL = viper.GetString("DELIVERY_RABBITMQ_SERVER_URL")
-
-	if viper.IsSet("DELIVERY_RABBITMQ_EXCHANGE") {
-		config.DeliveryExchange = viper.GetString("DELIVERY_RABBITMQ_EXCHANGE")
-	} else {
-		config.DeliveryExchange = DefaultRabbitMQDeliveryExchange
-	}
-
-	if viper.IsSet("DELIVERY_RABBITMQ_QUEUE") {
-		config.DeliveryQueue = viper.GetString("DELIVERY_RABBITMQ_QUEUE")
-	} else {
-		config.DeliveryQueue = DefaultRabbitMQDeliveryQueue
-	}
+	config.ServerURL = viper.GetString(prefix + "_RABBITMQ_SERVER_URL")
+	config.Exchange = viper.GetString(prefix + "_RABBITMQ_EXCHANGE")
+	config.Queue = viper.GetString(prefix + "_RABBITMQ_QUEUE")
 
 	c.RabbitMQ = config
 }
@@ -55,12 +45,12 @@ func (c *QueueConfig) validateRabbitMQConfig() error {
 		return errors.New("RabbitMQ Server URL is not set")
 	}
 
-	if c.RabbitMQ.DeliveryExchange == "" {
-		return errors.New("RabbitMQ Delivery Exchange is not set")
+	if c.RabbitMQ.Exchange == "" {
+		return errors.New("RabbitMQ Exchange is not set")
 	}
 
-	if c.RabbitMQ.DeliveryQueue == "" {
-		return errors.New("RabbitMQ Delivery Queue is not set")
+	if c.RabbitMQ.Queue == "" {
+		return errors.New("RabbitMQ Queue is not set")
 	}
 
 	return nil
@@ -87,7 +77,7 @@ func (q *RabbitMQQueue) Init(ctx context.Context) (func(), error) {
 		return nil, err
 	}
 	q.conn = conn
-	q.topic = rabbitpubsub.OpenTopic(conn, q.config.DeliveryExchange, nil)
+	q.topic = rabbitpubsub.OpenTopic(conn, q.config.Exchange, nil)
 	return func() {
 		conn.Close()
 		q.topic.Shutdown(ctx)
@@ -103,7 +93,7 @@ func (q *RabbitMQQueue) Publish(ctx context.Context, incomingMessage IncomingMes
 }
 
 func (q *RabbitMQQueue) Subscribe(ctx context.Context) (Subscription, error) {
-	subscription := rabbitpubsub.OpenSubscription(q.conn, q.config.DeliveryQueue, nil)
+	subscription := rabbitpubsub.OpenSubscription(q.conn, q.config.Queue, nil)
 	return wrappedSubscription(subscription)
 }
 
@@ -114,32 +104,32 @@ func (q *RabbitMQQueue) declareInfrastructure(_ context.Context, conn *amqp091.C
 	}
 	defer ch.Close()
 	err = ch.ExchangeDeclare(
-		q.config.DeliveryExchange, // name
-		"topic",                   // type
-		true,                      // durable
-		false,                     // auto-deleted
-		false,                     // internal
-		false,                     // no-wait
-		nil,                       // arguments
+		q.config.Exchange, // name
+		"topic",           // type
+		true,              // durable
+		false,             // auto-deleted
+		false,             // internal
+		false,             // no-wait
+		nil,               // arguments
 	)
 	if err != nil {
 		return err
 	}
 	queue, err := ch.QueueDeclare(
-		q.config.DeliveryQueue, // name
-		true,                   // durable
-		false,                  // delete when unused
-		false,                  // exclusive
-		false,                  // no-wait
-		nil,                    // arguments
+		q.config.Queue, // name
+		true,           // durable
+		false,          // delete when unused
+		false,          // exclusive
+		false,          // no-wait
+		nil,            // arguments
 	)
 	if err != nil {
 		return err
 	}
 	err = ch.QueueBind(
-		queue.Name,                // queue name
-		"",                        // routing key
-		q.config.DeliveryExchange, // exchange
+		queue.Name,        // queue name
+		"",                // routing key
+		q.config.Exchange, // exchange
 		false,
 		nil,
 	)
