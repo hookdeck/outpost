@@ -33,17 +33,23 @@ func (e *Event) ToMessage() (*mqs.Message, error) {
 	return &mqs.Message{Body: data}, nil
 }
 
+type DeliveryInfra interface {
+	DeclareInfrastructure(ctx context.Context) error
+}
+
 type Ingestor struct {
-	queue mqs.Queue
+	queueConfig *mqs.QueueConfig
+	queue       mqs.Queue
+	infra       DeliveryInfra
 }
 
 type IngestorOption struct {
-	Queue mqs.Queue
+	QueueConfig *mqs.QueueConfig
 }
 
 func WithQueue(queueConfig *mqs.QueueConfig) func(opts *IngestorOption) {
 	return func(opts *IngestorOption) {
-		opts.Queue = mqs.NewQueue(queueConfig)
+		opts.QueueConfig = queueConfig
 	}
 }
 
@@ -52,13 +58,37 @@ func New(opts ...func(opts *IngestorOption)) *Ingestor {
 	for _, opt := range opts {
 		opt(options)
 	}
-	if options.Queue == nil {
-		options.Queue = mqs.NewQueue(nil)
+	queueConfig := options.QueueConfig
+	queue := mqs.NewQueue(queueConfig)
+
+	// infra
+	var infra DeliveryInfra
+	if queueConfig == nil {
+	} else if queueConfig.AWSSQS != nil {
+		infra = NewDeliveryAWSInfra(queueConfig.AWSSQS)
+	} else if queueConfig.AzureServiceBus != nil {
+		// ...
+	} else if queueConfig.GCPPubSub != nil {
+		// ...
+	} else if queueConfig.RabbitMQ != nil {
+		infra = NewDeliveryRabbitMQInfra(queueConfig.RabbitMQ)
 	}
-	return &Ingestor{queue: options.Queue}
+
+	return &Ingestor{
+		queueConfig: queueConfig,
+		queue:       queue,
+		infra:       infra,
+	}
 }
 
 func (i *Ingestor) Init(ctx context.Context) (func(), error) {
+	if i.infra != nil {
+		err := i.infra.DeclareInfrastructure(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return i.queue.Init(ctx)
 }
 

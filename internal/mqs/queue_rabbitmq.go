@@ -18,11 +18,6 @@ type RabbitMQConfig struct {
 	Queue     string
 }
 
-// const (
-// 	DefaultRabbitMQDeliveryExchange = "eventkit"
-// 	DefaultRabbitMQDeliveryQueue    = "eventkit.delivery"
-// )
-
 func (c *QueueConfig) parseRabbitMQConfig(viper *viper.Viper, prefix string) {
 	if !viper.IsSet(prefix + "_RABBITMQ_SERVER_URL") {
 		return
@@ -71,11 +66,6 @@ func (q *RabbitMQQueue) Init(ctx context.Context) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	err = q.declareInfrastructure(ctx, conn)
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
 	q.conn = conn
 	q.topic = rabbitpubsub.OpenTopic(conn, q.config.Exchange, nil)
 	return func() {
@@ -95,45 +85,6 @@ func (q *RabbitMQQueue) Publish(ctx context.Context, incomingMessage IncomingMes
 func (q *RabbitMQQueue) Subscribe(ctx context.Context) (Subscription, error) {
 	subscription := rabbitpubsub.OpenSubscription(q.conn, q.config.Queue, nil)
 	return wrappedSubscription(subscription)
-}
-
-func (q *RabbitMQQueue) declareInfrastructure(_ context.Context, conn *amqp091.Connection) error {
-	ch, err := conn.Channel()
-	if err != nil {
-		return err
-	}
-	defer ch.Close()
-	err = ch.ExchangeDeclare(
-		q.config.Exchange, // name
-		"topic",           // type
-		true,              // durable
-		false,             // auto-deleted
-		false,             // internal
-		false,             // no-wait
-		nil,               // arguments
-	)
-	if err != nil {
-		return err
-	}
-	queue, err := ch.QueueDeclare(
-		q.config.Queue, // name
-		true,           // durable
-		false,          // delete when unused
-		false,          // exclusive
-		false,          // no-wait
-		nil,            // arguments
-	)
-	if err != nil {
-		return err
-	}
-	err = ch.QueueBind(
-		queue.Name,        // queue name
-		"",                // routing key
-		q.config.Exchange, // exchange
-		false,
-		nil,
-	)
-	return err
 }
 
 func NewRabbitMQQueue(config *RabbitMQConfig) *RabbitMQQueue {
