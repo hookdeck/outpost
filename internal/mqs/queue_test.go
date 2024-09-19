@@ -1,32 +1,32 @@
-package ingest_test
+package mqs_test
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"testing"
 	"time"
 
-	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/mqs"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestIntegrationIngestor_InMemory(t *testing.T) {
+func TestIntegrationMQ_InMemory(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
 
 	t.Parallel()
 
-	testIngestor(t, func() mqs.QueueConfig {
+	testMQ(t, func() mqs.QueueConfig {
 		config := mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}
 		return config
 	})
 }
 
-func TestIntegrationIngestor_RabbitMQ(t *testing.T) {
+func TestIntegrationMQ_RabbitMQ(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -42,10 +42,10 @@ func TestIntegrationIngestor_RabbitMQ(t *testing.T) {
 		Exchange:  "eventkit",
 		Queue:     "eventkit.delivery",
 	}}
-	testIngestor(t, func() mqs.QueueConfig { return config })
+	testMQ(t, func() mqs.QueueConfig { return config })
 }
 
-func TestIntegrationIngestor_AWS(t *testing.T) {
+func TestIntegrationMQ_AWS(t *testing.T) {
 	t.Parallel()
 
 	awsEndpoint, terminate, err := testutil.StartTestcontainerLocalstack()
@@ -58,16 +58,36 @@ func TestIntegrationIngestor_AWS(t *testing.T) {
 		ServiceAccountCredentials: "test:test:",
 		Topic:                     "eventkit",
 	}}
-	testIngestor(t, func() mqs.QueueConfig { return config })
+	testMQ(t, func() mqs.QueueConfig { return config })
 }
 
-func testIngestor(t *testing.T, makeConfig func() mqs.QueueConfig) {
+type Msg struct {
+	ID   string
+	Data map[string]string
+}
+
+var _ mqs.IncomingMessage = &Msg{}
+
+func (e *Msg) FromMessage(msg *mqs.Message) error {
+	return json.Unmarshal(msg.Body, e)
+}
+
+func (e *Msg) ToMessage() (*mqs.Message, error) {
+	data, err := json.Marshal(e)
+	if err != nil {
+		return nil, err
+	}
+	return &mqs.Message{Body: data}, nil
+}
+
+func testMQ(t *testing.T, makeConfig func() mqs.QueueConfig) {
 	t.Run("should initialize without error", func(t *testing.T) {
 		config := makeConfig()
-		ingestor := ingest.New(ingest.WithQueue(&config))
-		cleanup, err := ingestor.Init(context.Background())
+		queue := mqs.NewQueue(&config)
+		cleanup, err := queue.Init(context.Background())
 		require.Nil(t, err)
-		subscription, err := ingestor.Subscribe(context.Background())
+		defer cleanup()
+		subscription, err := queue.Subscribe(context.Background())
 		require.Nil(t, err)
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
@@ -80,13 +100,13 @@ func testIngestor(t *testing.T, makeConfig func() mqs.QueueConfig) {
 	t.Run("should publish and receive message", func(t *testing.T) {
 		ctx := context.Background()
 		config := makeConfig()
-		ingestor := ingest.New(ingest.WithQueue(&config))
-		cleanup, err := ingestor.Init(ctx)
+		queue := mqs.NewQueue(&config)
+		cleanup, err := queue.Init(context.Background())
 		require.Nil(t, err)
 		defer cleanup()
 
 		msgchan := make(chan *mqs.Message)
-		subscription, err := ingestor.Subscribe(ctx)
+		subscription, err := queue.Subscribe(ctx)
 		require.Nil(t, err)
 		defer subscription.Shutdown(ctx)
 
@@ -98,24 +118,19 @@ func testIngestor(t *testing.T, makeConfig func() mqs.QueueConfig) {
 			msgchan <- msg
 		}()
 
-		event := ingest.Event{
-			ID:            "123",
-			TenantID:      "456",
-			DestinationID: "789",
-			Topic:         "test",
-			Time:          time.Now(),
-			Metadata:      map[string]string{"key": "value"},
-			Data:          map[string]interface{}{"key": "value"},
+		msg := Msg{
+			ID:   "123",
+			Data: map[string]string{"mykey": "myvalue"},
 		}
-		err = ingestor.Publish(ctx, event)
+		err = queue.Publish(ctx, &msg)
 		require.Nil(t, err)
 
 		receivedMsg := <-msgchan
 		require.NotNil(t, receivedMsg)
-		receivedEvent := ingest.Event{}
-		err = receivedEvent.FromMessage(receivedMsg)
+		parsedMsg := Msg{}
+		err = parsedMsg.FromMessage(receivedMsg)
 		assert.Nil(t, err)
-		assert.Equal(t, event.ID, receivedEvent.ID)
+		assert.Equal(t, msg.ID, parsedMsg.ID)
 
 		receivedMsg.Ack()
 	})
