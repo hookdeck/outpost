@@ -1,7 +1,7 @@
 TEST?=$$(go list ./...)
 
 up:
-	docker-compose -f build/dev/compose.yml --env-file .env up
+	docker-compose -f build/dev/compose.yml --env-file .env up -d
 
 down:
 	docker-compose -f build/dev/compose.yml down
