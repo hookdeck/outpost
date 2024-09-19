@@ -42,6 +42,7 @@ func TestIntegrationMQ_RabbitMQ(t *testing.T) {
 		Exchange:  "eventkit",
 		Queue:     "eventkit.delivery",
 	}}
+	testutil.DeclareTestRabbitMQInfrastructure(context.Background(), config.RabbitMQ)
 	testMQ(t, func() mqs.QueueConfig { return config })
 }
 
@@ -58,6 +59,7 @@ func TestIntegrationMQ_AWS(t *testing.T) {
 		ServiceAccountCredentials: "test:test:",
 		Topic:                     "eventkit",
 	}}
+	testutil.DeclareTestAWSInfrastructure(context.Background(), config.AWSSQS)
 	testMQ(t, func() mqs.QueueConfig { return config })
 }
 
