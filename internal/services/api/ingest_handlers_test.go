@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/ingest"
+	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,7 +23,7 @@ func TestIngestHandlers(t *testing.T) {
 
 		w := httptest.NewRecorder()
 
-		testEvent := ingest.Event{
+		testEvent := models.Event{
 			ID:            uuid.New().String(),
 			TenantID:      uuid.New().String(),
 			DestinationID: uuid.New().String(),

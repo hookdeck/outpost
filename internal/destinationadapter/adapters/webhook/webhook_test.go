@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters/webhook"
-	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -122,7 +121,7 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		finalDestination := destination
 		finalDestination.Config["url"] = serverURL
 
-		err := webhookDestination.Publish(context.Background(), finalDestination, &ingest.Event{
+		err := webhookDestination.Publish(context.Background(), finalDestination, &adapters.Event{
 			ID:               uuid.New().String(),
 			TenantID:         uuid.New().String(),
 			DestinationID:    uuid.New().String(),

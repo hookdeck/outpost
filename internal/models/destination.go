@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/destinationadapter"
-	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/redis"
 )
 
@@ -251,7 +250,7 @@ func (d *Destination) Validate(ctx context.Context) error {
 	})
 }
 
-func (d *Destination) Publish(ctx context.Context, event *ingest.Event) error {
+func (d *Destination) Publish(ctx context.Context, event *Event) error {
 	adapter, err := destinationadapter.NewAdapater(d.Type)
 	if err != nil {
 		return err
@@ -264,6 +263,6 @@ func (d *Destination) Publish(ctx context.Context, event *ingest.Event) error {
 			Config:      d.Config,
 			Credentials: d.Credentials,
 		},
-		event,
+		event.ToAdapterEvent(),
 	)
 }

@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/ingest"
+	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/hookdeck/EventKit/internal/services/api"
@@ -21,8 +21,8 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *ote
 	gin.SetMode(gin.TestMode)
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
-	ingestor := ingest.New()
-	ingestor.Init(context.Background())
+	deliveryMQ := deliverymq.New()
+	deliveryMQ.Init(context.Background())
 	router := api.NewRouter(
 		api.RouterConfig{
 			Hostname:  "",
@@ -33,7 +33,7 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *ote
 		redisClient,
 		models.NewTenantModel(),
 		models.NewDestinationModel(),
-		ingestor,
+		deliveryMQ,
 	)
 	return router, logger, redisClient
 }

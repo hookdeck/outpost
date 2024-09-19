@@ -17,7 +17,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
 	awsadapter "github.com/hookdeck/EventKit/internal/destinationadapter/adapters/aws"
-	"github.com/hookdeck/EventKit/internal/ingest"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -196,7 +195,7 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 
 	// Act: Publish
 	log.Println("publishing message")
-	event := &ingest.Event{
+	event := &adapters.Event{
 		ID:               uuid.New().String(),
 		TenantID:         uuid.New().String(),
 		DestinationID:    destination.ID,
