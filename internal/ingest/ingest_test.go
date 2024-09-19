@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIntegrationIngester_InMemory(t *testing.T) {
+func TestIntegrationIngestor_InMemory(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -26,7 +26,7 @@ func TestIntegrationIngester_InMemory(t *testing.T) {
 	})
 }
 
-func TestIntegrationIngester_RabbitMQ(t *testing.T) {
+func TestIntegrationIngestor_RabbitMQ(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
