@@ -51,11 +51,7 @@ func run(mainContext context.Context) error {
 	// Set up cancellation context and waitgroup
 	ctx, cancel := context.WithCancel(mainContext)
 
-	ingestor, err := ingest.New(cfg.Ingest)
-	if err != nil {
-		cancel()
-		return err
-	}
+	ingestor := ingest.New(ingest.WithQueue(cfg.DeliveryQueueConfig))
 	cleanupIngestor, err := ingestor.Init(ctx)
 	if err != nil {
 		cancel()

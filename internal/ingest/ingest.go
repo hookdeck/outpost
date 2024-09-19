@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"gocloud.dev/pubsub"
-	_ "gocloud.dev/pubsub/mempubsub"
+	"github.com/hookdeck/EventKit/internal/mqs"
 )
 
 type Event struct {
@@ -20,28 +19,43 @@ type Event struct {
 	Data             map[string]interface{} `json:"data"`
 }
 
-func (e *Event) FromMessage(msg *pubsub.Message) error {
+var _ mqs.IncomingMessage = &Event{}
+
+func (e *Event) FromMessage(msg *mqs.Message) error {
 	return json.Unmarshal(msg.Body, e)
 }
 
-func (e *Event) ToMessage() (*pubsub.Message, error) {
+func (e *Event) ToMessage() (*mqs.Message, error) {
 	data, err := json.Marshal(e)
 	if err != nil {
 		return nil, err
 	}
-	return &pubsub.Message{Body: data}, nil
+	return &mqs.Message{Body: data}, nil
 }
 
 type Ingestor struct {
-	queue IngestQueue
+	queue mqs.Queue
 }
 
-func New(config *IngestConfig) (*Ingestor, error) {
-	queue, err := NewQueue(config)
-	if err != nil {
-		return nil, err
+type IngestorOption struct {
+	Queue mqs.Queue
+}
+
+func WithQueue(queueConfig *mqs.QueueConfig) func(opts *IngestorOption) {
+	return func(opts *IngestorOption) {
+		opts.Queue = mqs.NewQueue(queueConfig)
 	}
-	return &Ingestor{queue: queue}, nil
+}
+
+func New(opts ...func(opts *IngestorOption)) *Ingestor {
+	options := &IngestorOption{}
+	for _, opt := range opts {
+		opt(options)
+	}
+	if options.Queue == nil {
+		options.Queue = mqs.NewQueue(nil)
+	}
+	return &Ingestor{queue: options.Queue}
 }
 
 func (i *Ingestor) Init(ctx context.Context) (func(), error) {
@@ -49,9 +63,9 @@ func (i *Ingestor) Init(ctx context.Context) (func(), error) {
 }
 
 func (i *Ingestor) Publish(ctx context.Context, event Event) error {
-	return i.queue.Publish(ctx, event)
+	return i.queue.Publish(ctx, &event)
 }
 
-func (i *Ingestor) Subscribe(ctx context.Context) (Subscription, error) {
+func (i *Ingestor) Subscribe(ctx context.Context) (mqs.Subscription, error) {
 	return i.queue.Subscribe(ctx)
 }

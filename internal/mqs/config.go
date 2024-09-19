@@ -1,4 +1,4 @@
-package ingest
+package mqs
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-type IngestConfig struct {
+type QueueConfig struct {
 	AWSSQS          *AWSSQSConfig
 	AzureServiceBus *AzureServiceBusConfig
 	GCPPubSub       *GCPPubSubConfig
@@ -25,8 +25,8 @@ type InMemoryConfig struct {
 	Name string
 }
 
-func ParseIngestConfig(viper *viper.Viper) (*IngestConfig, error) {
-	config := &IngestConfig{}
+func ParseQueueConfig(viper *viper.Viper) (*QueueConfig, error) {
+	config := &QueueConfig{}
 	config.GCPPubSub = nil
 	config.AzureServiceBus = nil
 
@@ -41,7 +41,7 @@ func ParseIngestConfig(viper *viper.Viper) (*IngestConfig, error) {
 	return config, nil
 }
 
-func (c *IngestConfig) Validate() error {
+func (c *QueueConfig) Validate() error {
 	configCount := 0
 
 	if c.AWSSQS != nil {
@@ -81,7 +81,7 @@ func (c *IngestConfig) Validate() error {
 
 // ==================================== Azure Service Bus ====================================
 
-func (c *IngestConfig) parseAzureServiceBusConfig(viper *viper.Viper) {
+func (c *QueueConfig) parseAzureServiceBusConfig(viper *viper.Viper) {
 	if !viper.IsSet("AZURE_SERVICE_ACCOUNT_CREDS") {
 		return
 	}
@@ -91,7 +91,7 @@ func (c *IngestConfig) parseAzureServiceBusConfig(viper *viper.Viper) {
 	c.AzureServiceBus = config
 }
 
-func (c *IngestConfig) validateAzureServiceBusConfig() error {
+func (c *QueueConfig) validateAzureServiceBusConfig() error {
 	if c.AzureServiceBus == nil {
 		return nil
 	}
@@ -101,7 +101,7 @@ func (c *IngestConfig) validateAzureServiceBusConfig() error {
 
 // ==================================== GCP PubSub ====================================
 
-func (c *IngestConfig) parseGCPPubSubConfig(viper *viper.Viper) {
+func (c *QueueConfig) parseGCPPubSubConfig(viper *viper.Viper) {
 	if !viper.IsSet("GCP_PUBSUB_SERVICE_ACCOUNT_CREDS") {
 		return
 	}
@@ -111,7 +111,7 @@ func (c *IngestConfig) parseGCPPubSubConfig(viper *viper.Viper) {
 	c.GCPPubSub = config
 }
 
-func (c *IngestConfig) validateGCPPubSubConfig() error {
+func (c *QueueConfig) validateGCPPubSubConfig() error {
 	if c.GCPPubSub == nil {
 		return nil
 	}

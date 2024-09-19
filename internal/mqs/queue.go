@@ -1,4 +1,4 @@
-package ingest
+package mqs
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	_ "gocloud.dev/pubsub/mempubsub"
 )
 
-type IngestQueue interface {
+type Queue interface {
 	Init(ctx context.Context) (func(), error)
-	Publish(ctx context.Context, event Event) error
+	Publish(ctx context.Context, msg IncomingMessage) error
 	Subscribe(ctx context.Context) (Subscription, error)
 }
 
@@ -24,23 +24,51 @@ type QueueMessage interface {
 	Nack()
 }
 
-type Message struct {
-	QueueMessage
-	Event Event
+type IncomingMessage interface {
+	ToMessage() (*Message, error)
+	FromMessage(msg *Message) error
 }
 
-func NewQueue(config *IngestConfig) (IngestQueue, error) {
-	if config.AWSSQS != nil {
-		return NewAWSQueue(config.AWSSQS), nil
-	} else if config.AzureServiceBus != nil {
-		return nil, errors.New("Azure Service Bus queue is not implemented")
-	} else if config.GCPPubSub != nil {
-		return nil, errors.New("GCP PubSub queue is not implemented")
-	} else if config.RabbitMQ != nil {
-		return NewRabbitMQQueue(config.RabbitMQ), nil
-	} else {
-		return NewInMemoryQueue(config.InMemory), nil
+type Message struct {
+	QueueMessage
+	Body []byte
+}
+
+func NewQueue(config *QueueConfig) Queue {
+	if config == nil {
+		return NewInMemoryQueue(nil)
 	}
+	if config.AWSSQS != nil {
+		return &UnimplementedQueue{}
+		// return NewAWSQueue(config.AWSSQS), nil
+	} else if config.AzureServiceBus != nil {
+		return &UnimplementedQueue{}
+	} else if config.GCPPubSub != nil {
+		return &UnimplementedQueue{}
+	} else if config.RabbitMQ != nil {
+		return &UnimplementedQueue{}
+		// return NewRabbitMQQueue(config.RabbitMQ), nil
+	} else {
+		return NewInMemoryQueue(config.InMemory)
+	}
+}
+
+// ============================== Unimplemented Queue ==============================
+
+type UnimplementedQueue struct{}
+
+var _ Queue = &UnimplementedQueue{}
+
+func (q *UnimplementedQueue) Init(ctx context.Context) (func(), error) {
+	return nil, errors.New("unimplemented")
+}
+
+func (q *UnimplementedQueue) Publish(ctx context.Context, msg IncomingMessage) error {
+	return errors.New("unimplemented")
+}
+
+func (q *UnimplementedQueue) Subscribe(ctx context.Context) (Subscription, error) {
+	return nil, errors.New("unimplemented")
 }
 
 // ============================== In-memory Queue ==============================
@@ -50,7 +78,7 @@ type InMemoryQueue struct {
 	topic     *pubsub.Topic
 }
 
-var _ IngestQueue = &InMemoryQueue{}
+var _ Queue = &InMemoryQueue{}
 
 func (q *InMemoryQueue) Init(ctx context.Context) (func(), error) {
 	topic, err := pubsub.OpenTopic(ctx, q.topicName)
@@ -61,12 +89,12 @@ func (q *InMemoryQueue) Init(ctx context.Context) (func(), error) {
 	return func() { topic.Shutdown(ctx) }, nil
 }
 
-func (q *InMemoryQueue) Publish(ctx context.Context, event Event) error {
-	msg, err := event.ToMessage()
+func (q *InMemoryQueue) Publish(ctx context.Context, incomingMessage IncomingMessage) error {
+	msg, err := incomingMessage.ToMessage()
 	if err != nil {
 		return err
 	}
-	return q.topic.Send(ctx, msg)
+	return q.topic.Send(ctx, &pubsub.Message{Body: msg.Body})
 }
 
 func (q *InMemoryQueue) Subscribe(ctx context.Context) (Subscription, error) {
@@ -83,7 +111,7 @@ func NewInMemoryQueue(config *InMemoryConfig) *InMemoryQueue {
 		name = config.Name
 	}
 	return &InMemoryQueue{
-		topicName: "mem://delivery" + name,
+		topicName: "mem://queue" + name,
 	}
 }
 
@@ -100,13 +128,9 @@ func (s *WrappedSubscription) Receive(ctx context.Context) (*Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	event := Event{}
-	if err := event.FromMessage(msg); err != nil {
-		return nil, err
-	}
 	return &Message{
 		QueueMessage: msg,
-		Event:        event,
+		Body:         msg.Body,
 	}, nil
 }
 
