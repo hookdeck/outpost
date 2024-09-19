@@ -13,34 +13,34 @@ import (
 // ============================== Config ==============================
 
 type RabbitMQConfig struct {
-	ServerURL       string
-	PublishExchange string
-	PublishQueue    string
+	ServerURL        string
+	DeliveryExchange string
+	DeliveryQueue    string
 }
 
 const (
-	DefaultRabbitMQPublishExchange = "eventkit"
-	DefaultRabbitMQPublishQueue    = "eventkit.publish"
+	DefaultRabbitMQDeliveryExchange = "eventkit"
+	DefaultRabbitMQDeliveryQueue    = "eventkit.delivery"
 )
 
 func (c *IngestConfig) parseRabbitMQConfig(viper *viper.Viper) {
-	if !viper.IsSet("RABBITMQ_SERVER_URL") {
+	if !viper.IsSet("DELIVERY_RABBITMQ_SERVER_URL") {
 		return
 	}
 
 	config := &RabbitMQConfig{}
-	config.ServerURL = viper.GetString("RABBITMQ_SERVER_URL")
+	config.ServerURL = viper.GetString("DELIVERY_RABBITMQ_SERVER_URL")
 
-	if viper.IsSet("RABBITMQ_PUBLISH_EXCHANGE") {
-		config.PublishExchange = viper.GetString("RABBITMQ_PUBLISH_EXCHANGE")
+	if viper.IsSet("DELIVERY_RABBITMQ_EXCHANGE") {
+		config.DeliveryExchange = viper.GetString("DELIVERY_RABBITMQ_EXCHANGE")
 	} else {
-		config.PublishExchange = DefaultRabbitMQPublishExchange
+		config.DeliveryExchange = DefaultRabbitMQDeliveryExchange
 	}
 
-	if viper.IsSet("RABBITMQ_PUBLISH_QUEUE") {
-		config.PublishQueue = viper.GetString("RABBITMQ_PUBLISH_QUEUE")
+	if viper.IsSet("DELIVERY_RABBITMQ_QUEUE") {
+		config.DeliveryQueue = viper.GetString("DELIVERY_RABBITMQ_QUEUE")
 	} else {
-		config.PublishQueue = DefaultRabbitMQPublishQueue
+		config.DeliveryQueue = DefaultRabbitMQDeliveryQueue
 	}
 
 	c.RabbitMQ = config
@@ -55,12 +55,12 @@ func (c *IngestConfig) validateRabbitMQConfig() error {
 		return errors.New("RabbitMQ Server URL is not set")
 	}
 
-	if c.RabbitMQ.PublishExchange == "" {
-		return errors.New("RabbitMQ Publish Exchange is not set")
+	if c.RabbitMQ.DeliveryExchange == "" {
+		return errors.New("RabbitMQ Delivery Exchange is not set")
 	}
 
-	if c.RabbitMQ.PublishQueue == "" {
-		return errors.New("RabbitMQ Publish Queue is not set")
+	if c.RabbitMQ.DeliveryQueue == "" {
+		return errors.New("RabbitMQ Delivery Queue is not set")
 	}
 
 	return nil
@@ -87,7 +87,7 @@ func (q *RabbitMQQueue) Init(ctx context.Context) (func(), error) {
 		return nil, err
 	}
 	q.conn = conn
-	q.topic = rabbitpubsub.OpenTopic(conn, q.config.PublishExchange, nil)
+	q.topic = rabbitpubsub.OpenTopic(conn, q.config.DeliveryExchange, nil)
 	return func() {
 		conn.Close()
 		q.topic.Shutdown(ctx)
@@ -103,7 +103,7 @@ func (q *RabbitMQQueue) Publish(ctx context.Context, event Event) error {
 }
 
 func (q *RabbitMQQueue) Subscribe(ctx context.Context) (Subscription, error) {
-	subscription := rabbitpubsub.OpenSubscription(q.conn, q.config.PublishQueue, nil)
+	subscription := rabbitpubsub.OpenSubscription(q.conn, q.config.DeliveryQueue, nil)
 	return wrappedSubscription(subscription)
 }
 
@@ -114,32 +114,32 @@ func (q *RabbitMQQueue) declareInfrastructure(_ context.Context, conn *amqp091.C
 	}
 	defer ch.Close()
 	err = ch.ExchangeDeclare(
-		q.config.PublishExchange, // name
-		"topic",                  // type
-		true,                     // durable
-		false,                    // auto-deleted
-		false,                    // internal
-		false,                    // no-wait
-		nil,                      // arguments
+		q.config.DeliveryExchange, // name
+		"topic",                   // type
+		true,                      // durable
+		false,                     // auto-deleted
+		false,                     // internal
+		false,                     // no-wait
+		nil,                       // arguments
 	)
 	if err != nil {
 		return err
 	}
 	queue, err := ch.QueueDeclare(
-		q.config.PublishQueue, // name
-		true,                  // durable
-		false,                 // delete when unused
-		false,                 // exclusive
-		false,                 // no-wait
-		nil,                   // arguments
+		q.config.DeliveryQueue, // name
+		true,                   // durable
+		false,                  // delete when unused
+		false,                  // exclusive
+		false,                  // no-wait
+		nil,                    // arguments
 	)
 	if err != nil {
 		return err
 	}
 	err = ch.QueueBind(
-		queue.Name,               // queue name
-		"",                       // routing key
-		q.config.PublishExchange, // exchange
+		queue.Name,                // queue name
+		"",                        // routing key
+		q.config.DeliveryExchange, // exchange
 		false,
 		nil,
 	)
