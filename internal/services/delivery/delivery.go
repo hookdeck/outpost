@@ -74,16 +74,23 @@ func (s *DeliveryService) Run(ctx context.Context) error {
 			logger.Error("failed to receive message", zap.Error(err))
 			break
 		}
+		event := ingest.Event{}
+		err = event.FromMessage(msg)
+		if err != nil {
+			logger.Error("failed to parse message", zap.Error(err))
+			msg.Nack()
+			continue
+		}
 
 		// Do work based on the message.
 		// TODO: use goroutine to process messages concurrently.
 		// ref: https://gocloud.dev/howto/pubsub/subscribe/#receiving
-		logger.Info("received event", zap.String("event", string(msg.Event.ID)))
-		err = s.eventHandler.Handle(ctx, msg.Event)
+		logger.Info("received event", zap.String("event", string(event.ID)))
+		err = s.eventHandler.Handle(ctx, event)
 		if err != nil {
 			logger.Error("failed to handle message", zap.Error(err))
 			msg.Nack()
-			return err
+			continue
 		}
 		msg.Ack()
 	}

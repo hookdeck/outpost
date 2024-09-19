@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/ingest"
+	"github.com/hookdeck/EventKit/internal/mqs"
 	"github.com/hookdeck/EventKit/internal/services/delivery"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -31,8 +32,7 @@ func TestDeliveryService(t *testing.T) {
 	t.Run("should run without error", func(t *testing.T) {
 		t.Parallel()
 
-		ingestor, err := ingest.New(&ingest.IngestConfig{InMemory: &ingest.InMemoryConfig{Name: testutil.RandomString(5)}})
-		require.Nil(t, err)
+		ingestor := ingest.New(ingest.WithQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}))
 		cleanup, err := ingestor.Init(context.Background())
 		require.Nil(t, err)
 		defer cleanup()
@@ -72,8 +72,7 @@ func TestDeliveryService(t *testing.T) {
 			Data:             map[string]interface{}{},
 		}
 
-		ingestor, err := ingest.New(&ingest.IngestConfig{InMemory: &ingest.InMemoryConfig{Name: testutil.RandomString(5)}})
-		require.Nil(t, err)
+		ingestor := ingest.New(ingest.WithQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}))
 		cleanup, err := ingestor.Init(context.Background())
 		require.Nil(t, err)
 		defer cleanup()
