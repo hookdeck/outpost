@@ -1,11 +1,20 @@
 package mqs
 
 import (
+	"context"
 	"errors"
+	"log"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/smithy-go"
 	"github.com/spf13/viper"
+	"gocloud.dev/pubsub"
+	"gocloud.dev/pubsub/awssnssqs"
 )
 
 // ============================== Config ==============================
@@ -67,93 +76,95 @@ func (c *AWSSQSConfig) toCredentials() (*credentials.StaticCredentialsProvider, 
 
 // // ============================== Queue ==============================
 
-// type AWSQueue struct {
-// 	sqsQueueURL string
-// 	sqsClient   *sqs.Client
-// 	config      *AWSSQSConfig
-// 	topic       *pubsub.Topic
-// }
+type AWSQueue struct {
+	sqsQueueURL string
+	sqsClient   *sqs.Client
+	config      *AWSSQSConfig
+	topic       *pubsub.Topic
+}
 
-// var _ Queue = &AWSQueue{}
+var _ Queue = &AWSQueue{}
 
-// func NewAWSQueue(config *AWSSQSConfig) *AWSQueue {
-// 	return &AWSQueue{config: config}
-// }
+func NewAWSQueue(config *AWSSQSConfig) *AWSQueue {
+	return &AWSQueue{config: config}
+}
 
-// func (q *AWSQueue) Init(ctx context.Context) (func(), error) {
-// 	err := q.init(ctx)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	q.topic = awssnssqs.OpenSQSTopicV2(ctx, q.sqsClient, q.sqsQueueURL, nil)
-// 	return func() {
-// 		q.topic.Shutdown(ctx)
-// 	}, nil
-// }
+func (q *AWSQueue) Init(ctx context.Context) (func(), error) {
+	err := q.init(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q.topic = awssnssqs.OpenSQSTopicV2(ctx, q.sqsClient, q.sqsQueueURL, nil)
+	return func() {
+		q.topic.Shutdown(ctx)
+	}, nil
+}
 
-// func (q *AWSQueue) Publish(ctx context.Context, data []byte) error {
-// 	return q.topic.Send(ctx, &pubsub.Message{
-// 		Body: data,
-// 	})
-// }
+func (q *AWSQueue) Publish(ctx context.Context, incomingMessage IncomingMessage) error {
+	msg, err := incomingMessage.ToMessage()
+	if err != nil {
+		return err
+	}
+	return q.topic.Send(ctx, &pubsub.Message{Body: msg.Body})
+}
 
-// func (q *AWSQueue) Subscribe(ctx context.Context) (Subscription, error) {
-// 	subscription := awssnssqs.OpenSubscriptionV2(ctx, q.sqsClient, q.sqsQueueURL, nil)
-// 	return wrappedSubscription(subscription)
-// }
+func (q *AWSQueue) Subscribe(ctx context.Context) (Subscription, error) {
+	subscription := awssnssqs.OpenSubscriptionV2(ctx, q.sqsClient, q.sqsQueueURL, nil)
+	return wrappedSubscription(subscription)
+}
 
-// func (q *AWSQueue) init(ctx context.Context) error {
-// 	creds, err := q.config.toCredentials()
-// 	if err != nil {
-// 		return err
-// 	}
+func (q *AWSQueue) init(ctx context.Context) error {
+	creds, err := q.config.toCredentials()
+	if err != nil {
+		return err
+	}
 
-// 	sdkConfig, err := config.LoadDefaultConfig(ctx,
-// 		config.WithRegion(q.config.Region),
-// 		config.WithCredentialsProvider(creds),
-// 	)
-// 	if err != nil {
-// 		return err
-// 	}
+	sdkConfig, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(q.config.Region),
+		config.WithCredentialsProvider(creds),
+	)
+	if err != nil {
+		return err
+	}
 
-// 	sqsClient := sqs.NewFromConfig(sdkConfig, func(o *sqs.Options) {
-// 		if q.config.Endpoint != "" {
-// 			o.BaseEndpoint = aws.String(q.config.Endpoint)
-// 		}
-// 	})
-// 	q.sqsClient = sqsClient
+	sqsClient := sqs.NewFromConfig(sdkConfig, func(o *sqs.Options) {
+		if q.config.Endpoint != "" {
+			o.BaseEndpoint = aws.String(q.config.Endpoint)
+		}
+	})
+	q.sqsClient = sqsClient
 
-// 	queueURL, err := ensureQueue(ctx, sqsClient, q.config.DeliveryTopic)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	q.sqsQueueURL = queueURL
+	queueURL, err := ensureQueue(ctx, sqsClient, q.config.DeliveryTopic)
+	if err != nil {
+		return err
+	}
+	q.sqsQueueURL = queueURL
 
-// 	return nil
-// }
+	return nil
+}
 
-// func ensureQueue(ctx context.Context, sqsClient *sqs.Client, queueName string) (string, error) {
-// 	queue, err := sqsClient.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
-// 		QueueName: aws.String(queueName),
-// 	})
-// 	if err != nil {
-// 		var apiErr smithy.APIError
-// 		if errors.As(err, &apiErr) {
-// 			switch apiErr.(type) {
-// 			case *types.QueueDoesNotExist:
-// 				log.Println("Queue does not exist, creating...")
-// 				createdQueue, err := sqsClient.CreateQueue(ctx, &sqs.CreateQueueInput{
-// 					QueueName: aws.String(queueName),
-// 				})
-// 				if err != nil {
-// 					return "", err
-// 				}
-// 				return *createdQueue.QueueUrl, nil
-// 			default:
-// 				return "", err
-// 			}
-// 		}
-// 		return "", err
-// 	}
-// 	return *queue.QueueUrl, nil
-// }
+func ensureQueue(ctx context.Context, sqsClient *sqs.Client, queueName string) (string, error) {
+	queue, err := sqsClient.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
+		QueueName: aws.String(queueName),
+	})
+	if err != nil {
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) {
+			switch apiErr.(type) {
+			case *types.QueueDoesNotExist:
+				log.Println("Queue does not exist, creating...")
+				createdQueue, err := sqsClient.CreateQueue(ctx, &sqs.CreateQueueInput{
+					QueueName: aws.String(queueName),
+				})
+				if err != nil {
+					return "", err
+				}
+				return *createdQueue.QueueUrl, nil
+			default:
+				return "", err
+			}
+		}
+		return "", err
+	}
+	return *queue.QueueUrl, nil
+}
