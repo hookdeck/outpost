@@ -11,11 +11,11 @@ func handleDeclare(w http.ResponseWriter, r *http.Request) {
 	case "aws":
 		err = declareAWS()
 	case "rabbitmq":
-		// err = declareRabbitMQ(body)
+		err = declareRabbitMQ()
 	case "http":
-		fallthrough
+		log.Println("[*] Declare HTTP - nothing to declare")
 	default:
-		// err = declareHTTP(body)
+		log.Printf("[?] Unsupport publishmq method: %s", r.URL.Query().Get("method"))
 	}
 
 	if err != nil {

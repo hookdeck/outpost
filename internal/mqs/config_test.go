@@ -58,11 +58,11 @@ func TestConfig_Validate(t *testing.T) {
 			RabbitMQ: &mqs.RabbitMQConfig{
 				ServerURL: "amqp://guest:guest@localhost:5672",
 				Exchange:  "",
-				Queue:     "queue",
+				Queue:     "",
 			},
 		}
 		err := config.Validate()
-		assert.ErrorContains(t, err, "RabbitMQ Exchange is not set")
+		assert.ErrorContains(t, err, "RabbitMQ Queue is not set")
 	})
 }
 
