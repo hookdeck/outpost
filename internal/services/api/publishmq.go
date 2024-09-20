@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/mqs"
 	"go.uber.org/zap"
@@ -29,6 +30,16 @@ func (s *APIService) SubscribePublishMQ(ctx context.Context, subscription mqs.Su
 			continue
 		}
 		logger.Info("received event", zap.Any("event", event))
+		if event.ID == "" {
+			event.ID = uuid.New().String()
+		}
+
+		err = s.deliveryMQ.Publish(ctx, event)
+		if err != nil {
+			logger.Info("error publishing message to deliverymq", zap.Error(err))
+			msg.Nack()
+			continue
+		}
 		msg.Ack()
 	}
 }
