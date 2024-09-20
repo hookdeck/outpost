@@ -11,14 +11,16 @@ import (
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/models"
+	"github.com/hookdeck/EventKit/internal/publishmq"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
 type APIService struct {
-	server *http.Server
-	logger *otelzap.Logger
+	server    *http.Server
+	logger    *otelzap.Logger
+	publishMQ *publishmq.PublishMQ
 }
 
 func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*APIService, error) {
@@ -56,6 +58,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: router,
 	}
+	service.publishMQ = publishmq.New(publishmq.WithQueue(cfg.PublishQueueConfig))
 
 	go func() {
 		defer wg.Done()
@@ -77,10 +80,25 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 
 func (s *APIService) Run(ctx context.Context) error {
 	s.logger.Ctx(ctx).Info("start service", zap.String("service", "api"))
+
+	// Start HTTP server
 	go func() {
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.logger.Ctx(ctx).Error(fmt.Sprintf("error listening and serving: %s\n", err), zap.Error(err))
 		}
 	}()
+
+	// Subscribe to PublishMQ
+	if s.publishMQ != nil {
+		subscription, err := s.publishMQ.Subscribe(ctx)
+		if err != nil {
+			// TODO: handle error
+			return err
+		}
+		go func() {
+			s.SubscribePublishMQ(ctx, subscription)
+		}()
+	}
+
 	return nil
 }

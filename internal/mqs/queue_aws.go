@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -74,6 +75,7 @@ func (c *AWSSQSConfig) ToCredentials() (*credentials.StaticCredentialsProvider, 
 // // ============================== Queue ==============================
 
 type AWSQueue struct {
+	once        *sync.Once
 	sqsQueueURL string
 	sqsClient   *sqs.Client
 	config      *AWSSQSConfig
@@ -83,21 +85,18 @@ type AWSQueue struct {
 var _ Queue = &AWSQueue{}
 
 func NewAWSQueue(config *AWSSQSConfig) *AWSQueue {
-	return &AWSQueue{config: config}
+	var once sync.Once
+	return &AWSQueue{config: config, once: &once}
 }
 
 func (q *AWSQueue) Init(ctx context.Context) (func(), error) {
-	err := q.InitSDK(ctx)
-	if err != nil {
-		return nil, err
-	}
-	queue, err := q.sqsClient.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
-		QueueName: aws.String(q.config.Topic),
+	var err error
+	q.once.Do(func() {
+		err = q.InitSDK(ctx)
 	})
 	if err != nil {
 		return nil, err
 	}
-	q.sqsQueueURL = *queue.QueueUrl
 	q.topic = awssnssqs.OpenSQSTopicV2(ctx, q.sqsClient, q.sqsQueueURL, nil)
 	return func() {
 		q.topic.Shutdown(ctx)
@@ -113,6 +112,13 @@ func (q *AWSQueue) Publish(ctx context.Context, incomingMessage IncomingMessage)
 }
 
 func (q *AWSQueue) Subscribe(ctx context.Context) (Subscription, error) {
+	var err error
+	q.once.Do(func() {
+		err = q.InitSDK(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
 	subscription := awssnssqs.OpenSubscriptionV2(ctx, q.sqsClient, q.sqsQueueURL, nil)
 	return wrappedSubscription(subscription)
 }
@@ -137,6 +143,14 @@ func (q *AWSQueue) InitSDK(ctx context.Context) error {
 		}
 	})
 	q.sqsClient = sqsClient
+
+	queue, err := q.sqsClient.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
+		QueueName: aws.String(q.config.Topic),
+	})
+	if err != nil {
+		return err
+	}
+	q.sqsQueueURL = *queue.QueueUrl
 
 	return nil
 }

@@ -26,6 +26,7 @@ type Config struct {
 
 	Redis               *redis.RedisConfig
 	OpenTelemetry       *otel.OpenTelemetryConfig
+	PublishQueueConfig  *mqs.QueueConfig
 	DeliveryQueueConfig *mqs.QueueConfig
 }
 
@@ -83,6 +84,11 @@ func Parse(flags Flags) (*Config, error) {
 		return nil, err
 	}
 
+	// MQs
+	publishQueueConfig, err := mqs.ParseQueueConfig(viper, "PUBLISH")
+	if err != nil {
+		return nil, err
+	}
 	deliveryQueueConfig, err := mqs.ParseQueueConfig(viper, "DELIVERY")
 	if err != nil {
 		return nil, err
@@ -103,6 +109,7 @@ func Parse(flags Flags) (*Config, error) {
 			Database: mustInt(viper, "REDIS_DATABASE"),
 		},
 		OpenTelemetry:       openTelemetry,
+		PublishQueueConfig:  publishQueueConfig,
 		DeliveryQueueConfig: deliveryQueueConfig,
 	}
 
