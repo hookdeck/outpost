@@ -14,19 +14,25 @@ import (
 )
 
 type DeliveryService struct {
-	logger       *otelzap.Logger
-	redisClient  *redis.Client
-	deliveryMQ   *deliverymq.DeliveryMQ
-	eventHandler EventHandler
+	Logger       *otelzap.Logger
+	RedisClient  *redis.Client
+	DeliveryMQ   *deliverymq.DeliveryMQ
+	EventHandler EventHandler
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger, deliveryMQ *deliverymq.DeliveryMQ, handler EventHandler) (*DeliveryService, error) {
+func NewService(ctx context.Context,
+	wg *sync.WaitGroup,
+	cfg *config.Config,
+	logger *otelzap.Logger,
+	handler EventHandler, // accept an EventHandler interface for testing purposes
+) (*DeliveryService, error) {
 	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		<-ctx.Done()
-		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "delivery"))
-	}()
+
+	deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig))
+	cleanupDeliveryMQ, err := deliveryMQ.Init(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	redisClient, err := redis.New(ctx, cfg.Redis)
 	if err != nil {
@@ -44,27 +50,35 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	}
 
 	service := &DeliveryService{
-		logger:       logger,
-		redisClient:  redisClient,
-		eventHandler: handler,
-		deliveryMQ:   deliveryMQ,
+		Logger:       logger,
+		RedisClient:  redisClient,
+		EventHandler: handler,
+		DeliveryMQ:   deliveryMQ,
 	}
+
+	go func() {
+		defer wg.Done()
+		<-ctx.Done()
+		logger.Ctx(ctx).Info("shutting down", zap.String("service", "delivery"))
+		cleanupDeliveryMQ()
+		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "delivery"))
+	}()
 
 	return service, nil
 }
 
 func (s *DeliveryService) Run(ctx context.Context) error {
-	s.logger.Ctx(ctx).Info("start service", zap.String("service", "delivery"))
+	s.Logger.Ctx(ctx).Info("start service", zap.String("service", "delivery"))
 
-	subscription, err := s.deliveryMQ.Subscribe(ctx)
+	subscription, err := s.DeliveryMQ.Subscribe(ctx)
 	if err != nil {
-		s.logger.Ctx(ctx).Error("failed to susbcribe to ingestion events", zap.Error(err))
+		s.Logger.Ctx(ctx).Error("failed to susbcribe to ingestion events", zap.Error(err))
 		return err
 	}
 
 	for {
 		msg, err := subscription.Receive(ctx)
-		logger := s.logger.Ctx(ctx)
+		logger := s.Logger.Ctx(ctx)
 		if err != nil {
 			if err == context.Canceled {
 				logger.Info("context canceled")
@@ -86,7 +100,7 @@ func (s *DeliveryService) Run(ctx context.Context) error {
 		// TODO: use goroutine to process messages concurrently.
 		// ref: https://gocloud.dev/howto/pubsub/subscribe/#receiving
 		logger.Info("received event", zap.String("event", string(event.ID)))
-		err = s.eventHandler.Handle(ctx, event)
+		err = s.EventHandler.Handle(ctx, event)
 		if err != nil {
 			logger.Error("failed to handle message", zap.Error(err))
 			msg.Nack()
