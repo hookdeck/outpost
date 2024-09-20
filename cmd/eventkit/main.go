@@ -51,6 +51,7 @@ func run(mainContext context.Context) error {
 	// Set up cancellation context and waitgroup
 	ctx, cancel := context.WithCancel(mainContext)
 
+	// MQs
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig))
 	cleanupDeliveryMQ, err := deliveryMQ.Init(ctx)
 	if err != nil {
@@ -78,31 +79,16 @@ func run(mainContext context.Context) error {
 	wg := &sync.WaitGroup{}
 
 	// Construct services based on config
-	services := []Service{}
-
-	if cfg.Service == config.ServiceTypeAPI || cfg.Service == config.ServiceTypeSingular {
-		service, err := api.NewService(ctx, wg, cfg, logger, deliveryMQ)
-		if err != nil {
-			cancel()
-			return err
-		}
-		services = append(services, service)
-	}
-	if cfg.Service == config.ServiceTypeDelivery || cfg.Service == config.ServiceTypeSingular {
-		service, err := delivery.NewService(ctx, wg, cfg, logger, deliveryMQ, nil)
-		if err != nil {
-			cancel()
-			return err
-		}
-		services = append(services, service)
-	}
-	if cfg.Service == config.ServiceTypeLog || cfg.Service == config.ServiceTypeSingular {
-		service, err := log.NewService(ctx, wg, cfg, logger)
-		if err != nil {
-			cancel()
-			return err
-		}
-		services = append(services, service)
+	services, err := constructServices(
+		ctx,
+		cfg,
+		wg,
+		logger,
+		deliveryMQ,
+	)
+	if err != nil {
+		cancel()
+		return err
 	}
 
 	// Start services
@@ -122,4 +108,38 @@ func run(mainContext context.Context) error {
 	wg.Wait() // Block here until all workers are done
 
 	return nil
+}
+
+func constructServices(
+	ctx context.Context,
+	cfg *config.Config,
+	wg *sync.WaitGroup,
+	logger *otelzap.Logger,
+	deliveryMQ *deliverymq.DeliveryMQ,
+) ([]Service, error) {
+	services := []Service{}
+
+	if cfg.Service == config.ServiceTypeAPI || cfg.Service == config.ServiceTypeSingular {
+		service, err := api.NewService(ctx, wg, cfg, logger, deliveryMQ)
+		if err != nil {
+			return nil, err
+		}
+		services = append(services, service)
+	}
+	if cfg.Service == config.ServiceTypeDelivery || cfg.Service == config.ServiceTypeSingular {
+		service, err := delivery.NewService(ctx, wg, cfg, logger, deliveryMQ, nil)
+		if err != nil {
+			return nil, err
+		}
+		services = append(services, service)
+	}
+	if cfg.Service == config.ServiceTypeLog || cfg.Service == config.ServiceTypeSingular {
+		service, err := log.NewService(ctx, wg, cfg, logger)
+		if err != nil {
+			return nil, err
+		}
+		services = append(services, service)
+	}
+
+	return services, nil
 }
