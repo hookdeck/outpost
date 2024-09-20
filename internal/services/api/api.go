@@ -18,9 +18,10 @@ import (
 )
 
 type APIService struct {
-	server    *http.Server
-	logger    *otelzap.Logger
-	publishMQ *publishmq.PublishMQ
+	server     *http.Server
+	logger     *otelzap.Logger
+	publishMQ  *publishmq.PublishMQ
+	deliveryMQ *deliverymq.DeliveryMQ
 }
 
 func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*APIService, error) {
@@ -59,6 +60,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		Handler: router,
 	}
 	service.publishMQ = publishmq.New(publishmq.WithQueue(cfg.PublishQueueConfig))
+	service.deliveryMQ = deliveryMQ
 
 	go func() {
 		defer wg.Done()
