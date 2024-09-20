@@ -21,8 +21,14 @@ type APIService struct {
 	logger *otelzap.Logger
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger, deliveryMQ *deliverymq.DeliveryMQ) (*APIService, error) {
+func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*APIService, error) {
 	wg.Add(1)
+
+	deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig))
+	cleanupDeliveryMQ, err := deliveryMQ.Init(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	redisClient, err := redis.New(ctx, cfg.Redis)
 	if err != nil {
@@ -54,7 +60,8 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		logger.Ctx(ctx).Info("shutting down api service")
+		logger.Ctx(ctx).Info("shutting down", zap.String("service", "api"))
+		cleanupDeliveryMQ()
 		// make a new context for Shutdown
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -62,6 +69,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 			fmt.Fprintf(os.Stderr, "error shutting down http server: %s\n", err)
 		}
 		logger.Ctx(ctx).Info("http server shutted down")
+		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "api"))
 	}()
 
 	return service, nil

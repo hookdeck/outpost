@@ -2,12 +2,10 @@ package delivery_test
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/mqs"
@@ -18,13 +16,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestDeliveryService(t *testing.T, handler delivery.EventHandler, deliveryMQ *deliverymq.DeliveryMQ) (*delivery.DeliveryService, error) {
+func setupTestDeliveryService(t *testing.T,
+	handler delivery.EventHandler,
+	deliveryMQ *deliverymq.DeliveryMQ,
+) *delivery.DeliveryService {
 	logger := testutil.CreateTestLogger(t)
-	redisConfig := testutil.CreateTestRedisConfig(t)
-	config := config.Config{Redis: redisConfig}
-	wg := sync.WaitGroup{}
-	service, err := delivery.NewService(context.Background(), &wg, &config, logger, deliveryMQ, handler)
-	return service, err
+	redisClient := testutil.CreateTestRedisClient(t)
+	service := &delivery.DeliveryService{
+		Logger:       logger,
+		RedisClient:  redisClient,
+		EventHandler: handler,
+		DeliveryMQ:   deliveryMQ,
+	}
+	return service
 }
 
 func TestDeliveryService(t *testing.T) {
@@ -38,8 +42,7 @@ func TestDeliveryService(t *testing.T) {
 		require.Nil(t, err)
 		defer cleanup()
 
-		service, err := setupTestDeliveryService(t, nil, deliveryMQ)
-		require.Nil(t, err)
+		service := setupTestDeliveryService(t, nil, deliveryMQ)
 
 		errchan := make(chan error)
 		context, cancel := context.WithCancel(context.Background())
@@ -84,8 +87,7 @@ func TestDeliveryService(t *testing.T) {
 			mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			mock.MatchedBy(func(i models.Event) bool { return true }),
 		).Return(nil)
-		service, err := setupTestDeliveryService(t, handler, deliveryMQ)
-		require.Nil(t, err)
+		service := setupTestDeliveryService(t, handler, deliveryMQ)
 
 		errchan := make(chan error)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second/2)
