@@ -8,15 +8,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/models"
+	"github.com/hookdeck/EventKit/internal/publishmq"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
 type IngestHandlers struct {
-	logger      *otelzap.Logger
-	redisClient *redis.Client
-	deliveryMQ  *deliverymq.DeliveryMQ
+	logger       *otelzap.Logger
+	redisClient  *redis.Client
+	eventHandler publishmq.EventHandler
 }
 
 func NewIngestHandlers(
@@ -25,9 +26,9 @@ func NewIngestHandlers(
 	deliveryMQ *deliverymq.DeliveryMQ,
 ) *IngestHandlers {
 	return &IngestHandlers{
-		logger:      logger,
-		redisClient: redisClient,
-		deliveryMQ:  deliveryMQ,
+		logger:       logger,
+		redisClient:  redisClient,
+		eventHandler: publishmq.NewEventHandler(logger, redisClient, deliveryMQ),
 	}
 }
 
@@ -39,7 +40,8 @@ func (h *IngestHandlers) Ingest(c *gin.Context) {
 		return
 	}
 
-	err := h.deliveryMQ.Publish(c.Request.Context(), publishedEvent.toEvent())
+	event := publishedEvent.toEvent()
+	err := h.eventHandler.Handle(c.Request.Context(), &event)
 	if err != nil {
 		h.logger.Error("failed to ingest event", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to ingest event"})

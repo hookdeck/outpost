@@ -18,10 +18,11 @@ import (
 )
 
 type APIService struct {
-	server     *http.Server
-	logger     *otelzap.Logger
-	publishMQ  *publishmq.PublishMQ
-	deliveryMQ *deliverymq.DeliveryMQ
+	redisClient *redis.Client
+	server      *http.Server
+	logger      *otelzap.Logger
+	publishMQ   *publishmq.PublishMQ
+	deliveryMQ  *deliverymq.DeliveryMQ
 }
 
 func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*APIService, error) {
@@ -55,6 +56,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 
 	service := &APIService{}
 	service.logger = logger
+	service.redisClient = redisClient
 	service.server = &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: router,

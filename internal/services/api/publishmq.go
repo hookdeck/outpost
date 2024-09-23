@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/mqs"
+	"github.com/hookdeck/EventKit/internal/publishmq"
 	"go.uber.org/zap"
 )
 
@@ -22,6 +23,7 @@ func (s *APIService) SubscribePublishMQ(ctx context.Context, subscription mqs.Su
 			logger.Error("failed to receive message", zap.Error(err))
 			return
 		}
+		eventHandler := publishmq.NewEventHandler(s.logger, s.redisClient, s.deliveryMQ)
 		event := models.Event{}
 		err = event.FromMessage(msg)
 		if err != nil {
@@ -29,17 +31,15 @@ func (s *APIService) SubscribePublishMQ(ctx context.Context, subscription mqs.Su
 			msg.Ack()
 			continue
 		}
-		logger.Info("received event", zap.Any("event", event))
 		if event.ID == "" {
 			event.ID = uuid.New().String()
 		}
-
-		err = s.deliveryMQ.Publish(ctx, event)
+		err = eventHandler.Handle(ctx, &event)
 		if err != nil {
-			logger.Info("error publishing message to deliverymq", zap.Error(err))
+			// ... handle?
 			msg.Nack()
-			continue
+		} else {
+			msg.Ack()
 		}
-		msg.Ack()
 	}
 }
