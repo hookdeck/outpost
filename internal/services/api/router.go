@@ -34,7 +34,7 @@ func NewRouter(
 
 	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, redisClient, tenantModel, destinationModel)
 	destinationHandlers := NewDestinationHandlers(logger, redisClient, destinationModel)
-	ingestHandlers := NewIngestHandlers(logger, redisClient, deliveryMQ)
+	publishHandlers := NewPublishHandlers(logger, redisClient, deliveryMQ)
 
 	// Admin router is a router group with the API key auth mechanism.
 	adminRouter := r.Group("/", APIKeyAuthMiddleware(cfg.APIKey))
@@ -63,7 +63,7 @@ func NewRouter(
 	tenantRouter.PATCH("/:tenantID/destinations/:destinationID", destinationHandlers.Update)
 	tenantRouter.DELETE("/:tenantID/destinations/:destinationID", destinationHandlers.Delete)
 
-	adminRouter.POST("/publish", ingestHandlers.Ingest)
+	adminRouter.POST("/publish", publishHandlers.Ingest)
 
 	return r
 }

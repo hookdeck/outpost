@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIngestHandlers(t *testing.T) {
+func TestPublishHandlers(t *testing.T) {
 	t.Parallel()
 
 	router, _, _ := setupTestRouter(t, "", "")
