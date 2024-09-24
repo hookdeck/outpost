@@ -43,6 +43,10 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 	event := publishedEvent.toEvent()
 	err := h.eventHandler.Handle(c.Request.Context(), &event)
 	if err != nil {
+		if err == publishmq.ErrConflict {
+			c.Status(http.StatusConflict)
+			return
+		}
 		h.logger.Error("failed to ingest event", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to ingest event"})
 		return

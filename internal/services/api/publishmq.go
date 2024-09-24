@@ -36,7 +36,7 @@ func (s *APIService) SubscribePublishMQ(ctx context.Context, subscription mqs.Su
 		}
 		err = eventHandler.Handle(ctx, &event)
 		if err != nil {
-			// ... handle?
+			// TODO differentiate different error cases?
 			msg.Nack()
 		} else {
 			msg.Ack()
