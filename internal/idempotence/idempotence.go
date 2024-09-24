@@ -69,15 +69,27 @@ func (i *IdempotenceImpl) Exec(ctx context.Context, key string, exec func() erro
 	if !isIdempotent {
 		processingStatus, err := i.getIdempotencyStatus(ctx, key)
 		if err != nil {
+			// TODO: Question:
+			// What if err == redis.Nil here? It happens
+			// when the key is removed in between the initial SetNX and the Get here.
+			// It also means that the previous consumer has err-ed out and removed the key.
+			// Should we return "conflict" to nack the message so it triggers a retry later?
+			// Also, should we account for this given the likelihood of it happening is very small?
+
 			return err
 		}
 		if processingStatus == StatusProcessed {
 			return nil
 		}
 		if processingStatus == StatusProcessing {
-			time.Sleep((i.options.Timeout + 1) * time.Second)
+			time.Sleep(i.options.Timeout)
 			status, err := i.getIdempotencyStatus(ctx, key)
 			if err != nil {
+				if err == redis.Nil {
+					// The previous consumer has err-ed and removed the processing key. We should also err
+					// so that it can be retried later.
+					return ErrConflict
+				}
 				return err
 			}
 			if status == StatusProcessed {
@@ -99,6 +111,7 @@ func (i *IdempotenceImpl) Exec(ctx context.Context, key string, exec func() erro
 
 	err = i.markProcessedIdempotency(ctx, key)
 	if err != nil {
+		// TODO: Question: how to properly handle this error?
 		return err
 	}
 
