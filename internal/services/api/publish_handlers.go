@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
+	"github.com/hookdeck/EventKit/internal/idempotence"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/publishmq"
 	"github.com/hookdeck/EventKit/internal/redis"
@@ -43,7 +44,7 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 	event := publishedEvent.toEvent()
 	err := h.eventHandler.Handle(c.Request.Context(), &event)
 	if err != nil {
-		if err == publishmq.ErrConflict {
+		if err == idempotence.ErrConflict {
 			c.Status(http.StatusConflict)
 			return
 		}

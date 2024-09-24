@@ -1,0 +1,126 @@
+package idempotence
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/hookdeck/EventKit/internal/redis"
+)
+
+const (
+	DefaultTimeout       = 5 * time.Second // 5 seconds
+	DefaultSuccessfulTTL = 24 * time.Hour  // 24 hours
+	StatusProcessing     = "processing"
+	StatusProcessed      = "processed"
+)
+
+var ErrConflict = errors.New("conflict")
+
+type Idempotence interface {
+	Exec(ctx context.Context, key string, exec func() error) error
+}
+
+type IdempotenceImpl struct {
+	redisClient *redis.Client
+	options     IdempotenceImplOptions
+}
+
+type IdempotenceImplOptions struct {
+	Timeout       time.Duration
+	SuccessfulTTL time.Duration
+}
+
+func WithTimeout(timeout time.Duration) func(opts *IdempotenceImplOptions) {
+	return func(opts *IdempotenceImplOptions) {
+		opts.Timeout = timeout
+	}
+}
+
+func WithSuccessfulTTL(successfulTTL time.Duration) func(opts *IdempotenceImplOptions) {
+	return func(opts *IdempotenceImplOptions) {
+		opts.SuccessfulTTL = successfulTTL
+	}
+}
+
+func New(redisClient *redis.Client, opts ...func(opts *IdempotenceImplOptions)) Idempotence {
+	options := &IdempotenceImplOptions{
+		Timeout:       DefaultTimeout,
+		SuccessfulTTL: DefaultSuccessfulTTL,
+	}
+
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	return &IdempotenceImpl{
+		redisClient: redisClient,
+		options:     *options,
+	}
+}
+
+var _ Idempotence = (*IdempotenceImpl)(nil)
+
+func (i *IdempotenceImpl) Exec(ctx context.Context, key string, exec func() error) error {
+	isIdempotent, err := i.checkIdempotency(ctx, key)
+	if err != nil {
+		return err
+	}
+	if !isIdempotent {
+		processingStatus, err := i.getIdempotencyStatus(ctx, key)
+		if err != nil {
+			return err
+		}
+		if processingStatus == StatusProcessed {
+			return nil
+		}
+		if processingStatus == StatusProcessing {
+			time.Sleep((i.options.Timeout + 1) * time.Second)
+			status, err := i.getIdempotencyStatus(ctx, key)
+			if err != nil {
+				return err
+			}
+			if status == StatusProcessed {
+				return nil
+			}
+			return ErrConflict
+		}
+		return errors.New("unknown idempotency status")
+	}
+
+	err = exec()
+	if err != nil {
+		clearErr := i.clearIdempotency(ctx, key)
+		if clearErr != nil {
+			return errors.Join(err, clearErr)
+		}
+		return err
+	}
+
+	err = i.markProcessedIdempotency(ctx, key)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (i *IdempotenceImpl) checkIdempotency(ctx context.Context, idempotencyKey string) (bool, error) {
+	idempotentValue, err := i.redisClient.SetNX(ctx, idempotencyKey, StatusProcessing, i.options.Timeout).Result()
+	if err != nil {
+		return false, err
+	}
+	return idempotentValue, nil
+}
+
+func (i *IdempotenceImpl) getIdempotencyStatus(ctx context.Context, idempotencyKey string) (string, error) {
+	return i.redisClient.Get(ctx, idempotencyKey).Result()
+}
+
+func (i *IdempotenceImpl) markProcessedIdempotency(ctx context.Context, idempotencyKey string) error {
+	return i.redisClient.Set(ctx, idempotencyKey, StatusProcessed, i.options.SuccessfulTTL).Err()
+}
+
+func (i *IdempotenceImpl) clearIdempotency(ctx context.Context, idempotencyKey string) error {
+	return i.redisClient.Del(ctx, idempotencyKey).Err()
+}
