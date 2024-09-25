@@ -322,8 +322,12 @@ func TestIntegrationIdempotence_WithConcurrentHandlerAndSuccess(t *testing.T) {
 	errs := []error{}
 	go func() {
 		for {
-			err := <-errchan
-			errs = append(errs, err)
+			select {
+			case err := <-errchan:
+				errs = append(errs, err)
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
