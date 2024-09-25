@@ -57,10 +57,7 @@ func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error 
 	// TODO: Consider handling via goroutine for better performance? Maybe GoCloud PubSub already support this natively?
 	// TODO: Consider how batch publishing work
 	for _, destination := range destinations {
-		deliveryEvent := models.DeliveryEvent{
-			Event:       *event,
-			Destination: destination,
-		}
+		deliveryEvent := models.NewDeliveryEvent(*event, destination)
 		err := h.deliveryMQ.Publish(ctx, deliveryEvent)
 		if err != nil {
 			return err
@@ -70,5 +67,5 @@ func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error 
 }
 
 func idempotencyKeyFromEvent(event *models.Event) string {
-	return "event:" + event.ID
+	return "idempotency:publishmq:" + event.ID
 }
