@@ -1,4 +1,4 @@
-package delivery_test
+package deliverymq_test
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/models"
-	"github.com/hookdeck/EventKit/internal/services/delivery"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,7 +18,7 @@ func TestEventHandler(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
 	destinationModel := models.NewDestinationModel()
-	eventHandler := delivery.NewEventHandler(logger, redisClient, destinationModel)
+	eventHandler := deliverymq.NewEventHandler(logger, redisClient, destinationModel)
 
 	// TODO: Question: Should we return error here?
 	t.Run("should not return error when there's no tenant or destination", func(t *testing.T) {

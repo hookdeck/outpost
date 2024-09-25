@@ -1,4 +1,4 @@
-package delivery
+package deliverymq
 
 import (
 	"context"

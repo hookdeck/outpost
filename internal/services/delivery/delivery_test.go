@@ -17,7 +17,7 @@ import (
 )
 
 func setupTestDeliveryService(t *testing.T,
-	handler delivery.EventHandler,
+	handler deliverymq.EventHandler,
 	deliveryMQ *deliverymq.DeliveryMQ,
 ) *delivery.DeliveryService {
 	logger := testutil.CreateTestLogger(t)
@@ -123,7 +123,7 @@ type MockEventHandler struct {
 	mock.Mock
 }
 
-var _ delivery.EventHandler = (*MockEventHandler)(nil)
+var _ deliverymq.EventHandler = (*MockEventHandler)(nil)
 
 func (h *MockEventHandler) Handle(ctx context.Context, event models.Event) error {
 	args := h.Called(ctx, event)

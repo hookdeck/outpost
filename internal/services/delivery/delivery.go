@@ -17,14 +17,14 @@ type DeliveryService struct {
 	Logger       *otelzap.Logger
 	RedisClient  *redis.Client
 	DeliveryMQ   *deliverymq.DeliveryMQ
-	EventHandler EventHandler
+	EventHandler deliverymq.EventHandler
 }
 
 func NewService(ctx context.Context,
 	wg *sync.WaitGroup,
 	cfg *config.Config,
 	logger *otelzap.Logger,
-	handler EventHandler, // accept an EventHandler interface for testing purposes
+	handler deliverymq.EventHandler, // accept an EventHandler interface for testing purposes
 ) (*DeliveryService, error) {
 	wg.Add(1)
 
@@ -40,13 +40,10 @@ func NewService(ctx context.Context,
 	}
 
 	if handler == nil {
-		handler = &eventHandler{
-			logger:      logger,
-			redisClient: redisClient,
-			destinationModel: models.NewDestinationModel(
-				models.DestinationModelWithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
-			),
-		}
+		destinationModel := models.NewDestinationModel(
+			models.DestinationModelWithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
+		)
+		handler = deliverymq.NewEventHandler(logger, redisClient, destinationModel)
 	}
 
 	service := &DeliveryService{
