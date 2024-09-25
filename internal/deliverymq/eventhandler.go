@@ -9,7 +9,7 @@ import (
 )
 
 type EventHandler interface {
-	Handle(ctx context.Context, event models.Event) error
+	Handle(ctx context.Context, deliveryEvent models.DeliveryEvent) error
 }
 
 type eventHandler struct {
@@ -28,17 +28,6 @@ func NewEventHandler(logger *otelzap.Logger, redisClient *redis.Client, destinat
 
 var _ EventHandler = (*eventHandler)(nil)
 
-func (h *eventHandler) Handle(ctx context.Context, event models.Event) error {
-	destinations, err := h.destinationModel.List(ctx, h.redisClient, event.TenantID)
-	if err != nil {
-		return err
-	}
-	destinations = models.FilterTopics(destinations, event.Topic)
-
-	// TODO: handle via goroutine or MQ.
-	for _, destination := range destinations {
-		destination.Publish(ctx, &event)
-	}
-
-	return nil
+func (h *eventHandler) Handle(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
+	return deliveryEvent.Destination.Publish(ctx, &deliveryEvent.Event)
 }

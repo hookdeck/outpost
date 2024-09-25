@@ -17,19 +17,23 @@ type EventHandler interface {
 }
 
 type eventHandler struct {
-	logger      *otelzap.Logger
-	idempotence idempotence.Idempotence
-	deliveryMQ  *deliverymq.DeliveryMQ
+	logger           *otelzap.Logger
+	redisClient      *redis.Client
+	idempotence      idempotence.Idempotence
+	deliveryMQ       *deliverymq.DeliveryMQ
+	destinationModel *models.DestinationModel
 }
 
-func NewEventHandler(logger *otelzap.Logger, redisClient *redis.Client, deliveryMQ *deliverymq.DeliveryMQ) EventHandler {
+func NewEventHandler(logger *otelzap.Logger, redisClient *redis.Client, deliveryMQ *deliverymq.DeliveryMQ, destinationModel *models.DestinationModel) EventHandler {
 	return &eventHandler{
-		logger: logger,
+		logger:      logger,
+		redisClient: redisClient,
 		idempotence: idempotence.New(redisClient,
 			idempotence.WithTimeout(5*time.Second),
 			idempotence.WithSuccessfulTTL(24*time.Hour),
 		),
-		deliveryMQ: deliveryMQ,
+		deliveryMQ:       deliveryMQ,
+		destinationModel: destinationModel,
 	}
 }
 
@@ -37,10 +41,32 @@ var _ EventHandler = (*eventHandler)(nil)
 
 func (h *eventHandler) Handle(ctx context.Context, event *models.Event) error {
 	return h.idempotence.Exec(ctx, idempotencyKeyFromEvent(event), func() error {
-		// Message handling logic
-		h.logger.Info("received event", zap.Any("event", event))
-		return h.deliveryMQ.Publish(ctx, *event)
+		return h.doHandle(ctx, event)
 	})
+}
+
+func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error {
+	h.logger.Info("received event", zap.Any("event", event))
+
+	destinations, err := h.destinationModel.List(ctx, h.redisClient, event.TenantID)
+	if err != nil {
+		return err
+	}
+	destinations = models.FilterTopics(destinations, event.Topic)
+
+	// TODO: Consider handling via goroutine for better performance? Maybe GoCloud PubSub already support this natively?
+	// TODO: Consider how batch publishing work
+	for _, destination := range destinations {
+		deliveryEvent := models.DeliveryEvent{
+			Event:       *event,
+			Destination: destination,
+		}
+		err := h.deliveryMQ.Publish(ctx, deliveryEvent)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func idempotencyKeyFromEvent(event *models.Event) string {

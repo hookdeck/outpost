@@ -23,7 +23,7 @@ func (s *APIService) SubscribePublishMQ(ctx context.Context, subscription mqs.Su
 			logger.Error("failed to receive message", zap.Error(err))
 			return
 		}
-		eventHandler := publishmq.NewEventHandler(s.logger, s.redisClient, s.deliveryMQ)
+		eventHandler := publishmq.NewEventHandler(s.logger, s.redisClient, s.deliveryMQ, s.destinationModel)
 		event := models.Event{}
 		err = event.FromMessage(msg)
 		if err != nil {

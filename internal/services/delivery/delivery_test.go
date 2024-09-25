@@ -65,17 +65,6 @@ func TestDeliveryService(t *testing.T) {
 		t.Parallel()
 
 		// Arrange
-		event := models.Event{
-			ID:               uuid.New().String(),
-			TenantID:         uuid.New().String(),
-			DestinationID:    uuid.New().String(),
-			Topic:            "test",
-			EligibleForRetry: true,
-			Time:             time.Now(),
-			Metadata:         map[string]string{},
-			Data:             map[string]interface{}{},
-		}
-
 		deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}))
 		cleanup, err := deliveryMQ.Init(context.Background())
 		require.Nil(t, err)
@@ -85,7 +74,7 @@ func TestDeliveryService(t *testing.T) {
 		handler.On(
 			"Handle",
 			mock.MatchedBy(func(ctx context.Context) bool { return true }),
-			mock.MatchedBy(func(i models.Event) bool { return true }),
+			mock.MatchedBy(func(i models.DeliveryEvent) bool { return true }),
 		).Return(nil)
 		service := setupTestDeliveryService(t, handler, deliveryMQ)
 
@@ -99,7 +88,11 @@ func TestDeliveryService(t *testing.T) {
 
 		// Act
 		time.Sleep(time.Second / 5) // wait for service to start
-		deliveryMQ.Publish(ctx, event)
+		expectedID := uuid.New().String()
+		deliveryMQ.Publish(ctx, models.DeliveryEvent{
+			Event:       models.Event{ID: expectedID},
+			Destination: models.Destination{},
+		})
 
 		// Assert
 		// wait til service has stopped
@@ -109,11 +102,11 @@ func TestDeliveryService(t *testing.T) {
 		handler.AssertCalled(t, "Handle",
 			mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			mock.MatchedBy(func(i interface{}) bool {
-				e, ok := i.(models.Event)
+				e, ok := i.(models.DeliveryEvent)
 				if !ok {
 					return false
 				}
-				return e.ID == event.ID
+				return expectedID == e.Event.ID
 			}),
 		)
 	})
@@ -125,7 +118,7 @@ type MockEventHandler struct {
 
 var _ deliverymq.EventHandler = (*MockEventHandler)(nil)
 
-func (h *MockEventHandler) Handle(ctx context.Context, event models.Event) error {
-	args := h.Called(ctx, event)
+func (h *MockEventHandler) Handle(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
+	args := h.Called(ctx, deliveryEvent)
 	return args.Error(0)
 }

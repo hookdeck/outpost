@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/hookdeck/EventKit/internal/mqs"
 	"github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,17 +23,41 @@ import (
 func TestAPIServicePublishMQConsumer(t *testing.T) {
 	t.Parallel()
 
+	// ===== Arrange =====
 	gin.SetMode(gin.TestMode)
+	ctx := context.Background()
 
 	publishQueueConfig := mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}
 	deliveryQueueConfig := mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}
+
+	// Set up destinations
+	redisConfig := testutil.CreateTestRedisConfig(t)
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:%d", redisConfig.Host, redisConfig.Port),
+		Password: redisConfig.Password,
+		DB:       redisConfig.Database,
+	})
+	destinationModel := models.NewDestinationModel()
+	destination := models.Destination{
+		ID:       uuid.New().String(),
+		TenantID: uuid.New().String(),
+		Type:     "webhooks",
+		Topics:   []string{"*"},
+		Config: map[string]string{
+			"url": "http://localhost:8080",
+		},
+		Credentials: map[string]string{},
+		CreatedAt:   time.Now(),
+		DisabledAt:  nil,
+	}
+	destinationModel.Set(ctx, redisClient, destination)
 
 	wg := &sync.WaitGroup{}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	apiService, err := api.NewService(ctx, wg,
 		&config.Config{
-			Redis:               testutil.CreateTestRedisConfig(t),
+			Redis:               redisConfig,
 			PublishQueueConfig:  &publishQueueConfig,
 			DeliveryQueueConfig: &deliveryQueueConfig,
 		},
@@ -90,8 +116,8 @@ func TestAPIServicePublishMQConsumer(t *testing.T) {
 	log.Println("publishing...")
 	event := models.Event{
 		ID:               uuid.New().String(),
-		TenantID:         uuid.New().String(),
-		DestinationID:    uuid.New().String(),
+		TenantID:         destination.TenantID,
+		DestinationID:    "",
 		Topic:            "test",
 		EligibleForRetry: true,
 		Time:             time.Now(),
@@ -113,10 +139,10 @@ func TestAPIServicePublishMQConsumer(t *testing.T) {
 	require.Nil(t, err)
 	require.Greater(t, len(messages), 0, "should receive at least one message")
 	msg := messages[0]
-	receivedEvent := models.Event{}
-	err = receivedEvent.FromMessage(msg)
+	receivedDeliveryEvent := models.DeliveryEvent{}
+	err = receivedDeliveryEvent.FromMessage(msg)
 	require.Nil(t, err, "unable to parse event from message")
-	assert.Equal(t, event.ID, receivedEvent.ID)
+	assert.Equal(t, event.ID, receivedDeliveryEvent.Event.ID)
 	// idempotency check
 	assert.Equal(t, 1, len(messages))
 }

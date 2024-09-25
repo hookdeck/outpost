@@ -3,16 +3,14 @@ package deliverymq_test
 import (
 	"context"
 	"testing"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestEventHandler(t *testing.T) {
+func TestDeliveryMQEventHandler(t *testing.T) {
 	t.Parallel()
 
 	logger := testutil.CreateTestLogger(t)
@@ -20,21 +18,10 @@ func TestEventHandler(t *testing.T) {
 	destinationModel := models.NewDestinationModel()
 	eventHandler := deliverymq.NewEventHandler(logger, redisClient, destinationModel)
 
-	// TODO: Question: Should we return error here?
-	t.Run("should not return error when there's no tenant or destination", func(t *testing.T) {
-		event := models.Event{
-			ID:               uuid.New().String(),
-			TenantID:         uuid.New().String(),
-			DestinationID:    uuid.New().String(),
-			Topic:            "test",
-			EligibleForRetry: true,
-			Time:             time.Now(),
-			Metadata:         map[string]string{},
-			Data:             map[string]interface{}{},
-		}
-		err := eventHandler.Handle(context.Background(), event)
-		assert.Nil(t, err)
-	})
+	// TODO: add tests
 
-	// TODO: add more tests
+	t.Run("TODO", func(t *testing.T) {
+		t.Parallel()
+		assert.NotNil(t, eventHandler.Handle(context.Background(), models.DeliveryEvent{}))
+	})
 }

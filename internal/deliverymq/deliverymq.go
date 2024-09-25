@@ -66,7 +66,7 @@ func (q *DeliveryMQ) Init(ctx context.Context) (func(), error) {
 	return q.queue.Init(ctx)
 }
 
-func (q *DeliveryMQ) Publish(ctx context.Context, event models.Event) error {
+func (q *DeliveryMQ) Publish(ctx context.Context, event models.DeliveryEvent) error {
 	return q.queue.Publish(ctx, &event)
 }
 
