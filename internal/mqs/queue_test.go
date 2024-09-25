@@ -59,7 +59,7 @@ func TestIntegrationMQ_AWS(t *testing.T) {
 		ServiceAccountCredentials: "test:test:",
 		Topic:                     "eventkit",
 	}}
-	testutil.DeclareTestAWSInfrastructure(context.Background(), config.AWSSQS)
+	testutil.DeclareTestAWSInfrastructure(context.Background(), config.AWSSQS, nil)
 	testMQ(t, func() mqs.QueueConfig { return config })
 }
 

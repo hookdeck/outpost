@@ -3,12 +3,17 @@ package idempotence_test
 import (
 	"context"
 	"errors"
+	"log"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/idempotence"
+	"github.com/hookdeck/EventKit/internal/mqs"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setupCountExec(_ *testing.T, ctx context.Context, timeout time.Duration, ex func() error) (exec func() error, countexec func(count *int), cleanup func()) {
@@ -185,4 +190,275 @@ func TestIdempotence_Failure(t *testing.T) {
 		assert.Equal(t, errExec, err2, "second execution should return exec error")
 		assert.Equal(t, 2, count, "should execute twice")
 	})
+}
+
+// Setup:
+// - 1 subscriber, 1 publisher
+// - 1 message, failed twice before success
+// The 2 failed execution won't ack or nack the message to test visibility timeout.
+func TestIntegrationIdempotence_WithUnackedFailures(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	t.Parallel()
+
+	visibilityTimeout := 5 * time.Second
+	mq, cleanup := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), visibilityTimeout*3-visibilityTimeout/2)
+	defer cancel()
+
+	subscription, err := mq.Subscribe(ctx)
+	require.Nil(t, err)
+
+	msgs := []MockMsg{}
+	go func() {
+		defer subscription.Shutdown(ctx)
+		i := idempotence.New(testutil.CreateTestRedisClient(t),
+			idempotence.WithTimeout(3*time.Second),
+		)
+
+		for {
+			log.Println("listening for messages...")
+			msg, err := subscription.Receive(ctx)
+			if err != nil {
+				log.Println("subscription err", err)
+				break
+			}
+			mockMsg := MockMsg{}
+			mockMsg.FromMessage(msg)
+			err = i.Exec(ctx, mockMsg.ID, func() error {
+				msgs = append(msgs, mockMsg)
+				if len(msgs) < 3 {
+					log.Println("exec: failed")
+					return errors.New("failed") // return err so idempotency clears
+				}
+				log.Println("exec: success")
+				return nil
+			})
+			if err == nil {
+				log.Println("ack")
+				msg.Ack()
+			}
+		}
+	}()
+
+	id := uuid.New().String()
+	err = mq.Publish(ctx, &MockMsg{ID: id})
+
+	require.Nil(t, err)
+
+	<-ctx.Done()
+
+	assert.Len(t, msgs, 3)
+}
+
+// Setup:
+// - 2 subscriber, 1 publisher
+// - message will sleep for 2s before success
+// - publisher will publish the same message twice to test idempotency
+func TestIntegrationIdempotence_WithConcurrentHandlerAndSuccess(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	t.Parallel()
+
+	visibilityTimeout := 5 * time.Second
+	mq, cleanup := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second) // exec should only take 2-4s
+	defer cancel()
+
+	subscription, err := mq.Subscribe(ctx)
+	require.Nil(t, err)
+	defer subscription.Shutdown(ctx)
+
+	i := idempotence.New(testutil.CreateTestRedisClient(t),
+		idempotence.WithTimeout(3*time.Second),
+	)
+
+	errchan := make(chan error)
+	execTimestamps := []struct {
+		Start time.Time
+		End   time.Time
+	}{}
+	consumerFn := func(name string) {
+		for {
+			log.Printf("%s: listening for messages...", name)
+			msg, err := subscription.Receive(ctx)
+			if err != nil {
+				log.Printf("%s: subscription err: %s", name, err)
+				break
+			}
+			mockMsg := MockMsg{}
+			mockMsg.FromMessage(msg)
+			err = i.Exec(ctx, mockMsg.ID, func() error {
+				start := time.Now()
+				time.Sleep(2 * time.Second)
+				end := time.Now()
+				execTimestamps = append(execTimestamps, struct {
+					Start time.Time
+					End   time.Time
+				}{Start: start, End: end})
+				return nil
+			})
+			errchan <- err
+			if err == nil {
+				log.Printf("%s: ack", name)
+				msg.Ack()
+			} else {
+				log.Printf("%s: nack", name)
+				msg.Nack()
+			}
+		}
+	}
+
+	go consumerFn("1")
+	go consumerFn("2")
+	errs := []error{}
+	go func() {
+		for {
+			err := <-errchan
+			errs = append(errs, err)
+		}
+	}()
+
+	id := uuid.New().String()
+	err = mq.Publish(ctx, &MockMsg{ID: id})
+	require.Nil(t, err)
+	err = mq.Publish(ctx, &MockMsg{ID: id})
+	require.Nil(t, err)
+
+	<-ctx.Done()
+
+	assert.Len(t, execTimestamps, 1)
+	require.Len(t, errs, 2, "should have 2 errors")
+	assert.True(t, errs[0] == nil && errs[1] == nil, "both consumers should succeed")
+}
+
+// Setup:
+// - 2 subscriber, 1 publisher
+// - message will failed twice, each exec taking 2s
+// - publisher will publish the same message twice to test idempotency
+func TestIntegrationIdempotence_WithConcurrentHandlerAndFailedExecution(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	t.Parallel()
+
+	visibilityTimeout := 5 * time.Second
+	mq, cleanup := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), visibilityTimeout*3-visibilityTimeout/2)
+	defer cancel()
+
+	subscription, err := mq.Subscribe(ctx)
+	require.Nil(t, err)
+	defer subscription.Shutdown(ctx)
+
+	i := idempotence.New(testutil.CreateTestRedisClient(t),
+		idempotence.WithTimeout(3*time.Second),
+	)
+
+	execTimestamps := []struct {
+		Start time.Time
+		End   time.Time
+	}{}
+	consumerFn := func(name string) {
+		for {
+			log.Printf("%s: listening for messages...", name)
+			msg, err := subscription.Receive(ctx)
+			if err != nil {
+				log.Printf("%s: subscription err: %s", name, err)
+				break
+			}
+			mockMsg := MockMsg{}
+			mockMsg.FromMessage(msg)
+			err = i.Exec(ctx, mockMsg.ID, func() error {
+				start := time.Now()
+				time.Sleep(2 * time.Second)
+				end := time.Now()
+				execTimestamps = append(execTimestamps, struct {
+					Start time.Time
+					End   time.Time
+				}{Start: start, End: end})
+				if len(execTimestamps) < 3 {
+					log.Printf("%s: exec: failed", name)
+					return errors.New("failed") // return err so idempotency clears
+				}
+				log.Printf("%s: exec: success", name)
+				return nil
+			})
+			if err == nil {
+				log.Printf("%s: ack", name)
+				msg.Ack()
+			} else {
+				log.Printf("%s: nack", name)
+				msg.Nack()
+			}
+		}
+	}
+
+	go consumerFn("1")
+	go consumerFn("2")
+
+	id := uuid.New().String()
+	err = mq.Publish(ctx, &MockMsg{ID: id})
+	require.Nil(t, err)
+	err = mq.Publish(ctx, &MockMsg{ID: id})
+	require.Nil(t, err)
+
+	<-ctx.Done()
+
+	require.Len(t, execTimestamps, 3)
+	prevEnd := execTimestamps[0].End
+	for i, timestamp := range execTimestamps {
+		if i == 0 {
+			continue
+		}
+		require.Less(t, prevEnd, timestamp.Start, "executions should not overlap")
+	}
+}
+
+type MockMsg struct {
+	ID string
+}
+
+var _ mqs.IncomingMessage = &MockMsg{}
+
+func (m *MockMsg) FromMessage(msg *mqs.Message) error {
+	m.ID = string(msg.Body)
+	return nil
+}
+
+func (m *MockMsg) ToMessage() (*mqs.Message, error) {
+	return &mqs.Message{Body: []byte(m.ID)}, nil
+}
+
+func startAWSSQSQueueWithVisibilityTimeout(ctx context.Context, t *testing.T, visibilityTimeout time.Duration) (mqs.Queue, func()) {
+	endpoint, cleanup, err := testutil.StartTestcontainerLocalstack()
+	require.Nil(t, err)
+	config := &mqs.QueueConfig{
+		AWSSQS: &mqs.AWSSQSConfig{
+			Endpoint:                  endpoint,
+			Region:                    "us-east-1",
+			ServiceAccountCredentials: "test:test:",
+			Topic:                     testutil.RandomString(10),
+		},
+	}
+	testutil.DeclareTestAWSInfrastructure(ctx, config.AWSSQS, map[string]string{
+		"VisibilityTimeout": strconv.Itoa(int(visibilityTimeout.Seconds())),
+	})
+	mq := mqs.NewQueue(config)
+	cleanupQueue, err := mq.Init(ctx)
+	return mq, func() {
+		cleanupQueue()
+		cleanup()
+	}
 }

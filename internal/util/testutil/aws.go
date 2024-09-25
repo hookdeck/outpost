@@ -13,7 +13,7 @@ import (
 	"github.com/hookdeck/EventKit/internal/mqs"
 )
 
-func DeclareTestAWSInfrastructure(ctx context.Context, cfg *mqs.AWSSQSConfig) (string, error) {
+func DeclareTestAWSInfrastructure(ctx context.Context, cfg *mqs.AWSSQSConfig, attributes map[string]string) (string, error) {
 	creds, err := cfg.ToCredentials()
 	if err != nil {
 		return "", err
@@ -33,14 +33,14 @@ func DeclareTestAWSInfrastructure(ctx context.Context, cfg *mqs.AWSSQSConfig) (s
 		}
 	})
 
-	queueURL, err := ensureQueue(ctx, sqsClient, cfg.Topic)
+	queueURL, err := ensureQueue(ctx, sqsClient, cfg.Topic, attributes)
 	if err != nil {
 		return "", err
 	}
 	return queueURL, nil
 }
 
-func ensureQueue(ctx context.Context, sqsClient *sqs.Client, queueName string) (string, error) {
+func ensureQueue(ctx context.Context, sqsClient *sqs.Client, queueName string, attributes map[string]string) (string, error) {
 	queue, err := sqsClient.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
 		QueueName: aws.String(queueName),
 	})
@@ -51,7 +51,8 @@ func ensureQueue(ctx context.Context, sqsClient *sqs.Client, queueName string) (
 			case *types.QueueDoesNotExist:
 				log.Println("Queue does not exist, creating...")
 				createdQueue, err := sqsClient.CreateQueue(ctx, &sqs.CreateQueueInput{
-					QueueName: aws.String(queueName),
+					QueueName:  aws.String(queueName),
+					Attributes: attributes,
 				})
 				if err != nil {
 					return "", err
