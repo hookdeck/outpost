@@ -21,7 +21,7 @@ type execTimestamps struct {
 type consumerTest struct {
 	ctx          context.Context
 	mq           mqs.Queue
-	makeConsumer func(consumer.Handler, mqs.Subscription) consumer.Consumer
+	makeConsumer func(consumer.MessageHandler, mqs.Subscription) consumer.Consumer
 	act          func(*testing.T, context.Context)
 	assert       func(*testing.T, context.Context, []execTimestamps, error)
 }
@@ -33,7 +33,9 @@ func (c *consumerTest) run(t *testing.T) {
 
 	consumerExecchan := make(chan []execTimestamps)
 	execchan := make(chan execTimestamps)
-	handler := func(ctx context.Context, msg *mqs.Message) error {
+
+	handler := struct{ handlerImpl }{}
+	handler.handle = func(ctx context.Context, msg *mqs.Message) error {
 		start := time.Now()
 		time.Sleep(1 * time.Second)
 		message := &Message{}
@@ -60,7 +62,7 @@ func (c *consumerTest) run(t *testing.T) {
 		}
 	}()
 
-	csm := c.makeConsumer(handler, subscription)
+	csm := c.makeConsumer(&handler, subscription)
 	errchan := make(chan error)
 	go func() {
 		errchan <- csm.Run(c.ctx)
@@ -88,7 +90,7 @@ func TestConsumer_SingleHandler(t *testing.T) {
 	test := consumerTest{
 		ctx: ctx,
 		mq:  mq,
-		makeConsumer: func(handler consumer.Handler, subscription mqs.Subscription) consumer.Consumer {
+		makeConsumer: func(handler consumer.MessageHandler, subscription mqs.Subscription) consumer.Consumer {
 			return consumer.New(subscription, handler, consumer.WithConcurrency(1))
 		},
 		act: func(t *testing.T, ctx context.Context) {
@@ -124,7 +126,7 @@ func TestConsumer_ConcurrentHandler(t *testing.T) {
 	test := consumerTest{
 		ctx: ctx,
 		mq:  mq,
-		makeConsumer: func(handler consumer.Handler, subscription mqs.Subscription) consumer.Consumer {
+		makeConsumer: func(handler consumer.MessageHandler, subscription mqs.Subscription) consumer.Consumer {
 			return consumer.New(subscription, handler, consumer.WithConcurrency(2))
 		},
 		act: func(t *testing.T, ctx context.Context) {
@@ -159,7 +161,7 @@ func TestConsumer_ConcurrentHandler(t *testing.T) {
 	test.run(t)
 }
 
-// ==================================== Mock Message ====================================
+// ==================================== Mock ====================================
 
 type Message struct {
 	ID string
@@ -174,4 +176,14 @@ func (m *Message) ToMessage() (*mqs.Message, error) {
 func (m *Message) FromMessage(msg *mqs.Message) error {
 	m.ID = string(msg.Body)
 	return nil
+}
+
+type handlerImpl struct {
+	handle func(context.Context, *mqs.Message) error
+}
+
+var _ consumer.MessageHandler = &handlerImpl{}
+
+func (h *handlerImpl) Handle(ctx context.Context, msg *mqs.Message) error {
+	return h.handle(ctx, msg)
 }

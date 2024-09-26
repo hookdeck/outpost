@@ -9,7 +9,6 @@ import (
 	"github.com/hookdeck/EventKit/internal/consumer"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/models"
-	"github.com/hookdeck/EventKit/internal/mqs"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
@@ -17,21 +16,19 @@ import (
 )
 
 type DeliveryService struct {
-	Logger       *otelzap.Logger
-	RedisClient  *redis.Client
-	DeliveryMQ   *deliverymq.DeliveryMQ
-	EventHandler deliverymq.EventHandler
+	Logger      *otelzap.Logger
+	RedisClient *redis.Client
+	DeliveryMQ  *deliverymq.DeliveryMQ
+	Handler     consumer.MessageHandler
 }
 
 func NewService(ctx context.Context,
 	wg *sync.WaitGroup,
 	cfg *config.Config,
 	logger *otelzap.Logger,
-	handler deliverymq.EventHandler, // accept an EventHandler interface for testing purposes
+	handler consumer.MessageHandler,
 ) (*DeliveryService, error) {
 	wg.Add(1)
-
-	deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig))
 
 	redisClient, err := redis.New(ctx, cfg.Redis)
 	if err != nil {
@@ -42,14 +39,14 @@ func NewService(ctx context.Context,
 		destinationModel := models.NewDestinationModel(
 			models.DestinationModelWithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
 		)
-		handler = deliverymq.NewEventHandler(logger, redisClient, destinationModel)
+		handler = deliverymq.NewMessageHandler(logger, redisClient, destinationModel)
 	}
 
 	service := &DeliveryService{
-		Logger:       logger,
-		RedisClient:  redisClient,
-		EventHandler: handler,
-		DeliveryMQ:   deliveryMQ,
+		Logger:      logger,
+		RedisClient: redisClient,
+		Handler:     handler,
+		DeliveryMQ:  deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig)),
 	}
 
 	go func() {
@@ -70,27 +67,7 @@ func (s *DeliveryService) Run(ctx context.Context) error {
 		return err
 	}
 
-	var handler consumer.Handler
-	handler = func(ctx context.Context, msg *mqs.Message) error {
-		logger := s.Logger.Ctx(ctx)
-		deliveryEvent := models.DeliveryEvent{}
-		err = deliveryEvent.FromMessage(msg)
-		if err != nil {
-			logger.Error("failed to parse message", zap.Error(err))
-			msg.Nack()
-			return err
-		}
-		err = s.EventHandler.Handle(ctx, deliveryEvent)
-		if err != nil {
-			logger.Error("failed to handle message", zap.Error(err))
-			msg.Nack()
-			return err
-		}
-		msg.Ack()
-		return nil
-	}
-
-	csm := consumer.New(subscription, handler, consumer.WithConcurrency(1))
+	csm := consumer.New(subscription, s.Handler, consumer.WithConcurrency(1))
 	if err := csm.Run(ctx); !errors.Is(err, ctx.Err()) {
 		return err
 	}

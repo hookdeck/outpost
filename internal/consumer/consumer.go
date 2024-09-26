@@ -11,7 +11,9 @@ type Consumer interface {
 	Run(context.Context) error
 }
 
-type Handler = func(context.Context, *mqs.Message) error
+type MessageHandler interface {
+	Handle(context.Context, *mqs.Message) error
+}
 
 type consumerImplOptions struct {
 	concurrency int
@@ -23,7 +25,7 @@ func WithConcurrency(concurrency int) func(*consumerImplOptions) {
 	}
 }
 
-func New(subscription mqs.Subscription, handler Handler, opts ...func(*consumerImplOptions)) Consumer {
+func New(subscription mqs.Subscription, handler MessageHandler, opts ...func(*consumerImplOptions)) Consumer {
 	options := &consumerImplOptions{
 		concurrency: 1,
 	}
@@ -40,7 +42,7 @@ func New(subscription mqs.Subscription, handler Handler, opts ...func(*consumerI
 type consumerImpl struct {
 	consumerImplOptions
 	subscription mqs.Subscription
-	handler      func(context.Context, *mqs.Message) error
+	handler      MessageHandler
 }
 
 var _ Consumer = &consumerImpl{}
@@ -71,7 +73,7 @@ recvLoop:
 			childCtx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
-			err = c.handler(childCtx, msg)
+			err = c.handler.Handle(childCtx, msg)
 			// TODO: error handling?
 			if err != nil {
 				log.Printf("consumer handler error: %v", err)
