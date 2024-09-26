@@ -1,4 +1,4 @@
-package delivery_test
+package delivery
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/mqs"
-	"github.com/hookdeck/EventKit/internal/services/delivery"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -20,14 +19,17 @@ import (
 func setupTestDeliveryService(t *testing.T,
 	handler consumer.MessageHandler,
 	deliveryMQ *deliverymq.DeliveryMQ,
-) *delivery.DeliveryService {
+) *DeliveryService {
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
-	service := &delivery.DeliveryService{
+	service := &DeliveryService{
 		Logger:      logger,
 		RedisClient: redisClient,
 		Handler:     handler,
 		DeliveryMQ:  deliveryMQ,
+		consumerOptions: &consumerOptions{
+			concurreny: 1,
+		},
 	}
 	return service
 }

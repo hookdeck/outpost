@@ -15,11 +15,16 @@ import (
 	_ "gocloud.dev/pubsub/mempubsub"
 )
 
+type consumerOptions struct {
+	concurreny int
+}
+
 type DeliveryService struct {
-	Logger      *otelzap.Logger
-	RedisClient *redis.Client
-	DeliveryMQ  *deliverymq.DeliveryMQ
-	Handler     consumer.MessageHandler
+	consumerOptions *consumerOptions
+	Logger          *otelzap.Logger
+	RedisClient     *redis.Client
+	DeliveryMQ      *deliverymq.DeliveryMQ
+	Handler         consumer.MessageHandler
 }
 
 func NewService(ctx context.Context,
@@ -47,6 +52,9 @@ func NewService(ctx context.Context,
 		RedisClient: redisClient,
 		Handler:     handler,
 		DeliveryMQ:  deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig)),
+		consumerOptions: &consumerOptions{
+			concurreny: cfg.DeliveryMaxConcurrency,
+		},
 	}
 
 	go func() {
@@ -67,7 +75,7 @@ func (s *DeliveryService) Run(ctx context.Context) error {
 		return err
 	}
 
-	csm := consumer.New(subscription, s.Handler, consumer.WithConcurrency(1))
+	csm := consumer.New(subscription, s.Handler, consumer.WithConcurrency(s.consumerOptions.concurreny))
 	if err := csm.Run(ctx); !errors.Is(err, ctx.Err()) {
 		return err
 	}

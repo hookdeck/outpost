@@ -61,9 +61,10 @@ func TestIntegrationAPIService_PublishMQConsumer(t *testing.T) {
 	defer cancel()
 	apiService, err := api.NewService(ctx, wg,
 		&config.Config{
-			Redis:               redisConfig,
-			PublishQueueConfig:  &publishQueueConfig,
-			DeliveryQueueConfig: &deliveryQueueConfig,
+			Redis:                 redisConfig,
+			PublishQueueConfig:    &publishQueueConfig,
+			DeliveryQueueConfig:   &deliveryQueueConfig,
+			PublishMaxConcurrency: 1,
 		},
 		testutil.CreateTestLogger(t),
 	)

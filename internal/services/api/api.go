@@ -17,6 +17,10 @@ import (
 	"go.uber.org/zap"
 )
 
+type consumerOptions struct {
+	concurreny int
+}
+
 type APIService struct {
 	redisClient      *redis.Client
 	server           *http.Server
@@ -24,6 +28,7 @@ type APIService struct {
 	destinationModel *models.DestinationModel
 	publishMQ        *publishmq.PublishMQ
 	deliveryMQ       *deliverymq.DeliveryMQ
+	consumerOptions  *consumerOptions
 }
 
 func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*APIService, error) {
@@ -66,6 +71,9 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	service.destinationModel = destinationModel
 	service.publishMQ = publishmq.New(publishmq.WithQueue(cfg.PublishQueueConfig))
 	service.deliveryMQ = deliveryMQ
+	service.consumerOptions = &consumerOptions{
+		concurreny: cfg.PublishMaxConcurrency,
+	}
 
 	go func() {
 		defer wg.Done()
@@ -103,7 +111,7 @@ func (s *APIService) Run(ctx context.Context) error {
 			return err
 		}
 		go func() {
-			s.SubscribePublishMQ(ctx, subscription)
+			s.SubscribePublishMQ(ctx, subscription, s.consumerOptions.concurreny)
 		}()
 	}
 

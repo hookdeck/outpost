@@ -24,10 +24,12 @@ type Config struct {
 	JWTSecret        string
 	EncryptionSecret string
 
-	Redis               *redis.RedisConfig
-	OpenTelemetry       *otel.OpenTelemetryConfig
-	PublishQueueConfig  *mqs.QueueConfig
-	DeliveryQueueConfig *mqs.QueueConfig
+	Redis                  *redis.RedisConfig
+	OpenTelemetry          *otel.OpenTelemetryConfig
+	PublishQueueConfig     *mqs.QueueConfig
+	DeliveryQueueConfig    *mqs.QueueConfig
+	PublishMaxConcurrency  int
+	DeliveryMaxConcurrency int
 }
 
 var defaultConfig = map[string]any{
@@ -38,6 +40,8 @@ var defaultConfig = map[string]any{
 	"REDIS_DATABASE":             0,
 	"DELIVERY_RABBITMQ_EXCHANGE": "eventkit",
 	"DELIVERY_RABBITMQ_QUEUE":    "eventkit.delivery",
+	"PUBLISHMQ_MAX_CONCURRENCY":  1,
+	"DELIVERYMQ_MAX_CONCURRENCY": 1,
 }
 
 func Parse(flags Flags) (*Config, error) {
@@ -108,9 +112,11 @@ func Parse(flags Flags) (*Config, error) {
 			Password: viper.GetString("REDIS_PASSWORD"),
 			Database: mustInt(viper, "REDIS_DATABASE"),
 		},
-		OpenTelemetry:       openTelemetry,
-		PublishQueueConfig:  publishQueueConfig,
-		DeliveryQueueConfig: deliveryQueueConfig,
+		OpenTelemetry:          openTelemetry,
+		PublishQueueConfig:     publishQueueConfig,
+		DeliveryQueueConfig:    deliveryQueueConfig,
+		PublishMaxConcurrency:  mustInt(viper, "PUBLISHMQ_MAX_CONCURRENCY"),
+		DeliveryMaxConcurrency: mustInt(viper, "DELIVERYMQ_MAX_CONCURRENCY"),
 	}
 
 	return config, nil
