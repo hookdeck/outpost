@@ -11,7 +11,7 @@ type Consumer interface {
 	Run(context.Context) error
 }
 
-type handlerFn = func(context.Context, *mqs.Message) error
+type Handler = func(context.Context, *mqs.Message) error
 
 type consumerImplOptions struct {
 	concurrency int
@@ -23,7 +23,7 @@ func WithConcurrency(concurrency int) func(*consumerImplOptions) {
 	}
 }
 
-func New(subscription mqs.Subscription, handler handlerFn, opts ...func(*consumerImplOptions)) Consumer {
+func New(subscription mqs.Subscription, handler Handler, opts ...func(*consumerImplOptions)) Consumer {
 	options := &consumerImplOptions{
 		concurrency: 1,
 	}

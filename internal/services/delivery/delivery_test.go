@@ -45,15 +45,11 @@ func TestDeliveryService(t *testing.T) {
 		service := setupTestDeliveryService(t, nil, deliveryMQ)
 
 		errchan := make(chan error)
-		context, cancel := context.WithCancel(context.Background())
+		context, cancel := context.WithTimeout(context.Background(), time.Second/10)
+		defer cancel()
 
 		go func() {
 			errchan <- service.Run(context)
-		}()
-
-		go func() {
-			time.Sleep(time.Second / 10)
-			cancel()
 		}()
 
 		err = <-errchan

@@ -2,11 +2,14 @@ package delivery
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/hookdeck/EventKit/internal/config"
+	"github.com/hookdeck/EventKit/internal/consumer"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/models"
+	"github.com/hookdeck/EventKit/internal/mqs"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
@@ -29,10 +32,6 @@ func NewService(ctx context.Context,
 	wg.Add(1)
 
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig))
-	cleanupDeliveryMQ, err := deliveryMQ.Init(ctx)
-	if err != nil {
-		return nil, err
-	}
 
 	redisClient, err := redis.New(ctx, cfg.Redis)
 	if err != nil {
@@ -56,8 +55,6 @@ func NewService(ctx context.Context,
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		logger.Ctx(ctx).Info("shutting down", zap.String("service", "delivery"))
-		cleanupDeliveryMQ()
 		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "delivery"))
 	}()
 
@@ -73,38 +70,29 @@ func (s *DeliveryService) Run(ctx context.Context) error {
 		return err
 	}
 
-	for {
-		msg, err := subscription.Receive(ctx)
+	var handler consumer.Handler
+	handler = func(ctx context.Context, msg *mqs.Message) error {
 		logger := s.Logger.Ctx(ctx)
-		if err != nil {
-			if err == context.Canceled {
-				logger.Info("context canceled")
-				break
-			}
-			// Errors from Receive indicate that Receive will no longer succeed.
-			logger.Error("failed to receive message", zap.Error(err))
-			break
-		}
 		deliveryEvent := models.DeliveryEvent{}
 		err = deliveryEvent.FromMessage(msg)
 		if err != nil {
 			logger.Error("failed to parse message", zap.Error(err))
 			msg.Nack()
-			continue
+			return err
 		}
-
-		// Do work based on the message.
-		// TODO: use goroutine to process messages concurrently.
-		// ref: https://gocloud.dev/howto/pubsub/subscribe/#receiving
-		logger.Info("received delivery event", zap.String("delivery_event.event", string(deliveryEvent.Event.ID)))
 		err = s.EventHandler.Handle(ctx, deliveryEvent)
 		if err != nil {
 			logger.Error("failed to handle message", zap.Error(err))
 			msg.Nack()
-			continue
+			return err
 		}
 		msg.Ack()
+		return nil
 	}
 
+	csm := consumer.New(subscription, handler, consumer.WithConcurrency(1))
+	if err := csm.Run(ctx); !errors.Is(err, ctx.Err()) {
+		return err
+	}
 	return nil
 }

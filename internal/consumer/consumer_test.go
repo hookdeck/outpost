@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type handlerFn = func(context.Context, *mqs.Message) error
-
 type execTimestamps struct {
 	Start time.Time
 	End   time.Time
@@ -23,7 +21,7 @@ type execTimestamps struct {
 type consumerTest struct {
 	ctx          context.Context
 	mq           mqs.Queue
-	makeConsumer func(handlerFn, mqs.Subscription) consumer.Consumer
+	makeConsumer func(consumer.Handler, mqs.Subscription) consumer.Consumer
 	act          func(*testing.T, context.Context)
 	assert       func(*testing.T, context.Context, []execTimestamps, error)
 }
@@ -90,7 +88,7 @@ func TestConsumer_SingleHandler(t *testing.T) {
 	test := consumerTest{
 		ctx: ctx,
 		mq:  mq,
-		makeConsumer: func(handler handlerFn, subscription mqs.Subscription) consumer.Consumer {
+		makeConsumer: func(handler consumer.Handler, subscription mqs.Subscription) consumer.Consumer {
 			return consumer.New(subscription, handler, consumer.WithConcurrency(1))
 		},
 		act: func(t *testing.T, ctx context.Context) {
@@ -126,7 +124,7 @@ func TestConsumer_ConcurrentHandler(t *testing.T) {
 	test := consumerTest{
 		ctx: ctx,
 		mq:  mq,
-		makeConsumer: func(handler handlerFn, subscription mqs.Subscription) consumer.Consumer {
+		makeConsumer: func(handler consumer.Handler, subscription mqs.Subscription) consumer.Consumer {
 			return consumer.New(subscription, handler, consumer.WithConcurrency(2))
 		},
 		act: func(t *testing.T, ctx context.Context) {
