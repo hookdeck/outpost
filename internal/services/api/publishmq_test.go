@@ -20,7 +20,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAPIServicePublishMQConsumer(t *testing.T) {
+func TestIntegrationAPIService_PublishMQConsumer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
 	t.Parallel()
 
 	// ===== Arrange =====
