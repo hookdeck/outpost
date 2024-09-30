@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/deliverymq"
+	"github.com/hookdeck/EventKit/internal/eventtracer"
 	"github.com/hookdeck/EventKit/internal/idempotence"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/redis"
@@ -17,6 +18,7 @@ type EventHandler interface {
 }
 
 type eventHandler struct {
+	tracer           eventtracer.EventTracer
 	logger           *otelzap.Logger
 	redisClient      *redis.Client
 	idempotence      idempotence.Idempotence
@@ -26,6 +28,7 @@ type eventHandler struct {
 
 func NewEventHandler(logger *otelzap.Logger, redisClient *redis.Client, deliveryMQ *deliverymq.DeliveryMQ, destinationModel *models.DestinationModel) EventHandler {
 	return &eventHandler{
+		tracer:      eventtracer.NewEventTracer(),
 		logger:      logger,
 		redisClient: redisClient,
 		idempotence: idempotence.New(redisClient,
@@ -48,6 +51,9 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) error {
 func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error {
 	h.logger.Info("received event", zap.Any("event", event))
 
+	_, span := h.tracer.Receive(ctx, event)
+	defer span.End()
+
 	destinations, err := h.destinationModel.List(ctx, h.redisClient, event.TenantID)
 	if err != nil {
 		return err
@@ -58,10 +64,15 @@ func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error 
 	// TODO: Consider how batch publishing work
 	for _, destination := range destinations {
 		deliveryEvent := models.NewDeliveryEvent(*event, destination)
+		_, deliverySpan := h.tracer.StartDelivery(ctx, &deliveryEvent)
 		err := h.deliveryMQ.Publish(ctx, deliveryEvent)
 		if err != nil {
+			span.RecordError(err)
+			deliverySpan.RecordError(err)
+			deliverySpan.End()
 			return err
 		}
+		deliverySpan.End()
 	}
 	return nil
 }

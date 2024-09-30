@@ -49,6 +49,7 @@ func (e *Event) ToAdapterEvent() *adapters.Event {
 
 type DeliveryEvent struct {
 	ID          string
+	Metadata    map[string]string
 	Event       Event
 	Destination Destination
 }
@@ -70,6 +71,7 @@ func (e *DeliveryEvent) ToMessage() (*mqs.Message, error) {
 func NewDeliveryEvent(event Event, destination Destination) DeliveryEvent {
 	return DeliveryEvent{
 		ID:          uuid.New().String(),
+		Metadata:    map[string]string{},
 		Event:       event,
 		Destination: destination,
 	}
