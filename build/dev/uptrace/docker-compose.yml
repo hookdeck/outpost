@@ -14,8 +14,8 @@ services:
     volumes:
       - ch_data2:/var/lib/clickhouse
     ports:
-      - "8123:8123"
-      - "9000:9000"
+      # - "8123:8123"
+      - "9001:9000"
 
   postgres:
     image: postgres:15-alpine
@@ -41,7 +41,8 @@ services:
     restart: on-failure
     volumes:
       - ./uptrace.yml:/etc/uptrace/uptrace.yml
-    #environment:
+    environment:
+      UPTRACE_CH_ADDR: "localhost:9001"
     #  - DEBUG=2
     ports:
       - "14317:14317"
