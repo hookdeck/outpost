@@ -122,7 +122,7 @@ func constructServices(
 		services = append(services, service)
 	}
 	if cfg.Service == config.ServiceTypeLog || cfg.Service == config.ServiceTypeSingular {
-		service, err := log.NewService(ctx, wg, cfg, logger)
+		service, err := log.NewService(ctx, wg, cfg, logger, nil)
 		if err != nil {
 			return nil, err
 		}

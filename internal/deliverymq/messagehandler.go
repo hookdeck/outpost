@@ -7,6 +7,7 @@ import (
 	"github.com/hookdeck/EventKit/internal/consumer"
 	"github.com/hookdeck/EventKit/internal/eventtracer"
 	"github.com/hookdeck/EventKit/internal/idempotence"
+	"github.com/hookdeck/EventKit/internal/logmq"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/mqs"
 	"github.com/hookdeck/EventKit/internal/redis"
@@ -18,18 +19,20 @@ type messageHandler struct {
 	logger           *otelzap.Logger
 	redisClient      *redis.Client
 	destinationModel *models.DestinationModel
+	logMQ            *logmq.LogMQ
 	idempotence      idempotence.Idempotence
 	tracer           eventtracer.EventTracer
 }
 
 var _ consumer.MessageHandler = (*messageHandler)(nil)
 
-func NewMessageHandler(logger *otelzap.Logger, redisClient *redis.Client, destinationModel *models.DestinationModel) consumer.MessageHandler {
+func NewMessageHandler(logger *otelzap.Logger, redisClient *redis.Client, destinationModel *models.DestinationModel, logMQ *logmq.LogMQ) consumer.MessageHandler {
 	return &messageHandler{
 		tracer:           eventtracer.NewEventTracer(),
 		logger:           logger,
 		redisClient:      redisClient,
 		destinationModel: destinationModel,
+		logMQ:            logMQ,
 		idempotence: idempotence.New(redisClient,
 			idempotence.WithTimeout(5*time.Second),
 			idempotence.WithSuccessfulTTL(24*time.Hour),
@@ -63,6 +66,12 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 	err := deliveryEvent.Destination.Publish(ctx, &deliveryEvent.Event)
 	if err != nil {
 		logger.Error("failed to publish event", zap.Error(err))
+		span.RecordError(err)
+		return err
+	}
+	err = h.logMQ.Publish(ctx, deliveryEvent)
+	if err != nil {
+		logger.Error("failed to publish log event", zap.Error(err))
 		span.RecordError(err)
 		return err
 	}

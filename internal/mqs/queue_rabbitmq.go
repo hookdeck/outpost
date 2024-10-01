@@ -48,7 +48,7 @@ func (c *QueueConfig) validateRabbitMQConfig() error {
 	return nil
 }
 
-// // ============================== Queue ==============================
+// ============================== Queue ==============================
 
 type RabbitMQQueue struct {
 	base   *wrappedBaseQueue

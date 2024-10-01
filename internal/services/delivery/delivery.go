@@ -8,6 +8,7 @@ import (
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/consumer"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
+	"github.com/hookdeck/EventKit/internal/logmq"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
@@ -40,11 +41,22 @@ func NewService(ctx context.Context,
 		return nil, err
 	}
 
+	logMQ := logmq.New(logmq.WithQueue(cfg.LogQueueConfig))
+	cleanupLogMQ, err := logMQ.Init(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	if handler == nil {
 		destinationModel := models.NewDestinationModel(
 			models.DestinationModelWithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
 		)
-		handler = deliverymq.NewMessageHandler(logger, redisClient, destinationModel)
+		handler = deliverymq.NewMessageHandler(
+			logger,
+			redisClient,
+			destinationModel,
+			logMQ,
+		)
 	}
 
 	service := &DeliveryService{
@@ -60,6 +72,7 @@ func NewService(ctx context.Context,
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
+		cleanupLogMQ()
 		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "delivery"))
 	}()
 

@@ -72,7 +72,7 @@ func (c *AWSSQSConfig) ToCredentials() (*credentials.StaticCredentialsProvider, 
 	return &awsCreds, nil
 }
 
-// // ============================== Queue ==============================
+// ============================== Queue ==============================
 
 type AWSQueue struct {
 	once        *sync.Once

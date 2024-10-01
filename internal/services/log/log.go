@@ -2,22 +2,35 @@ package log
 
 import (
 	"context"
-	"os"
+	"errors"
 	"sync"
-	"time"
 
 	"github.com/hookdeck/EventKit/internal/config"
+	"github.com/hookdeck/EventKit/internal/consumer"
+	"github.com/hookdeck/EventKit/internal/logmq"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
-type LogService struct {
-	logger      *otelzap.Logger
-	redisClient *redis.Client
+type consumerOptions struct {
+	concurreny int
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*LogService, error) {
+type LogService struct {
+	consumerOptions *consumerOptions
+	logger          *otelzap.Logger
+	redisClient     *redis.Client
+	logMQ           *logmq.LogMQ
+	handler         consumer.MessageHandler
+}
+
+func NewService(ctx context.Context,
+	wg *sync.WaitGroup,
+	cfg *config.Config,
+	logger *otelzap.Logger,
+	handler consumer.MessageHandler,
+) (*LogService, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -30,31 +43,38 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		return nil, err
 	}
 
+	if handler == nil {
+		handler = logmq.NewMessageHandler(logger)
+	}
+
 	service := &LogService{}
 	service.logger = logger
 	service.redisClient = redisClient
+	service.logMQ = logmq.New(logmq.WithQueue(cfg.LogQueueConfig))
+	service.consumerOptions = &consumerOptions{
+		concurreny: cfg.DeliveryMaxConcurrency,
+	}
+	service.handler = handler
 
 	return service, nil
 }
 
 func (s *LogService) Run(ctx context.Context) error {
-	s.logger.Ctx(ctx).Info("start service", zap.String("service", "log"))
+	logger := s.logger.Ctx(ctx)
+	logger.Info("start service", zap.String("service", "log"))
 
-	if os.Getenv("DISABLED") == "true" {
-		s.logger.Ctx(ctx).Info("service is disabled", zap.String("service", "log"))
-		return nil
+	subscription, err := s.logMQ.Subscribe(ctx)
+	if err != nil {
+		logger.Error("failed to susbcribe to log events", zap.Error(err))
+		return err
 	}
 
-	for range time.Tick(time.Second * 1) {
-		keys, err := s.redisClient.Keys(ctx, "destination:*").Result()
-		if err != nil {
-			s.logger.Ctx(ctx).Error("error",
-				zap.Error(err),
-			)
-			continue
-		}
-		s.logger.Ctx(ctx).Info("destination count", zap.Int("count", len(keys)))
+	csm := consumer.New(subscription, s.handler,
+		consumer.WithConcurrency(s.consumerOptions.concurreny),
+		consumer.WithName("logmq"),
+	)
+	if err := csm.Run(ctx); !errors.Is(err, ctx.Err()) {
+		return err
 	}
-
 	return nil
 }

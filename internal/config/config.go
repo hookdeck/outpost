@@ -28,8 +28,10 @@ type Config struct {
 	OpenTelemetry          *otel.OpenTelemetryConfig
 	PublishQueueConfig     *mqs.QueueConfig
 	DeliveryQueueConfig    *mqs.QueueConfig
+	LogQueueConfig         *mqs.QueueConfig
 	PublishMaxConcurrency  int
 	DeliveryMaxConcurrency int
+	LogMaxConcurrency      int
 }
 
 var defaultConfig = map[string]any{
@@ -40,8 +42,11 @@ var defaultConfig = map[string]any{
 	"REDIS_DATABASE":             0,
 	"DELIVERY_RABBITMQ_EXCHANGE": "eventkit",
 	"DELIVERY_RABBITMQ_QUEUE":    "eventkit.delivery",
+	"LOG_RABBITMQ_EXCHANGE":      "eventkit_logs",
+	"LOG_RABBITMQ_QUEUE":         "eventkit_logs.log",
 	"PUBLISHMQ_MAX_CONCURRENCY":  1,
 	"DELIVERYMQ_MAX_CONCURRENCY": 1,
+	"LOGMQ_MAX_CONCURRENCY":      1,
 }
 
 func Parse(flags Flags) (*Config, error) {
@@ -97,6 +102,10 @@ func Parse(flags Flags) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	logQueueConfig, err := mqs.ParseQueueConfig(viper, "LOG")
+	if err != nil {
+		return nil, err
+	}
 
 	// Initialize config values
 	config := &Config{
@@ -115,8 +124,10 @@ func Parse(flags Flags) (*Config, error) {
 		OpenTelemetry:          openTelemetry,
 		PublishQueueConfig:     publishQueueConfig,
 		DeliveryQueueConfig:    deliveryQueueConfig,
+		LogQueueConfig:         logQueueConfig,
 		PublishMaxConcurrency:  mustInt(viper, "PUBLISHMQ_MAX_CONCURRENCY"),
 		DeliveryMaxConcurrency: mustInt(viper, "DELIVERYMQ_MAX_CONCURRENCY"),
+		LogMaxConcurrency:      mustInt(viper, "LOGMQ_MAX_CONCURRENCY"),
 	}
 
 	return config, nil
