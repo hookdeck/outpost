@@ -53,6 +53,35 @@ services:
     volumes:
       - redis:/data
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    ports:
+      # tcp
+      - 9000:9000
+      # # http
+      # - 8123:8123
+      # # postgresql
+      # - 9005:9005
+    volumes:
+      # optional to persist data locally
+      - clickhouse:/var/lib/clickhouse/
+      # optional to add own config
+      # - ./extra-config.xml:/etc/clickhouse-server/config.d/extra-config.xml
+      # optional to add users or enable settings for a default user
+      # - ./user.xml:/etc/clickhouse-server/users.d/user.xml
+      # qol to mount own sql scripts to run them from inside container with
+      # clickhouse client < /sql/myquery.sql
+      # - ./sql:/sql
+    # adjust mem_limit and cpus to machine
+    # mem_limit: 12G
+    # cpus: 4
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
 volumes:
   redis:
+    driver: local
+  clickhouse:
     driver: local
