@@ -10,13 +10,17 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/models"
+	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupClickHouseConnection(t *testing.T) clickhouse.Conn {
+func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
+	endpoint, cleanup, err := testutil.StartTestContainerClickHouse()
+	require.Nil(t, err)
+
 	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"127.0.0.1:9000"},
+		Addr: []string{endpoint},
 		Auth: clickhouse.Auth{
 			Database: "default",
 			Username: "default",
@@ -28,26 +32,60 @@ func setupClickHouseConnection(t *testing.T) clickhouse.Conn {
 		},
 	})
 	require.Nil(t, err)
-	return conn
+
+	ctx := context.Background()
+	err = conn.Exec(ctx, "CREATE DATABASE IF NOT EXISTS eventkit")
+	require.Nil(t, err)
+	err = conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS eventkit.events (
+			id String,
+			tenant_id String,
+			destination_id String,
+			topic String,
+			time DateTime,
+			data String
+		)
+		ENGINE = MergeTree
+		ORDER BY (id, time);
+	`)
+	require.Nil(t, err)
+	err = conn.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS eventkit.deliveries (
+			id String,
+			delivery_event_id String,
+			event_id String,
+			destination_id String,
+			status String,
+			time DateTime
+		)
+		ENGINE = ReplacingMergeTree
+		ORDER BY (id, time);
+	`)
+	require.Nil(t, err)
+
+	return conn, cleanup
 }
 
-func TestEventModel_InsertMany(t *testing.T) {
+func TestIntegrationEventModel_InsertMany(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
 	t.Parallel()
 
-	conn := setupClickHouseConnection(t)
+	conn, cleanup := setupClickHouseConnection(t)
+	defer cleanup()
 
 	ctx := context.Background()
 
 	eventModel := models.NewEventModel()
 
 	event := &models.Event{
-		ID: uuid.New().String(),
-		// ID:            "78168f99-2a05-4e3b-950a-60621b01a6c4",
+		ID:            uuid.New().String(),
 		TenantID:      "tenant:" + uuid.New().String(),
 		DestinationID: "destination:" + uuid.New().String(),
 		Topic:         "user_created",
-		// Topic: "user_updated",
-		Time: time.Now(),
+		Time:          time.Now(),
 		Data: map[string]interface{}{
 			"mykey": "myvalue",
 		},
@@ -57,10 +95,15 @@ func TestEventModel_InsertMany(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestEventModel_List(t *testing.T) {
+func TestIntegrationEventModel_List(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
 	t.Parallel()
 
-	conn := setupClickHouseConnection(t)
+	conn, cleanup := setupClickHouseConnection(t)
+	defer cleanup()
 
 	ctx := context.Background()
 
@@ -74,10 +117,15 @@ func TestEventModel_List(t *testing.T) {
 	}
 }
 
-func TestDeliveryModel_InsertMany(t *testing.T) {
+func TestIntegrationDeliveryModel_InsertMany(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
 	t.Parallel()
 
-	conn := setupClickHouseConnection(t)
+	conn, cleanup := setupClickHouseConnection(t)
+	defer cleanup()
 
 	ctx := context.Background()
 
