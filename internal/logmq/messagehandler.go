@@ -3,7 +3,6 @@ package logmq
 import (
 	"context"
 
-	"github.com/hookdeck/EventKit/internal/clickhouse"
 	"github.com/hookdeck/EventKit/internal/consumer"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/mqs"
@@ -11,21 +10,27 @@ import (
 	"go.uber.org/zap"
 )
 
+type eventBatcher interface {
+	Add(ctx context.Context, event *models.Event) error
+}
+
+type deliveryBatcher interface {
+	Add(ctx context.Context, delivery *models.Delivery) error
+}
+
 type messageHandler struct {
-	logger        *otelzap.Logger
-	eventModel    *models.EventModel
-	deliveryModel *models.DeliveryModel
-	chDB          clickhouse.DB
+	logger          *otelzap.Logger
+	eventBatcher    eventBatcher
+	deliveryBatcher deliveryBatcher
 }
 
 var _ consumer.MessageHandler = (*messageHandler)(nil)
 
-func NewMessageHandler(logger *otelzap.Logger, chDB clickhouse.DB) consumer.MessageHandler {
+func NewMessageHandler(logger *otelzap.Logger, eventBatcher eventBatcher, deliveryBatcher deliveryBatcher) consumer.MessageHandler {
 	return &messageHandler{
-		logger:        logger,
-		eventModel:    models.NewEventModel(),
-		deliveryModel: models.NewDeliveryModel(),
-		chDB:          chDB,
+		logger:          logger,
+		eventBatcher:    eventBatcher,
+		deliveryBatcher: deliveryBatcher,
 	}
 }
 
@@ -40,12 +45,12 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	}
 	// Handler logic
 	logger.Info("logmq handler", zap.String("delivery_event", deliveryEvent.ID))
-	err = h.deliveryModel.InsertMany(ctx, h.chDB, []*models.Delivery{deliveryEvent.Delivery})
+	err = h.deliveryBatcher.Add(ctx, deliveryEvent.Delivery)
 	if err != nil {
 		msg.Nack()
 		return err
 	}
-	err = h.eventModel.InsertMany(ctx, h.chDB, []*models.Event{&deliveryEvent.Event})
+	err = h.eventBatcher.Add(ctx, &deliveryEvent.Event)
 	if err != nil {
 		msg.Nack()
 		return err
