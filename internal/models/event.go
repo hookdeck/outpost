@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/uuid"
+	"github.com/hookdeck/EventKit/internal/clickhouse"
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
 	"github.com/hookdeck/EventKit/internal/mqs"
 )
@@ -76,6 +76,7 @@ type DeliveryEvent struct {
 	Metadata    map[string]string
 	Event       Event
 	Destination Destination
+	Delivery    *Delivery
 }
 
 var _ mqs.IncomingMessage = &DeliveryEvent{}
@@ -109,7 +110,7 @@ func NewEventModel() *EventModel {
 	return &EventModel{}
 }
 
-func (m *EventModel) InsertMany(ctx context.Context, conn clickhouse.Conn, events []*Event) error {
+func (m *EventModel) InsertMany(ctx context.Context, conn clickhouse.DB, events []*Event) error {
 	batch, err := conn.PrepareBatch(ctx,
 		"INSERT INTO eventkit.events (id, tenant_id, destination_id, time, topic, data) VALUES (?, ?, ?, ?, ?)",
 	)
@@ -137,7 +138,7 @@ func (m *EventModel) InsertMany(ctx context.Context, conn clickhouse.Conn, event
 	return nil
 }
 
-func (m *EventModel) List(ctx context.Context, conn clickhouse.Conn) ([]*Event, error) {
+func (m *EventModel) List(ctx context.Context, conn clickhouse.DB) ([]*Event, error) {
 	rows, err := conn.Query(ctx, `
 		SELECT
 			id,
@@ -172,6 +173,11 @@ func (m *EventModel) List(ctx context.Context, conn clickhouse.Conn) ([]*Event, 
 	return events, nil
 }
 
+const (
+	DeliveryStatusOK     = "ok"
+	DeliveryStatusFailed = "failed"
+)
+
 type Delivery struct {
 	ID              string
 	DeliveryEventID string
@@ -187,7 +193,7 @@ func NewDeliveryModel() *DeliveryModel {
 	return &DeliveryModel{}
 }
 
-func (m *DeliveryModel) InsertMany(ctx context.Context, conn clickhouse.Conn, delivery []*Delivery) error {
+func (m *DeliveryModel) InsertMany(ctx context.Context, conn clickhouse.DB, delivery []*Delivery) error {
 	batch, err := conn.PrepareBatch(ctx,
 		"INSERT INTO eventkit.deliveries (id, delivery_event_id, event_id, destination_id, status, time) VALUES (?, ?, ?, ?, ?, ?)",
 	)

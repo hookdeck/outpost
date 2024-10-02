@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/hookdeck/EventKit/internal/clickhouse"
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/consumer"
 	"github.com/hookdeck/EventKit/internal/logmq"
@@ -43,8 +44,13 @@ func NewService(ctx context.Context,
 		return nil, err
 	}
 
+	chDB, err := clickhouse.New()
+	if err != nil {
+		return nil, err
+	}
+
 	if handler == nil {
-		handler = logmq.NewMessageHandler(logger)
+		handler = logmq.NewMessageHandler(logger, chDB)
 	}
 
 	service := &LogService{}

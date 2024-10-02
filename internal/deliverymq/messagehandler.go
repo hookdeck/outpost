@@ -2,8 +2,10 @@ package deliverymq
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/consumer"
 	"github.com/hookdeck/EventKit/internal/eventtracer"
 	"github.com/hookdeck/EventKit/internal/idempotence"
@@ -67,15 +69,31 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 	if err != nil {
 		logger.Error("failed to publish event", zap.Error(err))
 		span.RecordError(err)
-		return err
+		deliveryEvent.Delivery = &models.Delivery{
+			ID:              uuid.New().String(),
+			DeliveryEventID: deliveryEvent.ID,
+			EventID:         deliveryEvent.Event.ID,
+			DestinationID:   deliveryEvent.Destination.ID,
+			Status:          models.DeliveryStatusFailed,
+			Time:            time.Now(),
+		}
+	} else {
+		deliveryEvent.Delivery = &models.Delivery{
+			ID:              uuid.New().String(),
+			DeliveryEventID: deliveryEvent.ID,
+			EventID:         deliveryEvent.Event.ID,
+			DestinationID:   deliveryEvent.Destination.ID,
+			Status:          models.DeliveryStatusOK,
+			Time:            time.Now(),
+		}
 	}
-	err = h.logMQ.Publish(ctx, deliveryEvent)
-	if err != nil {
+	logErr := h.logMQ.Publish(ctx, deliveryEvent)
+	if logErr != nil {
 		logger.Error("failed to publish log event", zap.Error(err))
 		span.RecordError(err)
-		return err
+		err = errors.Join(err, logErr)
 	}
-	return nil
+	return err
 }
 
 func idempotencyKeyFromDeliveryEvent(deliveryEvent models.DeliveryEvent) string {
