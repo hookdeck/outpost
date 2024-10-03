@@ -12,6 +12,7 @@ import (
 	"github.com/hookdeck/EventKit/internal/consumer"
 	"github.com/hookdeck/EventKit/internal/logmq"
 	"github.com/hookdeck/EventKit/internal/models"
+	"github.com/hookdeck/EventKit/internal/mqs"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/mikestefanello/batcher"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
@@ -51,23 +52,12 @@ func NewService(ctx context.Context,
 	var eventBatcher *batcher.Batcher[*models.Event]
 	var deliveryBatcher *batcher.Batcher[*models.Delivery]
 	if handler == nil {
-		eventBatcher, err = makeEventBatcher(ctx, chDB, models.NewEventModel())
-		if err != nil {
-			return nil, err
-		}
-		deliveryBatcher, err = makeDeliveryBatcher(ctx, chDB, models.NewDeliveryModel())
+		batcher, err := makeBatcher(ctx, logger, chDB, models.NewEventModel(), models.NewDeliveryModel())
 		if err != nil {
 			return nil, err
 		}
 
-		handler = logmq.NewMessageHandler(logger,
-			&handlerEventBatcherImpl{
-				batcher: eventBatcher,
-			},
-			&handlerDeliveryBatcherImpl{
-				batcher: deliveryBatcher,
-			},
-		)
+		handler = logmq.NewMessageHandler(logger, &handlerBatcherImpl{batcher: batcher})
 	}
 
 	service := &LogService{}
@@ -114,20 +104,41 @@ func (s *LogService) Run(ctx context.Context) error {
 	return nil
 }
 
-func makeEventBatcher(ctx context.Context, chDB clickhouse.DB, eventModel *models.EventModel) (*batcher.Batcher[*models.Event], error) {
-	b, err := batcher.NewBatcher(batcher.Config[*models.Event]{
+func makeBatcher(ctx context.Context, logger *otelzap.Logger, chDB clickhouse.DB, eventModel *models.EventModel, deliveryModel *models.DeliveryModel) (*batcher.Batcher[*mqs.Message], error) {
+	b, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
 		GroupCountThreshold: 2,
 		ItemCountThreshold:  100,
-		DelayThreshold:      2 * time.Second,
+		DelayThreshold:      5 * time.Second,
 		NumGoroutines:       1,
-		Processor: func(_ string, events []*models.Event) {
+		Processor: func(_ string, msgs []*mqs.Message) {
+			logger.Ctx(ctx).Info("log batcher processor", zap.Int("msgs", len(msgs)))
+
+			nackAll := func() {
+				for _, msg := range msgs {
+					msg.Nack()
+				}
+			}
+
+			deliveryEvents := make([]*models.DeliveryEvent, 0, len(msgs))
+			for _, msg := range msgs {
+				deliveryEvent := models.DeliveryEvent{}
+				if err := deliveryEvent.FromMessage(msg); err != nil {
+					// TODO: handle error
+					log.Println("deliveryEvent.FromMessage err", err)
+					nackAll() // TODO: handle individual nack
+					return
+				}
+				deliveryEvents = append(deliveryEvents, &deliveryEvent)
+			}
+
 			// Deduplicate events by event.ID
-			uniqueEvents := make([]*models.Event, 0, len(events))
-			seen := make(map[string]struct{})
-			for _, event := range events {
-				if _, exists := seen[event.ID]; !exists {
-					seen[event.ID] = struct{}{}
-					uniqueEvents = append(uniqueEvents, event)
+			uniqueEvents := make([]*models.Event, 0, len(deliveryEvents))
+			seenEvents := make(map[string]struct{})
+			for _, deliveryEvent := range deliveryEvents {
+				event := deliveryEvent.Event
+				if _, exists := seenEvents[event.ID]; !exists {
+					seenEvents[event.ID] = struct{}{}
+					uniqueEvents = append(uniqueEvents, &event)
 				}
 			}
 
@@ -135,46 +146,31 @@ func makeEventBatcher(ctx context.Context, chDB clickhouse.DB, eventModel *model
 			if err != nil {
 				// TODO: error handle
 				log.Println("eventModel.InsertMany err", err)
+				nackAll()
+				return
 			}
-		},
-	})
-	if err != nil {
-		log.Println(err)
-		return nil, err
-	}
-	return b, nil
-}
 
-type handlerEventBatcherImpl struct {
-	batcher *batcher.Batcher[*models.Event]
-}
-
-func (b *handlerEventBatcherImpl) Add(ctx context.Context, event *models.Event) error {
-	b.batcher.Add("", event)
-	return nil
-}
-
-func makeDeliveryBatcher(ctx context.Context, chDB clickhouse.DB, deliveryModel *models.DeliveryModel) (*batcher.Batcher[*models.Delivery], error) {
-	b, err := batcher.NewBatcher(batcher.Config[*models.Delivery]{
-		GroupCountThreshold: 2,
-		ItemCountThreshold:  100,
-		DelayThreshold:      2 * time.Second,
-		NumGoroutines:       1,
-		Processor: func(_ string, deliveries []*models.Delivery) {
-			// Deduplicate deliveries by event.ID
-			uniqueDeliveries := make([]*models.Delivery, 0, len(deliveries))
-			seen := make(map[string]struct{})
-			for _, delivery := range deliveries {
-				if _, exists := seen[delivery.ID]; !exists {
-					seen[delivery.ID] = struct{}{}
+			// Deduplicate deliveries by delivery.ID
+			uniqueDeliveries := make([]*models.Delivery, 0, len(deliveryEvents))
+			seenDeliveries := make(map[string]struct{})
+			for _, deliveryEvent := range deliveryEvents {
+				delivery := deliveryEvent.Delivery
+				if _, exists := seenDeliveries[delivery.ID]; !exists {
+					seenDeliveries[delivery.ID] = struct{}{}
 					uniqueDeliveries = append(uniqueDeliveries, delivery)
 				}
 			}
 
-			err := deliveryModel.InsertMany(ctx, chDB, uniqueDeliveries)
+			err = deliveryModel.InsertMany(ctx, chDB, uniqueDeliveries)
 			if err != nil {
 				// TODO: error handle
 				log.Println("deliveryModel.InsertMany err", err)
+				nackAll()
+				return
+			}
+
+			for _, msg := range msgs {
+				msg.Ack()
 			}
 		},
 	})
@@ -185,11 +181,11 @@ func makeDeliveryBatcher(ctx context.Context, chDB clickhouse.DB, deliveryModel 
 	return b, nil
 }
 
-type handlerDeliveryBatcherImpl struct {
-	batcher *batcher.Batcher[*models.Delivery]
+type handlerBatcherImpl struct {
+	batcher *batcher.Batcher[*mqs.Message]
 }
 
-func (b *handlerDeliveryBatcherImpl) Add(ctx context.Context, delivery *models.Delivery) error {
-	b.batcher.Add("", delivery)
+func (b *handlerBatcherImpl) Add(ctx context.Context, msg *mqs.Message) error {
+	b.batcher.Add("", msg)
 	return nil
 }
