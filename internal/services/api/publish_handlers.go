@@ -25,12 +25,12 @@ func NewPublishHandlers(
 	logger *otelzap.Logger,
 	redisClient *redis.Client,
 	deliveryMQ *deliverymq.DeliveryMQ,
-	destinationModel *models.DestinationModel,
+	metadataRepo models.MetadataRepo,
 ) *PublishHandlers {
 	return &PublishHandlers{
 		logger:       logger,
 		redisClient:  redisClient,
-		eventHandler: publishmq.NewEventHandler(logger, redisClient, deliveryMQ, destinationModel),
+		eventHandler: publishmq.NewEventHandler(logger, redisClient, deliveryMQ, metadataRepo),
 	}
 }
 

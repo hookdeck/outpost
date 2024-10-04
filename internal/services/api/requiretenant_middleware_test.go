@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRequireTenantMiddleware(t *testing.T) {
@@ -31,11 +32,9 @@ func TestRequireTenantMiddleware(t *testing.T) {
 		tenant := models.Tenant{
 			ID: uuid.New().String(),
 		}
-		model := models.NewTenantModel()
-		err := model.Set(context.Background(), redisClient, tenant)
-		if err != nil {
-			t.Fatal(err)
-		}
+		metadataRepo := setupTestMetadataRepo(t, redisClient, nil)
+		err := metadataRepo.UpsertTenant(context.Background(), tenant)
+		require.Nil(t, err)
 
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/"+tenant.ID+"/destinations", nil)

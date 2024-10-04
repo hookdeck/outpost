@@ -1,45 +1,13 @@
 package models
 
 import (
-	"context"
 	"fmt"
 	"time"
-
-	"github.com/hookdeck/EventKit/internal/redis"
 )
 
 type Tenant struct {
 	ID        string    `json:"id" redis:"id"`
 	CreatedAt time.Time `json:"created_at" redis:"created_at"`
-}
-
-type TenantModel struct{}
-
-func NewTenantModel() *TenantModel {
-	return &TenantModel{}
-}
-
-func (m *TenantModel) Get(ctx context.Context, cmdable redis.Cmdable, id string) (*Tenant, error) {
-	hash, err := cmdable.HGetAll(ctx, redisTenantID(id)).Result()
-	if err != nil {
-		return nil, err
-	}
-	if len(hash) == 0 {
-		return nil, nil
-	}
-	tenant := &Tenant{}
-	if err = tenant.parseRedisHash(hash); err != nil {
-		return nil, err
-	}
-	return tenant, nil
-}
-
-func (m *TenantModel) Set(ctx context.Context, cmdable redis.Cmdable, tenant Tenant) error {
-	return cmdable.HSet(ctx, redisTenantID(tenant.ID), tenant).Err()
-}
-
-func (m *TenantModel) Clear(ctx context.Context, cmdable redis.Cmdable, id string) error {
-	return cmdable.Del(ctx, redisTenantID(id)).Err()
 }
 
 func (t *Tenant) parseRedisHash(hash map[string]string) error {
@@ -56,8 +24,4 @@ func (t *Tenant) parseRedisHash(hash map[string]string) error {
 	}
 	t.CreatedAt = createdAt
 	return nil
-}
-
-func redisTenantID(tenantID string) string {
-	return fmt.Sprintf("tenant:%s", tenantID)
 }

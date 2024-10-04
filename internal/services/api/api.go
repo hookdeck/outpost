@@ -22,13 +22,13 @@ type consumerOptions struct {
 }
 
 type APIService struct {
-	redisClient      *redis.Client
-	server           *http.Server
-	logger           *otelzap.Logger
-	destinationModel *models.DestinationModel
-	publishMQ        *publishmq.PublishMQ
-	deliveryMQ       *deliverymq.DeliveryMQ
-	consumerOptions  *consumerOptions
+	redisClient     *redis.Client
+	server          *http.Server
+	logger          *otelzap.Logger
+	publishMQ       *publishmq.PublishMQ
+	deliveryMQ      *deliverymq.DeliveryMQ
+	metadataRepo    models.MetadataRepo
+	consumerOptions *consumerOptions
 }
 
 func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*APIService, error) {
@@ -45,9 +45,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		return nil, err
 	}
 
-	destinationModel := models.NewDestinationModel(
-		models.DestinationModelWithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
-	)
+	metadataRepo := models.NewMetadataRepo(redisClient, models.NewAESCipher(cfg.EncryptionSecret))
 	router := NewRouter(
 		RouterConfig{
 			Hostname:  cfg.Hostname,
@@ -56,9 +54,8 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		},
 		logger,
 		redisClient,
-		models.NewTenantModel(),
-		destinationModel,
 		deliveryMQ,
+		metadataRepo,
 	)
 
 	service := &APIService{}
@@ -68,9 +65,9 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: router,
 	}
-	service.destinationModel = destinationModel
 	service.publishMQ = publishmq.New(publishmq.WithQueue(cfg.PublishQueueConfig))
 	service.deliveryMQ = deliveryMQ
+	service.metadataRepo = metadataRepo
 	service.consumerOptions = &consumerOptions{
 		concurreny: cfg.PublishMaxConcurrency,
 	}

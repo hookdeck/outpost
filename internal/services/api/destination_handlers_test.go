@@ -16,22 +16,27 @@ import (
 	"github.com/hookdeck/EventKit/internal/redis"
 	api "github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func baseTenantPath(id string) string {
 	return "/" + id
 }
 
-func setupExistingTenant(t *testing.T, redisClient *redis.Client) string {
+func setupTestMetadataRepo(_ *testing.T, redisClient *redis.Client, cipher models.Cipher) models.MetadataRepo {
+	if cipher == nil {
+		cipher = models.NewAESCipher("secret")
+	}
+	return models.NewMetadataRepo(redisClient, cipher)
+}
+
+func setupExistingTenant(t *testing.T, metadataRepo models.MetadataRepo) string {
 	tenant := models.Tenant{
 		ID:        uuid.New().String(),
 		CreatedAt: time.Now(),
 	}
-	model := models.NewTenantModel()
-	err := model.Set(context.Background(), redisClient, tenant)
-	if err != nil {
-		t.Fatal(err)
-	}
+	err := metadataRepo.UpsertTenant(context.Background(), tenant)
+	require.Nil(t, err)
 	return tenant.ID
 }
 
@@ -42,7 +47,8 @@ func TestDestinationListHandler(t *testing.T) {
 
 	t.Run("should return empty list", func(t *testing.T) {
 		t.Parallel()
-		tenantID := setupExistingTenant(t, redisClient)
+		metadataRepo := setupTestMetadataRepo(t, redisClient, nil)
+		tenantID := setupExistingTenant(t, metadataRepo)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", baseTenantPath(tenantID)+"/destinations", nil)
 		router.ServeHTTP(w, req)
@@ -54,7 +60,8 @@ func TestDestinationListHandler(t *testing.T) {
 		t.Parallel()
 
 		// Arrange
-		tenantID := setupExistingTenant(t, redisClient)
+		metadataRepo := setupTestMetadataRepo(t, redisClient, nil)
+		tenantID := setupExistingTenant(t, metadataRepo)
 		inputDestination := models.Destination{
 			Type:       "webhooks",
 			Topics:     []string{"user.created", "user.updated"},
@@ -62,7 +69,6 @@ func TestDestinationListHandler(t *testing.T) {
 			DisabledAt: nil,
 			TenantID:   tenantID,
 		}
-		destinationModel := models.NewDestinationModel()
 		ids := make([]string, 5)
 		timestamps := make([]time.Time, 5)
 		for i := 0; i < 5; i++ {
@@ -70,7 +76,7 @@ func TestDestinationListHandler(t *testing.T) {
 			timestamps[i] = time.Now()
 			inputDestination.ID = ids[i]
 			inputDestination.CreatedAt = timestamps[i]
-			destinationModel.Set(context.Background(), redisClient, inputDestination)
+			metadataRepo.UpsertDestination(context.Background(), inputDestination)
 		}
 
 		// Act
@@ -99,7 +105,8 @@ func TestDestinationCreateHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	tenantID := setupExistingTenant(t, redisClient)
+	metadataRepo := setupTestMetadataRepo(t, redisClient, nil)
+	tenantID := setupExistingTenant(t, metadataRepo)
 
 	t.Run("should create", func(t *testing.T) {
 		t.Parallel()
@@ -172,8 +179,8 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	model := models.NewDestinationModel()
-	tenantID := setupExistingTenant(t, redisClient)
+	metadataRepo := setupTestMetadataRepo(t, redisClient, nil)
+	tenantID := setupExistingTenant(t, metadataRepo)
 
 	t.Run("should return 404 when there's no destination", func(t *testing.T) {
 		t.Parallel()
@@ -198,7 +205,7 @@ func TestDestinationRetrieveHandler(t *testing.T) {
 			CreatedAt:   time.Now(),
 			TenantID:    tenantID,
 		}
-		model.Set(context.Background(), redisClient, exampleDestination)
+		metadataRepo.UpsertDestination(context.Background(), exampleDestination)
 
 		// Test HTTP request
 		w := httptest.NewRecorder()
@@ -223,8 +230,8 @@ func TestDestinationUpdateHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	model := models.NewDestinationModel()
-	tenantID := setupExistingTenant(t, redisClient)
+	metadataRepo := setupTestMetadataRepo(t, redisClient, nil)
+	tenantID := setupExistingTenant(t, metadataRepo)
 
 	initialDestination := models.Destination{
 		Type:        "webhooks",
@@ -265,7 +272,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 
 		destination := initialDestination
 		destination.ID = uuid.New().String()
-		model.Set(context.Background(), redisClient, destination)
+		metadataRepo.UpsertDestination(context.Background(), destination)
 
 		invalidRequest := api.UpdateDestinationRequest{
 			Type: "invalid",
@@ -285,7 +292,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		// Setup initial destination
 		destination := initialDestination
 		destination.ID = uuid.New().String()
-		model.Set(context.Background(), redisClient, destination)
+		metadataRepo.UpsertDestination(context.Background(), destination)
 
 		// Test HTTP request
 		w := httptest.NewRecorder()
@@ -311,7 +318,7 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		// Setup initial destination
 		destination := initialDestination
 		destination.ID = uuid.New().String()
-		model.Set(context.Background(), redisClient, destination)
+		metadataRepo.UpsertDestination(context.Background(), destination)
 
 		// Test HTTP request
 		updated := api.UpdateDestinationRequest{
@@ -353,8 +360,8 @@ func TestDestinationDeleteHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	model := models.NewDestinationModel()
-	tenantID := setupExistingTenant(t, redisClient)
+	metadataRepo := setupTestMetadataRepo(t, redisClient, nil)
+	tenantID := setupExistingTenant(t, metadataRepo)
 
 	t.Run("should return 404 when there's no destination", func(t *testing.T) {
 		t.Parallel()
@@ -379,7 +386,7 @@ func TestDestinationDeleteHandler(t *testing.T) {
 			CreatedAt:   time.Now(),
 			TenantID:    tenantID,
 		}
-		model.Set(context.Background(), redisClient, newDestination)
+		metadataRepo.UpsertDestination(context.Background(), newDestination)
 
 		// Test HTTP request
 		w := httptest.NewRecorder()

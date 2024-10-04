@@ -8,6 +8,9 @@ import (
 	"github.com/hookdeck/EventKit/internal/redis"
 )
 
+// TODO: get this from config
+const MAX_DESTINATIONS_PER_TENANT = 100
+
 type MetadataRepo interface {
 	RetrieveTenant(ctx context.Context, tenantID string) (*Tenant, error)
 	UpsertTenant(ctx context.Context, tenant Tenant) error
@@ -17,6 +20,14 @@ type MetadataRepo interface {
 	UpsertDestination(ctx context.Context, destination Destination) error
 	DeleteDestination(ctx context.Context, tenantID, destinationID string) error
 	DeleteManyDestination(ctx context.Context, tenantID string, destinationIDs ...string) (int64, error)
+}
+
+func redisTenantID(tenantID string) string {
+	return fmt.Sprintf("tenant:%s", tenantID)
+}
+
+func redisDestinationID(destinationID, tenantID string) string {
+	return fmt.Sprintf("tenant:%s:destination:%s", tenantID, destinationID)
 }
 
 type metadataImpl struct {

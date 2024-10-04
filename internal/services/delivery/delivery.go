@@ -48,14 +48,15 @@ func NewService(ctx context.Context,
 	}
 
 	if handler == nil {
-		destinationModel := models.NewDestinationModel(
-			models.DestinationModelWithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
+		metadataRepo := models.NewMetadataRepo(
+			redisClient,
+			models.NewAESCipher(cfg.EncryptionSecret),
 		)
 		handler = deliverymq.NewMessageHandler(
 			logger,
 			redisClient,
-			destinationModel,
 			logMQ,
+			metadataRepo,
 		)
 	}
 

@@ -12,7 +12,7 @@ import (
 
 func (s *APIService) SubscribePublishMQ(ctx context.Context, subscription mqs.Subscription, concurrency int) {
 	messageHandler := publishmq.NewMessageHandler(
-		publishmq.NewEventHandler(s.logger, s.redisClient, s.deliveryMQ, s.destinationModel),
+		publishmq.NewEventHandler(s.logger, s.redisClient, s.deliveryMQ, s.metadataRepo),
 	)
 	csm := consumer.New(subscription, messageHandler,
 		consumer.WithConcurrency(concurrency),

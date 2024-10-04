@@ -6,32 +6,25 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/EventKit/internal/models"
-	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
 type TenantHandlers struct {
-	logger           *otelzap.Logger
-	jwtSecret        string
-	redisClient      *redis.Client
-	tenantModel      *models.TenantModel
-	destinationModel *models.DestinationModel
+	logger       *otelzap.Logger
+	jwtSecret    string
+	metadataRepo models.MetadataRepo
 }
 
 func NewTenantHandlers(
 	logger *otelzap.Logger,
 	jwtSecret string,
-	redisClient *redis.Client,
-	tenantModel *models.TenantModel,
-	destinationModel *models.DestinationModel,
+	metadataRepo models.MetadataRepo,
 ) *TenantHandlers {
 	return &TenantHandlers{
-		logger:           logger,
-		jwtSecret:        jwtSecret,
-		redisClient:      redisClient,
-		tenantModel:      tenantModel,
-		destinationModel: destinationModel,
+		logger:       logger,
+		jwtSecret:    jwtSecret,
+		metadataRepo: metadataRepo,
 	}
 }
 
@@ -40,7 +33,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	tenantID := c.Param("tenantID")
 
 	// Check existing tenant.
-	tenant, err := h.tenantModel.Get(c.Request.Context(), h.redisClient, tenantID)
+	tenant, err := h.metadataRepo.RetrieveTenant(c.Request.Context(), tenantID)
 	if err != nil {
 		logger.Error("failed to get tenant", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -58,7 +51,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 		ID:        tenantID,
 		CreatedAt: time.Now(),
 	}
-	if err := h.tenantModel.Set(c.Request.Context(), h.redisClient, *tenant); err != nil {
+	if err := h.metadataRepo.UpsertTenant(c.Request.Context(), *tenant); err != nil {
 		logger.Error("failed to set tenant", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
 		return
@@ -75,21 +68,18 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 	logger := h.logger.Ctx(c.Request.Context())
 	tenantID := c.Param("tenantID")
 
-	pipe := h.redisClient.TxPipeline()
-
 	// Delete tenant.
-	err := h.tenantModel.Clear(c.Request.Context(), pipe, tenantID)
+	err := h.metadataRepo.DeleteTenant(c.Request.Context(), tenantID)
 	if err != nil {
-		pipe.Discard()
 		logger.Error("failed to delete tenant", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
 		return
 	}
 
+	// TODO: move this logic into models.MetadataRepo.DeleteTenant
 	// Delete associated destinations.
-	destinations, err := h.destinationModel.List(c.Request.Context(), h.redisClient, tenantID)
+	destinations, err := h.metadataRepo.ListDestinationByTenant(c.Request.Context(), tenantID)
 	if err != nil {
-		pipe.Discard()
 		logger.Error("failed to list destinations", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
 		return
@@ -99,20 +89,12 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 		for i, destination := range destinations {
 			destinationIDs[i] = destination.ID
 		}
-		_, err = h.destinationModel.ClearMany(c.Request.Context(), pipe, tenantID, destinationIDs...)
+		_, err = h.metadataRepo.DeleteManyDestination(c.Request.Context(), tenantID, destinationIDs...)
 		if err != nil {
-			pipe.Discard()
 			logger.Error("failed to delete destinations", zap.Error(err))
 			c.Status(http.StatusInternalServerError)
 			return
 		}
-	}
-
-	_, err = pipe.Exec(c.Request.Context())
-	if err != nil {
-		logger.Error("failed to execute transaction", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
-		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true})

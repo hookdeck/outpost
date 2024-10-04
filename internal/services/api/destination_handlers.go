@@ -9,28 +9,25 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/models"
-	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
 type DestinationHandlers struct {
-	logger      *otelzap.Logger
-	redisClient *redis.Client
-	model       *models.DestinationModel
+	logger       *otelzap.Logger
+	metadataRepo models.MetadataRepo
 }
 
-func NewDestinationHandlers(logger *otelzap.Logger, redisClient *redis.Client, model *models.DestinationModel) *DestinationHandlers {
+func NewDestinationHandlers(logger *otelzap.Logger, metadataRepo models.MetadataRepo) *DestinationHandlers {
 	return &DestinationHandlers{
-		logger:      logger,
-		redisClient: redisClient,
-		model:       model,
+		logger:       logger,
+		metadataRepo: metadataRepo,
 	}
 }
 
 // TODO: support type & topics params
 func (h *DestinationHandlers) List(c *gin.Context) {
-	destinations, err := h.model.List(c.Request.Context(), h.redisClient, c.Param("tenantID"))
+	destinations, err := h.metadataRepo.ListDestinationByTenant(c.Request.Context(), c.Param("tenantID"))
 	if err != nil {
 		h.logger.Ctx(c.Request.Context()).Error("failed to list destinations", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -56,7 +53,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		DisabledAt:  nil,
 		TenantID:    c.Param("tenantID"),
 	}
-	if err := h.model.Set(c.Request.Context(), h.redisClient, destination); err != nil {
+	if err := h.metadataRepo.UpsertDestination(c.Request.Context(), destination); err != nil {
 		if strings.Contains(err.Error(), "validation failed") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -71,7 +68,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 func (h *DestinationHandlers) Retrieve(c *gin.Context) {
 	tenantID := c.Param("tenantID")
 	destinationID := c.Param("destinationID")
-	destination, err := h.model.Get(c.Request.Context(), h.redisClient, destinationID, tenantID)
+	destination, err := h.metadataRepo.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
 		log.Println(err)
 		c.Status(http.StatusInternalServerError)
@@ -97,7 +94,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	// Get destination.
 	tenantID := c.Param("tenantID")
 	destinationID := c.Param("destinationID")
-	destination, err := h.model.Get(c.Request.Context(), h.redisClient, destinationID, tenantID)
+	destination, err := h.metadataRepo.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
 		logger.Error("failed to get destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -121,7 +118,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	if json.Credentials != nil {
 		destination.Credentials = json.Credentials
 	}
-	if err := h.model.Set(c.Request.Context(), h.redisClient, *destination); err != nil {
+	if err := h.metadataRepo.UpsertDestination(c.Request.Context(), *destination); err != nil {
 		if strings.Contains(err.Error(), "validation failed") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -136,7 +133,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 func (h *DestinationHandlers) Delete(c *gin.Context) {
 	tenantID := c.Param("tenantID")
 	destinationID := c.Param("destinationID")
-	destination, err := h.model.Get(c.Request.Context(), h.redisClient, destinationID, tenantID)
+	destination, err := h.metadataRepo.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
 		h.logger.Ctx(c.Request.Context()).Error("failed to get destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -146,7 +143,7 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 		return
 	}
-	err = h.model.Clear(c.Request.Context(), h.redisClient, destinationID, tenantID)
+	err = h.metadataRepo.DeleteDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
 		h.logger.Ctx(c.Request.Context()).Error("failed to clear destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)

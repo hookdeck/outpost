@@ -21,9 +21,8 @@ func NewRouter(
 	cfg RouterConfig,
 	logger *otelzap.Logger,
 	redisClient *redis.Client,
-	tenantModel *models.TenantModel,
-	destinationModel *models.DestinationModel,
 	deliveryMQ *deliverymq.DeliveryMQ,
+	metadataRepo models.MetadataRepo,
 ) http.Handler {
 	r := gin.Default()
 	r.Use(otelgin.Middleware(cfg.Hostname))
@@ -32,9 +31,9 @@ func NewRouter(
 		c.Status(http.StatusOK)
 	})
 
-	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, redisClient, tenantModel, destinationModel)
-	destinationHandlers := NewDestinationHandlers(logger, redisClient, destinationModel)
-	publishHandlers := NewPublishHandlers(logger, redisClient, deliveryMQ, destinationModel)
+	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, metadataRepo)
+	destinationHandlers := NewDestinationHandlers(logger, metadataRepo)
+	publishHandlers := NewPublishHandlers(logger, redisClient, deliveryMQ, metadataRepo)
 
 	// Admin router is a router group with the API key auth mechanism.
 	adminRouter := r.Group("/", APIKeyAuthMiddleware(cfg.APIKey))
@@ -51,7 +50,7 @@ func NewRouter(
 	// and the JWT check is NOT necessary either.
 	tenantRouter := r.Group("/",
 		APIKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret),
-		RequireTenantMiddleware(logger, redisClient, tenantModel),
+		RequireTenantMiddleware(logger, metadataRepo),
 	)
 
 	tenantRouter.GET("/:tenantID", tenantHandlers.Retrieve)

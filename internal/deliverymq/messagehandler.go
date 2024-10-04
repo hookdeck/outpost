@@ -18,23 +18,26 @@ import (
 )
 
 type messageHandler struct {
-	logger           *otelzap.Logger
-	redisClient      *redis.Client
-	destinationModel *models.DestinationModel
-	logMQ            *logmq.LogMQ
-	idempotence      idempotence.Idempotence
-	tracer           eventtracer.EventTracer
+	tracer       eventtracer.EventTracer
+	logger       *otelzap.Logger
+	logMQ        *logmq.LogMQ
+	metadataRepo models.MetadataRepo
+	idempotence  idempotence.Idempotence
 }
 
 var _ consumer.MessageHandler = (*messageHandler)(nil)
 
-func NewMessageHandler(logger *otelzap.Logger, redisClient *redis.Client, destinationModel *models.DestinationModel, logMQ *logmq.LogMQ) consumer.MessageHandler {
+func NewMessageHandler(
+	logger *otelzap.Logger,
+	redisClient *redis.Client,
+	logMQ *logmq.LogMQ,
+	metadataRepo models.MetadataRepo,
+) consumer.MessageHandler {
 	return &messageHandler{
-		tracer:           eventtracer.NewEventTracer(),
-		logger:           logger,
-		redisClient:      redisClient,
-		destinationModel: destinationModel,
-		logMQ:            logMQ,
+		tracer:       eventtracer.NewEventTracer(),
+		logger:       logger,
+		logMQ:        logMQ,
+		metadataRepo: metadataRepo,
 		idempotence: idempotence.New(redisClient,
 			idempotence.WithTimeout(5*time.Second),
 			idempotence.WithSuccessfulTTL(24*time.Hour),

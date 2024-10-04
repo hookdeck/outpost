@@ -41,7 +41,7 @@ func TestIntegrationAPIService_PublishMQConsumer(t *testing.T) {
 		Password: redisConfig.Password,
 		DB:       redisConfig.Database,
 	})
-	destinationModel := models.NewDestinationModel()
+	metadataRepo := setupTestMetadataRepo(t, redisClient, nil)
 	destination := models.Destination{
 		ID:       uuid.New().String(),
 		TenantID: uuid.New().String(),
@@ -54,7 +54,7 @@ func TestIntegrationAPIService_PublishMQConsumer(t *testing.T) {
 		CreatedAt:   time.Now(),
 		DisabledAt:  nil,
 	}
-	destinationModel.Set(ctx, redisClient, destination)
+	metadataRepo.UpsertDestination(ctx, destination)
 
 	wg := &sync.WaitGroup{}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -65,6 +65,7 @@ func TestIntegrationAPIService_PublishMQConsumer(t *testing.T) {
 			PublishQueueConfig:    &publishQueueConfig,
 			DeliveryQueueConfig:   &deliveryQueueConfig,
 			PublishMaxConcurrency: 1,
+			EncryptionSecret:      "secret",
 		},
 		testutil.CreateTestLogger(t),
 	)

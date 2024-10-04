@@ -9,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
-	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
@@ -31,9 +30,8 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *ote
 		},
 		logger,
 		redisClient,
-		models.NewTenantModel(),
-		models.NewDestinationModel(),
 		deliveryMQ,
+		setupTestMetadataRepo(t, redisClient, nil),
 	)
 	return router, logger, redisClient
 }

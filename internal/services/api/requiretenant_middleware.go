@@ -5,15 +5,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/EventKit/internal/models"
-	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
-func RequireTenantMiddleware(logger *otelzap.Logger, cmdable redis.Cmdable, model *models.TenantModel) gin.HandlerFunc {
+func RequireTenantMiddleware(logger *otelzap.Logger, metadataRepo models.MetadataRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantID := c.Param("tenantID")
-		tenant, err := model.Get(c.Request.Context(), cmdable, tenantID)
+		tenant, err := metadataRepo.RetrieveTenant(c.Request.Context(), tenantID)
 		if err != nil {
 			logger.Error("failed to get tenant", zap.Error(err))
 			c.AbortWithStatus(http.StatusInternalServerError)

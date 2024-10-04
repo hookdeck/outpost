@@ -18,25 +18,28 @@ type EventHandler interface {
 }
 
 type eventHandler struct {
-	tracer           eventtracer.EventTracer
-	logger           *otelzap.Logger
-	redisClient      *redis.Client
-	idempotence      idempotence.Idempotence
-	deliveryMQ       *deliverymq.DeliveryMQ
-	destinationModel *models.DestinationModel
+	tracer       eventtracer.EventTracer
+	logger       *otelzap.Logger
+	idempotence  idempotence.Idempotence
+	deliveryMQ   *deliverymq.DeliveryMQ
+	metadataRepo models.MetadataRepo
 }
 
-func NewEventHandler(logger *otelzap.Logger, redisClient *redis.Client, deliveryMQ *deliverymq.DeliveryMQ, destinationModel *models.DestinationModel) EventHandler {
+func NewEventHandler(
+	logger *otelzap.Logger,
+	redisClient *redis.Client,
+	deliveryMQ *deliverymq.DeliveryMQ,
+	metadataRepo models.MetadataRepo,
+) EventHandler {
 	return &eventHandler{
-		tracer:      eventtracer.NewEventTracer(),
-		logger:      logger,
-		redisClient: redisClient,
+		tracer: eventtracer.NewEventTracer(),
+		logger: logger,
 		idempotence: idempotence.New(redisClient,
 			idempotence.WithTimeout(5*time.Second),
 			idempotence.WithSuccessfulTTL(24*time.Hour),
 		),
-		deliveryMQ:       deliveryMQ,
-		destinationModel: destinationModel,
+		deliveryMQ:   deliveryMQ,
+		metadataRepo: metadataRepo,
 	}
 }
 
@@ -54,7 +57,7 @@ func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error 
 	_, span := h.tracer.Receive(ctx, event)
 	defer span.End()
 
-	destinations, err := h.destinationModel.List(ctx, h.redisClient, event.TenantID)
+	destinations, err := h.metadataRepo.ListDestinationByTenant(ctx, event.TenantID)
 	if err != nil {
 		return err
 	}

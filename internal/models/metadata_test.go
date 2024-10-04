@@ -252,3 +252,13 @@ func testMetadataRepoDestinationCredentialsEncryption(t *testing.T, redisClient 
 	jsonCredentials, _ := json.Marshal(input.Credentials)
 	assert.Equal(t, string(jsonCredentials), string(decryptedCredentials))
 }
+
+func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
+	assert.Equal(t, expected.ID, actual.ID)
+	assert.Equal(t, expected.Type, actual.Type)
+	assert.Equal(t, expected.Topics, actual.Topics)
+	assert.Equal(t, expected.Config, actual.Config)
+	assert.Equal(t, expected.Credentials, actual.Credentials)
+	assert.True(t, cmp.Equal(expected.CreatedAt, actual.CreatedAt))
+	assert.True(t, cmp.Equal(expected.DisabledAt, actual.DisabledAt))
+}
