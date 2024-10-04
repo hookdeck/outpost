@@ -190,6 +190,36 @@ func (m *DestinationModel) parse(_ context.Context, tenantID string, cmd *redis.
 	return destination, nil
 }
 
+func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Cipher) error {
+	hash, err := cmd.Result()
+	if err != nil {
+		return err
+	}
+	if len(hash) == 0 {
+		return redis.Nil
+	}
+	if err = cmd.Scan(d); err != nil {
+		return err
+	}
+	err = d.Topics.UnmarshalBinary([]byte(hash["topics"]))
+	if err != nil {
+		return fmt.Errorf("invalid topics: %w", err)
+	}
+	err = d.Config.UnmarshalBinary([]byte(hash["config"]))
+	if err != nil {
+		return fmt.Errorf("invalid config: %w", err)
+	}
+	credentialsBytes, err := cipher.Decrypt([]byte(hash["credentials"]))
+	if err != nil {
+		return fmt.Errorf("invalid credentials: %w", err)
+	}
+	err = d.Credentials.UnmarshalBinary(credentialsBytes)
+	if err != nil {
+		return fmt.Errorf("invalid credentials: %w", err)
+	}
+	return nil
+}
+
 func redisDestinationID(destinationID, tenantID string) string {
 	return fmt.Sprintf("tenant:%s:destination:%s", tenantID, destinationID)
 }
