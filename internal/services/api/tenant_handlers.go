@@ -110,7 +110,15 @@ func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
+
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+
+	portalURL := scheme + "://" + c.Request.Host + "?token=" + jwtToken
+
 	c.JSON(http.StatusOK, gin.H{
-		"redirect_url": "https://example.com?token=" + jwtToken,
+		"redirect_url": portalURL,
 	})
 }
