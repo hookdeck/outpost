@@ -44,7 +44,7 @@ func NewRouter(
 	adminRouter := apiRouter.Group("/", APIKeyAuthMiddleware(cfg.APIKey))
 
 	adminRouter.PUT("/:tenantID", tenantHandlers.Upsert)
-	adminRouter.GET("/:tenantID/portal", tenantHandlers.RetrievePortal)
+	adminRouter.GET("/:tenantID/portal", RequireTenantMiddleware(logger, metadataRepo), tenantHandlers.RetrievePortal)
 
 	// Tenant router is a router group that accepts either
 	// - a tenant's JWT token OR
