@@ -1,14 +1,12 @@
 package models
 
 import (
-	"context"
 	"encoding"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/clickhouse"
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
 	"github.com/hookdeck/EventKit/internal/mqs"
 )
@@ -102,77 +100,6 @@ func NewDeliveryEvent(event Event, destination Destination) DeliveryEvent {
 	}
 }
 
-// ============================== Model ==============================
-
-type EventModel struct{}
-
-func NewEventModel() *EventModel {
-	return &EventModel{}
-}
-
-func (m *EventModel) InsertMany(ctx context.Context, conn clickhouse.DB, events []*Event) error {
-	batch, err := conn.PrepareBatch(ctx,
-		"INSERT INTO eventkit.events (id, tenant_id, destination_id, time, topic, data) VALUES (?, ?, ?, ?, ?)",
-	)
-	if err != nil {
-		return err
-	}
-
-	for _, event := range events {
-		if err := batch.Append(
-			&event.ID,
-			&event.TenantID,
-			&event.DestinationID,
-			&event.Time,
-			&event.Topic,
-			&event.Data,
-		); err != nil {
-			return err
-		}
-	}
-
-	if err := batch.Send(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (m *EventModel) List(ctx context.Context, conn clickhouse.DB) ([]*Event, error) {
-	rows, err := conn.Query(ctx, `
-		SELECT
-			id,
-			tenant_id,
-			destination_id,
-			time,
-			topic,
-			data
-		FROM eventkit.events
-	`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var events []*Event
-	for rows.Next() {
-		event := &Event{}
-		if err := rows.Scan(
-			&event.ID,
-			&event.TenantID,
-			&event.DestinationID,
-			&event.Time,
-			&event.Topic,
-			&event.Data,
-		); err != nil {
-			return nil, err
-		}
-		events = append(events, event)
-	}
-
-	return events, nil
-}
-
 const (
 	DeliveryStatusOK     = "ok"
 	DeliveryStatusFailed = "failed"
@@ -185,38 +112,4 @@ type Delivery struct {
 	DestinationID   string
 	Status          string
 	Time            time.Time
-}
-
-type DeliveryModel struct{}
-
-func NewDeliveryModel() *DeliveryModel {
-	return &DeliveryModel{}
-}
-
-func (m *DeliveryModel) InsertMany(ctx context.Context, conn clickhouse.DB, delivery []*Delivery) error {
-	batch, err := conn.PrepareBatch(ctx,
-		"INSERT INTO eventkit.deliveries (id, delivery_event_id, event_id, destination_id, status, time) VALUES (?, ?, ?, ?, ?, ?)",
-	)
-	if err != nil {
-		return err
-	}
-
-	for _, d := range delivery {
-		if err := batch.Append(
-			&d.ID,
-			&d.DeliveryEventID,
-			&d.EventID,
-			&d.DestinationID,
-			&d.Status,
-			&d.Time,
-		); err != nil {
-			return err
-		}
-	}
-
-	if err := batch.Send(); err != nil {
-		return err
-	}
-
-	return nil
 }

@@ -52,7 +52,7 @@ func NewService(ctx context.Context,
 	var eventBatcher *batcher.Batcher[*models.Event]
 	var deliveryBatcher *batcher.Batcher[*models.Delivery]
 	if handler == nil {
-		batcher, err := makeBatcher(ctx, logger, chDB, models.NewEventModel(), models.NewDeliveryModel())
+		batcher, err := makeBatcher(ctx, logger, models.NewLogRepo(chDB))
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +104,7 @@ func (s *LogService) Run(ctx context.Context) error {
 	return nil
 }
 
-func makeBatcher(ctx context.Context, logger *otelzap.Logger, chDB clickhouse.DB, eventModel *models.EventModel, deliveryModel *models.DeliveryModel) (*batcher.Batcher[*mqs.Message], error) {
+func makeBatcher(ctx context.Context, logger *otelzap.Logger, logRepo models.LogRepo) (*batcher.Batcher[*mqs.Message], error) {
 	b, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
 		GroupCountThreshold: 2,
 		ItemCountThreshold:  100,
@@ -142,10 +142,10 @@ func makeBatcher(ctx context.Context, logger *otelzap.Logger, chDB clickhouse.DB
 				}
 			}
 
-			err := eventModel.InsertMany(ctx, chDB, uniqueEvents)
+			err := logRepo.InsertManyEvent(ctx, uniqueEvents)
 			if err != nil {
 				// TODO: error handle
-				log.Println("eventModel.InsertMany err", err)
+				log.Println("logRepo.InsertManyEvent err", err)
 				nackAll()
 				return
 			}
@@ -161,10 +161,10 @@ func makeBatcher(ctx context.Context, logger *otelzap.Logger, chDB clickhouse.DB
 				}
 			}
 
-			err = deliveryModel.InsertMany(ctx, chDB, uniqueDeliveries)
+			err = logRepo.InsertManyDelivery(ctx, uniqueDeliveries)
 			if err != nil {
 				// TODO: error handle
-				log.Println("deliveryModel.InsertMany err", err)
+				log.Println("logRepo.InsertManyDelivery err", err)
 				nackAll()
 				return
 			}
