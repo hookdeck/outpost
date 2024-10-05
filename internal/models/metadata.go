@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/hookdeck/EventKit/internal/redis"
@@ -20,10 +21,15 @@ type MetadataRepo interface {
 	UpsertDestination(ctx context.Context, destination Destination) error
 	DeleteDestination(ctx context.Context, tenantID, destinationID string) error
 	DeleteManyDestination(ctx context.Context, tenantID string, destinationIDs ...string) (int64, error)
+	MatchEvent(ctx context.Context, event Event) ([]DestinationSummary, error)
 }
 
 func redisTenantID(tenantID string) string {
 	return fmt.Sprintf("tenant:%s", tenantID)
+}
+
+func redisTenantDestinationSummaryKey(tenantID string) string {
+	return fmt.Sprintf("tenant:%s:destinations", tenantID)
 }
 
 func redisDestinationID(destinationID, tenantID string) string {
@@ -118,7 +124,7 @@ func (m *metadataImpl) UpsertDestination(ctx context.Context, destination Destin
 		return fmt.Errorf("validation failed: %w", err)
 	}
 	key := redisDestinationID(destination.ID, destination.TenantID)
-	_, err = m.redisClient.Pipelined(ctx, func(r redis.Pipeliner) error {
+	_, err = m.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
 		credentialsBytes, err := destination.Credentials.MarshalBinary()
 		if err != nil {
 			return err
@@ -137,6 +143,7 @@ func (m *metadataImpl) UpsertDestination(ctx context.Context, destination Destin
 		if destination.DisabledAt != nil {
 			r.HSet(ctx, key, "disabled_at", destination.DisabledAt)
 		}
+		r.LPush(ctx, redisTenantDestinationSummaryKey(destination.TenantID), destination.ToSummary())
 		return nil
 	})
 	return err
@@ -155,4 +162,33 @@ func (m *metadataImpl) DeleteManyDestination(ctx context.Context, tenantID strin
 		keys[i] = redisDestinationID(destinationID, tenantID)
 	}
 	return m.redisClient.Del(ctx, keys...).Result()
+}
+
+func (m *metadataImpl) MatchEvent(ctx context.Context, event Event) ([]DestinationSummary, error) {
+	destinationSummaryStrs, err := m.redisClient.LRange(ctx, redisTenantDestinationSummaryKey(event.TenantID), 0, -1).Result()
+	if err != nil {
+		return nil, err
+	}
+	destinationSummaryList := make([]DestinationSummary, len(destinationSummaryStrs))
+	for i, destinationSummaryStr := range destinationSummaryStrs {
+		destinationSummary := DestinationSummary{}
+		if err := destinationSummary.UnmarshalBinary([]byte(destinationSummaryStr)); err != nil {
+			return nil, err
+		}
+		destinationSummaryList[i] = destinationSummary
+	}
+
+	if event.Topic == "" {
+		return destinationSummaryList, nil
+	}
+
+	matchedDestinationSummaryList := []DestinationSummary{}
+
+	for _, destinationSummary := range destinationSummaryList {
+		if destinationSummary.Topics[0] == "*" || slices.Contains(destinationSummary.Topics, event.Topic) {
+			matchedDestinationSummaryList = append(matchedDestinationSummaryList, destinationSummary)
+		}
+	}
+
+	return matchedDestinationSummaryList, nil
 }

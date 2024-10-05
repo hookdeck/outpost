@@ -262,3 +262,74 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assert.True(t, cmp.Equal(expected.CreatedAt, actual.CreatedAt))
 	assert.True(t, cmp.Equal(expected.DisabledAt, actual.DisabledAt))
 }
+
+func TestMetadataRepo_MatchEvent(t *testing.T) {
+	t.Parallel()
+
+	var err error
+	redisClient := testutil.CreateTestRedisClient(t)
+	// redisClient, err := redis.New(context.Background(), &redis.RedisConfig{
+	// 	Host:     "localhost",
+	// 	Port:     6379,
+	// 	Password: "password",
+	// 	Database: 0,
+	// })
+	// require.Nil(t, err)
+	metadataRepo := models.NewMetadataRepo(redisClient, models.NewAESCipher("secret"))
+
+	tenant := models.Tenant{
+		ID:        uuid.New().String(),
+		CreatedAt: time.Now(),
+	}
+
+	err = metadataRepo.UpsertTenant(context.Background(), tenant)
+	require.Nil(t, err)
+
+	err = metadataRepo.UpsertDestination(context.Background(),
+		mockDestinationFactory.Any(
+			mockDestinationFactory.WithID("1"),
+			mockDestinationFactory.WithTenantID(tenant.ID),
+			mockDestinationFactory.WithTopics([]string{"*"}),
+		),
+	)
+	require.Nil(t, err)
+	err = metadataRepo.UpsertDestination(context.Background(),
+		mockDestinationFactory.Any(
+			mockDestinationFactory.WithID("2"),
+			mockDestinationFactory.WithTenantID(tenant.ID),
+			mockDestinationFactory.WithTopics([]string{"user.created", "user.updated"}),
+		),
+	)
+	require.Nil(t, err)
+	err = metadataRepo.UpsertDestination(context.Background(),
+		mockDestinationFactory.Any(
+			mockDestinationFactory.WithID("3"),
+			mockDestinationFactory.WithTenantID(tenant.ID),
+			mockDestinationFactory.WithTopics([]string{"user.created"}),
+		),
+	)
+	require.Nil(t, err)
+	err = metadataRepo.UpsertDestination(context.Background(),
+		mockDestinationFactory.Any(
+			mockDestinationFactory.WithID("4"),
+			mockDestinationFactory.WithTenantID(tenant.ID),
+			mockDestinationFactory.WithTopics([]string{"user.updated"}),
+		),
+	)
+	require.Nil(t, err)
+
+	event := models.Event{
+		ID:       uuid.New().String(),
+		Topic:    "user.created",
+		Time:     time.Now(),
+		TenantID: tenant.ID,
+		Metadata: map[string]string{},
+		Data:     map[string]interface{}{},
+	}
+	matchedDestinationSummaryList, err := metadataRepo.MatchEvent(context.Background(), event)
+	require.Nil(t, err)
+	require.Len(t, matchedDestinationSummaryList, 3)
+	for _, summary := range matchedDestinationSummaryList {
+		require.Contains(t, []string{"1", "2", "3"}, summary.ID)
+	}
+}

@@ -83,6 +83,29 @@ func (d *Destination) Publish(ctx context.Context, event *Event) error {
 	)
 }
 
+type DestinationSummary struct {
+	ID     string   `json:"id"`
+	Topics []string `json:"topics"`
+}
+
+var _ encoding.BinaryMarshaler = &DestinationSummary{}
+var _ encoding.BinaryUnmarshaler = &DestinationSummary{}
+
+func (ds *DestinationSummary) MarshalBinary() ([]byte, error) {
+	return json.Marshal(ds)
+}
+
+func (ds *DestinationSummary) UnmarshalBinary(data []byte) error {
+	return json.Unmarshal(data, ds)
+}
+
+func (d *Destination) ToSummary() *DestinationSummary {
+	return &DestinationSummary{
+		ID:     d.ID,
+		Topics: d.Topics,
+	}
+}
+
 // ============================== Types ==============================
 
 type Strings []string

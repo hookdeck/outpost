@@ -85,3 +85,77 @@ func TestDestination_Validate(t *testing.T) {
 		)
 	})
 }
+
+// ============================== Mock Destination ==============================
+
+var mockDestinationFactory = &MockDestinationFactory{}
+
+type MockDestinationFactory struct {
+}
+
+func (f *MockDestinationFactory) Any(opts ...func(*models.Destination)) models.Destination {
+	destination := models.Destination{
+		ID:          uuid.New().String(),
+		Type:        "webhooks",
+		Topics:      []string{"user.created", "user.updated"},
+		Config:      map[string]string{"url": "https://example.com"},
+		Credentials: map[string]string{},
+		CreatedAt:   time.Now(),
+		TenantID:    uuid.New().String(),
+		DisabledAt:  nil,
+	}
+
+	for _, opt := range opts {
+		opt(&destination)
+	}
+
+	return destination
+}
+
+func (f *MockDestinationFactory) WithID(id string) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.ID = id
+	}
+}
+
+func (f *MockDestinationFactory) WithTenantID(tenantID string) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.TenantID = tenantID
+	}
+}
+
+func (f *MockDestinationFactory) WithType(destinationType string) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.Type = destinationType
+	}
+}
+
+func (f *MockDestinationFactory) WithTopics(topics []string) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.Topics = topics
+	}
+}
+
+func (f *MockDestinationFactory) WithConfig(config map[string]string) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.Config = config
+	}
+}
+
+func (f *MockDestinationFactory) WithCredentials(credentials map[string]string) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.Credentials = credentials
+	}
+}
+
+func (f *MockDestinationFactory) WithCreatedAt(createdAt time.Time) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.CreatedAt = createdAt
+	}
+}
+
+func (f *MockDestinationFactory) WithDisabledAt(disabledAt time.Time) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.DisabledAt = &disabledAt
+	}
+}
