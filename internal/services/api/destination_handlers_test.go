@@ -20,7 +20,7 @@ import (
 )
 
 func baseTenantPath(id string) string {
-	return "/" + id
+	return baseAPIPath + "/" + id
 }
 
 func setupTestMetadataRepo(_ *testing.T, redisClient *redis.Client, cipher models.Cipher) models.MetadataRepo {

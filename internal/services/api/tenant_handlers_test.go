@@ -25,7 +25,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		id := uuid.New().String()
-		req, _ := http.NewRequest("PUT", "/"+id, nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+id, nil)
 		router.ServeHTTP(w, req)
 
 		var response map[string]any
@@ -48,7 +48,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 
 		// Request
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", "/"+existingResource.ID, nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+existingResource.ID, nil)
 		router.ServeHTTP(w, req)
 		var response map[string]any
 		json.Unmarshal(w.Body.Bytes(), &response)
@@ -77,7 +77,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/invalid_id", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/invalid_id", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -95,7 +95,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 
 		// Request
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/"+existingResource.ID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/"+existingResource.ID, nil)
 		router.ServeHTTP(w, req)
 		var response map[string]any
 		json.Unmarshal(w.Body.Bytes(), &response)
@@ -124,7 +124,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("DELETE", "/invalid_id", nil)
+		req, _ := http.NewRequest("DELETE", baseAPIPath+"/invalid_id", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -142,7 +142,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 
 		// Request
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("DELETE", "/"+existingResource.ID, nil)
+		req, _ := http.NewRequest("DELETE", baseAPIPath+"/"+existingResource.ID, nil)
 		router.ServeHTTP(w, req)
 		var response map[string]any
 		json.Unmarshal(w.Body.Bytes(), &response)
@@ -177,7 +177,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 
 		// Request
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("DELETE", "/"+existingResource.ID, nil)
+		req, _ := http.NewRequest("DELETE", baseAPIPath+"/"+existingResource.ID, nil)
 		router.ServeHTTP(w, req)
 		var response map[string]any
 		json.Unmarshal(w.Body.Bytes(), &response)

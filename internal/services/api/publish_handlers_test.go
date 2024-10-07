@@ -33,7 +33,7 @@ func TestPublishHandlers(t *testing.T) {
 			Data:          map[string]interface{}{"key": "value"},
 		}
 		testEventJSON, _ := json.Marshal(testEvent)
-		req, _ := http.NewRequest("POST", "/publish", strings.NewReader(string(testEventJSON)))
+		req, _ := http.NewRequest("POST", baseAPIPath+"/publish", strings.NewReader(string(testEventJSON)))
 		router.ServeHTTP(w, req)
 
 		var response map[string]any

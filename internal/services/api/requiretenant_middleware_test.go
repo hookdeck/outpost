@@ -21,7 +21,7 @@ func TestRequireTenantMiddleware(t *testing.T) {
 	t.Run("should reject requests without a tenant", func(t *testing.T) {
 		t.Parallel()
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/invalid_tenant_id/destinations", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/invalid_tenant_id/destinations", nil)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
@@ -37,7 +37,7 @@ func TestRequireTenantMiddleware(t *testing.T) {
 		require.Nil(t, err)
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/"+tenant.ID+"/destinations", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenant.ID+"/destinations", nil)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
