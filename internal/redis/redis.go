@@ -14,10 +14,17 @@ const (
 	Nil = r.Nil
 )
 
-type Client = r.Client
-type Cmdable = r.Cmdable
-type Pipeliner = r.Pipeliner
-type MapStringStringCmd = r.MapStringStringCmd
+type (
+	Client             = r.Client
+	Cmdable            = r.Cmdable
+	MapStringStringCmd = r.MapStringStringCmd
+	Pipeliner          = r.Pipeliner
+	Tx                 = r.Tx
+)
+
+const (
+	TxFailedErr = r.TxFailedErr
+)
 
 var (
 	once                sync.Once

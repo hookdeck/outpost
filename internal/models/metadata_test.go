@@ -132,41 +132,6 @@ func TestMetadataRepo_DestinationCRUD(t *testing.T) {
 	})
 }
 
-func TestMetadataRepo_DeleteManyDestination(t *testing.T) {
-	t.Parallel()
-
-	redisClient := testutil.CreateTestRedisClient(t)
-	metadataRepo := models.NewMetadataRepo(redisClient, models.NewAESCipher("secret"))
-
-	t.Run("delete many", func(t *testing.T) {
-		tenantID := uuid.New().String()
-		ids := make([]string, 5)
-		for i := 0; i < 5; i++ {
-			ids[i] = uuid.New().String()
-			metadataRepo.UpsertDestination(context.Background(), models.Destination{
-				ID:          ids[i],
-				Type:        "webhooks",
-				Topics:      []string{"user.created", "user.updated"},
-				Config:      map[string]string{"url": "https://example.com"},
-				Credentials: map[string]string{},
-				CreatedAt:   time.Now(),
-				DisabledAt:  nil,
-				TenantID:    tenantID,
-			})
-		}
-
-		count, err := metadataRepo.DeleteManyDestination(context.Background(), tenantID, ids...)
-		require.Nil(t, err)
-		assert.Equal(t, int64(5), count)
-
-		for _, id := range ids {
-			actual, err := metadataRepo.RetrieveDestination(context.Background(), tenantID, id)
-			require.Nil(t, err)
-			require.Nil(t, actual)
-		}
-	})
-}
-
 func TestMetadataRepo_ListDestination(t *testing.T) {
 	t.Parallel()
 
@@ -211,6 +176,42 @@ func TestMetadataRepo_ListDestination(t *testing.T) {
 			assert.Equal(t, inputDestination.TenantID, destination.TenantID)
 		}
 	})
+}
+
+func TestMetadataRepo_DeleteTenantAndAssociatedDestinations(t *testing.T) {
+	t.Parallel()
+	redisClient := testutil.CreateTestRedisClient(t)
+	metadataRepo := models.NewMetadataRepo(redisClient, models.NewAESCipher("secret"))
+	tenant := models.Tenant{
+		ID:        uuid.New().String(),
+		CreatedAt: time.Now(),
+	}
+	// Arrange
+	require.Nil(t, metadataRepo.UpsertTenant(context.Background(), tenant))
+	destinationIDs := []string{uuid.New().String(), uuid.New().String(), uuid.New().String()}
+	require.Nil(t, metadataRepo.UpsertDestination(context.Background(), mockDestinationFactory.Any(
+		mockDestinationFactory.WithID(destinationIDs[0]),
+		mockDestinationFactory.WithTenantID(tenant.ID),
+	)))
+	require.Nil(t, metadataRepo.UpsertDestination(context.Background(), mockDestinationFactory.Any(
+		mockDestinationFactory.WithID(destinationIDs[1]),
+		mockDestinationFactory.WithTenantID(tenant.ID),
+	)))
+	require.Nil(t, metadataRepo.UpsertDestination(context.Background(), mockDestinationFactory.Any(
+		mockDestinationFactory.WithID(destinationIDs[2]),
+		mockDestinationFactory.WithTenantID(tenant.ID),
+	)))
+	require.Equal(t, int64(1), redisClient.Exists(context.Background(), "tenant:"+tenant.ID).Val())
+	require.Equal(t, int64(1), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[0]).Val())
+	require.Equal(t, int64(1), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[1]).Val())
+	require.Equal(t, int64(1), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[2]).Val())
+	// Act
+	require.Nil(t, metadataRepo.DeleteTenant(context.Background(), tenant.ID))
+	// Assert
+	assert.Equal(t, int64(0), redisClient.Exists(context.Background(), "tenant:"+tenant.ID).Val())
+	assert.Equal(t, int64(0), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[0]).Val())
+	assert.Equal(t, int64(0), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[1]).Val())
+	assert.Equal(t, int64(0), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[2]).Val())
 }
 
 func TestMetadataRepo_DestinationCredentialsEncryption(t *testing.T) {

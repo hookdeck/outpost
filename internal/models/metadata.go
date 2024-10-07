@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -20,7 +21,6 @@ type MetadataRepo interface {
 	RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*Destination, error)
 	UpsertDestination(ctx context.Context, destination Destination) error
 	DeleteDestination(ctx context.Context, tenantID, destinationID string) error
-	DeleteManyDestination(ctx context.Context, tenantID string, destinationIDs ...string) (int64, error)
 	MatchEvent(ctx context.Context, event Event) ([]DestinationSummary, error)
 }
 
@@ -70,7 +70,47 @@ func (m *metadataImpl) UpsertTenant(ctx context.Context, tenant Tenant) error {
 }
 
 func (m *metadataImpl) DeleteTenant(ctx context.Context, tenantID string) error {
-	return m.redisClient.Del(ctx, redisTenantID(tenantID)).Err()
+	maxRetries := 100
+
+	txf := func(tx *redis.Tx) error {
+		destinationSummaryStrs, err := m.redisClient.LRange(ctx, redisTenantDestinationSummaryKey(tenantID), 0, -1).Result()
+		if err != nil {
+			return err
+		}
+		destinationSummaryList := make([]DestinationSummary, len(destinationSummaryStrs))
+		for i, destinationSummaryStr := range destinationSummaryStrs {
+			destinationSummary := DestinationSummary{}
+			if err := destinationSummary.UnmarshalBinary([]byte(destinationSummaryStr)); err != nil {
+				return err
+			}
+			destinationSummaryList[i] = destinationSummary
+		}
+		_, err = m.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
+			for _, destinationSummary := range destinationSummaryList {
+				r.Del(ctx, redisDestinationID(destinationSummary.ID, tenantID))
+			}
+			r.Del(ctx, redisTenantDestinationSummaryKey(tenantID))
+			r.Del(ctx, redisTenantID(tenantID))
+			return nil
+		})
+		return err
+	}
+
+	for i := 0; i < maxRetries; i++ {
+		err := m.redisClient.Watch(ctx, txf, redisTenantDestinationSummaryKey(tenantID))
+		if err == nil {
+			// Success.
+			return nil
+		}
+		if err == redis.TxFailedErr {
+			// Optimistic lock lost. Retry.
+			continue
+		}
+		// Return any other error.
+		return err
+	}
+
+	return errors.New("increment reached maximum number of retries")
 }
 
 func (m *metadataImpl) ListDestinationByTenant(ctx context.Context, tenantID string) ([]Destination, error) {
@@ -168,17 +208,6 @@ func (m *metadataImpl) DeleteDestination(ctx context.Context, tenantID, destinat
 		return r.Del(ctx, redisDestinationID(destinationID, tenantID)).Err()
 	})
 	return err
-}
-
-func (m *metadataImpl) DeleteManyDestination(ctx context.Context, tenantID string, destinationIDs ...string) (int64, error) {
-	if len(destinationIDs) == 0 {
-		return 0, nil
-	}
-	keys := make([]string, len(destinationIDs))
-	for i, destinationID := range destinationIDs {
-		keys[i] = redisDestinationID(destinationID, tenantID)
-	}
-	return m.redisClient.Del(ctx, keys...).Result()
 }
 
 func (m *metadataImpl) MatchEvent(ctx context.Context, event Event) ([]DestinationSummary, error) {

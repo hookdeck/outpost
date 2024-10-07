@@ -67,36 +67,12 @@ func (h *TenantHandlers) Retrieve(c *gin.Context) {
 func (h *TenantHandlers) Delete(c *gin.Context) {
 	logger := h.logger.Ctx(c.Request.Context())
 	tenantID := c.Param("tenantID")
-
-	// Delete tenant.
 	err := h.metadataRepo.DeleteTenant(c.Request.Context(), tenantID)
 	if err != nil {
 		logger.Error("failed to delete tenant", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
 		return
 	}
-
-	// TODO: move this logic into models.MetadataRepo.DeleteTenant
-	// Delete associated destinations.
-	destinations, err := h.metadataRepo.ListDestinationByTenant(c.Request.Context(), tenantID)
-	if err != nil {
-		logger.Error("failed to list destinations", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
-		return
-	}
-	if len(destinations) > 0 {
-		destinationIDs := make([]string, len(destinations))
-		for i, destination := range destinations {
-			destinationIDs[i] = destination.ID
-		}
-		_, err = h.metadataRepo.DeleteManyDestination(c.Request.Context(), tenantID, destinationIDs...)
-		if err != nil {
-			logger.Error("failed to delete destinations", zap.Error(err))
-			c.Status(http.StatusInternalServerError)
-			return
-		}
-	}
-
 	c.JSON(http.StatusOK, gin.H{"success": true})
 	return
 }
