@@ -143,14 +143,31 @@ func (m *metadataImpl) UpsertDestination(ctx context.Context, destination Destin
 		if destination.DisabledAt != nil {
 			r.HSet(ctx, key, "disabled_at", destination.DisabledAt)
 		}
-		r.LPush(ctx, redisTenantDestinationSummaryKey(destination.TenantID), destination.ToSummary())
+		r.LPush(ctx, redisTenantDestinationSummaryKey(destination.TenantID), destination.ToSummary()).Val()
 		return nil
 	})
 	return err
 }
 
 func (m *metadataImpl) DeleteDestination(ctx context.Context, tenantID, destinationID string) error {
-	return m.redisClient.Del(ctx, redisDestinationID(destinationID, tenantID)).Err()
+	_, err := m.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
+		cmd := m.redisClient.HGetAll(ctx, redisDestinationID(destinationID, tenantID))
+		destination := &Destination{TenantID: tenantID}
+		if err := destination.parseRedisHash(cmd, m.cipher); err != nil {
+			return err
+		}
+		summary := destination.ToSummary()
+		summaryBinary, err := summary.MarshalBinary()
+		if err != nil {
+			return err
+		}
+		err = r.LRem(ctx, redisTenantDestinationSummaryKey(tenantID), 0, string(summaryBinary)).Err()
+		if err != nil {
+			return err
+		}
+		return r.Del(ctx, redisDestinationID(destinationID, tenantID)).Err()
+	})
+	return err
 }
 
 func (m *metadataImpl) DeleteManyDestination(ctx context.Context, tenantID string, destinationIDs ...string) (int64, error) {

@@ -266,15 +266,9 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 func TestMetadataRepo_MatchEvent(t *testing.T) {
 	t.Parallel()
 
+	// Arrange
 	var err error
 	redisClient := testutil.CreateTestRedisClient(t)
-	// redisClient, err := redis.New(context.Background(), &redis.RedisConfig{
-	// 	Host:     "localhost",
-	// 	Port:     6379,
-	// 	Password: "password",
-	// 	Database: 0,
-	// })
-	// require.Nil(t, err)
 	metadataRepo := models.NewMetadataRepo(redisClient, models.NewAESCipher("secret"))
 
 	tenant := models.Tenant{
@@ -285,9 +279,17 @@ func TestMetadataRepo_MatchEvent(t *testing.T) {
 	err = metadataRepo.UpsertTenant(context.Background(), tenant)
 	require.Nil(t, err)
 
+	ids := []string{
+		uuid.New().String(),
+		uuid.New().String(),
+		uuid.New().String(),
+		uuid.New().String(),
+		uuid.New().String(),
+	}
+
 	err = metadataRepo.UpsertDestination(context.Background(),
 		mockDestinationFactory.Any(
-			mockDestinationFactory.WithID("1"),
+			mockDestinationFactory.WithID(ids[0]),
 			mockDestinationFactory.WithTenantID(tenant.ID),
 			mockDestinationFactory.WithTopics([]string{"*"}),
 		),
@@ -295,7 +297,7 @@ func TestMetadataRepo_MatchEvent(t *testing.T) {
 	require.Nil(t, err)
 	err = metadataRepo.UpsertDestination(context.Background(),
 		mockDestinationFactory.Any(
-			mockDestinationFactory.WithID("2"),
+			mockDestinationFactory.WithID(ids[1]),
 			mockDestinationFactory.WithTenantID(tenant.ID),
 			mockDestinationFactory.WithTopics([]string{"user.created", "user.updated"}),
 		),
@@ -303,7 +305,7 @@ func TestMetadataRepo_MatchEvent(t *testing.T) {
 	require.Nil(t, err)
 	err = metadataRepo.UpsertDestination(context.Background(),
 		mockDestinationFactory.Any(
-			mockDestinationFactory.WithID("3"),
+			mockDestinationFactory.WithID(ids[2]),
 			mockDestinationFactory.WithTenantID(tenant.ID),
 			mockDestinationFactory.WithTopics([]string{"user.created"}),
 		),
@@ -311,13 +313,26 @@ func TestMetadataRepo_MatchEvent(t *testing.T) {
 	require.Nil(t, err)
 	err = metadataRepo.UpsertDestination(context.Background(),
 		mockDestinationFactory.Any(
-			mockDestinationFactory.WithID("4"),
+			mockDestinationFactory.WithID(ids[3]),
 			mockDestinationFactory.WithTenantID(tenant.ID),
 			mockDestinationFactory.WithTopics([]string{"user.updated"}),
 		),
 	)
 	require.Nil(t, err)
 
+	// Delete destination to test if destination is cleaned up properly
+	err = metadataRepo.UpsertDestination(context.Background(),
+		mockDestinationFactory.Any(
+			mockDestinationFactory.WithID(ids[4]),
+			mockDestinationFactory.WithTenantID(tenant.ID),
+			mockDestinationFactory.WithTopics([]string{"*"}),
+		),
+	)
+	require.Nil(t, err)
+	err = metadataRepo.DeleteDestination(context.Background(), tenant.ID, ids[4])
+	require.Nil(t, err)
+
+	// Act
 	event := models.Event{
 		ID:       uuid.New().String(),
 		Topic:    "user.created",
@@ -328,8 +343,10 @@ func TestMetadataRepo_MatchEvent(t *testing.T) {
 	}
 	matchedDestinationSummaryList, err := metadataRepo.MatchEvent(context.Background(), event)
 	require.Nil(t, err)
+
+	// Assert
 	require.Len(t, matchedDestinationSummaryList, 3)
 	for _, summary := range matchedDestinationSummaryList {
-		require.Contains(t, []string{"1", "2", "3"}, summary.ID)
+		require.Contains(t, []string{ids[0], ids[1], ids[2]}, summary.ID)
 	}
 }
