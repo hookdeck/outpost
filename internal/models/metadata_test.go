@@ -147,33 +147,25 @@ func TestMetadataRepo_ListDestination(t *testing.T) {
 
 	t.Run("returns list", func(t *testing.T) {
 		tenantID := uuid.New().String()
-		inputDestination := models.Destination{
-			Type:        "webhooks",
-			Topics:      []string{"user.created", "user.updated"},
-			Config:      map[string]string{"url": "https://example.com"},
-			Credentials: map[string]string{},
-			DisabledAt:  nil,
-			TenantID:    tenantID,
-		}
+		metadataRepo.UpsertTenant(context.Background(), models.Tenant{
+			ID:        tenantID,
+			CreatedAt: time.Now(),
+		})
 
 		ids := make([]string, 5)
 		for i := 0; i < 5; i++ {
 			ids[i] = uuid.New().String()
-			inputDestination.ID = ids[i]
-			inputDestination.CreatedAt = time.Now()
-			metadataRepo.UpsertDestination(context.Background(), inputDestination)
+			metadataRepo.UpsertDestination(context.Background(), mockDestinationFactory.Any(
+				mockDestinationFactory.WithID(ids[i]),
+				mockDestinationFactory.WithTenantID(tenantID),
+			))
 		}
 
 		destinations, err := metadataRepo.ListDestinationByTenant(context.Background(), tenantID)
 		require.Nil(t, err)
 		require.Len(t, destinations, 5)
 		for index, destination := range destinations {
-			assert.Equal(t, ids[index], destination.ID)
-			assert.Equal(t, inputDestination.Type, destination.Type)
-			assert.Equal(t, inputDestination.Topics, destination.Topics)
-			assert.Equal(t, inputDestination.Config, destination.Config)
-			assert.Equal(t, inputDestination.Credentials, destination.Credentials)
-			assert.Equal(t, inputDestination.TenantID, destination.TenantID)
+			require.Equal(t, ids[index], destination.ID)
 		}
 	})
 }

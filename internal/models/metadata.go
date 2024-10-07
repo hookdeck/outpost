@@ -114,22 +114,33 @@ func (m *metadataImpl) DeleteTenant(ctx context.Context, tenantID string) error 
 }
 
 func (m *metadataImpl) ListDestinationByTenant(ctx context.Context, tenantID string) ([]Destination, error) {
-	keys, _, err := m.redisClient.Scan(ctx, 0, redisDestinationID("*", tenantID), MAX_DESTINATIONS_PER_TENANT).Result()
+	destinationSummaryStrs, err := m.redisClient.LRange(ctx, redisTenantDestinationSummaryKey(tenantID), 0, -1).Result()
 	if err != nil {
+		if err == redis.Nil {
+			return []Destination{}, nil
+		}
 		return nil, err
+	}
+	destinationSummaryList := make([]DestinationSummary, len(destinationSummaryStrs))
+	for i, destinationSummaryStr := range destinationSummaryStrs {
+		destinationSummary := DestinationSummary{}
+		if err := destinationSummary.UnmarshalBinary([]byte(destinationSummaryStr)); err != nil {
+			return nil, err
+		}
+		destinationSummaryList[i] = destinationSummary
 	}
 
 	pipe := m.redisClient.Pipeline()
-	cmds := make([]*redis.MapStringStringCmd, len(keys))
-	for i, key := range keys {
-		cmds[i] = pipe.HGetAll(ctx, key)
+	cmds := make([]*redis.MapStringStringCmd, len(destinationSummaryList))
+	for i, destinationSummary := range destinationSummaryList {
+		cmds[i] = pipe.HGetAll(ctx, redisDestinationID(destinationSummary.ID, tenantID))
 	}
 	_, err = pipe.Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	destinations := make([]Destination, len(keys))
+	destinations := make([]Destination, len(destinationSummaryList))
 	for i, cmd := range cmds {
 		destination := &Destination{TenantID: tenantID}
 		err = destination.parseRedisHash(cmd, m.cipher)
