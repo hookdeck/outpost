@@ -68,7 +68,13 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 	defer span.End()
 	logger := h.logger.Ctx(ctx)
 	logger.Info("deliverymq handler", zap.String("delivery_event", deliveryEvent.ID))
-	err := deliveryEvent.Destination.Publish(ctx, &deliveryEvent.Event)
+	destination, err := h.metadataRepo.RetrieveDestination(ctx, deliveryEvent.Event.TenantID, deliveryEvent.DestinationID)
+	if err != nil {
+		logger.Error("failed to retrieve destination", zap.Error(err))
+		span.RecordError(err)
+		return err
+	}
+	err = destination.Publish(ctx, &deliveryEvent.Event)
 	if err != nil {
 		logger.Error("failed to publish event", zap.Error(err))
 		span.RecordError(err)
@@ -76,7 +82,7 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 			ID:              uuid.New().String(),
 			DeliveryEventID: deliveryEvent.ID,
 			EventID:         deliveryEvent.Event.ID,
-			DestinationID:   deliveryEvent.Destination.ID,
+			DestinationID:   deliveryEvent.DestinationID,
 			Status:          models.DeliveryStatusFailed,
 			Time:            time.Now(),
 		}
@@ -85,7 +91,7 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 			ID:              uuid.New().String(),
 			DeliveryEventID: deliveryEvent.ID,
 			EventID:         deliveryEvent.Event.ID,
-			DestinationID:   deliveryEvent.Destination.ID,
+			DestinationID:   deliveryEvent.DestinationID,
 			Status:          models.DeliveryStatusOK,
 			Time:            time.Now(),
 		}

@@ -43,7 +43,7 @@ func (t *eventTracerImpl) StartDelivery(_ context.Context, deliveryEvent *models
 	ctx, span := t.tracer.Start(t.getRemoteEventSpanContext(&deliveryEvent.Event), "EventTracer.StartDelivery")
 	span.SetAttributes(attribute.String("eventkit.delivery_event_id", deliveryEvent.ID))
 	span.SetAttributes(attribute.String("eventkit.event_id", deliveryEvent.Event.ID))
-	span.SetAttributes(attribute.String("eventkit.destination_id", deliveryEvent.Destination.ID))
+	span.SetAttributes(attribute.String("eventkit.destination_id", deliveryEvent.DestinationID))
 
 	deliveryEvent.Metadata["trace_id"] = span.SpanContext().TraceID().String()
 	deliveryEvent.Metadata["span_id"] = span.SpanContext().SpanID().String()
@@ -55,7 +55,7 @@ func (t *eventTracerImpl) Deliver(_ context.Context, deliveryEvent *models.Deliv
 	ctx, span := t.tracer.Start(t.getRemoteDeliveryEventSpanContext(deliveryEvent), "EventTracer.Deliver")
 	span.SetAttributes(attribute.String("eventkit.delivery_event_id", deliveryEvent.ID))
 	span.SetAttributes(attribute.String("eventkit.event_id", deliveryEvent.Event.ID))
-	span.SetAttributes(attribute.String("eventkit.destination_id", deliveryEvent.Destination.ID))
+	span.SetAttributes(attribute.String("eventkit.destination_id", deliveryEvent.DestinationID))
 	return ctx, span
 }
 

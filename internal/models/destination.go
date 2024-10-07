@@ -5,7 +5,6 @@ import (
 	"encoding"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/destinationadapter"
@@ -145,22 +144,4 @@ func (c *Credentials) MarshalBinary() ([]byte, error) {
 
 func (c *Credentials) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, c)
-}
-
-// ============================== Helpers ==============================
-
-func FilterTopics(destinations []Destination, topic string) []Destination {
-	if topic == "" {
-		return destinations
-	}
-
-	filteredDestinations := []Destination{}
-
-	for _, destination := range destinations {
-		if destination.Topics[0] == "*" || slices.Contains(destination.Topics, topic) {
-			filteredDestinations = append(filteredDestinations, destination)
-		}
-	}
-
-	return filteredDestinations
 }

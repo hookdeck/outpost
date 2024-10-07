@@ -57,16 +57,15 @@ func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error 
 	_, span := h.tracer.Receive(ctx, event)
 	defer span.End()
 
-	destinations, err := h.metadataRepo.ListDestinationByTenant(ctx, event.TenantID)
+	matchedDestinations, err := h.metadataRepo.MatchEvent(ctx, *event)
 	if err != nil {
 		return err
 	}
-	destinations = models.FilterTopics(destinations, event.Topic)
 
 	// TODO: Consider handling via goroutine for better performance? Maybe GoCloud PubSub already support this natively?
 	// TODO: Consider how batch publishing work
-	for _, destination := range destinations {
-		deliveryEvent := models.NewDeliveryEvent(*event, destination)
+	for _, destinationSummary := range matchedDestinations {
+		deliveryEvent := models.NewDeliveryEvent(*event, destinationSummary.ID)
 		_, deliverySpan := h.tracer.StartDelivery(ctx, &deliveryEvent)
 		err := h.deliveryMQ.Publish(ctx, deliveryEvent)
 		if err != nil {

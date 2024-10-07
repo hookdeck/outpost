@@ -70,11 +70,11 @@ func (e *Event) ToAdapterEvent() *adapters.Event {
 }
 
 type DeliveryEvent struct {
-	ID          string
-	Metadata    map[string]string
-	Event       Event
-	Destination Destination
-	Delivery    *Delivery
+	ID            string
+	DestinationID string
+	Event         Event
+	Metadata      map[string]string
+	Delivery      *Delivery
 }
 
 var _ mqs.IncomingMessage = &DeliveryEvent{}
@@ -91,12 +91,12 @@ func (e *DeliveryEvent) ToMessage() (*mqs.Message, error) {
 	return &mqs.Message{Body: data}, nil
 }
 
-func NewDeliveryEvent(event Event, destination Destination) DeliveryEvent {
+func NewDeliveryEvent(event Event, destinationID string) DeliveryEvent {
 	return DeliveryEvent{
-		ID:          uuid.New().String(),
-		Metadata:    map[string]string{},
-		Event:       event,
-		Destination: destination,
+		ID:            uuid.New().String(),
+		DestinationID: destinationID,
+		Event:         event,
+		Metadata:      map[string]string{},
 	}
 }
 

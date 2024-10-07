@@ -88,10 +88,7 @@ func TestDeliveryService(t *testing.T) {
 		// Act
 		time.Sleep(time.Second / 5) // wait for service to start
 		expectedID := uuid.New().String()
-		deliveryMQ.Publish(ctx, models.DeliveryEvent{
-			Event:       models.Event{ID: expectedID},
-			Destination: models.Destination{},
-		})
+		deliveryMQ.Publish(ctx, models.NewDeliveryEvent(models.Event{ID: expectedID}, uuid.New().String()))
 
 		// Assert
 		// wait til service has stopped
