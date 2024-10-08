@@ -17,6 +17,7 @@ type MetadataRepo interface {
 	RetrieveTenant(ctx context.Context, tenantID string) (*Tenant, error)
 	UpsertTenant(ctx context.Context, tenant Tenant) error
 	DeleteTenant(ctx context.Context, tenantID string) error
+	ListDestinationSummaryByTenant(ctx context.Context, tenantID string) ([]DestinationSummary, error)
 	ListDestinationByTenant(ctx context.Context, tenantID string) ([]Destination, error)
 	RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*Destination, error)
 	UpsertDestination(ctx context.Context, destination Destination) error
@@ -73,21 +74,13 @@ func (m *metadataImpl) DeleteTenant(ctx context.Context, tenantID string) error 
 	maxRetries := 100
 
 	txf := func(tx *redis.Tx) error {
-		destinationSummaryStrs, err := m.redisClient.LRange(ctx, redisTenantDestinationSummaryKey(tenantID), 0, -1).Result()
+		destinationIDs, err := m.redisClient.HKeys(ctx, redisTenantDestinationSummaryKey(tenantID)).Result()
 		if err != nil {
 			return err
 		}
-		destinationSummaryList := make([]DestinationSummary, len(destinationSummaryStrs))
-		for i, destinationSummaryStr := range destinationSummaryStrs {
-			destinationSummary := DestinationSummary{}
-			if err := destinationSummary.UnmarshalBinary([]byte(destinationSummaryStr)); err != nil {
-				return err
-			}
-			destinationSummaryList[i] = destinationSummary
-		}
 		_, err = m.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
-			for _, destinationSummary := range destinationSummaryList {
-				r.Del(ctx, redisDestinationID(destinationSummary.ID, tenantID))
+			for _, destinationID := range destinationIDs {
+				r.Del(ctx, redisDestinationID(destinationID, tenantID))
 			}
 			r.Del(ctx, redisTenantDestinationSummaryKey(tenantID))
 			r.Del(ctx, redisTenantID(tenantID))
@@ -113,22 +106,29 @@ func (m *metadataImpl) DeleteTenant(ctx context.Context, tenantID string) error 
 	return errors.New("increment reached maximum number of retries")
 }
 
-func (m *metadataImpl) ListDestinationByTenant(ctx context.Context, tenantID string) ([]Destination, error) {
-	destinationSummaryStrs, err := m.redisClient.LRange(ctx, redisTenantDestinationSummaryKey(tenantID), 0, -1).Result()
+func (m *metadataImpl) ListDestinationSummaryByTenant(ctx context.Context, tenantID string) ([]DestinationSummary, error) {
+	destinationSummaryListHash, err := m.redisClient.HGetAll(ctx, redisTenantDestinationSummaryKey(tenantID)).Result()
 	if err != nil {
 		if err == redis.Nil {
-			return []Destination{}, nil
+			return []DestinationSummary{}, nil
 		}
 		return nil, err
 	}
-	destinationSummaryList := make([]DestinationSummary, len(destinationSummaryStrs))
-	for i, destinationSummaryStr := range destinationSummaryStrs {
+	destinationSummaryList := make([]DestinationSummary, len(destinationSummaryListHash))
+	index := 0
+	for _, destinationSummaryStr := range destinationSummaryListHash {
 		destinationSummary := DestinationSummary{}
 		if err := destinationSummary.UnmarshalBinary([]byte(destinationSummaryStr)); err != nil {
 			return nil, err
 		}
-		destinationSummaryList[i] = destinationSummary
+		destinationSummaryList[index] = destinationSummary
+		index++
 	}
+	return destinationSummaryList, nil
+}
+
+func (m *metadataImpl) ListDestinationByTenant(ctx context.Context, tenantID string) ([]Destination, error) {
+	destinationSummaryList, err := m.ListDestinationSummaryByTenant(ctx, tenantID)
 
 	pipe := m.redisClient.Pipeline()
 	cmds := make([]*redis.MapStringStringCmd, len(destinationSummaryList))
@@ -194,7 +194,7 @@ func (m *metadataImpl) UpsertDestination(ctx context.Context, destination Destin
 		if destination.DisabledAt != nil {
 			r.HSet(ctx, key, "disabled_at", destination.DisabledAt)
 		}
-		r.LPush(ctx, redisTenantDestinationSummaryKey(destination.TenantID), destination.ToSummary()).Val()
+		r.HSet(ctx, redisTenantDestinationSummaryKey(destination.TenantID), destination.ID, destination.ToSummary()).Val()
 		return nil
 	})
 	return err
@@ -202,18 +202,7 @@ func (m *metadataImpl) UpsertDestination(ctx context.Context, destination Destin
 
 func (m *metadataImpl) DeleteDestination(ctx context.Context, tenantID, destinationID string) error {
 	_, err := m.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
-		cmd := m.redisClient.HGetAll(ctx, redisDestinationID(destinationID, tenantID))
-		destination := &Destination{TenantID: tenantID}
-		if err := destination.parseRedisHash(cmd, m.cipher); err != nil {
-			return err
-		}
-		summary := destination.ToSummary()
-		summaryBinary, err := summary.MarshalBinary()
-		if err != nil {
-			return err
-		}
-		err = r.LRem(ctx, redisTenantDestinationSummaryKey(tenantID), 0, string(summaryBinary)).Err()
-		if err != nil {
+		if err := r.HDel(ctx, redisTenantDestinationSummaryKey(tenantID), destinationID).Err(); err != nil {
 			return err
 		}
 		return r.Del(ctx, redisDestinationID(destinationID, tenantID)).Err()
@@ -222,17 +211,9 @@ func (m *metadataImpl) DeleteDestination(ctx context.Context, tenantID, destinat
 }
 
 func (m *metadataImpl) MatchEvent(ctx context.Context, event Event) ([]DestinationSummary, error) {
-	destinationSummaryStrs, err := m.redisClient.LRange(ctx, redisTenantDestinationSummaryKey(event.TenantID), 0, -1).Result()
+	destinationSummaryList, err := m.ListDestinationSummaryByTenant(ctx, event.TenantID)
 	if err != nil {
 		return nil, err
-	}
-	destinationSummaryList := make([]DestinationSummary, len(destinationSummaryStrs))
-	for i, destinationSummaryStr := range destinationSummaryStrs {
-		destinationSummary := DestinationSummary{}
-		if err := destinationSummary.UnmarshalBinary([]byte(destinationSummaryStr)); err != nil {
-			return nil, err
-		}
-		destinationSummaryList[i] = destinationSummary
 	}
 
 	if event.Topic == "" {
