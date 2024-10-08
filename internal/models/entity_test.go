@@ -154,17 +154,18 @@ func TestEntityStore_DeleteTenantAndAssociatedDestinations(t *testing.T) {
 	// Arrange
 	require.Nil(t, entityStore.UpsertTenant(context.Background(), tenant))
 	destinationIDs := []string{uuid.New().String(), uuid.New().String(), uuid.New().String()}
-	require.Nil(t, entityStore.UpsertDestination(context.Background(), mockDestinationFactory.Any(
-		mockDestinationFactory.WithID(destinationIDs[0]),
-		mockDestinationFactory.WithTenantID(tenant.ID),
+	destFactory := testutil.MockDestinationFactory
+	require.Nil(t, entityStore.UpsertDestination(context.Background(), destFactory.Any(
+		destFactory.WithID(destinationIDs[0]),
+		destFactory.WithTenantID(tenant.ID),
 	)))
-	require.Nil(t, entityStore.UpsertDestination(context.Background(), mockDestinationFactory.Any(
-		mockDestinationFactory.WithID(destinationIDs[1]),
-		mockDestinationFactory.WithTenantID(tenant.ID),
+	require.Nil(t, entityStore.UpsertDestination(context.Background(), destFactory.Any(
+		destFactory.WithID(destinationIDs[1]),
+		destFactory.WithTenantID(tenant.ID),
 	)))
-	require.Nil(t, entityStore.UpsertDestination(context.Background(), mockDestinationFactory.Any(
-		mockDestinationFactory.WithID(destinationIDs[2]),
-		mockDestinationFactory.WithTenantID(tenant.ID),
+	require.Nil(t, entityStore.UpsertDestination(context.Background(), destFactory.Any(
+		destFactory.WithID(destinationIDs[2]),
+		destFactory.WithTenantID(tenant.ID),
 	)))
 	require.Equal(t, int64(1), redisClient.Exists(context.Background(), "tenant:"+tenant.ID).Val())
 	require.Equal(t, int64(1), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[0]).Val())
@@ -253,45 +254,46 @@ func TestEntityStore_MatchEvent(t *testing.T) {
 		uuid.New().String(),
 	}
 
+	destFactory := testutil.MockDestinationFactory
 	err = entityStore.UpsertDestination(context.Background(),
-		mockDestinationFactory.Any(
-			mockDestinationFactory.WithID(ids[0]),
-			mockDestinationFactory.WithTenantID(tenant.ID),
-			mockDestinationFactory.WithTopics([]string{"*"}),
+		destFactory.Any(
+			destFactory.WithID(ids[0]),
+			destFactory.WithTenantID(tenant.ID),
+			destFactory.WithTopics([]string{"*"}),
 		),
 	)
 	require.Nil(t, err)
 	err = entityStore.UpsertDestination(context.Background(),
-		mockDestinationFactory.Any(
-			mockDestinationFactory.WithID(ids[1]),
-			mockDestinationFactory.WithTenantID(tenant.ID),
-			mockDestinationFactory.WithTopics([]string{"user.created", "user.updated"}),
+		destFactory.Any(
+			destFactory.WithID(ids[1]),
+			destFactory.WithTenantID(tenant.ID),
+			destFactory.WithTopics([]string{"user.created", "user.updated"}),
 		),
 	)
 	require.Nil(t, err)
 	err = entityStore.UpsertDestination(context.Background(),
-		mockDestinationFactory.Any(
-			mockDestinationFactory.WithID(ids[2]),
-			mockDestinationFactory.WithTenantID(tenant.ID),
-			mockDestinationFactory.WithTopics([]string{"user.created"}),
+		destFactory.Any(
+			destFactory.WithID(ids[2]),
+			destFactory.WithTenantID(tenant.ID),
+			destFactory.WithTopics([]string{"user.created"}),
 		),
 	)
 	require.Nil(t, err)
 	err = entityStore.UpsertDestination(context.Background(),
-		mockDestinationFactory.Any(
-			mockDestinationFactory.WithID(ids[3]),
-			mockDestinationFactory.WithTenantID(tenant.ID),
-			mockDestinationFactory.WithTopics([]string{"user.updated"}),
+		destFactory.Any(
+			destFactory.WithID(ids[3]),
+			destFactory.WithTenantID(tenant.ID),
+			destFactory.WithTopics([]string{"user.updated"}),
 		),
 	)
 	require.Nil(t, err)
 
 	// Delete destination to test if destination is cleaned up properly
 	err = entityStore.UpsertDestination(context.Background(),
-		mockDestinationFactory.Any(
-			mockDestinationFactory.WithID(ids[4]),
-			mockDestinationFactory.WithTenantID(tenant.ID),
-			mockDestinationFactory.WithTopics([]string{"*"}),
+		destFactory.Any(
+			destFactory.WithID(ids[4]),
+			destFactory.WithTenantID(tenant.ID),
+			destFactory.WithTopics([]string{"*"}),
 		),
 	)
 	require.Nil(t, err)
@@ -340,9 +342,9 @@ func (suite *multiDestinationSuite) SetupTest(t *testing.T) {
 	ids := make([]string, 5)
 	for i := 0; i < 5; i++ {
 		ids[i] = uuid.New().String()
-		suite.destinations[i] = mockDestinationFactory.Any(
-			mockDestinationFactory.WithID(ids[i]),
-			mockDestinationFactory.WithTenantID(suite.tenant.ID),
+		suite.destinations[i] = testutil.MockDestinationFactory.Any(
+			testutil.MockDestinationFactory.WithID(ids[i]),
+			testutil.MockDestinationFactory.WithTenantID(suite.tenant.ID),
 		)
 		err = suite.entityStore.UpsertDestination(suite.ctx, suite.destinations[i])
 		require.Nil(t, err)
