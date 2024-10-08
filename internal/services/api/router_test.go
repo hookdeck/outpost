@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
+	"github.com/hookdeck/EventKit/internal/eventtracer"
+	"github.com/hookdeck/EventKit/internal/publishmq"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
@@ -24,6 +26,9 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *ote
 	redisClient := testutil.CreateTestRedisClient(t)
 	deliveryMQ := deliverymq.New()
 	deliveryMQ.Init(context.Background())
+	eventTracer := eventtracer.NewNoopEventTracer()
+	entityStore := setupTestEntityStore(t, redisClient, nil)
+	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer)
 	router := api.NewRouter(
 		api.RouterConfig{
 			Hostname:  "",
@@ -33,7 +38,8 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *ote
 		logger,
 		redisClient,
 		deliveryMQ,
-		setupTestEntityStore(t, redisClient, nil),
+		entityStore,
+		eventHandler,
 	)
 	return router, logger, redisClient
 }

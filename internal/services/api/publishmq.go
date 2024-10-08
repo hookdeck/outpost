@@ -10,9 +10,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *APIService) SubscribePublishMQ(ctx context.Context, subscription mqs.Subscription, concurrency int) {
+func (s *APIService) SubscribePublishMQ(ctx context.Context, subscription mqs.Subscription, eventHandler publishmq.EventHandler, concurrency int) {
 	messageHandler := publishmq.NewMessageHandler(
-		publishmq.NewEventHandler(s.logger, s.redisClient, s.deliveryMQ, s.entityStore),
+		eventHandler,
 	)
 	csm := consumer.New(subscription, messageHandler,
 		consumer.WithConcurrency(concurrency),

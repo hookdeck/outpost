@@ -18,7 +18,7 @@ type EventHandler interface {
 }
 
 type eventHandler struct {
-	tracer      eventtracer.EventTracer
+	eventTracer eventtracer.EventTracer
 	logger      *otelzap.Logger
 	idempotence idempotence.Idempotence
 	deliveryMQ  *deliverymq.DeliveryMQ
@@ -30,9 +30,9 @@ func NewEventHandler(
 	redisClient *redis.Client,
 	deliveryMQ *deliverymq.DeliveryMQ,
 	entityStore models.EntityStore,
+	eventTracer eventtracer.EventTracer,
 ) EventHandler {
-	return &eventHandler{
-		tracer: eventtracer.NewEventTracer(),
+	eventHandler := &eventHandler{
 		logger: logger,
 		idempotence: idempotence.New(redisClient,
 			idempotence.WithTimeout(5*time.Second),
@@ -40,7 +40,9 @@ func NewEventHandler(
 		),
 		deliveryMQ:  deliveryMQ,
 		entityStore: entityStore,
+		eventTracer: eventTracer,
 	}
+	return eventHandler
 }
 
 var _ EventHandler = (*eventHandler)(nil)
@@ -54,7 +56,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) error {
 func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error {
 	h.logger.Info("received event", zap.Any("event", event))
 
-	_, span := h.tracer.Receive(ctx, event)
+	_, span := h.eventTracer.Receive(ctx, event)
 	defer span.End()
 
 	matchedDestinations, err := h.entityStore.MatchEvent(ctx, *event)
@@ -66,7 +68,7 @@ func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error 
 	// TODO: Consider how batch publishing work
 	for _, destinationSummary := range matchedDestinations {
 		deliveryEvent := models.NewDeliveryEvent(*event, destinationSummary.ID)
-		_, deliverySpan := h.tracer.StartDelivery(ctx, &deliveryEvent)
+		_, deliverySpan := h.eventTracer.StartDelivery(ctx, &deliveryEvent)
 		err := h.deliveryMQ.Publish(ctx, deliveryEvent)
 		if err != nil {
 			span.RecordError(err)

@@ -18,7 +18,7 @@ import (
 )
 
 type messageHandler struct {
-	tracer      eventtracer.EventTracer
+	eventTracer eventtracer.EventTracer
 	logger      *otelzap.Logger
 	logMQ       *logmq.LogMQ
 	entityStore models.EntityStore
@@ -32,9 +32,10 @@ func NewMessageHandler(
 	redisClient *redis.Client,
 	logMQ *logmq.LogMQ,
 	entityStore models.EntityStore,
+	eventTracer eventtracer.EventTracer,
 ) consumer.MessageHandler {
 	return &messageHandler{
-		tracer:      eventtracer.NewEventTracer(),
+		eventTracer: eventTracer,
 		logger:      logger,
 		logMQ:       logMQ,
 		entityStore: entityStore,
@@ -64,7 +65,7 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 }
 
 func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
-	_, span := h.tracer.Deliver(ctx, &deliveryEvent)
+	_, span := h.eventTracer.Deliver(ctx, &deliveryEvent)
 	defer span.End()
 	logger := h.logger.Ctx(ctx)
 	logger.Info("deliverymq handler", zap.String("delivery_event", deliveryEvent.ID))

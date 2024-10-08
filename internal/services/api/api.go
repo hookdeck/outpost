@@ -10,6 +10,7 @@ import (
 
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
+	"github.com/hookdeck/EventKit/internal/eventtracer"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/publishmq"
 	"github.com/hookdeck/EventKit/internal/redis"
@@ -28,6 +29,7 @@ type APIService struct {
 	publishMQ       *publishmq.PublishMQ
 	deliveryMQ      *deliverymq.DeliveryMQ
 	entityStore     models.EntityStore
+	eventHandler    publishmq.EventHandler
 	consumerOptions *consumerOptions
 }
 
@@ -45,7 +47,14 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		return nil, err
 	}
 
+	var eventTracer eventtracer.EventTracer
+	if cfg.OpenTelemetry == nil {
+		eventTracer = eventtracer.NewNoopEventTracer()
+	} else {
+		eventTracer = eventtracer.NewEventTracer()
+	}
 	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher(cfg.EncryptionSecret))
+	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer)
 	router := NewRouter(
 		RouterConfig{
 			Hostname:  cfg.Hostname,
@@ -56,6 +65,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		redisClient,
 		deliveryMQ,
 		entityStore,
+		eventHandler,
 	)
 
 	service := &APIService{}
@@ -68,6 +78,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	service.publishMQ = publishmq.New(publishmq.WithQueue(cfg.PublishQueueConfig))
 	service.deliveryMQ = deliveryMQ
 	service.entityStore = entityStore
+	service.eventHandler = eventHandler
 	service.consumerOptions = &consumerOptions{
 		concurreny: cfg.PublishMaxConcurrency,
 	}
@@ -108,7 +119,7 @@ func (s *APIService) Run(ctx context.Context) error {
 			return err
 		}
 		go func() {
-			s.SubscribePublishMQ(ctx, subscription, s.consumerOptions.concurreny)
+			s.SubscribePublishMQ(ctx, subscription, s.eventHandler, s.consumerOptions.concurreny)
 		}()
 	}
 

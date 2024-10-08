@@ -7,6 +7,7 @@ import (
 	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/portal"
+	"github.com/hookdeck/EventKit/internal/publishmq"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
@@ -24,6 +25,7 @@ func NewRouter(
 	redisClient *redis.Client,
 	deliveryMQ *deliverymq.DeliveryMQ,
 	entityStore models.EntityStore,
+	publishmqEventHandler publishmq.EventHandler,
 ) http.Handler {
 	r := gin.Default()
 	r.Use(otelgin.Middleware(cfg.Hostname))
@@ -38,7 +40,7 @@ func NewRouter(
 
 	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, entityStore)
 	destinationHandlers := NewDestinationHandlers(logger, entityStore)
-	publishHandlers := NewPublishHandlers(logger, redisClient, deliveryMQ, entityStore)
+	publishHandlers := NewPublishHandlers(logger, publishmqEventHandler)
 
 	// Admin router is a router group with the API key auth mechanism.
 	adminRouter := apiRouter.Group("/", APIKeyAuthMiddleware(cfg.APIKey))

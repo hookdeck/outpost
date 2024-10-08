@@ -6,31 +6,25 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/idempotence"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/publishmq"
-	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
 type PublishHandlers struct {
 	logger       *otelzap.Logger
-	redisClient  *redis.Client
 	eventHandler publishmq.EventHandler
 }
 
 func NewPublishHandlers(
 	logger *otelzap.Logger,
-	redisClient *redis.Client,
-	deliveryMQ *deliverymq.DeliveryMQ,
-	entityStore models.EntityStore,
+	eventHandler publishmq.EventHandler,
 ) *PublishHandlers {
 	return &PublishHandlers{
 		logger:       logger,
-		redisClient:  redisClient,
-		eventHandler: publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore),
+		eventHandler: eventHandler,
 	}
 }
 

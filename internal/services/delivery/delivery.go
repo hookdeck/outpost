@@ -8,6 +8,7 @@ import (
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/consumer"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
+	"github.com/hookdeck/EventKit/internal/eventtracer"
 	"github.com/hookdeck/EventKit/internal/logmq"
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/redis"
@@ -48,6 +49,12 @@ func NewService(ctx context.Context,
 	}
 
 	if handler == nil {
+		var eventTracer eventtracer.EventTracer
+		if cfg.OpenTelemetry == nil {
+			eventTracer = eventtracer.NewNoopEventTracer()
+		} else {
+			eventTracer = eventtracer.NewEventTracer()
+		}
 		entityStore := models.NewEntityStore(
 			redisClient,
 			models.NewAESCipher(cfg.EncryptionSecret),
@@ -57,6 +64,7 @@ func NewService(ctx context.Context,
 			redisClient,
 			logMQ,
 			entityStore,
+			eventTracer,
 		)
 	}
 
