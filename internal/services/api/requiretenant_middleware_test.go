@@ -32,8 +32,8 @@ func TestRequireTenantMiddleware(t *testing.T) {
 		tenant := models.Tenant{
 			ID: uuid.New().String(),
 		}
-		metadataRepo := setupTestMetadataRepo(t, redisClient, nil)
-		err := metadataRepo.UpsertTenant(context.Background(), tenant)
+		entityStore := setupTestEntityStore(t, redisClient, nil)
+		err := entityStore.UpsertTenant(context.Background(), tenant)
 		require.Nil(t, err)
 
 		w := httptest.NewRecorder()

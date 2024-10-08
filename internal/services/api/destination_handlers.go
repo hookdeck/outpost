@@ -14,20 +14,20 @@ import (
 )
 
 type DestinationHandlers struct {
-	logger       *otelzap.Logger
-	metadataRepo models.MetadataRepo
+	logger      *otelzap.Logger
+	entityStore models.EntityStore
 }
 
-func NewDestinationHandlers(logger *otelzap.Logger, metadataRepo models.MetadataRepo) *DestinationHandlers {
+func NewDestinationHandlers(logger *otelzap.Logger, entityStore models.EntityStore) *DestinationHandlers {
 	return &DestinationHandlers{
-		logger:       logger,
-		metadataRepo: metadataRepo,
+		logger:      logger,
+		entityStore: entityStore,
 	}
 }
 
 // TODO: support type & topics params
 func (h *DestinationHandlers) List(c *gin.Context) {
-	destinations, err := h.metadataRepo.ListDestinationByTenant(c.Request.Context(), c.Param("tenantID"))
+	destinations, err := h.entityStore.ListDestinationByTenant(c.Request.Context(), c.Param("tenantID"))
 	if err != nil {
 		h.logger.Ctx(c.Request.Context()).Error("failed to list destinations", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -53,7 +53,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		DisabledAt:  nil,
 		TenantID:    c.Param("tenantID"),
 	}
-	if err := h.metadataRepo.UpsertDestination(c.Request.Context(), destination); err != nil {
+	if err := h.entityStore.UpsertDestination(c.Request.Context(), destination); err != nil {
 		if strings.Contains(err.Error(), "validation failed") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -68,7 +68,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 func (h *DestinationHandlers) Retrieve(c *gin.Context) {
 	tenantID := c.Param("tenantID")
 	destinationID := c.Param("destinationID")
-	destination, err := h.metadataRepo.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
+	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
 		log.Println(err)
 		c.Status(http.StatusInternalServerError)
@@ -94,7 +94,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	// Get destination.
 	tenantID := c.Param("tenantID")
 	destinationID := c.Param("destinationID")
-	destination, err := h.metadataRepo.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
+	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
 		logger.Error("failed to get destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -118,7 +118,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	if json.Credentials != nil {
 		destination.Credentials = json.Credentials
 	}
-	if err := h.metadataRepo.UpsertDestination(c.Request.Context(), *destination); err != nil {
+	if err := h.entityStore.UpsertDestination(c.Request.Context(), *destination); err != nil {
 		if strings.Contains(err.Error(), "validation failed") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -133,7 +133,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 func (h *DestinationHandlers) Delete(c *gin.Context) {
 	tenantID := c.Param("tenantID")
 	destinationID := c.Param("destinationID")
-	destination, err := h.metadataRepo.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
+	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
 		h.logger.Ctx(c.Request.Context()).Error("failed to get destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -143,7 +143,7 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 		return
 	}
-	err = h.metadataRepo.DeleteDestination(c.Request.Context(), tenantID, destinationID)
+	err = h.entityStore.DeleteDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
 		h.logger.Ctx(c.Request.Context()).Error("failed to clear destination", zap.Error(err))
 		c.Status(http.StatusInternalServerError)

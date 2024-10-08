@@ -9,10 +9,10 @@ import (
 	"go.uber.org/zap"
 )
 
-func RequireTenantMiddleware(logger *otelzap.Logger, metadataRepo models.MetadataRepo) gin.HandlerFunc {
+func RequireTenantMiddleware(logger *otelzap.Logger, entityStore models.EntityStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantID := c.Param("tenantID")
-		tenant, err := metadataRepo.RetrieveTenant(c.Request.Context(), tenantID)
+		tenant, err := entityStore.RetrieveTenant(c.Request.Context(), tenantID)
 		if err != nil {
 			logger.Error("failed to get tenant", zap.Error(err))
 			c.AbortWithStatus(http.StatusInternalServerError)

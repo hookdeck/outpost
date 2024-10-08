@@ -18,18 +18,18 @@ type EventHandler interface {
 }
 
 type eventHandler struct {
-	tracer       eventtracer.EventTracer
-	logger       *otelzap.Logger
-	idempotence  idempotence.Idempotence
-	deliveryMQ   *deliverymq.DeliveryMQ
-	metadataRepo models.MetadataRepo
+	tracer      eventtracer.EventTracer
+	logger      *otelzap.Logger
+	idempotence idempotence.Idempotence
+	deliveryMQ  *deliverymq.DeliveryMQ
+	entityStore models.EntityStore
 }
 
 func NewEventHandler(
 	logger *otelzap.Logger,
 	redisClient *redis.Client,
 	deliveryMQ *deliverymq.DeliveryMQ,
-	metadataRepo models.MetadataRepo,
+	entityStore models.EntityStore,
 ) EventHandler {
 	return &eventHandler{
 		tracer: eventtracer.NewEventTracer(),
@@ -38,8 +38,8 @@ func NewEventHandler(
 			idempotence.WithTimeout(5*time.Second),
 			idempotence.WithSuccessfulTTL(24*time.Hour),
 		),
-		deliveryMQ:   deliveryMQ,
-		metadataRepo: metadataRepo,
+		deliveryMQ:  deliveryMQ,
+		entityStore: entityStore,
 	}
 }
 
@@ -57,7 +57,7 @@ func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error 
 	_, span := h.tracer.Receive(ctx, event)
 	defer span.End()
 
-	matchedDestinations, err := h.metadataRepo.MatchEvent(ctx, *event)
+	matchedDestinations, err := h.entityStore.MatchEvent(ctx, *event)
 	if err != nil {
 		return err
 	}

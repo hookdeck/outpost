@@ -33,7 +33,7 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *ote
 		logger,
 		redisClient,
 		deliveryMQ,
-		setupTestMetadataRepo(t, redisClient, nil),
+		setupTestEntityStore(t, redisClient, nil),
 	)
 	return router, logger, redisClient
 }

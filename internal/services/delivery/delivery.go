@@ -48,7 +48,7 @@ func NewService(ctx context.Context,
 	}
 
 	if handler == nil {
-		metadataRepo := models.NewMetadataRepo(
+		entityStore := models.NewEntityStore(
 			redisClient,
 			models.NewAESCipher(cfg.EncryptionSecret),
 		)
@@ -56,7 +56,7 @@ func NewService(ctx context.Context,
 			logger,
 			redisClient,
 			logMQ,
-			metadataRepo,
+			entityStore,
 		)
 	}
 

@@ -27,7 +27,7 @@ type APIService struct {
 	logger          *otelzap.Logger
 	publishMQ       *publishmq.PublishMQ
 	deliveryMQ      *deliverymq.DeliveryMQ
-	metadataRepo    models.MetadataRepo
+	entityStore     models.EntityStore
 	consumerOptions *consumerOptions
 }
 
@@ -45,7 +45,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		return nil, err
 	}
 
-	metadataRepo := models.NewMetadataRepo(redisClient, models.NewAESCipher(cfg.EncryptionSecret))
+	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher(cfg.EncryptionSecret))
 	router := NewRouter(
 		RouterConfig{
 			Hostname:  cfg.Hostname,
@@ -55,7 +55,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		logger,
 		redisClient,
 		deliveryMQ,
-		metadataRepo,
+		entityStore,
 	)
 
 	service := &APIService{}
@@ -67,7 +67,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	}
 	service.publishMQ = publishmq.New(publishmq.WithQueue(cfg.PublishQueueConfig))
 	service.deliveryMQ = deliveryMQ
-	service.metadataRepo = metadataRepo
+	service.entityStore = entityStore
 	service.consumerOptions = &consumerOptions{
 		concurreny: cfg.PublishMaxConcurrency,
 	}

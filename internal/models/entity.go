@@ -13,7 +13,7 @@ import (
 // TODO: get this from config
 const MAX_DESTINATIONS_PER_TENANT = 100
 
-type MetadataRepo interface {
+type EntityStore interface {
 	RetrieveTenant(ctx context.Context, tenantID string) (*Tenant, error)
 	UpsertTenant(ctx context.Context, tenant Tenant) error
 	DeleteTenant(ctx context.Context, tenantID string) error
@@ -37,22 +37,22 @@ func redisDestinationID(destinationID, tenantID string) string {
 	return fmt.Sprintf("tenant:%s:destination:%s", tenantID, destinationID)
 }
 
-type metadataImpl struct {
+type entityStoreImpl struct {
 	redisClient *redis.Client
 	cipher      Cipher
 }
 
-var _ MetadataRepo = (*metadataImpl)(nil)
+var _ EntityStore = (*entityStoreImpl)(nil)
 
-func NewMetadataRepo(redisClient *redis.Client, cipher Cipher) MetadataRepo {
-	return &metadataImpl{
+func NewEntityStore(redisClient *redis.Client, cipher Cipher) EntityStore {
+	return &entityStoreImpl{
 		redisClient: redisClient,
 		cipher:      cipher,
 	}
 }
 
-func (m *metadataImpl) RetrieveTenant(ctx context.Context, tenantID string) (*Tenant, error) {
-	hash, err := m.redisClient.HGetAll(ctx, redisTenantID(tenantID)).Result()
+func (s *entityStoreImpl) RetrieveTenant(ctx context.Context, tenantID string) (*Tenant, error) {
+	hash, err := s.redisClient.HGetAll(ctx, redisTenantID(tenantID)).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -66,19 +66,19 @@ func (m *metadataImpl) RetrieveTenant(ctx context.Context, tenantID string) (*Te
 	return tenant, nil
 }
 
-func (m *metadataImpl) UpsertTenant(ctx context.Context, tenant Tenant) error {
-	return m.redisClient.HSet(ctx, redisTenantID(tenant.ID), tenant).Err()
+func (s *entityStoreImpl) UpsertTenant(ctx context.Context, tenant Tenant) error {
+	return s.redisClient.HSet(ctx, redisTenantID(tenant.ID), tenant).Err()
 }
 
-func (m *metadataImpl) DeleteTenant(ctx context.Context, tenantID string) error {
+func (s *entityStoreImpl) DeleteTenant(ctx context.Context, tenantID string) error {
 	maxRetries := 100
 
 	txf := func(tx *redis.Tx) error {
-		destinationIDs, err := m.redisClient.HKeys(ctx, redisTenantDestinationSummaryKey(tenantID)).Result()
+		destinationIDs, err := s.redisClient.HKeys(ctx, redisTenantDestinationSummaryKey(tenantID)).Result()
 		if err != nil {
 			return err
 		}
-		_, err = m.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
+		_, err = s.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
 			for _, destinationID := range destinationIDs {
 				r.Del(ctx, redisDestinationID(destinationID, tenantID))
 			}
@@ -90,7 +90,7 @@ func (m *metadataImpl) DeleteTenant(ctx context.Context, tenantID string) error 
 	}
 
 	for i := 0; i < maxRetries; i++ {
-		err := m.redisClient.Watch(ctx, txf, redisTenantDestinationSummaryKey(tenantID))
+		err := s.redisClient.Watch(ctx, txf, redisTenantDestinationSummaryKey(tenantID))
 		if err == nil {
 			// Success.
 			return nil
@@ -106,8 +106,8 @@ func (m *metadataImpl) DeleteTenant(ctx context.Context, tenantID string) error 
 	return errors.New("increment reached maximum number of retries")
 }
 
-func (m *metadataImpl) ListDestinationSummaryByTenant(ctx context.Context, tenantID string) ([]DestinationSummary, error) {
-	destinationSummaryListHash, err := m.redisClient.HGetAll(ctx, redisTenantDestinationSummaryKey(tenantID)).Result()
+func (s *entityStoreImpl) ListDestinationSummaryByTenant(ctx context.Context, tenantID string) ([]DestinationSummary, error) {
+	destinationSummaryListHash, err := s.redisClient.HGetAll(ctx, redisTenantDestinationSummaryKey(tenantID)).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return []DestinationSummary{}, nil
@@ -127,10 +127,10 @@ func (m *metadataImpl) ListDestinationSummaryByTenant(ctx context.Context, tenan
 	return destinationSummaryList, nil
 }
 
-func (m *metadataImpl) ListDestinationByTenant(ctx context.Context, tenantID string) ([]Destination, error) {
-	destinationSummaryList, err := m.ListDestinationSummaryByTenant(ctx, tenantID)
+func (s *entityStoreImpl) ListDestinationByTenant(ctx context.Context, tenantID string) ([]Destination, error) {
+	destinationSummaryList, err := s.ListDestinationSummaryByTenant(ctx, tenantID)
 
-	pipe := m.redisClient.Pipeline()
+	pipe := s.redisClient.Pipeline()
 	cmds := make([]*redis.MapStringStringCmd, len(destinationSummaryList))
 	for i, destinationSummary := range destinationSummaryList {
 		cmds[i] = pipe.HGetAll(ctx, redisDestinationID(destinationSummary.ID, tenantID))
@@ -143,7 +143,7 @@ func (m *metadataImpl) ListDestinationByTenant(ctx context.Context, tenantID str
 	destinations := make([]Destination, len(destinationSummaryList))
 	for i, cmd := range cmds {
 		destination := &Destination{TenantID: tenantID}
-		err = destination.parseRedisHash(cmd, m.cipher)
+		err = destination.parseRedisHash(cmd, s.cipher)
 		if err != nil {
 			return []Destination{}, err
 		}
@@ -157,10 +157,10 @@ func (m *metadataImpl) ListDestinationByTenant(ctx context.Context, tenantID str
 	return destinations, nil
 }
 
-func (m *metadataImpl) RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*Destination, error) {
-	cmd := m.redisClient.HGetAll(ctx, redisDestinationID(destinationID, tenantID))
+func (s *entityStoreImpl) RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*Destination, error) {
+	cmd := s.redisClient.HGetAll(ctx, redisDestinationID(destinationID, tenantID))
 	destination := &Destination{TenantID: tenantID}
-	if err := destination.parseRedisHash(cmd, m.cipher); err != nil {
+	if err := destination.parseRedisHash(cmd, s.cipher); err != nil {
 		if err == redis.Nil {
 			return nil, nil
 		}
@@ -169,7 +169,7 @@ func (m *metadataImpl) RetrieveDestination(ctx context.Context, tenantID, destin
 	return destination, nil
 }
 
-func (m *metadataImpl) UpsertDestination(ctx context.Context, destination Destination) error {
+func (m *entityStoreImpl) UpsertDestination(ctx context.Context, destination Destination) error {
 	err := destination.Validate(ctx)
 	if err != nil {
 		return fmt.Errorf("validation failed: %w", err)
@@ -200,8 +200,8 @@ func (m *metadataImpl) UpsertDestination(ctx context.Context, destination Destin
 	return err
 }
 
-func (m *metadataImpl) DeleteDestination(ctx context.Context, tenantID, destinationID string) error {
-	_, err := m.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
+func (s *entityStoreImpl) DeleteDestination(ctx context.Context, tenantID, destinationID string) error {
+	_, err := s.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
 		if err := r.HDel(ctx, redisTenantDestinationSummaryKey(tenantID), destinationID).Err(); err != nil {
 			return err
 		}
@@ -210,8 +210,8 @@ func (m *metadataImpl) DeleteDestination(ctx context.Context, tenantID, destinat
 	return err
 }
 
-func (m *metadataImpl) MatchEvent(ctx context.Context, event Event) ([]DestinationSummary, error) {
-	destinationSummaryList, err := m.ListDestinationSummaryByTenant(ctx, event.TenantID)
+func (s *entityStoreImpl) MatchEvent(ctx context.Context, event Event) ([]DestinationSummary, error) {
+	destinationSummaryList, err := s.ListDestinationSummaryByTenant(ctx, event.TenantID)
 	if err != nil {
 		return nil, err
 	}

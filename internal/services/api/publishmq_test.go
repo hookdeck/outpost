@@ -41,7 +41,7 @@ func TestIntegrationAPIService_PublishMQConsumer(t *testing.T) {
 		Password: redisConfig.Password,
 		DB:       redisConfig.Database,
 	})
-	metadataRepo := setupTestMetadataRepo(t, redisClient, nil)
+	entityStore := setupTestEntityStore(t, redisClient, nil)
 	destination := models.Destination{
 		ID:       uuid.New().String(),
 		TenantID: uuid.New().String(),
@@ -54,7 +54,7 @@ func TestIntegrationAPIService_PublishMQConsumer(t *testing.T) {
 		CreatedAt:   time.Now(),
 		DisabledAt:  nil,
 	}
-	metadataRepo.UpsertDestination(ctx, destination)
+	entityStore.UpsertDestination(ctx, destination)
 
 	wg := &sync.WaitGroup{}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

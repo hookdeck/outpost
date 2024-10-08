@@ -18,11 +18,11 @@ import (
 )
 
 type messageHandler struct {
-	tracer       eventtracer.EventTracer
-	logger       *otelzap.Logger
-	logMQ        *logmq.LogMQ
-	metadataRepo models.MetadataRepo
-	idempotence  idempotence.Idempotence
+	tracer      eventtracer.EventTracer
+	logger      *otelzap.Logger
+	logMQ       *logmq.LogMQ
+	entityStore models.EntityStore
+	idempotence idempotence.Idempotence
 }
 
 var _ consumer.MessageHandler = (*messageHandler)(nil)
@@ -31,13 +31,13 @@ func NewMessageHandler(
 	logger *otelzap.Logger,
 	redisClient *redis.Client,
 	logMQ *logmq.LogMQ,
-	metadataRepo models.MetadataRepo,
+	entityStore models.EntityStore,
 ) consumer.MessageHandler {
 	return &messageHandler{
-		tracer:       eventtracer.NewEventTracer(),
-		logger:       logger,
-		logMQ:        logMQ,
-		metadataRepo: metadataRepo,
+		tracer:      eventtracer.NewEventTracer(),
+		logger:      logger,
+		logMQ:       logMQ,
+		entityStore: entityStore,
 		idempotence: idempotence.New(redisClient,
 			idempotence.WithTimeout(5*time.Second),
 			idempotence.WithSuccessfulTTL(24*time.Hour),
@@ -68,7 +68,7 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 	defer span.End()
 	logger := h.logger.Ctx(ctx)
 	logger.Info("deliverymq handler", zap.String("delivery_event", deliveryEvent.ID))
-	destination, err := h.metadataRepo.RetrieveDestination(ctx, deliveryEvent.Event.TenantID, deliveryEvent.DestinationID)
+	destination, err := h.entityStore.RetrieveDestination(ctx, deliveryEvent.Event.TenantID, deliveryEvent.DestinationID)
 	if err != nil {
 		logger.Error("failed to retrieve destination", zap.Error(err))
 		span.RecordError(err)

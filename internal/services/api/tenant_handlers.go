@@ -11,20 +11,20 @@ import (
 )
 
 type TenantHandlers struct {
-	logger       *otelzap.Logger
-	jwtSecret    string
-	metadataRepo models.MetadataRepo
+	logger      *otelzap.Logger
+	jwtSecret   string
+	entityStore models.EntityStore
 }
 
 func NewTenantHandlers(
 	logger *otelzap.Logger,
 	jwtSecret string,
-	metadataRepo models.MetadataRepo,
+	entityStore models.EntityStore,
 ) *TenantHandlers {
 	return &TenantHandlers{
-		logger:       logger,
-		jwtSecret:    jwtSecret,
-		metadataRepo: metadataRepo,
+		logger:      logger,
+		jwtSecret:   jwtSecret,
+		entityStore: entityStore,
 	}
 }
 
@@ -33,7 +33,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	tenantID := c.Param("tenantID")
 
 	// Check existing tenant.
-	tenant, err := h.metadataRepo.RetrieveTenant(c.Request.Context(), tenantID)
+	tenant, err := h.entityStore.RetrieveTenant(c.Request.Context(), tenantID)
 	if err != nil {
 		logger.Error("failed to get tenant", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
@@ -51,7 +51,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 		ID:        tenantID,
 		CreatedAt: time.Now(),
 	}
-	if err := h.metadataRepo.UpsertTenant(c.Request.Context(), *tenant); err != nil {
+	if err := h.entityStore.UpsertTenant(c.Request.Context(), *tenant); err != nil {
 		logger.Error("failed to set tenant", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
 		return
@@ -67,7 +67,7 @@ func (h *TenantHandlers) Retrieve(c *gin.Context) {
 func (h *TenantHandlers) Delete(c *gin.Context) {
 	logger := h.logger.Ctx(c.Request.Context())
 	tenantID := c.Param("tenantID")
-	err := h.metadataRepo.DeleteTenant(c.Request.Context(), tenantID)
+	err := h.entityStore.DeleteTenant(c.Request.Context(), tenantID)
 	if err != nil {
 		logger.Error("failed to delete tenant", zap.Error(err))
 		c.Status(http.StatusInternalServerError)
