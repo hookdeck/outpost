@@ -83,8 +83,8 @@ func (d *Destination) Publish(ctx context.Context, event *Event) error {
 }
 
 type DestinationSummary struct {
-	ID     string   `json:"id"`
-	Topics []string `json:"topics"`
+	ID     string  `json:"id"`
+	Topics Strings `json:"topics"`
 }
 
 var _ encoding.BinaryMarshaler = &DestinationSummary{}
