@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 type EventHandler interface {
@@ -64,20 +65,28 @@ func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error 
 		return err
 	}
 
-	// TODO: Consider handling via goroutine for better performance? Maybe GoCloud PubSub already support this natively?
-	// TODO: Consider how batch publishing work
+	var g errgroup.Group
 	for _, destinationSummary := range matchedDestinations {
-		deliveryEvent := models.NewDeliveryEvent(*event, destinationSummary.ID)
-		_, deliverySpan := h.eventTracer.StartDelivery(ctx, &deliveryEvent)
-		err := h.deliveryMQ.Publish(ctx, deliveryEvent)
-		if err != nil {
-			span.RecordError(err)
-			deliverySpan.RecordError(err)
-			deliverySpan.End()
-			return err
-		}
-		deliverySpan.End()
+		g.Go(func() error {
+			return h.enqueueDeliveryEvent(ctx, models.NewDeliveryEvent(*event, destinationSummary.ID))
+		})
 	}
+	if err := g.Wait(); err != nil {
+		span.RecordError(err)
+		return err
+	}
+	return nil
+}
+
+func (h *eventHandler) enqueueDeliveryEvent(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
+	_, deliverySpan := h.eventTracer.StartDelivery(ctx, &deliveryEvent)
+	err := h.deliveryMQ.Publish(ctx, deliveryEvent)
+	if err != nil {
+		deliverySpan.RecordError(err)
+		deliverySpan.End()
+		return err
+	}
+	deliverySpan.End()
 	return nil
 }
 
