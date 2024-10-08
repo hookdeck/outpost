@@ -68,7 +68,7 @@ func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
 	return conn, cleanup
 }
 
-func TestIntegrationLogRepo(t *testing.T) {
+func TestIntegrationLogStore(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -79,7 +79,7 @@ func TestIntegrationLogRepo(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	logRepo := models.NewLogRepo(conn)
+	logStore := models.NewLogStore(conn)
 
 	t.Run("inserts many event", func(t *testing.T) {
 		event := &models.Event{
@@ -93,12 +93,12 @@ func TestIntegrationLogRepo(t *testing.T) {
 			},
 		}
 
-		err := logRepo.InsertManyEvent(ctx, []*models.Event{event})
+		err := logStore.InsertManyEvent(ctx, []*models.Event{event})
 		assert.Nil(t, err)
 	})
 
 	t.Run("lists event", func(t *testing.T) {
-		events, err := logRepo.ListEvent(ctx)
+		events, err := logStore.ListEvent(ctx)
 		require.Nil(t, err)
 		for i := range events {
 			log.Println(events[i])
@@ -115,7 +115,7 @@ func TestIntegrationLogRepo(t *testing.T) {
 			Time:            time.Now(),
 		}
 
-		err := logRepo.InsertManyDelivery(ctx, []*models.Delivery{delivery})
+		err := logStore.InsertManyDelivery(ctx, []*models.Delivery{delivery})
 		assert.Nil(t, err)
 	})
 }

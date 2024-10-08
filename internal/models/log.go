@@ -6,24 +6,24 @@ import (
 	"github.com/hookdeck/EventKit/internal/clickhouse"
 )
 
-type LogRepo interface {
+type LogStore interface {
 	ListEvent(ctx context.Context) ([]*Event, error)
 	InsertManyEvent(ctx context.Context, events []*Event) error
 	InsertManyDelivery(ctx context.Context, deliveries []*Delivery) error
 }
 
-type logImpl struct {
+type logStoreImpl struct {
 	chDB clickhouse.DB
 }
 
-var _ LogRepo = (*logImpl)(nil)
+var _ LogStore = (*logStoreImpl)(nil)
 
-func NewLogRepo(chDB clickhouse.DB) LogRepo {
-	return &logImpl{chDB: chDB}
+func NewLogStore(chDB clickhouse.DB) LogStore {
+	return &logStoreImpl{chDB: chDB}
 }
 
-func (l *logImpl) ListEvent(ctx context.Context) ([]*Event, error) {
-	rows, err := l.chDB.Query(ctx, `
+func (s *logStoreImpl) ListEvent(ctx context.Context) ([]*Event, error) {
+	rows, err := s.chDB.Query(ctx, `
 		SELECT
 			id,
 			tenant_id,
@@ -57,8 +57,8 @@ func (l *logImpl) ListEvent(ctx context.Context) ([]*Event, error) {
 	return events, nil
 }
 
-func (l *logImpl) InsertManyEvent(ctx context.Context, events []*Event) error {
-	batch, err := l.chDB.PrepareBatch(ctx,
+func (s *logStoreImpl) InsertManyEvent(ctx context.Context, events []*Event) error {
+	batch, err := s.chDB.PrepareBatch(ctx,
 		"INSERT INTO eventkit.events (id, tenant_id, destination_id, time, topic, data) VALUES (?, ?, ?, ?, ?)",
 	)
 	if err != nil {
@@ -85,8 +85,8 @@ func (l *logImpl) InsertManyEvent(ctx context.Context, events []*Event) error {
 	return nil
 }
 
-func (l *logImpl) InsertManyDelivery(ctx context.Context, deliveries []*Delivery) error {
-	batch, err := l.chDB.PrepareBatch(ctx,
+func (s *logStoreImpl) InsertManyDelivery(ctx context.Context, deliveries []*Delivery) error {
+	batch, err := s.chDB.PrepareBatch(ctx,
 		"INSERT INTO eventkit.deliveries (id, delivery_event_id, event_id, destination_id, status, time) VALUES (?, ?, ?, ?, ?, ?)",
 	)
 	if err != nil {
