@@ -30,7 +30,7 @@ func NewRouter(
 
 	portal.AddRoutes(r)
 
-	apiRouter := r.Group("/api")
+	apiRouter := r.Group("/api/v1")
 
 	apiRouter.GET("/healthz", func(c *gin.Context) {
 		c.Status(http.StatusOK)

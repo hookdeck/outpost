@@ -16,7 +16,7 @@ import (
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
-const baseAPIPath = "/api"
+const baseAPIPath = "/api/v1"
 
 func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *otelzap.Logger, *redis.Client) {
 	gin.SetMode(gin.TestMode)
