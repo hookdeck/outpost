@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/deliverymq"
+	"github.com/hookdeck/EventKit/internal/emetrics"
 	"github.com/hookdeck/EventKit/internal/eventtracer"
 	"github.com/hookdeck/EventKit/internal/idempotence"
 	"github.com/hookdeck/EventKit/internal/models"
@@ -19,6 +20,7 @@ type EventHandler interface {
 }
 
 type eventHandler struct {
+	emeter      emetrics.EventKitMetrics
 	eventTracer eventtracer.EventTracer
 	logger      *otelzap.Logger
 	idempotence idempotence.Idempotence
@@ -33,6 +35,7 @@ func NewEventHandler(
 	entityStore models.EntityStore,
 	eventTracer eventtracer.EventTracer,
 ) EventHandler {
+	emeter, _ := emetrics.New()
 	eventHandler := &eventHandler{
 		logger: logger,
 		idempotence: idempotence.New(redisClient,
@@ -42,6 +45,7 @@ func NewEventHandler(
 		deliveryMQ:  deliveryMQ,
 		entityStore: entityStore,
 		eventTracer: eventTracer,
+		emeter:      emeter,
 	}
 	return eventHandler
 }
@@ -64,6 +68,11 @@ func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error 
 	if err != nil {
 		return err
 	}
+	if len(matchedDestinations) == 0 {
+		return nil
+	}
+
+	h.emeter.EventEligbible(ctx, event)
 
 	var g errgroup.Group
 	for _, destinationSummary := range matchedDestinations {
