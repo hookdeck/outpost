@@ -7,7 +7,6 @@ import (
 	"github.com/hookdeck/EventKit/internal/emetrics"
 	"github.com/hookdeck/EventKit/internal/models"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -38,7 +37,6 @@ func (t *eventTracerImpl) Receive(ctx context.Context, event *models.Event) (con
 	t.emeter.EventPublished(ctx, event)
 
 	ctx, span := t.tracer.Start(context.Background(), "EventTracer.Receive")
-	span.SetAttributes(attribute.String("eventkit.event_id", event.ID))
 
 	event.Metadata["received_time"] = time.Now().Format(time.RFC3339Nano)
 	event.Metadata["trace_id"] = span.SpanContext().TraceID().String()
@@ -49,9 +47,6 @@ func (t *eventTracerImpl) Receive(ctx context.Context, event *models.Event) (con
 
 func (t *eventTracerImpl) StartDelivery(_ context.Context, deliveryEvent *models.DeliveryEvent) (context.Context, trace.Span) {
 	ctx, span := t.tracer.Start(t.getRemoteEventSpanContext(&deliveryEvent.Event), "EventTracer.StartDelivery")
-	span.SetAttributes(attribute.String("eventkit.delivery_event_id", deliveryEvent.ID))
-	span.SetAttributes(attribute.String("eventkit.event_id", deliveryEvent.Event.ID))
-	span.SetAttributes(attribute.String("eventkit.destination_id", deliveryEvent.DestinationID))
 
 	deliveryEvent.Metadata["trace_id"] = span.SpanContext().TraceID().String()
 	deliveryEvent.Metadata["span_id"] = span.SpanContext().SpanID().String()
@@ -84,9 +79,6 @@ func (d *DeliverSpan) End(options ...trace.SpanEndOption) {
 
 func (t *eventTracerImpl) Deliver(_ context.Context, deliveryEvent *models.DeliveryEvent) (context.Context, trace.Span) {
 	ctx, span := t.tracer.Start(t.getRemoteDeliveryEventSpanContext(deliveryEvent), "EventTracer.Deliver")
-	span.SetAttributes(attribute.String("eventkit.delivery_event_id", deliveryEvent.ID))
-	span.SetAttributes(attribute.String("eventkit.event_id", deliveryEvent.Event.ID))
-	span.SetAttributes(attribute.String("eventkit.destination_id", deliveryEvent.DestinationID))
 	deliverySpan := &DeliverSpan{Span: span, emeter: t.emeter, deliveryEvent: deliveryEvent}
 	return ctx, deliverySpan
 }
