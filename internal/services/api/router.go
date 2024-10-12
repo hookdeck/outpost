@@ -1,7 +1,9 @@
 package api
 
 import (
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
@@ -29,12 +31,15 @@ func NewRouter(
 ) http.Handler {
 	r := gin.Default()
 	r.Use(otelgin.Middleware(cfg.Hostname))
+	r.Use(MetricsMiddleware())
 
 	portal.AddRoutes(r)
 
 	apiRouter := r.Group("/api/v1")
 
 	apiRouter.GET("/healthz", func(c *gin.Context) {
+		log.Println("/healthz")
+		time.Sleep(1 * time.Second)
 		c.Status(http.StatusOK)
 	})
 
