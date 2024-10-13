@@ -211,6 +211,14 @@ func (s *entityStoreImpl) DeleteDestination(ctx context.Context, tenantID, desti
 }
 
 func (s *entityStoreImpl) MatchEvent(ctx context.Context, event Event) ([]DestinationSummary, error) {
+	if event.DestinationID == "" {
+		return s.matchEventWithAllDestination(ctx, event)
+	} else {
+		return s.matchEventWithDestination(ctx, event)
+	}
+}
+
+func (s *entityStoreImpl) matchEventWithAllDestination(ctx context.Context, event Event) ([]DestinationSummary, error) {
 	destinationSummaryList, err := s.ListDestinationSummaryByTenant(ctx, event.TenantID)
 	if err != nil {
 		return nil, err
@@ -229,4 +237,18 @@ func (s *entityStoreImpl) MatchEvent(ctx context.Context, event Event) ([]Destin
 	}
 
 	return matchedDestinationSummaryList, nil
+}
+
+func (s *entityStoreImpl) matchEventWithDestination(ctx context.Context, event Event) ([]DestinationSummary, error) {
+	destination, err := s.RetrieveDestination(ctx, event.TenantID, event.DestinationID)
+	if err != nil {
+		return nil, err
+	}
+	if destination == nil {
+		return []DestinationSummary{}, nil
+	}
+	if event.Topic == "" || destination.Topics[0] == "*" || slices.Contains(destination.Topics, event.Topic) {
+		return []DestinationSummary{*destination.ToSummary()}, nil
+	}
+	return []DestinationSummary{}, nil
 }

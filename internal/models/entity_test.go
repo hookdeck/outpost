@@ -230,95 +230,6 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assert.True(t, cmp.Equal(expected.DisabledAt, actual.DisabledAt))
 }
 
-func TestEntityStore_MatchEvent(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	var err error
-	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"))
-
-	tenant := models.Tenant{
-		ID:        uuid.New().String(),
-		CreatedAt: time.Now(),
-	}
-
-	err = entityStore.UpsertTenant(context.Background(), tenant)
-	require.Nil(t, err)
-
-	ids := []string{
-		uuid.New().String(),
-		uuid.New().String(),
-		uuid.New().String(),
-		uuid.New().String(),
-		uuid.New().String(),
-	}
-
-	destFactory := testutil.MockDestinationFactory
-	err = entityStore.UpsertDestination(context.Background(),
-		destFactory.Any(
-			destFactory.WithID(ids[0]),
-			destFactory.WithTenantID(tenant.ID),
-			destFactory.WithTopics([]string{"*"}),
-		),
-	)
-	require.Nil(t, err)
-	err = entityStore.UpsertDestination(context.Background(),
-		destFactory.Any(
-			destFactory.WithID(ids[1]),
-			destFactory.WithTenantID(tenant.ID),
-			destFactory.WithTopics([]string{"user.created", "user.updated"}),
-		),
-	)
-	require.Nil(t, err)
-	err = entityStore.UpsertDestination(context.Background(),
-		destFactory.Any(
-			destFactory.WithID(ids[2]),
-			destFactory.WithTenantID(tenant.ID),
-			destFactory.WithTopics([]string{"user.created"}),
-		),
-	)
-	require.Nil(t, err)
-	err = entityStore.UpsertDestination(context.Background(),
-		destFactory.Any(
-			destFactory.WithID(ids[3]),
-			destFactory.WithTenantID(tenant.ID),
-			destFactory.WithTopics([]string{"user.updated"}),
-		),
-	)
-	require.Nil(t, err)
-
-	// Delete destination to test if destination is cleaned up properly
-	err = entityStore.UpsertDestination(context.Background(),
-		destFactory.Any(
-			destFactory.WithID(ids[4]),
-			destFactory.WithTenantID(tenant.ID),
-			destFactory.WithTopics([]string{"*"}),
-		),
-	)
-	require.Nil(t, err)
-	err = entityStore.DeleteDestination(context.Background(), tenant.ID, ids[4])
-	require.Nil(t, err)
-
-	// Act
-	event := models.Event{
-		ID:       uuid.New().String(),
-		Topic:    "user.created",
-		Time:     time.Now(),
-		TenantID: tenant.ID,
-		Metadata: map[string]string{},
-		Data:     map[string]interface{}{},
-	}
-	matchedDestinationSummaryList, err := entityStore.MatchEvent(context.Background(), event)
-	require.Nil(t, err)
-
-	// Assert
-	require.Len(t, matchedDestinationSummaryList, 3)
-	for _, summary := range matchedDestinationSummaryList {
-		require.Contains(t, []string{ids[0], ids[1], ids[2]}, summary.ID)
-	}
-}
-
 type multiDestinationSuite struct {
 	ctx          context.Context
 	redisClient  *redis.Client
@@ -328,7 +239,9 @@ type multiDestinationSuite struct {
 }
 
 func (suite *multiDestinationSuite) SetupTest(t *testing.T) {
-	suite.ctx = context.Background()
+	if suite.ctx == nil {
+		suite.ctx = context.Background()
+	}
 	suite.redisClient = testutil.CreateTestRedisClient(t)
 	suite.entityStore = models.NewEntityStore(suite.redisClient, models.NewAESCipher("secret"))
 	suite.destinations = make([]models.Destination, 5)
@@ -336,19 +249,35 @@ func (suite *multiDestinationSuite) SetupTest(t *testing.T) {
 		ID:        uuid.New().String(),
 		CreatedAt: time.Now(),
 	}
-	err := suite.entityStore.UpsertTenant(suite.ctx, suite.tenant)
-	require.Nil(t, err)
+	require.NoError(t, suite.entityStore.UpsertTenant(suite.ctx, suite.tenant))
 
 	ids := make([]string, 5)
+	destinationTopicList := [][]string{
+		{"*"},
+		{"user.created"},
+		{"user.updated"},
+		{"user.deleted"},
+		{"user.created", "user.updated"},
+	}
 	for i := 0; i < 5; i++ {
 		ids[i] = uuid.New().String()
 		suite.destinations[i] = testutil.MockDestinationFactory.Any(
 			testutil.MockDestinationFactory.WithID(ids[i]),
 			testutil.MockDestinationFactory.WithTenantID(suite.tenant.ID),
+			testutil.MockDestinationFactory.WithTopics(destinationTopicList[i]),
 		)
-		err = suite.entityStore.UpsertDestination(suite.ctx, suite.destinations[i])
-		require.Nil(t, err)
+		require.NoError(t, suite.entityStore.UpsertDestination(suite.ctx, suite.destinations[i]))
 	}
+
+	// Insert & Delete destination to ensure it's cleaned up properly
+	toBeDeletedID := uuid.New().String()
+	require.NoError(t, suite.entityStore.UpsertDestination(suite.ctx,
+		testutil.MockDestinationFactory.Any(
+			testutil.MockDestinationFactory.WithID(toBeDeletedID),
+			testutil.MockDestinationFactory.WithTenantID(suite.tenant.ID),
+			testutil.MockDestinationFactory.WithTopics([]string{"*"}),
+		)))
+	require.NoError(t, suite.entityStore.DeleteDestination(suite.ctx, suite.tenant.ID, toBeDeletedID))
 }
 
 func TestMultiDestinationSuite_ListDestinationByTenant(t *testing.T) {
@@ -374,18 +303,18 @@ func TestMultiDestinationSuite_UpdateDestination(t *testing.T) {
 	updatedDestination := suite.destinations[updatedIndex]
 	updatedDestination.Topics = updatedTopics
 	err := suite.entityStore.UpsertDestination(suite.ctx, updatedDestination)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	actual, err := suite.entityStore.RetrieveDestination(suite.ctx, updatedDestination.TenantID, updatedDestination.ID)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, updatedDestination.Topics, actual.Topics)
 
 	destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Len(t, destinations, 5)
 
 	destinationSummaryList, err := suite.entityStore.ListDestinationSummaryByTenant(suite.ctx, suite.tenant.ID)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, destinationSummaryList, 5)
 	foundMatchingDestination := false
 	for _, destinationSummary := range destinationSummaryList {
@@ -395,4 +324,86 @@ func TestMultiDestinationSuite_UpdateDestination(t *testing.T) {
 		}
 	}
 	assert.True(t, foundMatchingDestination, "Unable to find destination in destination summary list")
+}
+
+func TestMultiDestinationSuite_MatchEvent(t *testing.T) {
+	t.Parallel()
+
+	suite := multiDestinationSuite{}
+	suite.SetupTest(t)
+
+	t.Run("match by topic", func(t *testing.T) {
+		// Act
+		event := models.Event{
+			ID:       uuid.New().String(),
+			Topic:    "user.created",
+			Time:     time.Now(),
+			TenantID: suite.tenant.ID,
+			Metadata: map[string]string{},
+			Data:     map[string]interface{}{},
+		}
+		matchedDestinationSummaryList, err := suite.entityStore.MatchEvent(suite.ctx, event)
+		require.NoError(t, err)
+
+		// Assert
+		require.Len(t, matchedDestinationSummaryList, 3)
+		for _, summary := range matchedDestinationSummaryList {
+			require.Contains(t, []string{suite.destinations[0].ID, suite.destinations[1].ID, suite.destinations[4].ID}, summary.ID)
+		}
+	})
+
+	t.Run("match by topic & destination", func(t *testing.T) {
+		// Act
+		event := models.Event{
+			ID:            uuid.New().String(),
+			Topic:         "user.created",
+			Time:          time.Now(),
+			TenantID:      suite.tenant.ID,
+			DestinationID: suite.destinations[1].ID,
+			Metadata:      map[string]string{},
+			Data:          map[string]interface{}{},
+		}
+		matchedDestinationSummaryList, err := suite.entityStore.MatchEvent(suite.ctx, event)
+		require.NoError(t, err)
+
+		// Assert
+		require.Len(t, matchedDestinationSummaryList, 1)
+		require.Equal(t, suite.destinations[1].ID, matchedDestinationSummaryList[0].ID)
+	})
+
+	t.Run("destination not found", func(t *testing.T) {
+		// Act
+		event := models.Event{
+			ID:            uuid.New().String(),
+			Topic:         "user.created",
+			Time:          time.Now(),
+			TenantID:      suite.tenant.ID,
+			DestinationID: "not-found",
+			Metadata:      map[string]string{},
+			Data:          map[string]interface{}{},
+		}
+		matchedDestinationSummaryList, err := suite.entityStore.MatchEvent(suite.ctx, event)
+		require.NoError(t, err)
+
+		// Assert
+		require.Len(t, matchedDestinationSummaryList, 0)
+	})
+
+	t.Run("destination topic is invalid", func(t *testing.T) {
+		// Act
+		event := models.Event{
+			ID:            uuid.New().String(),
+			Topic:         "user.created",
+			Time:          time.Now(),
+			TenantID:      suite.tenant.ID,
+			DestinationID: suite.destinations[3].ID, // "user-deleted" destination
+			Metadata:      map[string]string{},
+			Data:          map[string]interface{}{},
+		}
+		matchedDestinationSummaryList, err := suite.entityStore.MatchEvent(suite.ctx, event)
+		require.NoError(t, err)
+
+		// Assert
+		require.Len(t, matchedDestinationSummaryList, 0)
+	})
 }
