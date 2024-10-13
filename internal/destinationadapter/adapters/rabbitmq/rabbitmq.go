@@ -112,6 +112,11 @@ func publishEvent(ctx context.Context, url string, exchange string, event *adapt
 	}
 	defer ch.Close()
 
+	headers := make(amqp091.Table)
+	for k, v := range event.Metadata {
+		headers[k] = v
+	}
+
 	return ch.PublishWithContext(ctx,
 		exchange, // exchange
 		"",       // routing key
@@ -119,6 +124,7 @@ func publishEvent(ctx context.Context, url string, exchange string, event *adapt
 		false,    // immediate
 		amqp091.Publishing{
 			ContentType: "application/json",
+			Headers:     headers,
 			Body:        []byte(dataBytes),
 		},
 	)

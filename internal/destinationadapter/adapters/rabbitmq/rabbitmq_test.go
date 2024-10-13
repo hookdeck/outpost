@@ -161,7 +161,10 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 		Topic:            "test",
 		EligibleForRetry: true,
 		Time:             time.Now(),
-		Metadata:         map[string]string{},
+		Metadata: map[string]string{
+			"my_metadata":      "metadatavalue",
+			"another_metadata": "anothermetadatavalue",
+		},
 		Data: map[string]interface{}{
 			"mykey": "myvalue",
 		},
@@ -246,4 +249,7 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert.Equal(t, event.Data, body)
+	// metadata
+	assert.Equal(t, "metadatavalue", msg.Headers["my_metadata"])
+	assert.Equal(t, "anothermetadatavalue", msg.Headers["another_metadata"])
 }
