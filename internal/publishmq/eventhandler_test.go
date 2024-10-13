@@ -19,19 +19,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// NOTE: This test seems to be a bit flaky.
 func TestPublishMQEventHandler_Concurrency(t *testing.T) {
 	t.Parallel()
-
-	// awsEndpoint, terminate, err := testutil.StartTestcontainerLocalstack()
-	// require.Nil(t, err)
-	// defer terminate()
-	// queueConfig := mqs.QueueConfig{AWSSQS: &mqs.AWSSQSConfig{
-	// 	Endpoint:                  awsEndpoint,
-	// 	Region:                    "eu-central-1",
-	// 	ServiceAccountCredentials: "test:test:",
-	// 	Topic:                     "eventkit",
-	// }}
-	// testutil.DeclareTestAWSInfrastructure(context.Background(), queueConfig.AWSSQS, nil)
 
 	exporter := tracetest.NewInMemoryExporter()
 	mockEventTracer := newMockEventTracer(exporter)
