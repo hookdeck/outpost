@@ -31,6 +31,12 @@ func (d *Data) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, d)
 }
 
+type EventTelemetry struct {
+	TraceID      string
+	SpanID       string
+	ReceivedTime string // format time.RFC3339Nano
+}
+
 type Event struct {
 	ID               string            `json:"id"`
 	TenantID         string            `json:"tenant_id"`
@@ -40,6 +46,7 @@ type Event struct {
 	Time             time.Time         `json:"time"`
 	Metadata         map[string]string `json:"metadata"`
 	Data             Data              `json:"data"`
+	Telemetry        *EventTelemetry
 }
 
 var _ mqs.IncomingMessage = &Event{}
@@ -69,12 +76,17 @@ func (e *Event) ToAdapterEvent() *adapters.Event {
 	}
 }
 
+type DeliveryEventTelemetry struct {
+	TraceID string
+	SpanID  string
+}
+
 type DeliveryEvent struct {
 	ID            string
 	DestinationID string
 	Event         Event
-	Metadata      map[string]string
 	Delivery      *Delivery
+	Telemetry     *DeliveryEventTelemetry
 }
 
 var _ mqs.IncomingMessage = &DeliveryEvent{}
@@ -96,7 +108,6 @@ func NewDeliveryEvent(event Event, destinationID string) DeliveryEvent {
 		ID:            uuid.New().String(),
 		DestinationID: destinationID,
 		Event:         event,
-		Metadata:      map[string]string{},
 	}
 }
 

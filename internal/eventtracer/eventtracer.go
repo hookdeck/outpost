@@ -38,9 +38,11 @@ func (t *eventTracerImpl) Receive(ctx context.Context, event *models.Event) (con
 
 	ctx, span := t.tracer.Start(context.Background(), "EventTracer.Receive")
 
-	event.Metadata["received_time"] = time.Now().Format(time.RFC3339Nano)
-	event.Metadata["trace_id"] = span.SpanContext().TraceID().String()
-	event.Metadata["span_id"] = span.SpanContext().SpanID().String()
+	event.Telemetry = &models.EventTelemetry{
+		TraceID:      span.SpanContext().TraceID().String(),
+		SpanID:       span.SpanContext().SpanID().String(),
+		ReceivedTime: time.Now().Format(time.RFC3339Nano),
+	}
 
 	return ctx, span
 }
@@ -48,8 +50,10 @@ func (t *eventTracerImpl) Receive(ctx context.Context, event *models.Event) (con
 func (t *eventTracerImpl) StartDelivery(_ context.Context, deliveryEvent *models.DeliveryEvent) (context.Context, trace.Span) {
 	ctx, span := t.tracer.Start(t.getRemoteEventSpanContext(&deliveryEvent.Event), "EventTracer.StartDelivery")
 
-	deliveryEvent.Metadata["trace_id"] = span.SpanContext().TraceID().String()
-	deliveryEvent.Metadata["span_id"] = span.SpanContext().SpanID().String()
+	deliveryEvent.Telemetry = &models.DeliveryEventTelemetry{
+		TraceID: span.SpanContext().TraceID().String(),
+		SpanID:  span.SpanContext().SpanID().String(),
+	}
 
 	return ctx, span
 }
@@ -67,8 +71,11 @@ func (d *DeliverSpan) RecordError(err error, options ...trace.EventOption) {
 }
 
 func (d *DeliverSpan) End(options ...trace.SpanEndOption) {
-	startTime, err := time.Parse(time.RFC3339Nano, d.deliveryEvent.Event.Metadata["received_time"])
-	d.emeter.EventDelivered(context.Background(), d.deliveryEvent, d.err == nil)
+	if d.deliveryEvent.Event.Telemetry == nil {
+		d.Span.End(options...)
+		return
+	}
+	startTime, err := time.Parse(time.RFC3339Nano, d.deliveryEvent.Event.Telemetry.ReceivedTime)
 	if err == nil {
 		d.emeter.DeliveryLatency(context.Background(),
 			time.Since(startTime),
@@ -84,13 +91,16 @@ func (t *eventTracerImpl) Deliver(_ context.Context, deliveryEvent *models.Deliv
 }
 
 func (t *eventTracerImpl) getRemoteEventSpanContext(event *models.Event) context.Context {
-	traceID, err := trace.TraceIDFromHex(event.Metadata["trace_id"])
+	if event.Telemetry == nil {
+		return context.Background()
+	}
+	traceID, err := trace.TraceIDFromHex(event.Telemetry.TraceID)
 	if err != nil {
 		// TODO: handle error
 		return context.Background()
 	}
 
-	spanID, err := trace.SpanIDFromHex(event.Metadata["span_id"])
+	spanID, err := trace.SpanIDFromHex(event.Telemetry.SpanID)
 	if err != nil {
 		// TODO: handle error
 		return context.Background()
@@ -106,13 +116,16 @@ func (t *eventTracerImpl) getRemoteEventSpanContext(event *models.Event) context
 }
 
 func (t *eventTracerImpl) getRemoteDeliveryEventSpanContext(deliveryEvent *models.DeliveryEvent) context.Context {
-	traceID, err := trace.TraceIDFromHex(deliveryEvent.Metadata["trace_id"])
+	if deliveryEvent.Telemetry == nil {
+		return context.Background()
+	}
+	traceID, err := trace.TraceIDFromHex(deliveryEvent.Telemetry.TraceID)
 	if err != nil {
 		// TODO: handle error
 		return context.Background()
 	}
 
-	spanID, err := trace.SpanIDFromHex(deliveryEvent.Metadata["span_id"])
+	spanID, err := trace.SpanIDFromHex(deliveryEvent.Telemetry.SpanID)
 	if err != nil {
 		// TODO: handle error
 		return context.Background()
