@@ -172,7 +172,10 @@ func TestWebhookDestination_Publish(t *testing.T) {
 			Topic:            "test",
 			EligibleForRetry: true,
 			Time:             time.Now(),
-			Metadata:         map[string]string{},
+			Metadata: map[string]string{
+				"my_metadata":      "metadatavalue",
+				"another_metadata": "anothermetadatavalue",
+			},
 			Data: map[string]interface{}{
 				"mykey": "myvalue",
 			},
@@ -185,6 +188,9 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		assert.Equal(t, "/webhook", request.URL.Path)
 		assert.Equal(t, "application/json", request.Header.Get("Content-Type"))
 		assert.Equal(t, `{"mykey":"myvalue"}`, string(body), "webhook request body doesn't match expectation")
+		// metadata
+		assert.Equal(t, "metadatavalue", request.Header.Get("x-eventkit-my_metadata"))
+		assert.Equal(t, "anothermetadatavalue", request.Header.Get("x-eventkit-another_metadata"))
 	})
 }
 

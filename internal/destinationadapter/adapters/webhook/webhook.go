@@ -33,7 +33,7 @@ func (d *WebhookDestination) Publish(ctx context.Context, destination adapters.D
 	if err != nil {
 		return err
 	}
-	return makeRequest(ctx, config.URL, event.Data)
+	return makeRequest(ctx, config.URL, event)
 }
 
 func parseConfig(destination adapters.DestinationAdapterValue) (*WebhookDestinationConfig, error) {
@@ -52,8 +52,8 @@ func parseConfig(destination adapters.DestinationAdapterValue) (*WebhookDestinat
 	return destinationConfig, nil
 }
 
-func makeRequest(ctx context.Context, url string, data map[string]interface{}) error {
-	dataBytes, err := json.Marshal(data)
+func makeRequest(ctx context.Context, url string, event *adapters.Event) error {
+	dataBytes, err := json.Marshal(event.Data)
 	if err != nil {
 		return err
 	}
@@ -64,6 +64,9 @@ func makeRequest(ctx context.Context, url string, data map[string]interface{}) e
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	for key, value := range event.Metadata {
+		req.Header.Set("x-eventkit-"+key, value)
+	}
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
