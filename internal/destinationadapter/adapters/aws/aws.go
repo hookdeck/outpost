@@ -9,9 +9,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
-	"gocloud.dev/pubsub"
-	"gocloud.dev/pubsub/awssnssqs"
 )
 
 type AWSDestination struct {
@@ -114,10 +114,18 @@ func publishEvent(ctx context.Context, cfg *AWSDestinationConfig, creds *AWSDest
 		}
 	})
 
-	topic := awssnssqs.OpenSQSTopicV2(ctx, sqsClient, cfg.QueueURL, nil)
-	defer topic.Shutdown(ctx)
+	attrs := make(map[string]types.MessageAttributeValue)
+	for k, v := range event.Metadata {
+		attrs[k] = types.MessageAttributeValue{
+			DataType:    aws.String("String"),
+			StringValue: aws.String(v),
+		}
+	}
 
-	return topic.Send(ctx, &pubsub.Message{
-		Body: dataBytes,
+	_, err = sqsClient.SendMessage(ctx, &sqs.SendMessageInput{
+		QueueUrl:          awssdk.String(cfg.QueueURL),
+		MessageBody:       awssdk.String(string(dataBytes)),
+		MessageAttributes: attrs,
 	})
+	return err
 }

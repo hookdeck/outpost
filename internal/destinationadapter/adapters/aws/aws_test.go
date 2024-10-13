@@ -156,7 +156,7 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 
 	// Subscribe to messages
 	errchan := make(chan error)
-	msgchan := make(chan *string)
+	msgchan := make(chan *types.Message)
 
 	go func() {
 		for {
@@ -176,6 +176,8 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 			}
 
 			for _, m := range out.Messages {
+				log.Println(m.MessageAttributes)
+
 				// Delete message (to ack)
 				_, err = sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
 					QueueUrl:      &queueURL,
@@ -187,7 +189,7 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 					return
 				}
 				errchan <- nil
-				msgchan <- m.Body
+				msgchan <- &m
 				return
 			}
 		}
@@ -202,7 +204,10 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 		Topic:            "test",
 		EligibleForRetry: true,
 		Time:             time.Now(),
-		Metadata:         map[string]string{},
+		Metadata: map[string]string{
+			"my_metadata":      "metadatavalue",
+			"another_metadata": "anothermetadatavalue",
+		},
 		Data: map[string]interface{}{
 			"mykey": "myvaluee",
 		},
@@ -221,9 +226,16 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 	require.NotNil(t, msg)
 	log.Println("message received:", *msg)
 	body := make(map[string]interface{})
-	err = json.Unmarshal([]byte(*msg), &body)
+	err = json.Unmarshal([]byte(*msg.Body), &body)
 	require.Nil(t, err)
 	assert.Equal(t, event.Data, body)
+	// metadata
+	if assert.NotNil(t, msg.MessageAttributes["my_metadata"].StringValue) {
+		assert.Equal(t, "metadatavalue", *msg.MessageAttributes["my_metadata"].StringValue)
+	}
+	if assert.NotNil(t, msg.MessageAttributes["another_metadata"].StringValue) {
+		assert.Equal(t, "anothermetadatavalue", *msg.MessageAttributes["another_metadata"].StringValue)
+	}
 }
 
 func ensureQueue(ctx context.Context, sqsClient *sqs.Client, queueName string) (string, error) {
