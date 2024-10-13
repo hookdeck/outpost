@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/hookdeck/EventKit/internal/clickhouse"
 	"github.com/hookdeck/EventKit/internal/mqs"
 	"github.com/hookdeck/EventKit/internal/otel"
 	"github.com/hookdeck/EventKit/internal/redis"
@@ -25,6 +26,7 @@ type Config struct {
 	EncryptionSecret string
 
 	Redis                  *redis.RedisConfig
+	ClickHouse             *clickhouse.ClickHouseConfig
 	OpenTelemetry          *otel.OpenTelemetryConfig
 	PublishQueueConfig     *mqs.QueueConfig
 	DeliveryQueueConfig    *mqs.QueueConfig
@@ -93,6 +95,16 @@ func Parse(flags Flags) (*Config, error) {
 		return nil, err
 	}
 
+	var clickHouseConfig *clickhouse.ClickHouseConfig
+	if viper.GetString("CLICKHOUSE_ADDR") != "" {
+		clickHouseConfig = &clickhouse.ClickHouseConfig{
+			Addr:     viper.GetString("CLICKHOUSE_ADDR"),
+			Username: viper.GetString("CLICKHOUSE_USERNAME"),
+			Password: viper.GetString("CLICKHOUSE_PASSWORD"),
+			Database: viper.GetString("CLICKHOUSE_DATABASE"),
+		}
+	}
+
 	// MQs
 	publishQueueConfig, err := mqs.ParseQueueConfig(viper, "PUBLISH")
 	if err != nil {
@@ -121,6 +133,7 @@ func Parse(flags Flags) (*Config, error) {
 			Password: viper.GetString("REDIS_PASSWORD"),
 			Database: mustInt(viper, "REDIS_DATABASE"),
 		},
+		ClickHouse:             clickHouseConfig,
 		OpenTelemetry:          openTelemetry,
 		PublishQueueConfig:     publishQueueConfig,
 		DeliveryQueueConfig:    deliveryQueueConfig,

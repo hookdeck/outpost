@@ -7,13 +7,20 @@ import (
 
 type DB = chdriver.Conn
 
-func New() (DB, error) {
+type ClickHouseConfig struct {
+	Addr     string
+	Username string
+	Password string
+	Database string
+}
+
+func New(config *ClickHouseConfig) (DB, error) {
 	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"127.0.0.1:9000"},
+		Addr: []string{config.Addr},
 		Auth: clickhouse.Auth{
-			Database: "default",
-			Username: "default",
-			Password: "",
+			Database: config.Database,
+			Username: config.Username,
+			Password: config.Password,
 		},
 
 		// Debug: true,

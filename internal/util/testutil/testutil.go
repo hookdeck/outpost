@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
+	internalch "github.com/hookdeck/EventKit/internal/clickhouse"
 	internalredis "github.com/hookdeck/EventKit/internal/redis"
 	"github.com/redis/go-redis/v9"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
@@ -41,6 +42,15 @@ func CreateTestRedisClient(t *testing.T) *redis.Client {
 	return redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
+}
+
+func CreateTestClickHouseConfig(t *testing.T) *internalch.ClickHouseConfig {
+	return &internalch.ClickHouseConfig{
+		Addr:     "127.0.0.1:9000",
+		Username: "default",
+		Password: "",
+		Database: "default",
+	}
 }
 
 func CreateTestLogger(t *testing.T) *otelzap.Logger {
