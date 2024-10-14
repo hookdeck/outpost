@@ -4,7 +4,6 @@ package models_test
 
 import (
 	"context"
-	"log"
 	"testing"
 	"time"
 
@@ -18,7 +17,7 @@ import (
 
 func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
 	endpoint, cleanup, err := testutil.StartTestContainerClickHouse()
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{endpoint},
@@ -32,26 +31,24 @@ func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
 		// 	fmt.Printf(format+"\n", v...)
 		// },
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	ctx := context.Background()
-	err = conn.Exec(ctx, "CREATE DATABASE IF NOT EXISTS eventkit")
-	require.Nil(t, err)
-	err = conn.Exec(ctx, `
+	require.NoError(t, conn.Exec(ctx, "CREATE DATABASE IF NOT EXISTS eventkit"))
+	require.NoError(t, conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS eventkit.events (
 			id String,
 			tenant_id String,
 			destination_id String,
 			topic String,
 			time DateTime,
-			metadata String
+			metadata String,
 			data String
 		)
 		ENGINE = MergeTree
 		ORDER BY (id, time);
-	`)
-	require.Nil(t, err)
-	err = conn.Exec(ctx, `
+	`))
+	require.NoError(t, conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS eventkit.deliveries (
 			id String,
 			delivery_event_id String,
@@ -62,13 +59,12 @@ func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
 		)
 		ENGINE = ReplacingMergeTree
 		ORDER BY (id, time);
-	`)
-	require.Nil(t, err)
+	`))
 
 	return conn, cleanup
 }
 
-func TestIntegrationLogStore(t *testing.T) {
+func TestIntegrationLogStore_EventCRUD(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -81,47 +77,113 @@ func TestIntegrationLogStore(t *testing.T) {
 	ctx := context.Background()
 	logStore := models.NewLogStore(conn)
 
-	tenantID := "tenant:" + uuid.New().String()
+	tenantID := uuid.New().String()
+	events := []*models.Event{}
+	baseTime := time.Now()
+	for i := 0; i < 20; i++ {
+		events = append(events,
+			testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithTenantID(tenantID),
+				testutil.EventFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Second)),
+			),
+		)
+	}
 
-	t.Run("inserts many event", func(t *testing.T) {
-		event := &models.Event{
-			ID:            uuid.New().String(),
-			TenantID:      tenantID,
-			DestinationID: "destination:" + uuid.New().String(),
-			Topic:         "user_created",
-			Time:          time.Now(),
-			Data: map[string]interface{}{
-				"mykey": "myvalue",
-			},
-		}
-
-		err := logStore.InsertManyEvent(ctx, []*models.Event{event})
-		assert.Nil(t, err)
+	t.Run("insert many event", func(t *testing.T) {
+		assert.NoError(t, logStore.InsertManyEvent(ctx, events))
 	})
 
-	t.Run("lists event", func(t *testing.T) {
-		events, _, err := logStore.ListEvent(ctx, models.ListEventRequest{
-			TenantID: tenantID,
-			Limit:    100,
+	t.Run("list event empty", func(t *testing.T) {
+		queriedEvents, nextCursor, err := logStore.ListEvent(ctx, models.ListEventRequest{
+			TenantID: "unknown",
+			Limit:    5,
 			Cursor:   "",
 		})
-		require.Nil(t, err)
-		for i := range events {
-			log.Println(events[i])
-		}
+		require.NoError(t, err)
+		assert.Empty(t, queriedEvents)
+		assert.Empty(t, nextCursor)
 	})
 
-	t.Run("inserts many delivery", func(t *testing.T) {
-		delivery := &models.Delivery{
-			ID:              uuid.New().String(),
-			DeliveryEventID: "de:" + uuid.New().String(),
-			EventID:         "event:" + uuid.New().String(),
-			DestinationID:   "destination:" + uuid.New().String(),
-			Status:          "success",
-			Time:            time.Now(),
+	var cursor string
+	t.Run("list event", func(t *testing.T) {
+		queriedEvents, nextCursor, err := logStore.ListEvent(ctx, models.ListEventRequest{
+			TenantID: tenantID,
+			Limit:    5,
+			Cursor:   "",
+		})
+		require.NoError(t, err)
+		require.Len(t, queriedEvents, 5)
+		for i := 0; i < 5; i++ {
+			require.Equal(t, events[i].ID, queriedEvents[i].ID)
 		}
+		assert.Equal(t, events[4].Time.UTC().Format(time.RFC3339), nextCursor)
+		cursor = nextCursor
+	})
 
-		err := logStore.InsertManyDelivery(ctx, []*models.Delivery{delivery})
-		assert.Nil(t, err)
+	t.Run("list event with cursor", func(t *testing.T) {
+		queriedEvents, nextCursor, err := logStore.ListEvent(ctx, models.ListEventRequest{
+			TenantID: tenantID,
+			Limit:    5,
+			Cursor:   cursor,
+		})
+		require.NoError(t, err)
+		require.Len(t, queriedEvents, 5)
+		for i := 0; i < 5; i++ {
+			require.Equal(t, events[5+i].ID, queriedEvents[i].ID)
+		}
+		assert.Equal(t, events[9].Time.UTC().Format(time.RFC3339), nextCursor)
+	})
+}
+
+func TestIntegrationLogStore_DeliveryCRUD(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	t.Parallel()
+
+	conn, cleanup := setupClickHouseConnection(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	logStore := models.NewLogStore(conn)
+
+	event := testutil.EventFactory.Any()
+	require.NoError(t, logStore.InsertManyEvent(ctx, []*models.Event{&event}))
+
+	deliveries := []*models.Delivery{}
+	baseTime := time.Now()
+	for i := 0; i < 20; i++ {
+		deliveries = append(deliveries, &models.Delivery{
+			ID:              uuid.New().String(),
+			EventID:         event.ID,
+			DeliveryEventID: uuid.New().String(),
+			DestinationID:   uuid.New().String(),
+			Status:          "success",
+			Time:            baseTime.Add(-time.Duration(i) * time.Second),
+		})
+	}
+
+	t.Run("insert many delivery", func(t *testing.T) {
+		require.NoError(t, logStore.InsertManyDelivery(ctx, deliveries))
+	})
+
+	t.Run("list delivery empty", func(t *testing.T) {
+		queriedDeliveries, err := logStore.ListDelivery(ctx, models.ListDeliveryRequest{
+			EventID: "unknown",
+		})
+		require.NoError(t, err)
+		assert.Empty(t, queriedDeliveries)
+	})
+
+	t.Run("list delivery", func(t *testing.T) {
+		queriedDeliveries, err := logStore.ListDelivery(ctx, models.ListDeliveryRequest{
+			EventID: event.ID,
+		})
+		require.NoError(t, err)
+		assert.Len(t, queriedDeliveries, len(deliveries))
+		for i := 0; i < len(deliveries); i++ {
+			assert.Equal(t, deliveries[i].ID, queriedDeliveries[i].ID)
+		}
 	})
 }
