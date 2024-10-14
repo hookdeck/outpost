@@ -77,6 +77,8 @@ func NewRouter(
 	tenantRouter.DELETE("/:tenantID/destinations/:destinationID", destinationHandlers.Delete)
 
 	tenantRouter.GET("/:tenantID/events", logHandlers.ListEvent)
+	tenantRouter.GET("/:tenantID/events/:eventID", logHandlers.RetrieveEvent)
+	tenantRouter.GET("/:tenantID/events/:eventID/deliveries", logHandlers.ListDeliveryByEvent)
 
 	adminRouter.POST("/publish", publishHandlers.Ingest)
 

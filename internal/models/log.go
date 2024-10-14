@@ -8,6 +8,8 @@ import (
 
 type LogStore interface {
 	ListEvent(context.Context, ListEventRequest) ([]*Event, string, error)
+	RetrieveEvent(ctx context.Context, tenantID, eventID string) (*Event, error)
+	ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*Delivery, string, error)
 	InsertManyEvent(context.Context, []*Event) error
 	InsertManyDelivery(context.Context, []*Delivery) error
 }
@@ -93,6 +95,80 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request ListEventRequest) 
 	}
 
 	return events, nextCursor, nil
+}
+
+func (s *logStoreImpl) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*Event, error) {
+	rows, err := s.chDB.Query(ctx,
+		"SELECT id, tenant_id, destination_id, time, topic, data FROM eventkit.events WHERE tenant_id = ? AND id = ?",
+		tenantID, eventID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return nil, nil
+	}
+
+	event := &Event{}
+	if err := rows.Scan(
+		&event.ID,
+		&event.TenantID,
+		&event.DestinationID,
+		&event.Time,
+		&event.Topic,
+		&event.Data,
+	); err != nil {
+		return nil, err
+	}
+
+	return event, nil
+}
+
+type ListDeliveryRequest struct {
+	EventID string
+}
+
+func (s *logStoreImpl) ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*Delivery, string, error) {
+	query := `
+		SELECT
+			id,
+			event_id,
+			destination_id,
+			status,
+			time
+		FROM eventkit.deliveries
+		WHERE event_id = ?
+		ORDER BY time DESC
+	`
+	rows, err := s.chDB.Query(ctx, query, request.EventID)
+	if err != nil {
+		return nil, "", err
+	}
+	defer rows.Close()
+
+	var deliveries []*Delivery
+	for rows.Next() {
+		delivery := &Delivery{}
+		if err := rows.Scan(
+			&delivery.ID,
+			&delivery.EventID,
+			&delivery.DestinationID,
+			&delivery.Status,
+			&delivery.Time,
+		); err != nil {
+			return nil, "", err
+		}
+		deliveries = append(deliveries, delivery)
+	}
+	timeFormat := "2006-01-02T15:04:05" // RFC3339 without timezone
+	var nextCursor string
+	if len(deliveries) > 0 {
+		nextCursor = deliveries[len(deliveries)-1].Time.Format(timeFormat)
+	}
+
+	return deliveries, nextCursor, nil
 }
 
 func (s *logStoreImpl) InsertManyEvent(ctx context.Context, events []*Event) error {

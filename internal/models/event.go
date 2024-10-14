@@ -117,10 +117,10 @@ const (
 )
 
 type Delivery struct {
-	ID              string
-	DeliveryEventID string
-	EventID         string
-	DestinationID   string
-	Status          string
-	Time            time.Time
+	ID              string    `json:"id"`
+	DeliveryEventID string    `json:"-"`
+	EventID         string    `json:"event_id"`
+	DestinationID   string    `json:"destination_id"`
+	Status          string    `json:"status"`
+	Time            time.Time `json:"time"`
 }
