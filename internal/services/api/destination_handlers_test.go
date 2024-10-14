@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/models"
-	"github.com/hookdeck/EventKit/internal/redis"
 	api "github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,13 +20,6 @@ import (
 
 func baseTenantPath(id string) string {
 	return baseAPIPath + "/" + id
-}
-
-func setupTestEntityStore(_ *testing.T, redisClient *redis.Client, cipher models.Cipher) models.EntityStore {
-	if cipher == nil {
-		cipher = models.NewAESCipher("secret")
-	}
-	return models.NewEntityStore(redisClient, cipher)
 }
 
 func setupExistingTenant(t *testing.T, entityStore models.EntityStore) string {

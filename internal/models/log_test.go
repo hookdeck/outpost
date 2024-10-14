@@ -4,7 +4,6 @@ package models_test
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"testing"
 	"time"
@@ -28,10 +27,10 @@ func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
 			Username: "default",
 			Password: "",
 		},
-		Debug: true,
-		Debugf: func(format string, v ...any) {
-			fmt.Printf(format+"\n", v...)
-		},
+		// Debug: true,
+		// Debugf: func(format string, v ...any) {
+		// 	fmt.Printf(format+"\n", v...)
+		// },
 	})
 	require.Nil(t, err)
 
@@ -81,10 +80,12 @@ func TestIntegrationLogStore(t *testing.T) {
 	ctx := context.Background()
 	logStore := models.NewLogStore(conn)
 
+	tenantID := "tenant:" + uuid.New().String()
+
 	t.Run("inserts many event", func(t *testing.T) {
 		event := &models.Event{
 			ID:            uuid.New().String(),
-			TenantID:      "tenant:" + uuid.New().String(),
+			TenantID:      tenantID,
 			DestinationID: "destination:" + uuid.New().String(),
 			Topic:         "user_created",
 			Time:          time.Now(),
@@ -98,7 +99,11 @@ func TestIntegrationLogStore(t *testing.T) {
 	})
 
 	t.Run("lists event", func(t *testing.T) {
-		events, err := logStore.ListEvent(ctx)
+		events, _, err := logStore.ListEvent(ctx, models.ListEventRequest{
+			TenantID: tenantID,
+			Limit:    100,
+			Cursor:   "",
+		})
 		require.Nil(t, err)
 		for i := range events {
 			log.Println(events[i])

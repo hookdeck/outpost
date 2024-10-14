@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hookdeck/EventKit/internal/clickhouse"
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/eventtracer"
@@ -47,6 +48,15 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		return nil, err
 	}
 
+	var logStore models.LogStore
+	if cfg.ClickHouse != nil {
+		chDB, err := clickhouse.New(cfg.ClickHouse)
+		if err != nil {
+			return nil, err
+		}
+		logStore = models.NewLogStore(chDB)
+	}
+
 	var eventTracer eventtracer.EventTracer
 	if cfg.OpenTelemetry == nil {
 		eventTracer = eventtracer.NewNoopEventTracer()
@@ -65,6 +75,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		redisClient,
 		deliveryMQ,
 		entityStore,
+		logStore,
 		eventHandler,
 	)
 

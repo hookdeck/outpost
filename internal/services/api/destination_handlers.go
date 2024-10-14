@@ -1,7 +1,6 @@
 package api
 
 import (
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -70,7 +69,6 @@ func (h *DestinationHandlers) Retrieve(c *gin.Context) {
 	destinationID := c.Param("destinationID")
 	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
-		log.Println(err)
 		c.Status(http.StatusInternalServerError)
 		return
 	}

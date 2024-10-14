@@ -7,9 +7,9 @@ import (
 )
 
 type LogStore interface {
-	ListEvent(ctx context.Context) ([]*Event, error)
-	InsertManyEvent(ctx context.Context, events []*Event) error
-	InsertManyDelivery(ctx context.Context, deliveries []*Delivery) error
+	ListEvent(context.Context, ListEventRequest) ([]*Event, string, error)
+	InsertManyEvent(context.Context, []*Event) error
+	InsertManyDelivery(context.Context, []*Delivery) error
 }
 
 type logStoreImpl struct {
@@ -22,19 +22,52 @@ func NewLogStore(chDB clickhouse.DB) LogStore {
 	return &logStoreImpl{chDB: chDB}
 }
 
-func (s *logStoreImpl) ListEvent(ctx context.Context) ([]*Event, error) {
-	rows, err := s.chDB.Query(ctx, `
-		SELECT
-			id,
-			tenant_id,
-			destination_id,
-			time,
-			topic,
-			data
-		FROM eventkit.events
-	`)
+type ListEventRequest struct {
+	TenantID string
+	Cursor   string
+	Limit    int
+}
+
+func (s *logStoreImpl) ListEvent(ctx context.Context, request ListEventRequest) ([]*Event, string, error) {
+	var (
+		query     string
+		queryOpts []any
+	)
+
+	if request.Cursor == "" {
+		query = `
+			SELECT
+				id,
+				tenant_id,
+				destination_id,
+				time,
+				topic,
+				data
+			FROM eventkit.events
+			WHERE tenant_id = ?
+			ORDER BY time DESC
+			LIMIT ?
+		`
+		queryOpts = []any{request.TenantID, request.Limit}
+	} else {
+		query = `
+			SELECT
+				id,
+				tenant_id,
+				destination_id,
+				time,
+				topic,
+				data
+			FROM eventkit.events
+			WHERE tenant_id = ? AND time < ?
+			ORDER BY time DESC
+			LIMIT ?
+		`
+		queryOpts = []any{request.TenantID, request.Cursor, request.Limit}
+	}
+	rows, err := s.chDB.Query(ctx, query, queryOpts...)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer rows.Close()
 
@@ -49,12 +82,17 @@ func (s *logStoreImpl) ListEvent(ctx context.Context) ([]*Event, error) {
 			&event.Topic,
 			&event.Data,
 		); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		events = append(events, event)
 	}
+	timeFormat := "2006-01-02T15:04:05" // RFC3339 without timezone
+	var nextCursor string
+	if len(events) > 0 {
+		nextCursor = events[len(events)-1].Time.Format(timeFormat)
+	}
 
-	return events, nil
+	return events, nextCursor, nil
 }
 
 func (s *logStoreImpl) InsertManyEvent(ctx context.Context, events []*Event) error {

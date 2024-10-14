@@ -21,6 +21,7 @@ func NewMessageHandler(eventHandler EventHandler) consumer.MessageHandler {
 var _ consumer.MessageHandler = (*messageHandler)(nil)
 
 func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
+	// TODO: check defaults (ID, time, etc.)
 	event := models.Event{}
 	if err := event.FromMessage(msg); err != nil {
 		msg.Nack()

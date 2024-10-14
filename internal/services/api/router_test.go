@@ -8,19 +8,28 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/hookdeck/EventKit/internal/clickhouse"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/eventtracer"
+	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/publishmq"
 	"github.com/hookdeck/EventKit/internal/redis"
 	"github.com/hookdeck/EventKit/internal/services/api"
 	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
 const baseAPIPath = "/api/v1"
 
-func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *otelzap.Logger, *redis.Client) {
+func testRouterWithCHDB(t *testing.T, config *clickhouse.ClickHouseConfig) clickhouse.DB {
+	chDB, err := clickhouse.New(config)
+	require.NoError(t, err)
+	return chDB
+}
+
+func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *testing.T) clickhouse.DB) (http.Handler, *otelzap.Logger, *redis.Client) {
 	gin.SetMode(gin.TestMode)
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
@@ -28,6 +37,7 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *ote
 	deliveryMQ.Init(context.Background())
 	eventTracer := eventtracer.NewNoopEventTracer()
 	entityStore := setupTestEntityStore(t, redisClient, nil)
+	logStore := setupTestLogStore(t, funcs...)
 	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer)
 	router := api.NewRouter(
 		api.RouterConfig{
@@ -39,9 +49,25 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string) (http.Handler, *ote
 		redisClient,
 		deliveryMQ,
 		entityStore,
+		logStore,
 		eventHandler,
 	)
 	return router, logger, redisClient
+}
+
+func setupTestLogStore(t *testing.T, funcs ...func(t *testing.T) clickhouse.DB) models.LogStore {
+	var chDB clickhouse.DB
+	for _, f := range funcs {
+		chDB = f(t)
+	}
+	return models.NewLogStore(chDB)
+}
+
+func setupTestEntityStore(_ *testing.T, redisClient *redis.Client, cipher models.Cipher) models.EntityStore {
+	if cipher == nil {
+		cipher = models.NewAESCipher("secret")
+	}
+	return models.NewEntityStore(redisClient, cipher)
 }
 
 func TestRouterWithAPIKey(t *testing.T) {

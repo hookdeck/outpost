@@ -46,7 +46,7 @@ type Event struct {
 	Time             time.Time         `json:"time"`
 	Metadata         map[string]string `json:"metadata"`
 	Data             Data              `json:"data"`
-	Telemetry        *EventTelemetry
+	Telemetry        *EventTelemetry   `json:"-"`
 }
 
 var _ mqs.IncomingMessage = &Event{}

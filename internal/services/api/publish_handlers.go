@@ -68,13 +68,17 @@ func (p *PublishedEvent) toEvent() models.Event {
 	if id == "" {
 		id = uuid.New().String()
 	}
+	eventTime := p.Time
+	if eventTime.IsZero() {
+		eventTime = time.Now()
+	}
 	return models.Event{
 		ID:               id,
 		TenantID:         p.TenantID,
 		DestinationID:    p.DestinationID,
 		Topic:            p.Topic,
 		EligibleForRetry: p.EligibleForRetry,
-		Time:             p.Time,
+		Time:             eventTime,
 		Metadata:         p.Metadata,
 		Data:             p.Data,
 	}

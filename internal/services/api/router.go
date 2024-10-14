@@ -27,6 +27,7 @@ func NewRouter(
 	redisClient *redis.Client,
 	deliveryMQ *deliverymq.DeliveryMQ,
 	entityStore models.EntityStore,
+	logStore models.LogStore,
 	publishmqEventHandler publishmq.EventHandler,
 ) http.Handler {
 	r := gin.Default()
@@ -46,6 +47,7 @@ func NewRouter(
 	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, entityStore)
 	destinationHandlers := NewDestinationHandlers(logger, entityStore)
 	publishHandlers := NewPublishHandlers(logger, publishmqEventHandler)
+	logHandlers := NewLogHandlers(logger, logStore)
 
 	// Admin router is a router group with the API key auth mechanism.
 	adminRouter := apiRouter.Group("/", APIKeyAuthMiddleware(cfg.APIKey))
@@ -73,6 +75,8 @@ func NewRouter(
 	tenantRouter.GET("/:tenantID/destinations/:destinationID", destinationHandlers.Retrieve)
 	tenantRouter.PATCH("/:tenantID/destinations/:destinationID", destinationHandlers.Update)
 	tenantRouter.DELETE("/:tenantID/destinations/:destinationID", destinationHandlers.Delete)
+
+	tenantRouter.GET("/:tenantID/events", logHandlers.ListEvent)
 
 	adminRouter.POST("/publish", publishHandlers.Ingest)
 

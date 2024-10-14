@@ -3,9 +3,13 @@ package clickhouse
 import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	chdriver "github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 )
 
-type DB = chdriver.Conn
+type (
+	DB   = chdriver.Conn
+	Rows = driver.Rows
+)
 
 type ClickHouseConfig struct {
 	Addr     string
