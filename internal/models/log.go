@@ -2,6 +2,8 @@ package models
 
 import (
 	"context"
+	"log"
+	"time"
 
 	"github.com/hookdeck/EventKit/internal/clickhouse"
 )
@@ -9,7 +11,7 @@ import (
 type LogStore interface {
 	ListEvent(context.Context, ListEventRequest) ([]*Event, string, error)
 	RetrieveEvent(ctx context.Context, tenantID, eventID string) (*Event, error)
-	ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*Delivery, string, error)
+	ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*Delivery, error)
 	InsertManyEvent(context.Context, []*Event) error
 	InsertManyDelivery(context.Context, []*Delivery) error
 }
@@ -36,7 +38,12 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request ListEventRequest) 
 		queryOpts []any
 	)
 
-	if request.Cursor == "" {
+	var cursor string
+	if cursorTime, err := time.Parse(time.RFC3339, request.Cursor); err == nil {
+		cursor = cursorTime.Format("2006-01-02T15:04:05") // RFC3339 without timezone
+	}
+
+	if cursor == "" {
 		query = `
 			SELECT
 				id,
@@ -65,7 +72,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request ListEventRequest) 
 			ORDER BY time DESC
 			LIMIT ?
 		`
-		queryOpts = []any{request.TenantID, request.Cursor, request.Limit}
+		queryOpts = []any{request.TenantID, cursor, request.Limit}
 	}
 	rows, err := s.chDB.Query(ctx, query, queryOpts...)
 	if err != nil {
@@ -88,10 +95,10 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request ListEventRequest) 
 		}
 		events = append(events, event)
 	}
-	timeFormat := "2006-01-02T15:04:05" // RFC3339 without timezone
 	var nextCursor string
 	if len(events) > 0 {
-		nextCursor = events[len(events)-1].Time.Format(timeFormat)
+		log.Println("format", events[len(events)-1].Time, events[len(events)-1].Time.Format(time.RFC3339))
+		nextCursor = events[len(events)-1].Time.Format(time.RFC3339)
 	}
 
 	return events, nextCursor, nil
@@ -130,7 +137,7 @@ type ListDeliveryRequest struct {
 	EventID string
 }
 
-func (s *logStoreImpl) ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*Delivery, string, error) {
+func (s *logStoreImpl) ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*Delivery, error) {
 	query := `
 		SELECT
 			id,
@@ -144,7 +151,7 @@ func (s *logStoreImpl) ListDelivery(ctx context.Context, request ListDeliveryReq
 	`
 	rows, err := s.chDB.Query(ctx, query, request.EventID)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -158,17 +165,12 @@ func (s *logStoreImpl) ListDelivery(ctx context.Context, request ListDeliveryReq
 			&delivery.Status,
 			&delivery.Time,
 		); err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		deliveries = append(deliveries, delivery)
 	}
-	timeFormat := "2006-01-02T15:04:05" // RFC3339 without timezone
-	var nextCursor string
-	if len(deliveries) > 0 {
-		nextCursor = deliveries[len(deliveries)-1].Time.Format(timeFormat)
-	}
 
-	return deliveries, nextCursor, nil
+	return deliveries, nil
 }
 
 func (s *logStoreImpl) InsertManyEvent(ctx context.Context, events []*Event) error {

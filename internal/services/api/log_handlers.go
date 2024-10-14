@@ -76,7 +76,7 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 func (h *LogHandlers) ListDeliveryByEvent(c *gin.Context) {
 	mustTenantFromContext(c)
 	eventID := c.Param("eventID")
-	deliveries, nextCursor, err := h.logStore.ListDelivery(c.Request.Context(), models.ListDeliveryRequest{
+	deliveries, err := h.logStore.ListDelivery(c.Request.Context(), models.ListDeliveryRequest{
 		EventID: eventID,
 	})
 	if err != nil {
@@ -93,6 +93,5 @@ func (h *LogHandlers) ListDeliveryByEvent(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"data": deliveries,
-		"next": nextCursor,
 	})
 }
