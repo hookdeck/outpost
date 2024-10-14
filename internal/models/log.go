@@ -173,7 +173,7 @@ func (s *logStoreImpl) ListDelivery(ctx context.Context, request ListDeliveryReq
 
 func (s *logStoreImpl) InsertManyEvent(ctx context.Context, events []*Event) error {
 	batch, err := s.chDB.PrepareBatch(ctx,
-		"INSERT INTO eventkit.events (id, tenant_id, destination_id, time, topic, data) VALUES (?, ?, ?, ?, ?)",
+		"INSERT INTO eventkit.events (id, tenant_id, destination_id, time, topic, metadata, data) VALUES (?, ?, ?, ?, ?, ?)",
 	)
 	if err != nil {
 		return err
@@ -186,6 +186,7 @@ func (s *logStoreImpl) InsertManyEvent(ctx context.Context, events []*Event) err
 			&event.DestinationID,
 			&event.Time,
 			&event.Topic,
+			&event.Metadata,
 			&event.Data,
 		); err != nil {
 			return err

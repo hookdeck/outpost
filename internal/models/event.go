@@ -31,6 +31,26 @@ func (d *Data) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, d)
 }
 
+type Metadata map[string]string
+
+var _ fmt.Stringer = &Metadata{}
+var _ encoding.BinaryUnmarshaler = &Metadata{}
+
+func (m *Metadata) String() string {
+	metadata, err := json.Marshal(m)
+	if err != nil {
+		return ""
+	}
+	return string(metadata)
+}
+
+func (m *Metadata) UnmarshalBinary(metadata []byte) error {
+	if string(metadata) == "" {
+		return nil
+	}
+	return json.Unmarshal(metadata, m)
+}
+
 type EventTelemetry struct {
 	TraceID      string
 	SpanID       string
@@ -38,15 +58,15 @@ type EventTelemetry struct {
 }
 
 type Event struct {
-	ID               string            `json:"id"`
-	TenantID         string            `json:"tenant_id"`
-	DestinationID    string            `json:"destination_id"`
-	Topic            string            `json:"topic"`
-	EligibleForRetry bool              `json:"eligible_for_retry"`
-	Time             time.Time         `json:"time"`
-	Metadata         map[string]string `json:"metadata"`
-	Data             Data              `json:"data"`
-	Telemetry        *EventTelemetry   `json:"-"`
+	ID               string          `json:"id"`
+	TenantID         string          `json:"tenant_id"`
+	DestinationID    string          `json:"destination_id"`
+	Topic            string          `json:"topic"`
+	EligibleForRetry bool            `json:"eligible_for_retry"`
+	Time             time.Time       `json:"time"`
+	Metadata         Metadata        `json:"metadata"`
+	Data             Data            `json:"data"`
+	Telemetry        *EventTelemetry `json:"-"`
 }
 
 var _ mqs.IncomingMessage = &Event{}
@@ -118,7 +138,7 @@ const (
 
 type Delivery struct {
 	ID              string    `json:"id"`
-	DeliveryEventID string    `json:"-"`
+	DeliveryEventID string    `json:"delivery_event_id"`
 	EventID         string    `json:"event_id"`
 	DestinationID   string    `json:"destination_id"`
 	Status          string    `json:"status"`

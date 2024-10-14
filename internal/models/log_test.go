@@ -44,6 +44,7 @@ func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
 			destination_id String,
 			topic String,
 			time DateTime,
+			metadata String
 			data String
 		)
 		ENGINE = MergeTree
