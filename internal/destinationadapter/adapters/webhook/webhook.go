@@ -75,5 +75,10 @@ func makeRequest(ctx context.Context, url string, event *adapters.Event) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode >= 400 {
+		// TODO: improve error handling to store response value
+		return errors.New("request failed")
+	}
+
 	return nil
 }
