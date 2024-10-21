@@ -9,7 +9,7 @@ import (
 
 // ============================== Mock Destination ==============================
 
-var MockDestinationFactory = &mockDestinationFactory{}
+var DestinationFactory = &mockDestinationFactory{}
 
 type mockDestinationFactory struct {
 }

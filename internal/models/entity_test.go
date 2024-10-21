@@ -154,7 +154,7 @@ func TestEntityStore_DeleteTenantAndAssociatedDestinations(t *testing.T) {
 	// Arrange
 	require.Nil(t, entityStore.UpsertTenant(context.Background(), tenant))
 	destinationIDs := []string{uuid.New().String(), uuid.New().String(), uuid.New().String()}
-	destFactory := testutil.MockDestinationFactory
+	destFactory := testutil.DestinationFactory
 	require.Nil(t, entityStore.UpsertDestination(context.Background(), destFactory.Any(
 		destFactory.WithID(destinationIDs[0]),
 		destFactory.WithTenantID(tenant.ID),
@@ -261,10 +261,10 @@ func (suite *multiDestinationSuite) SetupTest(t *testing.T) {
 	}
 	for i := 0; i < 5; i++ {
 		ids[i] = uuid.New().String()
-		suite.destinations[i] = testutil.MockDestinationFactory.Any(
-			testutil.MockDestinationFactory.WithID(ids[i]),
-			testutil.MockDestinationFactory.WithTenantID(suite.tenant.ID),
-			testutil.MockDestinationFactory.WithTopics(destinationTopicList[i]),
+		suite.destinations[i] = testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithID(ids[i]),
+			testutil.DestinationFactory.WithTenantID(suite.tenant.ID),
+			testutil.DestinationFactory.WithTopics(destinationTopicList[i]),
 		)
 		require.NoError(t, suite.entityStore.UpsertDestination(suite.ctx, suite.destinations[i]))
 	}
@@ -272,10 +272,10 @@ func (suite *multiDestinationSuite) SetupTest(t *testing.T) {
 	// Insert & Delete destination to ensure it's cleaned up properly
 	toBeDeletedID := uuid.New().String()
 	require.NoError(t, suite.entityStore.UpsertDestination(suite.ctx,
-		testutil.MockDestinationFactory.Any(
-			testutil.MockDestinationFactory.WithID(toBeDeletedID),
-			testutil.MockDestinationFactory.WithTenantID(suite.tenant.ID),
-			testutil.MockDestinationFactory.WithTopics([]string{"*"}),
+		testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithID(toBeDeletedID),
+			testutil.DestinationFactory.WithTenantID(suite.tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"*"}),
 		)))
 	require.NoError(t, suite.entityStore.DeleteDestination(suite.ctx, suite.tenant.ID, toBeDeletedID))
 }

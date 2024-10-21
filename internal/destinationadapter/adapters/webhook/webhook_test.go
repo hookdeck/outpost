@@ -3,15 +3,14 @@ package webhook_test
 import (
 	"context"
 	"io"
-	"math/rand"
 	"net/http"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
 	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters/webhook"
+	"github.com/hookdeck/EventKit/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -92,7 +91,7 @@ func (suite *webhookDestinationSuite) SetupTest(t *testing.T) {
 		}
 	}))
 	suite.server = http.Server{
-		Addr:    randomPort(),
+		Addr:    testutil.RandomPort(),
 		Handler: mux,
 	}
 	suite.webhookURL = "http://localhost" + suite.server.Addr + "/webhook"
@@ -192,10 +191,4 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		assert.Equal(t, "metadatavalue", request.Header.Get("x-eventkit-my_metadata"))
 		assert.Equal(t, "anothermetadatavalue", request.Header.Get("x-eventkit-another_metadata"))
 	})
-}
-
-// Create a random port number between 3500 and 3600
-func randomPort() string {
-	randomPortNumber := 3500 + rand.Intn(100)
-	return ":" + strconv.Itoa(randomPortNumber)
 }

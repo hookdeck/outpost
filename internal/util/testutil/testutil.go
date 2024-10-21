@@ -3,6 +3,7 @@ package testutil
 import (
 	"crypto/rand"
 	"fmt"
+	mathrand "math/rand"
 	"strconv"
 	"testing"
 
@@ -65,4 +66,10 @@ func RandomString(length int) string {
 	b := make([]byte, length+2)
 	rand.Read(b)
 	return fmt.Sprintf("%x", b)[2 : length+2]
+}
+
+// Create a random port number between 3500 and 3600
+func RandomPort() string {
+	randomPortNumber := 3500 + mathrand.Intn(100)
+	return ":" + strconv.Itoa(randomPortNumber)
 }

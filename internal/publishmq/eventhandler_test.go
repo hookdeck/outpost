@@ -48,7 +48,7 @@ func TestPublishMQEventHandler_Concurrency(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 	entityStore.UpsertTenant(ctx, tenant)
-	destFactory := testutil.MockDestinationFactory
+	destFactory := testutil.DestinationFactory
 	for i := 0; i < 5; i++ {
 		entityStore.UpsertDestination(ctx, destFactory.Any(destFactory.WithTenantID(tenant.ID)))
 	}
