@@ -68,9 +68,9 @@ func (d *Destination) Validate(ctx context.Context) error {
 func (d *Destination) Publish(ctx context.Context, event *Event) error {
 	adapter, err := destinationadapter.NewAdapater(d.Type)
 	if err != nil {
-		return err
+		return &DestinationPublishError{Err: err}
 	}
-	return adapter.Publish(
+	if err := adapter.Publish(
 		ctx,
 		destinationadapter.Destination{
 			ID:          d.ID,
@@ -79,7 +79,10 @@ func (d *Destination) Publish(ctx context.Context, event *Event) error {
 			Credentials: d.Credentials,
 		},
 		event.ToAdapterEvent(),
-	)
+	); err != nil {
+		return &DestinationPublishError{Err: err}
+	}
+	return nil
 }
 
 type DestinationSummary struct {
@@ -144,4 +147,14 @@ func (c *Credentials) MarshalBinary() ([]byte, error) {
 
 func (c *Credentials) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, c)
+}
+
+type DestinationPublishError struct {
+	Err error
+}
+
+var _ error = &DestinationPublishError{}
+
+func (e *DestinationPublishError) Error() string {
+	return e.Err.Error()
 }
