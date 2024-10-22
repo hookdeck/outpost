@@ -64,12 +64,18 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 	require.NoError(t, err)
 	teardownFuncs = append(teardownFuncs, cleanupLogMQ)
 
+	retryScheduler := deliverymq.NewRetryScheduler(s.deliveryMQ, testutil.CreateTestRedisConfig(t))
+	require.NoError(t, retryScheduler.Init(s.ctx))
+	teardownFuncs = append(teardownFuncs, func() { retryScheduler.Shutdown() })
+	go retryScheduler.Monitor(s.ctx)
+
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		s.redisClient,
 		logMQ,
 		s.entityStore,
 		testutil.NewMockEventTracer(s.exporter),
+		retryScheduler,
 	)
 
 	go func() {
@@ -178,7 +184,7 @@ func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
 func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second) // expect 3 retries
 	defer cancel()
 
 	queueConfig := &mqs.QueueConfig{

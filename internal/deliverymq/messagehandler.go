@@ -13,16 +13,18 @@ import (
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/mqs"
 	"github.com/hookdeck/EventKit/internal/redis"
+	"github.com/hookdeck/EventKit/internal/scheduler"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
 type messageHandler struct {
-	eventTracer eventtracer.EventTracer
-	logger      *otelzap.Logger
-	logMQ       *logmq.LogMQ
-	entityStore models.EntityStore
-	idempotence idempotence.Idempotence
+	eventTracer    eventtracer.EventTracer
+	logger         *otelzap.Logger
+	logMQ          *logmq.LogMQ
+	entityStore    models.EntityStore
+	retryScheduler scheduler.Scheduler
+	idempotence    idempotence.Idempotence
 }
 
 var _ consumer.MessageHandler = (*messageHandler)(nil)
@@ -33,12 +35,14 @@ func NewMessageHandler(
 	logMQ *logmq.LogMQ,
 	entityStore models.EntityStore,
 	eventTracer eventtracer.EventTracer,
+	retryScheduler scheduler.Scheduler,
 ) consumer.MessageHandler {
 	return &messageHandler{
-		eventTracer: eventTracer,
-		logger:      logger,
-		logMQ:       logMQ,
-		entityStore: entityStore,
+		eventTracer:    eventTracer,
+		logger:         logger,
+		logMQ:          logMQ,
+		entityStore:    entityStore,
+		retryScheduler: retryScheduler,
 		idempotence: idempotence.New(redisClient,
 			idempotence.WithTimeout(5*time.Second),
 			idempotence.WithSuccessfulTTL(24*time.Hour),
@@ -58,15 +62,19 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	idempotenceHandler := func(ctx context.Context) error {
 		return h.doHandle(ctx, deliveryEvent)
 	}
-	if err := h.idempotence.Exec(ctx, idempotencyKeyFromDeliveryEvent(deliveryEvent), idempotenceHandler); err != nil {
-		// if not publish error OR event is eligible for retry --> nack && retry
+	err = h.idempotence.Exec(ctx, idempotencyKeyFromDeliveryEvent(deliveryEvent), idempotenceHandler)
+	if err != nil {
+		// retry if it's an internal error (not a publish error) OR event is eligible for retry
 		if _, isPublishErr := err.(*models.DestinationPublishError); !isPublishErr || deliveryEvent.Event.EligibleForRetry {
-			msg.Nack()
-			return err
+			if retryErr := h.retryScheduler.Schedule(ctx, deliveryEvent.ID, 1*time.Second); retryErr != nil {
+				finalErr := errors.Join(err, retryErr)
+				msg.Nack()
+				return finalErr
+			}
 		}
 	}
 	msg.Ack()
-	return nil
+	return err
 }
 
 func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
