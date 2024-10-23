@@ -141,8 +141,8 @@ func (h *messageHandler) scheduleRetry(ctx context.Context, deliveryEvent models
 // ensureDeliveryEvent ensures that the delivery event struct has full data.
 // In retry scenarios, the delivery event only has its ID and we'll need to query the full data.
 func (h *messageHandler) ensureDeliveryEvent(ctx context.Context, deliveryEvent *models.DeliveryEvent) error {
-	// TODO: consider a more deliberate way to check for retry scenario
-	if deliveryEvent.DestinationID != "" {
+	// TODO: consider a more deliberate way to check for retry scenario?
+	if !deliveryEvent.Event.Time.IsZero() {
 		return nil
 	}
 
@@ -150,8 +150,10 @@ func (h *messageHandler) ensureDeliveryEvent(ctx context.Context, deliveryEvent 
 	if err != nil {
 		return err
 	}
+	if event == nil {
+		return errors.New("event not found")
+	}
 	deliveryEvent.Event = *event
-	deliveryEvent.DestinationID = event.DestinationID
 
 	return nil
 }

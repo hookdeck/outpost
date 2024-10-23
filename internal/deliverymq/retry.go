@@ -26,8 +26,9 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig) s
 
 type RetryMessage struct {
 	DeliveryEventID string
-	TenantID        string
 	EventID         string
+	TenantID        string
+	DestinationID   string
 	Telemetry       *models.DeliveryEventTelemetry
 }
 
@@ -45,9 +46,10 @@ func (m *RetryMessage) FromString(str string) error {
 
 func (m *RetryMessage) ToDeliveryEvent() models.DeliveryEvent {
 	return models.DeliveryEvent{
-		ID:        m.DeliveryEventID,
-		Event:     models.Event{ID: m.EventID, TenantID: m.TenantID},
-		Telemetry: m.Telemetry,
+		ID:            m.DeliveryEventID,
+		DestinationID: m.DestinationID,
+		Event:         models.Event{ID: m.EventID, TenantID: m.TenantID},
+		Telemetry:     m.Telemetry,
 	}
 }
 
@@ -56,6 +58,7 @@ func RetryMessageFromDeliveryEvent(deliveryEvent models.DeliveryEvent) RetryMess
 		DeliveryEventID: deliveryEvent.ID,
 		EventID:         deliveryEvent.Event.ID,
 		TenantID:        deliveryEvent.Event.TenantID,
+		DestinationID:   deliveryEvent.DestinationID,
 		Telemetry:       deliveryEvent.Telemetry,
 	}
 }
