@@ -27,6 +27,7 @@ type RetryDeliveryMQSuite struct {
 	exporter         *tracetest.InMemoryExporter
 	redisClient      *redis.Client
 	entityStore      models.EntityStore
+	logStore         models.LogStore
 	deliveryMQ       *deliverymq.DeliveryMQ
 	tenant           models.Tenant
 	destination      models.Destination
@@ -37,6 +38,7 @@ type RetryDeliveryMQSuite struct {
 func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 	require.NotNil(t, s.ctx, "RetryDeliveryMQSuite.ctx is not set")
 	require.NotNil(t, s.mqConfig, "RetryDeliveryMQSuite.mqConfig is not set")
+	require.NotNil(t, s.logStore, "RetryDeliveryMQSuite.logStore is not set")
 
 	teardownFuncs := []func(){}
 
@@ -74,6 +76,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 		s.redisClient,
 		logMQ,
 		s.entityStore,
+		s.logStore,
 		testutil.NewMockEventTracer(s.exporter),
 		retryScheduler,
 	)
@@ -148,9 +151,11 @@ func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
 	queueConfig := &mqs.QueueConfig{
 		InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)},
 	}
+	logStore := &mockLogStore{}
 	suite := &RetryDeliveryMQSuite{
 		ctx:      ctx,
 		mqConfig: queueConfig,
+		logStore: logStore,
 	}
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
@@ -161,6 +166,7 @@ func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
 		testutil.EventFactory.WithDestinationID(suite.destination.ID),
 		testutil.EventFactory.WithEligibleForRetry(false),
 	)
+	logStore.registerEvent(&event)
 	deliveryEvent := models.DeliveryEvent{
 		ID:            uuid.New().String(),
 		Event:         event,
@@ -190,9 +196,11 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 	queueConfig := &mqs.QueueConfig{
 		InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)},
 	}
+	logStore := &mockLogStore{}
 	suite := &RetryDeliveryMQSuite{
 		ctx:      context.Background(),
 		mqConfig: queueConfig,
+		logStore: logStore,
 	}
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
@@ -203,6 +211,7 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 		testutil.EventFactory.WithDestinationID(suite.destination.ID),
 		testutil.EventFactory.WithEligibleForRetry(true),
 	)
+	logStore.registerEvent(&event)
 	deliveryEvent := models.DeliveryEvent{
 		ID:            uuid.New().String(),
 		Event:         event,
@@ -236,11 +245,13 @@ func TestDeliveryMQRetry_SystemError(t *testing.T) {
 	}
 	redisClient := testutil.CreateTestRedisClient(t)
 	entityStore := newMockEntityStore(models.NewEntityStore(redisClient, models.NewAESCipher("")))
+	logStore := &mockLogStore{}
 	suite := &RetryDeliveryMQSuite{
 		ctx:         ctx,
 		mqConfig:    queueConfig,
 		redisClient: redisClient,
 		entityStore: entityStore,
+		logStore:    logStore,
 	}
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
@@ -251,6 +262,7 @@ func TestDeliveryMQRetry_SystemError(t *testing.T) {
 		testutil.EventFactory.WithDestinationID(suite.destination.ID),
 		testutil.EventFactory.WithEligibleForRetry(false),
 	)
+	logStore.registerEvent(&event)
 	deliveryEvent := models.DeliveryEvent{
 		ID:            uuid.New().String(),
 		Event:         event,
@@ -283,4 +295,44 @@ func newMockEntityStore(entityStore models.EntityStore) models.EntityStore {
 
 func (m *mockEntityStore) RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*models.Destination, error) {
 	return nil, fmt.Errorf("err")
+}
+
+type mockLogStore struct {
+	events map[string]*models.Event
+}
+
+var _ models.LogStore = &mockLogStore{}
+
+func (m *mockLogStore) ListEvent(ctx context.Context, request models.ListEventRequest) ([]*models.Event, string, error) {
+	return nil, "", nil
+}
+
+func (m *mockLogStore) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {
+	if m.events == nil {
+		return nil, nil
+	}
+	event, ok := m.events[eventID]
+	if !ok {
+		return nil, nil
+	}
+	return event, nil
+}
+
+func (m *mockLogStore) ListDelivery(ctx context.Context, request models.ListDeliveryRequest) ([]*models.Delivery, error) {
+	return nil, nil
+}
+
+func (m *mockLogStore) InsertManyEvent(ctx context.Context, events []*models.Event) error {
+	return nil
+}
+
+func (m *mockLogStore) InsertManyDelivery(ctx context.Context, deliveries []*models.Delivery) error {
+	return nil
+}
+
+func (m *mockLogStore) registerEvent(event *models.Event) {
+	if m.events == nil {
+		m.events = make(map[string]*models.Event)
+	}
+	m.events[event.ID] = event
 }

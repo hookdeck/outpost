@@ -23,6 +23,7 @@ type messageHandler struct {
 	logger         *otelzap.Logger
 	logMQ          *logmq.LogMQ
 	entityStore    models.EntityStore
+	logStore       models.LogStore
 	retryScheduler scheduler.Scheduler
 	idempotence    idempotence.Idempotence
 }
@@ -34,6 +35,7 @@ func NewMessageHandler(
 	redisClient *redis.Client,
 	logMQ *logmq.LogMQ,
 	entityStore models.EntityStore,
+	logStore models.LogStore,
 	eventTracer eventtracer.EventTracer,
 	retryScheduler scheduler.Scheduler,
 ) consumer.MessageHandler {
@@ -42,6 +44,7 @@ func NewMessageHandler(
 		logger:         logger,
 		logMQ:          logMQ,
 		entityStore:    entityStore,
+		logStore:       logStore,
 		retryScheduler: retryScheduler,
 		idempotence: idempotence.New(redisClient,
 			idempotence.WithTimeout(5*time.Second),
@@ -52,21 +55,26 @@ func NewMessageHandler(
 
 func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	deliveryEvent := models.DeliveryEvent{}
-	err := deliveryEvent.FromMessage(msg)
-	if err != nil {
+	if err := deliveryEvent.FromMessage(msg); err != nil {
 		// TODO: question - should we ack this instead?
 		// Since we can't parse the message, we won't be able to handle it when retrying later either.
+		msg.Nack()
+		return err
+	}
+	if err := h.ensureDeliveryEvent(ctx, &deliveryEvent); err != nil {
+		// Question: nack or retryScheduler.Schedule?
 		msg.Nack()
 		return err
 	}
 	idempotenceHandler := func(ctx context.Context) error {
 		return h.doHandle(ctx, deliveryEvent)
 	}
-	err = h.idempotence.Exec(ctx, idempotencyKeyFromDeliveryEvent(deliveryEvent), idempotenceHandler)
+	err := h.idempotence.Exec(ctx, idempotencyKeyFromDeliveryEvent(deliveryEvent), idempotenceHandler)
 	if err != nil {
 		// retry if it's an internal error (not a publish error) OR event is eligible for retry
 		if _, isPublishErr := err.(*models.DestinationPublishError); !isPublishErr || deliveryEvent.Event.EligibleForRetry {
-			if retryErr := h.retryScheduler.Schedule(ctx, deliveryEvent.ID, 1*time.Second); retryErr != nil {
+			// TODO: question - what to do with telemetry data?
+			if retryErr := h.scheduleRetry(ctx, deliveryEvent); retryErr != nil {
 				finalErr := errors.Join(err, retryErr)
 				msg.Nack()
 				return finalErr
@@ -119,6 +127,33 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 		err = errors.Join(err, logErr)
 	}
 	return err
+}
+
+func (h *messageHandler) scheduleRetry(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
+	retryMessage := RetryMessageFromDeliveryEvent(deliveryEvent)
+	retryMessageStr, err := retryMessage.ToString()
+	if err != nil {
+		return err
+	}
+	return h.retryScheduler.Schedule(ctx, retryMessageStr, 1*time.Second)
+}
+
+// ensureDeliveryEvent ensures that the delivery event struct has full data.
+// In retry scenarios, the delivery event only has its ID and we'll need to query the full data.
+func (h *messageHandler) ensureDeliveryEvent(ctx context.Context, deliveryEvent *models.DeliveryEvent) error {
+	// TODO: consider a more deliberate way to check for retry scenario
+	if deliveryEvent.DestinationID != "" {
+		return nil
+	}
+
+	event, err := h.logStore.RetrieveEvent(ctx, deliveryEvent.Event.TenantID, deliveryEvent.Event.ID)
+	if err != nil {
+		return err
+	}
+	deliveryEvent.Event = *event
+	deliveryEvent.DestinationID = event.DestinationID
+
+	return nil
 }
 
 func idempotencyKeyFromDeliveryEvent(deliveryEvent models.DeliveryEvent) string {

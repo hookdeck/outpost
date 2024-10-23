@@ -62,8 +62,8 @@ func (s *schedulerImpl) Init(ctx context.Context) error {
 	return nil
 }
 
-func (s *schedulerImpl) Schedule(ctx context.Context, id string, delay time.Duration) error {
-	if _, err := s.rsmqClient.SendMessage(s.name, id, uint(delay.Seconds())); err != nil {
+func (s *schedulerImpl) Schedule(ctx context.Context, message string, delay time.Duration) error {
+	if _, err := s.rsmqClient.SendMessage(s.name, message, uint(delay.Seconds())); err != nil {
 		return err
 	}
 	return nil
