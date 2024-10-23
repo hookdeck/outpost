@@ -15,6 +15,7 @@ import (
 	"github.com/hookdeck/EventKit/internal/models"
 	"github.com/hookdeck/EventKit/internal/publishmq"
 	"github.com/hookdeck/EventKit/internal/redis"
+	"github.com/hookdeck/EventKit/internal/scheduler"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
@@ -24,14 +25,15 @@ type consumerOptions struct {
 }
 
 type APIService struct {
-	redisClient     *redis.Client
-	server          *http.Server
-	logger          *otelzap.Logger
-	publishMQ       *publishmq.PublishMQ
-	deliveryMQ      *deliverymq.DeliveryMQ
-	entityStore     models.EntityStore
-	eventHandler    publishmq.EventHandler
-	consumerOptions *consumerOptions
+	redisClient              *redis.Client
+	server                   *http.Server
+	logger                   *otelzap.Logger
+	publishMQ                *publishmq.PublishMQ
+	deliveryMQ               *deliverymq.DeliveryMQ
+	entityStore              models.EntityStore
+	eventHandler             publishmq.EventHandler
+	deliverymqRetryScheduler scheduler.Scheduler
+	consumerOptions          *consumerOptions
 }
 
 func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*APIService, error) {
@@ -79,6 +81,12 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		eventHandler,
 	)
 
+	// deliverymqRetryScheduler
+	deliverymqRetryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis)
+	if err := deliverymqRetryScheduler.Init(ctx); err != nil {
+		return nil, err
+	}
+
 	service := &APIService{}
 	service.logger = logger
 	service.redisClient = redisClient
@@ -90,6 +98,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	service.deliveryMQ = deliveryMQ
 	service.entityStore = entityStore
 	service.eventHandler = eventHandler
+	service.deliverymqRetryScheduler = deliverymqRetryScheduler
 	service.consumerOptions = &consumerOptions{
 		concurreny: cfg.PublishMaxConcurrency,
 	}
@@ -99,6 +108,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		<-ctx.Done()
 		logger.Ctx(ctx).Info("shutting down", zap.String("service", "api"))
 		cleanupDeliveryMQ()
+		deliverymqRetryScheduler.Shutdown()
 		// make a new context for Shutdown
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -121,6 +131,9 @@ func (s *APIService) Run(ctx context.Context) error {
 			s.logger.Ctx(ctx).Error(fmt.Sprintf("error listening and serving: %s\n", err), zap.Error(err))
 		}
 	}()
+
+	// Monitor deliverymq retry scheduler
+	go s.deliverymqRetryScheduler.Monitor(ctx)
 
 	// Subscribe to PublishMQ
 	if s.publishMQ != nil {

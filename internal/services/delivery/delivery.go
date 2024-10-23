@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/hookdeck/EventKit/internal/clickhouse"
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/consumer"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
@@ -37,7 +38,14 @@ func NewService(ctx context.Context,
 ) (*DeliveryService, error) {
 	wg.Add(1)
 
+	cleanupFuncs := []func(){}
+
 	redisClient, err := redis.New(ctx, cfg.Redis)
+	if err != nil {
+		return nil, err
+	}
+
+	chDB, err := clickhouse.New(cfg.ClickHouse)
 	if err != nil {
 		return nil, err
 	}
@@ -47,6 +55,7 @@ func NewService(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
+	cleanupFuncs = append(cleanupFuncs, cleanupLogMQ)
 
 	if handler == nil {
 		var eventTracer eventtracer.EventTracer
@@ -59,12 +68,29 @@ func NewService(ctx context.Context,
 			redisClient,
 			models.NewAESCipher(cfg.EncryptionSecret),
 		)
+		logStore := models.NewLogStore(chDB)
+		deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig))
+		cleanupDeliveryMQ, err := deliveryMQ.Init(ctx)
+		if err != nil {
+			return nil, err
+		}
+		cleanupFuncs = append(cleanupFuncs, cleanupDeliveryMQ)
+		retryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis)
+		if err := retryScheduler.Init(ctx); err != nil {
+			return nil, err
+		}
+		cleanupFuncs = append(cleanupFuncs, func() {
+			retryScheduler.Shutdown()
+		})
+
 		handler = deliverymq.NewMessageHandler(
 			logger,
 			redisClient,
 			logMQ,
 			entityStore,
+			logStore,
 			eventTracer,
+			retryScheduler,
 		)
 	}
 
@@ -81,7 +107,9 @@ func NewService(ctx context.Context,
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		cleanupLogMQ()
+		for _, cleanup := range cleanupFuncs {
+			cleanup()
+		}
 		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "delivery"))
 	}()
 
