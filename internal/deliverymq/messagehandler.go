@@ -73,7 +73,6 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	if err != nil {
 		// retry if it's an internal error (not a publish error) OR event is eligible for retry
 		if _, isPublishErr := err.(*models.DestinationPublishError); !isPublishErr || deliveryEvent.Event.EligibleForRetry {
-			// TODO: question - what to do with telemetry data?
 			if retryErr := h.scheduleRetry(ctx, deliveryEvent); retryErr != nil {
 				finalErr := errors.Join(err, retryErr)
 				msg.Nack()
