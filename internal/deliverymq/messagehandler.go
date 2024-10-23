@@ -90,11 +90,14 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 	logger := h.logger.Ctx(ctx)
 	logger.Info("deliverymq handler", zap.String("delivery_event", deliveryEvent.ID))
 	destination, err := h.entityStore.RetrieveDestination(ctx, deliveryEvent.Event.TenantID, deliveryEvent.DestinationID)
-	// TODO: handle destination not found
-	// Question: what to do if destination is not found? Nack for later retry?
 	if err != nil {
 		logger.Error("failed to retrieve destination", zap.Error(err))
 		span.RecordError(err)
+		return err
+	}
+	if destination == nil {
+		logger.Error("destination not found")
+		span.RecordError(errors.New("destination not found"))
 		return err
 	}
 	err = destination.Publish(ctx, &deliveryEvent.Event)
