@@ -56,13 +56,10 @@ func NewMessageHandler(
 func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	deliveryEvent := models.DeliveryEvent{}
 	if err := deliveryEvent.FromMessage(msg); err != nil {
-		// TODO: question - should we ack this instead?
-		// Since we can't parse the message, we won't be able to handle it when retrying later either.
 		msg.Nack()
 		return err
 	}
 	if err := h.ensureDeliveryEvent(ctx, &deliveryEvent); err != nil {
-		// Question: nack or retryScheduler.Schedule?
 		msg.Nack()
 		return err
 	}
