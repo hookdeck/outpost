@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hookdeck/EventKit/internal/backoff"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
 	"github.com/hookdeck/EventKit/internal/logmq"
 	"github.com/hookdeck/EventKit/internal/models"
@@ -79,6 +80,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 		s.logStore,
 		testutil.NewMockEventTracer(s.exporter),
 		retryScheduler,
+		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 	)
 
 	go func() {

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
+	"github.com/hookdeck/EventKit/internal/backoff"
 	"github.com/hookdeck/EventKit/internal/clickhouse"
 	"github.com/hookdeck/EventKit/internal/config"
 	"github.com/hookdeck/EventKit/internal/consumer"
@@ -91,6 +93,10 @@ func NewService(ctx context.Context,
 			logStore,
 			eventTracer,
 			retryScheduler,
+			&backoff.ExponentialBackoff{
+				Interval: 30 * time.Second,
+				Base:     2,
+			},
 		)
 	}
 

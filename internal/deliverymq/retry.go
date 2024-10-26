@@ -29,6 +29,7 @@ type RetryMessage struct {
 	EventID         string
 	TenantID        string
 	DestinationID   string
+	Attempt         int
 	Telemetry       *models.DeliveryEventTelemetry
 }
 
@@ -47,6 +48,7 @@ func (m *RetryMessage) FromString(str string) error {
 func (m *RetryMessage) ToDeliveryEvent() models.DeliveryEvent {
 	return models.DeliveryEvent{
 		ID:            m.DeliveryEventID,
+		Attempt:       m.Attempt,
 		DestinationID: m.DestinationID,
 		Event:         models.Event{ID: m.EventID, TenantID: m.TenantID},
 		Telemetry:     m.Telemetry,
@@ -59,6 +61,7 @@ func RetryMessageFromDeliveryEvent(deliveryEvent models.DeliveryEvent) RetryMess
 		EventID:         deliveryEvent.Event.ID,
 		TenantID:        deliveryEvent.Event.TenantID,
 		DestinationID:   deliveryEvent.DestinationID,
+		Attempt:         deliveryEvent.Attempt + 1,
 		Telemetry:       deliveryEvent.Telemetry,
 	}
 }

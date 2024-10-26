@@ -103,6 +103,7 @@ type DeliveryEventTelemetry struct {
 
 type DeliveryEvent struct {
 	ID            string
+	Attempt       int
 	DestinationID string
 	Event         Event
 	Delivery      *Delivery
@@ -128,6 +129,7 @@ func NewDeliveryEvent(event Event, destinationID string) DeliveryEvent {
 		ID:            uuid.New().String(),
 		DestinationID: destinationID,
 		Event:         event,
+		Attempt:       0,
 	}
 }
 

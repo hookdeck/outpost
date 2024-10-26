@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hookdeck/EventKit/internal/backoff"
 	"github.com/hookdeck/EventKit/internal/consumer"
 	"github.com/hookdeck/EventKit/internal/eventtracer"
 	"github.com/hookdeck/EventKit/internal/idempotence"
@@ -25,6 +26,7 @@ type messageHandler struct {
 	entityStore    models.EntityStore
 	logStore       models.LogStore
 	retryScheduler scheduler.Scheduler
+	retryBackoff   backoff.Backoff
 	idempotence    idempotence.Idempotence
 }
 
@@ -38,6 +40,7 @@ func NewMessageHandler(
 	logStore models.LogStore,
 	eventTracer eventtracer.EventTracer,
 	retryScheduler scheduler.Scheduler,
+	retryBackoff backoff.Backoff,
 ) consumer.MessageHandler {
 	return &messageHandler{
 		eventTracer:    eventTracer,
@@ -46,6 +49,7 @@ func NewMessageHandler(
 		entityStore:    entityStore,
 		logStore:       logStore,
 		retryScheduler: retryScheduler,
+		retryBackoff:   retryBackoff,
 		idempotence: idempotence.New(redisClient,
 			idempotence.WithTimeout(5*time.Second),
 			idempotence.WithSuccessfulTTL(24*time.Hour),
@@ -134,7 +138,7 @@ func (h *messageHandler) scheduleRetry(ctx context.Context, deliveryEvent models
 	if err != nil {
 		return err
 	}
-	return h.retryScheduler.Schedule(ctx, retryMessageStr, 1*time.Second)
+	return h.retryScheduler.Schedule(ctx, retryMessageStr, h.retryBackoff.Duration(deliveryEvent.Attempt))
 }
 
 // ensureDeliveryEvent ensures that the delivery event struct has full data.
