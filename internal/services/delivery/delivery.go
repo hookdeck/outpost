@@ -94,7 +94,7 @@ func NewService(ctx context.Context,
 			eventTracer,
 			retryScheduler,
 			&backoff.ExponentialBackoff{
-				Interval: 30 * time.Second,
+				Interval: time.Duration(cfg.RetryIntervalSeconds) * time.Second,
 				Base:     2,
 			},
 		)

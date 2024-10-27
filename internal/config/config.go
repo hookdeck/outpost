@@ -34,6 +34,7 @@ type Config struct {
 	PublishMaxConcurrency  int
 	DeliveryMaxConcurrency int
 	LogMaxConcurrency      int
+	RetryIntervalSeconds   int
 }
 
 var defaultConfig = map[string]any{
@@ -49,6 +50,7 @@ var defaultConfig = map[string]any{
 	"PUBLISHMQ_MAX_CONCURRENCY":  1,
 	"DELIVERYMQ_MAX_CONCURRENCY": 1,
 	"LOGMQ_MAX_CONCURRENCY":      1,
+	"RETRY_INTERVAL_SECONDS":     30,
 }
 
 func Parse(flags Flags) (*Config, error) {
@@ -141,6 +143,7 @@ func Parse(flags Flags) (*Config, error) {
 		PublishMaxConcurrency:  mustInt(viper, "PUBLISHMQ_MAX_CONCURRENCY"),
 		DeliveryMaxConcurrency: mustInt(viper, "DELIVERYMQ_MAX_CONCURRENCY"),
 		LogMaxConcurrency:      mustInt(viper, "LOGMQ_MAX_CONCURRENCY"),
+		RetryIntervalSeconds:   mustInt(viper, "RETRY_INTERVAL_SECONDS"),
 	}
 
 	return config, nil
