@@ -41,6 +41,7 @@ func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
 			tenant_id String,
 			destination_id String,
 			topic String,
+			eligible_for_retry Bool,
 			time DateTime,
 			metadata String,
 			data String

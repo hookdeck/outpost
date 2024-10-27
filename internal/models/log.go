@@ -51,7 +51,9 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request ListEventRequest) 
 				destination_id,
 				time,
 				topic,
-				data
+				eligible_for_retry,
+				data,
+				metadata
 			FROM eventkit.events
 			WHERE tenant_id = ?
 			ORDER BY time DESC
@@ -66,7 +68,9 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request ListEventRequest) 
 				destination_id,
 				time,
 				topic,
-				data
+				eligible_for_retry,
+				data,
+				metadata
 			FROM eventkit.events
 			WHERE tenant_id = ? AND time < ?
 			ORDER BY time DESC
@@ -89,7 +93,9 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request ListEventRequest) 
 			&event.DestinationID,
 			&event.Time,
 			&event.Topic,
+			&event.EligibleForRetry,
 			&event.Data,
+			&event.Metadata,
 		); err != nil {
 			return nil, "", err
 		}
@@ -105,9 +111,19 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request ListEventRequest) 
 }
 
 func (s *logStoreImpl) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*Event, error) {
-	rows, err := s.chDB.Query(ctx,
-		"SELECT id, tenant_id, destination_id, time, topic, data FROM eventkit.events WHERE tenant_id = ? AND id = ?",
-		tenantID, eventID,
+	rows, err := s.chDB.Query(ctx, `
+		SELECT
+			id,
+			tenant_id,
+			destination_id,
+			time,
+			topic,
+			eligible_for_retry,
+			data,
+			metadata
+		FROM eventkit.events
+		WHERE tenant_id = ? AND id = ?
+		`, tenantID, eventID,
 	)
 	if err != nil {
 		return nil, err
@@ -125,7 +141,9 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, tenantID, eventID stri
 		&event.DestinationID,
 		&event.Time,
 		&event.Topic,
+		&event.EligibleForRetry,
 		&event.Data,
+		&event.Metadata,
 	); err != nil {
 		return nil, err
 	}
@@ -175,7 +193,7 @@ func (s *logStoreImpl) ListDelivery(ctx context.Context, request ListDeliveryReq
 
 func (s *logStoreImpl) InsertManyEvent(ctx context.Context, events []*Event) error {
 	batch, err := s.chDB.PrepareBatch(ctx,
-		"INSERT INTO eventkit.events (id, tenant_id, destination_id, time, topic, metadata, data) VALUES (?, ?, ?, ?, ?, ?)",
+		"INSERT INTO eventkit.events (id, tenant_id, destination_id, time, topic, eligible_for_retry, metadata, data) VALUES (?, ?, ?, ?, ?, ?)",
 	)
 	if err != nil {
 		return err
@@ -188,6 +206,7 @@ func (s *logStoreImpl) InsertManyEvent(ctx context.Context, events []*Event) err
 			&event.DestinationID,
 			&event.Time,
 			&event.Topic,
+			&event.EligibleForRetry,
 			&event.Metadata,
 			&event.Data,
 		); err != nil {
