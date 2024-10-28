@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/hookdeck/EventKit/internal/clickhouse"
 	"github.com/hookdeck/EventKit/internal/mqs"
@@ -27,6 +28,7 @@ type Config struct {
 	JWTSecret        string
 	EncryptionSecret string
 	PortalProxyURL   string
+	Topics           []string
 
 	Redis                  *redis.RedisConfig
 	ClickHouse             *clickhouse.ClickHouseConfig
@@ -116,6 +118,11 @@ func Parse(flags Flags) (*Config, error) {
 		}
 	}
 
+	topics, err := parseTopics(viper)
+	if err != nil {
+		return nil, err
+	}
+
 	// MQs
 	publishQueueConfig, err := mqs.ParseQueueConfig(viper, "PUBLISH")
 	if err != nil {
@@ -146,6 +153,7 @@ func Parse(flags Flags) (*Config, error) {
 		JWTSecret:        viper.GetString("JWT_SECRET"),
 		EncryptionSecret: viper.GetString("ENCRYPTION_SECRET"),
 		PortalProxyURL:   portalProxyURL,
+		Topics:           topics,
 		Redis: &redis.RedisConfig{
 			Host:     viper.GetString("REDIS_HOST"),
 			Port:     mustInt(viper, "REDIS_PORT"),
@@ -199,4 +207,20 @@ func parseService(viper *v.Viper, flags Flags) (*ServiceType, error) {
 		return nil, err
 	}
 	return &service, nil
+}
+
+func parseTopics(viper *v.Viper) ([]string, error) {
+	topicStr := viper.GetString("TOPICS")
+	if topicStr == "" {
+		return nil, makeEmptyErr("TOPICS")
+	}
+	topics := strings.Split(topicStr, ",")
+	for i, topic := range topics {
+		topics[i] = strings.TrimSpace(topic)
+	}
+	return topics, nil
+}
+
+func makeEmptyErr(key string) error {
+	return errors.New(key + " is empty")
 }
