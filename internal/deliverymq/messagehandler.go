@@ -140,6 +140,11 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 // - OR if the error is a publish error + event is eligible for retried + the attempt is less than max retry --> should be retried
 // Clarification between attemp & max retry: Event.Attempt is zero-based numbering. If Event.Attempt is 4, that means the event has failed 5 times.
 // That means 1 original attempt + 4 retries. If max retry is 5, then it should be retried 1 more time. Total attempt will be 6.
+//
+// Question: what to do if there's an "internal error"? How should that count against the attempt count?
+// For example, what if the error happens AFTER deliverying the message (doesn't matter whether it's successful or not),
+// say logmq.Publish fails. Should that count as an attempt? What about an error BEFORE deliverying the message?
+// Should we write code to differentiate between these two types of errors (predeliveryErr and postdeliveryErr, for example)?
 func (h *messageHandler) shouldRetry(err error, deliveryEvent models.DeliveryEvent) bool {
 	_, isPublishErr := err.(*models.DestinationPublishError)
 	if !isPublishErr {
