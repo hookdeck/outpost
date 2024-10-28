@@ -63,7 +63,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 	if s.entityStore == nil {
 		s.entityStore = models.NewEntityStore(s.redisClient, models.NewAESCipher(""))
 	}
-	logMQ := logmq.New()
+	logMQ := logmq.New(logmq.WithQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}))
 	cleanupLogMQ, err := logMQ.Init(s.ctx)
 	require.NoError(t, err)
 	teardownFuncs = append(teardownFuncs, cleanupLogMQ)
