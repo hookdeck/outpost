@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -29,25 +30,25 @@ func NewPublishHandlers(
 }
 
 func (h *PublishHandlers) Ingest(c *gin.Context) {
+	logger := h.logger.Ctx(c.Request.Context())
 	var publishedEvent PublishedEvent
 	if err := c.ShouldBindJSON(&publishedEvent); err != nil {
-		h.logger.Error("failed to bind JSON", zap.Error(err))
+		logger.Error("failed to bind JSON", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	event := publishedEvent.toEvent()
-	err := h.eventHandler.Handle(c.Request.Context(), &event)
-	if err != nil {
-		if err == idempotence.ErrConflict {
+	if err := h.eventHandler.Handle(c.Request.Context(), &event); err != nil {
+		logger.Error("failed to ingest event", zap.Error(err))
+		if errors.Is(err, idempotence.ErrConflict) {
 			c.Status(http.StatusConflict)
-			return
+		} else if errors.Is(err, publishmq.ErrInvalidTopic) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to ingest event"})
 		}
-		h.logger.Error("failed to ingest event", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to ingest event"})
 		return
 	}
-
 	c.Status(http.StatusOK)
 }
 

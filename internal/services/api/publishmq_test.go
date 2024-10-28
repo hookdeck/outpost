@@ -55,6 +55,7 @@ func TestIntegrationAPIService_PublishMQConsumer(t *testing.T) {
 		DisabledAt:  nil,
 	}
 	entityStore.UpsertDestination(ctx, destination)
+	log.Println("destination", destination.TenantID)
 
 	wg := &sync.WaitGroup{}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -66,6 +67,7 @@ func TestIntegrationAPIService_PublishMQConsumer(t *testing.T) {
 			DeliveryQueueConfig:   &deliveryQueueConfig,
 			PublishMaxConcurrency: 1,
 			EncryptionSecret:      "secret",
+			Topics:                testutil.TestTopics,
 		},
 		testutil.CreateTestLogger(t),
 	)
@@ -120,18 +122,9 @@ func TestIntegrationAPIService_PublishMQConsumer(t *testing.T) {
 	// Publish to publishmq
 	<-readychan
 	log.Println("publishing...")
-	event := models.Event{
-		ID:               uuid.New().String(),
-		TenantID:         destination.TenantID,
-		DestinationID:    "",
-		Topic:            "test",
-		EligibleForRetry: true,
-		Time:             time.Now(),
-		Metadata:         map[string]string{},
-		Data: map[string]interface{}{
-			"mykey": "myvalue",
-		},
-	}
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(destination.TenantID),
+	)
 	// Publish events twice to test idempotency
 	err = publishMQ.Publish(ctx, &event)
 	require.Nil(t, err, "should publish event without error")

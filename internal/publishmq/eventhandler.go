@@ -2,6 +2,8 @@ package publishmq
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/deliverymq"
@@ -15,6 +17,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+var (
+	ErrInvalidTopic = errors.New("invalid topic")
+)
+
 type EventHandler interface {
 	Handle(ctx context.Context, event *models.Event) error
 }
@@ -26,6 +32,7 @@ type eventHandler struct {
 	idempotence idempotence.Idempotence
 	deliveryMQ  *deliverymq.DeliveryMQ
 	entityStore models.EntityStore
+	topics      []string
 }
 
 func NewEventHandler(
@@ -34,6 +41,7 @@ func NewEventHandler(
 	deliveryMQ *deliverymq.DeliveryMQ,
 	entityStore models.EntityStore,
 	eventTracer eventtracer.EventTracer,
+	topics []string,
 ) EventHandler {
 	emeter, _ := emetrics.New()
 	eventHandler := &eventHandler{
@@ -45,6 +53,7 @@ func NewEventHandler(
 		deliveryMQ:  deliveryMQ,
 		entityStore: entityStore,
 		eventTracer: eventTracer,
+		topics:      topics,
 		emeter:      emeter,
 	}
 	return eventHandler
@@ -53,6 +62,9 @@ func NewEventHandler(
 var _ EventHandler = (*eventHandler)(nil)
 
 func (h *eventHandler) Handle(ctx context.Context, event *models.Event) error {
+	if !slices.Contains(h.topics, event.Topic) {
+		return ErrInvalidTopic
+	}
 	return h.idempotence.Exec(ctx, idempotencyKeyFromEvent(event), func(ctx context.Context) error {
 		return h.doHandle(ctx, event)
 	})
