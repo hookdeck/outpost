@@ -81,6 +81,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 		testutil.NewMockEventTracer(s.exporter),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
+		10,
 	)
 
 	go func() {

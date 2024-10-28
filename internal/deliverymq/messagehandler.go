@@ -27,6 +27,7 @@ type messageHandler struct {
 	logStore       models.LogStore
 	retryScheduler scheduler.Scheduler
 	retryBackoff   backoff.Backoff
+	retryMaxCount  int
 	idempotence    idempotence.Idempotence
 }
 
@@ -41,6 +42,7 @@ func NewMessageHandler(
 	eventTracer eventtracer.EventTracer,
 	retryScheduler scheduler.Scheduler,
 	retryBackoff backoff.Backoff,
+	retryMaxCount int,
 ) consumer.MessageHandler {
 	return &messageHandler{
 		eventTracer:    eventTracer,
@@ -50,6 +52,7 @@ func NewMessageHandler(
 		logStore:       logStore,
 		retryScheduler: retryScheduler,
 		retryBackoff:   retryBackoff,
+		retryMaxCount:  retryMaxCount,
 		idempotence: idempotence.New(redisClient,
 			idempotence.WithTimeout(5*time.Second),
 			idempotence.WithSuccessfulTTL(24*time.Hour),
@@ -72,8 +75,7 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	}
 	err := h.idempotence.Exec(ctx, idempotencyKeyFromDeliveryEvent(deliveryEvent), idempotenceHandler)
 	if err != nil {
-		// retry if it's an internal error (not a publish error) OR event is eligible for retry
-		if _, isPublishErr := err.(*models.DestinationPublishError); !isPublishErr || deliveryEvent.Event.EligibleForRetry {
+		if h.shouldRetry(err, deliveryEvent) {
 			if retryErr := h.scheduleRetry(ctx, deliveryEvent); retryErr != nil {
 				finalErr := errors.Join(err, retryErr)
 				msg.Nack()
@@ -130,6 +132,20 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 		err = errors.Join(err, logErr)
 	}
 	return err
+}
+
+// shouldRetry checks if the event should be retried.
+// Qualifications:
+// - if the error is an internal error --> should be retried
+// - OR if the error is a publish error + event is eligible for retried + the attempt is less than max retry --> should be retried
+// Clarification between attemp & max retry: Event.Attempt is zero-based numbering. If Event.Attempt is 4, that means the event has failed 5 times.
+// That means 1 original attempt + 4 retries. If max retry is 5, then it should be retried 1 more time. Total attempt will be 6.
+func (h *messageHandler) shouldRetry(err error, deliveryEvent models.DeliveryEvent) bool {
+	_, isPublishErr := err.(*models.DestinationPublishError)
+	if !isPublishErr {
+		return true
+	}
+	return deliveryEvent.Event.EligibleForRetry && deliveryEvent.Attempt < h.retryMaxCount
 }
 
 func (h *messageHandler) scheduleRetry(ctx context.Context, deliveryEvent models.DeliveryEvent) error {

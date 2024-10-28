@@ -97,6 +97,7 @@ func NewService(ctx context.Context,
 				Interval: time.Duration(cfg.RetryIntervalSeconds) * time.Second,
 				Base:     2,
 			},
+			cfg.RetryMaxCount,
 		)
 	}
 
