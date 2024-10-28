@@ -73,6 +73,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 			APIKey:         cfg.APIKey,
 			JWTSecret:      cfg.JWTSecret,
 			PortalProxyURL: cfg.PortalProxyURL,
+			Topics:         cfg.Topics,
 		},
 		logger,
 		redisClient,

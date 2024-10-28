@@ -16,6 +16,12 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+var TestTopics = []string{
+	"user.created",
+	"user.updated",
+	"user.deleted",
+}
+
 func CreateTestRedisConfig(t *testing.T) *internalredis.RedisConfig {
 	mr := miniredis.RunT(t)
 
