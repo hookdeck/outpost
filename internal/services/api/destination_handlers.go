@@ -164,14 +164,14 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 
 type CreateDestinationRequest struct {
 	Type        string            `json:"type" binding:"required"`
-	Topics      []string          `json:"topics" binding:"required"`
+	Topics      models.Topics     `json:"topics" binding:"required"`
 	Config      map[string]string `json:"config" binding:"required"`
 	Credentials map[string]string `json:"credentials" binding:"required"`
 }
 
 type UpdateDestinationRequest struct {
 	Type        string            `json:"type" binding:"-"`
-	Topics      []string          `json:"topics" binding:"-"`
+	Topics      models.Topics     `json:"topics" binding:"-"`
 	Config      map[string]string `json:"config" binding:"-"`
 	Credentials map[string]string `json:"credentials" binding:"-"`
 }
