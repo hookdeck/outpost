@@ -165,6 +165,28 @@ func TestDestinationCreateHandler(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.Contains(t, destinationResponse["error"], "validation failed:")
 	})
+
+	t.Run("should validate topics", func(t *testing.T) {
+		t.Parallel()
+
+		w := httptest.NewRecorder()
+
+		exampleDestination := api.CreateDestinationRequest{
+			Type:        "webhooks",
+			Topics:      []string{"user.created", "user.updated", "invalid"},
+			Config:      map[string]string{"url": "https://example.com"},
+			Credentials: map[string]string{},
+		}
+		destinationJSON, _ := json.Marshal(exampleDestination)
+		req, _ := http.NewRequest("POST", baseTenantPath(tenantID)+"/destinations", strings.NewReader(string(destinationJSON)))
+		router.ServeHTTP(w, req)
+
+		var destinationResponse map[string]any
+		json.Unmarshal(w.Body.Bytes(), &destinationResponse)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, destinationResponse["error"], "invalid topics")
+	})
 }
 
 func TestDestinationRetrieveHandler(t *testing.T) {
@@ -276,6 +298,29 @@ func TestDestinationUpdateHandler(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("should validate topics", func(t *testing.T) {
+		t.Parallel()
+
+		destination := initialDestination
+		destination.ID = uuid.New().String()
+		entityStore.UpsertDestination(context.Background(), destination)
+
+		invalidRequest := api.UpdateDestinationRequest{
+			Topics: []string{"invalid"},
+		}
+		invalidRequestJSON, _ := json.Marshal(invalidRequest)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PATCH", baseTenantPath(tenantID)+"/destinations/"+destination.ID, strings.NewReader(string(invalidRequestJSON)))
+		router.ServeHTTP(w, req)
+
+		var destinationResponse map[string]any
+		json.Unmarshal(w.Body.Bytes(), &destinationResponse)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, destinationResponse["error"], "invalid topics")
 	})
 
 	t.Run("should update destination", func(t *testing.T) {

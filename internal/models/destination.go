@@ -4,11 +4,17 @@ import (
 	"context"
 	"encoding"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/hookdeck/EventKit/internal/destinationadapter"
 	"github.com/hookdeck/EventKit/internal/redis"
+)
+
+var (
+	ErrInvalidTopics = errors.New("validation failed: invalid topics")
 )
 
 type Destination struct {
@@ -48,6 +54,15 @@ func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Ciphe
 	err = d.Credentials.UnmarshalBinary(credentialsBytes)
 	if err != nil {
 		return fmt.Errorf("invalid credentials: %w", err)
+	}
+	return nil
+}
+
+func (d *Destination) ValidateTopics(availableTopics []string) error {
+	for _, topic := range d.Topics {
+		if !slices.Contains(availableTopics, topic) && topic != "*" {
+			return ErrInvalidTopics
+		}
 	}
 	return nil
 }

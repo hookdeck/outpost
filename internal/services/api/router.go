@@ -45,7 +45,7 @@ func NewRouter(
 	})
 
 	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, entityStore)
-	destinationHandlers := NewDestinationHandlers(logger, entityStore)
+	destinationHandlers := NewDestinationHandlers(logger, entityStore, cfg.Topics)
 	publishHandlers := NewPublishHandlers(logger, publishmqEventHandler)
 	logHandlers := NewLogHandlers(logger, logStore)
 	topicHandlers := NewTopicHandlers(logger, cfg.Topics)
