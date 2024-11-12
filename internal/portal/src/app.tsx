@@ -51,7 +51,7 @@ function useTenant(token?: string): Tenant | undefined {
         return;
       }
       const tenantId = value.sub;
-      const response = await fetch(`/api/${tenantId}`, {
+      const response = await fetch(`/api/v1/${tenantId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

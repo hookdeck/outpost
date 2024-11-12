@@ -28,6 +28,9 @@ up/uptrace:
 down/uptrace:
 	docker-compose -f build/dev/uptrace/compose.yml down
 
+up/portal:
+	cd internal/portal && npm install && npm run dev
+
 test:
 	go test $(TEST) $(TESTARGS)
 
