@@ -2,6 +2,8 @@
 
 ## Local Development
 
+There are a few helper Go scripts to help with the development process of various destination types. In these example snippets, we use `localhost` as the example host. If your dev services run inside Docker, `localhost` will not work. You should use `host.docker.internal` instead.
+
 ### AWS
 
 > We currently only support AWS SQS destination.
@@ -110,7 +112,6 @@ $ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
   "disabled_at": null
 }
 ```
-
 
 ### Webhooks
 

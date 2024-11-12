@@ -54,7 +54,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request ListEventRequest) 
 				eligible_for_retry,
 				data,
 				metadata
-			FROM eventkit.events
+			FROM events
 			WHERE tenant_id = ?
 			ORDER BY time DESC
 			LIMIT ?
@@ -71,7 +71,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request ListEventRequest) 
 				eligible_for_retry,
 				data,
 				metadata
-			FROM eventkit.events
+			FROM events
 			WHERE tenant_id = ? AND time < ?
 			ORDER BY time DESC
 			LIMIT ?
@@ -121,7 +121,7 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, tenantID, eventID stri
 			eligible_for_retry,
 			data,
 			metadata
-		FROM eventkit.events
+		FROM events
 		WHERE tenant_id = ? AND id = ?
 		`, tenantID, eventID,
 	)
@@ -163,7 +163,7 @@ func (s *logStoreImpl) ListDelivery(ctx context.Context, request ListDeliveryReq
 			destination_id,
 			status,
 			time
-		FROM eventkit.deliveries
+		FROM deliveries
 		WHERE event_id = ?
 		ORDER BY time DESC
 	`
@@ -193,7 +193,7 @@ func (s *logStoreImpl) ListDelivery(ctx context.Context, request ListDeliveryReq
 
 func (s *logStoreImpl) InsertManyEvent(ctx context.Context, events []*Event) error {
 	batch, err := s.chDB.PrepareBatch(ctx,
-		"INSERT INTO eventkit.events (id, tenant_id, destination_id, time, topic, eligible_for_retry, metadata, data) VALUES (?, ?, ?, ?, ?, ?)",
+		"INSERT INTO events (id, tenant_id, destination_id, time, topic, eligible_for_retry, metadata, data) VALUES (?, ?, ?, ?, ?, ?)",
 	)
 	if err != nil {
 		return err
@@ -223,7 +223,7 @@ func (s *logStoreImpl) InsertManyEvent(ctx context.Context, events []*Event) err
 
 func (s *logStoreImpl) InsertManyDelivery(ctx context.Context, deliveries []*Delivery) error {
 	batch, err := s.chDB.PrepareBatch(ctx,
-		"INSERT INTO eventkit.deliveries (id, delivery_event_id, event_id, destination_id, status, time) VALUES (?, ?, ?, ?, ?, ?)",
+		"INSERT INTO deliveries (id, delivery_event_id, event_id, destination_id, status, time) VALUES (?, ?, ?, ?, ?, ?)",
 	)
 	if err != nil {
 		return err

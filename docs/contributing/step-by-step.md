@@ -1,0 +1,209 @@
+# Getting Started - Step by Step
+
+Here's a more in-depth guide on how to set up your full environment with Docker. Here are things to look out for:
+
+## Phase 1: Start environment
+
+1: Copy `.env.example` to `.env` to use the default environment variables.
+
+```sh
+$ cp .env.example .env
+```
+
+2: Create `outpost` Docker network shared by all of your containers
+
+```sh
+$ make network
+# docker network create outpost
+```
+
+3: Choose internal MQs
+
+Outpost relies on a few mqs (deliverymq, logmq, etc.) to function. There's a [Docker Compose file](../../build/dev/mqs/compose.yml) that will start a few different supported queues:
+
+- RabbitMQ
+- AWS via LocalStack
+- (coming) GCP PubSub
+- (coming) Azure ServiceBus
+
+You must choose one to run with your services and set it up in your `.env`.
+
+- To configure AWS:
+
+```
+DELIVERY_AWS_SQS_ENDPOINT="http://aws:4566"
+DELIVERY_AWS_SQS_REGION="eu-central-1"
+DELIVERY_AWS_SQS_SERVICE_ACCOUNT_CREDS="test:test:"
+DELIVERY_AWS_SQS_TOPIC="eventkit_delivery"
+
+LOG_AWS_SQS_ENDPOINT="http://aws:4566"
+LOG_AWS_SQS_REGION="eu-central-1"
+LOG_AWS_SQS_SERVICE_ACCOUNT_CREDS="test:test:"
+LOG_AWS_SQS_TOPIC="eventkit_log"
+```
+
+You can change the region of topic name as you see fit.
+
+- To configure RabbitMQ
+
+```
+DELIVERY_RABBITMQ_SERVER_URL="amqp://guest:guest@rabbitmq:5672"
+DELIVERY_RABBITMQ_EXCHANGE="eventkit_delivery"
+DELIVERY_RABBITMQ_QUEUE="eventkit.delivery"
+
+LOG_RABBITMQ_SERVER_URL="amqp://guest:guest@rabbitmq:5672"
+LOG_RABBITMQ_EXCHANGE="eventkit_log"
+LOG_RABBITMQ_QUEUE="eventkit.log"
+```
+
+4: Start services
+
+```sh
+# create a shared Docker network for all Outpost Docker Compose stacks
+$ make network
+
+$ make up
+
+# ... to stop
+$ make down
+```
+
+The command `make up` will start 2 Docker Compose stacks: [outpost](../../build/dev/compose.yml) and [mqs](../../build/dev/mqs/compose.yml).
+
+Once started, please check the log to see when your service is up. As the Docker containers are tuned for development flow (with live reload), it will take a minute or so the first time as it proceeds to download dependencies. When the API server has started, you can run a healthcheck to confirm that the service is up:
+
+```sh
+$ curl localhost:3333/api/v1/healthz
+OK%
+```
+
+5: Create ClickHouse schema
+
+_Note_: This step should be obsolete in the future. For now, as we're still early in the CH integration, we have to manually create the CH schema.
+
+Once all services have started, you need to initialize the CH schema:
+
+```sh
+$ docker exec -it $(docker ps -f name=outpost-clickhouse --format "{{.ID}}") clickhouse-client
+ClickHouse client version ...
+Connecting to localhost:9000 as user default.
+Connected to ClickHouse server version ...
+
+:) CREATE DATABASE IF NOT EXISTS outpost;
+:) USE outpost;
+:) CREATE TABLE IF NOT EXISTS events (
+	id String,
+	tenant_id String,
+	destination_id String,
+	topic String,
+	eligible_for_retry Bool,
+	time DateTime,
+	metadata String,
+	data String
+)
+ENGINE = MergeTree
+ORDER BY (id, time);
+:) CREATE TABLE IF NOT EXISTS deliveries (
+	id String,
+	delivery_event_id String,
+	event_id String,
+	destination_id String,
+	status String,
+	time DateTime
+)
+ENGINE = ReplacingMergeTree
+ORDER BY (id, time);
+
+# Feel free to confirm that the tables are properly created. You should see 2 tables, `events` and `deliveries` here.
+:) SHOW TABLES;
+```
+
+## Phase 2: Create tenant & destination
+
+1: Create a tenant with ID: 123
+
+```sh
+$ curl --location --request PUT 'localhost:3333/api/v1/123' \
+--header 'Authorization: Bearer apikey'
+{"id":"123","created_at":"..."}%
+```
+
+2: Create a webhook-type destination
+
+```sh
+$ curl --location 'localhost:3333/api/v1/123/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer apikey' \
+--data '{
+    "type": "webhooks",
+    "topics": ["*"],
+    "config": {
+        "url": "http://host.docker.internal:4444"
+    },
+    "credentials": {
+    }
+}'
+{"id":"abcxyz","type":"webhooks","topics":["*"],"config":{"url":"http://host.docker.internal:4444"},"credentials":{},"created_at":"...","disabled_at":null}%
+```
+
+Feel free to confirm that the destination is successfully created either in Redis or by listing the destination for tenant 123:
+
+```sh
+$ curl --location 'localhost:3333/api/v1/123/destinations' \
+--header 'Authorization: Bearer apikey'
+```
+
+3: Start a mock server that acts as the webhook destination
+
+```sh
+$ go run ./cmd/destinations/webhooks
+[*] Server listening on port :4444
+```
+
+4: Publish an event
+
+```sh
+$ curl --location 'localhost:3333/api/v1/publish' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer apikey' \
+--data '{
+    "tenant_id": "123",
+    "topic": "user.created",
+    "eligible_for_retry": true,
+    "metadata": {
+        "meta": "data"
+    },
+    "data": {
+        "user_id": "userid"
+    }
+}'
+```
+
+Checking the mock webhook terminal, you should see that it has received a new request from your event above.
+
+```sh
+$ go run ./cmd/destinations/webhooks
+[*] Server listening on port :4444
+[x] POST / {"user_id":"userid"}
+```
+
+You can also confirm the data by checking the data in ClickHouse or querying the Event API:
+
+```sh
+$ curl --location 'localhost:3333/api/v1/123/events' \
+--header 'Authorization: Bearer apikey'
+```
+
+## Others
+
+### Portal
+
+TBD
+
+### PublishMQ
+
+TBD
+
+### OpenTelemetry
+
+TBD

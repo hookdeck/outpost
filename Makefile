@@ -3,12 +3,10 @@ TEST?=$$(go list ./...)
 up:
 	make up/outpost
 	make up/mqs
-	make up/uptrace
 
 down:
 	make down/outpost
 	make down/mqs
-	make down/uptrace
 
 up/outpost:
 	docker-compose -f build/dev/compose.yml --env-file .env up -d

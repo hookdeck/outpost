@@ -40,7 +40,7 @@ func NewRouter(
 	apiRouter := r.Group("/api/v1")
 
 	apiRouter.GET("/healthz", func(c *gin.Context) {
-		c.Status(http.StatusOK)
+		c.String(http.StatusOK, "OK")
 	})
 
 	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, entityStore)
