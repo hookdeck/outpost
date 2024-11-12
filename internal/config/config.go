@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"log"
+	"net/url"
 	"os"
 	"strconv"
 
@@ -25,6 +26,7 @@ type Config struct {
 	APIKey           string
 	JWTSecret        string
 	EncryptionSecret string
+	PortalProxyURL   string
 
 	Redis                  *redis.RedisConfig
 	ClickHouse             *clickhouse.ClickHouseConfig
@@ -128,6 +130,13 @@ func Parse(flags Flags) (*Config, error) {
 		return nil, err
 	}
 
+	portalProxyURL := viper.GetString("PORTAL_PROXY_URL")
+	if portalProxyURL != "" {
+		if _, err := url.Parse(portalProxyURL); err != nil {
+			return nil, err
+		}
+	}
+
 	// Initialize config values
 	config := &Config{
 		Hostname:         hostname,
@@ -136,6 +145,7 @@ func Parse(flags Flags) (*Config, error) {
 		APIKey:           viper.GetString("API_KEY"),
 		JWTSecret:        viper.GetString("JWT_SECRET"),
 		EncryptionSecret: viper.GetString("ENCRYPTION_SECRET"),
+		PortalProxyURL:   portalProxyURL,
 		Redis: &redis.RedisConfig{
 			Host:     viper.GetString("REDIS_HOST"),
 			Port:     mustInt(viper, "REDIS_PORT"),

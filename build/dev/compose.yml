@@ -45,8 +45,6 @@ services:
     volumes:
       - ../../internal/portal:/app
       - /app/node_modules
-    ports:
-      - 3334:3334
 
   redis:
     image: redis:7.4-alpine

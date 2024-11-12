@@ -4,7 +4,10 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 
 	"github.com/gin-contrib/static"
@@ -14,12 +17,37 @@ import (
 //go:embed dist
 var staticFS embed.FS
 
+type PortalConfig struct {
+	ProxyURL string
+}
+
 // AddRoutes serves the static file system for the UI React App.
-func AddRoutes(router gin.IRouter) {
-	embeddedBuildFolder := newStaticFileSystem()
-	fallbackFileSystem := newFallbackFileSystem(embeddedBuildFolder)
-	router.Use(static.Serve("/", embeddedBuildFolder))
-	router.Use(static.Serve("/", fallbackFileSystem))
+func AddRoutes(router *gin.Engine, config PortalConfig) {
+	if config.ProxyURL != "" {
+		// Proxy to Portal server
+		remote, err := url.Parse(config.ProxyURL)
+		if err != nil {
+			panic(err)
+		}
+		proxy := httputil.NewSingleHostReverseProxy(remote)
+		router.NoRoute(func(c *gin.Context) {
+			if strings.HasPrefix(c.Request.URL.Path, "/api") {
+				c.Next()
+				return
+			}
+			if c.Request.Method != "GET" {
+				c.Next()
+				return
+			}
+			log.Println(c.Request.Method, c.Request.URL.Path, c.Request.URL.RawQuery)
+			proxy.ServeHTTP(c.Writer, c.Request)
+		})
+	} else {
+		embeddedBuildFolder := newStaticFileSystem()
+		fallbackFileSystem := newFallbackFileSystem(embeddedBuildFolder)
+		router.Use(static.Serve("/", embeddedBuildFolder))
+		router.Use(static.Serve("/", fallbackFileSystem))
+	}
 }
 
 // staticFileSystem serves files out of the embedded build folder

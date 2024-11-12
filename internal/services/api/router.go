@@ -14,9 +14,10 @@ import (
 )
 
 type RouterConfig struct {
-	Hostname  string
-	APIKey    string
-	JWTSecret string
+	Hostname       string
+	APIKey         string
+	JWTSecret      string
+	PortalProxyURL string
 }
 
 func NewRouter(
@@ -32,7 +33,9 @@ func NewRouter(
 	r.Use(otelgin.Middleware(cfg.Hostname))
 	r.Use(MetricsMiddleware())
 
-	portal.AddRoutes(r)
+	portal.AddRoutes(r, portal.PortalConfig{
+		ProxyURL: cfg.PortalProxyURL,
+	})
 
 	apiRouter := r.Group("/api/v1")
 
