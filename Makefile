@@ -1,8 +1,5 @@
 TEST?=$$(go list ./...)
 
-network:
-	docker network create outpost
-
 up:
 	make up/outpost
 	make up/mqs
@@ -45,3 +42,6 @@ test/coverage:
 
 test/coverage/html:
 	go tool cover -html=coverage.out
+
+network:
+	docker network create outpost

@@ -1,8 +1,5 @@
-FROM golang:1.23-alpine
-
+FROM golang:1.23-alpine AS fetch
+RUN go install github.com/air-verse/air@latest
 WORKDIR /app
 COPY . .
-
-RUN go install -mod=mod github.com/githubnemo/CompileDaemon
-
-ENTRYPOINT CompileDaemon --build="go build -o ./bin/outpost ./cmd/eventkit/main.go" --command="./bin/outpost"
+CMD ["air"]

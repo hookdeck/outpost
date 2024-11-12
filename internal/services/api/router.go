@@ -1,9 +1,7 @@
 package api
 
 import (
-	"log"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/EventKit/internal/deliverymq"
@@ -39,8 +37,6 @@ func NewRouter(
 	apiRouter := r.Group("/api/v1")
 
 	apiRouter.GET("/healthz", func(c *gin.Context) {
-		log.Println("/healthz")
-		time.Sleep(1 * time.Second)
 		c.Status(http.StatusOK)
 	})
 

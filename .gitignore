@@ -3,6 +3,7 @@
 
 # Built binaries
 /bin
+/tmp
 
 # Golang test coverage
 /*.out
