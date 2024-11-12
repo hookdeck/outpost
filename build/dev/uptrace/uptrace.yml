@@ -17,7 +17,7 @@
 ## ClickHouse database credentials.
 ##
 ch:
-  addr: clickhouse:9000
+  addr: uptrace_clickhouse:9000
   user: default
   password:
   database: uptrace
@@ -34,7 +34,7 @@ ch:
 ## and so on.
 ##
 pg:
-  addr: postgres:5432
+  addr: uptrace_postgres:5432
   user: uptrace
   password: uptrace
   database: uptrace
@@ -66,8 +66,8 @@ projects:
   # Other projects can be used to monitor your applications.
   # To monitor micro-services or multiple related services, use a single project.
   - id: 2
-    name: EventKit
-    token: eventkit_secret_token
+    name: Outpost
+    token: outpost_secret_token
     pinned_attrs:
       - service
       - host_name

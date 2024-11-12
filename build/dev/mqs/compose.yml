@@ -1,10 +1,5 @@
 name: "outpost-mqs"
 
-networks:
-  default:
-    name: outpost
-    external: true
-
 services:
   rabbitmq:
     image: rabbitmq:3-management
@@ -22,5 +17,11 @@ services:
     ports:
       - 4566:4566
       - 4571:4571
+
 volumes:
   rabbitmq_data:
+
+networks:
+  default:
+    name: outpost
+    external: true

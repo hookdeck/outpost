@@ -1,15 +1,11 @@
 name: "outpost"
 
-networks:
-  default:
-    name: outpost
-    external: true
-
 services:
   api:
+    image: outpost
     build:
       context: ../../
-      dockerfile: ./build/dev/api.Dockerfile
+      dockerfile: ./build/dev/Dockerfile
     volumes:
       - ../../:/app
     depends_on:
@@ -18,33 +14,29 @@ services:
       - "${PORT}:${PORT}"
     env_file: ../../.env
     environment:
-      REDIS_HOST: redis
+      SERVICE: api
 
   delivery:
-    build:
-      context: ../../
-      dockerfile: ./build/dev/delivery.Dockerfile
+    image: outpost
     volumes:
       - ../..:/app
     depends_on:
       - redis
+      - api
     env_file: ../../.env
     environment:
-      REDIS_HOST: redis
-      DISABLED: true # Temporary env variable to disable the service
+      SERVICE: delivery
 
   log:
-    build:
-      context: ../../
-      dockerfile: ./build/dev/log.Dockerfile
+    image: outpost
     volumes:
       - ../..:/app
     depends_on:
       - redis
+      - api
     env_file: ../../.env
     environment:
-      REDIS_HOST: redis
-      DISABLED: true # Temporary env variable to disable the service
+      SERVICE: log
 
   redis:
     image: redis:7.4-alpine
@@ -90,3 +82,8 @@ volumes:
     driver: local
   clickhouse:
     driver: local
+
+networks:
+  default:
+    name: outpost
+    external: true
