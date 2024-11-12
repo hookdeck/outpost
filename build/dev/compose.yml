@@ -1,4 +1,9 @@
-name: "eventkit"
+name: "outpost"
+
+networks:
+  default:
+    name: outpost
+    external: true
 
 services:
   api:

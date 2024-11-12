@@ -1,4 +1,9 @@
-version: "3"
+name: "outpost-uptrace"
+
+networks:
+  default:
+    name: outpost
+    external: true
 
 services:
   clickhouse:

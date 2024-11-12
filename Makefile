@@ -1,10 +1,35 @@
 TEST?=$$(go list ./...)
 
+network:
+	docker network create outpost
+
 up:
-	docker-compose -f build/dev/compose.yml --env-file .env up -d
+	make up/outpost
+	make up/mqs
+	make up/uptrace
 
 down:
+	make down/outpost
+	make down/mqs
+	make down/uptrace
+
+up/outpost:
+	docker-compose -f build/dev/compose.yml --env-file .env up -d
+
+down/outpost:
 	docker-compose -f build/dev/compose.yml down
+
+up/mqs:
+	docker-compose -f build/dev/mqs/compose.yml up -d
+
+down/mqs:
+	docker-compose -f build/dev/mqs/compose.yml down
+
+up/uptrace:
+	docker-compose -f build/dev/uptrace/compose.yml up -d
+
+down/uptrace:
+	docker-compose -f build/dev/uptrace/compose.yml down
 
 test:
 	go test $(TEST) $(TESTARGS)
