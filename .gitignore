@@ -7,3 +7,6 @@
 
 # Golang test coverage
 /*.out
+
+# Misc
+.DS_Store
