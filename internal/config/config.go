@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"log"
 	"os"
 	"strconv"
@@ -55,6 +56,10 @@ var defaultConfig = map[string]any{
 	"MAX_RETRY_COUNT":            10,
 }
 
+var (
+	ErrMismatchedServiceType = errors.New("service type mismatch")
+)
+
 func Parse(flags Flags) (*Config, error) {
 	var err error
 
@@ -72,12 +77,6 @@ func Parse(flags Flags) (*Config, error) {
 		// Ignore error if file does not exist
 	}
 
-	// Parse service type from flag
-	service, err := ServiceTypeFromString(flags.Service)
-	if err != nil {
-		return nil, err
-	}
-
 	// Set default config values
 	for key, value := range defaultConfig {
 		viper.SetDefault(key, value)
@@ -93,6 +92,12 @@ func Parse(flags Flags) (*Config, error) {
 
 	// Bind environemnt variable to viper
 	viper.AutomaticEnv()
+
+	// Parse service type from flag & env
+	service, err := parseService(viper, flags)
+	if err != nil {
+		return nil, err
+	}
 
 	openTelemetry, err := parseOpenTelemetryConfig(viper)
 	if err != nil {
@@ -126,7 +131,7 @@ func Parse(flags Flags) (*Config, error) {
 	// Initialize config values
 	config := &Config{
 		Hostname:         hostname,
-		Service:          service,
+		Service:          *service,
 		Port:             getPort(viper),
 		APIKey:           viper.GetString("API_KEY"),
 		JWTSecret:        viper.GetString("JWT_SECRET"),
@@ -169,4 +174,19 @@ func getPort(viper *v.Viper) int {
 		}
 	}
 	return port
+}
+
+func parseService(viper *v.Viper, flags Flags) (*ServiceType, error) {
+	serviceString := flags.Service
+	if viper.GetString("SERVICE") != "" {
+		if serviceString != "" && serviceString != viper.GetString("SERVICE") {
+			return nil, ErrMismatchedServiceType
+		}
+		serviceString = viper.GetString("SERVICE")
+	}
+	service, err := ServiceTypeFromString(serviceString)
+	if err != nil {
+		return nil, err
+	}
+	return &service, nil
 }
