@@ -198,12 +198,107 @@ $ curl --location 'localhost:3333/api/v1/123/events' \
 
 ### Portal
 
-TBD
+To get the portal URL:
+
+```sh
+$ curl --location 'localhost:3333/api/v1/123/portal' \
+--header 'Authorization: Bearer apikey'
+{"redirect_url":"http://localhost:3333?token=eyJH..."}%
+```
+
+You can read more about the portal setup in [this document](portal.md).
 
 ### PublishMQ
 
-TBD
+To test publishing via mq instead of the Publish API endpoint, you can setup publishmq. Similar to the deliverymq and logmq above, you can configure Outpost to subscribe to one of the supported queue. The main difference is that with deliverymq and logmq, Outpost will automatically configure the infrastructure with the env variable values. With publishmq, Outpost is not the owner of the infrastructure and instead only subscribe to receive messages from the mq. Because of that, you need to also run a script to configure the infrastructure first before using it.
+
+There's a helper script that runs a server to help with the DX here.
+
+```sh
+$ go run ./cmd/publish
+[*] Server listening on port :5555
+```
+
+This service exposes 2 endpoint: `POST /declare` and `POST /publish`. You can use `POST /declare` to configure the mq you'd like to use and `POST /publish` to add a new event to your publish queue. There are not many configuration you can use here in its current state, so if you'd like to customize further, you may need to edit the code. With that said, it should work out of the box if you follow along with this getting started guide.
+
+The only configuration is both of these endpoint accept a query param `?method` where the value can be `aws` or `rabbitmq`. The publish endpoint can also accept `?method=http`. The publish endpoint will add the body JSON into the queue (or send a request to localhost:3333/api/v1/publish).
+
+```sh
+# step 1: declare
+$ curl --location --request POST 'localhost:5555/declare?method=aws'
+```
+
+You should see a new log line in the publish helper server terminal.
+
+```sh
+$ go run ./cmd/publish
+[*] Server listening on port :5555
+[*] Declaring AWS Publish infra
+```
+
+Before sending a new event, you can configure the publishmq with environment variable, similar to the deliverymq and logmq previously:
+
+```
+# for aws sqs
+# PUBLISH_AWS_SQS_ENDPOINT="http://aws:4566"
+# PUBLISH_AWS_SQS_REGION="eu-central-1"
+# PUBLISH_AWS_SQS_SERVICE_ACCOUNT_CREDS="test:test:"
+# PUBLISH_AWS_SQS_TOPIC="publish_sqs_queue"
+
+# for rabbitmq
+# PUBLISH_RABBITMQ_SERVER_URL="amqp://guest:guest@rabbitmq:5672"
+# PUBLISH_RABBITMQ_EXCHANGE=""
+# PUBLISH_RABBITMQ_QUEUE="publish"
+```
+
+You can confirm that it's working by reading the log of the API service. On startup, it should log that it's `subscribing to PublishMQ`.
+
+```sh
+# step 2: publish
+$ curl --location 'localhost:5555/publish?method=aws' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer apikey' \
+--data '{
+    "tenant_id": "123",
+    "topic": "user.created",
+    "eligible_for_retry": true,
+    "metadata": {
+        "meta": "data"
+    },
+    "data": {
+        "user_id": "userid"
+    }
+}'
+```
+
+You should see a new log line in the publish helper server terminal.
+
+```sh
+$ go run ./cmd/publish
+[*] Server listening on port :5555
+[*] Declaring AWS Publish infra
+[x] Publishing AWS
+```
+
+You should also confirm that the event is delivered by checking the mock webhook server, the delivery service log, or ClickHouse data.
 
 ### OpenTelemetry
 
-TBD
+You need an OpenTelemetry backend to collect the telemetry data and visualize it. We currently support Uptrace during the development process for this:
+
+```sh
+$ make up/uptrace
+
+# to stop
+$ make down/uptrace
+```
+
+You can confirm that it's working by visiting http://localhost:14318.
+
+To collect OTEL data, add these env variables:
+
+```sh
+OTEL_SERVICE_NAME=outpost
+OTEL_EXPORTER_OTLP_ENDPOINT="uptrace:14317"
+OTEL_EXPORTER_OTLP_HEADERS="uptrace-dsn=http://outpost_secret_token@uptrace:14318?grpc=14317"
+```

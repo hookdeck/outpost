@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ServerURL = "http://localhost:3333/publish"
+	ServerURL = "http://localhost:3333/api/v1/publish"
 	APIKey    = "apikey"
 )
 
