@@ -138,7 +138,6 @@ func (s *APIService) Run(ctx context.Context) error {
 
 	// Subscribe to PublishMQ
 	if s.publishMQ != nil {
-		s.logger.Ctx(ctx).Info("subscribing to PublishMQ")
 		subscription, err := s.publishMQ.Subscribe(ctx)
 		if err != nil {
 			// TODO: handle error
