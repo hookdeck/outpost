@@ -46,3 +46,6 @@ test/coverage/html:
 
 network:
 	docker network create outpost
+
+logs:
+	docker logs $$(docker ps -f name=outpost-${SERVICE} --format "{{.ID}}") -f $(ARGS)

@@ -49,6 +49,26 @@ $ go run cmd/eventkit/main.go --service log
 
 For live reload, you can use [`air`](https://github.com/air-verse/air) or a similar tool. We are currently using Air within the Docker Compose setup.
 
+### Logs
+
+When running Outpost with Docker, you may want to tail the log in your terminal for local development. There's a command to help tailing the log of Outpost's containers.
+
+```sh
+$ SERVICE=api make logs
+# docker logs $(docker ps -f name=outpost-api --format "{{.ID}}") -f
+$ SERVICE=delivery make logs
+# docker logs $(docker ps -f name=outpost-delivery --format "{{.ID}}") -f
+$ SERVICE=log make logs
+# docker logs $(docker ps -f name=outpost-log --format "{{.ID}}") -f
+```
+
+You can also add more options to this command like so:
+
+```sh
+$ SERVICE=api ARGS="--tail 50" make logs
+# docker logs $(docker ps -f name=outpost-api --format "{{.ID}}") -f --tail 50
+```
+
 ### Tests
 
 Some basic commands:
