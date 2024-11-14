@@ -7,3 +7,4 @@ tmp_dir = "tmp"
   delay = 100
   exclude_dir = ["internal/portal/node_modules"]
   include_ext = ["go"]
+  include_file = ["go.mod", "go.sum", ".env"]
