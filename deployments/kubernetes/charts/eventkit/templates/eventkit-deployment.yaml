@@ -3,69 +3,69 @@ kind: Deployment
 metadata:
   name: "{{ .Chart.Name }}-api"
   labels:
-    app: eventkit
+    app: outpost
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: eventkit-api
+      app: outpost-api
   template:
     metadata:
       labels:
-        app: eventkit-api
+        app: outpost-api
     spec:
       containers:
         - name: "{{ .Chart.Name }}-api"
-          image: "{{ .Values.eventkit.image.repository }}:{{ .Values.eventkit.image.tag }}"
-          imagePullPolicy: {{ .Values.eventkit.image.pullPolicy }}
-          command: ["/bin/eventkit", "--service", "api"]
+          image: "{{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}"
+          imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          command: ["/bin/outpost", "--service", "api"]
           env:
-{{ include "eventkit.env" . | indent 12 }}
+{{ include "outpost.env" . | indent 12 }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: "{{ .Chart.Name }}-delivery"
   labels:
-    app: eventkit
+    app: outpost
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: eventkit-delivery
+      app: outpost-delivery
   template:
     metadata:
       labels:
-        app: eventkit-delivery
+        app: outpost-delivery
     spec:
       containers:
         - name: "{{ .Chart.Name }}-delivery"
-          image: "{{ .Values.eventkit.image.repository }}:{{ .Values.eventkit.image.tag }}"
-          imagePullPolicy: {{ .Values.eventkit.image.pullPolicy }}
-          command: ["/bin/eventkit", "--service", "delivery"]
+          image: "{{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}"
+          imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          command: ["/bin/outpost", "--service", "delivery"]
           env:
-{{ include "eventkit.env" . | indent 12 }}
+{{ include "outpost.env" . | indent 12 }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: "{{ .Chart.Name }}-log"
   labels:
-    app: eventkit
+    app: outpost
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: eventkit-log
+      app: outpost-log
   template:
     metadata:
       labels:
-        app: eventkit-log
+        app: outpost-log
     spec:
       containers:
         - name: "{{ .Chart.Name }}-log"
-          image: "{{ .Values.eventkit.image.repository }}:{{ .Values.eventkit.image.tag }}"
-          imagePullPolicy: {{ .Values.eventkit.image.pullPolicy }}
-          command: ["/bin/eventkit", "--service", "log"]
+          image: "{{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}"
+          imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          command: ["/bin/outpost", "--service", "log"]
           env:
-{{ include "eventkit.env" . | indent 12 }}
+{{ include "outpost.env" . | indent 12 }}

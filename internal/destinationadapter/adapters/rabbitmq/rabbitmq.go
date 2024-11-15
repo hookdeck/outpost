@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
+	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
 	"github.com/rabbitmq/amqp091-go"
 )
 

@@ -6,7 +6,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const issuer = "eventkit"
+const issuer = "outpost"
 
 var signingMethod = jwt.SigningMethodHS256
 

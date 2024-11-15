@@ -1,9 +1,9 @@
-# Default values for EventKit.
+# Default values for Outpost.
 
-eventkit:
+outpost:
   imagePullSecrets: []
   image:
-    repository: eventkit
+    repository: outpost
     tag: latest
     ## Should be 'Always' for 'latest' image tag, otherwise 'IfNotPresent'
     ## Currently set to local image during development process

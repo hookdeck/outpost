@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/models"
+	"github.com/hookdeck/outpost/internal/models"
 )
 
 // ============================== Mock Event ==============================

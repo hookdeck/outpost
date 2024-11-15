@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hookdeck/EventKit/internal/mqs"
-	"github.com/hookdeck/EventKit/internal/util/testutil"
+	"github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,8 +39,8 @@ func TestIntegrationMQ_RabbitMQ(t *testing.T) {
 
 	config := mqs.QueueConfig{RabbitMQ: &mqs.RabbitMQConfig{
 		ServerURL: rabbitmqURL,
-		Exchange:  "eventkit",
-		Queue:     "eventkit.delivery",
+		Exchange:  "outpost",
+		Queue:     "outpost.delivery",
 	}}
 	testutil.DeclareTestRabbitMQInfrastructure(context.Background(), config.RabbitMQ)
 	testMQ(t, func() mqs.QueueConfig { return config })
@@ -57,7 +57,7 @@ func TestIntegrationMQ_AWS(t *testing.T) {
 		Endpoint:                  awsEndpoint,
 		Region:                    "eu-central-1",
 		ServiceAccountCredentials: "test:test:",
-		Topic:                     "eventkit",
+		Topic:                     "outpost",
 	}}
 	testutil.DeclareTestAWSInfrastructure(context.Background(), config.AWSSQS, nil)
 	testMQ(t, func() mqs.QueueConfig { return config })

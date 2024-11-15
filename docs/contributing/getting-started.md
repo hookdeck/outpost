@@ -1,4 +1,4 @@
-# EventKit
+# Outpost
 
 ## Development
 
@@ -39,12 +39,12 @@ To start Outpost services:
 
 ```sh
 # Start all services
-$ go run cmd/eventkit/main.go
+$ go run cmd/outpost/main.go
 
 # You can specify which service you want to run
-$ go run cmd/eventkit/main.go --service api
-$ go run cmd/eventkit/main.go --service delivery
-$ go run cmd/eventkit/main.go --service log
+$ go run cmd/outpost/main.go --service api
+$ go run cmd/outpost/main.go --service delivery
+$ go run cmd/outpost/main.go --service log
 ```
 
 For live reload, you can use [`air`](https://github.com/air-verse/air) or a similar tool. We are currently using Air within the Docker Compose setup.

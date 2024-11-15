@@ -34,12 +34,12 @@ You must choose one to run with your services and set it up in your `.env`.
 DELIVERY_AWS_SQS_ENDPOINT="http://aws:4566"
 DELIVERY_AWS_SQS_REGION="eu-central-1"
 DELIVERY_AWS_SQS_SERVICE_ACCOUNT_CREDS="test:test:"
-DELIVERY_AWS_SQS_TOPIC="eventkit_delivery"
+DELIVERY_AWS_SQS_TOPIC="outpost_delivery"
 
 LOG_AWS_SQS_ENDPOINT="http://aws:4566"
 LOG_AWS_SQS_REGION="eu-central-1"
 LOG_AWS_SQS_SERVICE_ACCOUNT_CREDS="test:test:"
-LOG_AWS_SQS_TOPIC="eventkit_log"
+LOG_AWS_SQS_TOPIC="outpost_log"
 ```
 
 You can change the region of topic name as you see fit.
@@ -48,12 +48,12 @@ You can change the region of topic name as you see fit.
 
 ```
 DELIVERY_RABBITMQ_SERVER_URL="amqp://guest:guest@rabbitmq:5672"
-DELIVERY_RABBITMQ_EXCHANGE="eventkit_delivery"
-DELIVERY_RABBITMQ_QUEUE="eventkit.delivery"
+DELIVERY_RABBITMQ_EXCHANGE="outpost_delivery"
+DELIVERY_RABBITMQ_QUEUE="outpost.delivery"
 
 LOG_RABBITMQ_SERVER_URL="amqp://guest:guest@rabbitmq:5672"
-LOG_RABBITMQ_EXCHANGE="eventkit_log"
-LOG_RABBITMQ_QUEUE="eventkit.log"
+LOG_RABBITMQ_EXCHANGE="outpost_log"
+LOG_RABBITMQ_QUEUE="outpost.log"
 ```
 
 4: Start services

@@ -4,10 +4,10 @@ FROM golang:1.23-alpine
 WORKDIR /app
 COPY . .
 
-RUN go build -o ./bin/eventkit ./cmd/eventkit/main.go
+RUN go build -o ./bin/outpost ./cmd/outpost/main.go
 
 # Stage 1
 # Copy binary to a new image
 FROM scratch
-COPY --from=0 /app/bin/eventkit /bin/eventkit
-ENTRYPOINT ["/bin/eventkit"]
+COPY --from=0 /app/bin/outpost /bin/outpost
+ENTRYPOINT ["/bin/outpost"]

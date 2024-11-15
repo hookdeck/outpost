@@ -6,7 +6,7 @@ export function App() {
 
   return (
     <div>
-      <p>EventKit Portal</p>
+      <p>Outpost Portal</p>
       <p>Token: {token}</p>
       <p>Tenant:</p>
       <pre>{JSON.stringify(tenant ?? {}, null, 2)}</pre>

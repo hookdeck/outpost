@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hookdeck/EventKit/internal/destinationadapter"
-	"github.com/hookdeck/EventKit/internal/redis"
+	"github.com/hookdeck/outpost/internal/destinationadapter"
+	"github.com/hookdeck/outpost/internal/redis"
 )
 
 var (

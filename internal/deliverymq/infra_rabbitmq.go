@@ -3,7 +3,7 @@ package deliverymq
 import (
 	"context"
 
-	"github.com/hookdeck/EventKit/internal/mqs"
+	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/rabbitmq/amqp091-go"
 )
 

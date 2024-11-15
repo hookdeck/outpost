@@ -4,13 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/hookdeck/EventKit/internal/models"
+	"github.com/hookdeck/outpost/internal/models"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
-type EventKitMetrics interface {
+type OutpostMetrics interface {
 	DeliveryLatency(ctx context.Context, latency time.Duration, opts DeliveryLatencyOpts)
 	EventDelivered(ctx context.Context, deliveryEvent *models.DeliveryEvent, ok bool)
 	EventPublished(ctx context.Context, event *models.Event)
@@ -39,7 +39,7 @@ type APICallsOpts struct {
 
 // ============================== Impl ==============================
 
-var meter = otel.Meter("eventkit")
+var meter = otel.Meter("outpost")
 
 type emetricsImpl struct {
 	deliveryLatency       metric.Int64Histogram
@@ -50,43 +50,43 @@ type emetricsImpl struct {
 	apiCallsCounter       metric.Int64Counter
 }
 
-func New() (EventKitMetrics, error) {
+func New() (OutpostMetrics, error) {
 	impl := emetricsImpl{}
 
 	var err error
-	if impl.deliveryLatency, err = meter.Int64Histogram("eventkit.delivery_latency",
+	if impl.deliveryLatency, err = meter.Int64Histogram("outpost.delivery_latency",
 		metric.WithUnit("ms"),
 		metric.WithDescription("Event delivery latency"),
 	); err != nil {
 		return nil, err
 	}
 
-	if impl.eventDeliveredCounter, err = meter.Int64Counter("eventkit.delivered_events",
+	if impl.eventDeliveredCounter, err = meter.Int64Counter("outpost.delivered_events",
 		metric.WithDescription("Number of delivered events"),
 	); err != nil {
 		return nil, err
 	}
 
-	if impl.eventPublishedCounter, err = meter.Int64Counter("eventkit.published_events",
+	if impl.eventPublishedCounter, err = meter.Int64Counter("outpost.published_events",
 		metric.WithDescription("Number of published events"),
 	); err != nil {
 		return nil, err
 	}
 
-	if impl.eventEligibleCounter, err = meter.Int64Counter("eventkit.eligible_events",
+	if impl.eventEligibleCounter, err = meter.Int64Counter("outpost.eligible_events",
 		metric.WithDescription("Number of eligible events"),
 	); err != nil {
 		return nil, err
 	}
 
-	if impl.apiResponseLatency, err = meter.Int64Histogram("eventkit.api_response_latency",
+	if impl.apiResponseLatency, err = meter.Int64Histogram("outpost.api_response_latency",
 		metric.WithUnit("ms"),
 		metric.WithDescription("API response latency"),
 	); err != nil {
 		return nil, err
 	}
 
-	if impl.apiCallsCounter, err = meter.Int64Counter("eventkit.api_calls",
+	if impl.apiCallsCounter, err = meter.Int64Counter("outpost.api_calls",
 		metric.WithDescription("Number of API calls"),
 	); err != nil {
 		return nil, err

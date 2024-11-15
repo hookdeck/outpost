@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/hookdeck/EventKit/internal/models"
-	"github.com/hookdeck/EventKit/internal/redis"
-	"github.com/hookdeck/EventKit/internal/scheduler"
+	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/scheduler"
 )
 
 func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig) scheduler.Scheduler {

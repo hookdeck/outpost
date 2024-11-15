@@ -7,7 +7,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/hookdeck/EventKit/internal/redis"
+	"github.com/hookdeck/outpost/internal/redis"
 )
 
 // TODO: get this from config

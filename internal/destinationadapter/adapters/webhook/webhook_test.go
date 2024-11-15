@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
-	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters/webhook"
-	"github.com/hookdeck/EventKit/internal/util/testutil"
+	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
+	"github.com/hookdeck/outpost/internal/destinationadapter/adapters/webhook"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -188,7 +188,7 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		assert.Equal(t, "application/json", request.Header.Get("Content-Type"))
 		assert.Equal(t, `{"mykey":"myvalue"}`, string(body), "webhook request body doesn't match expectation")
 		// metadata
-		assert.Equal(t, "metadatavalue", request.Header.Get("x-eventkit-my_metadata"))
-		assert.Equal(t, "anothermetadatavalue", request.Header.Get("x-eventkit-another_metadata"))
+		assert.Equal(t, "metadatavalue", request.Header.Get("x-outpost-my_metadata"))
+		assert.Equal(t, "anothermetadatavalue", request.Header.Get("x-outpost-another_metadata"))
 	})
 }

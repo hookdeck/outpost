@@ -5,14 +5,14 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	api "github.com/hookdeck/EventKit/internal/services/api"
+	api "github.com/hookdeck/outpost/internal/services/api"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestJWT(t *testing.T) {
 	t.Parallel()
 
-	const issuer = "eventkit"
+	const issuer = "outpost"
 	const jwtKey = "supersecret"
 	const tenantID = "tenantID"
 	var signingMethod = jwt.SigningMethodHS256
@@ -46,7 +46,7 @@ func TestJWT(t *testing.T) {
 		t.Parallel()
 		now := time.Now()
 		jwtToken := jwt.NewWithClaims(signingMethod, jwt.MapClaims{
-			"iss": "not-eventkit",
+			"iss": "not-outpost",
 			"sub": tenantID,
 			"iat": now.Unix(),
 			"exp": now.Add(time.Hour).Unix(),

@@ -9,8 +9,8 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/models"
-	"github.com/hookdeck/EventKit/internal/util/testutil"
+	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,9 +34,9 @@ func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	require.NoError(t, conn.Exec(ctx, "CREATE DATABASE IF NOT EXISTS eventkit"))
+	require.NoError(t, conn.Exec(ctx, "CREATE DATABASE IF NOT EXISTS outpost"))
 	require.NoError(t, conn.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS eventkit.events (
+		CREATE TABLE IF NOT EXISTS outpost.events (
 			id String,
 			tenant_id String,
 			destination_id String,
@@ -50,7 +50,7 @@ func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
 		ORDER BY (id, time);
 	`))
 	require.NoError(t, conn.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS eventkit.deliveries (
+		CREATE TABLE IF NOT EXISTS outpost.deliveries (
 			id String,
 			delivery_event_id String,
 			event_id String,

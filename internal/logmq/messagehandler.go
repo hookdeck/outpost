@@ -3,8 +3,8 @@ package logmq
 import (
 	"context"
 
-	"github.com/hookdeck/EventKit/internal/consumer"
-	"github.com/hookdeck/EventKit/internal/mqs"
+	"github.com/hookdeck/outpost/internal/consumer"
+	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 

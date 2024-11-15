@@ -27,7 +27,7 @@ func run(getenv func(string) string) error {
 			return
 		}
 		log.Printf("[x] %s %s %s", r.Method, fullPath, string(body))
-		if r.Header.Get("x-eventkit-should-err") != "" {
+		if r.Header.Get("x-outpost-should-err") != "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

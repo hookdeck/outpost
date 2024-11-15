@@ -1,6 +1,6 @@
-# Development Kubernetes setup for EventKit
+# Development Kubernetes setup for Outpost
 
-This is the documentation guide to set up a Kubernetes (K8s) cluster running EventKit with Redis. We'll use [Bitnami Redis Helm chart](https://artifacthub.io/packages/helm/bitnami/redis) to get a master-replica Redis cluster.
+This is the documentation guide to set up a Kubernetes (K8s) cluster running Outpost with Redis. We'll use [Bitnami Redis Helm chart](https://artifacthub.io/packages/helm/bitnami/redis) to get a master-replica Redis cluster.
 
 ## Installations
 
@@ -41,31 +41,31 @@ $ minikube dashboard --url
 By default, everything you install on your Kubernetes cluster is within the `default` namespace. You can create a new namespace for this project to separate its environment with other projects or for easy cleanup later.
 
 ```sh
-$ kubectl create namespace myeventkit
+$ kubectl create namespace myoutpost
 
 # Configure Minikube to use this namespace by default for future commands
-$ kubectl config set-context --current --namespace=myeventkit
+$ kubectl config set-context --current --namespace=myoutpost
 ```
 
 ### Redis installation
 
 **Step 3:** Install Bitnami's Redis Helm chart
 
-We'll use `eventkit-redis` as the name of the Redis installation. You can use whichever name makes sense to you. Please make sure to substitue `eventkit-redis` with your Redis's installation name later on when applicable.
+We'll use `outpost-redis` as the name of the Redis installation. You can use whichever name makes sense to you. Please make sure to substitue `outpost-redis` with your Redis's installation name later on when applicable.
 
 ```sh
-$ helm install eventkit-redis bitnami/redis
+$ helm install outpost-redis bitnami/redis
 ```
 
 Upon a successul installation, Helm will print some steps to connect to your Redis cluster. Please verify that Redis is working correctly. Here's a simplified version, if you'd like to follow along with these steps instead.
 
 ```sh
 # Get your Redis password
-$ kubectl get secret --namespace another eventkit-redis -o jsonpath="{.data.redis-password}" | base64 -d
+$ kubectl get secret --namespace another outpost-redis -o jsonpath="{.data.redis-password}" | base64 -d
 <the_password>%
 
 # Exec `$ redis-cli` at the master node
-$ kubectl exec --tty -i eventkit-redis-master-0 -- redis-cli
+$ kubectl exec --tty -i outpost-redis-master-0 -- redis-cli
 127.0.0.1:6379> PING
 (error) NOAUTH Authentication required.
 127.0.0.1:6379> AUTH <the_password>
@@ -75,66 +75,66 @@ PONG
 127.0.0.1:6379> exit
 ```
 
-### EventKit installation
+### Outpost installation
 
-**Step 4**: Build & load EventKit image
+**Step 4**: Build & load Outpost image
 
-Because there's no EventKit image in DockerHub yet, we need to build the image locally and load it in Minikube's registry.
+Because there's no Outpost image in DockerHub yet, we need to build the image locally and load it in Minikube's registry.
 
-Build EventKit:
+Build Outpost:
 
 ```
-# at .../hookdeck/EventKit directory
-$ docker build -t hookdeck/eventkit -f build/Dockerfile .
+# at .../hookdeck/outpost directory
+$ docker build -t hookdeck/outpost -f build/Dockerfile .
 
 # verify that the built image exists
-$ docker image ls | grep -w hookdeck/eventkit
+$ docker image ls | grep -w hookdeck/outpost
 ```
 
 Load image to Minikube
 
 ```sh
 # load
-$ minikube load image hookdeck/eventkit
+$ minikube load image hookdeck/outpost
 
 # verify
-$ minikube image ls | grep -w hookdeck/eventkit
+$ minikube image ls | grep -w hookdeck/outpost
 ```
 
-**Step 5**: Install EventKit using Helm chart
+**Step 5**: Install Outpost using Helm chart
 
 This installation assumes you have followed the steps above to set up Redis cluster with Bitnami. We're using the Redis's password secret by providing the custom `values.yaml` file. If you use a different Redis setup, please feel free to provide your own values when installing the chart.
 
 ```sh
 # Navigate to the right directory
-# at .../hookdeck/EventKit
+# at .../hookdeck/outpost
 $ cd deployments/kubernetes
 
-# at .../hookdeck/EventKit/deployments/kubernetes
+# at .../hookdeck/outpost/deployments/kubernetes
 
-$ helm install eventkit charts/eventkit -f values.yaml
-NAME: eventkit
+$ helm install outpost charts/outpost -f values.yaml
+NAME: outpost
 LAST DEPLOYED: ...
-NAMESPACE: myeventkit
+NAMESPACE: myoutpost
 STATUS: deployed
 REVISION: 1
 TEST SUITE: None
 ```
 
-Congrats, you've successfully deployed EventKit to your local Kubernetes cluster.
+Congrats, you've successfully deployed Outpost to your local Kubernetes cluster.
 
 ### Interact with the cluster
 
-Let's verify and interact with your EventKit service.
+Let's verify and interact with your Outpost service.
 
-Get the URL of the EventKit service:
+Get the URL of the Outpost service:
 
 ```sh
-$ minikube service eventkit --url -n myeventkit
+$ minikube service outpost --url -n myoutpost
 http://127.0.0.1:50454
 ```
 
-You should get a URL that looks something like `http://127.0.0.1:50454`. The exact port may change every time you run this command. Let's keep this terminal opened and interace with your EventKit service:
+You should get a URL that looks something like `http://127.0.0.1:50454`. The exact port may change every time you run this command. Let's keep this terminal opened and interace with your Outpost service:
 
 ```sh
 $ curl -v http://127.0.0.1:50454
@@ -155,11 +155,11 @@ $ curl -v http://127.0.0.1:50454
 To tail the log of the API service:
 
 ```sh
-$ kubectl get pod | grep -w eventkit-api
-eventkit-api-5dfd69c689-h8698        1/1     Running   0          10m
+$ kubectl get pod | grep -w outpost-api
+outpost-api-5dfd69c689-h8698        1/1     Running   0          10m
 
 # getting the pod name above
-$ kubectl logs eventkit-api-5dfd69c689-h8698 -f
+$ kubectl logs outpost-api-5dfd69c689-h8698 -f
 ```
 
 You should see your previous request along with any future requests you make. You can try some more:
@@ -177,7 +177,7 @@ $ curl -v http://127.0.0.1:50454/123
 You can verify that the data exists in Redis:
 
 ```sh
-$ kubectl exec --tty -i eventkit-redis-master-0 -- redis-cli
+$ kubectl exec --tty -i outpost-redis-master-0 -- redis-cli
 127.0.0.1:6379> AUTH TpxpTpiTpS
 OK
 127.0.0.1:6379> HGETALL tenant:123
@@ -192,7 +192,7 @@ OK
 If you put everything under a namespace, cleaning up is as simple as deleting the namespace.
 
 ```sh
-$ kubectl delete namespaces myeventkit
+$ kubectl delete namespaces myoutpost
 
 # (optional) reset kubectl config to use default or another namespace
 $ kubectl config set-context --current --namespace=default

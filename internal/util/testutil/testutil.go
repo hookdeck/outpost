@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	internalch "github.com/hookdeck/EventKit/internal/clickhouse"
-	internalredis "github.com/hookdeck/EventKit/internal/redis"
+	internalch "github.com/hookdeck/outpost/internal/clickhouse"
+	internalredis "github.com/hookdeck/outpost/internal/redis"
 	"github.com/redis/go-redis/v9"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"

@@ -7,7 +7,7 @@ This is a simplified version of the official [Uptrace's Docker example](https://
 **Step 1**. Start the services with Docker
 
 ```sh
-# from hookdeck/EventKit/build/dev/uptrace
+# from hookdeck/outpost/build/dev/uptrace
 
 # Pull required images
 $ docker compose pull
@@ -27,14 +27,14 @@ uptrace@localhost
 uptrace
 ```
 
-## Usage with EventKit
+## Usage with Outpost
 
-With Uptrace, the convention is the first project is to monitor Uptrace itself. In our configuration, EventKit will be the 2nd project. There's a way to switch project in Uptrace dashboard in the sidebar. Make sure you're on the right project before proceeding.
+With Uptrace, the convention is the first project is to monitor Uptrace itself. In our configuration, Outpost will be the 2nd project. There's a way to switch project in Uptrace dashboard in the sidebar. Make sure you're on the right project before proceeding.
 
-Here's the environment variables you need to set for EventKit to send telemetry data to Uptrace:
+Here's the environment variables you need to set for Outpost to send telemetry data to Uptrace:
 
 ```
-OTEL_SERVICE_NAME=eventkit
+OTEL_SERVICE_NAME=outpost
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="localhost:14317"
 OTEL_EXPORTER_OTLP_METRICS_ENDPOINT="localhost:14317"
 OTEL_EXPORTER_OTLP_LOGS_ENDPOINT="localhost:14317"

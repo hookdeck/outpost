@@ -1,4 +1,4 @@
-# EventKit
+# Outpost
 
 ## Contributing
 

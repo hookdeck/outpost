@@ -1,5 +1,5 @@
 {
-  "name": "eventkit-portal",
+  "name": "outpost-portal",
   "scripts": {
     "dev": "vite",
     "build": "vite build"

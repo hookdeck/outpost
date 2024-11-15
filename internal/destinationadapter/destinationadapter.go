@@ -3,10 +3,10 @@ package destinationadapter
 import (
 	"errors"
 
-	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
-	awsdestination "github.com/hookdeck/EventKit/internal/destinationadapter/adapters/aws"
-	rabbitmqdestination "github.com/hookdeck/EventKit/internal/destinationadapter/adapters/rabbitmq"
-	webhookdestination "github.com/hookdeck/EventKit/internal/destinationadapter/adapters/webhook"
+	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
+	awsdestination "github.com/hookdeck/outpost/internal/destinationadapter/adapters/aws"
+	rabbitmqdestination "github.com/hookdeck/outpost/internal/destinationadapter/adapters/rabbitmq"
+	webhookdestination "github.com/hookdeck/outpost/internal/destinationadapter/adapters/webhook"
 )
 
 type Destination = adapters.DestinationAdapterValue

@@ -3,8 +3,8 @@ package testutil
 import (
 	"context"
 
-	"github.com/hookdeck/EventKit/internal/eventtracer"
-	"github.com/hookdeck/EventKit/internal/models"
+	"github.com/hookdeck/outpost/internal/eventtracer"
+	"github.com/hookdeck/outpost/internal/models"
 	traceSDK "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )

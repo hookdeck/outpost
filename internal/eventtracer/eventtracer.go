@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/hookdeck/EventKit/internal/emetrics"
-	"github.com/hookdeck/EventKit/internal/models"
+	"github.com/hookdeck/outpost/internal/emetrics"
+	"github.com/hookdeck/outpost/internal/models"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -17,7 +17,7 @@ type EventTracer interface {
 }
 
 type eventTracerImpl struct {
-	emeter emetrics.EventKitMetrics
+	emeter emetrics.OutpostMetrics
 	tracer trace.Tracer
 }
 
@@ -29,7 +29,7 @@ func NewEventTracer() EventTracer {
 
 	return &eventTracerImpl{
 		emeter: emeter,
-		tracer: traceProvider.Tracer("github.com/hookdeck/EventKit/internal/eventtracer"),
+		tracer: traceProvider.Tracer("github.com/hookdeck/outpost/internal/eventtracer"),
 	}
 }
 
@@ -60,7 +60,7 @@ func (t *eventTracerImpl) StartDelivery(_ context.Context, deliveryEvent *models
 
 type DeliverSpan struct {
 	trace.Span
-	emeter        emetrics.EventKitMetrics
+	emeter        emetrics.OutpostMetrics
 	deliveryEvent *models.DeliveryEvent
 	err           error
 }

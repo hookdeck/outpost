@@ -3,7 +3,7 @@ package publishmq
 import (
 	"context"
 
-	"github.com/hookdeck/EventKit/internal/mqs"
+	"github.com/hookdeck/outpost/internal/mqs"
 )
 
 type PublishMQ struct {

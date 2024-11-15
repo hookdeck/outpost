@@ -1,20 +1,20 @@
 {{/*
 Service environment variables
 */}}
-{{- define "eventkit.env" -}}
+{{- define "outpost.env" -}}
 - name: REDIS_HOST
-  value: "{{ .Values.eventkit.config.redis.host }}"
+  value: "{{ .Values.outpost.config.redis.host }}"
 - name: REDIS_PORT
-  value: "{{ .Values.eventkit.config.redis.port }}"
+  value: "{{ .Values.outpost.config.redis.port }}"
 - name: REDIS_PASSWORD
-  {{- if ne "" .Values.eventkit.config.redis.passwordSecretName }}
+  {{- if ne "" .Values.outpost.config.redis.passwordSecretName }}
   valueFrom:
     secretKeyRef:
-      name: "{{ .Values.eventkit.config.redis.passwordSecretName }}"
-      key: "{{ .Values.eventkit.config.redis.passwordSecretKey }}"
+      name: "{{ .Values.outpost.config.redis.passwordSecretName }}"
+      key: "{{ .Values.outpost.config.redis.passwordSecretKey }}"
   {{- else }}
-  value: "{{ .Values.eventkit.config.redis.password }}"
+  value: "{{ .Values.outpost.config.redis.password }}"
   {{- end }}
 - name: REDIS_DATABASE
-  value: "{{ .Values.eventkit.config.redis.database }}"
+  value: "{{ .Values.outpost.config.redis.database }}"
 {{- end }}

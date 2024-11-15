@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
-	"github.com/hookdeck/EventKit/internal/mqs"
+	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
+	"github.com/hookdeck/outpost/internal/mqs"
 )
 
 type Data map[string]interface{}

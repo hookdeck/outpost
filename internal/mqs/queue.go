@@ -154,7 +154,7 @@ func newWrappedBaseQueue() *wrappedBaseQueue {
 }
 
 func (q *wrappedBaseQueue) initTracer() {
-	q.tracer = otel.GetTracerProvider().Tracer("github.com/hookdeck/EventKit/internal/mqs")
+	q.tracer = otel.GetTracerProvider().Tracer("github.com/hookdeck/outpost/internal/mqs")
 }
 
 func (q *wrappedBaseQueue) Publish(ctx context.Context, topic *pubsub.Topic, incomingMessage IncomingMessage) error {

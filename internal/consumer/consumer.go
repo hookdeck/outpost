@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/hookdeck/EventKit/internal/mqs"
+	"github.com/hookdeck/outpost/internal/mqs"
 	"go.opentelemetry.io/otel"
 )
 
@@ -60,7 +60,7 @@ func (c *consumerImpl) Run(ctx context.Context) error {
 	defer c.subscription.Shutdown(ctx)
 
 	tracerProvider := otel.GetTracerProvider()
-	tracer := tracerProvider.Tracer("github.com/hookdeck/EventKit/internal/consumer")
+	tracer := tracerProvider.Tracer("github.com/hookdeck/outpost/internal/consumer")
 
 	var subscriptionErr error
 

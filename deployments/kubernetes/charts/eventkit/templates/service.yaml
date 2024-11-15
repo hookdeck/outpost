@@ -3,11 +3,11 @@ kind: Service
 metadata:
   name: {{ .Chart.Name }}
   labels:
-    app: eventkit
+    app: outpost
 spec:
-  type: {{ .Values.eventkit.service.type }}
+  type: {{ .Values.outpost.service.type }}
   ports:
     - protocol: TCP
-      port: {{ .Values.eventkit.service.port }}
+      port: {{ .Values.outpost.service.port }}
   selector:
-    app: eventkit-api
+    app: outpost-api

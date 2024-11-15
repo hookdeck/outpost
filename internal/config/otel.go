@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/hookdeck/EventKit/internal/otel"
+	"github.com/hookdeck/outpost/internal/otel"
 	v "github.com/spf13/viper"
 )
 

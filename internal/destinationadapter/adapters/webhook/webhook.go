@@ -7,7 +7,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
+	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
 )
 
 type WebhookDestination struct {
@@ -65,7 +65,7 @@ func makeRequest(ctx context.Context, url string, event *adapters.Event) error {
 
 	req.Header.Set("Content-Type", "application/json")
 	for key, value := range event.Metadata {
-		req.Header.Set("x-eventkit-"+key, value)
+		req.Header.Set("x-outpost-"+key, value)
 	}
 
 	client := &http.Client{}

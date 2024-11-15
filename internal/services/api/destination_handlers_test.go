@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/models"
-	api "github.com/hookdeck/EventKit/internal/services/api"
+	"github.com/hookdeck/outpost/internal/models"
+	api "github.com/hookdeck/outpost/internal/services/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

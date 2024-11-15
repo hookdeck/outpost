@@ -8,16 +8,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hookdeck/EventKit/internal/clickhouse"
-	"github.com/hookdeck/EventKit/internal/mqs"
-	"github.com/hookdeck/EventKit/internal/otel"
-	"github.com/hookdeck/EventKit/internal/redis"
+	"github.com/hookdeck/outpost/internal/clickhouse"
+	"github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/otel"
+	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/joho/godotenv"
 	v "github.com/spf13/viper"
 )
 
 const (
-	Namespace = "EventKit"
+	Namespace = "Outpost"
 )
 
 type Config struct {
@@ -49,10 +49,10 @@ var defaultConfig = map[string]any{
 	"REDIS_PORT":                 6379,
 	"REDIS_PASSWORD":             "",
 	"REDIS_DATABASE":             0,
-	"DELIVERY_RABBITMQ_EXCHANGE": "eventkit",
-	"DELIVERY_RABBITMQ_QUEUE":    "eventkit.delivery",
-	"LOG_RABBITMQ_EXCHANGE":      "eventkit_logs",
-	"LOG_RABBITMQ_QUEUE":         "eventkit_logs.log",
+	"DELIVERY_RABBITMQ_EXCHANGE": "outpost",
+	"DELIVERY_RABBITMQ_QUEUE":    "outpost.delivery",
+	"LOG_RABBITMQ_EXCHANGE":      "outpost_logs",
+	"LOG_RABBITMQ_QUEUE":         "outpost_logs.log",
 	"PUBLISHMQ_MAX_CONCURRENCY":  1,
 	"DELIVERYMQ_MAX_CONCURRENCY": 1,
 	"LOGMQ_MAX_CONCURRENCY":      1,

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hookdeck/EventKit/internal/backoff"
+	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/stretchr/testify/assert"
 )
 

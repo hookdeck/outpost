@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hookdeck/EventKit/internal/emetrics"
+	"github.com/hookdeck/outpost/internal/emetrics"
 )
 
 func MetricsMiddleware() gin.HandlerFunc {

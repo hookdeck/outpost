@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/hookdeck/EventKit/internal/clickhouse"
+	"github.com/hookdeck/outpost/internal/clickhouse"
 )
 
 type LogStore interface {

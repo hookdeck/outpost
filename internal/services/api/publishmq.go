@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/hookdeck/EventKit/internal/consumer"
-	"github.com/hookdeck/EventKit/internal/mqs"
-	"github.com/hookdeck/EventKit/internal/publishmq"
+	"github.com/hookdeck/outpost/internal/consumer"
+	"github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/publishmq"
 	"go.uber.org/zap"
 )
 

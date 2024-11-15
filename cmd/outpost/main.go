@@ -9,11 +9,11 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/hookdeck/EventKit/internal/config"
-	"github.com/hookdeck/EventKit/internal/otel"
-	"github.com/hookdeck/EventKit/internal/services/api"
-	"github.com/hookdeck/EventKit/internal/services/delivery"
-	"github.com/hookdeck/EventKit/internal/services/log"
+	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/otel"
+	"github.com/hookdeck/outpost/internal/services/api"
+	"github.com/hookdeck/outpost/internal/services/delivery"
+	"github.com/hookdeck/outpost/internal/services/log"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )

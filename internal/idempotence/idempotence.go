@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/hookdeck/EventKit/internal/redis"
+	"github.com/hookdeck/outpost/internal/redis"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -59,7 +59,7 @@ func New(redisClient *redis.Client, opts ...func(opts *IdempotenceImplOptions)) 
 	return &IdempotenceImpl{
 		redisClient: redisClient,
 		options:     *options,
-		tracer:      otel.GetTracerProvider().Tracer("github.com/hookdeck/EventKit/internal/idempotence"),
+		tracer:      otel.GetTracerProvider().Tracer("github.com/hookdeck/outpost/internal/idempotence"),
 	}
 }
 

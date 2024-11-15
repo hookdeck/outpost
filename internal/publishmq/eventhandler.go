@@ -6,12 +6,12 @@ import (
 	"slices"
 	"time"
 
-	"github.com/hookdeck/EventKit/internal/deliverymq"
-	"github.com/hookdeck/EventKit/internal/emetrics"
-	"github.com/hookdeck/EventKit/internal/eventtracer"
-	"github.com/hookdeck/EventKit/internal/idempotence"
-	"github.com/hookdeck/EventKit/internal/models"
-	"github.com/hookdeck/EventKit/internal/redis"
+	"github.com/hookdeck/outpost/internal/deliverymq"
+	"github.com/hookdeck/outpost/internal/emetrics"
+	"github.com/hookdeck/outpost/internal/eventtracer"
+	"github.com/hookdeck/outpost/internal/idempotence"
+	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -26,7 +26,7 @@ type EventHandler interface {
 }
 
 type eventHandler struct {
-	emeter      emetrics.EventKitMetrics
+	emeter      emetrics.OutpostMetrics
 	eventTracer eventtracer.EventTracer
 	logger      *otelzap.Logger
 	idempotence idempotence.Idempotence

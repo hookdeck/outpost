@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
-	iredis "github.com/hookdeck/EventKit/internal/redis"
+	iredis "github.com/hookdeck/outpost/internal/redis"
 	"github.com/semihbkgr/go-rsmq"
 )
 

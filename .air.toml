@@ -2,7 +2,7 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  cmd = "go build -o tmp/main cmd/eventkit/main.go"
+  cmd = "go build -o tmp/main cmd/outpost/main.go"
   bin = "tmp/main"
   delay = 100
   exclude_dir = ["internal/portal/node_modules"]

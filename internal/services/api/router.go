@@ -4,11 +4,11 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hookdeck/EventKit/internal/deliverymq"
-	"github.com/hookdeck/EventKit/internal/models"
-	"github.com/hookdeck/EventKit/internal/portal"
-	"github.com/hookdeck/EventKit/internal/publishmq"
-	"github.com/hookdeck/EventKit/internal/redis"
+	"github.com/hookdeck/outpost/internal/deliverymq"
+	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/portal"
+	"github.com/hookdeck/outpost/internal/publishmq"
+	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
@@ -60,7 +60,7 @@ func NewRouter(
 	// - a tenant's JWT token OR
 	// - the preconfigured API key
 	//
-	// If the EventKit service deployment isn't configured with an API key, then
+	// If the Outpost service deployment isn't configured with an API key, then
 	// it's assumed that the service runs in a secure environment
 	// and the JWT check is NOT necessary either.
 	tenantRouter := apiRouter.Group("/",

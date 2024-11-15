@@ -15,9 +15,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
-	"github.com/hookdeck/EventKit/internal/destinationadapter/adapters"
-	awsadapter "github.com/hookdeck/EventKit/internal/destinationadapter/adapters/aws"
-	"github.com/hookdeck/EventKit/internal/util/testutil"
+	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
+	awsadapter "github.com/hookdeck/outpost/internal/destinationadapter/adapters/aws"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

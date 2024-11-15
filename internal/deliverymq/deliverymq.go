@@ -3,8 +3,8 @@ package deliverymq
 import (
 	"context"
 
-	"github.com/hookdeck/EventKit/internal/models"
-	"github.com/hookdeck/EventKit/internal/mqs"
+	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/mqs"
 )
 
 type DeliveryInfra interface {

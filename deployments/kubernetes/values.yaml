@@ -1,6 +1,6 @@
-eventkit:
+outpost:
   config:
     redis:
-      host: "eventkit-redis-master"
-      passwordSecretName: "eventkit-redis"
+      host: "outpost-redis-master"
+      passwordSecretName: "outpost-redis"
       passwordSecretKey: "redis-password"

@@ -1,4 +1,4 @@
-module github.com/hookdeck/EventKit
+module github.com/hookdeck/outpost
 
 go 1.23.0
 
