@@ -34,9 +34,8 @@ func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	require.NoError(t, conn.Exec(ctx, "CREATE DATABASE IF NOT EXISTS outpost"))
 	require.NoError(t, conn.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS outpost.events (
+		CREATE TABLE IF NOT EXISTS events (
 			id String,
 			tenant_id String,
 			destination_id String,
@@ -50,7 +49,7 @@ func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
 		ORDER BY (id, time);
 	`))
 	require.NoError(t, conn.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS outpost.deliveries (
+		CREATE TABLE IF NOT EXISTS deliveries (
 			id String,
 			delivery_event_id String,
 			event_id String,
