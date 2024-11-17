@@ -11,8 +11,6 @@ type LogRabbitMQInfra struct {
 	config *mqs.RabbitMQConfig
 }
 
-var _ LogInfra = &LogRabbitMQInfra{}
-
 func (i *LogRabbitMQInfra) DeclareInfrastructure(ctx context.Context) error {
 	conn, err := amqp091.Dial(i.config.ServerURL)
 	if err != nil {
@@ -55,7 +53,7 @@ func (i *LogRabbitMQInfra) DeclareInfrastructure(ctx context.Context) error {
 	)
 }
 
-func NewLogRabbitMQInfra(config *mqs.RabbitMQConfig) *LogRabbitMQInfra {
+func NewLogRabbitMQInfra(config *mqs.RabbitMQConfig) LogInfra {
 	return &LogRabbitMQInfra{
 		config: config,
 	}

@@ -39,7 +39,7 @@ func New(opts ...func(opts *LogMQOption)) *LogMQ {
 	var infra LogInfra
 	if queueConfig == nil {
 	} else if queueConfig.AWSSQS != nil {
-		// ...
+		infra = NewLogAWSInfra(queueConfig.AWSSQS)
 	} else if queueConfig.AzureServiceBus != nil {
 		// ...
 	} else if queueConfig.GCPPubSub != nil {
