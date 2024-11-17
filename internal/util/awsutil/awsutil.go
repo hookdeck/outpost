@@ -58,3 +58,27 @@ func EnsureQueue(ctx context.Context, sqsClient *sqs.Client, queueName string, c
 	}
 	return *queue.QueueUrl, nil
 }
+
+func MakeCreateQueue(attributes map[string]string) CreateQueueFn {
+	return func(ctx context.Context, sqsClient *sqs.Client, queueName string) (*sqs.CreateQueueOutput, error) {
+		return sqsClient.CreateQueue(ctx, &sqs.CreateQueueInput{
+			QueueName:  aws.String(queueName),
+			Attributes: attributes,
+		})
+	}
+}
+
+func GetQueueARN(ctx context.Context, sqsClient *sqs.Client, queueURL string) (string, error) {
+	attributesOutput, err := sqsClient.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
+		QueueUrl: aws.String(queueURL),
+		AttributeNames: []types.QueueAttributeName{
+			types.QueueAttributeNameQueueArn,
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+
+	queueARN := attributesOutput.Attributes[string(types.QueueAttributeNameQueueArn)]
+	return queueARN, nil
+}
