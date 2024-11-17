@@ -11,8 +11,6 @@ type DeliveryRabbitMQInfra struct {
 	config *mqs.RabbitMQConfig
 }
 
-var _ DeliveryInfra = &DeliveryRabbitMQInfra{}
-
 func (i *DeliveryRabbitMQInfra) DeclareInfrastructure(ctx context.Context) error {
 	conn, err := amqp091.Dial(i.config.ServerURL)
 	if err != nil {
@@ -55,7 +53,7 @@ func (i *DeliveryRabbitMQInfra) DeclareInfrastructure(ctx context.Context) error
 	)
 }
 
-func NewDeliveryRabbitMQInfra(config *mqs.RabbitMQConfig) *DeliveryRabbitMQInfra {
+func NewDeliveryRabbitMQInfra(config *mqs.RabbitMQConfig) DeliveryInfra {
 	return &DeliveryRabbitMQInfra{
 		config: config,
 	}
