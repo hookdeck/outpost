@@ -2,18 +2,14 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/aws/smithy-go"
+	"github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/util/awsutil"
 )
 
 func main() {
@@ -22,27 +18,29 @@ func main() {
 	}
 }
 
-const DestinationQueueName = "destination_sqs_queue"
+const (
+	AWSRegion            = "eu-central-1"
+	AWSEndpoint          = "http://localhost:4566"
+	AWSCredentials       = "test:test:"
+	DestinationQueueName = "destination_sqs_queue"
+)
 
 func run() error {
 	ctx := context.Background()
 
-	awsRegion := "eu-central-1"
-	awsEndpoint := "http://localhost:4566"
+	awsConfig := &mqs.AWSSQSConfig{
+		Region:                    AWSRegion,
+		Endpoint:                  AWSEndpoint,
+		ServiceAccountCredentials: AWSCredentials,
+		Topic:                     DestinationQueueName,
+	}
 
-	sdkConfig, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(awsRegion),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("test", "test", "")),
-	)
+	sqsClient, err := awsutil.SQSClientFromConfig(ctx, awsConfig)
 	if err != nil {
 		return err
 	}
 
-	sqsClient := sqs.NewFromConfig(sdkConfig, func(o *sqs.Options) {
-		o.BaseEndpoint = aws.String(awsEndpoint)
-	})
-
-	queueURL, err := ensureQueue(ctx, sqsClient, DestinationQueueName)
+	queueURL, err := awsutil.EnsureQueue(ctx, sqsClient, DestinationQueueName, awsutil.MakeCreateQueue(nil))
 	if err != nil {
 		return err
 	}
@@ -82,35 +80,9 @@ func run() error {
 		}
 	}()
 
-	log.Printf("[*] Ready to receive messages.\n\tEndpoint: %s\n\tQueue: %s", awsEndpoint, queueURL)
+	log.Printf("[*] Ready to receive messages.\n\tEndpoint: %s\n\tQueue: %s", AWSEndpoint, queueURL)
 	log.Printf("[*] Waiting for logs. To exit press CTRL+C")
 	<-termChan
 
 	return nil
-}
-
-func ensureQueue(ctx context.Context, sqsClient *sqs.Client, queueName string) (string, error) {
-	queue, err := sqsClient.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
-		QueueName: aws.String(queueName),
-	})
-	if err != nil {
-		var apiErr smithy.APIError
-		if errors.As(err, &apiErr) {
-			switch apiErr.(type) {
-			case *types.QueueDoesNotExist:
-				log.Println("Queue does not exist, creating...")
-				createdQueue, err := sqsClient.CreateQueue(ctx, &sqs.CreateQueueInput{
-					QueueName: aws.String(queueName),
-				})
-				if err != nil {
-					return "", err
-				}
-				return *createdQueue.QueueUrl, nil
-			default:
-				return "", err
-			}
-		}
-		return "", err
-	}
-	return *queue.QueueUrl, nil
 }

@@ -14,13 +14,14 @@ import (
 const (
 	AWSRegion        = "eu-central-1"
 	AWSEndpoint      = "http://localhost:4566"
+	AWSCredentials   = "test:test:"
 	PublishQueueName = "publish_sqs_queue"
 )
 
 var awsConfig = &mqs.AWSSQSConfig{
 	Region:                    AWSRegion,
 	Endpoint:                  AWSEndpoint,
-	ServiceAccountCredentials: "test:test:",
+	ServiceAccountCredentials: AWSCredentials,
 	Topic:                     PublishQueueName,
 }
 
