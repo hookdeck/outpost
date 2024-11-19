@@ -1,8 +1,11 @@
 package e2e_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"testing"
@@ -15,15 +18,88 @@ import (
 )
 
 type testClient struct {
-	port int
+	port   int
+	apiKey string
 }
 
-func (c *testClient) Get(path string) (*http.Response, error) {
+func (c *testClient) GET(path string) (*http.Response, error) {
 	request, err := http.NewRequest("GET", fmt.Sprintf("http://localhost:%d%s", c.port, path), nil)
 	if err != nil {
 		return nil, err
 	}
+	request.Header.Set("Authorization", "Bearer "+c.apiKey)
 	return http.DefaultClient.Do(request)
+}
+
+func (c *testClient) POST(path string, body map[string]interface{}) (*http.Response, error) {
+	var bodyReader io.Reader
+	if body != nil {
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+		bodyReader = bytes.NewReader(jsonBody)
+	}
+	request, err := http.NewRequest("POST", fmt.Sprintf("http://localhost:%d%s", c.port, path), bodyReader)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Authorization", "Bearer "+c.apiKey)
+	request.Header.Set("Content-Type", "application/json")
+	return http.DefaultClient.Do(request)
+}
+
+func (c *testClient) PUT(path string, body map[string]interface{}) (*http.Response, error) {
+	var bodyReader io.Reader
+	if body != nil {
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+		bodyReader = bytes.NewReader(jsonBody)
+	}
+	request, err := http.NewRequest("PUT", fmt.Sprintf("http://localhost:%d%s", c.port, path), bodyReader)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Authorization", "Bearer "+c.apiKey)
+	request.Header.Set("Content-Type", "application/json")
+	return http.DefaultClient.Do(request)
+}
+
+func (c *testClient) PATCH(path string, body map[string]interface{}) (*http.Response, error) {
+	var bodyReader io.Reader
+	if body != nil {
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+		bodyReader = bytes.NewReader(jsonBody)
+	}
+	request, err := http.NewRequest("POST", fmt.Sprintf("http://localhost:%d%s", c.port, path), bodyReader)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Authorization", "Bearer "+c.apiKey)
+	request.Header.Set("Content-Type", "application/json")
+	return http.DefaultClient.Do(request)
+}
+
+func (c *testClient) DELETE(path string) (*http.Response, error) {
+	request, err := http.NewRequest("DELETE", fmt.Sprintf("http://localhost:%d%s", c.port, path), nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Authorization", "Bearer "+c.apiKey)
+	return http.DefaultClient.Do(request)
+}
+
+func (c *testClient) ParseBody(resp *http.Response) (map[string]interface{}, error) {
+	var body map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, err
+	}
+	return body, nil
 }
 
 type e2eSuite struct {
@@ -32,14 +108,14 @@ type e2eSuite struct {
 	cleanup func()
 }
 
-func (suite *e2eSuite) SetupTest() {
+func (suite *e2eSuite) SetupSuite() {
 	go func() {
 		application := app.New(suite.config)
 		application.Run(suite.ctx)
 	}()
 }
 
-func (s *e2eSuite) TearDownTest() {
+func (s *e2eSuite) TearDownSuite() {
 	s.cleanup()
 }
 
@@ -49,7 +125,7 @@ type basicSuite struct {
 	client *testClient
 }
 
-func (suite *basicSuite) SetupTest() {
+func (suite *basicSuite) SetupSuite() {
 	config, cleanup, err := configs.Basic(suite.T())
 	log.Println(config.Port)
 	if err != nil {
@@ -60,15 +136,15 @@ func (suite *basicSuite) SetupTest() {
 		config:  config,
 		cleanup: cleanup,
 	}
-	suite.client = &testClient{port: config.Port}
-	suite.e2eSuite.SetupTest()
+	suite.client = &testClient{port: config.Port, apiKey: config.APIKey}
+	suite.e2eSuite.SetupSuite()
 
 	// wait for outpost services to start
 	time.Sleep(2 * time.Second)
 }
 
-func (s *basicSuite) TearDownTest() {
-	s.e2eSuite.TearDownTest()
+func (s *basicSuite) TearDownSuite() {
+	s.e2eSuite.TearDownSuite()
 }
 
 func TestBasicSuite(t *testing.T) {
