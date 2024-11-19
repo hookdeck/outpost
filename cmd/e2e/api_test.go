@@ -78,8 +78,7 @@ func (suite *basicSuite) TestTenantAPI() {
 			Expected: httpclient.Response{
 				StatusCode: http.StatusOK,
 				Body: map[string]interface{}{
-					"id":                 tenantID,
-					"destinations_count": 0,
+					"id": tenantID,
 				},
 			},
 		},
