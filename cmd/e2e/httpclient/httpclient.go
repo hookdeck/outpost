@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 const (
@@ -54,6 +56,34 @@ func (r *Response) FromHTTPResponse(resp *http.Response) error {
 		json.NewDecoder(resp.Body).Decode(&r.Body)
 	}
 	return nil
+}
+
+func (r *Response) MatchBody(body map[string]interface{}) bool {
+	return r.doMatchBody(r.Body, body)
+}
+
+func (r *Response) doMatchBody(mainBody map[string]interface{}, toMatchedBody map[string]interface{}) bool {
+	for key, subValue := range toMatchedBody {
+		fullValue, ok := mainBody[key]
+		if !ok {
+			return false
+		}
+		switch subValueTyped := subValue.(type) {
+		case map[string]interface{}:
+			fullValueTyped, ok := fullValue.(map[string]interface{})
+			if !ok {
+				return false
+			}
+			if !r.doMatchBody(fullValueTyped, subValueTyped) {
+				return false
+			}
+		default:
+			if !cmp.Equal(fullValue, subValue) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 type Client interface {

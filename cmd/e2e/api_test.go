@@ -5,28 +5,97 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func (suite *basicSuite) TestAPIHealthz() {
-	req := httpclient.Request{
-		Method: httpclient.MethodGET,
-		Path:   "/healthz",
+func (suite *basicSuite) TestHealthzAPI() {
+	tests := []APITest{
+		{
+			Name: "GET /healthz",
+			Request: httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/healthz",
+			},
+			Expected: httpclient.Response{
+				StatusCode: http.StatusOK,
+			},
+		},
 	}
-	resp, err := suite.client.Do(req)
-	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), http.StatusOK, resp.StatusCode)
+	suite.RunAPITests(suite.T(), tests)
 }
 
-func (suite *basicSuite) TestTenantCreate() {
+func (suite *basicSuite) TestTenantAPI() {
 	tenantID := uuid.New().String()
-	req := suite.AuthRequest(httpclient.Request{
-		Method: httpclient.MethodPUT,
-		Path:   "/" + tenantID,
-	})
-	resp, err := suite.client.Do(req)
-	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), http.StatusCreated, resp.StatusCode)
-	assert.Equal(suite.T(), tenantID, resp.Body["id"])
+	tests := []APITest{
+		{
+			Name: "GET /:tenantID without auth header",
+			Request: httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+			},
+			Expected: httpclient.Response{
+				StatusCode: http.StatusUnauthorized,
+			},
+		},
+		{
+			Name: "GET /:tenantID without tenant",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID,
+			}),
+			Expected: httpclient.Response{
+				StatusCode: http.StatusNotFound,
+			},
+		},
+		{
+			Name: "PUT /:tenantID without auth header",
+			Request: httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+			},
+			Expected: httpclient.Response{
+				StatusCode: http.StatusUnauthorized,
+			},
+		},
+		{
+			Name: "PUT /:tenantID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+			}),
+			Expected: httpclient.Response{
+				StatusCode: http.StatusCreated,
+				Body: map[string]interface{}{
+					"id": tenantID,
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID,
+			}),
+			Expected: httpclient.Response{
+				StatusCode: http.StatusOK,
+				Body: map[string]interface{}{
+					"id":                 tenantID,
+					"destinations_count": 0,
+				},
+			},
+		},
+		{
+			Name: "PUT /:tenantID again",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+			}),
+			Expected: httpclient.Response{
+				StatusCode: http.StatusOK,
+				Body: map[string]interface{}{
+					"id": tenantID,
+				},
+			},
+		},
+	}
+	suite.RunAPITests(suite.T(), tests)
 }
