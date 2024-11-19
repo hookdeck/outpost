@@ -22,6 +22,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/redis/go-redis/extra/redisotel/v9 v9.5.3
 	github.com/redis/go-redis/v9 v9.6.1
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.1
 	github.com/semihbkgr/go-rsmq v1.3.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0

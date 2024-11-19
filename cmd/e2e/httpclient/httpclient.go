@@ -44,9 +44,11 @@ func (r *Request) ToHTTPRequest(baseURL string) (*http.Request, error) {
 	return request, nil
 }
 
+type ResponseBody = interface{}
+
 type Response struct {
-	StatusCode int
-	Body       map[string]interface{}
+	StatusCode int          `json:"statusCode"`
+	Body       ResponseBody `json:"body"`
 }
 
 func (r *Response) FromHTTPResponse(resp *http.Response) error {
@@ -58,13 +60,23 @@ func (r *Response) FromHTTPResponse(resp *http.Response) error {
 	return nil
 }
 
-func (r *Response) MatchBody(body map[string]interface{}) bool {
+func (r *Response) MatchBody(body ResponseBody) bool {
 	return r.doMatchBody(r.Body, body)
 }
 
-func (r *Response) doMatchBody(mainBody map[string]interface{}, toMatchedBody map[string]interface{}) bool {
-	for key, subValue := range toMatchedBody {
-		fullValue, ok := mainBody[key]
+func (r *Response) doMatchBody(mainBody ResponseBody, toMatchedBody ResponseBody) bool {
+	mainBodyTyped, ok := mainBody.(map[string]interface{})
+	if !ok {
+		return cmp.Equal(mainBody, toMatchedBody)
+	}
+
+	toMatchedBodyTyped, ok := toMatchedBody.(map[string]interface{})
+	if !ok {
+		return cmp.Equal(mainBody, toMatchedBody)
+	}
+
+	for key, subValue := range toMatchedBodyTyped {
+		fullValue, ok := mainBodyTyped[key]
 		if !ok {
 			return false
 		}
@@ -78,9 +90,7 @@ func (r *Response) doMatchBody(mainBody map[string]interface{}, toMatchedBody ma
 				return false
 			}
 		default:
-			if !cmp.Equal(fullValue, subValue) {
-				return false
-			}
+			return cmp.Equal(fullValue, subValue)
 		}
 	}
 	return true

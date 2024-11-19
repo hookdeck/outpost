@@ -15,15 +15,17 @@ func (suite *basicSuite) TestHealthzAPI() {
 				Method: httpclient.MethodGET,
 				Path:   "/healthz",
 			},
-			Expected: httpclient.Response{
-				StatusCode: http.StatusOK,
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
 			},
 		},
 	}
 	suite.RunAPITests(suite.T(), tests)
 }
 
-func (suite *basicSuite) TestTenantAPI() {
+func (suite *basicSuite) TestTenantsAPI() {
 	tenantID := uuid.New().String()
 	tests := []APITest{
 		{
@@ -32,8 +34,10 @@ func (suite *basicSuite) TestTenantAPI() {
 				Method: httpclient.MethodPUT,
 				Path:   "/" + tenantID,
 			},
-			Expected: httpclient.Response{
-				StatusCode: http.StatusUnauthorized,
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnauthorized,
+				},
 			},
 		},
 		{
@@ -42,8 +46,10 @@ func (suite *basicSuite) TestTenantAPI() {
 				Method: httpclient.MethodGET,
 				Path:   "/" + tenantID,
 			}),
-			Expected: httpclient.Response{
-				StatusCode: http.StatusNotFound,
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusNotFound,
+				},
 			},
 		},
 		{
@@ -52,8 +58,10 @@ func (suite *basicSuite) TestTenantAPI() {
 				Method: httpclient.MethodPUT,
 				Path:   "/" + tenantID,
 			},
-			Expected: httpclient.Response{
-				StatusCode: http.StatusUnauthorized,
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnauthorized,
+				},
 			},
 		},
 		{
@@ -62,10 +70,12 @@ func (suite *basicSuite) TestTenantAPI() {
 				Method: httpclient.MethodPUT,
 				Path:   "/" + tenantID,
 			}),
-			Expected: httpclient.Response{
-				StatusCode: http.StatusCreated,
-				Body: map[string]interface{}{
-					"id": tenantID,
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+					Body: map[string]interface{}{
+						"id": tenantID,
+					},
 				},
 			},
 		},
@@ -75,10 +85,12 @@ func (suite *basicSuite) TestTenantAPI() {
 				Method: httpclient.MethodGET,
 				Path:   "/" + tenantID,
 			}),
-			Expected: httpclient.Response{
-				StatusCode: http.StatusOK,
-				Body: map[string]interface{}{
-					"id": tenantID,
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id": tenantID,
+					},
 				},
 			},
 		},
@@ -88,10 +100,107 @@ func (suite *basicSuite) TestTenantAPI() {
 				Method: httpclient.MethodPUT,
 				Path:   "/" + tenantID,
 			}),
-			Expected: httpclient.Response{
-				StatusCode: http.StatusOK,
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id": tenantID,
+					},
+				},
+			},
+		},
+	}
+	suite.RunAPITests(suite.T(), tests)
+}
+
+func (suite *basicSuite) TestDestinationsAPI() {
+	tenantID := uuid.New().String()
+	tests := []APITest{
+		{
+			Name: "PUT /:tenantID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+					Body: map[string]interface{}{
+						"id": tenantID,
+					},
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations",
+			}),
+			Expected: APITestExpectation{
+				Validate: map[string]any{
+					"properties": map[string]any{
+						"statusCode": map[string]any{
+							"const": 200,
+						},
+						"body": map[string]any{
+							"type":     "array",
+							"minItems": 0,
+							"maxItems": 0,
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "POST /:tenantID/destinations",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
-					"id": tenantID,
+					"type":   "webhooks",
+					"topics": "*",
+					"config": map[string]interface{}{
+						"url": "http://host.docker.internal:4444",
+					},
+					"credentials": map[string]interface{}{},
+				},
+			}),
+			Expected: APITestExpectation{
+				Validate: map[string]any{
+					"properties": map[string]any{
+						"statusCode": map[string]any{
+							"const": 201,
+						},
+						"body": map[string]any{
+							"properties": map[string]any{
+								"type": map[string]any{
+									"const": "webhooks",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations",
+			}),
+			Expected: APITestExpectation{
+				Validate: map[string]any{
+					"properties": map[string]any{
+						"statusCode": map[string]any{
+							"const": 200,
+						},
+						"body": map[string]any{
+							"type":     "array",
+							"minItems": 1,
+							"maxItems": 1,
+						},
+					},
 				},
 			},
 		},

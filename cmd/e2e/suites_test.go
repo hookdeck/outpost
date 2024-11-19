@@ -2,7 +2,9 @@ package e2e_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"testing"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
 	"github.com/hookdeck/outpost/internal/app"
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -52,16 +55,43 @@ func (suite *e2eSuite) RunAPITests(t *testing.T, tests []APITest) {
 
 type APITest struct {
 	Name     string
+	Delay    time.Duration
 	Request  httpclient.Request
-	Expected httpclient.Response
+	Expected APITestExpectation
+}
+
+type APITestExpectation struct {
+	Match    *httpclient.Response
+	Validate map[string]interface{}
 }
 
 func (test *APITest) Run(t *testing.T, client httpclient.Client) {
+	if test.Delay > 0 {
+		time.Sleep(test.Delay)
+	}
+
 	resp, err := client.Do(test.Request)
 	require.NoError(t, err)
-	assert.Equal(t, test.Expected.StatusCode, resp.StatusCode)
-	if test.Expected.Body != nil {
-		assert.True(t, resp.MatchBody(test.Expected.Body), "expected body %s, got %s", test.Expected.Body, resp.Body)
+
+	if test.Expected.Match != nil {
+		assert.Equal(t, test.Expected.Match.StatusCode, resp.StatusCode)
+		if test.Expected.Match.Body != nil {
+			assert.True(t, resp.MatchBody(test.Expected.Match.Body), "expected body %s, got %s", test.Expected.Match.Body, resp.Body)
+		}
+	}
+
+	if test.Expected.Validate != nil {
+		c := jsonschema.NewCompiler()
+		require.NoError(t, c.AddResource("schema.json", test.Expected.Validate))
+		schema, err := c.Compile("schema.json")
+		require.NoError(t, err, "failed to compile schema: %v", err)
+		respStr, _ := json.Marshal(resp)
+		var respJSON map[string]interface{}
+		require.NoError(t, json.Unmarshal(respStr, &respJSON), "failed to parse response: %v", err)
+		validationErr := schema.Validate(respJSON)
+		if assert.NoError(t, validationErr, "response validation failed: %v: %s", validationErr, respJSON) == false {
+			log.Println(resp)
+		}
 	}
 }
 
