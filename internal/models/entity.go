@@ -25,6 +25,10 @@ type EntityStore interface {
 	MatchEvent(ctx context.Context, event Event) ([]DestinationSummary, error)
 }
 
+var (
+	ErrDuplicateDestination = errors.New("destination already exists")
+)
+
 func redisTenantID(tenantID string) string {
 	return fmt.Sprintf("tenant:%s", tenantID)
 }
@@ -175,6 +179,13 @@ func (m *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 		return fmt.Errorf("validation failed: %w", err)
 	}
 	key := redisDestinationID(destination.ID, destination.TenantID)
+	destinationExists, err := m.redisClient.Exists(ctx, key).Result()
+	if err != nil {
+		return err
+	}
+	if destinationExists > 0 {
+		return ErrDuplicateDestination
+	}
 	_, err = m.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
 		credentialsBytes, err := destination.Credentials.MarshalBinary()
 		if err != nil {

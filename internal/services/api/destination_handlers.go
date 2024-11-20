@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -51,6 +52,10 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 	if err := h.entityStore.UpsertDestination(c.Request.Context(), destination); err != nil {
 		if strings.Contains(err.Error(), "validation failed") {
 			AbortWithValidationError(c, err)
+			return
+		}
+		if errors.Is(err, models.ErrDuplicateDestination) {
+			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 			return
 		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))

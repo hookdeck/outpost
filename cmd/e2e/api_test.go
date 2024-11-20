@@ -210,6 +210,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 
 func (suite *basicSuite) TestDestinationsAPIValidation() {
 	tenantID := uuid.New().String()
+	sampleDestinationID := uuid.New().String()
 	tests := []APITest{
 		{
 			Name: "PUT /:tenantID",
@@ -338,6 +339,49 @@ func (suite *basicSuite) TestDestinationsAPIValidation() {
 					StatusCode: http.StatusUnprocessableEntity,
 					Body: map[string]interface{}{
 						"message": "validation failed: url is required for webhook destination config",
+					},
+				},
+			},
+		},
+		{
+			Name: "POST /:tenantID/destinations with user-provided ID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
+				Body: map[string]interface{}{
+					"id":     sampleDestinationID,
+					"type":   "webhooks",
+					"topics": "*",
+					"config": map[string]interface{}{
+						"url": "http://host.docker.internal:4444",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+		{
+			Name: "POST /:tenantID/destinations with duplicate ID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
+				Body: map[string]interface{}{
+					"id":     sampleDestinationID,
+					"type":   "webhooks",
+					"topics": "*",
+					"config": map[string]interface{}{
+						"url": "http://host.docker.internal:4444",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusBadRequest,
+					Body: map[string]interface{}{
+						"message": "destination already exists",
 					},
 				},
 			},

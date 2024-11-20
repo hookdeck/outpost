@@ -81,3 +81,11 @@ func NewErrInternalServer(err error) ErrorResponse {
 		Message: "internal server error",
 	}
 }
+
+func NewErrBadRequest(err error) ErrorResponse {
+	return ErrorResponse{
+		Err:     err,
+		Code:    http.StatusBadRequest,
+		Message: err.Error(),
+	}
+}
