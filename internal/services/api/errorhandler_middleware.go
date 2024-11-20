@@ -8,20 +8,44 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"go.uber.org/zap"
 )
 
 type ErrorResponse struct {
+	Err     error       `json:"-"`
 	Code    int         `json:"-"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
 }
 
-func ErrorHandlerMiddleware() gin.HandlerFunc {
+func (e ErrorResponse) Error() string {
+	return e.Message
+}
+
+func NewErrInternalServer(err error) ErrorResponse {
+	return ErrorResponse{
+		Err:     err,
+		Code:    http.StatusInternalServerError,
+		Message: "internal server error",
+	}
+}
+
+func ErrorHandlerMiddleware(logger *otelzap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 
 		err := c.Errors.Last()
 		if err == nil {
+			return
+		}
+
+		var errorResponse ErrorResponse
+		if errors.As(err.Err, &errorResponse) {
+			if errorResponse.Code > 499 {
+				logger.Ctx(c.Request.Context()).Error("internal server error", zap.Error(errorResponse.Err))
+			}
+			handleErrorResponse(c, errorResponse)
 			return
 		}
 
@@ -35,7 +59,9 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 
 		var validationErrors validator.ValidationErrors
 		if errors.As(err.Err, &validationErrors) {
-			handleErrorResponse(c, parseValidationError(validationErrors))
+			errorResponse := ErrorResponse{}
+			errorResponse.Parse(validationErrors)
+			handleErrorResponse(c, errorResponse)
 			return
 		}
 	}
@@ -46,11 +72,10 @@ func handleErrorResponse(c *gin.Context, response ErrorResponse) {
 }
 
 func isInvalidJSON(err *gin.Error) bool {
-	if errors.Is(err.Err, io.EOF) || errors.Is(err.Err, io.ErrUnexpectedEOF) {
-		return true
-	}
-
 	var syntaxError *json.SyntaxError
 	var unmarshalTypeError *json.UnmarshalTypeError
-	return errors.As(err.Err, &syntaxError) || errors.As(err.Err, &unmarshalTypeError)
+	return errors.Is(err.Err, io.EOF) ||
+		errors.Is(err.Err, io.ErrUnexpectedEOF) ||
+		errors.As(err.Err, &syntaxError) ||
+		errors.As(err.Err, &unmarshalTypeError)
 }

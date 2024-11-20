@@ -48,7 +48,7 @@ func NewRouter(
 
 	r.Use(otelgin.Middleware(cfg.Hostname))
 	r.Use(MetricsMiddleware())
-	r.Use(ErrorHandlerMiddleware())
+	r.Use(ErrorHandlerMiddleware(logger))
 
 	portal.AddRoutes(r, portal.PortalConfig{
 		ProxyURL: cfg.PortalProxyURL,

@@ -38,32 +38,22 @@ func (h *DestinationHandlers) List(c *gin.Context) {
 }
 
 func (h *DestinationHandlers) Create(c *gin.Context) {
-	var json CreateDestinationRequest
-	if err := BindJSON(c, &json); err != nil {
+	var input CreateDestinationRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		AbortWithValidationError(c, err)
 		return
 	}
-	id := uuid.New().String()
-	destination := models.Destination{
-		ID:          id,
-		Type:        json.Type,
-		Topics:      json.Topics,
-		Config:      json.Config,
-		Credentials: json.Credentials,
-		CreatedAt:   time.Now(),
-		DisabledAt:  nil,
-		TenantID:    c.Param("tenantID"),
-	}
+	destination := input.ToDestination(c.Param("tenantID"))
 	if err := destination.ValidateTopics(h.topics); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		AbortWithValidationError(c, err)
 		return
 	}
 	if err := h.entityStore.UpsertDestination(c.Request.Context(), destination); err != nil {
 		if strings.Contains(err.Error(), "validation failed") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortWithValidationError(c, err)
 			return
 		}
-		h.logger.Ctx(c.Request.Context()).Error("failed to set destination", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 	c.JSON(http.StatusCreated, destination)
@@ -162,10 +152,31 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 // ===== Requests =====
 
 type CreateDestinationRequest struct {
+	ID          string            `json:"id" binding:"-"`
 	Type        string            `json:"type" binding:"required"`
 	Topics      models.Topics     `json:"topics" binding:"required"`
 	Config      map[string]string `json:"config" binding:"required"`
-	Credentials map[string]string `json:"credentials" binding:"required"`
+	Credentials map[string]string `json:"credentials" binding:"-"`
+}
+
+func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destination {
+	if r.ID == "" {
+		r.ID = uuid.New().String()
+	}
+	if r.Credentials == nil {
+		r.Credentials = make(map[string]string)
+	}
+
+	return models.Destination{
+		ID:          r.ID,
+		Type:        r.Type,
+		Topics:      r.Topics,
+		Config:      r.Config,
+		Credentials: r.Credentials,
+		CreatedAt:   time.Now(),
+		DisabledAt:  nil,
+		TenantID:    tenantID,
+	}
 }
 
 type UpdateDestinationRequest struct {
