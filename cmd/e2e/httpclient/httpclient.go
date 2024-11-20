@@ -90,7 +90,9 @@ func (r *Response) doMatchBody(mainBody ResponseBody, toMatchedBody ResponseBody
 				return false
 			}
 		default:
-			return cmp.Equal(fullValue, subValue)
+			if !cmp.Equal(fullValue, subValue) {
+				return false
+			}
 		}
 	}
 	return true
