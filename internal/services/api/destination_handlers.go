@@ -45,20 +45,16 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		return
 	}
 	destination := input.ToDestination(c.Param("tenantID"))
-	if err := destination.ValidateTopics(h.topics); err != nil {
+	if err := destination.Topics.Validate(h.topics); err != nil {
 		AbortWithValidationError(c, err)
 		return
 	}
-	if err := h.entityStore.UpsertDestination(c.Request.Context(), destination); err != nil {
-		if strings.Contains(err.Error(), "validation failed") {
-			AbortWithValidationError(c, err)
-			return
-		}
-		if errors.Is(err, models.ErrDuplicateDestination) {
-			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
-			return
-		}
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+	if err := destination.Validate(c.Request.Context()); err != nil {
+		AbortWithValidationError(c, err)
+		return
+	}
+	if err := h.entityStore.CreateDestination(c.Request.Context(), destination); err != nil {
+		h.handleUpsertDestinationError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, destination)
@@ -80,12 +76,10 @@ func (h *DestinationHandlers) Retrieve(c *gin.Context) {
 }
 
 func (h *DestinationHandlers) Update(c *gin.Context) {
-	logger := h.logger.Ctx(c.Request.Context())
-
 	// Parse & validate request.
-	var json UpdateDestinationRequest
-	if err := c.ShouldBindJSON(&json); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	var input UpdateDestinationRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		AbortWithValidationError(c, err)
 		return
 	}
 
@@ -94,8 +88,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	destinationID := c.Param("destinationID")
 	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
-		logger.Error("failed to get destination", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 	if destination == nil {
@@ -103,30 +96,37 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		return
 	}
 
-	// Update destination
-	if json.Type != "" {
-		destination.Type = json.Type
-	}
-	if json.Topics != nil {
-		destination.Topics = json.Topics
-		if err := destination.ValidateTopics(h.topics); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// Validate.
+	if input.Topics != nil {
+		destination.Topics = input.Topics
+		if err := destination.Topics.Validate(h.topics); err != nil {
+			AbortWithValidationError(c, err)
 			return
 		}
 	}
-	if json.Config != nil {
-		destination.Config = json.Config
+	shouldRevalidate := false
+	if input.Type != "" {
+		shouldRevalidate = true
+		destination.Type = input.Type
 	}
-	if json.Credentials != nil {
-		destination.Credentials = json.Credentials
+	if input.Config != nil {
+		shouldRevalidate = true
+		destination.Config = input.Config
 	}
+	if input.Credentials != nil {
+		shouldRevalidate = true
+		destination.Credentials = input.Credentials
+	}
+	if shouldRevalidate {
+		if err := destination.Validate(c.Request.Context()); err != nil {
+			AbortWithValidationError(c, err)
+			return
+		}
+	}
+
+	// Update destination.
 	if err := h.entityStore.UpsertDestination(c.Request.Context(), *destination); err != nil {
-		if strings.Contains(err.Error(), "validation failed") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		logger.Error("failed to set destination", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
+		h.handleUpsertDestinationError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, destination)
@@ -152,6 +152,18 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, destination)
+}
+
+func (h *DestinationHandlers) handleUpsertDestinationError(c *gin.Context, err error) {
+	if strings.Contains(err.Error(), "validation failed") {
+		AbortWithValidationError(c, err)
+		return
+	}
+	if errors.Is(err, models.ErrDuplicateDestination) {
+		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+		return
+	}
+	AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 }
 
 // ===== Requests =====

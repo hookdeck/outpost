@@ -20,6 +20,10 @@ var (
 	ErrInvalidTopicsFormat = errors.New("validation failed: invalid topics format")
 )
 
+func NewErrDestinationValidation(err error) error {
+	return fmt.Errorf("validation failed: %w", err)
+}
+
 type Destination struct {
 	ID          string      `json:"id" redis:"id"`
 	Type        string      `json:"type" redis:"type"`
@@ -61,21 +65,20 @@ func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Ciphe
 	return nil
 }
 
-func (d *Destination) ValidateTopics(availableTopics []string) error {
-	return d.Topics.Validate(availableTopics)
-}
-
 func (d *Destination) Validate(ctx context.Context) error {
 	adapter, err := destinationadapter.NewAdapater(d.Type)
 	if err != nil {
-		return err
+		return NewErrDestinationValidation(err)
 	}
-	return adapter.Validate(ctx, destinationadapter.Destination{
+	if err := adapter.Validate(ctx, destinationadapter.Destination{
 		ID:          d.ID,
 		Type:        d.Type,
 		Config:      d.Config,
 		Credentials: d.Credentials,
-	})
+	}); err != nil {
+		return NewErrDestinationValidation(err)
+	}
+	return nil
 }
 
 func (d *Destination) Publish(ctx context.Context, event *Event) error {

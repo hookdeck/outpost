@@ -20,6 +20,7 @@ type EntityStore interface {
 	ListDestinationSummaryByTenant(ctx context.Context, tenantID string) ([]DestinationSummary, error)
 	ListDestinationByTenant(ctx context.Context, tenantID string) ([]Destination, error)
 	RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*Destination, error)
+	CreateDestination(ctx context.Context, destination Destination) error
 	UpsertDestination(ctx context.Context, destination Destination) error
 	DeleteDestination(ctx context.Context, tenantID, destinationID string) error
 	MatchEvent(ctx context.Context, event Event) ([]DestinationSummary, error)
@@ -173,11 +174,7 @@ func (s *entityStoreImpl) RetrieveDestination(ctx context.Context, tenantID, des
 	return destination, nil
 }
 
-func (m *entityStoreImpl) UpsertDestination(ctx context.Context, destination Destination) error {
-	err := destination.Validate(ctx)
-	if err != nil {
-		return fmt.Errorf("validation failed: %w", err)
-	}
+func (m *entityStoreImpl) CreateDestination(ctx context.Context, destination Destination) error {
 	key := redisDestinationID(destination.ID, destination.TenantID)
 	destinationExists, err := m.redisClient.Exists(ctx, key).Result()
 	if err != nil {
@@ -186,7 +183,12 @@ func (m *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 	if destinationExists > 0 {
 		return ErrDuplicateDestination
 	}
-	_, err = m.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
+	return m.UpsertDestination(ctx, destination)
+}
+
+func (m *entityStoreImpl) UpsertDestination(ctx context.Context, destination Destination) error {
+	key := redisDestinationID(destination.ID, destination.TenantID)
+	_, err := m.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
 		credentialsBytes, err := destination.Credentials.MarshalBinary()
 		if err != nil {
 			return err
@@ -195,7 +197,6 @@ func (m *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 		if err != nil {
 			return err
 		}
-
 		r.HSet(ctx, key, "id", destination.ID)
 		r.HSet(ctx, key, "type", destination.Type)
 		r.HSet(ctx, key, "topics", &destination.Topics)

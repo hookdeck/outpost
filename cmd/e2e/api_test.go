@@ -251,7 +251,7 @@ func (suite *basicSuite) TestDestinationsAPIValidation() {
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
-					StatusCode: http.StatusUnprocessableEntity,
+					StatusCode: http.StatusBadRequest,
 					Body: map[string]interface{}{
 						"message": "invalid JSON",
 					},
