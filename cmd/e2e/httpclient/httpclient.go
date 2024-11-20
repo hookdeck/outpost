@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"reflect"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -80,6 +82,8 @@ func (r *Response) doMatchBody(mainBody ResponseBody, toMatchedBody ResponseBody
 		if !ok {
 			return false
 		}
+		log.Println(key, subValue, fullValue)
+
 		switch subValueTyped := subValue.(type) {
 		case map[string]interface{}:
 			fullValueTyped, ok := fullValue.(map[string]interface{})
@@ -90,12 +94,39 @@ func (r *Response) doMatchBody(mainBody ResponseBody, toMatchedBody ResponseBody
 				return false
 			}
 		default:
-			if !cmp.Equal(fullValue, subValue) {
-				return false
+			if isSlice(subValue) && isSlice(fullValue) {
+				subValueTyped := convertToInterfaceSlice(subValue)
+				fullValueTyped := convertToInterfaceSlice(fullValue)
+				for i, subValue := range subValueTyped {
+					if !r.doMatchBody(fullValueTyped[i], subValue) {
+						return false
+					}
+				}
+			} else {
+				if !cmp.Equal(fullValue, subValue) {
+					return false
+				}
 			}
 		}
 	}
 	return true
+}
+
+func isSlice(value interface{}) bool {
+	v := reflect.ValueOf(value)
+	return v.Kind() == reflect.Slice
+}
+
+func convertToInterfaceSlice(slice interface{}) []interface{} {
+	v := reflect.ValueOf(slice)
+	if v.Kind() != reflect.Slice {
+		return nil
+	}
+	result := make([]interface{}, v.Len())
+	for i := 0; i < v.Len(); i++ {
+		result[i] = v.Index(i).Interface()
+	}
+	return result
 }
 
 type Client interface {
