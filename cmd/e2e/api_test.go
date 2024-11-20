@@ -225,6 +225,16 @@ func (suite *basicSuite) TestDestinationsAPIValidation() {
 			},
 		},
 		{
+			Name: "GET /:tenantID/destinations",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations",
+			}),
+			Expected: APITestExpectation{
+				Validate: makeDestinationListValidator(0),
+			},
+		},
+		{
 			Name: "POST /:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
@@ -386,6 +396,152 @@ func (suite *basicSuite) TestDestinationsAPIValidation() {
 				},
 			},
 		},
+		{
+			Name: "GET /:tenantID/destinations",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations",
+			}),
+			Expected: APITestExpectation{
+				Validate: makeDestinationListValidator(2),
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations/:destinationID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id":     sampleDestinationID,
+						"type":   "webhooks",
+						"topics": []string{"*"},
+						"config": map[string]interface{}{
+							"url": "http://host.docker.internal:4444",
+						},
+						"credentials": map[string]interface{}{},
+					},
+				},
+			},
+		},
+		{
+			Name: "PATCH /:tenantID/destinations/:destinationID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPATCH,
+				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Body: map[string]interface{}{
+					"topics": []string{"user.created"},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id":     sampleDestinationID,
+						"type":   "webhooks",
+						"topics": []string{"user.created"},
+						"config": map[string]interface{}{
+							"url": "http://host.docker.internal:4444",
+						},
+						"credentials": map[string]interface{}{},
+					},
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations/:destinationID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id":     sampleDestinationID,
+						"type":   "webhooks",
+						"topics": []string{"user.created"},
+						"config": map[string]interface{}{
+							"url": "http://host.docker.internal:4444",
+						},
+						"credentials": map[string]interface{}{},
+					},
+				},
+			},
+		},
+		{
+			Name: "PATCH /:tenantID/destinations/:destinationID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPATCH,
+				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Body: map[string]interface{}{
+					"topics": []string{""},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnprocessableEntity,
+					Body: map[string]interface{}{
+						"message": "validation failed: invalid topics",
+					},
+				},
+			},
+		},
+		{
+			Name: "PATCH /:tenantID/destinations/:destinationID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPATCH,
+				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Body: map[string]interface{}{
+					"config": map[string]interface{}{},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnprocessableEntity,
+					Body: map[string]interface{}{
+						"message": "validation failed: url is required for webhook destination config",
+					},
+				},
+			},
+		},
 	}
 	suite.RunAPITests(suite.T(), tests)
+}
+
+func makeDestinationListValidator(length int) map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"statusCode": map[string]any{
+				"const": 200,
+			},
+			"body": map[string]any{
+				"type":     "array",
+				"minItems": length,
+				"maxItems": length,
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"id": map[string]any{
+							"type": "string",
+						},
+						"type": map[string]any{
+							"type": "string",
+						},
+						"config": map[string]any{
+							"type": "object",
+						},
+						"credentials": map[string]any{
+							"type": "object",
+						},
+					},
+					"required": []any{"id", "type", "config", "credentials"},
+				},
+			},
+		},
+	}
 }
