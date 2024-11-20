@@ -39,8 +39,7 @@ func (h *DestinationHandlers) List(c *gin.Context) {
 
 func (h *DestinationHandlers) Create(c *gin.Context) {
 	var json CreateDestinationRequest
-	if err := c.ShouldBindJSON(&json); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := BindJSON(c, &json); err != nil {
 		return
 	}
 	id := uuid.New().String()

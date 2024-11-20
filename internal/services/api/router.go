@@ -2,8 +2,12 @@ package api
 
 import (
 	"net/http"
+	"reflect"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/portal"
@@ -31,8 +35,20 @@ func NewRouter(
 	publishmqEventHandler publishmq.EventHandler,
 ) http.Handler {
 	r := gin.Default()
+
+	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
+			name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+			if name == "-" {
+				return ""
+			}
+			return name
+		})
+	}
+
 	r.Use(otelgin.Middleware(cfg.Hostname))
 	r.Use(MetricsMiddleware())
+	r.Use(ErrorHandlerMiddleware())
 
 	portal.AddRoutes(r, portal.PortalConfig{
 		ProxyURL: cfg.PortalProxyURL,
