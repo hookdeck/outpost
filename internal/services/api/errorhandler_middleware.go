@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -58,7 +57,6 @@ func (e *ErrorResponse) Parse(err error) {
 		e.Code = -1
 		e.Message = "validation error"
 		e.Data = out
-		log.Println("e.Data", e.Data)
 		return
 	}
 	if isInvalidJSON(err) {
@@ -79,7 +77,6 @@ func isInvalidJSON(err error) bool {
 }
 
 func handleErrorResponse(c *gin.Context, response ErrorResponse) {
-	log.Println(response, response.Data)
 	c.JSON(response.Code, response)
 }
 
