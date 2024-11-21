@@ -30,23 +30,23 @@ func TestEntityStore_TenantCRUD(t *testing.T) {
 	t.Run("gets empty", func(t *testing.T) {
 		actual, err := entityStore.RetrieveTenant(context.Background(), input.ID)
 		assert.Nil(t, actual)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("sets", func(t *testing.T) {
 		err := entityStore.UpsertTenant(context.Background(), input)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		hash, err := redisClient.HGetAll(context.Background(), "tenant:"+input.ID).Result()
-		require.Nil(t, err)
+		require.NoError(t, err)
 		createdAt, err := time.Parse(time.RFC3339Nano, hash["created_at"])
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assert.True(t, input.CreatedAt.Equal(createdAt))
 	})
 
 	t.Run("gets", func(t *testing.T) {
 		actual, err := entityStore.RetrieveTenant(context.Background(), input.ID)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assert.True(t, cmp.Equal(input, *actual))
 	})
 
@@ -54,19 +54,19 @@ func TestEntityStore_TenantCRUD(t *testing.T) {
 		input.CreatedAt = time.Now()
 
 		err := entityStore.UpsertTenant(context.Background(), input)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		actual, err := entityStore.RetrieveTenant(context.Background(), input.ID)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assert.True(t, cmp.Equal(input, *actual))
 	})
 
 	t.Run("clears", func(t *testing.T) {
 		err := entityStore.DeleteTenant(context.Background(), input.ID)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		actual, err := entityStore.RetrieveTenant(context.Background(), input.ID)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, actual)
 	})
 }
@@ -96,38 +96,38 @@ func TestEntityStore_DestinationCRUD(t *testing.T) {
 
 	t.Run("gets empty", func(t *testing.T) {
 		actual, err := entityStore.RetrieveDestination(context.Background(), input.TenantID, input.ID)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, actual)
 	})
 
 	t.Run("sets", func(t *testing.T) {
-		err := entityStore.UpsertDestination(context.Background(), input)
-		require.Nil(t, err)
+		err := entityStore.CreateDestination(context.Background(), input)
+		require.NoError(t, err)
 	})
 
 	t.Run("gets", func(t *testing.T) {
 		actual, err := entityStore.RetrieveDestination(context.Background(), input.TenantID, input.ID)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assertEqualDestination(t, input, *actual)
 	})
 
-	t.Run("overrides", func(t *testing.T) {
+	t.Run("updates", func(t *testing.T) {
 		input.Topics = []string{"*"}
 
 		err := entityStore.UpsertDestination(context.Background(), input)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		actual, err := entityStore.RetrieveDestination(context.Background(), input.TenantID, input.ID)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assertEqualDestination(t, input, *actual)
 	})
 
 	t.Run("clears", func(t *testing.T) {
 		err := entityStore.DeleteDestination(context.Background(), input.TenantID, input.ID)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		actual, err := entityStore.RetrieveDestination(context.Background(), input.TenantID, input.ID)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, actual)
 	})
 }
@@ -139,7 +139,7 @@ func TestEntityStore_ListDestinationEmpty(t *testing.T) {
 	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"))
 
 	destinations, err := entityStore.ListDestinationByTenant(context.Background(), uuid.New().String())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, destinations)
 }
 
@@ -152,18 +152,18 @@ func TestEntityStore_DeleteTenantAndAssociatedDestinations(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 	// Arrange
-	require.Nil(t, entityStore.UpsertTenant(context.Background(), tenant))
+	require.NoError(t, entityStore.UpsertTenant(context.Background(), tenant))
 	destinationIDs := []string{uuid.New().String(), uuid.New().String(), uuid.New().String()}
 	destFactory := testutil.DestinationFactory
-	require.Nil(t, entityStore.UpsertDestination(context.Background(), destFactory.Any(
+	require.NoError(t, entityStore.UpsertDestination(context.Background(), destFactory.Any(
 		destFactory.WithID(destinationIDs[0]),
 		destFactory.WithTenantID(tenant.ID),
 	)))
-	require.Nil(t, entityStore.UpsertDestination(context.Background(), destFactory.Any(
+	require.NoError(t, entityStore.UpsertDestination(context.Background(), destFactory.Any(
 		destFactory.WithID(destinationIDs[1]),
 		destFactory.WithTenantID(tenant.ID),
 	)))
-	require.Nil(t, entityStore.UpsertDestination(context.Background(), destFactory.Any(
+	require.NoError(t, entityStore.UpsertDestination(context.Background(), destFactory.Any(
 		destFactory.WithID(destinationIDs[2]),
 		destFactory.WithTenantID(tenant.ID),
 	)))
@@ -172,7 +172,7 @@ func TestEntityStore_DeleteTenantAndAssociatedDestinations(t *testing.T) {
 	require.Equal(t, int64(1), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[1]).Val())
 	require.Equal(t, int64(1), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[2]).Val())
 	// Act
-	require.Nil(t, entityStore.DeleteTenant(context.Background(), tenant.ID))
+	require.NoError(t, entityStore.DeleteTenant(context.Background(), tenant.ID))
 	// Assert
 	assert.Equal(t, int64(0), redisClient.Exists(context.Background(), "tenant:"+tenant.ID).Val())
 	assert.Equal(t, int64(0), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[0]).Val())
@@ -209,13 +209,13 @@ func testEntityStoreDestinationCredentialsEncryption(t *testing.T, redisClient *
 	}
 
 	err := entityStore.UpsertDestination(context.Background(), input)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	actual, err := redisClient.HGetAll(context.Background(), fmt.Sprintf("tenant:%s:destination:%s", input.TenantID, input.ID)).Result()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.NotEqual(t, input.Credentials, actual["credentials"])
 	decryptedCredentials, err := cipher.Decrypt([]byte(actual["credentials"]))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	jsonCredentials, _ := json.Marshal(input.Credentials)
 	assert.Equal(t, string(jsonCredentials), string(decryptedCredentials))
 }
@@ -286,7 +286,7 @@ func TestMultiDestinationSuite_ListDestinationByTenant(t *testing.T) {
 	suite.SetupTest(t)
 
 	destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, destinations, 5)
 	for index, destination := range destinations {
 		require.Equal(t, suite.destinations[index].ID, destination.ID)
