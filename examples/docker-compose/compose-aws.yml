@@ -1,0 +1,54 @@
+services:
+  aws:
+    image: localstack/localstack:latest
+    hostname: aws
+    environment:
+      - SERVICES=sns,sts,sqs
+    ports:
+      - 4566:4566
+      - 4571:4571
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+
+  api:
+    depends_on:
+      aws:
+        condition: service_healthy
+    environment:
+      - "DELIVERY_AWS_SQS_ENDPOINT=http://aws:4566"
+      - "DELIVERY_AWS_SQS_REGION=eu-central-1"
+      - "DELIVERY_AWS_SQS_SERVICE_ACCOUNT_CREDS=test:test:"
+      - "DELIVERY_AWS_SQS_TOPIC=outpost_delivery"
+      - "LOG_AWS_SQS_ENDPOINT=http://aws:4566"
+      - "LOG_AWS_SQS_REGION=eu-central-1"
+      - "LOG_AWS_SQS_SERVICE_ACCOUNT_CREDS=test:test:"
+      - "LOG_AWS_SQS_TOPIC=outpost_log"
+  delivery:
+    depends_on:
+      aws:
+        condition: service_healthy
+    environment:
+      - "DELIVERY_AWS_SQS_ENDPOINT=http://aws:4566"
+      - "DELIVERY_AWS_SQS_REGION=eu-central-1"
+      - "DELIVERY_AWS_SQS_SERVICE_ACCOUNT_CREDS=test:test:"
+      - "DELIVERY_AWS_SQS_TOPIC=outpost_delivery"
+      - "LOG_AWS_SQS_ENDPOINT=http://aws:4566"
+      - "LOG_AWS_SQS_REGION=eu-central-1"
+      - "LOG_AWS_SQS_SERVICE_ACCOUNT_CREDS=test:test:"
+      - "LOG_AWS_SQS_TOPIC=outpost_log"
+  log:
+    depends_on:
+      aws:
+        condition: service_healthy
+    environment:
+      - "DELIVERY_AWS_SQS_ENDPOINT=http://aws:4566"
+      - "DELIVERY_AWS_SQS_REGION=eu-central-1"
+      - "DELIVERY_AWS_SQS_SERVICE_ACCOUNT_CREDS=test:test:"
+      - "DELIVERY_AWS_SQS_TOPIC=outpost_delivery"
+      - "LOG_AWS_SQS_ENDPOINT=http://aws:4566"
+      - "LOG_AWS_SQS_REGION=eu-central-1"
+      - "LOG_AWS_SQS_SERVICE_ACCOUNT_CREDS=test:test:"
+      - "LOG_AWS_SQS_TOPIC=outpost_log"
