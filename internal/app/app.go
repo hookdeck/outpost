@@ -8,6 +8,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/otel"
 	"github.com/hookdeck/outpost/internal/services/api"
@@ -40,6 +41,15 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	logger := otelzap.New(zapLogger,
 		otelzap.WithMinLevel(zap.InfoLevel), // TODO: allow configuration
 	)
+
+	chDB, err := clickhouse.New(cfg.ClickHouse)
+	if err != nil {
+		return err
+	}
+	defer chDB.Close()
+	if err := clickhouse.RunMigration_Temporary(mainContext, chDB); err != nil {
+		return err
+	}
 
 	// Set up cancellation context and waitgroup
 	ctx, cancel := context.WithCancel(mainContext)
