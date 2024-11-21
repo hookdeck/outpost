@@ -2,6 +2,7 @@
 .env
 
 # Built binaries
+/dist
 /bin
 /tmp
 

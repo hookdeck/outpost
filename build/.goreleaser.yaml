@@ -1,0 +1,99 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+project_name: outpost
+
+builds:
+  - id: outpost
+    ldflags:
+      - -s -w
+    binary: outpost
+    env:
+      - CGO_ENABLED=0
+    main: ./cmd/outpost/main.go
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - id: outpost-arm64
+    ldflags:
+      - -s -w
+    binary: outpost
+    env:
+      - CGO_ENABLED=0
+    main: ./cmd/outpost/main.go
+    goos:
+      - linux
+    goarch:
+      - arm64
+
+archives:
+  - format: tar.gz
+    # this name template makes the OS and Arch compatible with the results of `uname`.
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+dockers:
+  - goos: linux
+    goarch: amd64
+    dockerfile: ./build/Dockerfile.goreleaser
+    ids:
+      - outpost
+    image_templates:
+      - "hookdeck/outpost:latest-amd64"
+      - "hookdeck/outpost:{{ .Tag }}-amd64"
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.name={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=repository=https://github.com/hookdeck/outpost"
+      - "--label=homepage=https://hookdeck.com"
+      - "--platform=linux/amd64"
+  - goos: linux
+    goarch: arm64
+    dockerfile: ./build/Dockerfile.goreleaser
+    ids:
+      - outpost-arm64
+    image_templates:
+      - "hookdeck/outpost:latest-arm64"
+      - "hookdeck/outpost:{{ .Tag }}-arm64"
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.name={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=repository=https://github.com/hookdeck/outpost"
+      - "--label=homepage=https://hookdeck.com"
+      - "--platform=linux/arm64/v8"
+docker_manifests:
+  - name_template: "hookdeck/outpost:latest"
+    image_templates:
+      - "hookdeck/outpost:latest-amd64"
+      - "hookdeck/outpost:latest-arm64"
+  - name_template: "hookdeck/outpost:{{ .Tag }}"
+    image_templates:
+      - "hookdeck/outpost:{{ .Tag }}-amd64"
+      - "hookdeck/outpost:{{ .Tag }}-arm64"
