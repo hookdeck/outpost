@@ -15,10 +15,11 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+// must be sorted
 var TestTopics = []string{
 	"user.created",
-	"user.updated",
 	"user.deleted",
+	"user.updated",
 }
 
 func CreateTestRedisConfig(t *testing.T) *internalredis.RedisConfig {

@@ -43,16 +43,18 @@ func redisDestinationID(destinationID, tenantID string) string {
 }
 
 type entityStoreImpl struct {
-	redisClient *redis.Client
-	cipher      Cipher
+	redisClient     *redis.Client
+	cipher          Cipher
+	availableTopics []string
 }
 
 var _ EntityStore = (*entityStoreImpl)(nil)
 
-func NewEntityStore(redisClient *redis.Client, cipher Cipher) EntityStore {
+func NewEntityStore(redisClient *redis.Client, cipher Cipher, availableTopics []string) EntityStore {
 	return &entityStoreImpl{
-		redisClient: redisClient,
-		cipher:      cipher,
+		redisClient:     redisClient,
+		cipher:          cipher,
+		availableTopics: availableTopics,
 	}
 }
 
@@ -83,7 +85,44 @@ func (s *entityStoreImpl) RetrieveTenant(ctx context.Context, tenantID string) (
 	}
 	tenant.DestinationsCount = int(destinationCount)
 
+	topics, err := s.retrieveTenantTopics(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	tenant.Topics = topics
+
 	return tenant, err
+}
+
+func (s *entityStoreImpl) retrieveTenantTopics(ctx context.Context, tenantID string) ([]string, error) {
+	destinationSummaryList, err := s.ListDestinationSummaryByTenant(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	all := false
+	topicsSet := make(map[string]struct{})
+	for _, destination := range destinationSummaryList {
+		for _, topic := range destination.Topics {
+			if topic == "*" {
+				all = true
+				break
+			}
+			topicsSet[topic] = struct{}{}
+		}
+	}
+
+	if all {
+		return s.availableTopics, nil
+	}
+
+	topics := make([]string, 0, len(topicsSet))
+	for topic := range topicsSet {
+		topics = append(topics, topic)
+	}
+
+	sort.Strings(topics)
+	return topics, nil
 }
 
 func (s *entityStoreImpl) UpsertTenant(ctx context.Context, tenant Tenant) error {

@@ -26,7 +26,7 @@ func TestPublishMQEventHandler_Concurrency(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"))
+	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqs.QueueConfig{
 		InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)},
 	}))

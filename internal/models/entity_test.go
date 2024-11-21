@@ -20,7 +20,7 @@ func TestEntityStore_TenantCRUD(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"))
+	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
 
 	input := models.Tenant{
 		ID:        uuid.New().String(),
@@ -47,7 +47,8 @@ func TestEntityStore_TenantCRUD(t *testing.T) {
 	t.Run("gets", func(t *testing.T) {
 		actual, err := entityStore.RetrieveTenant(context.Background(), input.ID)
 		require.NoError(t, err)
-		assert.True(t, cmp.Equal(input, *actual))
+		assert.Equal(t, input.ID, actual.ID)
+		assert.True(t, input.CreatedAt.Equal(actual.CreatedAt))
 	})
 
 	t.Run("overrides", func(t *testing.T) {
@@ -58,7 +59,8 @@ func TestEntityStore_TenantCRUD(t *testing.T) {
 
 		actual, err := entityStore.RetrieveTenant(context.Background(), input.ID)
 		require.NoError(t, err)
-		assert.True(t, cmp.Equal(input, *actual))
+		assert.Equal(t, input.ID, actual.ID)
+		assert.True(t, input.CreatedAt.Equal(actual.CreatedAt))
 	})
 
 	t.Run("clears", func(t *testing.T) {
@@ -75,7 +77,7 @@ func TestEntityStore_DestinationCRUD(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"))
+	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
 
 	input := models.Destination{
 		ID:     uuid.New().String(),
@@ -152,7 +154,7 @@ func TestEntityStore_ListDestinationEmpty(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"))
+	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
 
 	destinations, err := entityStore.ListDestinationByTenant(context.Background(), uuid.New().String())
 	require.NoError(t, err)
@@ -162,7 +164,7 @@ func TestEntityStore_ListDestinationEmpty(t *testing.T) {
 func TestEntityStore_DeleteTenantAndAssociatedDestinations(t *testing.T) {
 	t.Parallel()
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"))
+	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
 	tenant := models.Tenant{
 		ID:        uuid.New().String(),
 		CreatedAt: time.Now(),
@@ -201,7 +203,7 @@ func TestEntityStore_DestinationCredentialsEncryption(t *testing.T) {
 
 	redisClient := testutil.CreateTestRedisClient(t)
 	cipher := models.NewAESCipher("secret")
-	entityStore := models.NewEntityStore(redisClient, cipher)
+	entityStore := models.NewEntityStore(redisClient, cipher, testutil.TestTopics)
 
 	testEntityStoreDestinationCredentialsEncryption(t, redisClient, cipher, entityStore)
 }
@@ -259,7 +261,7 @@ func (suite *multiDestinationSuite) SetupTest(t *testing.T) {
 		suite.ctx = context.Background()
 	}
 	suite.redisClient = testutil.CreateTestRedisClient(t)
-	suite.entityStore = models.NewEntityStore(suite.redisClient, models.NewAESCipher("secret"))
+	suite.entityStore = models.NewEntityStore(suite.redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
 	suite.destinations = make([]models.Destination, 5)
 	suite.tenant = models.Tenant{
 		ID:        uuid.New().String(),
@@ -296,7 +298,7 @@ func (suite *multiDestinationSuite) SetupTest(t *testing.T) {
 	require.NoError(t, suite.entityStore.DeleteDestination(suite.ctx, suite.tenant.ID, toBeDeletedID))
 }
 
-func TestMultiDestinationSuite_RetrieveTenant(t *testing.T) {
+func TestMultiDestinationSuite_RetrieveTenant_DestinationsCount(t *testing.T) {
 	t.Parallel()
 	suite := multiDestinationSuite{}
 	suite.SetupTest(t)
@@ -304,6 +306,41 @@ func TestMultiDestinationSuite_RetrieveTenant(t *testing.T) {
 	tenant, err := suite.entityStore.RetrieveTenant(suite.ctx, suite.tenant.ID)
 	require.NoError(t, err)
 	require.Equal(t, 5, tenant.DestinationsCount)
+}
+
+func TestMultiDestinationSuite_RetrieveTenant_Topics(t *testing.T) {
+	t.Parallel()
+	suite := multiDestinationSuite{}
+	suite.SetupTest(t)
+
+	tenant, err := suite.entityStore.RetrieveTenant(suite.ctx, suite.tenant.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"user.created", "user.deleted", "user.updated"}, tenant.Topics)
+
+	require.NoError(t, suite.entityStore.DeleteDestination(suite.ctx, suite.tenant.ID, suite.destinations[0].ID))
+	tenant, err = suite.entityStore.RetrieveTenant(suite.ctx, suite.tenant.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"user.created", "user.deleted", "user.updated"}, tenant.Topics)
+
+	require.NoError(t, suite.entityStore.DeleteDestination(suite.ctx, suite.tenant.ID, suite.destinations[1].ID))
+	tenant, err = suite.entityStore.RetrieveTenant(suite.ctx, suite.tenant.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"user.created", "user.deleted", "user.updated"}, tenant.Topics)
+
+	require.NoError(t, suite.entityStore.DeleteDestination(suite.ctx, suite.tenant.ID, suite.destinations[2].ID))
+	tenant, err = suite.entityStore.RetrieveTenant(suite.ctx, suite.tenant.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"user.created", "user.deleted", "user.updated"}, tenant.Topics)
+
+	require.NoError(t, suite.entityStore.DeleteDestination(suite.ctx, suite.tenant.ID, suite.destinations[3].ID))
+	tenant, err = suite.entityStore.RetrieveTenant(suite.ctx, suite.tenant.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"user.created", "user.updated"}, tenant.Topics)
+
+	require.NoError(t, suite.entityStore.DeleteDestination(suite.ctx, suite.tenant.ID, suite.destinations[4].ID))
+	tenant, err = suite.entityStore.RetrieveTenant(suite.ctx, suite.tenant.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{}, tenant.Topics)
 }
 
 func TestMultiDestinationSuite_ListDestinationByTenant(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -218,6 +219,7 @@ func parseTopics(viper *v.Viper) ([]string, error) {
 	for i, topic := range topics {
 		topics[i] = strings.TrimSpace(topic)
 	}
+	sort.Strings(topics)
 	return topics, nil
 }
 
