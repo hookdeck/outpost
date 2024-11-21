@@ -130,6 +130,22 @@ func TestEntityStore_DestinationCRUD(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, actual)
 	})
+
+	t.Run("creates", func(t *testing.T) {
+		err := entityStore.CreateDestination(context.Background(), input)
+		require.NoError(t, err)
+
+		actual, err := entityStore.RetrieveDestination(context.Background(), input.TenantID, input.ID)
+		require.NoError(t, err)
+		assertEqualDestination(t, input, *actual)
+	})
+
+	t.Run("err when creates duplicate", func(t *testing.T) {
+		assert.ErrorIs(t, entityStore.CreateDestination(context.Background(), input), models.ErrDuplicateDestination)
+
+		// cleanup
+		require.NoError(t, entityStore.DeleteDestination(context.Background(), input.TenantID, input.ID))
+	})
 }
 
 func TestEntityStore_ListDestinationEmpty(t *testing.T) {
