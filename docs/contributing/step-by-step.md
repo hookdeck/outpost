@@ -77,47 +77,6 @@ $ curl localhost:3333/api/v1/healthz
 OK%
 ```
 
-5: Create ClickHouse schema
-
-_Note_: This step should be obsolete in the future. For now, as we're still early in the CH integration, we have to manually create the CH schema.
-
-Once all services have started, you need to initialize the CH schema:
-
-```sh
-$ docker exec -it $(docker ps -f name=outpost-clickhouse --format "{{.ID}}") clickhouse-client
-ClickHouse client version ...
-Connecting to localhost:9000 as user default.
-Connected to ClickHouse server version ...
-
-:) CREATE DATABASE IF NOT EXISTS outpost;
-:) USE outpost;
-:) CREATE TABLE IF NOT EXISTS events (
-	id String,
-	tenant_id String,
-	destination_id String,
-	topic String,
-	eligible_for_retry Bool,
-	time DateTime,
-	metadata String,
-	data String
-)
-ENGINE = MergeTree
-ORDER BY (id, time);
-:) CREATE TABLE IF NOT EXISTS deliveries (
-	id String,
-	delivery_event_id String,
-	event_id String,
-	destination_id String,
-	status String,
-	time DateTime
-)
-ENGINE = ReplacingMergeTree
-ORDER BY (id, time);
-
-# Feel free to confirm that the tables are properly created. You should see 2 tables, `events` and `deliveries` here.
-:) SHOW TABLES;
-```
-
 ## Phase 2: Create tenant & destination
 
 1: Create a tenant with ID: 123
