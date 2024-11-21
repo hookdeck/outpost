@@ -9,7 +9,10 @@ services:
     volumes:
       - ../../:/app
     depends_on:
-      - redis
+      redis:
+        condition: service_started
+      clickhouse:
+        condition: service_healthy
     ports:
       - "${PORT}:${PORT}"
     env_file: ../../.env
@@ -21,8 +24,12 @@ services:
     volumes:
       - ../..:/app
     depends_on:
-      - redis
-      - api
+      redis:
+        condition: service_started
+      clickhouse:
+        condition: service_healthy
+      api:
+        condition: service_started
     env_file: ../../.env
     environment:
       SERVICE: delivery
@@ -32,8 +39,12 @@ services:
     volumes:
       - ../..:/app
     depends_on:
-      - redis
-      - api
+      redis:
+        condition: service_started
+      clickhouse:
+        condition: service_healthy
+      api:
+        condition: service_started
     env_file: ../../.env
     environment:
       SERVICE: log
@@ -60,6 +71,8 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server:24-alpine
+    environment:
+      CLICKHOUSE_DB: outpost
     ports:
       # tcp
       - 9000:9000
@@ -84,6 +97,11 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
 
 volumes:
   redis:
