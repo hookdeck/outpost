@@ -296,6 +296,16 @@ func (suite *multiDestinationSuite) SetupTest(t *testing.T) {
 	require.NoError(t, suite.entityStore.DeleteDestination(suite.ctx, suite.tenant.ID, toBeDeletedID))
 }
 
+func TestMultiDestinationSuite_RetrieveTenant(t *testing.T) {
+	t.Parallel()
+	suite := multiDestinationSuite{}
+	suite.SetupTest(t)
+
+	tenant, err := suite.entityStore.RetrieveTenant(suite.ctx, suite.tenant.ID)
+	require.NoError(t, err)
+	require.Equal(t, 5, tenant.DestinationsCount)
+}
+
 func TestMultiDestinationSuite_ListDestinationByTenant(t *testing.T) {
 	t.Parallel()
 	suite := multiDestinationSuite{}

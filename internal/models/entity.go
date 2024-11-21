@@ -57,18 +57,33 @@ func NewEntityStore(redisClient *redis.Client, cipher Cipher) EntityStore {
 }
 
 func (s *entityStoreImpl) RetrieveTenant(ctx context.Context, tenantID string) (*Tenant, error) {
-	hash, err := s.redisClient.HGetAll(ctx, redisTenantID(tenantID)).Result()
+	pipe := s.redisClient.Pipeline()
+	tenantCmd := pipe.HGetAll(ctx, redisTenantID(tenantID))
+	destinationCountCmd := pipe.HLen(ctx, redisTenantDestinationSummaryKey(tenantID))
+
+	if _, err := pipe.Exec(ctx); err != nil {
+		return nil, err
+	}
+
+	tenantHash, err := tenantCmd.Result()
 	if err != nil {
 		return nil, err
 	}
-	if len(hash) == 0 {
+	if len(tenantHash) == 0 {
 		return nil, nil
 	}
 	tenant := &Tenant{}
-	if err = tenant.parseRedisHash(hash); err != nil {
+	if err := tenant.parseRedisHash(tenantHash); err != nil {
 		return nil, err
 	}
-	return tenant, nil
+
+	destinationCount, err := destinationCountCmd.Result()
+	if err != nil {
+		return nil, err
+	}
+	tenant.DestinationsCount = int(destinationCount)
+
+	return tenant, err
 }
 
 func (s *entityStoreImpl) UpsertTenant(ctx context.Context, tenant Tenant) error {
