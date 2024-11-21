@@ -49,6 +49,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	// Create new tenant.
 	tenant = &models.Tenant{
 		ID:        tenantID,
+		Topics:    []string{},
 		CreatedAt: time.Now(),
 	}
 	if err := h.entityStore.UpsertTenant(c.Request.Context(), *tenant); err != nil {

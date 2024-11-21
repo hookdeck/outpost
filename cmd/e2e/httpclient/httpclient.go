@@ -82,7 +82,7 @@ func (r *Response) doMatchBody(mainBody ResponseBody, toMatchedBody ResponseBody
 		if !ok {
 			return false
 		}
-		log.Println(key, subValue, fullValue)
+		log.Println(key, subValue, fullValue, cmp.Equal(fullValue, subValue))
 
 		switch subValueTyped := subValue.(type) {
 		case map[string]interface{}:
@@ -98,18 +98,49 @@ func (r *Response) doMatchBody(mainBody ResponseBody, toMatchedBody ResponseBody
 				subValueTyped := convertToInterfaceSlice(subValue)
 				fullValueTyped := convertToInterfaceSlice(fullValue)
 				for i, subValue := range subValueTyped {
+					log.Println("slice comparison at index", i, fullValueTyped[i], subValue, r.doMatchBody(fullValueTyped[i], subValue))
 					if !r.doMatchBody(fullValueTyped[i], subValue) {
+						log.Println("failed slice comparison at index", i, fullValueTyped[i], subValue, r.doMatchBody(fullValueTyped[i], subValue))
 						return false
 					}
 				}
 			} else {
-				if !cmp.Equal(fullValue, subValue) {
+				if !jsonCmpEqual(fullValue, subValue) {
+					log.Println("not equal", fullValue, subValue)
 					return false
 				}
 			}
 		}
 	}
 	return true
+}
+
+func jsonCmpEqual(x, y interface{}) bool {
+	// Convert both values to JSON strings
+	xStr, err := json.Marshal(x)
+	if err != nil {
+		log.Println("Error marshaling x:", err)
+		return false
+	}
+	yStr, err := json.Marshal(y)
+	if err != nil {
+		log.Println("Error marshaling y:", err)
+		return false
+	}
+
+	// Unmarshal JSON strings into interface{}
+	var xVal, yVal interface{}
+	if err := json.Unmarshal(xStr, &xVal); err != nil {
+		log.Println("Error unmarshaling x:", err)
+		return false
+	}
+	if err := json.Unmarshal(yStr, &yVal); err != nil {
+		log.Println("Error unmarshaling y:", err)
+		return false
+	}
+
+	// Use reflect.DeepEqual to compare the unmarshaled values
+	return reflect.DeepEqual(xVal, yVal)
 }
 
 func isSlice(value interface{}) bool {
