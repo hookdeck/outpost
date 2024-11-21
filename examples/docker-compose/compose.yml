@@ -86,8 +86,3 @@ volumes:
     driver: local
   clickhouse:
     driver: local
-
-networks:
-  default:
-    name: outpost
-    external: true
