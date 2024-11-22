@@ -103,6 +103,7 @@ func (d *Destination) Publish(ctx context.Context, event *Event) error {
 
 type DestinationSummary struct {
 	ID     string `json:"id"`
+	Type   string `json:"type"`
 	Topics Topics `json:"topics"`
 }
 
@@ -120,6 +121,7 @@ func (ds *DestinationSummary) UnmarshalBinary(data []byte) error {
 func (d *Destination) ToSummary() *DestinationSummary {
 	return &DestinationSummary{
 		ID:     d.ID,
+		Type:   d.Type,
 		Topics: d.Topics,
 	}
 }
