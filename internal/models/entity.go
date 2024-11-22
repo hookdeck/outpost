@@ -342,7 +342,11 @@ func (filter DestinationFilter) match(destinationSummary DestinationSummary) boo
 		return false
 	}
 	if len(filter.Topics) > 0 {
+		filterMatchesAll := len(filter.Topics) == 1 && filter.Topics[0] == "*"
 		if !destinationSummary.Topics.MatchesAll() {
+			if filterMatchesAll {
+				return false
+			}
 			for _, topic := range filter.Topics {
 				if !slices.Contains(destinationSummary.Topics, topic) {
 					return false

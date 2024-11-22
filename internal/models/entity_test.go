@@ -410,6 +410,14 @@ func TestMultiDestinationSuite_ListDestination_WithOpts(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, destinations, 0)
 	})
+
+	t.Run("filter by topic: *", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Topics: []string{"*"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 1)
+	})
 }
 
 func TestMultiDestinationSuite_MatchEvent(t *testing.T) {
