@@ -1,0 +1,47 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - ./data/rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics check_port_connectivity
+      interval: 1s
+      timeout: 1s
+      retries: 30
+
+  api:
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - "DELIVERY_RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
+      - "DELIVERY_RABBITMQ_EXCHANGE=outpost_delivery"
+      - "DELIVERY_RABBITMQ_QUEUE=outpost_delivery"
+      - "LOG_RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
+      - "LOG_RABBITMQ_EXCHANGE=outpost_log"
+      - "LOG_RABBITMQ_QUEUE=outpost_log"
+  delivery:
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - "DELIVERY_RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
+      - "DELIVERY_RABBITMQ_EXCHANGE=outpost_delivery"
+      - "DELIVERY_RABBITMQ_QUEUE=outpost_delivery"
+      - "LOG_RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
+      - "LOG_RABBITMQ_EXCHANGE=outpost_log"
+      - "LOG_RABBITMQ_QUEUE=outpost_log"
+  log:
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - "DELIVERY_RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
+      - "DELIVERY_RABBITMQ_EXCHANGE=outpost_delivery"
+      - "DELIVERY_RABBITMQ_QUEUE=outpost_delivery"
+      - "LOG_RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
+      - "LOG_RABBITMQ_EXCHANGE=outpost_log"
+      - "LOG_RABBITMQ_QUEUE=outpost_log"
