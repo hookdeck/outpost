@@ -356,6 +356,62 @@ func TestMultiDestinationSuite_ListDestinationByTenant(t *testing.T) {
 	}
 }
 
+func TestMultiDestinationSuite_ListDestination_WithOpts(t *testing.T) {
+	t.Parallel()
+
+	suite := multiDestinationSuite{}
+	suite.SetupTest(t)
+
+	t.Run("filter by type: webhook", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Type: []string{"webhook"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 5)
+	})
+
+	t.Run("filter by type: rabbitmq", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Type: []string{"rabbitmq"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 0)
+	})
+
+	t.Run("filter by type: webhook,rabbitmq", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Type: []string{"webhook", "rabbitmq"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 5)
+	})
+
+	t.Run("filter by topic: user.created", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Topics: []string{"user.created"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 3)
+	})
+
+	t.Run("filter by topic: user.created,user.updated", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Topics: []string{"user.created", "user.updated"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 2)
+	})
+
+	t.Run("filter by type: rabbitmq, topic: user.created,user.updated", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Type:   []string{"rabbitmq"},
+			Topics: []string{"user.created", "user.updated"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 0)
+	})
+}
+
 func TestMultiDestinationSuite_MatchEvent(t *testing.T) {
 	t.Parallel()
 
