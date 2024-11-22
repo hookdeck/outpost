@@ -20,7 +20,7 @@ func TestWebhookDestination_Validate(t *testing.T) {
 
 	validDestination := adapters.DestinationAdapterValue{
 		ID:   uuid.New().String(),
-		Type: "webhooks",
+		Type: "webhook",
 		Config: map[string]string{
 			"url": "https://example.com",
 		},
@@ -127,7 +127,7 @@ func TestWebhookDestination_Publish(t *testing.T) {
 
 	destination := adapters.DestinationAdapterValue{
 		ID:   uuid.New().String(),
-		Type: "webhooks",
+		Type: "webhook",
 		Config: map[string]string{
 			"url": "https://example.com",
 		},

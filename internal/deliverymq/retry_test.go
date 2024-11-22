@@ -129,7 +129,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 		ID: uuid.New().String(),
 	}
 	s.destination = testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhooks"),
+		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(s.tenant.ID),
 		testutil.DestinationFactory.WithConfig(map[string]string{"url": webhookURL}),
 	)

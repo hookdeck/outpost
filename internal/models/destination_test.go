@@ -19,7 +19,7 @@ func TestDestination_Validate(t *testing.T) {
 		t.Parallel()
 		destination := models.Destination{
 			ID:          uuid.New().String(),
-			Type:        "webhooks",
+			Type:        "webhook",
 			Topics:      []string{"user.created", "user.updated"},
 			Config:      map[string]string{"url": "https://example.com"},
 			Credentials: map[string]string{},
@@ -49,7 +49,7 @@ func TestDestination_Validate(t *testing.T) {
 		t.Parallel()
 		destination := models.Destination{
 			ID:          uuid.New().String(),
-			Type:        "webhooks",
+			Type:        "webhook",
 			Topics:      []string{"user.created", "user.updated"},
 			Config:      map[string]string{},
 			Credentials: map[string]string{},

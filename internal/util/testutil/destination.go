@@ -17,7 +17,7 @@ type mockDestinationFactory struct {
 func (f *mockDestinationFactory) Any(opts ...func(*models.Destination)) models.Destination {
 	destination := models.Destination{
 		ID:          uuid.New().String(),
-		Type:        "webhooks",
+		Type:        "webhook",
 		Topics:      []string{"*"},
 		Config:      map[string]string{"url": "https://example.com"},
 		Credentials: map[string]string{},

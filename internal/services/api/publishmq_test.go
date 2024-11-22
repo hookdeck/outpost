@@ -45,7 +45,7 @@ func TestIntegrationAPIService_PublishMQConsumer(t *testing.T) {
 	destination := models.Destination{
 		ID:       uuid.New().String(),
 		TenantID: uuid.New().String(),
-		Type:     "webhooks",
+		Type:     "webhook",
 		Topics:   []string{"*"},
 		Config: map[string]string{
 			"url": "http://localhost:8080",

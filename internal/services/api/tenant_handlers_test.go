@@ -162,7 +162,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 		}
 		entityStore.UpsertTenant(context.Background(), existingResource)
 		inputDestination := models.Destination{
-			Type:       "webhooks",
+			Type:       "webhook",
 			Topics:     []string{"user.created", "user.updated"},
 			DisabledAt: nil,
 			TenantID:   existingResource.ID,

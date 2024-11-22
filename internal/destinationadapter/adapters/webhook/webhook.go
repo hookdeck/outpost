@@ -37,7 +37,7 @@ func (d *WebhookDestination) Publish(ctx context.Context, destination adapters.D
 }
 
 func parseConfig(destination adapters.DestinationAdapterValue) (*WebhookDestinationConfig, error) {
-	if destination.Type != "webhooks" {
+	if destination.Type != "webhook" {
 		return nil, errors.New("invalid destination type")
 	}
 

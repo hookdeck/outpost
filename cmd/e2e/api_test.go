@@ -123,7 +123,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 				Path:   "/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     sampleDestinationID,
-					"type":   "webhooks",
+					"type":   "webhook",
 					"topics": "*",
 					"config": map[string]interface{}{
 						"url": "http://host.docker.internal:4444",
@@ -250,7 +250,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 				Method: httpclient.MethodPOST,
 				Path:   "/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
-					"type":   "webhooks",
+					"type":   "webhook",
 					"topics": "*",
 					"config": map[string]interface{}{
 						"url": "http://host.docker.internal:4444",
@@ -305,7 +305,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 				Method: httpclient.MethodPOST,
 				Path:   "/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
-					"type":   "webhooks",
+					"type":   "webhook",
 					"topics": "invalid",
 					"config": map[string]interface{}{
 						"url": "http://host.docker.internal:4444",
@@ -327,7 +327,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 				Method: httpclient.MethodPOST,
 				Path:   "/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
-					"type":   "webhooks",
+					"type":   "webhook",
 					"topics": []string{"invalid"},
 					"config": map[string]interface{}{
 						"url": "http://host.docker.internal:4444",
@@ -349,7 +349,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 				Method: httpclient.MethodPOST,
 				Path:   "/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
-					"type":   "webhooks",
+					"type":   "webhook",
 					"topics": []string{"user.created"},
 					"config": map[string]interface{}{},
 				},
@@ -370,7 +370,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 				Path:   "/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     sampleDestinationID,
-					"type":   "webhooks",
+					"type":   "webhook",
 					"topics": "*",
 					"config": map[string]interface{}{
 						"url": "http://host.docker.internal:4444",
@@ -390,7 +390,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 				Path:   "/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     sampleDestinationID,
-					"type":   "webhooks",
+					"type":   "webhook",
 					"topics": "*",
 					"config": map[string]interface{}{
 						"url": "http://host.docker.internal:4444",
@@ -427,7 +427,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 					StatusCode: http.StatusOK,
 					Body: map[string]interface{}{
 						"id":     sampleDestinationID,
-						"type":   "webhooks",
+						"type":   "webhook",
 						"topics": []string{"*"},
 						"config": map[string]interface{}{
 							"url": "http://host.docker.internal:4444",
@@ -451,7 +451,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 					StatusCode: http.StatusOK,
 					Body: map[string]interface{}{
 						"id":     sampleDestinationID,
-						"type":   "webhooks",
+						"type":   "webhook",
 						"topics": []string{"user.created"},
 						"config": map[string]interface{}{
 							"url": "http://host.docker.internal:4444",
@@ -472,7 +472,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 					StatusCode: http.StatusOK,
 					Body: map[string]interface{}{
 						"id":     sampleDestinationID,
-						"type":   "webhooks",
+						"type":   "webhook",
 						"topics": []string{"user.created"},
 						"config": map[string]interface{}{
 							"url": "http://host.docker.internal:4444",
