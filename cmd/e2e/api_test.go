@@ -568,6 +568,172 @@ func (suite *basicSuite) TestDestinationsAPI() {
 	suite.RunAPITests(suite.T(), tests)
 }
 
+func (suite *basicSuite) TestDestinationsListAPI() {
+	tenantID := uuid.New().String()
+	tests := []APITest{
+		{
+			Name: "PUT /:tenantID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+		{
+			Name: "POST /:tenantID/destinations type=webhook topics=*",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
+				Body: map[string]interface{}{
+					"type":   "webhook",
+					"topics": "*",
+					"config": map[string]interface{}{
+						"url": "http://host.docker.internal:4444",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+		{
+			Name: "POST /:tenantID/destinations type=webhook topics=user.created",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
+				Body: map[string]interface{}{
+					"type":   "webhook",
+					"topics": []string{"user.created"},
+					"config": map[string]interface{}{
+						"url": "http://host.docker.internal:4444",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+		{
+			Name: "POST /:tenantID/destinations type=webhook topics=user.created user.updated",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
+				Body: map[string]interface{}{
+					"type":   "webhook",
+					"topics": []string{"user.created", "user.updated"},
+					"config": map[string]interface{}{
+						"url": "http://host.docker.internal:4444",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations",
+			}),
+			Expected: APITestExpectation{
+				Validate: makeDestinationListValidator(3),
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations?type=webhook",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations?type=webhook",
+			}),
+			Expected: APITestExpectation{
+				Validate: makeDestinationListValidator(3),
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations?type=rabbitmq",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations?type=rabbitmq",
+			}),
+			Expected: APITestExpectation{
+				Validate: makeDestinationListValidator(0),
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations?topics=*",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations?topics=*",
+			}),
+			Expected: APITestExpectation{
+				Validate: makeDestinationListValidator(1),
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations?topics=user.created",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations?topics=user.created",
+			}),
+			Expected: APITestExpectation{
+				Validate: makeDestinationListValidator(3),
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations?topics=user.updated",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations?topics=user.updated",
+			}),
+			Expected: APITestExpectation{
+				Validate: makeDestinationListValidator(2),
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations?topics=user.created&topics=user.updated",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations?topics=user.created&topics=user.updated",
+			}),
+			Expected: APITestExpectation{
+				Validate: makeDestinationListValidator(2),
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations?type=webhook&topics=user.created&topics=user.updated",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations?type=webhook&topics=user.created&topics=user.updated",
+			}),
+			Expected: APITestExpectation{
+				Validate: makeDestinationListValidator(2),
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations?type=rabbitmq&topics=user.created&topics=user.updated",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations?type=rabbitmq&topics=user.created&topics=user.updated",
+			}),
+			Expected: APITestExpectation{
+				Validate: makeDestinationListValidator(0),
+			},
+		},
+	}
+	suite.RunAPITests(suite.T(), tests)
+}
+
 func makeDestinationListValidator(length int) map[string]any {
 	return map[string]any{
 		"type": "object",
