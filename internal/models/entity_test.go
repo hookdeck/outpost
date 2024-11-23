@@ -579,3 +579,58 @@ func TestDestinationEnableDisable(t *testing.T) {
 		assertDestination(t, input)
 	})
 }
+
+func TestMultiSuite_DisableAndMatch(t *testing.T) {
+	t.Parallel()
+
+	suite := multiDestinationSuite{}
+	suite.SetupTest(t)
+
+	t.Run("initial match user.deleted", func(t *testing.T) {
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithTenantID(suite.tenant.ID),
+			testutil.EventFactory.WithTopic("user.deleted"),
+		)
+		matchedDestinationSummaryList, err := suite.entityStore.MatchEvent(suite.ctx, event)
+		require.NoError(t, err)
+		require.Len(t, matchedDestinationSummaryList, 2)
+		for _, summary := range matchedDestinationSummaryList {
+			require.Contains(t, []string{suite.destinations[0].ID, suite.destinations[3].ID}, summary.ID)
+		}
+	})
+
+	t.Run("should not match disabled destination", func(t *testing.T) {
+		destination := suite.destinations[0]
+		now := time.Now()
+		destination.DisabledAt = &now
+		require.NoError(t, suite.entityStore.UpsertDestination(suite.ctx, destination))
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithTenantID(suite.tenant.ID),
+			testutil.EventFactory.WithTopic("user.deleted"),
+		)
+		matchedDestinationSummaryList, err := suite.entityStore.MatchEvent(suite.ctx, event)
+		require.NoError(t, err)
+		require.Len(t, matchedDestinationSummaryList, 1)
+		for _, summary := range matchedDestinationSummaryList {
+			require.Contains(t, []string{suite.destinations[3].ID}, summary.ID)
+		}
+	})
+
+	t.Run("should match after re-enabled destination", func(t *testing.T) {
+		destination := suite.destinations[0]
+		destination.DisabledAt = nil
+		require.NoError(t, suite.entityStore.UpsertDestination(suite.ctx, destination))
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithTenantID(suite.tenant.ID),
+			testutil.EventFactory.WithTopic("user.deleted"),
+		)
+		matchedDestinationSummaryList, err := suite.entityStore.MatchEvent(suite.ctx, event)
+		require.NoError(t, err)
+		require.Len(t, matchedDestinationSummaryList, 2)
+		for _, summary := range matchedDestinationSummaryList {
+			require.Contains(t, []string{suite.destinations[0].ID, suite.destinations[3].ID}, summary.ID)
+		}
+	})
+}

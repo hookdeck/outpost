@@ -277,7 +277,7 @@ func (s *entityStoreImpl) matchEventWithAllDestination(ctx context.Context, even
 	matchedDestinationSummaryList := []DestinationSummary{}
 
 	for _, destinationSummary := range destinationSummaryList {
-		if destinationSummary.Topics[0] == "*" || slices.Contains(destinationSummary.Topics, event.Topic) {
+		if !destinationSummary.Disabled && (destinationSummary.Topics[0] == "*" || slices.Contains(destinationSummary.Topics, event.Topic)) {
 			matchedDestinationSummaryList = append(matchedDestinationSummaryList, destinationSummary)
 		}
 	}
