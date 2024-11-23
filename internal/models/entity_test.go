@@ -549,3 +549,33 @@ func TestMultiDestinationSuite_MatchEvent(t *testing.T) {
 		}
 	})
 }
+
+func TestDestinationEnableDisable(t *testing.T) {
+	t.Parallel()
+
+	redisClient := testutil.CreateTestRedisClient(t)
+	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
+
+	input := testutil.DestinationFactory.Any()
+	require.NoError(t, entityStore.UpsertDestination(context.Background(), input))
+
+	assertDestination := func(t *testing.T, expected models.Destination) {
+		actual, err := entityStore.RetrieveDestination(context.Background(), input.TenantID, input.ID)
+		require.NoError(t, err)
+		assert.Equal(t, expected.ID, actual.ID)
+		assert.True(t, cmp.Equal(expected.DisabledAt, actual.DisabledAt), "expected %v, got %v", expected.DisabledAt, actual.DisabledAt)
+	}
+
+	t.Run("should disable", func(t *testing.T) {
+		now := time.Now()
+		input.DisabledAt = &now
+		require.NoError(t, entityStore.UpsertDestination(context.Background(), input))
+		assertDestination(t, input)
+	})
+
+	t.Run("should enable", func(t *testing.T) {
+		input.DisabledAt = nil
+		require.NoError(t, entityStore.UpsertDestination(context.Background(), input))
+		assertDestination(t, input)
+	})
+}
