@@ -236,7 +236,7 @@ func (m *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 		r.HSet(ctx, key, "credentials", encryptedCredentials)
 		r.HSet(ctx, key, "created_at", destination.CreatedAt)
 		if destination.DisabledAt != nil {
-			r.HSet(ctx, key, "disabled_at", destination.DisabledAt)
+			r.HSet(ctx, key, "disabled_at", *destination.DisabledAt)
 		}
 		r.HSet(ctx, redisTenantDestinationSummaryKey(destination.TenantID), destination.ID, destination.ToSummary()).Val()
 		return nil
