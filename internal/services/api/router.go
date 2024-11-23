@@ -92,6 +92,8 @@ func NewRouter(
 	tenantRouter.GET("/:tenantID/destinations/:destinationID", destinationHandlers.Retrieve)
 	tenantRouter.PATCH("/:tenantID/destinations/:destinationID", destinationHandlers.Update)
 	tenantRouter.DELETE("/:tenantID/destinations/:destinationID", destinationHandlers.Delete)
+	tenantRouter.PUT("/:tenantID/destinations/:destinationID/enable", destinationHandlers.Enable)
+	tenantRouter.PUT("/:tenantID/destinations/:destinationID/disable", destinationHandlers.Disable)
 
 	tenantRouter.GET("/:tenantID/events", logHandlers.ListEvent)
 	tenantRouter.GET("/:tenantID/events/:eventID", logHandlers.RetrieveEvent)

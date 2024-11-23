@@ -143,6 +143,38 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 	c.JSON(http.StatusOK, destination)
 }
 
+func (h *DestinationHandlers) Disable(c *gin.Context) {
+	h.setDisabilityHandler(c, true)
+}
+
+func (h *DestinationHandlers) Enable(c *gin.Context) {
+	h.setDisabilityHandler(c, false)
+}
+
+func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool) {
+	destination := h.mustRetrieveDestination(c, c.Param("tenantID"), c.Param("destinationID"))
+	if destination == nil {
+		return
+	}
+	shouldUpdate := false
+	if disabled && destination.DisabledAt == nil {
+		shouldUpdate = true
+		now := time.Now()
+		destination.DisabledAt = &now
+	}
+	if !disabled && destination.DisabledAt != nil {
+		shouldUpdate = true
+		destination.DisabledAt = nil
+	}
+	if shouldUpdate {
+		if err := h.entityStore.UpsertDestination(c.Request.Context(), *destination); err != nil {
+			h.handleUpsertDestinationError(c, err)
+			return
+		}
+	}
+	c.JSON(http.StatusOK, destination)
+}
+
 func (h *DestinationHandlers) mustRetrieveDestination(c *gin.Context, tenantID, destinationID string) *models.Destination {
 	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
