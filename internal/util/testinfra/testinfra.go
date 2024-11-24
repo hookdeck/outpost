@@ -2,6 +2,8 @@ package testinfra
 
 import (
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -23,9 +25,14 @@ type Config struct {
 }
 
 func initConfig() {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		panic(err)
+	}
+
 	v := viper.New()
 	v.AutomaticEnv()
-	v.SetConfigFile("../../.env.test")
+	v.SetConfigFile(filepath.Join(projectRoot, ".env.test"))
 	v.SetConfigType("env")
 	if err := v.ReadInConfig(); err != nil {
 		panic(err)
@@ -69,4 +76,26 @@ func Start() func() {
 			}
 		}
 	}
+}
+
+func findProjectRoot() (string, error) {
+	// Start from the current working directory
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	// Traverse up the directory tree until the project root is found
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".env.test")); err == nil {
+			return dir, nil
+		}
+		parentDir := filepath.Dir(dir)
+		if parentDir == dir {
+			break
+		}
+		dir = parentDir
+	}
+
+	return "", os.ErrNotExist
 }
