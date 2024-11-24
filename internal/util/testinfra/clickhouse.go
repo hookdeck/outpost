@@ -3,6 +3,7 @@ package testinfra
 import (
 	"context"
 	"log"
+	"sync"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
@@ -48,13 +49,19 @@ func clearDB(chConfig clickhouse.ClickHouseConfig, database string) {
 	}
 }
 
+var chOnce sync.Once
+
 func ensureClickHouse() string {
 	cfg := ReadConfig()
-	if cfg.ClickHouseURL != "" {
-		return cfg.ClickHouseURL
+	if cfg.ClickHouseURL == "" {
+		chOnce.Do(func() {
+			startCHTestcontainer(cfg)
+		})
 	}
+	return cfg.ClickHouseURL
+}
 
-	// Start testcontainer
+func startCHTestcontainer(cfg *Config) {
 	ctx := context.Background()
 
 	clickHouseContainer, err := chTestcontainer.Run(ctx,
@@ -78,5 +85,4 @@ func ensureClickHouse() string {
 			log.Printf("failed to terminate container: %s", err)
 		}
 	})
-	return endpoint
 }

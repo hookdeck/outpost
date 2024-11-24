@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -33,12 +34,19 @@ func NewMQAWSConfig(t *testing.T, attributes map[string]string) mqs.QueueConfig 
 	return queueConfig
 }
 
+var localstackOnce sync.Once
+
 func ensureLocalStack() string {
 	cfg := ReadConfig()
-	if cfg.LocalStackURL != "" {
-		return cfg.LocalStackURL
+	if cfg.LocalStackURL == "" {
+		localstackOnce.Do(func() {
+			startLocalStackTestContainer(cfg)
+		})
 	}
+	return cfg.LocalStackURL
+}
 
+func startLocalStackTestContainer(cfg *Config) {
 	ctx := context.Background()
 
 	localstackContainer, err := localstack.Run(ctx,
@@ -63,7 +71,6 @@ func ensureLocalStack() string {
 			log.Println("Failed to terminate localstack container", err)
 		}
 	})
-	return endpoint
 }
 
 func DeclareTestAWSInfrastructure(ctx context.Context, cfg *mqs.AWSSQSConfig, attributes map[string]string) (string, error) {

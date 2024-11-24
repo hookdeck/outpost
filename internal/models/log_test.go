@@ -7,34 +7,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
-	endpoint, cleanup, err := testutil.StartTestContainerClickHouse()
-	require.NoError(t, err)
+func setupClickHouseConnection(t *testing.T) clickhouse.DB {
+	t.Cleanup(testinfra.Start())
 
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{endpoint},
-		Auth: clickhouse.Auth{
-			Database: "default",
-			Username: "default",
-			Password: "",
-		},
-		// Debug: true,
-		// Debugf: func(format string, v ...any) {
-		// 	fmt.Printf(format+"\n", v...)
-		// },
-	})
+	chConfig := testinfra.NewClickHouseConfig(t)
+
+	chDB, err := clickhouse.New(&chConfig)
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	require.NoError(t, conn.Exec(ctx, `
+	require.NoError(t, chDB.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS events (
 			id String,
 			tenant_id String,
@@ -48,7 +39,7 @@ func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
 		ENGINE = MergeTree
 		ORDER BY (id, time);
 	`))
-	require.NoError(t, conn.Exec(ctx, `
+	require.NoError(t, chDB.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS deliveries (
 			id String,
 			delivery_event_id String,
@@ -61,7 +52,7 @@ func setupClickHouseConnection(t *testing.T) (clickhouse.Conn, func()) {
 		ORDER BY (id, time);
 	`))
 
-	return conn, cleanup
+	return chDB
 }
 
 func TestIntegrationLogStore_EventCRUD(t *testing.T) {
@@ -71,8 +62,7 @@ func TestIntegrationLogStore_EventCRUD(t *testing.T) {
 
 	t.Parallel()
 
-	conn, cleanup := setupClickHouseConnection(t)
-	defer cleanup()
+	conn := setupClickHouseConnection(t)
 
 	ctx := context.Background()
 	logStore := models.NewLogStore(conn)
@@ -142,8 +132,7 @@ func TestIntegrationLogStore_DeliveryCRUD(t *testing.T) {
 
 	t.Parallel()
 
-	conn, cleanup := setupClickHouseConnection(t)
-	defer cleanup()
+	conn := setupClickHouseConnection(t)
 
 	ctx := context.Background()
 	logStore := models.NewLogStore(conn)
