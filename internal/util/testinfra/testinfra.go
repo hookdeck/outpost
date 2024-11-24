@@ -43,11 +43,15 @@ func initConfig() {
 		if !strings.Contains(localstackURL, "http://") {
 			localstackURL = "http://" + localstackURL
 		}
+		rabbitmqURL := v.GetString("TEST_RABBITMQ_URL")
+		if !strings.Contains(rabbitmqURL, "amqp://") {
+			rabbitmqURL = "amqp://guest:guest@" + rabbitmqURL
+		}
 		cfg = &Config{
 			TestInfra:     v.GetBool("TESTINFRA"),
 			ClickHouseURL: v.GetString("TEST_CLICKHOUSE_URL"),
 			LocalStackURL: localstackURL,
-			RabbitMQURL:   v.GetString("TEST_RABBITMQ_URL"),
+			RabbitMQURL:   rabbitmqURL,
 		}
 		return
 	}

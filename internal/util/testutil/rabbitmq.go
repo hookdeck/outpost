@@ -12,6 +12,7 @@ func DeclareTestRabbitMQInfrastructure(ctx context.Context, config *mqs.RabbitMQ
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 	ch, err := conn.Channel()
 	if err != nil {
 		return err
@@ -47,4 +48,24 @@ func DeclareTestRabbitMQInfrastructure(ctx context.Context, config *mqs.RabbitMQ
 		false,
 		nil,
 	)
+}
+
+func TeardownTestRabbitMQInfrastructure(ctx context.Context, cfg *mqs.RabbitMQConfig) error {
+	conn, err := amqp091.Dial(cfg.ServerURL)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	ch, err := conn.Channel()
+	if err != nil {
+		return err
+	}
+	defer ch.Close()
+	if _, err := ch.QueueDelete(cfg.Queue, false, false, false); err != nil {
+		return err
+	}
+	if err := ch.ExchangeDelete(cfg.Exchange, false, false); err != nil {
+		return err
+	}
+	return nil
 }

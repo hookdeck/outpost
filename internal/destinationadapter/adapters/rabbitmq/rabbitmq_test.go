@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
 	"github.com/hookdeck/outpost/internal/destinationadapter/adapters/rabbitmq"
+	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
@@ -129,15 +130,8 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 
 	t.Parallel()
 
-	rabbitmqURL, terminate, err := testutil.StartTestcontainerRabbitMQ()
-	require.Nil(t, err)
-	defer terminate()
-
-	RABBIT_SERVER_URL := rabbitmqURL
-	const (
-		RABBIT_EXCHANGE = "destination_exchange"
-		RABBIT_QUEUE    = "destination_queue_test"
-	)
+	t.Cleanup(testinfra.Start())
+	mq := testinfra.NewMQRabbitMQConfig(t)
 
 	rabbitmqDestination := rabbitmq.New()
 
@@ -145,12 +139,12 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 		ID:   uuid.New().String(),
 		Type: "rabbitmq",
 		Config: map[string]string{
-			"server_url": testutil.ExtractRabbitURL(RABBIT_SERVER_URL),
-			"exchange":   RABBIT_EXCHANGE,
+			"server_url": testutil.ExtractRabbitURL(mq.RabbitMQ.ServerURL),
+			"exchange":   mq.RabbitMQ.Exchange,
 		},
 		Credentials: map[string]string{
-			"username": testutil.ExtractRabbitUsername(RABBIT_SERVER_URL),
-			"password": testutil.ExtractRabbitPassword(RABBIT_SERVER_URL),
+			"username": testutil.ExtractRabbitUsername(mq.RabbitMQ.ServerURL),
+			"password": testutil.ExtractRabbitPassword(mq.RabbitMQ.ServerURL),
 		},
 	}
 
@@ -174,44 +168,19 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 	cancelChan := make(chan bool)
 	msgChan := make(chan *amqp091.Delivery)
 	go func() {
-		conn, _ := amqp091.Dial(RABBIT_SERVER_URL)
+		conn, _ := amqp091.Dial(mq.RabbitMQ.ServerURL)
 		defer conn.Close()
 		ch, _ := conn.Channel()
 		defer ch.Close()
 
-		ch.ExchangeDeclare(
-			RABBIT_EXCHANGE, // name
-			"topic",         // type
-			true,            // durable
-			false,           // auto-deleted
-			false,           // internal
-			false,           // no-wait
-			nil,             // arguments
-		)
-		q, _ := ch.QueueDeclare(
-			RABBIT_QUEUE, // name
-			false,        // durable
-			false,        // delete when unused
-			true,         // exclusive
-			false,        // no-wait
-			nil,          // arguments
-		)
-		ch.QueueBind(
-			q.Name,          // queue name
-			"",              // routing key
-			RABBIT_EXCHANGE, // exchange
-			false,
-			nil,
-		)
-
 		msgs, _ := ch.Consume(
-			RABBIT_QUEUE, // queue
-			"",           // consumer
-			true,         // auto-ack
-			false,        // exclusive
-			false,        // no-local
-			false,        // no-wait
-			nil,          // args
+			mq.RabbitMQ.Queue, // queue
+			"",                // consumer
+			true,              // auto-ack
+			false,             // exclusive
+			false,             // no-local
+			false,             // no-wait
+			nil,               // args
 		)
 
 		log.Println("ready to receive messages")
@@ -229,8 +198,7 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 
 	<-readyChan
 	log.Println("publishing message")
-	err = rabbitmqDestination.Publish(context.Background(), destination, event)
-	assert.Nil(t, err)
+	assert.NoError(t, rabbitmqDestination.Publish(context.Background(), destination, event))
 
 	func() {
 		time.Sleep(time.Second / 2)
@@ -244,10 +212,7 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 	}
 	log.Println("message received", msg)
 	body := make(map[string]interface{})
-	err = json.Unmarshal(msg.Body, &body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, json.Unmarshal(msg.Body, &body))
 	assert.Equal(t, event.Data, body)
 	// metadata
 	assert.Equal(t, "metadatavalue", msg.Headers["my_metadata"])
