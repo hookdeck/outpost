@@ -3,9 +3,8 @@ package configs
 import (
 	"testing"
 
-	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
-	"github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 )
 
@@ -17,27 +16,13 @@ func Basic(t *testing.T) (*config.Config, func(), error) {
 		}
 	}
 
-	// Testcontainer
-	chEndpoint, cleanupCH, err := testutil.StartTestContainerClickHouse()
-	if err != nil {
-		return nil, cleanup, err
-	}
-	cleanupFns = append(cleanupFns, cleanupCH)
-
-	awsEndpoint, cleanupAWS, err := testutil.StartTestcontainerLocalstack()
-	if err != nil {
-		return nil, cleanup, err
-	}
-	cleanupFns = append(cleanupFns, cleanupAWS)
+	t.Cleanup(testinfra.Start())
 
 	// Config
 	redisConfig := testutil.CreateTestRedisConfig(t)
-	clickHouseConfig := &clickhouse.ClickHouseConfig{
-		Addr:     chEndpoint,
-		Username: "default",
-		Password: "",
-		Database: "default",
-	}
+	clickHouseConfig := testinfra.NewClickHouseConfig(t)
+	deliveryMQConfig := testinfra.NewMQAWSConfig(t, nil)
+	logMQConfig := testinfra.NewMQAWSConfig(t, nil)
 
 	return &config.Config{
 		Hostname:               "outpost",
@@ -49,11 +34,11 @@ func Basic(t *testing.T) (*config.Config, func(), error) {
 		PortalProxyURL:         "",
 		Topics:                 testutil.TestTopics,
 		Redis:                  redisConfig,
-		ClickHouse:             clickHouseConfig,
+		ClickHouse:             &clickHouseConfig,
 		OpenTelemetry:          nil,
 		PublishQueueConfig:     nil,
-		DeliveryQueueConfig:    &mqs.QueueConfig{AWSSQS: &mqs.AWSSQSConfig{Endpoint: awsEndpoint, Region: "us-east-1", ServiceAccountCredentials: "test:test:", Topic: "delivery"}},
-		LogQueueConfig:         &mqs.QueueConfig{AWSSQS: &mqs.AWSSQSConfig{Endpoint: awsEndpoint, Region: "us-east-1", ServiceAccountCredentials: "test:test:", Topic: "log"}},
+		DeliveryQueueConfig:    &deliveryMQConfig,
+		LogQueueConfig:         &logMQConfig,
 		PublishMaxConcurrency:  3,
 		DeliveryMaxConcurrency: 3,
 		LogMaxConcurrency:      3,

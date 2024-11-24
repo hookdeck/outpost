@@ -82,3 +82,10 @@ func GetQueueARN(ctx context.Context, sqsClient *sqs.Client, queueURL string) (s
 	queueARN := attributesOutput.Attributes[string(types.QueueAttributeNameQueueArn)]
 	return queueARN, nil
 }
+
+func DeleteQueue(ctx context.Context, sqsClient *sqs.Client, queueURL string) error {
+	_, err := sqsClient.DeleteQueue(ctx, &sqs.DeleteQueueInput{
+		QueueUrl: aws.String(queueURL),
+	})
+	return err
+}

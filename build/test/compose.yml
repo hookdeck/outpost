@@ -1,0 +1,19 @@
+name: "outpost-test"
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    ports:
+      - 39000:9000
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - 35672:5672
+      - 45672:15672
+  aws:
+    image: localstack/localstack:latest
+    environment:
+      - SERVICES=sns,sts,sqs
+    ports:
+      - 34566:4566
+      - 34571:4571
