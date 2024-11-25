@@ -2,7 +2,7 @@
   "name": "outpost-portal",
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build && touch dist/gitkeep"
   },
   "dependencies": {
     "react": "^18.3.1",
