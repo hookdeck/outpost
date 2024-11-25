@@ -9,16 +9,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/publishmq"
+	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // NOTE: This test seems to be a bit flaky.
-func TestPublishMQEventHandler_Concurrency(t *testing.T) {
+func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 	t.Parallel()
+	t.Cleanup(testinfra.Start(t))
 
 	exporter := tracetest.NewInMemoryExporter()
 	mockEventTracer := testutil.NewMockEventTracer(exporter)
@@ -27,9 +28,8 @@ func TestPublishMQEventHandler_Concurrency(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
 	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
-	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqs.QueueConfig{
-		InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)},
-	}))
+	mqConfig := testinfra.NewMQAWSConfig(t, nil)
+	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)
 	require.NoError(t, err)
 	defer cleanup()
