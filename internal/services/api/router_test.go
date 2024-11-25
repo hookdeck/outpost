@@ -290,7 +290,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		req.Header.Set("Authorization", "NotBearer "+validToken)
 		router.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
 	t.Run("should block request with bearer authorization header with invalid token", func(t *testing.T) {

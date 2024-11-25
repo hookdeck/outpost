@@ -55,11 +55,20 @@ func TestPrivateAPIKeyRouter(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("should reject requests with an invalid authorization token", func(t *testing.T) {
+	t.Run("should reject requests with an malformed authorization header", func(t *testing.T) {
 		t.Parallel()
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenant_id", nil)
 		req.Header.Set("Authorization", "invalid key")
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("should reject requests with an incorrect authorization token", func(t *testing.T) {
+		t.Parallel()
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenant_id", nil)
+		req.Header.Set("Authorization", "Bearer invalid")
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})

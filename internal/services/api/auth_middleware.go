@@ -8,6 +8,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var (
+	ErrInvalidBearerToken = errors.New("invalid token")
+)
+
 func APIKeyAuthMiddleware(apiKey string) gin.HandlerFunc {
 	if apiKey == "" {
 		return func(c *gin.Context) {
@@ -18,14 +22,10 @@ func APIKeyAuthMiddleware(apiKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authorizationToken, err := extractBearerToken(c.GetHeader("Authorization"))
 		if err != nil {
-			// TODO: Consider sending a more detailed error message.
-			// Currently we don't have clear specs on how to send back error message.
-			c.AbortWithStatus(http.StatusUnauthorized)
+			AbortWithError(c, http.StatusBadRequest, ErrInvalidBearerToken)
 			return
 		}
 		if authorizationToken != apiKey {
-			// TODO: Consider sending a more detailed error message.
-			// Currently we don't have clear specs on how to send back error message.
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -37,9 +37,7 @@ func APIKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFu
 	return func(c *gin.Context) {
 		authorizationToken, err := extractBearerToken(c.GetHeader("Authorization"))
 		if err != nil {
-			// TODO: Consider sending a more detailed error message.
-			// Currently we don't have clear specs on how to send back error message.
-			c.AbortWithStatus(http.StatusUnauthorized)
+			AbortWithError(c, http.StatusBadRequest, ErrInvalidBearerToken)
 			return
 		}
 		if authorizationToken == apiKey {
@@ -49,14 +47,10 @@ func APIKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFu
 		tenantID := c.Param("tenantID")
 		valid, err := JWT.Verify(jwtKey, authorizationToken, tenantID)
 		if err != nil {
-			// TODO: Consider sending a more detailed error message.
-			// Currently we don't have clear specs on how to send back error message.
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
 		if !valid {
-			// TODO: Consider sending a more detailed error message.
-			// Currently we don't have clear specs on how to send back error message.
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
