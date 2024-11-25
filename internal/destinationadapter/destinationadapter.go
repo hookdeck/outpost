@@ -17,7 +17,7 @@ func NewAdapater(destinationType string) (adapters.DestinationAdapter, error) {
 		return awsdestination.New(), nil
 	case "rabbitmq":
 		return rabbitmqdestination.New(), nil
-	case "webhooks":
+	case "webhook":
 		return webhookdestination.New(), nil
 	default:
 		return nil, errors.New("invalid destination type")

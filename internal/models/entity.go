@@ -17,8 +17,7 @@ type EntityStore interface {
 	RetrieveTenant(ctx context.Context, tenantID string) (*Tenant, error)
 	UpsertTenant(ctx context.Context, tenant Tenant) error
 	DeleteTenant(ctx context.Context, tenantID string) error
-	ListDestinationSummaryByTenant(ctx context.Context, tenantID string) ([]DestinationSummary, error)
-	ListDestinationByTenant(ctx context.Context, tenantID string) ([]Destination, error)
+	ListDestinationByTenant(ctx context.Context, tenantID string, options ...ListDestinationByTenantOpts) ([]Destination, error)
 	RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*Destination, error)
 	CreateDestination(ctx context.Context, destination Destination) error
 	UpsertDestination(ctx context.Context, destination Destination) error
@@ -79,7 +78,7 @@ func (s *entityStoreImpl) RetrieveTenant(ctx context.Context, tenantID string) (
 		return nil, err
 	}
 
-	destinationSummaryList, err := s.parseListDestinationSummaryByTenantCmd(topicsCmd)
+	destinationSummaryList, err := s.parselistDestinationSummaryByTenantCmd(topicsCmd, ListDestinationByTenantOpts{})
 	if err != nil {
 		return nil, err
 	}
@@ -129,11 +128,11 @@ func (s *entityStoreImpl) DeleteTenant(ctx context.Context, tenantID string) err
 	return errors.New("increment reached maximum number of retries")
 }
 
-func (s *entityStoreImpl) ListDestinationSummaryByTenant(ctx context.Context, tenantID string) ([]DestinationSummary, error) {
-	return s.parseListDestinationSummaryByTenantCmd(s.redisClient.HGetAll(ctx, redisTenantDestinationSummaryKey(tenantID)))
+func (s *entityStoreImpl) listDestinationSummaryByTenant(ctx context.Context, tenantID string, opts ListDestinationByTenantOpts) ([]DestinationSummary, error) {
+	return s.parselistDestinationSummaryByTenantCmd(s.redisClient.HGetAll(ctx, redisTenantDestinationSummaryKey(tenantID)), opts)
 }
 
-func (s *entityStoreImpl) parseListDestinationSummaryByTenantCmd(cmd *redis.MapStringStringCmd) ([]DestinationSummary, error) {
+func (s *entityStoreImpl) parselistDestinationSummaryByTenantCmd(cmd *redis.MapStringStringCmd, opts ListDestinationByTenantOpts) ([]DestinationSummary, error) {
 	destinationSummaryListHash, err := cmd.Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -141,21 +140,32 @@ func (s *entityStoreImpl) parseListDestinationSummaryByTenantCmd(cmd *redis.MapS
 		}
 		return nil, err
 	}
-	destinationSummaryList := make([]DestinationSummary, len(destinationSummaryListHash))
-	index := 0
+	destinationSummaryList := make([]DestinationSummary, 0, len(destinationSummaryListHash))
 	for _, destinationSummaryStr := range destinationSummaryListHash {
 		destinationSummary := DestinationSummary{}
 		if err := destinationSummary.UnmarshalBinary([]byte(destinationSummaryStr)); err != nil {
 			return nil, err
 		}
-		destinationSummaryList[index] = destinationSummary
-		index++
+		included := true
+		if opts.Filter != nil {
+			included = opts.Filter.match(destinationSummary)
+		}
+		if included {
+			destinationSummaryList = append(destinationSummaryList, destinationSummary)
+		}
 	}
 	return destinationSummaryList, nil
 }
 
-func (s *entityStoreImpl) ListDestinationByTenant(ctx context.Context, tenantID string) ([]Destination, error) {
-	destinationSummaryList, err := s.ListDestinationSummaryByTenant(ctx, tenantID)
+func (s *entityStoreImpl) ListDestinationByTenant(ctx context.Context, tenantID string, options ...ListDestinationByTenantOpts) ([]Destination, error) {
+	var opts ListDestinationByTenantOpts
+	if len(options) > 0 {
+		opts = options[0]
+	} else {
+		opts = ListDestinationByTenantOpts{}
+	}
+
+	destinationSummaryList, err := s.listDestinationSummaryByTenant(ctx, tenantID, opts)
 
 	pipe := s.redisClient.Pipeline()
 	cmds := make([]*redis.MapStringStringCmd, len(destinationSummaryList))
@@ -253,7 +263,7 @@ func (s *entityStoreImpl) MatchEvent(ctx context.Context, event Event) ([]Destin
 }
 
 func (s *entityStoreImpl) matchEventWithAllDestination(ctx context.Context, event Event) ([]DestinationSummary, error) {
-	destinationSummaryList, err := s.ListDestinationSummaryByTenant(ctx, event.TenantID)
+	destinationSummaryList, err := s.listDestinationSummaryByTenant(ctx, event.TenantID, ListDestinationByTenantOpts{})
 	if err != nil {
 		return nil, err
 	}
@@ -311,4 +321,38 @@ func (s *entityStoreImpl) parseTenantTopics(destinationSummaryList []Destination
 
 	sort.Strings(topics)
 	return topics
+}
+
+type ListDestinationByTenantOpts struct {
+	Filter *DestinationFilter
+}
+
+type DestinationFilter struct {
+	Type   []string
+	Topics []string
+}
+
+func WithDestinationFilter(filter DestinationFilter) ListDestinationByTenantOpts {
+	return ListDestinationByTenantOpts{Filter: &filter}
+}
+
+// match returns true if the destinationSummary matches the options
+func (filter DestinationFilter) match(destinationSummary DestinationSummary) bool {
+	if len(filter.Type) > 0 && !slices.Contains(filter.Type, destinationSummary.Type) {
+		return false
+	}
+	if len(filter.Topics) > 0 {
+		filterMatchesAll := len(filter.Topics) == 1 && filter.Topics[0] == "*"
+		if !destinationSummary.Topics.MatchesAll() {
+			if filterMatchesAll {
+				return false
+			}
+			for _, topic := range filter.Topics {
+				if !slices.Contains(destinationSummary.Topics, topic) {
+					return false
+				}
+			}
+		}
+	}
+	return true
 }

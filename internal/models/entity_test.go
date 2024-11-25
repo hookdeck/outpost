@@ -356,37 +356,68 @@ func TestMultiDestinationSuite_ListDestinationByTenant(t *testing.T) {
 	}
 }
 
-func TestMultiDestinationSuite_UpdateDestination(t *testing.T) {
+func TestMultiDestinationSuite_ListDestination_WithOpts(t *testing.T) {
 	t.Parallel()
+
 	suite := multiDestinationSuite{}
 	suite.SetupTest(t)
 
-	updatedIndex := 2
-	updatedTopics := []string{"user.created"}
-	updatedDestination := suite.destinations[updatedIndex]
-	updatedDestination.Topics = updatedTopics
-	err := suite.entityStore.UpsertDestination(suite.ctx, updatedDestination)
-	require.NoError(t, err)
+	t.Run("filter by type: webhook", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Type: []string{"webhook"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 5)
+	})
 
-	actual, err := suite.entityStore.RetrieveDestination(suite.ctx, updatedDestination.TenantID, updatedDestination.ID)
-	require.NoError(t, err)
-	assert.Equal(t, updatedDestination.Topics, actual.Topics)
+	t.Run("filter by type: rabbitmq", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Type: []string{"rabbitmq"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 0)
+	})
 
-	destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID)
-	require.NoError(t, err)
-	assert.Len(t, destinations, 5)
+	t.Run("filter by type: webhook,rabbitmq", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Type: []string{"webhook", "rabbitmq"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 5)
+	})
 
-	destinationSummaryList, err := suite.entityStore.ListDestinationSummaryByTenant(suite.ctx, suite.tenant.ID)
-	require.NoError(t, err)
-	require.Len(t, destinationSummaryList, 5)
-	foundMatchingDestination := false
-	for _, destinationSummary := range destinationSummaryList {
-		if destinationSummary.ID == updatedDestination.ID {
-			foundMatchingDestination = true
-			assert.Equal(t, updatedDestination.Topics, destinationSummary.Topics)
-		}
-	}
-	assert.True(t, foundMatchingDestination, "Unable to find destination in destination summary list")
+	t.Run("filter by topic: user.created", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Topics: []string{"user.created"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 3)
+	})
+
+	t.Run("filter by topic: user.created,user.updated", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Topics: []string{"user.created", "user.updated"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 2)
+	})
+
+	t.Run("filter by type: rabbitmq, topic: user.created,user.updated", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Type:   []string{"rabbitmq"},
+			Topics: []string{"user.created", "user.updated"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 0)
+	})
+
+	t.Run("filter by topic: *", func(t *testing.T) {
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID, models.WithDestinationFilter(models.DestinationFilter{
+			Topics: []string{"*"},
+		}))
+		require.NoError(t, err)
+		require.Len(t, destinations, 1)
+	})
 }
 
 func TestMultiDestinationSuite_MatchEvent(t *testing.T) {
@@ -468,5 +499,53 @@ func TestMultiDestinationSuite_MatchEvent(t *testing.T) {
 
 		// Assert
 		require.Len(t, matchedDestinationSummaryList, 0)
+	})
+
+	t.Run("match after destination is updated", func(t *testing.T) {
+		updatedIndex := 2
+		updatedTopics := []string{"user.created"}
+		updatedDestination := suite.destinations[updatedIndex]
+		updatedDestination.Topics = updatedTopics
+		require.NoError(t, suite.entityStore.UpsertDestination(suite.ctx, updatedDestination))
+
+		actual, err := suite.entityStore.RetrieveDestination(suite.ctx, updatedDestination.TenantID, updatedDestination.ID)
+		require.NoError(t, err)
+		assert.Equal(t, updatedDestination.Topics, actual.Topics)
+
+		destinations, err := suite.entityStore.ListDestinationByTenant(suite.ctx, suite.tenant.ID)
+		require.NoError(t, err)
+		assert.Len(t, destinations, 5)
+
+		// Match user.created
+		event := models.Event{
+			ID:       uuid.New().String(),
+			Topic:    "user.created",
+			Time:     time.Now(),
+			TenantID: suite.tenant.ID,
+			Metadata: map[string]string{},
+			Data:     map[string]interface{}{},
+		}
+		matchedDestinationSummaryList, err := suite.entityStore.MatchEvent(suite.ctx, event)
+		require.NoError(t, err)
+		require.Len(t, matchedDestinationSummaryList, 4)
+		for _, summary := range matchedDestinationSummaryList {
+			require.Contains(t, []string{suite.destinations[0].ID, suite.destinations[1].ID, suite.destinations[2].ID, suite.destinations[4].ID}, summary.ID)
+		}
+
+		// Match user.updated
+		event = models.Event{
+			ID:       uuid.New().String(),
+			Topic:    "user.updated",
+			Time:     time.Now(),
+			TenantID: suite.tenant.ID,
+			Metadata: map[string]string{},
+			Data:     map[string]interface{}{},
+		}
+		matchedDestinationSummaryList, err = suite.entityStore.MatchEvent(suite.ctx, event)
+		require.NoError(t, err)
+		require.Len(t, matchedDestinationSummaryList, 2)
+		for _, summary := range matchedDestinationSummaryList {
+			require.Contains(t, []string{suite.destinations[0].ID, suite.destinations[4].ID}, summary.ID)
+		}
 	})
 }

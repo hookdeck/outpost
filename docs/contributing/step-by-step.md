@@ -94,7 +94,7 @@ $ curl --location 'localhost:3333/api/v1/123/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer apikey' \
 --data '{
-    "type": "webhooks",
+    "type": "webhook",
     "topics": ["*"],
     "config": {
         "url": "http://host.docker.internal:4444"
@@ -102,7 +102,7 @@ $ curl --location 'localhost:3333/api/v1/123/destinations' \
     "credentials": {
     }
 }'
-{"id":"abcxyz","type":"webhooks","topics":["*"],"config":{"url":"http://host.docker.internal:4444"},"credentials":{},"created_at":"...","disabled_at":null}%
+{"id":"abcxyz","type":"webhook","topics":["*"],"config":{"url":"http://host.docker.internal:4444"},"credentials":{},"created_at":"...","disabled_at":null}%
 ```
 
 Feel free to confirm that the destination is successfully created either in Redis or by listing the destination for tenant 123:

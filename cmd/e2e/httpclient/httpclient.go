@@ -82,7 +82,6 @@ func (r *Response) doMatchBody(mainBody ResponseBody, toMatchedBody ResponseBody
 		if !ok {
 			return false
 		}
-		log.Println(key, subValue, fullValue, cmp.Equal(fullValue, subValue))
 
 		switch subValueTyped := subValue.(type) {
 		case map[string]interface{}:

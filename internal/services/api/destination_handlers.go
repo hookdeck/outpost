@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -26,9 +27,23 @@ func NewDestinationHandlers(logger *otelzap.Logger, entityStore models.EntitySto
 	}
 }
 
-// TODO: support type & topics params
 func (h *DestinationHandlers) List(c *gin.Context) {
-	destinations, err := h.entityStore.ListDestinationByTenant(c.Request.Context(), c.Param("tenantID"))
+	typeParams := c.QueryArray("type")
+	topicsParams := c.QueryArray("topics")
+	var opts models.ListDestinationByTenantOpts
+	if len(typeParams) > 0 || len(topicsParams) > 0 {
+		opts = models.WithDestinationFilter(models.DestinationFilter{
+			Type:   typeParams,
+			Topics: topicsParams,
+		})
+	}
+	if opts.Filter == nil {
+		log.Println("no filter")
+	} else {
+		log.Println(*opts.Filter)
+	}
+
+	destinations, err := h.entityStore.ListDestinationByTenant(c.Request.Context(), c.Param("tenantID"), opts)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return

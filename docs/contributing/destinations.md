@@ -133,7 +133,7 @@ $ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: ••••••' \
 --data '{
-    "type": "webhooks",
+    "type": "webhook",
     "topics": ["*"],
     "config": {
         "url": "http://localhost:4444"
@@ -144,7 +144,7 @@ $ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
 ```json
 {
   "id": "...",
-  "type": "webhooks",
+  "type": "webhook",
   "topics": [
     "*"
   ],
