@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
-	"go.uber.org/zap"
 )
 
 func RequireTenantMiddleware(logger *otelzap.Logger, entityStore models.EntityStore) gin.HandlerFunc {
@@ -14,8 +13,7 @@ func RequireTenantMiddleware(logger *otelzap.Logger, entityStore models.EntitySt
 		tenantID := c.Param("tenantID")
 		tenant, err := entityStore.RetrieveTenant(c.Request.Context(), tenantID)
 		if err != nil {
-			logger.Error("failed to get tenant", zap.Error(err))
-			c.AbortWithStatus(http.StatusInternalServerError)
+			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 			return
 		}
 		if tenant == nil {

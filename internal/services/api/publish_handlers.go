@@ -11,7 +11,6 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
-	"go.uber.org/zap"
 )
 
 type PublishHandlers struct {
@@ -30,22 +29,19 @@ func NewPublishHandlers(
 }
 
 func (h *PublishHandlers) Ingest(c *gin.Context) {
-	logger := h.logger.Ctx(c.Request.Context())
 	var publishedEvent PublishedEvent
 	if err := c.ShouldBindJSON(&publishedEvent); err != nil {
-		logger.Error("failed to bind JSON", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		AbortWithValidationError(c, err)
 		return
 	}
 	event := publishedEvent.toEvent()
 	if err := h.eventHandler.Handle(c.Request.Context(), &event); err != nil {
-		logger.Error("failed to ingest event", zap.Error(err))
 		if errors.Is(err, idempotence.ErrConflict) {
 			c.Status(http.StatusConflict)
 		} else if errors.Is(err, publishmq.ErrInvalidTopic) {
-			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+			AbortWithValidationError(c, err)
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to ingest event"})
+			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		}
 		return
 	}
