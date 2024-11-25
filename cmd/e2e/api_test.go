@@ -874,6 +874,25 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 	suite.RunAPITests(suite.T(), tests)
 }
 
+func (suite *basicSuite) TestTopicsAPI() {
+	tests := []APITest{
+		{
+			Name: "GET /topics",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/topics",
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body:       suite.config.Topics,
+				},
+			},
+		},
+	}
+	suite.RunAPITests(suite.T(), tests)
+}
+
 func makeDestinationListValidator(length int) map[string]any {
 	return map[string]any{
 		"type": "object",

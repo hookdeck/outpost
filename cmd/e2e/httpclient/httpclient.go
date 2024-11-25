@@ -67,6 +67,9 @@ func (r *Response) MatchBody(body ResponseBody) bool {
 }
 
 func (r *Response) doMatchBody(mainBody ResponseBody, toMatchedBody ResponseBody) bool {
+	if isSlice(mainBody) && isSlice(toMatchedBody) {
+		return r.sliceCmpEqual(mainBody, toMatchedBody)
+	}
 	mainBodyTyped, ok := mainBody.(map[string]interface{})
 	if !ok {
 		return cmp.Equal(mainBody, toMatchedBody)
@@ -94,14 +97,8 @@ func (r *Response) doMatchBody(mainBody ResponseBody, toMatchedBody ResponseBody
 			}
 		default:
 			if isSlice(subValue) && isSlice(fullValue) {
-				subValueTyped := convertToInterfaceSlice(subValue)
-				fullValueTyped := convertToInterfaceSlice(fullValue)
-				for i, subValue := range subValueTyped {
-					log.Println("slice comparison at index", i, fullValueTyped[i], subValue, r.doMatchBody(fullValueTyped[i], subValue))
-					if !r.doMatchBody(fullValueTyped[i], subValue) {
-						log.Println("failed slice comparison at index", i, fullValueTyped[i], subValue, r.doMatchBody(fullValueTyped[i], subValue))
-						return false
-					}
+				if !r.sliceCmpEqual(fullValue, subValue) {
+					return false
 				}
 			} else {
 				if !jsonCmpEqual(fullValue, subValue) {
@@ -109,6 +106,22 @@ func (r *Response) doMatchBody(mainBody ResponseBody, toMatchedBody ResponseBody
 					return false
 				}
 			}
+		}
+	}
+	return true
+}
+
+func (r *Response) sliceCmpEqual(x, y interface{}) bool {
+	xTyped := convertToInterfaceSlice(x)
+	yTyped := convertToInterfaceSlice(y)
+	if len(xTyped) != len(yTyped) {
+		log.Println("failed slice comparison due to length")
+		return false
+	}
+	for i, yItem := range yTyped {
+		if !r.doMatchBody(xTyped[i], yItem) {
+			log.Println("failed slice comparison at index", i)
+			return false
 		}
 	}
 	return true
