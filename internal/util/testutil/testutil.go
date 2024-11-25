@@ -22,6 +22,12 @@ var TestTopics = []string{
 	"user.updated",
 }
 
+func CheckIntegrationTest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+}
+
 func CreateTestRedisConfig(t *testing.T) *internalredis.RedisConfig {
 	mr := miniredis.RunT(t)
 

@@ -17,7 +17,7 @@ import (
 )
 
 func setupClickHouseConnection(t *testing.T) clickhouse.DB {
-	t.Cleanup(testinfra.Start())
+	t.Cleanup(testinfra.Start(t))
 
 	chConfig := testinfra.NewClickHouseConfig(t)
 

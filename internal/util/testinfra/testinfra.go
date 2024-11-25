@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"testing"
 
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/spf13/viper"
 )
 
@@ -69,7 +71,8 @@ func ReadConfig() *Config {
 	return cfg
 }
 
-func Start() func() {
+func Start(t *testing.T) func() {
+	testutil.CheckIntegrationTest(t)
 	suiteCounter += 1
 	return func() {
 		suiteCounter -= 1

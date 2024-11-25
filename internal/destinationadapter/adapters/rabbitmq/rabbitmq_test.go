@@ -130,7 +130,7 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 
 	t.Parallel()
 
-	t.Cleanup(testinfra.Start())
+	t.Cleanup(testinfra.Start(t))
 	mq := testinfra.NewMQRabbitMQConfig(t)
 
 	rabbitmqDestination := rabbitmq.New()

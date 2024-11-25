@@ -16,7 +16,7 @@ func Basic(t *testing.T) (*config.Config, func(), error) {
 		}
 	}
 
-	t.Cleanup(testinfra.Start())
+	t.Cleanup(testinfra.Start(t))
 
 	// Config
 	redisConfig := testutil.CreateTestRedisConfig(t)
