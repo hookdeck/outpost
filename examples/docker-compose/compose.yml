@@ -1,7 +1,7 @@
 name: outpost-example
 services:
   api:
-    image: hookdeck/outpost:latest-arm64
+    image: hookdeck/outpost:latest
     env_file: .env
     depends_on:
       redis:
@@ -14,7 +14,7 @@ services:
       SERVICE: api
 
   delivery:
-    image: hookdeck/outpost:latest-arm64
+    image: hookdeck/outpost:latest
     env_file: .env
     depends_on:
       redis:
@@ -25,7 +25,7 @@ services:
       SERVICE: delivery
 
   log:
-    image: hookdeck/outpost:latest-arm64
+    image: hookdeck/outpost:latest
     env_file: .env
     depends_on:
       redis:
