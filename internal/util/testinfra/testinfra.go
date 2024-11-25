@@ -1,7 +1,6 @@
 package testinfra
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,7 +76,6 @@ func Start(t *testing.T) func() {
 	return func() {
 		suiteCounter -= 1
 		if suiteCounter == 0 {
-			log.Println("cleaning up", len(cfg.cleanupFns))
 			for _, fn := range cfg.cleanupFns {
 				fn()
 			}
