@@ -124,15 +124,10 @@ func TestRabbitMQDestination_Publish(t *testing.T) {
 }
 
 func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
-
 	t.Parallel()
-
 	t.Cleanup(testinfra.Start(t))
-	mq := testinfra.NewMQRabbitMQConfig(t)
 
+	mq := testinfra.NewMQRabbitMQConfig(t)
 	rabbitmqDestination := rabbitmq.New()
 
 	destination := adapters.DestinationAdapterValue{

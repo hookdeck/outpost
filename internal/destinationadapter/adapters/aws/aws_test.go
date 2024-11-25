@@ -3,21 +3,17 @@ package aws_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
 	awsadapter "github.com/hookdeck/outpost/internal/destinationadapter/adapters/aws"
-	"github.com/hookdeck/outpost/internal/util/testutil"
+	"github.com/hookdeck/outpost/internal/util/awsutil"
+	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -111,41 +107,21 @@ func TestAWSDestination_Validate(t *testing.T) {
 }
 
 func TestIntegrationAWSDestination_Publish(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
-
 	t.Parallel()
+	t.Cleanup(testinfra.Start(t))
 
-	// Setup SQS
-	awsEndpoint, terminate, err := testutil.StartTestcontainerLocalstack()
-	require.Nil(t, err)
-	defer terminate()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	queueName := "destination_sqs_queue"
-	awsRegion := "eu-central-1"
-
-	sdkConfig, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(awsRegion),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("test", "test", "")),
-	)
-	require.Nil(t, err)
-	sqsClient := sqs.NewFromConfig(sdkConfig, func(o *sqs.Options) {
-		o.BaseEndpoint = aws.String(awsEndpoint)
-	})
-	queueURL, err := ensureQueue(ctx, sqsClient, queueName)
-	require.Nil(t, err)
-
-	// Setup Destination & Event
+	mq := testinfra.NewMQAWSConfig(t, nil)
+	sqsClient, err := awsutil.SQSClientFromConfig(context.Background(), mq.AWSSQS)
+	require.NoError(t, err)
+	queueURL, err := awsutil.EnsureQueue(context.Background(), sqsClient, mq.AWSSQS.Topic, nil)
+	require.NoError(t, err)
 	awsdestination := awsadapter.New()
 
 	destination := adapters.DestinationAdapterValue{
 		ID:   uuid.New().String(),
 		Type: "aws",
 		Config: map[string]string{
-			"endpoint":  awsEndpoint,
+			"endpoint":  mq.AWSSQS.Endpoint,
 			"queue_url": queueURL,
 		},
 		Credentials: map[string]string{
@@ -157,6 +133,9 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 	// Subscribe to messages
 	errchan := make(chan error)
 	msgchan := make(chan *types.Message)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	go func() {
 		for {
@@ -212,8 +191,7 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 			"mykey": "myvaluee",
 		},
 	}
-	err = awsdestination.Publish(context.Background(), destination, event)
-	require.Nil(t, err)
+	require.NoError(t, awsdestination.Publish(context.Background(), destination, event))
 
 	// Assert
 	log.Println("waiting for msg...")
@@ -236,30 +214,4 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 	if assert.NotNil(t, msg.MessageAttributes["another_metadata"].StringValue) {
 		assert.Equal(t, "anothermetadatavalue", *msg.MessageAttributes["another_metadata"].StringValue)
 	}
-}
-
-func ensureQueue(ctx context.Context, sqsClient *sqs.Client, queueName string) (string, error) {
-	queue, err := sqsClient.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
-		QueueName: aws.String(queueName),
-	})
-	if err != nil {
-		var apiErr smithy.APIError
-		if errors.As(err, &apiErr) {
-			switch apiErr.(type) {
-			case *types.QueueDoesNotExist:
-				log.Println("Queue does not exist, creating...")
-				createdQueue, err := sqsClient.CreateQueue(ctx, &sqs.CreateQueueInput{
-					QueueName: aws.String(queueName),
-				})
-				if err != nil {
-					return "", err
-				}
-				return *createdQueue.QueueUrl, nil
-			default:
-				return "", err
-			}
-		}
-		return "", err
-	}
-	return *queue.QueueUrl, nil
 }
