@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,39 +28,16 @@ func TestIntegrationMQ_InMemory(t *testing.T) {
 }
 
 func TestIntegrationMQ_RabbitMQ(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
-
 	t.Parallel()
-
-	rabbitmqURL, terminate, err := testutil.StartTestcontainerRabbitMQ()
-	require.Nil(t, err)
-	defer terminate()
-
-	config := mqs.QueueConfig{RabbitMQ: &mqs.RabbitMQConfig{
-		ServerURL: rabbitmqURL,
-		Exchange:  "outpost",
-		Queue:     "outpost.delivery",
-	}}
-	testutil.DeclareTestRabbitMQInfrastructure(context.Background(), config.RabbitMQ)
+	t.Cleanup(testinfra.Start(t))
+	config := testinfra.NewMQRabbitMQConfig(t)
 	testMQ(t, func() mqs.QueueConfig { return config })
 }
 
 func TestIntegrationMQ_AWS(t *testing.T) {
 	t.Parallel()
-
-	awsEndpoint, terminate, err := testutil.StartTestcontainerLocalstack()
-	require.Nil(t, err)
-	defer terminate()
-
-	config := mqs.QueueConfig{AWSSQS: &mqs.AWSSQSConfig{
-		Endpoint:                  awsEndpoint,
-		Region:                    "eu-central-1",
-		ServiceAccountCredentials: "test:test:",
-		Topic:                     "outpost",
-	}}
-	testutil.DeclareTestAWSInfrastructure(context.Background(), config.AWSSQS, nil)
+	t.Cleanup(testinfra.Start(t))
+	config := testinfra.NewMQAWSConfig(t, nil)
 	testMQ(t, func() mqs.QueueConfig { return config })
 }
 

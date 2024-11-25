@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -197,15 +198,10 @@ func TestIdempotence_Failure(t *testing.T) {
 // - 1 message, failed twice before success
 // The 2 failed execution won't ack or nack the message to test visibility timeout.
 func TestIntegrationIdempotence_WithUnackedFailures(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
-
 	t.Parallel()
 
 	visibilityTimeout := 5 * time.Second
-	mq, cleanup := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
-	defer cleanup()
+	mq := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
 
 	ctx, cancel := context.WithTimeout(context.Background(), visibilityTimeout*3-visibilityTimeout/2)
 	defer cancel()
@@ -260,15 +256,10 @@ func TestIntegrationIdempotence_WithUnackedFailures(t *testing.T) {
 // - message will sleep for 2s before success
 // - publisher will publish the same message twice to test idempotency
 func TestIntegrationIdempotence_WithConcurrentHandlerAndSuccess(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
-
 	t.Parallel()
 
 	visibilityTimeout := 5 * time.Second
-	mq, cleanup := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
-	defer cleanup()
+	mq := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second) // exec should only take 2-4s
 	defer cancel()
@@ -349,15 +340,10 @@ func TestIntegrationIdempotence_WithConcurrentHandlerAndSuccess(t *testing.T) {
 // - message will failed twice, each exec taking 2s
 // - publisher will publish the same message twice to test idempotency
 func TestIntegrationIdempotence_WithConcurrentHandlerAndFailedExecution(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
-
 	t.Parallel()
 
 	visibilityTimeout := 5 * time.Second
-	mq, cleanup := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
-	defer cleanup()
+	mq := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
 
 	ctx, cancel := context.WithTimeout(context.Background(), visibilityTimeout*3-visibilityTimeout/2)
 	defer cancel()
@@ -445,24 +431,14 @@ func (m *MockMsg) ToMessage() (*mqs.Message, error) {
 	return &mqs.Message{Body: []byte(m.ID)}, nil
 }
 
-func startAWSSQSQueueWithVisibilityTimeout(ctx context.Context, t *testing.T, visibilityTimeout time.Duration) (mqs.Queue, func()) {
-	endpoint, cleanup, err := testutil.StartTestcontainerLocalstack()
-	require.Nil(t, err)
-	config := &mqs.QueueConfig{
-		AWSSQS: &mqs.AWSSQSConfig{
-			Endpoint:                  endpoint,
-			Region:                    "us-east-1",
-			ServiceAccountCredentials: "test:test:",
-			Topic:                     testutil.RandomString(10),
-		},
-	}
-	testutil.DeclareTestAWSInfrastructure(ctx, config.AWSSQS, map[string]string{
+func startAWSSQSQueueWithVisibilityTimeout(ctx context.Context, t *testing.T, visibilityTimeout time.Duration) mqs.Queue {
+	t.Cleanup(testinfra.Start(t))
+	mqConfig := testinfra.NewMQAWSConfig(t, map[string]string{
 		"VisibilityTimeout": strconv.Itoa(int(visibilityTimeout.Seconds())),
 	})
-	mq := mqs.NewQueue(config)
-	cleanupQueue, err := mq.Init(ctx)
-	return mq, func() {
-		cleanupQueue()
-		cleanup()
-	}
+	mq := mqs.NewQueue(&mqConfig)
+	cleanup, err := mq.Init(ctx)
+	t.Cleanup(cleanup)
+	require.NoError(t, err)
+	return mq
 }
