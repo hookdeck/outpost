@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log"
 	"net/http"
 
 	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
@@ -77,6 +79,12 @@ func makeRequest(ctx context.Context, url string, event *adapters.Event) error {
 
 	if resp.StatusCode >= 400 {
 		// TODO: improve error handling to store response value
+		// TODO: improve logger
+		log.Println(resp)
+		if bodyBytes, err := io.ReadAll(resp.Body); err == nil {
+			bodyString := string(bodyBytes)
+			log.Println("request error body:", bodyString)
+		}
 		return errors.New("request failed")
 	}
 
