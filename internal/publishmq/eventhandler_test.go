@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
-// NOTE: This test seems to be a bit flaky.
 func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
