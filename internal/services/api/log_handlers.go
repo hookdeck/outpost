@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
-	"go.uber.org/zap"
 )
 
 type LogHandlers struct {
@@ -39,8 +38,7 @@ func (h *LogHandlers) ListEvent(c *gin.Context) {
 		Limit:    limit,
 	})
 	if err != nil {
-		h.logger.Ctx(c.Request.Context()).Error("failed to list events", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list events"})
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 	if len(events) == 0 {
@@ -61,8 +59,7 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 	eventID := c.Param("eventID")
 	event, err := h.logStore.RetrieveEvent(c.Request.Context(), tenant.ID, eventID)
 	if err != nil {
-		h.logger.Ctx(c.Request.Context()).Error("failed to retrieve event", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve event"})
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 	if event == nil {
@@ -80,8 +77,7 @@ func (h *LogHandlers) ListDeliveryByEvent(c *gin.Context) {
 		EventID: eventID,
 	})
 	if err != nil {
-		h.logger.Ctx(c.Request.Context()).Error("failed to list deliveries", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list deliveries"})
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 	if len(deliveries) == 0 {
