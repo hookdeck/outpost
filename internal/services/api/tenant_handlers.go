@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
-	"go.uber.org/zap"
 )
 
 type TenantHandlers struct {
@@ -29,14 +28,12 @@ func NewTenantHandlers(
 }
 
 func (h *TenantHandlers) Upsert(c *gin.Context) {
-	logger := h.logger.Ctx(c.Request.Context())
 	tenantID := c.Param("tenantID")
 
 	// Check existing tenant.
 	tenant, err := h.entityStore.RetrieveTenant(c.Request.Context(), tenantID)
 	if err != nil {
-		logger.Error("failed to get tenant", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 
@@ -53,8 +50,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 		CreatedAt: time.Now(),
 	}
 	if err := h.entityStore.UpsertTenant(c.Request.Context(), *tenant); err != nil {
-		logger.Error("failed to set tenant", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 	c.JSON(http.StatusCreated, tenant)
@@ -66,12 +62,10 @@ func (h *TenantHandlers) Retrieve(c *gin.Context) {
 }
 
 func (h *TenantHandlers) Delete(c *gin.Context) {
-	logger := h.logger.Ctx(c.Request.Context())
 	tenantID := c.Param("tenantID")
 	err := h.entityStore.DeleteTenant(c.Request.Context(), tenantID)
 	if err != nil {
-		logger.Error("failed to delete tenant", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true})
@@ -79,12 +73,10 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 }
 
 func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
-	logger := h.logger.Ctx(c.Request.Context())
 	tenant := mustTenantFromContext(c)
 	jwtToken, err := JWT.New(h.jwtSecret, tenant.ID)
 	if err != nil {
-		logger.Error("failed to create jwt token", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 
