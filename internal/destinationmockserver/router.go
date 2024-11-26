@@ -20,7 +20,11 @@ func NewRouter(entityStore EntityStore) http.Handler {
 
 	r.GET("/destinations", handlers.ListDestination)
 	r.PUT("/destinations", handlers.UpsertDestination)
-	r.DELETE("/destinations/:id", handlers.DeleteDestination)
+	r.DELETE("/destinations/:destinationID", handlers.DeleteDestination)
+
+	r.POST("/webhook/:destinationID", handlers.ReceiveWebhookEvent)
+
+	r.GET("/destinations/:destinationID/events", handlers.ListEvent)
 
 	return r.Handler()
 }
@@ -47,6 +51,35 @@ func (h *Handlers) UpsertDestination(c *gin.Context) {
 }
 
 func (h *Handlers) DeleteDestination(c *gin.Context) {
-	h.entityStore.DeleteDestination(c.Request.Context(), c.Param("id"))
+	h.entityStore.DeleteDestination(c.Request.Context(), c.Param("destinationID"))
 	c.Status(http.StatusOK)
+}
+
+func (h *Handlers) ReceiveWebhookEvent(c *gin.Context) {
+	destinationID := c.Param("destinationID")
+	destination := h.entityStore.RetrieveDestination(c.Request.Context(), destinationID)
+	if destination == nil {
+		c.JSON(http.StatusNotFound, gin.H{"message": "destination not found"})
+		return
+	}
+
+	var input map[string]interface{}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	h.entityStore.ReceiveEvent(c.Request.Context(), destinationID, input)
+
+	c.Status(http.StatusOK)
+}
+
+func (h *Handlers) ListEvent(c *gin.Context) {
+	destinationID := c.Param("destinationID")
+	destination := h.entityStore.RetrieveDestination(c.Request.Context(), destinationID)
+	if destination == nil {
+		c.JSON(http.StatusNotFound, gin.H{"message": "destination not found"})
+		return
+	}
+	c.JSON(http.StatusOK, h.entityStore.ListEvent(c.Request.Context(), destinationID))
 }
