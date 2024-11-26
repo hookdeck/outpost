@@ -8,16 +8,7 @@ import (
 	"github.com/hookdeck/outpost/internal/util/testutil"
 )
 
-func Basic(t *testing.T) (*config.Config, func(), error) {
-	cleanupFns := []func(){}
-	cleanup := func() {
-		for _, fn := range cleanupFns {
-			fn()
-		}
-	}
-
-	t.Cleanup(testinfra.Start(t))
-
+func Basic(t *testing.T) *config.Config {
 	// Config
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	clickHouseConfig := testinfra.NewClickHouseConfig(t)
@@ -44,5 +35,5 @@ func Basic(t *testing.T) (*config.Config, func(), error) {
 		LogMaxConcurrency:      3,
 		RetryIntervalSeconds:   5,
 		RetryMaxCount:          3,
-	}, cleanup, nil
+	}
 }
