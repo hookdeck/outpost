@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -29,7 +30,7 @@ func (suite *basicSuite) TestPublishAPI() {
 			Name: "PUT mockserver/destinations",
 			Request: httpclient.Request{
 				Method:  httpclient.MethodPUT,
-				BaseURL: "http://localhost:5555",
+				BaseURL: suite.mockServerBaseURL,
 				Path:    "/destinations",
 				Body: map[string]interface{}{
 					"id":     sampleDestinationID,
@@ -56,7 +57,7 @@ func (suite *basicSuite) TestPublishAPI() {
 					"type":   "webhook",
 					"topics": "*",
 					"config": map[string]interface{}{
-						"url": "http://localhost:5555/webhook/" + sampleDestinationID,
+						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, sampleDestinationID),
 					},
 				},
 			}),
@@ -94,7 +95,7 @@ func (suite *basicSuite) TestPublishAPI() {
 			Name:  "GET mockserver/destinations/:destinationID/events",
 			Request: httpclient.Request{
 				Method:  httpclient.MethodGET,
-				BaseURL: "http://localhost:5555",
+				BaseURL: suite.mockServerBaseURL,
 				Path:    "/destinations/" + sampleDestinationID + "/events",
 			},
 			Expected: APITestExpectation{
