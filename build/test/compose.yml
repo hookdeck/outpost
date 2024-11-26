@@ -1,6 +1,13 @@
 name: "outpost-test"
 
 services:
+  mock:
+    image: outpost-mock
+    build:
+      context: ../../
+      dockerfile: ./build/test/Dockerfile.mock
+    ports:
+      - 35555:5555
   clickhouse:
     image: clickhouse/clickhouse-server:24-alpine
     ports:
