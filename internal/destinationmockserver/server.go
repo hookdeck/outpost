@@ -56,7 +56,8 @@ func (s *DestinationMockServer) Run(ctx context.Context) error {
 
 func New(config DestinationMockServerConfig) DestinationMockServer {
 	logger, _ := zap.NewDevelopment()
-	router := NewRouter()
+	entityStore := NewEntityStore()
+	router := NewRouter(entityStore)
 
 	return DestinationMockServer{
 		logger: logger,
