@@ -21,6 +21,7 @@ const (
 )
 
 type Request struct {
+	BaseURL string
 	Method  string
 	Path    string
 	Body    map[string]interface{}
@@ -28,6 +29,9 @@ type Request struct {
 }
 
 func (r *Request) ToHTTPRequest(baseURL string) (*http.Request, error) {
+	if r.BaseURL != "" {
+		baseURL = r.BaseURL
+	}
 	var bodyReader io.Reader
 	if r.Body != nil {
 		jsonBody, err := json.Marshal(r.Body)
