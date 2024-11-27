@@ -14,7 +14,6 @@ import (
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/destinationmockserver"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
-	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,10 +34,6 @@ func (suite *e2eSuite) SetupSuite() {
 	go func() {
 		application := app.New(suite.config)
 		application.Run(suite.ctx)
-	}()
-	go func() {
-		mockServer := destinationmockserver.New(*suite.mockServerConfig)
-		mockServer.Run(suite.ctx)
 	}()
 }
 
@@ -104,12 +99,6 @@ func (test *APITest) Run(t *testing.T, client httpclient.Client) {
 	}
 }
 
-func newMockServerConfig() *destinationmockserver.DestinationMockServerConfig {
-	return &destinationmockserver.DestinationMockServerConfig{
-		Port: testutil.RandomPortNumber(),
-	}
-}
-
 type basicSuite struct {
 	suite.Suite
 	e2eSuite
@@ -118,13 +107,10 @@ type basicSuite struct {
 func (suite *basicSuite) SetupSuite() {
 	t := suite.T()
 	t.Cleanup(testinfra.Start(t))
-	config := configs.Basic(t)
-	mockServerConfig := newMockServerConfig()
 	suite.e2eSuite = e2eSuite{
 		ctx:               context.Background(),
-		config:            config,
-		mockServerConfig:  mockServerConfig,
-		mockServerBaseURL: fmt.Sprintf("http://localhost:%d", mockServerConfig.Port),
+		config:            configs.Basic(t),
+		mockServerBaseURL: testinfra.GetMockServer(t),
 		cleanup:           func() {},
 	}
 	suite.e2eSuite.SetupSuite()

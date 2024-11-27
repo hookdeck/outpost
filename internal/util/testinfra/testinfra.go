@@ -22,6 +22,7 @@ type Config struct {
 	ClickHouseURL string
 	LocalStackURL string
 	RabbitMQURL   string
+	MockServerURL string
 	cleanupFns    []func()
 }
 
@@ -48,11 +49,16 @@ func initConfig() {
 		if !strings.Contains(rabbitmqURL, "amqp://") {
 			rabbitmqURL = "amqp://guest:guest@" + rabbitmqURL
 		}
+		mockServerURL := v.GetString("TEST_MOCKSERVER_URL")
+		if !strings.Contains(mockServerURL, "http://") {
+			mockServerURL = "http://" + mockServerURL
+		}
 		cfg = &Config{
 			TestInfra:     v.GetBool("TESTINFRA"),
 			ClickHouseURL: v.GetString("TEST_CLICKHOUSE_URL"),
 			LocalStackURL: localstackURL,
 			RabbitMQURL:   rabbitmqURL,
+			MockServerURL: mockServerURL,
 		}
 		return
 	}
@@ -62,6 +68,7 @@ func initConfig() {
 		ClickHouseURL: "",
 		LocalStackURL: "",
 		RabbitMQURL:   "",
+		MockServerURL: "",
 	}
 }
 
