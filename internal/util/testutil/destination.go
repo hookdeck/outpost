@@ -19,7 +19,7 @@ func (f *mockDestinationFactory) Any(opts ...func(*models.Destination)) models.D
 		ID:          uuid.New().String(),
 		Type:        "webhook",
 		Topics:      []string{"*"},
-		Config:      map[string]string{"url": "https://example.com"},
+		Config:      map[string]string{"url": "http://host.docker.internal:4444"},
 		Credentials: map[string]string{},
 		CreatedAt:   time.Now(),
 		TenantID:    uuid.New().String(),

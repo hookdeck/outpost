@@ -7,7 +7,10 @@ import (
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destinationmockserver"
+	"github.com/hookdeck/outpost/internal/destinationmockserver/mocksdk"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
+	"github.com/stretchr/testify/require"
 )
 
 var mockServerOnce sync.Once
@@ -37,4 +40,21 @@ func startMockServer(cfg *Config) {
 			panic(err)
 		}
 	}()
+}
+
+type MockServerInfra struct {
+	sdk destinationmockserver.EntityStore
+}
+
+func NewMockServerInfra(baseURL string) *MockServerInfra {
+	return &MockServerInfra{
+		sdk: mocksdk.New(baseURL),
+	}
+}
+
+func (mock *MockServerInfra) NewMockDestination(t *testing.T, destination models.Destination) {
+	require.NoError(t, mock.sdk.UpsertDestination(context.Background(), destination))
+	t.Cleanup(func() {
+		require.NoError(t, mock.sdk.DeleteDestination(context.Background(), destination.ID))
+	})
 }
