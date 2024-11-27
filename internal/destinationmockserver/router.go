@@ -81,9 +81,16 @@ func (h *Handlers) ReceiveWebhookEvent(c *gin.Context) {
 		return
 	}
 
-	h.entityStore.ReceiveEvent(c.Request.Context(), destinationID, input)
-
-	c.Status(http.StatusOK)
+	if event, err := h.entityStore.ReceiveEvent(c.Request.Context(), destinationID, input); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	} else {
+		if event.Success {
+			c.JSON(http.StatusOK, event)
+		} else {
+			c.JSON(http.StatusBadRequest, event)
+		}
+	}
 }
 
 func (h *Handlers) ListEvent(c *gin.Context) {
