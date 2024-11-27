@@ -13,7 +13,7 @@ type EntityStore interface {
 	UpsertDestination(ctx context.Context, destination models.Destination) error
 	DeleteDestination(ctx context.Context, id string) error
 
-	ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}) (*Event, error)
+	ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}, metadata map[string]string) (*Event, error)
 	ListEvent(ctx context.Context, destinationID string) ([]Event, error)
 }
 
@@ -66,7 +66,7 @@ func (s *entityStore) DeleteDestination(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *entityStore) ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}) (*Event, error) {
+func (s *entityStore) ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}, metadata map[string]string) (*Event, error) {
 	if _, ok := s.destinations[destinationID]; !ok {
 		return nil, errors.New("destination not found")
 	}
@@ -74,6 +74,9 @@ func (s *entityStore) ReceiveEvent(ctx context.Context, destinationID string, pa
 		s.events[destinationID] = make([]Event, 0)
 	}
 	event := Event{Success: true, Payload: payload}
+	if metadata["should_err"] == "true" {
+		event.Success = false
+	}
 	s.events[destinationID] = append(s.events[destinationID], event)
 	return &event, nil
 }

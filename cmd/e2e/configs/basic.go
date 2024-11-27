@@ -33,7 +33,7 @@ func Basic(t *testing.T) *config.Config {
 		PublishMaxConcurrency:  3,
 		DeliveryMaxConcurrency: 3,
 		LogMaxConcurrency:      3,
-		RetryIntervalSeconds:   5,
+		RetryIntervalSeconds:   1,
 		RetryMaxCount:          3,
 	}
 }

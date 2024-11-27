@@ -2,6 +2,7 @@ package destinationmockserver
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/models"
@@ -81,7 +82,15 @@ func (h *Handlers) ReceiveWebhookEvent(c *gin.Context) {
 		return
 	}
 
-	if event, err := h.entityStore.ReceiveEvent(c.Request.Context(), destinationID, input); err != nil {
+	metadata := map[string]string{}
+	for key, values := range c.Request.Header {
+		lowerKey := strings.ToLower(key)
+		if strings.HasPrefix(lowerKey, "x-outpost") {
+			metadata[strings.TrimPrefix(lowerKey, "x-outpost-")] = values[0]
+		}
+	}
+
+	if event, err := h.entityStore.ReceiveEvent(c.Request.Context(), destinationID, input, metadata); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	} else {

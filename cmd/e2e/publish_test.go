@@ -13,7 +13,7 @@ func (suite *basicSuite) TestPublishAPI() {
 	suite.T().Parallel()
 	tenantID := uuid.New().String()
 	sampleDestinationID := uuid.New().String()
-	sampleEventDataID := uuid.New().String()
+	eventIDs := []string{uuid.New().String(), uuid.New().String()}
 	tests := []APITest{
 		{
 			Name: "PUT /:tenantID",
@@ -81,7 +81,7 @@ func (suite *basicSuite) TestPublishAPI() {
 						"meta": "data",
 					},
 					"data": map[string]any{
-						"event_id": sampleEventDataID,
+						"event_id": eventIDs[0],
 					},
 				},
 			}),
@@ -106,8 +106,55 @@ func (suite *basicSuite) TestPublishAPI() {
 						map[string]interface{}{
 							"success": true,
 							"payload": map[string]interface{}{
-								"event_id": sampleEventDataID,
+								"event_id": eventIDs[0],
 							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "POST /publish with should_err metadata",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/publish",
+				Body: map[string]interface{}{
+					"tenant_id":          tenantID,
+					"topic":              "user.created",
+					"eligible_for_retry": true,
+					"metadata": map[string]any{
+						"meta":       "data",
+						"should_err": "true",
+					},
+					"data": map[string]any{
+						"event_id": eventIDs[1],
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Delay: 10 * time.Second, // retries - 1s + 2s + 4s
+			Name:  "GET mockserver/destinations/:destinationID/events",
+			Request: httpclient.Request{
+				Method:  httpclient.MethodGET,
+				BaseURL: suite.mockServerBaseURL,
+				Path:    "/destinations/" + sampleDestinationID + "/events",
+			},
+			Expected: APITestExpectation{
+				Validate: map[string]interface{}{
+					"properties": map[string]interface{}{
+						"statusCode": map[string]interface{}{
+							"const": http.StatusOK,
+						},
+						"body": map[string]interface{}{
+							"type":     "array",
+							"minItems": 5, // 1 initial success, 1 second error, 3 retry errors
+							"maxItems": 5,
 						},
 					},
 				},
