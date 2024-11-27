@@ -56,7 +56,11 @@ func NewService(ctx context.Context,
 	var eventBatcher *batcher.Batcher[*models.Event]
 	var deliveryBatcher *batcher.Batcher[*models.Delivery]
 	if handler == nil {
-		batcher, err := makeBatcher(ctx, logger, models.NewLogStore(chDB))
+		batcherCfg := batcherConfig{
+			ItemCountThreshold: cfg.LogBatcherItemCountThreshold,
+			DelayThreshold:     time.Duration(cfg.LogBatcherDelayThresholdSeconds) * time.Second,
+		}
+		batcher, err := makeBatcher(ctx, logger, models.NewLogStore(chDB), batcherCfg)
 		if err != nil {
 			return nil, err
 		}
@@ -108,11 +112,16 @@ func (s *LogService) Run(ctx context.Context) error {
 	return nil
 }
 
-func makeBatcher(ctx context.Context, logger *otelzap.Logger, logStore models.LogStore) (*batcher.Batcher[*mqs.Message], error) {
+type batcherConfig struct {
+	ItemCountThreshold int
+	DelayThreshold     time.Duration
+}
+
+func makeBatcher(ctx context.Context, logger *otelzap.Logger, logStore models.LogStore, batcherCfg batcherConfig) (*batcher.Batcher[*mqs.Message], error) {
 	b, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
 		GroupCountThreshold: 2,
-		ItemCountThreshold:  100,
-		DelayThreshold:      5 * time.Second,
+		ItemCountThreshold:  batcherCfg.ItemCountThreshold,
+		DelayThreshold:      batcherCfg.DelayThreshold,
 		NumGoroutines:       1,
 		Processor: func(_ string, msgs []*mqs.Message) {
 			logger.Ctx(ctx).Info("log batcher processor", zap.Int("msgs", len(msgs)))
