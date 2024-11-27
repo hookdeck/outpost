@@ -16,7 +16,7 @@ import (
 func NewMQAWSConfig(t *testing.T, attributes map[string]string) mqs.QueueConfig {
 	queueConfig := mqs.QueueConfig{
 		AWSSQS: &mqs.AWSSQSConfig{
-			Endpoint:                  ensureLocalStack(),
+			Endpoint:                  EnsureLocalStack(),
 			Region:                    "us-east-1",
 			ServiceAccountCredentials: "test:test:",
 			Topic:                     uuid.New().String(),
@@ -36,7 +36,7 @@ func NewMQAWSConfig(t *testing.T, attributes map[string]string) mqs.QueueConfig 
 
 var localstackOnce sync.Once
 
-func ensureLocalStack() string {
+func EnsureLocalStack() string {
 	cfg := ReadConfig()
 	if cfg.LocalStackURL == "" {
 		localstackOnce.Do(func() {

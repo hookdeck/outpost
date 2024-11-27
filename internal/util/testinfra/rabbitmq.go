@@ -15,7 +15,7 @@ import (
 func NewMQRabbitMQConfig(t *testing.T) mqs.QueueConfig {
 	queueConfig := mqs.QueueConfig{
 		RabbitMQ: &mqs.RabbitMQConfig{
-			ServerURL: ensureRabbitMQ(),
+			ServerURL: EnsureRabbitMQ(),
 			Exchange:  uuid.New().String(),
 			Queue:     uuid.New().String(),
 		},
@@ -34,7 +34,7 @@ func NewMQRabbitMQConfig(t *testing.T) mqs.QueueConfig {
 
 var rabbitmqOnce sync.Once
 
-func ensureRabbitMQ() string {
+func EnsureRabbitMQ() string {
 	cfg := ReadConfig()
 	if cfg.RabbitMQURL == "" {
 		rabbitmqOnce.Do(func() {
