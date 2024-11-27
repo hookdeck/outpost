@@ -86,28 +86,32 @@ func (sdk *sdk) DeleteDestination(ctx context.Context, id string) error {
 	return nil
 }
 
-func (sdk *sdk) ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}) error {
+func (sdk *sdk) ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}) (*destinationmockserver.Event, error) {
 	resp, err := sdk.client.post(ctx, "/webhook/"+destinationID, payload)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to receive event, status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf("failed to receive event, status code: %d", resp.StatusCode)
+	}
+	var event destinationmockserver.Event
+	if err := json.NewDecoder(resp.Body).Decode(&event); err != nil {
+		return nil, err
 	}
 
-	return nil
+	return &event, nil
 }
 
-func (sdk *sdk) ListEvent(ctx context.Context, destinationID string) ([]map[string]interface{}, error) {
+func (sdk *sdk) ListEvent(ctx context.Context, destinationID string) ([]destinationmockserver.Event, error) {
 	resp, err := sdk.client.get(ctx, "/destinations/"+destinationID+"/events")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	var events []map[string]interface{}
+	var events []destinationmockserver.Event
 	if err := json.NewDecoder(resp.Body).Decode(&events); err != nil {
 		return nil, err
 	}

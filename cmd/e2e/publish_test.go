@@ -104,7 +104,10 @@ func (suite *basicSuite) TestPublishAPI() {
 					StatusCode: http.StatusOK,
 					Body: []interface{}{
 						map[string]interface{}{
-							"event_id": sampleEventDataID,
+							"success": true,
+							"payload": map[string]interface{}{
+								"event_id": sampleEventDataID,
+							},
 						},
 					},
 				},

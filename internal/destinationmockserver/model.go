@@ -13,19 +13,24 @@ type EntityStore interface {
 	UpsertDestination(ctx context.Context, destination models.Destination) error
 	DeleteDestination(ctx context.Context, id string) error
 
-	ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}) error
-	ListEvent(ctx context.Context, destinationID string) ([]map[string]interface{}, error)
+	ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}) (*Event, error)
+	ListEvent(ctx context.Context, destinationID string) ([]Event, error)
+}
+
+type Event struct {
+	Success bool                   `json:"success"`
+	Payload map[string]interface{} `json:"payload"`
 }
 
 type entityStore struct {
 	destinations map[string]models.Destination
-	events       map[string][]map[string]interface{}
+	events       map[string][]Event
 }
 
 func NewEntityStore() EntityStore {
 	return &entityStore{
 		destinations: make(map[string]models.Destination),
-		events:       make(map[string][]map[string]interface{}),
+		events:       make(map[string][]Event),
 	}
 }
 
@@ -61,18 +66,19 @@ func (s *entityStore) DeleteDestination(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *entityStore) ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}) error {
+func (s *entityStore) ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}) (*Event, error) {
 	if _, ok := s.destinations[destinationID]; !ok {
-		return errors.New("destination not found")
+		return nil, errors.New("destination not found")
 	}
 	if s.events[destinationID] == nil {
-		s.events[destinationID] = make([]map[string]interface{}, 0)
+		s.events[destinationID] = make([]Event, 0)
 	}
-	s.events[destinationID] = append(s.events[destinationID], payload)
-	return nil
+	event := Event{Success: true, Payload: payload}
+	s.events[destinationID] = append(s.events[destinationID], event)
+	return &event, nil
 }
 
-func (s *entityStore) ListEvent(ctx context.Context, destinationID string) ([]map[string]interface{}, error) {
+func (s *entityStore) ListEvent(ctx context.Context, destinationID string) ([]Event, error) {
 	events, ok := s.events[destinationID]
 	if !ok {
 		return nil, errors.New("no events found for destination")
