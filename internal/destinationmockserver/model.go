@@ -53,6 +53,7 @@ func (s *entityStore) UpsertDestination(ctx context.Context, destination models.
 
 func (s *entityStore) DeleteDestination(ctx context.Context, id string) {
 	delete(s.destinations, id)
+	delete(s.events, id)
 }
 
 func (s *entityStore) ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}) {
