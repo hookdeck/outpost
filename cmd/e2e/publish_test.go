@@ -10,6 +10,7 @@ import (
 )
 
 func (suite *basicSuite) TestPublishAPI() {
+	suite.T().Parallel()
 	tenantID := uuid.New().String()
 	sampleDestinationID := uuid.New().String()
 	sampleEventDataID := uuid.New().String()
@@ -106,6 +107,19 @@ func (suite *basicSuite) TestPublishAPI() {
 							"event_id": sampleEventDataID,
 						},
 					},
+				},
+			},
+		},
+		{
+			Name: "DELETE mockserver/destinations/:destinationID",
+			Request: httpclient.Request{
+				Method:  httpclient.MethodDELETE,
+				BaseURL: suite.mockServerBaseURL,
+				Path:    "/destinations/" + sampleDestinationID,
+			},
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
 				},
 			},
 		},
