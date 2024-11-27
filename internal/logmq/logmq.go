@@ -14,7 +14,6 @@ type LogInfra interface {
 type LogMQ struct {
 	queueConfig *mqs.QueueConfig
 	queue       mqs.Queue
-	infra       LogInfra
 }
 
 type LogMQOption struct {
@@ -35,34 +34,13 @@ func New(opts ...func(opts *LogMQOption)) *LogMQ {
 	queueConfig := options.QueueConfig
 	queue := mqs.NewQueue(queueConfig)
 
-	// infra
-	var infra LogInfra
-	if queueConfig == nil {
-	} else if queueConfig.AWSSQS != nil {
-		infra = NewLogAWSInfra(queueConfig.AWSSQS)
-	} else if queueConfig.AzureServiceBus != nil {
-		// ...
-	} else if queueConfig.GCPPubSub != nil {
-		// ...
-	} else if queueConfig.RabbitMQ != nil {
-		infra = NewLogRabbitMQInfra(queueConfig.RabbitMQ)
-	}
-
 	return &LogMQ{
 		queueConfig: queueConfig,
 		queue:       queue,
-		infra:       infra,
 	}
 }
 
 func (q *LogMQ) Init(ctx context.Context) (func(), error) {
-	if q.infra != nil {
-		err := q.infra.DeclareInfrastructure(ctx)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return q.queue.Init(ctx)
 }
 

@@ -1,9 +1,14 @@
 package configs
 
 import (
+	"context"
+	"log"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/infra"
+	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 )
@@ -12,8 +17,35 @@ func Basic(t *testing.T) *config.Config {
 	// Config
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	clickHouseConfig := testinfra.NewClickHouseConfig(t)
-	deliveryMQConfig := testinfra.NewMQAWSConfig(t, nil)
-	logMQConfig := testinfra.NewMQAWSConfig(t, nil)
+	rabbitmqServerURL := testinfra.EnsureRabbitMQ()
+	deliveryMQConfig := mqs.QueueConfig{
+		RabbitMQ: &mqs.RabbitMQConfig{
+			ServerURL: rabbitmqServerURL,
+			Exchange:  uuid.New().String(),
+			Queue:     uuid.New().String(),
+		},
+		Policy: mqs.Policy{
+			RetryLimit: 5,
+		},
+	}
+	logMQConfig := mqs.QueueConfig{
+		RabbitMQ: &mqs.RabbitMQConfig{
+			ServerURL: rabbitmqServerURL,
+			Exchange:  uuid.New().String(),
+			Queue:     uuid.New().String(),
+		},
+		Policy: mqs.Policy{
+			RetryLimit: 5,
+		},
+	}
+	t.Cleanup(func() {
+		if err := infra.Teardown(context.Background(), infra.Config{
+			DeliveryMQ: &deliveryMQConfig,
+			LogMQ:      &logMQConfig,
+		}); err != nil {
+			log.Println("Teardown failed:", err)
+		}
+	})
 
 	return &config.Config{
 		Hostname:                        "outpost",

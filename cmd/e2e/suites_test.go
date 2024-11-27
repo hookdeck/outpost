@@ -32,7 +32,9 @@ func (suite *e2eSuite) SetupSuite() {
 	suite.client = httpclient.New(fmt.Sprintf("http://localhost:%d/api/v1", suite.config.Port), suite.config.APIKey)
 	go func() {
 		application := app.New(suite.config)
-		application.Run(suite.ctx)
+		if err := application.Run(suite.ctx); err != nil {
+			log.Println("Application failed to run", err)
+		}
 	}()
 }
 
@@ -117,6 +119,7 @@ func (suite *basicSuite) SetupSuite() {
 	suite.e2eSuite.SetupSuite()
 
 	// wait for outpost services to start
+	// TODO: replace with a health check
 	time.Sleep(2 * time.Second)
 }
 

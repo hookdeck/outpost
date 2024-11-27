@@ -8,7 +8,7 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 )
 
-func DeclareRabbitMQ(ctx context.Context, cfg *mqs.QueueConfig, policy *mqs.Policy) error {
+func DeclareRabbitMQ(ctx context.Context, cfg *mqs.QueueConfig) error {
 	if cfg.RabbitMQ == nil {
 		return errors.New("failed assertion: cfg.RabbitMQ != nil") // IMPOSSIBLE
 	}
@@ -48,7 +48,7 @@ func DeclareRabbitMQ(ctx context.Context, cfg *mqs.QueueConfig, policy *mqs.Poli
 		amqp091.Table{
 			"x-queue-type":           "quorum",
 			"x-dead-letter-exchange": dlx,
-			"x-delivery-limit":       policy.RetryLimit,
+			"x-delivery-limit":       cfg.Policy.RetryLimit,
 		}, // arguments
 	); err != nil {
 		return err

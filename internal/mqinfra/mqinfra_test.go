@@ -25,10 +25,13 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 			Exchange:  uuid.New().String(),
 			Queue:     uuid.New().String(),
 		},
+		Policy: mqs.Policy{
+			RetryLimit: 5,
+		},
 	}
 
 	ctx := context.Background()
-	require.NoError(t, mqinfra.DeclareMQ(ctx, mqConfig, mqs.Policy{RetryLimit: 5}))
+	require.NoError(t, mqinfra.DeclareMQ(ctx, mqConfig))
 
 	t.Cleanup(func() {
 		require.NoError(t, mqinfra.TeardownMQ(ctx, mqConfig))
@@ -128,6 +131,9 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 				ServerURL: mqConfig.RabbitMQ.ServerURL,
 				Exchange:  mqConfig.RabbitMQ.Exchange + ".dlx",
 				Queue:     mqConfig.RabbitMQ.Queue + ".dlq",
+			},
+			Policy: mqs.Policy{
+				RetryLimit: 5,
 			},
 		}
 

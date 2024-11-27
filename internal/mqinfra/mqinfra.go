@@ -7,7 +7,7 @@ import (
 	"github.com/hookdeck/outpost/internal/mqs"
 )
 
-func DeclareMQ(ctx context.Context, cfg mqs.QueueConfig, policy mqs.Policy) error {
+func DeclareMQ(ctx context.Context, cfg mqs.QueueConfig) error {
 	if cfg.AWSSQS != nil {
 		return NewErrUnimplemented("AWSSQS")
 	}
@@ -18,7 +18,7 @@ func DeclareMQ(ctx context.Context, cfg mqs.QueueConfig, policy mqs.Policy) erro
 		return NewErrUnimplemented("GCPPubSub")
 	}
 	if cfg.RabbitMQ != nil {
-		return DeclareRabbitMQ(ctx, &cfg, &policy)
+		return DeclareRabbitMQ(ctx, &cfg)
 	}
 	return ErrInvalidConfig
 }

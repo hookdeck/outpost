@@ -14,7 +14,6 @@ type DeliveryInfra interface {
 type DeliveryMQ struct {
 	queueConfig *mqs.QueueConfig
 	queue       mqs.Queue
-	infra       DeliveryInfra
 }
 
 type DeliveryMQOption struct {
@@ -35,34 +34,13 @@ func New(opts ...func(opts *DeliveryMQOption)) *DeliveryMQ {
 	queueConfig := options.QueueConfig
 	queue := mqs.NewQueue(queueConfig)
 
-	// infra
-	var infra DeliveryInfra
-	if queueConfig == nil {
-	} else if queueConfig.AWSSQS != nil {
-		infra = NewDeliveryAWSInfra(queueConfig.AWSSQS)
-	} else if queueConfig.AzureServiceBus != nil {
-		// ...
-	} else if queueConfig.GCPPubSub != nil {
-		// ...
-	} else if queueConfig.RabbitMQ != nil {
-		infra = NewDeliveryRabbitMQInfra(queueConfig.RabbitMQ)
-	}
-
 	return &DeliveryMQ{
 		queueConfig: queueConfig,
 		queue:       queue,
-		infra:       infra,
 	}
 }
 
 func (q *DeliveryMQ) Init(ctx context.Context) (func(), error) {
-	if q.infra != nil {
-		err := q.infra.DeclareInfrastructure(ctx)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return q.queue.Init(ctx)
 }
 

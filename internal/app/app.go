@@ -10,6 +10,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/otel"
 	"github.com/hookdeck/outpost/internal/services/api"
 	"github.com/hookdeck/outpost/internal/services/delivery"
@@ -48,6 +49,13 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	}
 	defer chDB.Close()
 	if err := clickhouse.RunMigration_Temporary(mainContext, chDB); err != nil {
+		return err
+	}
+
+	if err := infra.Declare(mainContext, infra.Config{
+		DeliveryMQ: cfg.DeliveryQueueConfig,
+		LogMQ:      cfg.LogQueueConfig,
+	}); err != nil {
 		return err
 	}
 
