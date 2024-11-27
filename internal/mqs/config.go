@@ -15,6 +15,10 @@ type QueueConfig struct {
 	InMemory *InMemoryConfig
 }
 
+type Policy struct {
+	RetryLimit int
+}
+
 type AzureServiceBusConfig struct {
 }
 

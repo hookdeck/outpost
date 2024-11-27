@@ -28,7 +28,7 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	require.NoError(t, mqinfra.DeclareMQ(ctx, mqConfig))
+	require.NoError(t, mqinfra.DeclareMQ(ctx, mqConfig, mqs.Policy{RetryLimit: 5}))
 
 	t.Cleanup(func() {
 		require.NoError(t, mqinfra.TeardownMQ(ctx, mqConfig))
