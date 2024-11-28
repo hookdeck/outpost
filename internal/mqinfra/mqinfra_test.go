@@ -15,20 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
+func testMQInfra(t *testing.T, mqConfig mqs.QueueConfig) {
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
-
-	mqConfig := mqs.QueueConfig{
-		RabbitMQ: &mqs.RabbitMQConfig{
-			ServerURL: testinfra.EnsureRabbitMQ(),
-			Exchange:  uuid.New().String(),
-			Queue:     uuid.New().String(),
-		},
-		Policy: mqs.Policy{
-			RetryLimit: 5,
-		},
-	}
 
 	ctx := context.Background()
 	infra := mqinfra.New(&mqConfig)
@@ -172,5 +161,18 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 		}
 		assert.Equal(t, 1, dlmsgCount)
 		assert.Equal(t, msg.ID, dlmsg.ID)
+	})
+}
+
+func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
+	testMQInfra(t, mqs.QueueConfig{
+		RabbitMQ: &mqs.RabbitMQConfig{
+			ServerURL: testinfra.EnsureRabbitMQ(),
+			Exchange:  uuid.New().String(),
+			Queue:     uuid.New().String(),
+		},
+		Policy: mqs.Policy{
+			RetryLimit: 5,
+		},
 	})
 }
