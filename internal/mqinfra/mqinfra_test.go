@@ -176,3 +176,17 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 		},
 	})
 }
+
+func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
+	testMQInfra(t, mqs.QueueConfig{
+		AWSSQS: &mqs.AWSSQSConfig{
+			Endpoint:                  testinfra.EnsureLocalStack(),
+			ServiceAccountCredentials: "test:test:",
+			Region:                    "us-east-1",
+			Topic:                     uuid.New().String(),
+		},
+		Policy: mqs.Policy{
+			RetryLimit: 5,
+		},
+	})
+}

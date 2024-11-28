@@ -13,7 +13,7 @@ type infraRabbitMQ struct {
 }
 
 func (infra *infraRabbitMQ) Declare(ctx context.Context) error {
-	if infra.cfg.RabbitMQ == nil {
+	if infra.cfg == nil || infra.cfg.RabbitMQ == nil {
 		return errors.New("failed assertion: cfg.RabbitMQ != nil") // IMPOSSIBLE
 	}
 
@@ -105,7 +105,7 @@ func (infra *infraRabbitMQ) Declare(ctx context.Context) error {
 }
 
 func (infra *infraRabbitMQ) TearDown(ctx context.Context) error {
-	if infra.cfg.RabbitMQ == nil {
+	if infra.cfg == nil || infra.cfg.RabbitMQ == nil {
 		return errors.New("failed assertion: cfg.RabbitMQ != nil") // IMPOSSIBLE
 	}
 

@@ -14,7 +14,7 @@ type MQInfra interface {
 
 func New(cfg *mqs.QueueConfig) MQInfra {
 	if cfg.AWSSQS != nil {
-		return &infraUnimplemented{}
+		return &infraAWSSQS{cfg: cfg}
 	}
 	if cfg.AzureServiceBus != nil {
 		return &infraUnimplemented{}
