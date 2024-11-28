@@ -14,13 +14,13 @@ type Config struct {
 
 func Declare(ctx context.Context, cfg Config) error {
 	if cfg.DeliveryMQ != nil {
-		if err := mqinfra.DeclareMQ(ctx, *cfg.DeliveryMQ); err != nil {
+		if err := mqinfra.New(cfg.DeliveryMQ).Declare(ctx); err != nil {
 			return err
 		}
 	}
 
 	if cfg.LogMQ != nil {
-		if err := mqinfra.DeclareMQ(ctx, *cfg.LogMQ); err != nil {
+		if err := mqinfra.New(cfg.LogMQ).Declare(ctx); err != nil {
 			return err
 		}
 	}
@@ -30,13 +30,13 @@ func Declare(ctx context.Context, cfg Config) error {
 
 func Teardown(ctx context.Context, cfg Config) error {
 	if cfg.DeliveryMQ != nil {
-		if err := mqinfra.TeardownMQ(ctx, *cfg.DeliveryMQ); err != nil {
+		if err := mqinfra.New(cfg.DeliveryMQ).TearDown(ctx); err != nil {
 			return err
 		}
 	}
 
 	if cfg.LogMQ != nil {
-		if err := mqinfra.TeardownMQ(ctx, *cfg.LogMQ); err != nil {
+		if err := mqinfra.New(cfg.LogMQ).TearDown(ctx); err != nil {
 			return err
 		}
 	}

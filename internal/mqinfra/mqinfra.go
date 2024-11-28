@@ -7,42 +7,51 @@ import (
 	"github.com/hookdeck/outpost/internal/mqs"
 )
 
-func DeclareMQ(ctx context.Context, cfg mqs.QueueConfig) error {
+type MQInfra interface {
+	Declare(ctx context.Context) error
+	TearDown(ctx context.Context) error
+}
+
+func New(cfg *mqs.QueueConfig) MQInfra {
 	if cfg.AWSSQS != nil {
-		return NewErrUnimplemented("AWSSQS")
+		return &infraUnimplemented{}
 	}
 	if cfg.AzureServiceBus != nil {
-		return NewErrUnimplemented("AzureServiceBus")
+		return &infraUnimplemented{}
 	}
 	if cfg.GCPPubSub != nil {
-		return NewErrUnimplemented("GCPPubSub")
+		return &infraUnimplemented{}
 	}
 	if cfg.RabbitMQ != nil {
-		return DeclareRabbitMQ(ctx, &cfg)
+		return &infraRabbitMQ{cfg: cfg}
 	}
+
+	return &infraInvalid{}
+}
+
+type infraInvalid struct {
+}
+
+func (infra *infraInvalid) Declare(ctx context.Context) error {
 	return ErrInvalidConfig
 }
 
-func TeardownMQ(ctx context.Context, cfg mqs.QueueConfig) error {
-	if cfg.AWSSQS != nil {
-		return NewErrUnimplemented("AWSSQS")
-	}
-	if cfg.AzureServiceBus != nil {
-		return NewErrUnimplemented("AzureServiceBus")
-	}
-	if cfg.GCPPubSub != nil {
-		return NewErrUnimplemented("GCPPubSub")
-	}
-	if cfg.RabbitMQ != nil {
-		return TeardownRabbitMQ(ctx, &cfg)
-	}
+func (infra *infraInvalid) TearDown(ctx context.Context) error {
+	return ErrInvalidConfig
+}
+
+type infraUnimplemented struct {
+}
+
+func (infra *infraUnimplemented) Declare(ctx context.Context) error {
+	return ErrInvalidConfig
+}
+
+func (infra *infraUnimplemented) TearDown(ctx context.Context) error {
 	return ErrInvalidConfig
 }
 
 var (
-	ErrInvalidConfig = fmt.Errorf("invalid config")
+	ErrInvalidConfig      = fmt.Errorf("invalid config")
+	ErrInfraUnimplemented = fmt.Errorf("unimplemented infra")
 )
-
-func NewErrUnimplemented(name string) error {
-	return fmt.Errorf("mqinfra.DeclareMQ unimplemented: %s", name)
-}

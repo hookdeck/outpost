@@ -31,10 +31,11 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	require.NoError(t, mqinfra.DeclareMQ(ctx, mqConfig))
+	infra := mqinfra.New(&mqConfig)
+	require.NoError(t, infra.Declare(ctx))
 
 	t.Cleanup(func() {
-		require.NoError(t, mqinfra.TeardownMQ(ctx, mqConfig))
+		require.NoError(t, infra.TearDown(ctx))
 	})
 
 	t.Run("should create queue", func(t *testing.T) {
