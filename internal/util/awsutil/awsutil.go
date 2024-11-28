@@ -78,7 +78,7 @@ func MakeCreateQueue(attributes map[string]string) CreateQueueFn {
 	}
 }
 
-func GetQueueARN(ctx context.Context, sqsClient *sqs.Client, queueURL string) (string, error) {
+func RetrieveQueueARN(ctx context.Context, sqsClient *sqs.Client, queueURL string) (string, error) {
 	attributesOutput, err := sqsClient.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
 		QueueUrl: aws.String(queueURL),
 		AttributeNames: []types.QueueAttributeName{

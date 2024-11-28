@@ -17,7 +17,8 @@ type QueueConfig struct {
 }
 
 type Policy struct {
-	RetryLimit int
+	VisibilityTimeout int // seconds
+	RetryLimit        int
 }
 
 type AzureServiceBusConfig struct {

@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testMQInfra(t *testing.T, mqConfig mqs.QueueConfig) {
+const retryLimit = 3
+
+func testMQInfra(t *testing.T, mqConfig mqs.QueueConfig, dlqConfig mqs.QueueConfig) {
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 
@@ -110,22 +112,11 @@ func testMQInfra(t *testing.T, mqConfig mqs.QueueConfig) {
 			select {
 			case <-msgchan:
 				msgCount++
-			case <-time.After(1 * time.Second):
+			case <-time.After(3 * time.Second):
 				break loop
 			}
 		}
-		require.Equal(t, 6, msgCount)
-
-		dlqConfig := mqs.QueueConfig{
-			RabbitMQ: &mqs.RabbitMQConfig{
-				ServerURL: mqConfig.RabbitMQ.ServerURL,
-				Exchange:  mqConfig.RabbitMQ.Exchange + ".dlx",
-				Queue:     mqConfig.RabbitMQ.Queue + ".dlq",
-			},
-			Policy: mqs.Policy{
-				RetryLimit: 5,
-			},
-		}
+		require.Equal(t, retryLimit+1, msgCount)
 
 		dlmq := mqs.NewQueue(&dlqConfig)
 		dlsubscription, err := dlmq.Subscribe(ctx)
@@ -165,28 +156,53 @@ func testMQInfra(t *testing.T, mqConfig mqs.QueueConfig) {
 }
 
 func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
-	testMQInfra(t, mqs.QueueConfig{
-		RabbitMQ: &mqs.RabbitMQConfig{
-			ServerURL: testinfra.EnsureRabbitMQ(),
-			Exchange:  uuid.New().String(),
-			Queue:     uuid.New().String(),
+	exchange := uuid.New().String()
+	queue := uuid.New().String()
+
+	testMQInfra(t,
+		mqs.QueueConfig{
+			RabbitMQ: &mqs.RabbitMQConfig{
+				ServerURL: testinfra.EnsureRabbitMQ(),
+				Exchange:  exchange,
+				Queue:     queue,
+			},
+			Policy: mqs.Policy{
+				RetryLimit: retryLimit,
+			},
 		},
-		Policy: mqs.Policy{
-			RetryLimit: 5,
+		mqs.QueueConfig{
+			RabbitMQ: &mqs.RabbitMQConfig{
+				ServerURL: testinfra.EnsureRabbitMQ(),
+				Exchange:  exchange + ".dlx",
+				Queue:     queue + ".dlq",
+			},
 		},
-	})
+	)
 }
 
 func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
-	testMQInfra(t, mqs.QueueConfig{
-		AWSSQS: &mqs.AWSSQSConfig{
-			Endpoint:                  testinfra.EnsureLocalStack(),
-			ServiceAccountCredentials: "test:test:",
-			Region:                    "us-east-1",
-			Topic:                     uuid.New().String(),
+	q := uuid.New().String()
+
+	testMQInfra(t,
+		mqs.QueueConfig{
+			AWSSQS: &mqs.AWSSQSConfig{
+				Endpoint:                  testinfra.EnsureLocalStack(),
+				ServiceAccountCredentials: "test:test:",
+				Region:                    "us-east-1",
+				Topic:                     q,
+			},
+			Policy: mqs.Policy{
+				RetryLimit:        retryLimit,
+				VisibilityTimeout: 1,
+			},
 		},
-		Policy: mqs.Policy{
-			RetryLimit: 5,
+		mqs.QueueConfig{
+			AWSSQS: &mqs.AWSSQSConfig{
+				Endpoint:                  testinfra.EnsureLocalStack(),
+				ServiceAccountCredentials: "test:test:",
+				Region:                    "us-east-1",
+				Topic:                     q + "-dlq",
+			},
 		},
-	})
+	)
 }
