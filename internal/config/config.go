@@ -137,10 +137,12 @@ func Parse(flags Flags) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	deliveryQueueConfig.Policy.RetryLimit = viper.GetInt("DELIVERYMQ_RETRY_LIMIT")
 	logQueueConfig, err := mqs.ParseQueueConfig(viper, "LOG")
 	if err != nil {
 		return nil, err
 	}
+	logQueueConfig.Policy.RetryLimit = viper.GetInt("LOGMQ_RETRY_LIMIT")
 
 	portalProxyURL := viper.GetString("PORTAL_PROXY_URL")
 	if portalProxyURL != "" {
