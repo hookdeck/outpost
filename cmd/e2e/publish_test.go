@@ -10,7 +10,6 @@ import (
 )
 
 func (suite *basicSuite) TestPublishAPI() {
-	suite.T().Parallel()
 	tenantID := uuid.New().String()
 	sampleDestinationID := uuid.New().String()
 	eventIDs := []string{uuid.New().String(), uuid.New().String()}

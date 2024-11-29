@@ -51,6 +51,7 @@ func (s *e2eSuite) AuthRequest(req httpclient.Request) httpclient.Request {
 }
 
 func (suite *e2eSuite) RunAPITests(t *testing.T, tests []APITest) {
+	t.Helper()
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			test.Run(t, suite.client)
@@ -71,6 +72,8 @@ type APITestExpectation struct {
 }
 
 func (test *APITest) Run(t *testing.T, client httpclient.Client) {
+	t.Helper()
+
 	if test.Delay > 0 {
 		time.Sleep(test.Delay)
 	}
@@ -128,6 +131,7 @@ func (s *basicSuite) TearDownSuite() {
 }
 
 func TestBasicSuite(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}

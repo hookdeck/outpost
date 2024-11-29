@@ -8,7 +8,6 @@ import (
 )
 
 func (suite *basicSuite) TestHealthzAPI() {
-	suite.T().Parallel()
 	tests := []APITest{
 		{
 			Name: "GET /healthz",
@@ -27,7 +26,6 @@ func (suite *basicSuite) TestHealthzAPI() {
 }
 
 func (suite *basicSuite) TestTenantsAPI() {
-	suite.T().Parallel()
 	tenantID := uuid.New().String()
 	sampleDestinationID := uuid.New().String()
 	tests := []APITest{
@@ -221,7 +219,6 @@ func (suite *basicSuite) TestTenantsAPI() {
 }
 
 func (suite *basicSuite) TestDestinationsAPI() {
-	suite.T().Parallel()
 	tenantID := uuid.New().String()
 	sampleDestinationID := uuid.New().String()
 	tests := []APITest{
@@ -572,7 +569,6 @@ func (suite *basicSuite) TestDestinationsAPI() {
 }
 
 func (suite *basicSuite) TestDestinationsListAPI() {
-	suite.T().Parallel()
 	tenantID := uuid.New().String()
 	tests := []APITest{
 		{
@@ -739,7 +735,6 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 }
 
 func (suite *basicSuite) TestDestinationEnableDisableAPI() {
-	suite.T().Parallel()
 	tenantID := uuid.New().String()
 	sampleDestinationID := uuid.New().String()
 	tests := []APITest{
@@ -880,7 +875,6 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 }
 
 func (suite *basicSuite) TestTopicsAPI() {
-	suite.T().Parallel()
 	tests := []APITest{
 		{
 			Name: "GET /topics",
