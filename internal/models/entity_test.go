@@ -78,6 +78,15 @@ func TestEntityStore_TenantCRUD(t *testing.T) {
 	t.Run("deletes non-existent", func(t *testing.T) {
 		assert.ErrorIs(t, entityStore.DeleteTenant(context.Background(), "non-existent-tenant"), models.ErrTenantNotFound)
 	})
+
+	t.Run("creates & overrides deleted resource", func(t *testing.T) {
+		require.NoError(t, entityStore.UpsertTenant(context.Background(), input))
+
+		actual, err := entityStore.RetrieveTenant(context.Background(), input.ID)
+		require.NoError(t, err)
+		assert.Equal(t, input.ID, actual.ID)
+		assert.True(t, input.CreatedAt.Equal(actual.CreatedAt))
+	})
 }
 
 func TestEntityStore_DestinationCRUD(t *testing.T) {

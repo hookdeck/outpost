@@ -94,7 +94,19 @@ func (s *entityStoreImpl) RetrieveTenant(ctx context.Context, tenantID string) (
 }
 
 func (s *entityStoreImpl) UpsertTenant(ctx context.Context, tenant Tenant) error {
-	return s.redisClient.HSet(ctx, redisTenantID(tenant.ID), tenant).Err()
+	key := redisTenantID(tenant.ID)
+
+	_, err := s.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		// Support overriding deleted resources
+		pipe.Persist(ctx, key)
+		pipe.HDel(ctx, key, "deleted_at")
+
+		// Set tenant data
+		pipe.HSet(ctx, key, tenant)
+		return nil
+	})
+
+	return err
 }
 
 func (s *entityStoreImpl) DeleteTenant(ctx context.Context, tenantID string) error {
