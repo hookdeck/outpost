@@ -43,6 +43,10 @@ func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Ciphe
 	if len(hash) == 0 {
 		return redis.Nil
 	}
+	// Check for deleted resource before scanning
+	if _, exists := hash["deleted_at"]; exists {
+		return ErrDestinationDeleted
+	}
 	if err = cmd.Scan(d); err != nil {
 		return err
 	}

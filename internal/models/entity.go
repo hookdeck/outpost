@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/redis"
 )
@@ -27,6 +28,8 @@ type EntityStore interface {
 
 var (
 	ErrDuplicateDestination = errors.New("destination already exists")
+	ErrDestinationNotFound  = errors.New("destination does not exist")
+	ErrDestinationDeleted   = errors.New("destination has been deleted")
 )
 
 func redisTenantID(tenantID string) string {
@@ -208,12 +211,13 @@ func (s *entityStoreImpl) RetrieveDestination(ctx context.Context, tenantID, des
 
 func (m *entityStoreImpl) CreateDestination(ctx context.Context, destination Destination) error {
 	key := redisDestinationID(destination.ID, destination.TenantID)
-	destinationExists, err := m.redisClient.Exists(ctx, key).Result()
-	if err != nil {
+	// Check if destination exists
+	if fields, err := m.redisClient.HGetAll(ctx, key).Result(); err != nil {
 		return err
-	}
-	if destinationExists > 0 {
-		return ErrDuplicateDestination
+	} else if len(fields) > 0 {
+		if _, isDeleted := fields["deleted_at"]; !isDeleted {
+			return ErrDuplicateDestination
+		}
 	}
 	return m.UpsertDestination(ctx, destination)
 }
@@ -229,6 +233,10 @@ func (m *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 		if err != nil {
 			return err
 		}
+		// Support overriding deleted resources
+		r.Persist(ctx, key)
+		r.HDel(ctx, key, "deleted_at")
+		// Set the new destination values
 		r.HSet(ctx, key, "id", destination.ID)
 		r.HSet(ctx, key, "type", destination.Type)
 		r.HSet(ctx, key, "topics", &destination.Topics)
@@ -247,13 +255,26 @@ func (m *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 }
 
 func (s *entityStoreImpl) DeleteDestination(ctx context.Context, tenantID, destinationID string) error {
-	_, err := s.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
-		if err := r.HDel(ctx, redisTenantDestinationSummaryKey(tenantID), destinationID).Err(); err != nil {
-			return err
-		}
-		return r.Del(ctx, redisDestinationID(destinationID, tenantID)).Err()
-	})
-	return err
+	key := redisDestinationID(destinationID, tenantID)
+	summaryKey := redisTenantDestinationSummaryKey(tenantID)
+
+	// Check if destination exists
+	if exists, err := s.redisClient.Exists(ctx, key).Result(); err != nil {
+		return err
+	} else if exists == 0 {
+		return ErrDestinationNotFound
+	}
+
+	pipe := s.redisClient.Pipeline()
+	pipe.Del(ctx, key)
+	pipe.HSet(ctx, key, "deleted_at", time.Now())
+	pipe.Expire(ctx, key, 7*24*time.Hour)
+	pipe.HDel(ctx, summaryKey, destinationID)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *entityStoreImpl) MatchEvent(ctx context.Context, event Event) ([]DestinationSummary, error) {

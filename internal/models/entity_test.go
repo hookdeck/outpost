@@ -129,11 +129,11 @@ func TestEntityStore_DestinationCRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		actual, err := entityStore.RetrieveDestination(context.Background(), input.TenantID, input.ID)
-		require.NoError(t, err)
+		assert.ErrorIs(t, err, models.ErrDestinationDeleted)
 		assert.Nil(t, actual)
 	})
 
-	t.Run("creates", func(t *testing.T) {
+	t.Run("creates & overrides deleted resource", func(t *testing.T) {
 		err := entityStore.CreateDestination(context.Background(), input)
 		require.NoError(t, err)
 
@@ -631,6 +631,69 @@ func TestMultiSuite_DisableAndMatch(t *testing.T) {
 		require.Len(t, matchedDestinationSummaryList, 2)
 		for _, summary := range matchedDestinationSummaryList {
 			require.Contains(t, []string{suite.destinations[0].ID, suite.destinations[3].ID}, summary.ID)
+		}
+	})
+}
+
+func TestEntityStore_DeleteDestination(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	redisClient := testutil.CreateTestRedisClient(t)
+	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
+
+	destination := testutil.DestinationFactory.Any()
+	require.NoError(t, entityStore.CreateDestination(ctx, destination))
+
+	t.Run("should not return error when deleting existing destination", func(t *testing.T) {
+		assert.NoError(t, entityStore.DeleteDestination(ctx, destination.TenantID, destination.ID))
+	})
+
+	t.Run("should not return error when deleting already-deleted destination", func(t *testing.T) {
+		assert.NoError(t, entityStore.DeleteDestination(ctx, destination.TenantID, destination.ID))
+	})
+
+	t.Run("should return error when deleting non-existent destination", func(t *testing.T) {
+		err := entityStore.DeleteDestination(ctx, destination.TenantID, uuid.New().String())
+		assert.ErrorIs(t, err, models.ErrDestinationNotFound)
+	})
+
+	t.Run("should return ErrDestinationDeleted when retrieving deleted destination", func(t *testing.T) {
+		dest, err := entityStore.RetrieveDestination(ctx, destination.TenantID, destination.ID)
+		assert.ErrorIs(t, err, models.ErrDestinationDeleted)
+		assert.Nil(t, dest)
+	})
+
+	t.Run("should not return deleted destination in list", func(t *testing.T) {
+		destinations, err := entityStore.ListDestinationByTenant(ctx, destination.TenantID)
+		assert.NoError(t, err)
+		assert.Empty(t, destinations)
+	})
+}
+
+func TestMultiSuite_DeleteAndMatch(t *testing.T) {
+	t.Parallel()
+
+	suite := multiDestinationSuite{}
+	suite.SetupTest(t)
+
+	t.Run("delete first destination", func(t *testing.T) {
+		require.NoError(t,
+			suite.entityStore.DeleteDestination(suite.ctx, suite.tenant.ID, suite.destinations[0].ID),
+		)
+	})
+
+	t.Run("match event", func(t *testing.T) {
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithTenantID(suite.tenant.ID),
+			testutil.EventFactory.WithTopic("user.created"),
+		)
+
+		matchedDestinationSummaryList, err := suite.entityStore.MatchEvent(suite.ctx, event)
+		require.NoError(t, err)
+		require.Len(t, matchedDestinationSummaryList, 2)
+		for _, summary := range matchedDestinationSummaryList {
+			require.Contains(t, []string{suite.destinations[1].ID, suite.destinations[4].ID}, summary.ID)
 		}
 	})
 }

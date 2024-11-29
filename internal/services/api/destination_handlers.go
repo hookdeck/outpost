@@ -178,6 +178,10 @@ func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool
 func (h *DestinationHandlers) mustRetrieveDestination(c *gin.Context, tenantID, destinationID string) *models.Destination {
 	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
+		if errors.Is(err, models.ErrDestinationDeleted) {
+			c.Status(http.StatusNotFound)
+			return nil
+		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return nil
 	}
