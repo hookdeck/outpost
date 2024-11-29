@@ -100,6 +100,12 @@ func (s *entityStoreImpl) UpsertTenant(ctx context.Context, tenant Tenant) error
 func (s *entityStoreImpl) DeleteTenant(ctx context.Context, tenantID string) error {
 	maxRetries := 100
 
+	if exists, err := s.redisClient.Exists(ctx, redisTenantID(tenantID)).Result(); err != nil {
+		return err
+	} else if exists == 0 {
+		return ErrTenantNotFound
+	}
+
 	txf := func(tx *redis.Tx) error {
 		destinationIDs, err := s.redisClient.HKeys(ctx, redisTenantDestinationSummaryKey(tenantID)).Result()
 		if err != nil {

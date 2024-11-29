@@ -64,12 +64,19 @@ func TestEntityStore_TenantCRUD(t *testing.T) {
 	})
 
 	t.Run("clears", func(t *testing.T) {
-		err := entityStore.DeleteTenant(context.Background(), input.ID)
-		require.NoError(t, err)
+		require.NoError(t, entityStore.DeleteTenant(context.Background(), input.ID))
 
 		actual, err := entityStore.RetrieveTenant(context.Background(), input.ID)
 		assert.ErrorIs(t, err, models.ErrTenantDeleted)
 		assert.Nil(t, actual)
+	})
+
+	t.Run("deletes again", func(t *testing.T) {
+		assert.NoError(t, entityStore.DeleteTenant(context.Background(), input.ID))
+	})
+
+	t.Run("deletes non-existent", func(t *testing.T) {
+		assert.ErrorIs(t, entityStore.DeleteTenant(context.Background(), "non-existent-tenant"), models.ErrTenantNotFound)
 	})
 }
 
