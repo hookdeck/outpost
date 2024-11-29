@@ -214,6 +214,42 @@ func (suite *basicSuite) TestTenantsAPI() {
 				},
 			},
 		},
+		{
+			Name: "DELETE /:tenantID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodDELETE,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusNotFound,
+				},
+			},
+		},
+		{
+			Name: "POST /:tenantID/destinations",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusNotFound,
+				},
+			},
+		},
 	}
 	suite.RunAPITests(suite.T(), tests)
 }

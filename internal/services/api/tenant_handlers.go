@@ -65,6 +65,10 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 	tenantID := c.Param("tenantID")
 	err := h.entityStore.DeleteTenant(c.Request.Context(), tenantID)
 	if err != nil {
+		if err == models.ErrTenantNotFound {
+			c.Status(http.StatusNotFound)
+			return
+		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}

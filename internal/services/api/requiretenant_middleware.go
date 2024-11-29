@@ -13,6 +13,10 @@ func RequireTenantMiddleware(logger *otelzap.Logger, entityStore models.EntitySt
 		tenantID := c.Param("tenantID")
 		tenant, err := entityStore.RetrieveTenant(c.Request.Context(), tenantID)
 		if err != nil {
+			if err == models.ErrTenantDeleted {
+				c.AbortWithStatus(http.StatusNotFound)
+				return
+			}
 			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 			return
 		}

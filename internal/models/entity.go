@@ -27,6 +27,8 @@ type EntityStore interface {
 }
 
 var (
+	ErrTenantNotFound       = errors.New("tenant does not exist")
+	ErrTenantDeleted        = errors.New("tenant has been deleted")
 	ErrDuplicateDestination = errors.New("destination already exists")
 	ErrDestinationNotFound  = errors.New("destination does not exist")
 	ErrDestinationDeleted   = errors.New("destination has been deleted")
@@ -103,15 +105,21 @@ func (s *entityStoreImpl) DeleteTenant(ctx context.Context, tenantID string) err
 		if err != nil {
 			return err
 		}
-		_, err = s.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
+		if _, err := s.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+			now := time.Now()
 			for _, destinationID := range destinationIDs {
-				r.Del(ctx, redisDestinationID(destinationID, tenantID))
+				s.deleteDestinationOperation(ctx, pipe, redisDestinationID(destinationID, tenantID), now)
 			}
-			r.Del(ctx, redisTenantDestinationSummaryKey(tenantID))
-			r.Del(ctx, redisTenantID(tenantID))
+			pipe.Del(ctx, redisTenantDestinationSummaryKey(tenantID))
+			tenantKey := redisTenantID(tenantID)
+			pipe.Del(ctx, tenantKey)
+			pipe.HSet(ctx, tenantKey, "deleted_at", now)
+			pipe.Expire(ctx, tenantKey, 7*24*time.Hour)
 			return nil
-		})
-		return err
+		}); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	for i := 0; i < maxRetries; i++ {
@@ -266,15 +274,19 @@ func (s *entityStoreImpl) DeleteDestination(ctx context.Context, tenantID, desti
 	}
 
 	pipe := s.redisClient.Pipeline()
-	pipe.Del(ctx, key)
-	pipe.HSet(ctx, key, "deleted_at", time.Now())
-	pipe.Expire(ctx, key, 7*24*time.Hour)
 	pipe.HDel(ctx, summaryKey, destinationID)
+	s.deleteDestinationOperation(ctx, pipe, key, time.Now())
 	if _, err := pipe.Exec(ctx); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (s *entityStoreImpl) deleteDestinationOperation(ctx context.Context, pipe redis.Pipeliner, key string, ts time.Time) {
+	pipe.Del(ctx, key)
+	pipe.HSet(ctx, key, "deleted_at", ts)
+	pipe.Expire(ctx, key, 7*24*time.Hour)
 }
 
 func (s *entityStoreImpl) MatchEvent(ctx context.Context, event Event) ([]DestinationSummary, error) {

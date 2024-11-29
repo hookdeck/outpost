@@ -68,7 +68,7 @@ func TestEntityStore_TenantCRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		actual, err := entityStore.RetrieveTenant(context.Background(), input.ID)
-		require.NoError(t, err)
+		assert.ErrorIs(t, err, models.ErrTenantDeleted)
 		assert.Nil(t, actual)
 	})
 }
@@ -172,30 +172,21 @@ func TestEntityStore_DeleteTenantAndAssociatedDestinations(t *testing.T) {
 	// Arrange
 	require.NoError(t, entityStore.UpsertTenant(context.Background(), tenant))
 	destinationIDs := []string{uuid.New().String(), uuid.New().String(), uuid.New().String()}
-	destFactory := testutil.DestinationFactory
-	require.NoError(t, entityStore.UpsertDestination(context.Background(), destFactory.Any(
-		destFactory.WithID(destinationIDs[0]),
-		destFactory.WithTenantID(tenant.ID),
-	)))
-	require.NoError(t, entityStore.UpsertDestination(context.Background(), destFactory.Any(
-		destFactory.WithID(destinationIDs[1]),
-		destFactory.WithTenantID(tenant.ID),
-	)))
-	require.NoError(t, entityStore.UpsertDestination(context.Background(), destFactory.Any(
-		destFactory.WithID(destinationIDs[2]),
-		destFactory.WithTenantID(tenant.ID),
-	)))
-	require.Equal(t, int64(1), redisClient.Exists(context.Background(), "tenant:"+tenant.ID).Val())
-	require.Equal(t, int64(1), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[0]).Val())
-	require.Equal(t, int64(1), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[1]).Val())
-	require.Equal(t, int64(1), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[2]).Val())
+	for _, id := range destinationIDs {
+		require.NoError(t, entityStore.UpsertDestination(context.Background(), testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithID(id),
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+		)))
+	}
 	// Act
 	require.NoError(t, entityStore.DeleteTenant(context.Background(), tenant.ID))
 	// Assert
-	assert.Equal(t, int64(0), redisClient.Exists(context.Background(), "tenant:"+tenant.ID).Val())
-	assert.Equal(t, int64(0), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[0]).Val())
-	assert.Equal(t, int64(0), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[1]).Val())
-	assert.Equal(t, int64(0), redisClient.Exists(context.Background(), "tenant:"+tenant.ID+":destination:"+destinationIDs[2]).Val())
+	_, err := entityStore.RetrieveTenant(context.Background(), tenant.ID)
+	assert.ErrorIs(t, err, models.ErrTenantDeleted)
+	for _, id := range destinationIDs {
+		_, err := entityStore.RetrieveDestination(context.Background(), tenant.ID, id)
+		assert.ErrorIs(t, err, models.ErrDestinationDeleted)
+	}
 }
 
 func TestEntityStore_DestinationCredentialsEncryption(t *testing.T) {
