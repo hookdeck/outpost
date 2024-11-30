@@ -1,10 +1,10 @@
-package destinationadapter_test
+package destregistry_test
 
 import (
 	"context"
 	"testing"
 
-	"github.com/hookdeck/outpost/internal/destinationadapter"
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -22,9 +22,9 @@ func TestDestinationValidation(t *testing.T) {
 			}),
 		)
 
-		adapter, err := destinationadapter.New(destination.Type)
+		provider, err := destregistry.GetProvider(destination.Type)
 		assert.NoError(t, err)
-		assert.NoError(t, adapter.Validate(ctx, &destination))
+		assert.NoError(t, provider.Validate(ctx, &destination))
 	})
 
 	t.Run("validates invalid type", func(t *testing.T) {
@@ -34,7 +34,7 @@ func TestDestinationValidation(t *testing.T) {
 			testutil.DestinationFactory.WithConfig(map[string]string{}),
 		)
 
-		_, err := destinationadapter.New(destination.Type)
+		_, err := destregistry.GetProvider(destination.Type)
 		assert.ErrorContains(t, err, "invalid destination type")
 	})
 
@@ -49,9 +49,9 @@ func TestDestinationValidation(t *testing.T) {
 			}),
 		)
 
-		adapter, err := destinationadapter.New(destination.Type)
+		provider, err := destregistry.GetProvider(destination.Type)
 		assert.NoError(t, err)
-		assert.ErrorContains(t, adapter.Validate(ctx, &destination),
+		assert.ErrorContains(t, provider.Validate(ctx, &destination),
 			"server_url is required for rabbitmq destination config")
 	})
 
@@ -69,9 +69,9 @@ func TestDestinationValidation(t *testing.T) {
 			}),
 		)
 
-		adapter, err := destinationadapter.New(destination.Type)
+		provider, err := destregistry.GetProvider(destination.Type)
 		assert.NoError(t, err)
-		assert.ErrorContains(t, adapter.Validate(ctx, &destination),
+		assert.ErrorContains(t, provider.Validate(ctx, &destination),
 			"password is required for rabbitmq destination credentials")
 	})
 }

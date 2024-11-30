@@ -1,4 +1,4 @@
-package webhook_test
+package destwebhook_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hookdeck/outpost/internal/destinationadapter/adapters/webhook"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +26,7 @@ func TestWebhookDestination_Validate(t *testing.T) {
 		testutil.DestinationFactory.WithCredentials(map[string]string{}),
 	)
 
-	webhookDestination := webhook.New()
+	webhookDestination := destwebhook.New()
 
 	t.Run("should not return error for valid destination", func(t *testing.T) {
 		t.Parallel()
@@ -122,7 +122,7 @@ func (suite *webhookDestinationSuite) TeardownTest(t *testing.T) {
 func TestWebhookDestination_Publish(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination := webhook.New()
+	webhookDestination := destwebhook.New()
 
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -164,7 +164,7 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		finalDestination.Config["url"] = suite.webhookURL
 		require.NoError(t, webhookDestination.Publish(context.Background(), &finalDestination, &models.Event{
 			ID:               uuid.New().String(),
-			TenantID:         uuid.New().String(), 
+			TenantID:         uuid.New().String(),
 			DestinationID:    uuid.New().String(),
 			Topic:            "test",
 			EligibleForRetry: true,

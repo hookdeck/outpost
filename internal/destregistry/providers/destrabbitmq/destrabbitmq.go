@@ -1,11 +1,11 @@
-package rabbitmq
+package destrabbitmq
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 
-	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
+	"github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/rabbitmq/amqp091-go"
 )
@@ -23,7 +23,7 @@ type RabbitMQDestinationCredentials struct {
 	Password string
 }
 
-var _ adapters.DestinationAdapter = (*RabbitMQDestination)(nil)
+var _ providers.DestinationProvider = (*RabbitMQDestination)(nil)
 
 func New() *RabbitMQDestination {
 	return &RabbitMQDestination{}
@@ -32,10 +32,10 @@ func New() *RabbitMQDestination {
 func (d *RabbitMQDestination) Validate(ctx context.Context, destination *models.Destination) error {
 	_, err := parseConfig(destination)
 	if err != nil {
-		return adapters.NewErrDestinationValidation(err)
+		return providers.NewErrDestinationValidation(err)
 	}
 	if _, err = parseCredentials(destination); err != nil {
-		return adapters.NewErrDestinationValidation(err)
+		return providers.NewErrDestinationValidation(err)
 	}
 	return nil
 }
@@ -43,16 +43,16 @@ func (d *RabbitMQDestination) Validate(ctx context.Context, destination *models.
 func (d *RabbitMQDestination) Publish(ctx context.Context, destination *models.Destination, event *models.Event) error {
 	config, err := parseConfig(destination)
 	if err != nil {
-		return adapters.NewErrDestinationPublish(err)
+		return providers.NewErrDestinationPublish(err)
 	}
 	credentials, err := parseCredentials(destination)
 	if err != nil {
-		return adapters.NewErrDestinationPublish(err)
+		return providers.NewErrDestinationPublish(err)
 	}
 	url := rabbitURL(config, credentials)
 	exchange := config.Exchange
 	if err := publishEvent(ctx, url, exchange, event); err != nil {
-		return adapters.NewErrDestinationPublish(err)
+		return providers.NewErrDestinationPublish(err)
 	}
 	return nil
 }

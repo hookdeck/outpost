@@ -1,4 +1,4 @@
-package webhook
+package destwebhook
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
+	"github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/models"
 )
 
@@ -20,7 +20,7 @@ type WebhookDestinationConfig struct {
 	URL string
 }
 
-var _ adapters.DestinationAdapter = (*WebhookDestination)(nil)
+var _ providers.DestinationProvider = (*WebhookDestination)(nil)
 
 func New() *WebhookDestination {
 	return &WebhookDestination{}
@@ -28,7 +28,7 @@ func New() *WebhookDestination {
 
 func (d *WebhookDestination) Validate(ctx context.Context, destination *models.Destination) error {
 	if _, err := parseConfig(destination); err != nil {
-		return adapters.NewErrDestinationValidation(err)
+		return providers.NewErrDestinationValidation(err)
 	}
 	return nil
 }
@@ -36,10 +36,10 @@ func (d *WebhookDestination) Validate(ctx context.Context, destination *models.D
 func (d *WebhookDestination) Publish(ctx context.Context, destination *models.Destination, event *models.Event) error {
 	config, err := parseConfig(destination)
 	if err != nil {
-		return adapters.NewErrDestinationPublish(err)
+		return providers.NewErrDestinationPublish(err)
 	}
 	if err := makeRequest(ctx, config.URL, event); err != nil {
-		return adapters.NewErrDestinationPublish(err)
+		return providers.NewErrDestinationPublish(err)
 	}
 	return nil
 }

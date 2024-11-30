@@ -1,4 +1,4 @@
-package aws_test
+package destaws_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
-	awsadapter "github.com/hookdeck/outpost/internal/destinationadapter/adapters/aws"
+	destaws "github.com/hookdeck/outpost/internal/destregistry/providers/destaws"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/awsutil"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
@@ -22,7 +22,7 @@ import (
 func TestAWSDestination_Validate(t *testing.T) {
 	t.Parallel()
 
-	awsdestination := awsadapter.New()
+	awsdestination := destaws.New()
 
 	validDestination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("aws"),
@@ -115,7 +115,7 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 	require.NoError(t, err)
 	queueURL, err := awsutil.EnsureQueue(context.Background(), sqsClient, mq.AWSSQS.Topic, nil)
 	require.NoError(t, err)
-	awsdestination := awsadapter.New()
+	awsdestination := destaws.New()
 
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("aws"),

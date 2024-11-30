@@ -1,4 +1,4 @@
-package aws
+package destaws
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
+	"github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/models"
 )
 
@@ -29,7 +29,7 @@ type AWSDestinationCredentials struct {
 	Session string // optional
 }
 
-var _ adapters.DestinationAdapter = (*AWSDestination)(nil)
+var _ providers.DestinationProvider = (*AWSDestination)(nil)
 
 func New() *AWSDestination {
 	return &AWSDestination{}
@@ -38,10 +38,10 @@ func New() *AWSDestination {
 func (d *AWSDestination) Validate(ctx context.Context, destination *models.Destination) error {
 	_, err := parseConfig(destination)
 	if err != nil {
-		return adapters.NewErrDestinationValidation(err)
+		return providers.NewErrDestinationValidation(err)
 	}
 	if _, err = parseCredentials(destination); err != nil {
-		return adapters.NewErrDestinationValidation(err)
+		return providers.NewErrDestinationValidation(err)
 	}
 	return nil
 }
@@ -49,14 +49,14 @@ func (d *AWSDestination) Validate(ctx context.Context, destination *models.Desti
 func (d *AWSDestination) Publish(ctx context.Context, destination *models.Destination, event *models.Event) error {
 	config, err := parseConfig(destination)
 	if err != nil {
-		return adapters.NewErrDestinationPublish(err)
+		return providers.NewErrDestinationPublish(err)
 	}
 	credentials, err := parseCredentials(destination)
 	if err != nil {
-		return adapters.NewErrDestinationPublish(err)
+		return providers.NewErrDestinationPublish(err)
 	}
 	if err := publishEvent(ctx, config, credentials, event); err != nil {
-		return adapters.NewErrDestinationPublish(err)
+		return providers.NewErrDestinationPublish(err)
 	}
 	return nil
 }

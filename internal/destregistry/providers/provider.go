@@ -1,4 +1,4 @@
-package adapters
+package providers
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
-type DestinationAdapter interface {
+type DestinationProvider interface {
 	// Validate destination configuration and credentials
 	Validate(ctx context.Context, destination *models.Destination) error
 

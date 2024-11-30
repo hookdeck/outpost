@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/consumer"
-	"github.com/hookdeck/outpost/internal/destinationadapter"
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/eventtracer"
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logmq"
@@ -104,14 +104,14 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 		span.RecordError(errors.New("destination not found"))
 		return err
 	}
-	adapter, err := destinationadapter.New(destination.Type)
+	provider, err := destregistry.GetProvider(destination.Type)
 	if err != nil {
-		logger.Error("failed to create destination adapter", zap.Error(err))
+		logger.Error("failed to get destination provider", zap.Error(err))
 		span.RecordError(err)
 		return err
 	}
 	var finalErr error
-	if err := adapter.Publish(ctx, destination, &deliveryEvent.Event); err != nil {
+	if err := provider.Publish(ctx, destination, &deliveryEvent.Event); err != nil {
 		logger.Error("failed to publish event", zap.Error(err))
 		finalErr = err
 		deliveryEvent.Delivery = &models.Delivery{
@@ -159,7 +159,7 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 // say logmq.Publish fails. Should that count as an attempt? What about an error BEFORE deliverying the message?
 // Should we write code to differentiate between these two types of errors (predeliveryErr and postdeliveryErr, for example)?
 func (h *messageHandler) shouldRetry(err error, deliveryEvent models.DeliveryEvent) bool {
-	_, isPublishErr := err.(*destinationadapter.ErrDestinationPublish)
+	_, isPublishErr := err.(*destregistry.ErrDestinationPublish)
 	if !isPublishErr {
 		return true
 	}
