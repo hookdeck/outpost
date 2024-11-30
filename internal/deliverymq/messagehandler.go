@@ -30,6 +30,7 @@ type messageHandler struct {
 	retryBackoff   backoff.Backoff
 	retryMaxCount  int
 	idempotence    idempotence.Idempotence
+	registry       destregistry.Registry
 }
 
 var _ consumer.MessageHandler = (*messageHandler)(nil)
@@ -40,6 +41,7 @@ func NewMessageHandler(
 	logMQ *logmq.LogMQ,
 	entityStore models.EntityStore,
 	logStore models.LogStore,
+	registry destregistry.Registry,
 	eventTracer eventtracer.EventTracer,
 	retryScheduler scheduler.Scheduler,
 	retryBackoff backoff.Backoff,
@@ -51,6 +53,7 @@ func NewMessageHandler(
 		logMQ:          logMQ,
 		entityStore:    entityStore,
 		logStore:       logStore,
+		registry:       registry,
 		retryScheduler: retryScheduler,
 		retryBackoff:   retryBackoff,
 		retryMaxCount:  retryMaxCount,
@@ -104,7 +107,7 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 		span.RecordError(errors.New("destination not found"))
 		return err
 	}
-	provider, err := destregistry.GetProvider(destination.Type)
+	provider, err := h.registry.GetProvider(destination.Type)
 	if err != nil {
 		logger.Error("failed to get destination provider", zap.Error(err))
 		span.RecordError(err)

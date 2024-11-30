@@ -79,6 +79,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 		logMQ,
 		s.entityStore,
 		s.logStore,
+		testutil.Registry,
 		testutil.NewMockEventTracer(s.exporter),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},

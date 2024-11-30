@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
+	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -12,6 +13,9 @@ import (
 func TestDestinationValidation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
+
+	registry := destregistry.NewRegistry()
+	destregistrydefault.RegisterDefault(registry)
 
 	t.Run("validates valid webhook", func(t *testing.T) {
 		t.Parallel()
@@ -22,7 +26,7 @@ func TestDestinationValidation(t *testing.T) {
 			}),
 		)
 
-		provider, err := destregistry.GetProvider(destination.Type)
+		provider, err := registry.GetProvider(destination.Type)
 		assert.NoError(t, err)
 		assert.NoError(t, provider.Validate(ctx, &destination))
 	})
@@ -34,8 +38,8 @@ func TestDestinationValidation(t *testing.T) {
 			testutil.DestinationFactory.WithConfig(map[string]string{}),
 		)
 
-		_, err := destregistry.GetProvider(destination.Type)
-		assert.ErrorContains(t, err, "invalid destination type")
+		_, err := registry.GetProvider(destination.Type)
+		assert.ErrorContains(t, err, "unsupported destination type: invalid")
 	})
 
 	t.Run("validates invalid rabbitmq config", func(t *testing.T) {
@@ -49,7 +53,7 @@ func TestDestinationValidation(t *testing.T) {
 			}),
 		)
 
-		provider, err := destregistry.GetProvider(destination.Type)
+		provider, err := registry.GetProvider(destination.Type)
 		assert.NoError(t, err)
 		assert.ErrorContains(t, provider.Validate(ctx, &destination),
 			"server_url is required for rabbitmq destination config")
@@ -69,7 +73,7 @@ func TestDestinationValidation(t *testing.T) {
 			}),
 		)
 
-		provider, err := destregistry.GetProvider(destination.Type)
+		provider, err := registry.GetProvider(destination.Type)
 		assert.NoError(t, err)
 		assert.ErrorContains(t, provider.Validate(ctx, &destination),
 			"password is required for rabbitmq destination credentials")

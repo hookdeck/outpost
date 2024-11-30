@@ -11,6 +11,8 @@ import (
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/deliverymq"
+	"github.com/hookdeck/outpost/internal/destregistry"
+	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/eventtracer"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
@@ -25,6 +27,7 @@ type consumerOptions struct {
 }
 
 type APIService struct {
+	registry                 destregistry.Registry
 	redisClient              *redis.Client
 	server                   *http.Server
 	logger                   *otelzap.Logger
@@ -38,6 +41,9 @@ type APIService struct {
 
 func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*APIService, error) {
 	wg.Add(1)
+
+	registry := destregistry.NewRegistry()
+	destregistrydefault.RegisterDefault(registry)
 
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig))
 	cleanupDeliveryMQ, err := deliveryMQ.Init(ctx)
@@ -74,6 +80,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 			JWTSecret:      cfg.JWTSecret,
 			PortalProxyURL: cfg.PortalProxyURL,
 			Topics:         cfg.Topics,
+			Registry:       registry,
 		},
 		logger,
 		redisClient,

@@ -18,13 +18,15 @@ type DestinationHandlers struct {
 	logger      *otelzap.Logger
 	entityStore models.EntityStore
 	topics      []string
+	registry    destregistry.Registry
 }
 
-func NewDestinationHandlers(logger *otelzap.Logger, entityStore models.EntityStore, topics []string) *DestinationHandlers {
+func NewDestinationHandlers(logger *otelzap.Logger, entityStore models.EntityStore, topics []string, registry destregistry.Registry) *DestinationHandlers {
 	return &DestinationHandlers{
 		logger:      logger,
 		entityStore: entityStore,
 		topics:      topics,
+		registry:    registry,
 	}
 }
 
@@ -63,7 +65,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
-	provider, err := destregistry.GetProvider(destination.Type)
+	provider, err := h.registry.GetProvider(destination.Type)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -123,7 +125,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		destination.Credentials = input.Credentials
 	}
 	if shouldRevalidate {
-		provider, err := destregistry.GetProvider(destination.Type)
+		provider, err := h.registry.GetProvider(destination.Type)
 		if err != nil {
 			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 			return

@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 	"github.com/hookdeck/outpost/internal/deliverymq"
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/publishmq"
@@ -23,6 +24,7 @@ type RouterConfig struct {
 	JWTSecret      string
 	PortalProxyURL string
 	Topics         []string
+	Registry       destregistry.Registry
 }
 
 func NewRouter(
@@ -61,7 +63,7 @@ func NewRouter(
 	})
 
 	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, entityStore)
-	destinationHandlers := NewDestinationHandlers(logger, entityStore, cfg.Topics)
+	destinationHandlers := NewDestinationHandlers(logger, entityStore, cfg.Topics, cfg.Registry)
 	publishHandlers := NewPublishHandlers(logger, publishmqEventHandler)
 	logHandlers := NewLogHandlers(logger, logStore)
 	topicHandlers := NewTopicHandlers(logger, cfg.Topics)

@@ -11,6 +11,8 @@ import (
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/deliverymq"
+	"github.com/hookdeck/outpost/internal/destregistry"
+	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/eventtracer"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/models"
@@ -60,6 +62,8 @@ func NewService(ctx context.Context,
 	cleanupFuncs = append(cleanupFuncs, cleanupLogMQ)
 
 	if handler == nil {
+		registry := destregistry.NewRegistry()
+		destregistrydefault.RegisterDefault(registry)
 		var eventTracer eventtracer.EventTracer
 		if cfg.OpenTelemetry == nil {
 			eventTracer = eventtracer.NewNoopEventTracer()
@@ -92,6 +96,7 @@ func NewService(ctx context.Context,
 			logMQ,
 			entityStore,
 			logStore,
+			registry,
 			eventTracer,
 			retryScheduler,
 			&backoff.ExponentialBackoff{
