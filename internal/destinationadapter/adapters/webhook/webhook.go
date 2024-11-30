@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
+	"github.com/hookdeck/outpost/internal/models"
 )
 
 type WebhookDestination struct {
@@ -25,20 +26,25 @@ func New() *WebhookDestination {
 	return &WebhookDestination{}
 }
 
-func (d *WebhookDestination) Validate(ctx context.Context, destination adapters.DestinationAdapterValue) error {
-	_, err := parseConfig(destination)
-	return err
+func (d *WebhookDestination) Validate(ctx context.Context, destination *models.Destination) error {
+	if _, err := parseConfig(destination); err != nil {
+		return adapters.NewErrDestinationValidation(err)
+	}
+	return nil
 }
 
-func (d *WebhookDestination) Publish(ctx context.Context, destination adapters.DestinationAdapterValue, event *adapters.Event) error {
+func (d *WebhookDestination) Publish(ctx context.Context, destination *models.Destination, event *models.Event) error {
 	config, err := parseConfig(destination)
 	if err != nil {
-		return err
+		return adapters.NewErrDestinationPublish(err)
 	}
-	return makeRequest(ctx, config.URL, event)
+	if err := makeRequest(ctx, config.URL, event); err != nil {
+		return adapters.NewErrDestinationPublish(err)
+	}
+	return nil
 }
 
-func parseConfig(destination adapters.DestinationAdapterValue) (*WebhookDestinationConfig, error) {
+func parseConfig(destination *models.Destination) (*WebhookDestinationConfig, error) {
 	if destination.Type != "webhook" {
 		return nil, errors.New("invalid destination type")
 	}
@@ -54,7 +60,7 @@ func parseConfig(destination adapters.DestinationAdapterValue) (*WebhookDestinat
 	return destinationConfig, nil
 }
 
-func makeRequest(ctx context.Context, url string, event *adapters.Event) error {
+func makeRequest(ctx context.Context, url string, event *models.Event) error {
 	dataBytes, err := json.Marshal(event.Data)
 	if err != nil {
 		return err

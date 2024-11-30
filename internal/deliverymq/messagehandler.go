@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/consumer"
+	"github.com/hookdeck/outpost/internal/destinationadapter"
 	"github.com/hookdeck/outpost/internal/eventtracer"
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logmq"
@@ -103,10 +104,16 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 		span.RecordError(errors.New("destination not found"))
 		return err
 	}
-	err = destination.Publish(ctx, &deliveryEvent.Event)
+	adapter, err := destinationadapter.New(destination.Type)
 	if err != nil {
-		logger.Error("failed to publish event", zap.Error(err))
+		logger.Error("failed to create destination adapter", zap.Error(err))
 		span.RecordError(err)
+		return err
+	}
+	var finalErr error
+	if err := adapter.Publish(ctx, destination, &deliveryEvent.Event); err != nil {
+		logger.Error("failed to publish event", zap.Error(err))
+		finalErr = err
 		deliveryEvent.Delivery = &models.Delivery{
 			ID:              uuid.New().String(),
 			DeliveryEventID: deliveryEvent.ID,
@@ -127,11 +134,17 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 	}
 	logErr := h.logMQ.Publish(ctx, deliveryEvent)
 	if logErr != nil {
-		logger.Error("failed to publish log event", zap.Error(err))
-		span.RecordError(err)
-		err = errors.Join(err, logErr)
+		logger.Error("failed to publish log event", zap.Error(logErr))
+		if finalErr == nil {
+			finalErr = logErr
+		} else {
+			finalErr = errors.Join(finalErr, logErr)
+		}
 	}
-	return err
+	if finalErr != nil {
+		span.RecordError(finalErr)
+	}
+	return finalErr
 }
 
 // shouldRetry checks if the event should be retried.
@@ -146,7 +159,7 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 // say logmq.Publish fails. Should that count as an attempt? What about an error BEFORE deliverying the message?
 // Should we write code to differentiate between these two types of errors (predeliveryErr and postdeliveryErr, for example)?
 func (h *messageHandler) shouldRetry(err error, deliveryEvent models.DeliveryEvent) bool {
-	_, isPublishErr := err.(*models.DestinationPublishError)
+	_, isPublishErr := err.(*destinationadapter.ErrDestinationPublish)
 	if !isPublishErr {
 		return true
 	}

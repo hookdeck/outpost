@@ -1,7 +1,6 @@
 package models
 
 import (
-	"context"
 	"encoding"
 	"encoding/json"
 	"errors"
@@ -11,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/destinationadapter"
 	"github.com/hookdeck/outpost/internal/redis"
 )
 
@@ -19,10 +17,6 @@ var (
 	ErrInvalidTopics       = errors.New("validation failed: invalid topics")
 	ErrInvalidTopicsFormat = errors.New("validation failed: invalid topics format")
 )
-
-func NewErrDestinationValidation(err error) error {
-	return fmt.Errorf("validation failed: %w", err)
-}
 
 type Destination struct {
 	ID          string      `json:"id" redis:"id"`
@@ -69,38 +63,9 @@ func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Ciphe
 	return nil
 }
 
-func (d *Destination) Validate(ctx context.Context) error {
-	adapter, err := destinationadapter.NewAdapater(d.Type)
-	if err != nil {
-		return NewErrDestinationValidation(err)
-	}
-	if err := adapter.Validate(ctx, destinationadapter.Destination{
-		ID:          d.ID,
-		Type:        d.Type,
-		Config:      d.Config,
-		Credentials: d.Credentials,
-	}); err != nil {
-		return NewErrDestinationValidation(err)
-	}
-	return nil
-}
-
-func (d *Destination) Publish(ctx context.Context, event *Event) error {
-	adapter, err := destinationadapter.NewAdapater(d.Type)
-	if err != nil {
-		return &DestinationPublishError{Err: err}
-	}
-	if err := adapter.Publish(
-		ctx,
-		destinationadapter.Destination{
-			ID:          d.ID,
-			Type:        d.Type,
-			Config:      d.Config,
-			Credentials: d.Credentials,
-		},
-		event.ToAdapterEvent(),
-	); err != nil {
-		return &DestinationPublishError{Err: err}
+func (d *Destination) Validate(topics []string) error {
+	if err := d.Topics.Validate(topics); err != nil {
+		return err
 	}
 	return nil
 }
@@ -219,14 +184,4 @@ func (c *Credentials) MarshalBinary() ([]byte, error) {
 
 func (c *Credentials) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, c)
-}
-
-type DestinationPublishError struct {
-	Err error
-}
-
-var _ error = &DestinationPublishError{}
-
-func (e *DestinationPublishError) Error() string {
-	return e.Err.Error()
 }

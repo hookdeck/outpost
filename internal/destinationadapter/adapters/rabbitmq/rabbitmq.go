@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/rabbitmq/amqp091-go"
 )
 
@@ -28,30 +29,35 @@ func New() *RabbitMQDestination {
 	return &RabbitMQDestination{}
 }
 
-func (d *RabbitMQDestination) Validate(ctx context.Context, destination adapters.DestinationAdapterValue) error {
+func (d *RabbitMQDestination) Validate(ctx context.Context, destination *models.Destination) error {
 	_, err := parseConfig(destination)
 	if err != nil {
-		return err
+		return adapters.NewErrDestinationValidation(err)
 	}
-	_, err = parseCredentials(destination)
-	return err
+	if _, err = parseCredentials(destination); err != nil {
+		return adapters.NewErrDestinationValidation(err)
+	}
+	return nil
 }
 
-func (d *RabbitMQDestination) Publish(ctx context.Context, destination adapters.DestinationAdapterValue, event *adapters.Event) error {
+func (d *RabbitMQDestination) Publish(ctx context.Context, destination *models.Destination, event *models.Event) error {
 	config, err := parseConfig(destination)
 	if err != nil {
-		return err
+		return adapters.NewErrDestinationPublish(err)
 	}
 	credentials, err := parseCredentials(destination)
 	if err != nil {
-		return err
+		return adapters.NewErrDestinationPublish(err)
 	}
 	url := rabbitURL(config, credentials)
 	exchange := config.Exchange
-	return publishEvent(ctx, url, exchange, event)
+	if err := publishEvent(ctx, url, exchange, event); err != nil {
+		return adapters.NewErrDestinationPublish(err)
+	}
+	return nil
 }
 
-func parseConfig(destination adapters.DestinationAdapterValue) (*RabbitMQDestinationConfig, error) {
+func parseConfig(destination *models.Destination) (*RabbitMQDestinationConfig, error) {
 	if destination.Type != "rabbitmq" {
 		return nil, errors.New("invalid destination type")
 	}
@@ -71,7 +77,7 @@ func parseConfig(destination adapters.DestinationAdapterValue) (*RabbitMQDestina
 	return destinationConfig, nil
 }
 
-func parseCredentials(destination adapters.DestinationAdapterValue) (*RabbitMQDestinationCredentials, error) {
+func parseCredentials(destination *models.Destination) (*RabbitMQDestinationCredentials, error) {
 	if destination.Type != "rabbitmq" {
 		return nil, errors.New("invalid destination type")
 	}
@@ -95,7 +101,7 @@ func rabbitURL(config *RabbitMQDestinationConfig, credentials *RabbitMQDestinati
 	return "amqp://" + credentials.Username + ":" + credentials.Password + "@" + config.ServerURL
 }
 
-func publishEvent(ctx context.Context, url string, exchange string, event *adapters.Event) error {
+func publishEvent(ctx context.Context, url string, exchange string, event *models.Event) error {
 	dataBytes, err := json.Marshal(event.Data)
 	if err != nil {
 		return err

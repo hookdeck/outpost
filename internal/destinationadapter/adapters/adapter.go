@@ -2,28 +2,33 @@ package adapters
 
 import (
 	"context"
-	"time"
+	"fmt"
+
+	"github.com/hookdeck/outpost/internal/models"
 )
 
-type Event struct {
-	ID               string                 `json:"id"`
-	TenantID         string                 `json:"tenant_id"`
-	DestinationID    string                 `json:"destination_id"`
-	Topic            string                 `json:"topic"`
-	EligibleForRetry bool                   `json:"eligible_for_retry"`
-	Time             time.Time              `json:"time"`
-	Metadata         map[string]string      `json:"metadata"`
-	Data             map[string]interface{} `json:"data"`
-}
-
 type DestinationAdapter interface {
-	Validate(ctx context.Context, destination DestinationAdapterValue) error
-	Publish(ctx context.Context, destination DestinationAdapterValue, event *Event) error
+	// Validate destination configuration and credentials
+	Validate(ctx context.Context, destination *models.Destination) error
+
+	// Publish an event to the destination
+	Publish(ctx context.Context, destination *models.Destination, event *models.Event) error
 }
 
-type DestinationAdapterValue struct {
-	ID          string
-	Type        string
-	Config      map[string]string
-	Credentials map[string]string
+func NewErrDestinationValidation(err error) error {
+	return fmt.Errorf("validation failed: %w", err)
+}
+
+type ErrDestinationPublish struct {
+	Err error
+}
+
+var _ error = &ErrDestinationPublish{}
+
+func (e *ErrDestinationPublish) Error() string {
+	return e.Err.Error()
+}
+
+func NewErrDestinationPublish(err error) error {
+	return &ErrDestinationPublish{Err: err}
 }

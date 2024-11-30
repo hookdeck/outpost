@@ -10,10 +10,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
-	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
 	awsadapter "github.com/hookdeck/outpost/internal/destinationadapter/adapters/aws"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/awsutil"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,25 +22,24 @@ import (
 func TestAWSDestination_Validate(t *testing.T) {
 	t.Parallel()
 
-	validDestination := adapters.DestinationAdapterValue{
-		ID:   uuid.New().String(),
-		Type: "aws",
-		Config: map[string]string{
+	awsdestination := awsadapter.New()
+
+	validDestination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("aws"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
 			"queue_url": "url",
-		},
-		Credentials: map[string]string{
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
 			"key":    "key",
 			"secret": "secret",
 			"token":  "token",
-		},
-	}
-
-	awsdestination := awsadapter.New()
+		}),
+	)
 
 	t.Run("should not return error for valid destination", func(t *testing.T) {
 		t.Parallel()
 
-		err := awsdestination.Validate(nil, validDestination)
+		err := awsdestination.Validate(nil, &validDestination)
 
 		assert.Nil(t, err)
 	})
@@ -49,7 +49,7 @@ func TestAWSDestination_Validate(t *testing.T) {
 
 		invalidDestination := validDestination
 		invalidDestination.Type = "invalid"
-		err := awsdestination.Validate(nil, invalidDestination)
+		err := awsdestination.Validate(nil, &invalidDestination)
 
 		assert.ErrorContains(t, err, "invalid destination type")
 	})
@@ -59,7 +59,7 @@ func TestAWSDestination_Validate(t *testing.T) {
 
 		invalidDestination := validDestination
 		invalidDestination.Config = map[string]string{}
-		err := awsdestination.Validate(nil, invalidDestination)
+		err := awsdestination.Validate(nil, &invalidDestination)
 
 		assert.ErrorContains(t, err, "queue_url is required for aws destination config")
 	})
@@ -73,7 +73,7 @@ func TestAWSDestination_Validate(t *testing.T) {
 			"secret":  "secret",
 			"session": "session",
 		}
-		err := awsdestination.Validate(nil, invalidDestination)
+		err := awsdestination.Validate(nil, &invalidDestination)
 
 		assert.ErrorContains(t, err, "key is required for aws destination credentials")
 	})
@@ -87,7 +87,7 @@ func TestAWSDestination_Validate(t *testing.T) {
 			"notsecret": "secret",
 			"session":   "session",
 		}
-		err := awsdestination.Validate(nil, invalidDestination)
+		err := awsdestination.Validate(nil, &invalidDestination)
 
 		assert.ErrorContains(t, err, "secret is required for aws destination credentials")
 	})
@@ -100,7 +100,7 @@ func TestAWSDestination_Validate(t *testing.T) {
 			"key":    "key",
 			"secret": "secret",
 		}
-		err := awsdestination.Validate(nil, anotherDestination)
+		err := awsdestination.Validate(nil, &anotherDestination)
 
 		assert.Nil(t, err)
 	})
@@ -117,18 +117,17 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 	require.NoError(t, err)
 	awsdestination := awsadapter.New()
 
-	destination := adapters.DestinationAdapterValue{
-		ID:   uuid.New().String(),
-		Type: "aws",
-		Config: map[string]string{
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("aws"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
 			"endpoint":  mq.AWSSQS.Endpoint,
 			"queue_url": queueURL,
-		},
-		Credentials: map[string]string{
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
 			"key":    "key",
 			"secret": "secret",
-		},
-	}
+		}),
+	)
 
 	// Subscribe to messages
 	errchan := make(chan error)
@@ -176,7 +175,7 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 
 	// Act: Publish
 	log.Println("publishing message")
-	event := &adapters.Event{
+	event := &models.Event{
 		ID:               uuid.New().String(),
 		TenantID:         uuid.New().String(),
 		DestinationID:    destination.ID,
@@ -191,7 +190,7 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 			"mykey": "myvaluee",
 		},
 	}
-	require.NoError(t, awsdestination.Publish(context.Background(), destination, event))
+	require.NoError(t, awsdestination.Publish(context.Background(), &destination, event))
 
 	// Assert
 	log.Println("waiting for msg...")
@@ -206,7 +205,7 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 	body := make(map[string]interface{})
 	err = json.Unmarshal([]byte(*msg.Body), &body)
 	require.Nil(t, err)
-	assert.Equal(t, event.Data, body)
+	assert.JSONEq(t, string(testutil.MustMarshalJSON(event.Data)), string(testutil.MustMarshalJSON(body)))
 	// metadata
 	if assert.NotNil(t, msg.MessageAttributes["my_metadata"].StringValue) {
 		assert.Equal(t, "metadatavalue", *msg.MessageAttributes["my_metadata"].StringValue)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/destinationadapter"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
@@ -58,11 +59,16 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		return
 	}
 	destination := input.ToDestination(c.Param("tenantID"))
-	if err := destination.Topics.Validate(h.topics); err != nil {
+	if err := destination.Validate(h.topics); err != nil {
 		AbortWithValidationError(c, err)
 		return
 	}
-	if err := destination.Validate(c.Request.Context()); err != nil {
+	adapter, err := destinationadapter.New(destination.Type)
+	if err != nil {
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return
+	}
+	if err := adapter.Validate(c.Request.Context(), &destination); err != nil {
 		AbortWithValidationError(c, err)
 		return
 	}
@@ -98,7 +104,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	// Validate.
 	if input.Topics != nil {
 		destination.Topics = input.Topics
-		if err := destination.Topics.Validate(h.topics); err != nil {
+		if err := destination.Validate(h.topics); err != nil {
 			AbortWithValidationError(c, err)
 			return
 		}
@@ -117,7 +123,12 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		destination.Credentials = input.Credentials
 	}
 	if shouldRevalidate {
-		if err := destination.Validate(c.Request.Context()); err != nil {
+		adapter, err := destinationadapter.New(destination.Type)
+		if err != nil {
+			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+			return
+		}
+		if err := adapter.Validate(c.Request.Context(), destination); err != nil {
 			AbortWithValidationError(c, err)
 			return
 		}

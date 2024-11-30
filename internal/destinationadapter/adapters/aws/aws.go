@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
+	"github.com/hookdeck/outpost/internal/models"
 )
 
 type AWSDestination struct {
@@ -34,28 +35,33 @@ func New() *AWSDestination {
 	return &AWSDestination{}
 }
 
-func (d *AWSDestination) Validate(ctx context.Context, destination adapters.DestinationAdapterValue) error {
+func (d *AWSDestination) Validate(ctx context.Context, destination *models.Destination) error {
 	_, err := parseConfig(destination)
 	if err != nil {
-		return err
+		return adapters.NewErrDestinationValidation(err)
 	}
-	_, err = parseCredentials(destination)
-	return err
+	if _, err = parseCredentials(destination); err != nil {
+		return adapters.NewErrDestinationValidation(err)
+	}
+	return nil
 }
 
-func (d *AWSDestination) Publish(ctx context.Context, destination adapters.DestinationAdapterValue, event *adapters.Event) error {
+func (d *AWSDestination) Publish(ctx context.Context, destination *models.Destination, event *models.Event) error {
 	config, err := parseConfig(destination)
 	if err != nil {
-		return err
+		return adapters.NewErrDestinationPublish(err)
 	}
 	credentials, err := parseCredentials(destination)
 	if err != nil {
-		return err
+		return adapters.NewErrDestinationPublish(err)
 	}
-	return publishEvent(ctx, config, credentials, event)
+	if err := publishEvent(ctx, config, credentials, event); err != nil {
+		return adapters.NewErrDestinationPublish(err)
+	}
+	return nil
 }
 
-func parseConfig(destination adapters.DestinationAdapterValue) (*AWSDestinationConfig, error) {
+func parseConfig(destination *models.Destination) (*AWSDestinationConfig, error) {
 	if destination.Type != "aws" {
 		return nil, errors.New("invalid destination type")
 	}
@@ -72,7 +78,7 @@ func parseConfig(destination adapters.DestinationAdapterValue) (*AWSDestinationC
 	return destinationConfig, nil
 }
 
-func parseCredentials(destination adapters.DestinationAdapterValue) (*AWSDestinationCredentials, error) {
+func parseCredentials(destination *models.Destination) (*AWSDestinationCredentials, error) {
 	if destination.Type != "aws" {
 		return nil, errors.New("invalid destination type")
 	}
@@ -94,7 +100,7 @@ func parseCredentials(destination adapters.DestinationAdapterValue) (*AWSDestina
 	return destinationCredentials, nil
 }
 
-func publishEvent(ctx context.Context, cfg *AWSDestinationConfig, creds *AWSDestinationCredentials, event *adapters.Event) error {
+func publishEvent(ctx context.Context, cfg *AWSDestinationConfig, creds *AWSDestinationCredentials, event *models.Event) error {
 	dataBytes, err := json.Marshal(event.Data)
 	if err != nil {
 		return err

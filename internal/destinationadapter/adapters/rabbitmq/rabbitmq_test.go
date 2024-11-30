@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
 	"github.com/hookdeck/outpost/internal/destinationadapter/adapters/rabbitmq"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/rabbitmq/amqp091-go"
@@ -20,25 +20,24 @@ import (
 func TestRabbitMQDestination_Validate(t *testing.T) {
 	t.Parallel()
 
-	validDestination := adapters.DestinationAdapterValue{
-		ID:   uuid.New().String(),
-		Type: "rabbitmq",
-		Config: map[string]string{
+	validDestination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("rabbitmq"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
 			"server_url": "localhost:5672",
 			"exchange":   "test",
-		},
-		Credentials: map[string]string{
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
 			"username": "guest",
 			"password": "guest",
-		},
-	}
+		}),
+	)
 
 	rabbitmqDestination := rabbitmq.New()
 
 	t.Run("should not return error for valid destination", func(t *testing.T) {
 		t.Parallel()
 
-		err := rabbitmqDestination.Validate(nil, validDestination)
+		err := rabbitmqDestination.Validate(nil, &validDestination)
 
 		assert.Nil(t, err)
 	})
@@ -48,7 +47,7 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 
 		invalidDestination := validDestination
 		invalidDestination.Type = "invalid"
-		err := rabbitmqDestination.Validate(nil, invalidDestination)
+		err := rabbitmqDestination.Validate(nil, &invalidDestination)
 
 		assert.ErrorContains(t, err, "invalid destination type")
 	})
@@ -58,7 +57,7 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 
 		invalidDestination := validDestination
 		invalidDestination.Config = map[string]string{}
-		err := rabbitmqDestination.Validate(nil, invalidDestination)
+		err := rabbitmqDestination.Validate(nil, &invalidDestination)
 
 		assert.ErrorContains(t, err, "server_url is required for rabbitmq destination config")
 	})
@@ -68,7 +67,7 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 
 		invalidDestination := validDestination
 		invalidDestination.Config = map[string]string{"server_url": "localhost:5672"}
-		err := rabbitmqDestination.Validate(nil, invalidDestination)
+		err := rabbitmqDestination.Validate(nil, &invalidDestination)
 
 		assert.ErrorContains(t, err, "exchange is required for rabbitmq destination config")
 	})
@@ -78,7 +77,7 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 
 		invalidDestination := validDestination
 		invalidDestination.Credentials = map[string]string{"password": "password"}
-		err := rabbitmqDestination.Validate(nil, invalidDestination)
+		err := rabbitmqDestination.Validate(nil, &invalidDestination)
 
 		assert.ErrorContains(t, err, "username is required for rabbitmq destination credentials")
 	})
@@ -88,7 +87,7 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 
 		invalidDestination := validDestination
 		invalidDestination.Credentials = map[string]string{"username": "username"}
-		err := rabbitmqDestination.Validate(nil, invalidDestination)
+		err := rabbitmqDestination.Validate(nil, &invalidDestination)
 
 		assert.ErrorContains(t, err, "password is required for rabbitmq destination credentials")
 	})
@@ -99,18 +98,17 @@ func TestRabbitMQDestination_Publish(t *testing.T) {
 
 	rabbitmqDestination := rabbitmq.New()
 
-	destination := adapters.DestinationAdapterValue{
-		ID:   uuid.New().String(),
-		Type: "rabbitmq",
-		Config: map[string]string{
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("rabbitmq"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
 			"server_url": "localhost:5672",
 			"exchange":   "test",
-		},
-		Credentials: map[string]string{
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
 			"username": "guest",
 			"password": "guest",
-		},
-	}
+		}),
+	)
 
 	t.Run("should validate before publish", func(t *testing.T) {
 		t.Parallel()
@@ -118,7 +116,7 @@ func TestRabbitMQDestination_Publish(t *testing.T) {
 		invalidDestination := destination
 		invalidDestination.Type = "invalid"
 
-		err := rabbitmqDestination.Publish(nil, invalidDestination, nil)
+		err := rabbitmqDestination.Publish(nil, &invalidDestination, nil)
 		assert.ErrorContains(t, err, "invalid destination type")
 	})
 }
@@ -130,20 +128,19 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 	mq := testinfra.NewMQRabbitMQConfig(t)
 	rabbitmqDestination := rabbitmq.New()
 
-	destination := adapters.DestinationAdapterValue{
-		ID:   uuid.New().String(),
-		Type: "rabbitmq",
-		Config: map[string]string{
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("rabbitmq"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
 			"server_url": testutil.ExtractRabbitURL(mq.RabbitMQ.ServerURL),
 			"exchange":   mq.RabbitMQ.Exchange,
-		},
-		Credentials: map[string]string{
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
 			"username": testutil.ExtractRabbitUsername(mq.RabbitMQ.ServerURL),
 			"password": testutil.ExtractRabbitPassword(mq.RabbitMQ.ServerURL),
-		},
-	}
+		}),
+	)
 
-	event := &adapters.Event{
+	event := &models.Event{
 		ID:               uuid.New().String(),
 		TenantID:         uuid.New().String(),
 		DestinationID:    destination.ID,
@@ -193,7 +190,7 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 
 	<-readyChan
 	log.Println("publishing message")
-	assert.NoError(t, rabbitmqDestination.Publish(context.Background(), destination, event))
+	assert.NoError(t, rabbitmqDestination.Publish(context.Background(), &destination, event))
 
 	func() {
 		time.Sleep(time.Second / 2)
@@ -208,7 +205,7 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 	log.Println("message received", msg)
 	body := make(map[string]interface{})
 	require.NoError(t, json.Unmarshal(msg.Body, &body))
-	assert.Equal(t, event.Data, body)
+	assert.JSONEq(t, string(testutil.MustMarshalJSON(event.Data)), string(testutil.MustMarshalJSON(body)))
 	// metadata
 	assert.Equal(t, "metadatavalue", msg.Headers["my_metadata"])
 	assert.Equal(t, "anothermetadatavalue", msg.Headers["another_metadata"])

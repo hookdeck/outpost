@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
 	"github.com/hookdeck/outpost/internal/destinationadapter/adapters/webhook"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,21 +18,20 @@ import (
 func TestWebhookDestination_Validate(t *testing.T) {
 	t.Parallel()
 
-	validDestination := adapters.DestinationAdapterValue{
-		ID:   uuid.New().String(),
-		Type: "webhook",
-		Config: map[string]string{
+	validDestination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": "https://example.com",
-		},
-		Credentials: map[string]string{},
-	}
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{}),
+	)
 
 	webhookDestination := webhook.New()
 
 	t.Run("should not return error for valid destination", func(t *testing.T) {
 		t.Parallel()
 
-		err := webhookDestination.Validate(nil, validDestination)
+		err := webhookDestination.Validate(nil, &validDestination)
 
 		assert.Nil(t, err)
 	})
@@ -42,7 +41,7 @@ func TestWebhookDestination_Validate(t *testing.T) {
 
 		invalidDestination := validDestination
 		invalidDestination.Type = "invalid"
-		err := webhookDestination.Validate(nil, invalidDestination)
+		err := webhookDestination.Validate(nil, &invalidDestination)
 
 		assert.ErrorContains(t, err, "invalid destination type")
 	})
@@ -52,7 +51,7 @@ func TestWebhookDestination_Validate(t *testing.T) {
 
 		invalidDestination := validDestination
 		invalidDestination.Config = map[string]string{}
-		err := webhookDestination.Validate(nil, invalidDestination)
+		err := webhookDestination.Validate(nil, &invalidDestination)
 
 		assert.ErrorContains(t, err, "url is required for webhook destination config")
 	})
@@ -125,14 +124,13 @@ func TestWebhookDestination_Publish(t *testing.T) {
 
 	webhookDestination := webhook.New()
 
-	destination := adapters.DestinationAdapterValue{
-		ID:   uuid.New().String(),
-		Type: "webhook",
-		Config: map[string]string{
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": "https://example.com",
-		},
-		Credentials: map[string]string{},
-	}
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{}),
+	)
 
 	t.Run("should validate before publish", func(t *testing.T) {
 		t.Parallel()
@@ -140,7 +138,7 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		invalidDestination := destination
 		invalidDestination.Type = "invalid"
 
-		err := webhookDestination.Publish(nil, invalidDestination, nil)
+		err := webhookDestination.Publish(nil, &invalidDestination, nil)
 		assert.ErrorContains(t, err, "invalid destination type")
 	})
 
@@ -164,9 +162,9 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		// Act
 		finalDestination := destination
 		finalDestination.Config["url"] = suite.webhookURL
-		require.NoError(t, webhookDestination.Publish(context.Background(), finalDestination, &adapters.Event{
+		require.NoError(t, webhookDestination.Publish(context.Background(), &finalDestination, &models.Event{
 			ID:               uuid.New().String(),
-			TenantID:         uuid.New().String(),
+			TenantID:         uuid.New().String(), 
 			DestinationID:    uuid.New().String(),
 			Topic:            "test",
 			EligibleForRetry: true,
@@ -186,7 +184,7 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		assert.Equal(t, "POST", request.Method)
 		assert.Equal(t, "/webhook", request.URL.Path)
 		assert.Equal(t, "application/json", request.Header.Get("Content-Type"))
-		assert.Equal(t, `{"mykey":"myvalue"}`, string(body), "webhook request body doesn't match expectation")
+		assert.JSONEq(t, `{"mykey":"myvalue"}`, string(body), "webhook request body doesn't match expectation")
 		// metadata
 		assert.Equal(t, "metadatavalue", request.Header.Get("x-outpost-my_metadata"))
 		assert.Equal(t, "anothermetadatavalue", request.Header.Get("x-outpost-another_metadata"))

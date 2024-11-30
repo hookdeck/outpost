@@ -1,0 +1,77 @@
+package destinationadapter_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/hookdeck/outpost/internal/destinationadapter"
+	"github.com/hookdeck/outpost/internal/util/testutil"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestDestinationValidation(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	t.Run("validates valid webhook", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+		)
+
+		adapter, err := destinationadapter.New(destination.Type)
+		assert.NoError(t, err)
+		assert.NoError(t, adapter.Validate(ctx, &destination))
+	})
+
+	t.Run("validates invalid type", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("invalid"),
+			testutil.DestinationFactory.WithConfig(map[string]string{}),
+		)
+
+		_, err := destinationadapter.New(destination.Type)
+		assert.ErrorContains(t, err, "invalid destination type")
+	})
+
+	t.Run("validates invalid rabbitmq config", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("rabbitmq"),
+			testutil.DestinationFactory.WithConfig(map[string]string{}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"username": "guest",
+				"password": "guest",
+			}),
+		)
+
+		adapter, err := destinationadapter.New(destination.Type)
+		assert.NoError(t, err)
+		assert.ErrorContains(t, adapter.Validate(ctx, &destination),
+			"server_url is required for rabbitmq destination config")
+	})
+
+	t.Run("validates invalid rabbitmq credentials", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("rabbitmq"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"server_url": "localhost:5672",
+				"exchange":   "events",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"username":    "guest",
+				"notpassword": "guest",
+			}),
+		)
+
+		adapter, err := destinationadapter.New(destination.Type)
+		assert.NoError(t, err)
+		assert.ErrorContains(t, adapter.Validate(ctx, &destination),
+			"password is required for rabbitmq destination credentials")
+	})
+}

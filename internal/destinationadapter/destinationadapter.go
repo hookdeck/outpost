@@ -9,9 +9,9 @@ import (
 	webhookdestination "github.com/hookdeck/outpost/internal/destinationadapter/adapters/webhook"
 )
 
-type Destination = adapters.DestinationAdapterValue
+type ErrDestinationPublish = adapters.ErrDestinationPublish
 
-func NewAdapater(destinationType string) (adapters.DestinationAdapter, error) {
+func New(destinationType string) (adapters.DestinationAdapter, error) {
 	switch destinationType {
 	case "aws":
 		return awsdestination.New(), nil

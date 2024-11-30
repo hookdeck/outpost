@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hookdeck/outpost/internal/destinationadapter/adapters"
 	"github.com/hookdeck/outpost/internal/mqs"
 )
 
@@ -81,19 +80,6 @@ func (e *Event) ToMessage() (*mqs.Message, error) {
 		return nil, err
 	}
 	return &mqs.Message{Body: data}, nil
-}
-
-func (e *Event) ToAdapterEvent() *adapters.Event {
-	return &adapters.Event{
-		ID:               e.ID,
-		TenantID:         e.TenantID,
-		DestinationID:    e.DestinationID,
-		Topic:            e.Topic,
-		EligibleForRetry: e.EligibleForRetry,
-		Time:             e.Time,
-		Metadata:         e.Metadata,
-		Data:             e.Data,
-	}
 }
 
 type DeliveryEventTelemetry struct {

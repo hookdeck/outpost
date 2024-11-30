@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	mathrand "math/rand"
 	"strconv"
@@ -78,4 +79,12 @@ func RandomPortNumber() int {
 // Create a random port number between 3500 and 3600
 func RandomPort() string {
 	return ":" + strconv.Itoa(RandomPortNumber())
+}
+
+func MustMarshalJSON(v any) []byte {
+	data, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return data
 }
