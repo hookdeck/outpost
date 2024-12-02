@@ -1,5 +1,42 @@
 {
-    "type": "rabbitmq",
-    "config_fields": [],
-    "credential_fields": []
+  "type": "rabbitmq",
+  "config_fields": [
+    {
+      "key": "server_url",
+      "type": "string",
+      "label": "Server URL",
+      "description": "The RabbitMQ server URL (e.g., amqp://localhost:5672)",
+      "required": true
+    },
+    {
+      "key": "exchange",
+      "type": "string",
+      "label": "Exchange",
+      "description": "The RabbitMQ exchange to publish messages to",
+      "required": true
+    },
+    {
+      "key": "routing_key",
+      "type": "string",
+      "label": "Routing Key",
+      "description": "The routing key for message routing (optional)",
+      "required": false
+    }
+  ],
+  "credential_fields": [
+    {
+      "key": "username",
+      "type": "string",
+      "label": "Username",
+      "description": "RabbitMQ username",
+      "required": true
+    },
+    {
+      "key": "password",
+      "type": "string",
+      "label": "Password",
+      "description": "RabbitMQ password",
+      "required": true
+    }
+  ]
 }

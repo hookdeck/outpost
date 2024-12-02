@@ -1,5 +1,13 @@
 {
-    "type": "webhook",
-    "config_fields": [],
-    "credential_fields": []
+  "type": "webhook",
+  "config_fields": [
+    {
+      "key": "url",
+      "type": "string",
+      "label": "Webhook URL",
+      "description": "The URL to send webhook requests to",
+      "required": true
+    }
+  ],
+  "credential_fields": []
 }
