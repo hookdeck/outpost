@@ -3,7 +3,6 @@ package destaws
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -45,13 +44,9 @@ func New() (*AWSDestination, error) {
 }
 
 func (d *AWSDestination) Validate(ctx context.Context, destination *models.Destination) error {
-	cfg, err := parseConfig(destination)
+	cfg, creds, err := d.resolveMetadata(ctx, destination)
 	if err != nil {
-		return destregistry.NewErrDestinationValidation(err)
-	}
-	creds, err := parseCredentials(destination)
-	if err != nil {
-		return destregistry.NewErrDestinationValidation(err)
+		return err
 	}
 	if d.sqsClient == nil {
 		sdkConfig, err := config.LoadDefaultConfig(ctx,
@@ -67,17 +62,12 @@ func (d *AWSDestination) Validate(ctx context.Context, destination *models.Desti
 				o.BaseEndpoint = awssdk.String(cfg.Endpoint)
 			}
 		})
-
 	}
 	return nil
 }
 
 func (d *AWSDestination) Publish(ctx context.Context, destination *models.Destination, event *models.Event) error {
-	config, err := parseConfig(destination)
-	if err != nil {
-		return destregistry.NewErrDestinationPublish(err)
-	}
-	credentials, err := parseCredentials(destination)
+	config, credentials, err := d.resolveMetadata(ctx, destination)
 	if err != nil {
 		return destregistry.NewErrDestinationPublish(err)
 	}
@@ -87,43 +77,19 @@ func (d *AWSDestination) Publish(ctx context.Context, destination *models.Destin
 	return nil
 }
 
-func parseConfig(destination *models.Destination) (*AWSDestinationConfig, error) {
-	if destination.Type != "aws" {
-		return nil, errors.New("invalid destination type")
+func (d *AWSDestination) resolveMetadata(ctx context.Context, destination *models.Destination) (*AWSDestinationConfig, *AWSDestinationCredentials, error) {
+	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
+		return nil, nil, err
 	}
 
-	destinationConfig := &AWSDestinationConfig{
-		Endpoint: destination.Config["endpoint"],
-		QueueURL: destination.Config["queue_url"],
-	}
-
-	if destinationConfig.QueueURL == "" {
-		return nil, errors.New("queue_url is required for aws destination config")
-	}
-
-	return destinationConfig, nil
-}
-
-func parseCredentials(destination *models.Destination) (*AWSDestinationCredentials, error) {
-	if destination.Type != "aws" {
-		return nil, errors.New("invalid destination type")
-	}
-
-	destinationCredentials := &AWSDestinationCredentials{
-		Key:     destination.Credentials["key"],
-		Secret:  destination.Credentials["secret"],
-		Session: destination.Credentials["session"],
-	}
-
-	if destinationCredentials.Key == "" {
-		return nil, errors.New("key is required for aws destination credentials")
-	}
-
-	if destinationCredentials.Secret == "" {
-		return nil, errors.New("secret is required for aws destination credentials")
-	}
-
-	return destinationCredentials, nil
+	return &AWSDestinationConfig{
+			Endpoint: destination.Config["endpoint"],
+			QueueURL: destination.Config["queue_url"],
+		}, &AWSDestinationCredentials{
+			Key:     destination.Credentials["key"],
+			Secret:  destination.Credentials["secret"],
+			Session: destination.Credentials["session"],
+		}, nil
 }
 
 func publishEvent(ctx context.Context, cfg *AWSDestinationConfig, creds *AWSDestinationCredentials, event *models.Event) error {

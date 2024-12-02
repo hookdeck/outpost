@@ -3,7 +3,6 @@ package destrabbitmq
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/models"
@@ -35,22 +34,14 @@ func New() (*RabbitMQDestination, error) {
 }
 
 func (d *RabbitMQDestination) Validate(ctx context.Context, destination *models.Destination) error {
-	_, err := parseConfig(destination)
-	if err != nil {
-		return destregistry.NewErrDestinationValidation(err)
-	}
-	if _, err = parseCredentials(destination); err != nil {
-		return destregistry.NewErrDestinationValidation(err)
+	if _, _, err := d.resolveMetadata(ctx, destination); err != nil {
+		return err
 	}
 	return nil
 }
 
 func (d *RabbitMQDestination) Publish(ctx context.Context, destination *models.Destination, event *models.Event) error {
-	config, err := parseConfig(destination)
-	if err != nil {
-		return destregistry.NewErrDestinationPublish(err)
-	}
-	credentials, err := parseCredentials(destination)
+	config, credentials, err := d.resolveMetadata(ctx, destination)
 	if err != nil {
 		return destregistry.NewErrDestinationPublish(err)
 	}
@@ -62,44 +53,18 @@ func (d *RabbitMQDestination) Publish(ctx context.Context, destination *models.D
 	return nil
 }
 
-func parseConfig(destination *models.Destination) (*RabbitMQDestinationConfig, error) {
-	if destination.Type != "rabbitmq" {
-		return nil, errors.New("invalid destination type")
+func (d *RabbitMQDestination) resolveMetadata(ctx context.Context, destination *models.Destination) (*RabbitMQDestinationConfig, *RabbitMQDestinationCredentials, error) {
+	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
+		return nil, nil, err
 	}
 
-	destinationConfig := &RabbitMQDestinationConfig{
-		ServerURL: destination.Config["server_url"],
-		Exchange:  destination.Config["exchange"],
-	}
-
-	if destinationConfig.ServerURL == "" {
-		return nil, errors.New("server_url is required for rabbitmq destination config")
-	}
-	if destinationConfig.Exchange == "" {
-		return nil, errors.New("exchange is required for rabbitmq destination config")
-	}
-
-	return destinationConfig, nil
-}
-
-func parseCredentials(destination *models.Destination) (*RabbitMQDestinationCredentials, error) {
-	if destination.Type != "rabbitmq" {
-		return nil, errors.New("invalid destination type")
-	}
-
-	destinationCredentials := &RabbitMQDestinationCredentials{
-		Username: destination.Credentials["username"],
-		Password: destination.Credentials["password"],
-	}
-
-	if destinationCredentials.Username == "" {
-		return nil, errors.New("username is required for rabbitmq destination credentials")
-	}
-	if destinationCredentials.Password == "" {
-		return nil, errors.New("password is required for rabbitmq destination credentials")
-	}
-
-	return destinationCredentials, nil
+	return &RabbitMQDestinationConfig{
+			ServerURL: destination.Config["server_url"],
+			Exchange:  destination.Config["exchange"],
+		}, &RabbitMQDestinationCredentials{
+			Username: destination.Credentials["username"],
+			Password: destination.Credentials["password"],
+		}, nil
 }
 
 func rabbitURL(config *RabbitMQDestinationConfig, credentials *RabbitMQDestinationCredentials) string {

@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/destregistry"
 	destaws "github.com/hookdeck/outpost/internal/destregistry/providers/destaws"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/awsutil"
@@ -22,88 +23,89 @@ import (
 func TestAWSDestination_Validate(t *testing.T) {
 	t.Parallel()
 
-	awsdestination, err := destaws.New()
-	require.NoError(t, err)
-
 	validDestination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("aws"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"queue_url": "url",
+			"queue_url": "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue",
+			"endpoint":  "https://sqs.us-east-1.amazonaws.com",
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
-			"key":    "key",
-			"secret": "secret",
-			"token":  "token",
+			"key":     "test-key",
+			"secret":  "test-secret",
+			"session": "test-session",
 		}),
 	)
 
-	t.Run("should not return error for valid destination", func(t *testing.T) {
+	awsDestination, err := destaws.New()
+	require.NoError(t, err)
+
+	t.Run("should validate valid destination", func(t *testing.T) {
 		t.Parallel()
-
-		err := awsdestination.Validate(nil, &validDestination)
-
-		assert.Nil(t, err)
+		assert.NoError(t, awsDestination.Validate(nil, &validDestination))
 	})
 
-	t.Run("should validate type", func(t *testing.T) {
+	t.Run("should validate invalid type", func(t *testing.T) {
 		t.Parallel()
-
 		invalidDestination := validDestination
 		invalidDestination.Type = "invalid"
-		err := awsdestination.Validate(nil, &invalidDestination)
-
-		assert.ErrorContains(t, err, "invalid destination type")
+		err := awsDestination.Validate(nil, &invalidDestination)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "type", validationErr.Errors[0].Field)
+		assert.Equal(t, "invalid_type", validationErr.Errors[0].Type)
 	})
 
-	t.Run("should validate config.queue_url", func(t *testing.T) {
+	t.Run("should validate missing queue_url", func(t *testing.T) {
 		t.Parallel()
-
 		invalidDestination := validDestination
-		invalidDestination.Config = map[string]string{}
-		err := awsdestination.Validate(nil, &invalidDestination)
-
-		assert.ErrorContains(t, err, "queue_url is required for aws destination config")
+		invalidDestination.Config = map[string]string{
+			"endpoint": "https://sqs.us-east-1.amazonaws.com",
+		}
+		err := awsDestination.Validate(nil, &invalidDestination)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.queue_url", validationErr.Errors[0].Field)
+		assert.Equal(t, "required", validationErr.Errors[0].Type)
 	})
 
-	t.Run("should validate credentials.key", func(t *testing.T) {
+	t.Run("should validate malformed queue_url", func(t *testing.T) {
 		t.Parallel()
-
 		invalidDestination := validDestination
-		invalidDestination.Credentials = map[string]string{
-			"notkey":  "key",
-			"secret":  "secret",
-			"session": "session",
+		invalidDestination.Config = map[string]string{
+			"queue_url": "not-a-valid-url",
+			"endpoint":  "https://sqs.us-east-1.amazonaws.com",
 		}
-		err := awsdestination.Validate(nil, &invalidDestination)
-
-		assert.ErrorContains(t, err, "key is required for aws destination credentials")
+		err := awsDestination.Validate(nil, &invalidDestination)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.queue_url", validationErr.Errors[0].Field)
+		assert.Equal(t, "format", validationErr.Errors[0].Type)
 	})
 
-	t.Run("should validate credentials.secret", func(t *testing.T) {
+	t.Run("should validate malformed endpoint", func(t *testing.T) {
 		t.Parallel()
-
 		invalidDestination := validDestination
-		invalidDestination.Credentials = map[string]string{
-			"key":       "key",
-			"notsecret": "secret",
-			"session":   "session",
+		invalidDestination.Config = map[string]string{
+			"queue_url": "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue",
+			"endpoint":  "not-a-valid-url",
 		}
-		err := awsdestination.Validate(nil, &invalidDestination)
-
-		assert.ErrorContains(t, err, "secret is required for aws destination credentials")
+		err := awsDestination.Validate(nil, &invalidDestination)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.endpoint", validationErr.Errors[0].Field)
+		assert.Equal(t, "format", validationErr.Errors[0].Type)
 	})
 
-	t.Run("should allow empty credentials.session", func(t *testing.T) {
+	t.Run("should validate missing credentials", func(t *testing.T) {
 		t.Parallel()
-
-		anotherDestination := validDestination
-		anotherDestination.Credentials = map[string]string{
-			"key":    "key",
-			"secret": "secret",
-		}
-		err := awsdestination.Validate(nil, &anotherDestination)
-
-		assert.Nil(t, err)
+		invalidDestination := validDestination
+		invalidDestination.Credentials = map[string]string{}
+		err := awsDestination.Validate(nil, &invalidDestination)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		// Could be either key or secret that's reported first
+		assert.Contains(t, []string{"credentials.key", "credentials.secret"}, validationErr.Errors[0].Field)
+		assert.Equal(t, "required", validationErr.Errors[0].Type)
 	})
 }
 

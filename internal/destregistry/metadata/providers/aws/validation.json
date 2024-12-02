@@ -1,12 +1,36 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "type": "object",
-    "properties": {
-        "config": {
-            "type": "object"
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["config", "credentials"],
+  "properties": {
+    "config": {
+      "type": "object",
+      "required": ["queue_url"],
+      "properties": {
+        "queue_url": {
+          "type": "string",
+          "format": "uri"
         },
-        "credentials": {
-            "type": "object"
+        "endpoint": {
+          "type": "string",
+          "format": "uri"
         }
+      }
+    },
+    "credentials": {
+      "type": "object",
+      "required": ["key", "secret"],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "secret": {
+          "type": "string"
+        },
+        "session": {
+          "type": "string"
+        }
+      }
     }
+  }
 }

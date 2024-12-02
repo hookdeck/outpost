@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
@@ -64,6 +65,20 @@ func (e *ErrorResponse) Parse(err error) {
 		e.Message = "invalid JSON"
 		return
 	}
+
+	// Handle destregistry.ErrDestinationValidation
+	var validationErr *destregistry.ErrDestinationValidation
+	if errors.As(err, &validationErr) {
+		validationDetails := make(map[string]string)
+		for _, detail := range validationErr.Errors {
+			validationDetails[detail.Field] = detail.Type
+		}
+		e.Code = http.StatusUnprocessableEntity
+		e.Message = "validation error"
+		e.Data = validationDetails
+		return
+	}
+
 	e.Message = err.Error()
 }
 

@@ -2,8 +2,21 @@ package destregistry
 
 import "fmt"
 
-func NewErrDestinationValidation(err error) error {
-	return fmt.Errorf("validation failed: %w", err)
+type ErrDestinationValidation struct {
+	Errors []ValidationErrorDetail `json:"errors"`
+}
+
+type ValidationErrorDetail struct {
+	Field string `json:"field"`
+	Type  string `json:"type"`
+}
+
+func (e *ErrDestinationValidation) Error() string {
+	return fmt.Sprintf("validation failed")
+}
+
+func NewErrDestinationValidation(errors []ValidationErrorDetail) error {
+	return &ErrDestinationValidation{Errors: errors}
 }
 
 type ErrDestinationPublish struct {

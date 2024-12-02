@@ -1,12 +1,35 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "type": "object",
-    "properties": {
-        "config": {
-            "type": "object"
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["config", "credentials"],
+  "properties": {
+    "config": {
+      "type": "object",
+      "required": ["server_url", "exchange"],
+      "properties": {
+        "server_url": {
+          "type": "string",
+          "format": "uri"
         },
-        "credentials": {
-            "type": "object"
+        "exchange": {
+          "type": "string"
+        },
+        "routing_key": {
+          "type": "string"
         }
+      }
+    },
+    "credentials": {
+      "type": "object",
+      "required": ["username", "password"],
+      "properties": {
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        }
+      }
     }
+  }
 }
