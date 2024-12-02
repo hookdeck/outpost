@@ -105,5 +105,8 @@ func NewRouter(
 
 	adminRouter.GET("/topics", topicHandlers.List)
 
+	adminRouter.GET("/providers", destinationHandlers.ListProviderMetadata)
+	adminRouter.GET("/providers/:type", destinationHandlers.RetrieveProviderMetadata)
+
 	return r
 }

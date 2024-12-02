@@ -58,13 +58,13 @@ func (l *MetadataLoader) loadValidation(providerType string, metadata *ProviderM
 		return fmt.Errorf("loading validation schema: %w", err)
 	}
 
-	var schema interface{}
-	if err := json.Unmarshal(validationBytes, &schema); err != nil {
+	// Parse and store the raw schema
+	if err := json.Unmarshal(validationBytes, &metadata.ValidationSchema); err != nil {
 		return fmt.Errorf("parsing validation schema: %w", err)
 	}
 
 	compiler := jsonschema.NewCompiler()
-	if err := compiler.AddResource("schema.json", schema); err != nil {
+	if err := compiler.AddResource("schema.json", metadata.ValidationSchema); err != nil {
 		return fmt.Errorf("adding validation schema: %w", err)
 	}
 

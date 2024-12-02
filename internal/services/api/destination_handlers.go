@@ -164,6 +164,21 @@ func (h *DestinationHandlers) Enable(c *gin.Context) {
 	h.setDisabilityHandler(c, false)
 }
 
+func (h *DestinationHandlers) ListProviderMetadata(c *gin.Context) {
+	metadata := h.registry.ListProviderMetadata()
+	c.JSON(http.StatusOK, metadata)
+}
+
+func (h *DestinationHandlers) RetrieveProviderMetadata(c *gin.Context) {
+	providerType := c.Param("type")
+	metadata, err := h.registry.RetrieveProviderMetadata(providerType)
+	if err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	c.JSON(http.StatusOK, metadata)
+}
+
 func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool) {
 	destination := h.mustRetrieveDestination(c, c.Param("tenantID"), c.Param("destinationID"))
 	if destination == nil {

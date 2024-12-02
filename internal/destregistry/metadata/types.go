@@ -15,9 +15,12 @@ type ProviderMetadata struct {
 	Icon           string `json:"icon"`
 	RemoteSetupURL string `json:"remote_setup_url,omitempty"`
 
-	// From other files
-	Instructions string             // from instructions.md
-	Validation   *jsonschema.Schema // from validation.json
+	// From instructions.md
+	Instructions string `json:"instructions"`
+
+	// From validation.json
+	ValidationSchema map[string]interface{} `json:"validation"` // Raw JSON schema
+	Validation       *jsonschema.Schema     `json:"-"`          // Compiled schema for internal use
 }
 
 type FieldSchema struct {
