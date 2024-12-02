@@ -411,7 +411,10 @@ func (suite *basicSuite) TestDestinationsAPI() {
 				Match: &httpclient.Response{
 					StatusCode: http.StatusUnprocessableEntity,
 					Body: map[string]interface{}{
-						"message": "validation failed: url is required for webhook destination config",
+						"message": "validation error",
+						"data": map[string]interface{}{
+							"config.url": "required",
+						},
 					},
 				},
 			},
@@ -566,7 +569,10 @@ func (suite *basicSuite) TestDestinationsAPI() {
 				Match: &httpclient.Response{
 					StatusCode: http.StatusUnprocessableEntity,
 					Body: map[string]interface{}{
-						"message": "validation failed: url is required for webhook destination config",
+						"message": "validation error",
+						"data": map[string]interface{}{
+							"config.url": "required",
+						},
 					},
 				},
 			},
