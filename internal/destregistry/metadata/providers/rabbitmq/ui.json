@@ -1,0 +1,5 @@
+{
+    "label": "RABBITMQ",
+    "description": "Send events to rabbitmq",
+    "icon": ""
+}

@@ -1,0 +1,5 @@
+{
+    "type": "rabbitmq",
+    "config_fields": [],
+    "credential_fields": []
+}
