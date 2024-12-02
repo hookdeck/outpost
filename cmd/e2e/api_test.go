@@ -250,6 +250,23 @@ func (suite *basicSuite) TestTenantsAPI() {
 				},
 			},
 		},
+		{
+			Name: "PUT /:tenantID should override deleted tenant",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+					Body: map[string]interface{}{
+						"id":                 tenantID,
+						"destinations_count": 0,
+						"topics":             []string{},
+					},
+				},
+			},
+		},
 	}
 	suite.RunAPITests(suite.T(), tests)
 }

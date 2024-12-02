@@ -32,7 +32,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 
 	// Check existing tenant.
 	tenant, err := h.entityStore.RetrieveTenant(c.Request.Context(), tenantID)
-	if err != nil {
+	if err != nil && err != models.ErrTenantDeleted {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
