@@ -7,8 +7,23 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 )
 
-func RegisterDefault(registry destregistry.Registry) {
-	registry.RegisterProvider("aws", destaws.New())
-	registry.RegisterProvider("rabbitmq", destrabbitmq.New())
-	registry.RegisterProvider("webhook", destwebhook.New())
+func RegisterDefault(registry destregistry.Registry) error {
+	aws, err := destaws.New()
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("aws", aws)
+
+	rabbitmq, err := destrabbitmq.New()
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("rabbitmq", rabbitmq)
+
+	webhook, err := destwebhook.New()
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("webhook", webhook)
+	return nil
 }

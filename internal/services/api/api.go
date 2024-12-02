@@ -43,7 +43,9 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	wg.Add(1)
 
 	registry := destregistry.NewRegistry()
-	destregistrydefault.RegisterDefault(registry)
+	if err := destregistrydefault.RegisterDefault(registry); err != nil {
+		return nil, err
+	}
 
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig))
 	cleanupDeliveryMQ, err := deliveryMQ.Init(ctx)

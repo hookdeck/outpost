@@ -32,7 +32,8 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		}),
 	)
 
-	rabbitmqDestination := destrabbitmq.New()
+	rabbitmqDestination, err := destrabbitmq.New()
+	require.NoError(t, err)
 
 	t.Run("should not return error for valid destination", func(t *testing.T) {
 		t.Parallel()
@@ -96,7 +97,8 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 func TestRabbitMQDestination_Publish(t *testing.T) {
 	t.Parallel()
 
-	rabbitmqDestination := destrabbitmq.New()
+	rabbitmqDestination, err := destrabbitmq.New()
+	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("rabbitmq"),
@@ -126,7 +128,8 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 	t.Cleanup(testinfra.Start(t))
 
 	mq := testinfra.NewMQRabbitMQConfig(t)
-	rabbitmqDestination := destrabbitmq.New()
+	rabbitmqDestination, err := destrabbitmq.New()
+	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("rabbitmq"),

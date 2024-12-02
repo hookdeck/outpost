@@ -63,7 +63,9 @@ func NewService(ctx context.Context,
 
 	if handler == nil {
 		registry := destregistry.NewRegistry()
-		destregistrydefault.RegisterDefault(registry)
+		if err := destregistrydefault.RegisterDefault(registry); err != nil {
+			return nil, err
+		}
 		var eventTracer eventtracer.EventTracer
 		if cfg.OpenTelemetry == nil {
 			eventTracer = eventtracer.NewNoopEventTracer()

@@ -11,6 +11,7 @@ import (
 )
 
 type RabbitMQDestination struct {
+	*destregistry.BaseProvider
 }
 
 type RabbitMQDestinationConfig struct {
@@ -25,8 +26,12 @@ type RabbitMQDestinationCredentials struct {
 
 var _ destregistry.Provider = (*RabbitMQDestination)(nil)
 
-func New() *RabbitMQDestination {
-	return &RabbitMQDestination{}
+func New() (*RabbitMQDestination, error) {
+	base, err := destregistry.NewBaseProvider("rabbitmq")
+	if err != nil {
+		return nil, err
+	}
+	return &RabbitMQDestination{BaseProvider: base}, nil
 }
 
 func (d *RabbitMQDestination) Validate(ctx context.Context, destination *models.Destination) error {

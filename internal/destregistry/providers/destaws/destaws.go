@@ -16,6 +16,8 @@ import (
 )
 
 type AWSDestination struct {
+	*destregistry.BaseProvider
+	sqsClient *sqs.Client
 }
 
 type AWSDestinationConfig struct {
@@ -31,17 +33,41 @@ type AWSDestinationCredentials struct {
 
 var _ destregistry.Provider = (*AWSDestination)(nil)
 
-func New() *AWSDestination {
-	return &AWSDestination{}
+func New() (*AWSDestination, error) {
+	base, err := destregistry.NewBaseProvider("aws")
+	if err != nil {
+		return nil, err
+	}
+
+	return &AWSDestination{
+		BaseProvider: base,
+	}, nil
 }
 
 func (d *AWSDestination) Validate(ctx context.Context, destination *models.Destination) error {
-	_, err := parseConfig(destination)
+	cfg, err := parseConfig(destination)
 	if err != nil {
 		return destregistry.NewErrDestinationValidation(err)
 	}
-	if _, err = parseCredentials(destination); err != nil {
+	creds, err := parseCredentials(destination)
+	if err != nil {
 		return destregistry.NewErrDestinationValidation(err)
+	}
+	if d.sqsClient == nil {
+		sdkConfig, err := config.LoadDefaultConfig(ctx,
+			// TODO: use proper credentials
+			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(creds.Key, creds.Secret, creds.Session)),
+		)
+		if err != nil {
+			return err
+		}
+
+		d.sqsClient = sqs.NewFromConfig(sdkConfig, func(o *sqs.Options) {
+			if cfg.Endpoint != "" {
+				o.BaseEndpoint = awssdk.String(cfg.Endpoint)
+			}
+		})
+
 	}
 	return nil
 }

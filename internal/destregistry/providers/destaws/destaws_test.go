@@ -22,7 +22,8 @@ import (
 func TestAWSDestination_Validate(t *testing.T) {
 	t.Parallel()
 
-	awsdestination := destaws.New()
+	awsdestination, err := destaws.New()
+	require.NoError(t, err)
 
 	validDestination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("aws"),
@@ -115,7 +116,8 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 	require.NoError(t, err)
 	queueURL, err := awsutil.EnsureQueue(context.Background(), sqsClient, mq.AWSSQS.Topic, nil)
 	require.NoError(t, err)
-	awsdestination := destaws.New()
+	awsdestination, err := destaws.New()
+	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("aws"),

@@ -26,7 +26,8 @@ func TestWebhookDestination_Validate(t *testing.T) {
 		testutil.DestinationFactory.WithCredentials(map[string]string{}),
 	)
 
-	webhookDestination := destwebhook.New()
+	webhookDestination, err := destwebhook.New()
+	require.NoError(t, err)
 
 	t.Run("should not return error for valid destination", func(t *testing.T) {
 		t.Parallel()
@@ -122,7 +123,8 @@ func (suite *webhookDestinationSuite) TeardownTest(t *testing.T) {
 func TestWebhookDestination_Publish(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination := destwebhook.New()
+	webhookDestination, err := destwebhook.New()
+	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),

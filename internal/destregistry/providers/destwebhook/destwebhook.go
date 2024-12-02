@@ -14,6 +14,7 @@ import (
 )
 
 type WebhookDestination struct {
+	*destregistry.BaseProvider
 }
 
 type WebhookDestinationConfig struct {
@@ -22,8 +23,12 @@ type WebhookDestinationConfig struct {
 
 var _ destregistry.Provider = (*WebhookDestination)(nil)
 
-func New() *WebhookDestination {
-	return &WebhookDestination{}
+func New() (*WebhookDestination, error) {
+	base, err := destregistry.NewBaseProvider("webhook")
+	if err != nil {
+		return nil, err
+	}
+	return &WebhookDestination{BaseProvider: base}, nil
 }
 
 func (d *WebhookDestination) Validate(ctx context.Context, destination *models.Destination) error {
