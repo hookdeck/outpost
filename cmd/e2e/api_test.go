@@ -952,6 +952,99 @@ func (suite *basicSuite) TestTopicsAPI() {
 	suite.RunAPITests(suite.T(), tests)
 }
 
+func (suite *basicSuite) TestProvidersAPI() {
+	providerFieldSchema := map[string]interface{}{
+		"type":     "object",
+		"required": []interface{}{"key", "type", "label", "description", "required"},
+		"properties": map[string]interface{}{
+			"key":         map[string]interface{}{"type": "string"},
+			"type":        map[string]interface{}{"type": "string"},
+			"label":       map[string]interface{}{"type": "string"},
+			"description": map[string]interface{}{"type": "string"},
+			"required":    map[string]interface{}{"type": "boolean"},
+		},
+	}
+
+	providerSchema := map[string]interface{}{
+		"type":     "object",
+		"required": []interface{}{"type", "label", "description", "icon", "config_fields", "credential_fields"},
+		"properties": map[string]interface{}{
+			"type":         map[string]interface{}{"type": "string"},
+			"label":        map[string]interface{}{"type": "string"},
+			"description":  map[string]interface{}{"type": "string"},
+			"icon":         map[string]interface{}{"type": "string"},
+			"instructions": map[string]interface{}{"type": "string"},
+			"config_fields": map[string]interface{}{
+				"type":  "array",
+				"items": providerFieldSchema,
+			},
+			"credential_fields": map[string]interface{}{
+				"type":  "array",
+				"items": providerFieldSchema,
+			},
+			"validation": map[string]interface{}{
+				"type": "object",
+			},
+		},
+	}
+
+	tests := []APITest{
+		{
+			Name: "GET /providers",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/providers",
+			}),
+			Expected: APITestExpectation{
+				Validate: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"statusCode": map[string]any{"const": 200},
+						"body": map[string]interface{}{
+							"type":     "object",
+							"required": []interface{}{"webhook", "aws", "rabbitmq"},
+							"properties": map[string]interface{}{
+								"webhook":  providerSchema,
+								"aws":      providerSchema,
+								"rabbitmq": providerSchema,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "GET /providers/webhook",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/providers/webhook",
+			}),
+			Expected: APITestExpectation{
+				Validate: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"statusCode": map[string]any{"const": 200},
+						"body":       providerSchema,
+					},
+				},
+			},
+		},
+		{
+			Name: "GET /providers/invalid",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/providers/invalid",
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusNotFound,
+				},
+			},
+		},
+	}
+	suite.RunAPITests(suite.T(), tests)
+}
+
 func makeDestinationListValidator(length int) map[string]any {
 	return map[string]any{
 		"type": "object",
