@@ -155,3 +155,27 @@ $ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
   "disabled_at": null
 }
 ```
+
+## Implementation
+
+### Destination Registry
+
+The destination registry serves as the core interface for managing and interacting with destination providers. It allows other services to validate configurations and publish messages. Each provider implements destination-specific logic for validation and publishing.
+
+### Metadata
+
+Provider metadata is organized in a standardized directory structure, with each provider having the following files:
+
+- **`core.json`**: Defines configuration fields and basic validation rules.
+- **`ui.json`**: Provides UI-specific information like labels, descriptions, and icons.
+- **`instructions.md`**: Contains setup instructions for the provider.
+- **`validation.json`**: Includes detailed JSON schema validation rules.
+
+Custom metadata overrides can be applied through environment configuration.
+
+### Destination Implementation Checklist
+
+- [ ] Add provider metadata to `destregistry/metadata/providers/<provider>/` (`$ go run cmd/genprovider <provider>` for the provider metadata boilerplate)
+- [ ] Implement provider interface in `destregistry/providers/<provider>`
+- [ ] Run provider test suite (common test suite not implemented - TODO)
+- [ ] Add provider to the default provider registration in `destregistry/providers/default.go`
