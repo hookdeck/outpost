@@ -10,6 +10,8 @@ services:
         condition: service_healthy
     ports:
       - "${PORT}:${PORT}"
+    volumes:
+      - ./config/outpost:/config/outpost
     environment:
       SERVICE: api
 
