@@ -62,7 +62,9 @@ func NewService(ctx context.Context,
 	cleanupFuncs = append(cleanupFuncs, cleanupLogMQ)
 
 	if handler == nil {
-		registry := destregistry.NewRegistry()
+		registry := destregistry.NewRegistry(&destregistry.Config{
+			DestinationMetadataPath: cfg.DestinationMetadataPath,
+		})
 		if err := destregistrydefault.RegisterDefault(registry); err != nil {
 			return nil, err
 		}

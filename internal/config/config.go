@@ -44,6 +44,7 @@ type Config struct {
 	RetryMaxCount                   int
 	LogBatcherDelayThresholdSeconds int
 	LogBatcherItemCountThreshold    int
+	DestinationMetadataPath         string
 }
 
 var defaultConfig = map[string]any{
@@ -63,6 +64,7 @@ var defaultConfig = map[string]any{
 	"MAX_RETRY_COUNT":                     10,
 	"LOG_BATCHER_DELAY_THRESHOLD_SECONDS": 5,
 	"LOG_BATCHER_ITEM_COUNT_THRESHOLD":    100,
+	"DESTINATION_METADATA_PATH":           "config/outpost/destinations",
 }
 
 var (
@@ -179,6 +181,7 @@ func Parse(flags Flags) (*Config, error) {
 		RetryMaxCount:                   mustInt(viper, "MAX_RETRY_COUNT"),
 		LogBatcherDelayThresholdSeconds: mustInt(viper, "LOG_BATCHER_DELAY_THRESHOLD_SECONDS"),
 		LogBatcherItemCountThreshold:    mustInt(viper, "LOG_BATCHER_ITEM_COUNT_THRESHOLD"),
+		DestinationMetadataPath:         viper.GetString("DESTINATION_METADATA_PATH"),
 	}
 
 	return config, nil

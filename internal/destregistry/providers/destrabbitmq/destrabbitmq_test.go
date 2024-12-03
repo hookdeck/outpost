@@ -33,7 +33,7 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		}),
 	)
 
-	rabbitmqDestination, err := destrabbitmq.New()
+	rabbitmqDestination, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
@@ -108,7 +108,7 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 func TestRabbitMQDestination_Publish(t *testing.T) {
 	t.Parallel()
 
-	rabbitmqDestination, err := destrabbitmq.New()
+	rabbitmqDestination, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(
@@ -139,7 +139,7 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 	t.Cleanup(testinfra.Start(t))
 
 	mq := testinfra.NewMQRabbitMQConfig(t)
-	rabbitmqDestination, err := destrabbitmq.New()
+	rabbitmqDestination, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(

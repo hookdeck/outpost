@@ -42,7 +42,9 @@ type APIService struct {
 func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*APIService, error) {
 	wg.Add(1)
 
-	registry := destregistry.NewRegistry()
+	registry := destregistry.NewRegistry(&destregistry.Config{
+		DestinationMetadataPath: cfg.DestinationMetadataPath,
+	})
 	if err := destregistrydefault.RegisterDefault(registry); err != nil {
 		return nil, err
 	}

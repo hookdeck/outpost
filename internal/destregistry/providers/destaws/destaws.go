@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
 )
 
@@ -32,8 +33,8 @@ type AWSDestinationCredentials struct {
 
 var _ destregistry.Provider = (*AWSDestination)(nil)
 
-func New() (*AWSDestination, error) {
-	base, err := destregistry.NewBaseProvider("aws")
+func New(loader *metadata.MetadataLoader) (*AWSDestination, error) {
+	base, err := destregistry.NewBaseProvider(loader, "aws")
 	if err != nil {
 		return nil, err
 	}

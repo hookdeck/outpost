@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/rabbitmq/amqp091-go"
 )
@@ -25,8 +26,8 @@ type RabbitMQDestinationCredentials struct {
 
 var _ destregistry.Provider = (*RabbitMQDestination)(nil)
 
-func New() (*RabbitMQDestination, error) {
-	base, err := destregistry.NewBaseProvider("rabbitmq")
+func New(loader *metadata.MetadataLoader) (*RabbitMQDestination, error) {
+	base, err := destregistry.NewBaseProvider(loader, "rabbitmq")
 	if err != nil {
 		return nil, err
 	}

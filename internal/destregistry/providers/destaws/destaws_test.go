@@ -36,7 +36,7 @@ func TestAWSDestination_Validate(t *testing.T) {
 		}),
 	)
 
-	awsDestination, err := destaws.New()
+	awsDestination, err := destaws.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
@@ -118,7 +118,7 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 	require.NoError(t, err)
 	queueURL, err := awsutil.EnsureQueue(context.Background(), sqsClient, mq.AWSSQS.Topic, nil)
 	require.NoError(t, err)
-	awsdestination, err := destaws.New()
+	awsdestination, err := destaws.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(

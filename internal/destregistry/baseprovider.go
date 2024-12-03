@@ -17,8 +17,7 @@ type BaseProvider struct {
 }
 
 // NewBaseProvider creates a new base provider with loaded metadata
-func NewBaseProvider(providerType string) (*BaseProvider, error) {
-	loader := metadata.NewMetadataLoader("")
+func NewBaseProvider(loader *metadata.MetadataLoader, providerType string) (*BaseProvider, error) {
 	meta, err := loader.Load(providerType)
 	if err != nil {
 		return nil, fmt.Errorf("loading provider metadata: %w", err)

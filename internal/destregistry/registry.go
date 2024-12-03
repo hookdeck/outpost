@@ -13,6 +13,7 @@ type Registry interface {
 	GetProvider(destinationType string) (Provider, error)
 	RetrieveProviderMetadata(providerType string) (*metadata.ProviderMetadata, error)
 	ListProviderMetadata() map[string]*metadata.ProviderMetadata
+	MetadataLoader() *metadata.MetadataLoader
 }
 
 type Provider interface {
@@ -27,14 +28,20 @@ type Provider interface {
 }
 
 type registry struct {
-	providers map[string]Provider
-	metadata  map[string]*metadata.ProviderMetadata
+	providers      map[string]Provider
+	metadata       map[string]*metadata.ProviderMetadata
+	metadataLoader *metadata.MetadataLoader
 }
 
-func NewRegistry() Registry {
+type Config struct {
+	DestinationMetadataPath string
+}
+
+func NewRegistry(cfg *Config) Registry {
 	return &registry{
-		providers: make(map[string]Provider),
-		metadata:  make(map[string]*metadata.ProviderMetadata),
+		providers:      make(map[string]Provider),
+		metadata:       make(map[string]*metadata.ProviderMetadata),
+		metadataLoader: metadata.NewMetadataLoader(cfg.DestinationMetadataPath),
 	}
 }
 
@@ -67,4 +74,8 @@ func (r *registry) ListProviderMetadata() map[string]*metadata.ProviderMetadata 
 		metadataCopy[k] = v
 	}
 	return metadataCopy
+}
+
+func (r *registry) MetadataLoader() *metadata.MetadataLoader {
+	return r.metadataLoader
 }

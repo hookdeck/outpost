@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
 )
 
@@ -23,8 +24,8 @@ type WebhookDestinationConfig struct {
 
 var _ destregistry.Provider = (*WebhookDestination)(nil)
 
-func New() (*WebhookDestination, error) {
-	base, err := destregistry.NewBaseProvider("webhook")
+func New(loader *metadata.MetadataLoader) (*WebhookDestination, error) {
+	base, err := destregistry.NewBaseProvider(loader, "webhook")
 	if err != nil {
 		return nil, err
 	}

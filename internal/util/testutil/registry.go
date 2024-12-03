@@ -8,6 +8,8 @@ import (
 var Registry destregistry.Registry
 
 func init() {
-	Registry = destregistry.NewRegistry()
+	Registry = destregistry.NewRegistry(&destregistry.Config{
+		DestinationMetadataPath: "",
+	})
 	destregistrydefault.RegisterDefault(Registry)
 }
