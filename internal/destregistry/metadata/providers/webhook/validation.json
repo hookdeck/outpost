@@ -15,7 +15,12 @@
     },
     "credentials": {
       "type": "object",
-      "properties": {}
+      "properties": {
+        "secrets": {
+          "type": "string",
+          "pattern": "^\\[\\s*\\{[^\\}]*\\}(\\s*,\\s*\\{[^\\}]*\\})*\\s*\\]$"
+        }
+      }
     }
   }
 }

@@ -1,13 +1,13 @@
 package destwebhook
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
@@ -22,6 +22,15 @@ type WebhookDestinationConfig struct {
 	URL string
 }
 
+type WebhookSecret struct {
+	Key       string    `json:"key"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type WebhookDestinationCredentials struct {
+	Secrets []WebhookSecret
+}
+
 var _ destregistry.Provider = (*WebhookDestination)(nil)
 
 func New(loader *metadata.MetadataLoader) (*WebhookDestination, error) {
@@ -33,62 +42,65 @@ func New(loader *metadata.MetadataLoader) (*WebhookDestination, error) {
 }
 
 func (d *WebhookDestination) Validate(ctx context.Context, destination *models.Destination) error {
-	return d.BaseProvider.Validate(ctx, destination)
-}
-
-func (d *WebhookDestination) Publish(ctx context.Context, destination *models.Destination, event *models.Event) error {
-	config, err := d.resolveConfig(ctx, destination)
-	if err != nil {
-		return destregistry.NewErrDestinationPublish(err)
-	}
-	if err := makeRequest(ctx, config.URL, event); err != nil {
-		return destregistry.NewErrDestinationPublish(err)
+	if _, _, err := d.resolveConfig(ctx, destination); err != nil {
+		return err
 	}
 	return nil
 }
 
-func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *models.Destination) (*WebhookDestinationConfig, error) {
-	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
-		return nil, err
-	}
-	return &WebhookDestinationConfig{
-		URL: destination.Config["url"],
-	}, nil
-}
-
-func makeRequest(ctx context.Context, url string, event *models.Event) error {
-	dataBytes, err := json.Marshal(event.Data)
+func (d *WebhookDestination) Publish(ctx context.Context, destination *models.Destination, event *models.Event) error {
+	config, creds, err := d.resolveConfig(ctx, destination)
 	if err != nil {
-		return err
+		return destregistry.NewErrDestinationPublish(err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(dataBytes))
+	rawBody, err := json.Marshal(event.Data)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal event data: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	for key, value := range event.Metadata {
-		req.Header.Set("x-outpost-"+key, value)
+	webhookReq := NewWebhookRequest(config.URL, event.ID, rawBody, event.Metadata, "x-outpost-", creds.Secrets)
+	httpReq, err := webhookReq.ToHTTPRequest(ctx)
+	if err != nil {
+		return destregistry.NewErrDestinationPublish(err)
 	}
 
 	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		// TODO: improve error handling to store response value
-		// TODO: improve logger
-		log.Println(resp)
-		if bodyBytes, err := io.ReadAll(resp.Body); err == nil {
-			bodyString := string(bodyBytes)
-			log.Println("request error body:", bodyString)
-		}
-		return errors.New("request failed")
+		log.Println(resp) // TODO: use proper logger
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	return nil
+}
+
+func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *models.Destination) (*WebhookDestinationConfig, *WebhookDestinationCredentials, error) {
+	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
+		return nil, nil, err
+	}
+
+	// Extract URL from destination config
+	config := &WebhookDestinationConfig{
+		URL: destination.Config["url"],
+	}
+
+	// Parse secrets from destination credentials
+	var creds WebhookDestinationCredentials
+	if secretsJson, ok := destination.Credentials["secrets"]; ok {
+		if err := json.Unmarshal([]byte(secretsJson), &creds.Secrets); err != nil {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+				Field: "credentials.secrets",
+				Type:  "invalid_format",
+			}})
+		}
+	}
+
+	return config, &creds, nil
 }
