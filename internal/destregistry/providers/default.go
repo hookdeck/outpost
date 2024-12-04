@@ -7,7 +7,15 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 )
 
-func RegisterDefault(registry destregistry.Registry) error {
+type DestWebhookConfig struct {
+	HeaderPrefix string
+}
+
+type RegisterDefaultDestinationOptions struct {
+	Webhook *DestWebhookConfig
+}
+
+func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestinationOptions) error {
 	loader := registry.MetadataLoader()
 
 	aws, err := destaws.New(loader)
@@ -22,7 +30,11 @@ func RegisterDefault(registry destregistry.Registry) error {
 	}
 	registry.RegisterProvider("rabbitmq", rabbitmq)
 
-	webhook, err := destwebhook.New(loader)
+	webhookOpts := []destwebhook.Option{}
+	if opts.Webhook != nil {
+		webhookOpts = append(webhookOpts, destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix))
+	}
+	webhook, err := destwebhook.New(loader, webhookOpts...)
 	if err != nil {
 		return err
 	}

@@ -45,6 +45,7 @@ type Config struct {
 	LogBatcherDelayThresholdSeconds int
 	LogBatcherItemCountThreshold    int
 	DestinationMetadataPath         string
+	DestinationWebhookHeaderPrefix  string
 }
 
 var defaultConfig = map[string]any{
@@ -65,6 +66,7 @@ var defaultConfig = map[string]any{
 	"LOG_BATCHER_DELAY_THRESHOLD_SECONDS": 5,
 	"LOG_BATCHER_ITEM_COUNT_THRESHOLD":    100,
 	"DESTINATION_METADATA_PATH":           "config/outpost/destinations",
+	"DESTINATION_WEBHOOK_HEADER_PREFIX":   "x-outpost-",
 }
 
 var (
@@ -182,6 +184,7 @@ func Parse(flags Flags) (*Config, error) {
 		LogBatcherDelayThresholdSeconds: mustInt(viper, "LOG_BATCHER_DELAY_THRESHOLD_SECONDS"),
 		LogBatcherItemCountThreshold:    mustInt(viper, "LOG_BATCHER_ITEM_COUNT_THRESHOLD"),
 		DestinationMetadataPath:         viper.GetString("DESTINATION_METADATA_PATH"),
+		DestinationWebhookHeaderPrefix:  viper.GetString("DESTINATION_WEBHOOK_HEADER_PREFIX"),
 	}
 
 	return config, nil

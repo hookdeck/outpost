@@ -11,5 +11,5 @@ func init() {
 	Registry = destregistry.NewRegistry(&destregistry.Config{
 		DestinationMetadataPath: "",
 	})
-	destregistrydefault.RegisterDefault(Registry)
+	destregistrydefault.RegisterDefault(Registry, destregistrydefault.RegisterDefaultDestinationOptions{})
 }
