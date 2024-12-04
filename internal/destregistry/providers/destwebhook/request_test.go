@@ -76,6 +76,28 @@ func TestNewWebhookRequest(t *testing.T) {
 		req := destwebhook.NewWebhookRequest(url, rawBody, metadata, headerPrefix, []destwebhook.WebhookSecret{oldSecret})
 		require.Len(t, req.Signatures, 1, "should generate signature for single secret regardless of age")
 	})
+
+	t.Run("should always use latest secret for signing", func(t *testing.T) {
+		t.Parallel()
+
+		secrets := []destwebhook.WebhookSecret{
+			{
+				Key:       "latest",
+				CreatedAt: time.Now().Add(-48 * time.Hour), // Old but latest
+			},
+			{
+				Key:       "older",
+				CreatedAt: time.Now().Add(-72 * time.Hour), // Older
+			},
+			{
+				Key:       "oldest",
+				CreatedAt: time.Now().Add(-96 * time.Hour), // Oldest
+			},
+		}
+
+		req := destwebhook.NewWebhookRequest(url, rawBody, metadata, headerPrefix, secrets)
+		assert.Len(t, req.Signatures, 1, "should only use latest secret")
+	})
 }
 
 func TestWebhookRequest_ToHTTPRequest(t *testing.T) {

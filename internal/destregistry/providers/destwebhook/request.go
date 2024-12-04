@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -21,31 +22,39 @@ type WebhookRequest struct {
 }
 
 func NewWebhookRequest(url string, rawBody []byte, metadata map[string]string, headerPrefix string, secrets []WebhookSecret) *WebhookRequest {
-	timestamp := time.Now().Unix()
-	var signatures []string
+	req := &WebhookRequest{
+		URL:          url,
+		Timestamp:    time.Now().Unix(),
+		RawBody:      rawBody,
+		Metadata:     metadata,
+		HeaderPrefix: headerPrefix,
+		Signatures:   []string{},
+	}
 
-	if len(secrets) == 1 {
-		// If there's only one secret, always use it regardless of age
-		sig := generateSignature(secrets[0].Key, timestamp, rawBody)
-		signatures = append(signatures, sig)
-	} else if len(secrets) > 1 {
-		// During rotation (multiple secrets), only use secrets from the last 24 hours
-		for _, secret := range secrets {
-			if time.Since(secret.CreatedAt) <= 24*time.Hour {
-				sig := generateSignature(secret.Key, timestamp, rawBody)
-				signatures = append(signatures, sig)
-			}
+	if len(secrets) == 0 {
+		return req
+	}
+
+	// Sort secrets by creation date, newest first
+	sortedSecrets := make([]WebhookSecret, len(secrets))
+	copy(sortedSecrets, secrets)
+	sort.Slice(sortedSecrets, func(i, j int) bool {
+		return sortedSecrets[i].CreatedAt.After(sortedSecrets[j].CreatedAt)
+	})
+
+	// Always use latest secret
+	latestSecret := sortedSecrets[0]
+	req.Signatures = append(req.Signatures, generateSignature(latestSecret.Key, req.Timestamp, req.RawBody))
+
+	// Add signatures for non-expired secrets that aren't the latest
+	now := time.Now()
+	for _, secret := range sortedSecrets[1:] {
+		if now.Sub(secret.CreatedAt) < 24*time.Hour {
+			req.Signatures = append(req.Signatures, generateSignature(secret.Key, req.Timestamp, req.RawBody))
 		}
 	}
 
-	return &WebhookRequest{
-		URL:          url,
-		Timestamp:    timestamp,
-		RawBody:      rawBody,
-		Signatures:   signatures,
-		Metadata:     metadata,
-		HeaderPrefix: headerPrefix,
-	}
+	return req
 }
 
 func (wr *WebhookRequest) ToHTTPRequest(ctx context.Context) (*http.Request, error) {
