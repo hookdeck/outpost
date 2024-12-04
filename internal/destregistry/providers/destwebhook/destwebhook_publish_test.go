@@ -126,7 +126,7 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		// Verify signature
 		signature := suite.request.Header.Get("x-outpost-signature")
 		require.NotEmpty(t, signature)
-		assertValidSignature(t, "secret1", event.ID, suite.requestBody, signature)
+		assertValidSignature(t, "secret1", suite.requestBody, signature)
 
 		assert.Equal(t, "value1", suite.request.Header.Get("x-outpost-key1"))
 		assert.JSONEq(t, `{"foo":"bar"}`, string(suite.requestBody))
@@ -167,11 +167,24 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		// Verify signatures
 		signatureHeader := suite.request.Header.Get("x-outpost-signature")
 		require.NotEmpty(t, signatureHeader)
-		signatures := strings.Split(signatureHeader, " ")
-		require.Len(t, signatures, 2)
 
-		assertValidSignature(t, "secret1", event.ID, suite.requestBody, signatures[0])
-		assertValidSignature(t, "secret2", event.ID, suite.requestBody, signatures[1])
+		fmt.Println("signatureHeader", signatureHeader)
+
+		// Parse "t={timestamp},v0={signature1,signature2}" format
+		parts := strings.SplitN(signatureHeader, ",", 2)
+		require.True(t, len(parts) >= 2, "signature header should have timestamp and signature parts")
+
+		// First part should be timestamp
+		assert.True(t, strings.HasPrefix(parts[0], "t="))
+
+		// Second part should start with v0= and contain all signatures
+		assert.True(t, strings.HasPrefix(parts[1], "v0="))
+		signatures := strings.Split(strings.TrimPrefix(parts[1], "v0="), ",")
+		fmt.Println("signatures", signatures)
+		require.Len(t, signatures, 2, "should have signatures from all secrets")
+
+		assertValidSignature(t, "secret1", suite.requestBody, signatureHeader)
+		assertValidSignature(t, "secret2", suite.requestBody, signatureHeader)
 
 		assert.Equal(t, "value1", suite.request.Header.Get("x-outpost-key1"))
 		assert.JSONEq(t, `{"foo":"bar"}`, string(suite.requestBody))
@@ -215,7 +228,7 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		signatures := strings.Split(signatureHeader, " ")
 		require.Len(t, signatures, 1)
 
-		assertValidSignature(t, "current_secret", event.ID, suite.requestBody, signatures[0])
+		assertValidSignature(t, "current_secret", suite.requestBody, signatures[0])
 
 		assert.Equal(t, "value1", suite.request.Header.Get("x-outpost-key1"))
 		assert.JSONEq(t, `{"foo":"bar"}`, string(suite.requestBody))

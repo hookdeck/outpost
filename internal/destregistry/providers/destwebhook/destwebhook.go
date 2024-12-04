@@ -78,7 +78,7 @@ func (d *WebhookDestination) Publish(ctx context.Context, destination *models.De
 	ctx, cancel := context.WithTimeout(ctx, d.timeout)
 	defer cancel()
 
-	webhookReq := NewWebhookRequest(config.URL, event.ID, rawBody, event.Metadata, "x-outpost-", creds.Secrets)
+	webhookReq := NewWebhookRequest(config.URL, rawBody, event.Metadata, "x-outpost-", creds.Secrets)
 	httpReq, err := webhookReq.ToHTTPRequest(ctx)
 	if err != nil {
 		return destregistry.NewErrDestinationPublish(err)

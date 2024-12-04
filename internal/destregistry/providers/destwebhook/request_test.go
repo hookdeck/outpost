@@ -20,7 +20,6 @@ func TestNewWebhookRequest(t *testing.T) {
 	t.Parallel()
 
 	url := "https://example.com/webhook"
-	eventID := "evt_123"
 	data := map[string]string{"foo": "bar"}
 	rawBody, err := json.Marshal(data)
 	require.NoError(t, err)
@@ -42,9 +41,8 @@ func TestNewWebhookRequest(t *testing.T) {
 			},
 		}
 
-		req := destwebhook.NewWebhookRequest(url, eventID, rawBody, metadata, headerPrefix, secrets)
+		req := destwebhook.NewWebhookRequest(url, rawBody, metadata, headerPrefix, secrets)
 		assert.Equal(t, url, req.URL)
-		assert.Equal(t, eventID, req.EventID)
 		assert.Equal(t, rawBody, req.RawBody)
 		assert.Len(t, req.Signatures, 2)
 	})
@@ -63,7 +61,7 @@ func TestNewWebhookRequest(t *testing.T) {
 			},
 		}
 
-		req := destwebhook.NewWebhookRequest(url, eventID, rawBody, metadata, headerPrefix, secrets)
+		req := destwebhook.NewWebhookRequest(url, rawBody, metadata, headerPrefix, secrets)
 		assert.Len(t, req.Signatures, 1)
 	})
 
@@ -75,7 +73,7 @@ func TestNewWebhookRequest(t *testing.T) {
 			CreatedAt: time.Now().Add(-48 * time.Hour), // 48 hours old
 		}
 
-		req := destwebhook.NewWebhookRequest(url, eventID, rawBody, metadata, headerPrefix, []destwebhook.WebhookSecret{oldSecret})
+		req := destwebhook.NewWebhookRequest(url, rawBody, metadata, headerPrefix, []destwebhook.WebhookSecret{oldSecret})
 		require.Len(t, req.Signatures, 1, "should generate signature for single secret regardless of age")
 	})
 }
@@ -84,7 +82,6 @@ func TestWebhookRequest_ToHTTPRequest(t *testing.T) {
 	t.Parallel()
 
 	url := "https://example.com/webhook"
-	eventID := "evt_123"
 	data := map[string]string{"foo": "bar"}
 	rawBody, err := json.Marshal(data)
 	require.NoError(t, err)
@@ -102,7 +99,7 @@ func TestWebhookRequest_ToHTTPRequest(t *testing.T) {
 			},
 		}
 
-		webhookReq := destwebhook.NewWebhookRequest(url, eventID, rawBody, metadata, headerPrefix, secrets)
+		webhookReq := destwebhook.NewWebhookRequest(url, rawBody, metadata, headerPrefix, secrets)
 		httpReq, err := webhookReq.ToHTTPRequest(context.Background())
 		require.NoError(t, err)
 
@@ -132,40 +129,56 @@ func TestWebhookRequest_ToHTTPRequest(t *testing.T) {
 			},
 		}
 
-		webhookReq := destwebhook.NewWebhookRequest(url, eventID, rawBody, metadata, headerPrefix, secrets)
+		webhookReq := destwebhook.NewWebhookRequest(url, rawBody, metadata, headerPrefix, secrets)
 		httpReq, err := webhookReq.ToHTTPRequest(context.Background())
 		require.NoError(t, err)
 
 		signatureHeader := httpReq.Header.Get(headerPrefix + "signature")
-		signatures := strings.Split(signatureHeader, " ")
+		parts := strings.SplitN(signatureHeader, ",", 2)
+		require.True(t, len(parts) >= 2, "signature header should have timestamp and signatures")
+
+		// First part should be timestamp
+		assert.True(t, strings.HasPrefix(parts[0], "t="))
+
+		// Second part should start with v0= and contain all signatures
+		assert.True(t, strings.HasPrefix(parts[1], "v0="))
+		signatures := strings.Split(strings.TrimPrefix(parts[1], "v0="), ",")
 		require.Len(t, signatures, 3, "should have signatures from all secrets")
 
-		for i, secret := range secrets {
-			assertValidSignature(t, secret.Key, eventID, rawBody, signatures[i])
+		for _, secret := range secrets {
+			assertValidSignature(t, secret.Key, rawBody, signatureHeader)
 		}
 	})
 }
 
-func assertValidSignature(t *testing.T, secret string, eventID string, rawBody []byte, signatureHeader string) {
+func assertValidSignature(t *testing.T, secret string, rawBody []byte, signatureHeader string) {
 	t.Helper()
 
-	// Parse "t={timestamp},v1={signature}" format
-	parts := strings.Split(signatureHeader, ",")
-	require.Len(t, parts, 2, "signature header should have timestamp and signature parts")
+	// Parse "t={timestamp},v0={signature1,signature2}" format
+	parts := strings.SplitN(signatureHeader, ",", 2) // Split only on first comma
+	require.True(t, len(parts) >= 2, "signature header should have timestamp and signature parts")
 
 	timestampStr := strings.TrimPrefix(parts[0], "t=")
-	signature := strings.TrimPrefix(parts[1], "v1=")
+	signatures := strings.Split(strings.TrimPrefix(parts[1], "v0="), ",")
 
 	timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
 	require.NoError(t, err, "timestamp should be a valid integer")
 
 	// Reconstruct the signed content
-	signedContent := fmt.Sprintf("%s.%d.%s", eventID, timestamp, rawBody)
+	signedContent := fmt.Sprintf("%d.%s", timestamp, rawBody)
 
 	// Generate HMAC-SHA256
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(signedContent))
 	expectedSignature := fmt.Sprintf("%x", mac.Sum(nil))
 
-	assert.Equal(t, expectedSignature, signature, "signature should match expected value")
+	// Check if any of the signatures match
+	found := false
+	for _, sig := range signatures {
+		if sig == expectedSignature {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "none of the signatures matched expected value")
 }
