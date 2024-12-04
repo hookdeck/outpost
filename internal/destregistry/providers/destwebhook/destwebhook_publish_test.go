@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -16,35 +17,21 @@ import (
 )
 
 type webhookDestinationSuite struct {
-	ctx           context.Context
-	server        *http.Server
-	webhookURL    string
-	errchan       chan error
+	server        *httptest.Server
 	request       *http.Request // Capture the request for verification
 	requestBody   []byte        // Capture the request body
 	responseCode  int           // Configurable response code
 	responseDelay time.Duration // Configurable response delay
-	teardown      func()
+	webhookURL    string
 }
 
 func (suite *webhookDestinationSuite) SetupTest(t *testing.T) {
-	teardownFuncs := []func(){}
-
-	// Setup context with timeout
-	if suite.ctx == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		suite.ctx = ctx
-		teardownFuncs = append(teardownFuncs, cancel)
-	}
-
 	// Default response code if not set
 	if suite.responseCode == 0 {
 		suite.responseCode = http.StatusOK
 	}
 
-	// Setup server
-	mux := http.NewServeMux()
-	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	suite.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Capture request for verification
 		suite.request = r
 		var err error
@@ -61,38 +48,11 @@ func (suite *webhookDestinationSuite) SetupTest(t *testing.T) {
 
 		w.WriteHeader(suite.responseCode)
 	}))
-
-	suite.server = &http.Server{
-		Addr:    testutil.RandomPort(),
-		Handler: mux,
-	}
-	suite.webhookURL = "http://localhost" + suite.server.Addr + "/webhook"
-
-	// Start server
-	suite.errchan = make(chan error)
-	go func() {
-		if err := suite.server.ListenAndServe(); err != http.ErrServerClosed {
-			suite.errchan <- err
-		} else {
-			suite.errchan <- nil
-		}
-	}()
-
-	// Setup shutdown on context done
-	go func() {
-		<-suite.ctx.Done()
-		suite.server.Shutdown(context.Background())
-	}()
-
-	suite.teardown = func() {
-		for _, teardown := range teardownFuncs {
-			teardown()
-		}
-	}
+	suite.webhookURL = suite.server.URL + "/webhook"
 }
 
 func (suite *webhookDestinationSuite) TearDownTest(t *testing.T) {
-	suite.teardown()
+	suite.server.Close()
 }
 
 func TestWebhookDestination_Publish(t *testing.T) {
