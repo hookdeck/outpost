@@ -261,3 +261,45 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		assert.Contains(t, err.Error(), "context deadline exceeded")
 	})
 }
+
+func TestWebhookDestination_HeaderPrefix(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should use custom header prefix", func(t *testing.T) {
+		t.Parallel()
+
+		suite := &webhookDestinationSuite{}
+		suite.SetupTest(t)
+		defer suite.TearDownTest(t)
+
+		webhookDestination, err := destwebhook.New(
+			testutil.Registry.MetadataLoader(),
+			destwebhook.WithHeaderPrefix("x-custom-"),
+		)
+		require.NoError(t, err)
+
+		now := time.Now()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": suite.webhookURL,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secrets": fmt.Sprintf(`[{"key":"secret1","created_at":"%s"}]`, now.Format(time.RFC3339)),
+			}),
+		)
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithMetadata(map[string]string{
+				"Key1": "Value1",
+			}),
+		)
+
+		err = webhookDestination.Publish(context.Background(), &destination, &event)
+		require.NoError(t, err)
+
+		require.NotNil(t, suite.request)
+		assert.NotEmpty(t, suite.request.Header.Get("x-custom-signature"))
+		assert.Equal(t, "Value1", suite.request.Header.Get("x-custom-key1"))
+	})
+}

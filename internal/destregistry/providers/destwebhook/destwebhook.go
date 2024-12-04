@@ -16,7 +16,8 @@ import (
 
 type WebhookDestination struct {
 	*destregistry.BaseProvider
-	timeout time.Duration
+	timeout      time.Duration
+	headerPrefix string
 }
 
 type WebhookDestinationConfig struct {
@@ -44,12 +45,19 @@ func WithTimeout(seconds int) Option {
 	}
 }
 
+// WithHeaderPrefix sets a custom prefix for webhook request headers
+func WithHeaderPrefix(prefix string) Option {
+	return func(w *WebhookDestination) {
+		w.headerPrefix = prefix
+	}
+}
+
 func New(loader *metadata.MetadataLoader, opts ...Option) (*WebhookDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "webhook")
 	if err != nil {
 		return nil, err
 	}
-	destination := &WebhookDestination{BaseProvider: base, timeout: 30 * time.Second}
+	destination := &WebhookDestination{BaseProvider: base, timeout: 30 * time.Second, headerPrefix: "x-outpost-"}
 	for _, opt := range opts {
 		opt(destination)
 	}
@@ -78,7 +86,7 @@ func (d *WebhookDestination) Publish(ctx context.Context, destination *models.De
 	ctx, cancel := context.WithTimeout(ctx, d.timeout)
 	defer cancel()
 
-	webhookReq := NewWebhookRequest(config.URL, rawBody, event.Metadata, "x-outpost-", creds.Secrets)
+	webhookReq := NewWebhookRequest(config.URL, rawBody, event.Metadata, d.headerPrefix, creds.Secrets)
 	httpReq, err := webhookReq.ToHTTPRequest(ctx)
 	if err != nil {
 		return destregistry.NewErrDestinationPublish(err)
