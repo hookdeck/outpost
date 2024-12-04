@@ -260,4 +260,31 @@ func TestWebhookDestination_Publish(t *testing.T) {
 		assert.Equal(t, "value1", suite.request.Header.Get("x-outpost-key1"))
 		assert.JSONEq(t, `{"foo":"bar"}`, string(suite.requestBody))
 	})
+
+	t.Run("should handle timeout", func(t *testing.T) {
+		t.Parallel()
+
+		suite := &webhookDestinationSuite{
+			responseDelay: 2 * time.Second, // Delay longer than our timeout
+		}
+		suite.SetupTest(t)
+		defer suite.TearDownTest(t)
+
+		webhookDestination, err := destwebhook.New(
+			testutil.Registry.MetadataLoader(),
+			destwebhook.WithTimeout(1), // 1 second timeout
+		)
+		require.NoError(t, err)
+
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": suite.webhookURL,
+			}),
+		)
+
+		err = webhookDestination.Publish(context.Background(), &destination, &event)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "context deadline exceeded")
+	})
 }

@@ -16,6 +16,7 @@ import (
 
 type WebhookDestination struct {
 	*destregistry.BaseProvider
+	timeout time.Duration
 }
 
 type WebhookDestinationConfig struct {
@@ -33,12 +34,26 @@ type WebhookDestinationCredentials struct {
 
 var _ destregistry.Provider = (*WebhookDestination)(nil)
 
-func New(loader *metadata.MetadataLoader) (*WebhookDestination, error) {
+// Option is a functional option for configuring WebhookDestination
+type Option func(*WebhookDestination)
+
+// WithTimeout sets a custom timeout for the webhook requests
+func WithTimeout(seconds int) Option {
+	return func(w *WebhookDestination) {
+		w.timeout = time.Duration(seconds) * time.Second
+	}
+}
+
+func New(loader *metadata.MetadataLoader, opts ...Option) (*WebhookDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "webhook")
 	if err != nil {
 		return nil, err
 	}
-	return &WebhookDestination{BaseProvider: base}, nil
+	destination := &WebhookDestination{BaseProvider: base, timeout: 30 * time.Second}
+	for _, opt := range opts {
+		opt(destination)
+	}
+	return destination, nil
 }
 
 func (d *WebhookDestination) Validate(ctx context.Context, destination *models.Destination) error {
@@ -58,6 +73,10 @@ func (d *WebhookDestination) Publish(ctx context.Context, destination *models.De
 	if err != nil {
 		return fmt.Errorf("failed to marshal event data: %w", err)
 	}
+
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(ctx, d.timeout)
+	defer cancel()
 
 	webhookReq := NewWebhookRequest(config.URL, event.ID, rawBody, event.Metadata, "x-outpost-", creds.Secrets)
 	httpReq, err := webhookReq.ToHTTPRequest(ctx)
