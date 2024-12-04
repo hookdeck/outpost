@@ -1,6 +1,7 @@
 package destinationmockserver
 
 import (
+	"log"
 	"net/http"
 	"strings"
 
@@ -84,11 +85,13 @@ func (h *Handlers) ReceiveWebhookEvent(c *gin.Context) {
 
 	metadata := map[string]string{}
 	for key, values := range c.Request.Header {
+		log.Println(key, values)
 		lowerKey := strings.ToLower(key)
 		if strings.HasPrefix(lowerKey, "x-outpost") {
 			metadata[strings.TrimPrefix(lowerKey, "x-outpost-")] = values[0]
 		}
 	}
+	log.Println("metadata", metadata)
 
 	if event, err := h.entityStore.ReceiveEvent(c.Request.Context(), destinationID, input, metadata); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})

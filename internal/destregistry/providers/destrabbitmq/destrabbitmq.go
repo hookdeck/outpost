@@ -41,17 +41,12 @@ func (d *RabbitMQDestination) Validate(ctx context.Context, destination *models.
 	return nil
 }
 
-func (d *RabbitMQDestination) Publish(ctx context.Context, destination *models.Destination, event *models.Event) error {
+func (d *RabbitMQDestination) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
 	config, credentials, err := d.resolveMetadata(ctx, destination)
 	if err != nil {
-		return destregistry.NewErrDestinationPublish(err)
+		return nil, err
 	}
-	url := rabbitURL(config, credentials)
-	exchange := config.Exchange
-	if err := publishEvent(ctx, url, exchange, event); err != nil {
-		return destregistry.NewErrDestinationPublish(err)
-	}
-	return nil
+	return &RabbitMQPublisher{url: rabbitURL(config, credentials), exchange: config.Exchange}, nil
 }
 
 func (d *RabbitMQDestination) resolveMetadata(ctx context.Context, destination *models.Destination) (*RabbitMQDestinationConfig, *RabbitMQDestinationCredentials, error) {
@@ -66,6 +61,22 @@ func (d *RabbitMQDestination) resolveMetadata(ctx context.Context, destination *
 			Username: destination.Credentials["username"],
 			Password: destination.Credentials["password"],
 		}, nil
+}
+
+type RabbitMQPublisher struct {
+	url      string
+	exchange string
+}
+
+func (p *RabbitMQPublisher) Close() error {
+	return nil
+}
+
+func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) error {
+	if err := publishEvent(ctx, p.url, p.exchange, event); err != nil {
+		return destregistry.NewErrDestinationPublish(err)
+	}
+	return nil
 }
 
 func rabbitURL(config *RabbitMQDestinationConfig, credentials *RabbitMQDestinationCredentials) string {

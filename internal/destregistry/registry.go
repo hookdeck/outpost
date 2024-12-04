@@ -2,35 +2,52 @@ package destregistry
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
 )
 
+// Registry manages providers, their metadata, and publishers
 type Registry interface {
+	// Operations
+	ValidateDestination(ctx context.Context, destination *models.Destination) error
+	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error
+
+	// Provider management
 	RegisterProvider(destinationType string, provider Provider) error
-	GetProvider(destinationType string) (Provider, error)
+	ResolveProvider(destination *models.Destination) (Provider, error)
+	ResolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, error)
+
+	// Metadata access
+	MetadataLoader() *metadata.MetadataLoader
 	RetrieveProviderMetadata(providerType string) (*metadata.ProviderMetadata, error)
 	ListProviderMetadata() map[string]*metadata.ProviderMetadata
-	MetadataLoader() *metadata.MetadataLoader
 }
 
+// Provider interface handles validation and publisher creation
 type Provider interface {
-	// Metadata returns the metadata for the provider
-	Metadata() *metadata.ProviderMetadata
-
-	// Validate destination configuration and credentials
+	// Validate destination configuration using metadata
 	Validate(ctx context.Context, destination *models.Destination) error
+	// Create a new publisher instance
+	CreatePublisher(ctx context.Context, destination *models.Destination) (Publisher, error)
+	// Get provider metadata
+	Metadata() *metadata.ProviderMetadata
+}
 
-	// Publish an event to the destination
-	Publish(ctx context.Context, destination *models.Destination, event *models.Event) error
+type Publisher interface {
+	Publish(ctx context.Context, event *models.Event) error
+	Close() error
 }
 
 type registry struct {
-	providers      map[string]Provider
-	metadata       map[string]*metadata.ProviderMetadata
 	metadataLoader *metadata.MetadataLoader
+	metadata       map[string]*metadata.ProviderMetadata
+	providers      map[string]Provider  // Set during init
+	publishers     map[string]Publisher // Need mutex for concurrent access
+	mu             sync.RWMutex         // Protects publishers map
 }
 
 type Config struct {
@@ -39,10 +56,46 @@ type Config struct {
 
 func NewRegistry(cfg *Config) Registry {
 	return &registry{
-		providers:      make(map[string]Provider),
-		metadata:       make(map[string]*metadata.ProviderMetadata),
 		metadataLoader: metadata.NewMetadataLoader(cfg.DestinationMetadataPath),
+		metadata:       make(map[string]*metadata.ProviderMetadata),
+		providers:      make(map[string]Provider),
+		publishers:     make(map[string]Publisher),
 	}
+}
+
+func (r *registry) ValidateDestination(ctx context.Context, destination *models.Destination) error {
+	provider, err := r.ResolveProvider(destination)
+	if err != nil {
+		return err
+	}
+	if err := provider.Validate(ctx, destination); err != nil {
+		var validateErr *ErrDestinationValidation
+		if errors.As(err, &validateErr) {
+			return validateErr
+		}
+		return NewErrDestinationValidation([]ValidationErrorDetail{
+			{
+				Field: "root",
+				Type:  "unknown",
+			},
+		})
+	}
+	return nil
+}
+
+func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error {
+	publisher, err := r.ResolvePublisher(ctx, destination)
+	if err != nil {
+		return err
+	}
+	if err := publisher.Publish(ctx, event); err != nil {
+		var publishErr *ErrDestinationPublish
+		if errors.As(err, &publishErr) {
+			return publishErr
+		}
+		return NewErrDestinationPublish(err)
+	}
+	return nil
 }
 
 func (r *registry) RegisterProvider(destinationType string, provider Provider) error {
@@ -51,12 +104,46 @@ func (r *registry) RegisterProvider(destinationType string, provider Provider) e
 	return nil
 }
 
-func (r *registry) GetProvider(destinationType string) (Provider, error) {
-	provider, exists := r.providers[destinationType]
+func (r *registry) ResolveProvider(destination *models.Destination) (Provider, error) {
+	provider, exists := r.providers[destination.Type]
 	if !exists {
-		return nil, fmt.Errorf("unsupported destination type: %s", destinationType)
+		return nil, fmt.Errorf("no provider registered for destination type: %s", destination.Type)
 	}
 	return provider, nil
+}
+
+func (r *registry) ResolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, error) {
+	r.mu.RLock()
+	publisher, exists := r.publishers[destination.ID]
+	r.mu.RUnlock()
+	if exists {
+		return publisher, nil
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Double-check after acquiring write lock
+	if publisher, exists = r.publishers[destination.ID]; exists {
+		return publisher, nil
+	}
+
+	provider, err := r.ResolveProvider(destination)
+	if err != nil {
+		return nil, err
+	}
+
+	publisher, err = provider.CreatePublisher(ctx, destination)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create publisher: %w", err)
+	}
+
+	r.publishers[destination.ID] = publisher
+	return publisher, nil
+}
+
+func (r *registry) MetadataLoader() *metadata.MetadataLoader {
+	return r.metadataLoader
 }
 
 func (r *registry) RetrieveProviderMetadata(providerType string) (*metadata.ProviderMetadata, error) {
@@ -74,8 +161,4 @@ func (r *registry) ListProviderMetadata() map[string]*metadata.ProviderMetadata 
 		metadataCopy[k] = v
 	}
 	return metadataCopy
-}
-
-func (r *registry) MetadataLoader() *metadata.MetadataLoader {
-	return r.metadataLoader
 }

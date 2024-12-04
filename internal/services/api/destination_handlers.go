@@ -65,12 +65,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
-	provider, err := h.registry.GetProvider(destination.Type)
-	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-		return
-	}
-	if err := provider.Validate(c.Request.Context(), &destination); err != nil {
+	if err := h.registry.ValidateDestination(c.Request.Context(), &destination); err != nil {
 		AbortWithValidationError(c, err)
 		return
 	}
@@ -125,12 +120,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		destination.Credentials = input.Credentials
 	}
 	if shouldRevalidate {
-		provider, err := h.registry.GetProvider(destination.Type)
-		if err != nil {
-			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-			return
-		}
-		if err := provider.Validate(c.Request.Context(), destination); err != nil {
+		if err := h.registry.ValidateDestination(c.Request.Context(), destination); err != nil {
 			AbortWithValidationError(c, err)
 			return
 		}

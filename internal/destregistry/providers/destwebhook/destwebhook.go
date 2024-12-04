@@ -71,41 +71,12 @@ func (d *WebhookDestination) Validate(ctx context.Context, destination *models.D
 	return nil
 }
 
-func (d *WebhookDestination) Publish(ctx context.Context, destination *models.Destination, event *models.Event) error {
+func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
 	config, creds, err := d.resolveConfig(ctx, destination)
 	if err != nil {
-		return destregistry.NewErrDestinationPublish(err)
+		return nil, err
 	}
-
-	rawBody, err := json.Marshal(event.Data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal event data: %w", err)
-	}
-
-	// Create a context with timeout
-	ctx, cancel := context.WithTimeout(ctx, d.timeout)
-	defer cancel()
-
-	webhookReq := NewWebhookRequest(config.URL, rawBody, event.Metadata, d.headerPrefix, creds.Secrets)
-	httpReq, err := webhookReq.ToHTTPRequest(ctx)
-	if err != nil {
-		return destregistry.NewErrDestinationPublish(err)
-	}
-
-	client := &http.Client{}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		log.Println(resp) // TODO: use proper logger
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
-	}
-
-	return nil
+	return &WebhookPublisher{url: config.URL, headerPrefix: d.headerPrefix, secrets: creds.Secrets, timeout: d.timeout}, nil
 }
 
 func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *models.Destination) (*WebhookDestinationConfig, *WebhookDestinationCredentials, error) {
@@ -130,4 +101,47 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 	}
 
 	return config, &creds, nil
+}
+
+type WebhookPublisher struct {
+	url          string
+	headerPrefix string
+	secrets      []WebhookSecret
+	timeout      time.Duration
+}
+
+func (p *WebhookPublisher) Close() error {
+	return nil
+}
+
+func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) error {
+	rawBody, err := json.Marshal(event.Data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event data: %w", err)
+	}
+
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+
+	webhookReq := NewWebhookRequest(p.url, rawBody, event.Metadata, p.headerPrefix, p.secrets)
+	httpReq, err := webhookReq.ToHTTPRequest(ctx)
+	if err != nil {
+		return destregistry.NewErrDestinationPublish(err)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		log.Println(resp) // TODO: use proper logger
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return nil
 }

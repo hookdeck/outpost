@@ -3,6 +3,7 @@ package destaws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -17,7 +18,6 @@ import (
 
 type AWSDestination struct {
 	*destregistry.BaseProvider
-	sqsClient *sqs.Client
 }
 
 type AWSDestinationConfig struct {
@@ -45,37 +45,40 @@ func New(loader *metadata.MetadataLoader) (*AWSDestination, error) {
 }
 
 func (d *AWSDestination) Validate(ctx context.Context, destination *models.Destination) error {
-	cfg, creds, err := d.resolveMetadata(ctx, destination)
+	_, _, err := d.resolveMetadata(ctx, destination)
 	if err != nil {
 		return err
-	}
-	if d.sqsClient == nil {
-		sdkConfig, err := config.LoadDefaultConfig(ctx,
-			// TODO: use proper credentials
-			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(creds.Key, creds.Secret, creds.Session)),
-		)
-		if err != nil {
-			return err
-		}
-
-		d.sqsClient = sqs.NewFromConfig(sdkConfig, func(o *sqs.Options) {
-			if cfg.Endpoint != "" {
-				o.BaseEndpoint = awssdk.String(cfg.Endpoint)
-			}
-		})
 	}
 	return nil
 }
 
-func (d *AWSDestination) Publish(ctx context.Context, destination *models.Destination, event *models.Event) error {
-	config, credentials, err := d.resolveMetadata(ctx, destination)
+func (p *AWSDestination) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
+	cfg, creds, err := p.resolveMetadata(ctx, destination)
 	if err != nil {
-		return destregistry.NewErrDestinationPublish(err)
+		return nil, err
 	}
-	if err := publishEvent(ctx, config, credentials, event); err != nil {
-		return destregistry.NewErrDestinationPublish(err)
+
+	sdkConfig, err := config.LoadDefaultConfig(ctx,
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+			creds.Key,
+			creds.Secret,
+			creds.Session,
+		)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
-	return nil
+
+	sqsClient := sqs.NewFromConfig(sdkConfig, func(o *sqs.Options) {
+		if cfg.Endpoint != "" {
+			o.BaseEndpoint = awssdk.String(cfg.Endpoint)
+		}
+	})
+
+	return &AWSPublisher{
+		client:   sqsClient,
+		queueURL: cfg.QueueURL,
+	}, nil
 }
 
 func (d *AWSDestination) resolveMetadata(ctx context.Context, destination *models.Destination) (*AWSDestinationConfig, *AWSDestinationCredentials, error) {
@@ -93,25 +96,20 @@ func (d *AWSDestination) resolveMetadata(ctx context.Context, destination *model
 		}, nil
 }
 
-func publishEvent(ctx context.Context, cfg *AWSDestinationConfig, creds *AWSDestinationCredentials, event *models.Event) error {
+type AWSPublisher struct {
+	client   *sqs.Client
+	queueURL string
+}
+
+func (p *AWSPublisher) Close() error {
+	return nil
+}
+
+func (p *AWSPublisher) Publish(ctx context.Context, event *models.Event) error {
 	dataBytes, err := json.Marshal(event.Data)
 	if err != nil {
 		return err
 	}
-
-	sdkConfig, err := config.LoadDefaultConfig(ctx,
-		// TODO: use proper credentials
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(creds.Key, creds.Secret, creds.Session)),
-	)
-	if err != nil {
-		return err
-	}
-
-	sqsClient := sqs.NewFromConfig(sdkConfig, func(o *sqs.Options) {
-		if cfg.Endpoint != "" {
-			o.BaseEndpoint = awssdk.String(cfg.Endpoint)
-		}
-	})
 
 	attrs := make(map[string]types.MessageAttributeValue)
 	for k, v := range event.Metadata {
@@ -121,10 +119,13 @@ func publishEvent(ctx context.Context, cfg *AWSDestinationConfig, creds *AWSDest
 		}
 	}
 
-	_, err = sqsClient.SendMessage(ctx, &sqs.SendMessageInput{
-		QueueUrl:          awssdk.String(cfg.QueueURL),
+	if _, err = p.client.SendMessage(ctx, &sqs.SendMessageInput{
+		QueueUrl:          awssdk.String(p.queueURL),
 		MessageBody:       awssdk.String(string(dataBytes)),
 		MessageAttributes: attrs,
-	})
-	return err
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }

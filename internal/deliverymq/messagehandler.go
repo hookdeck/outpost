@@ -107,14 +107,8 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 		span.RecordError(errors.New("destination not found"))
 		return err
 	}
-	provider, err := h.registry.GetProvider(destination.Type)
-	if err != nil {
-		logger.Error("failed to get destination provider", zap.Error(err))
-		span.RecordError(err)
-		return err
-	}
 	var finalErr error
-	if err := provider.Publish(ctx, destination, &deliveryEvent.Event); err != nil {
+	if err := h.registry.PublishEvent(ctx, destination, &deliveryEvent.Event); err != nil {
 		logger.Error("failed to publish event", zap.Error(err))
 		finalErr = err
 		deliveryEvent.Delivery = &models.Delivery{
