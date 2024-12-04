@@ -30,7 +30,11 @@ type messageHandler struct {
 	retryBackoff   backoff.Backoff
 	retryMaxCount  int
 	idempotence    idempotence.Idempotence
-	registry       destregistry.Registry
+	publisher      Publisher
+}
+
+type Publisher interface {
+	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error
 }
 
 var _ consumer.MessageHandler = (*messageHandler)(nil)
@@ -41,7 +45,7 @@ func NewMessageHandler(
 	logMQ *logmq.LogMQ,
 	entityStore models.EntityStore,
 	logStore models.LogStore,
-	registry destregistry.Registry,
+	publisher Publisher,
 	eventTracer eventtracer.EventTracer,
 	retryScheduler scheduler.Scheduler,
 	retryBackoff backoff.Backoff,
@@ -53,7 +57,7 @@ func NewMessageHandler(
 		logMQ:          logMQ,
 		entityStore:    entityStore,
 		logStore:       logStore,
-		registry:       registry,
+		publisher:      publisher,
 		retryScheduler: retryScheduler,
 		retryBackoff:   retryBackoff,
 		retryMaxCount:  retryMaxCount,
@@ -108,7 +112,7 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 		return err
 	}
 	var finalErr error
-	if err := h.registry.PublishEvent(ctx, destination, &deliveryEvent.Event); err != nil {
+	if err := h.publisher.PublishEvent(ctx, destination, &deliveryEvent.Event); err != nil {
 		logger.Error("failed to publish event", zap.Error(err))
 		finalErr = err
 		deliveryEvent.Delivery = &models.Delivery{
