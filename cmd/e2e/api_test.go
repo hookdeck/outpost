@@ -952,7 +952,7 @@ func (suite *basicSuite) TestTopicsAPI() {
 	suite.RunAPITests(suite.T(), tests)
 }
 
-func (suite *basicSuite) TestProvidersAPI() {
+func (suite *basicSuite) TestDestinationTypesAPI() {
 	providerFieldSchema := map[string]interface{}{
 		"type":     "object",
 		"required": []interface{}{"key", "type", "label", "description", "required"},
@@ -990,10 +990,10 @@ func (suite *basicSuite) TestProvidersAPI() {
 
 	tests := []APITest{
 		{
-			Name: "GET /providers",
+			Name: "GET /destination-types",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/providers",
+				Path:   "/destination-types",
 			}),
 			Expected: APITestExpectation{
 				Validate: map[string]any{
@@ -1014,10 +1014,10 @@ func (suite *basicSuite) TestProvidersAPI() {
 			},
 		},
 		{
-			Name: "GET /providers/webhook",
+			Name: "GET /destination-types/webhook",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/providers/webhook",
+				Path:   "/destination-types/webhook",
 			}),
 			Expected: APITestExpectation{
 				Validate: map[string]any{
@@ -1030,10 +1030,10 @@ func (suite *basicSuite) TestProvidersAPI() {
 			},
 		},
 		{
-			Name: "GET /providers/invalid",
+			Name: "GET /destination-types/invalid",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/providers/invalid",
+				Path:   "/destination-types/invalid",
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
