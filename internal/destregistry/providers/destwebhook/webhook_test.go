@@ -87,9 +87,10 @@ func (a *WebhookAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mess
 
 	// Verify basic HTTP properties
 	assert.Equal(t, "POST", req.Method)
+	assert.Equal(t, "/webhook", req.URL.Path)
 	assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
 
-	// Verify that expected metadata is a subset of received metadata
+	// Verify request content and metadata
 	for k, v := range event.Metadata {
 		assert.Equal(t, v, msg.Metadata[k], "metadata key %s should match expected value", k)
 	}
