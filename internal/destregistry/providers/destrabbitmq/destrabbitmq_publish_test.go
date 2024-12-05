@@ -5,10 +5,12 @@ import (
 
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/rabbitmq/amqp091-go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -72,12 +74,13 @@ func NewRabbitMQConsumer(config mqs.QueueConfig) (*RabbitMQConsumer, error) {
 	consumer.conn = conn
 	consumer.channel = ch
 
-	// Forward messages
+	// Forward messages with raw delivery
 	go func() {
 		for d := range deliveries {
 			consumer.messages <- testsuite.Message{
 				Data:     d.Body,
 				Metadata: toStringMap(d.Headers),
+				Raw:      d, // Include the raw amqp.Delivery
 			}
 		}
 	}()
@@ -100,6 +103,25 @@ func (c *RabbitMQConsumer) Close() error {
 	return nil
 }
 
+// RabbitMQAsserter implements provider-specific message assertions
+type RabbitMQAsserter struct{}
+
+func (a *RabbitMQAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Message, event models.Event) {
+	delivery, ok := msg.Raw.(amqp091.Delivery)
+	assert.True(t, ok, "raw message should be amqp.Delivery")
+
+	// Assert RabbitMQ-specific properties
+	assert.Equal(t, "application/json", delivery.ContentType)
+	// assert.NotEmpty(t, delivery.MessageId)
+	// assert.NotEmpty(t, delivery.Timestamp)
+
+	// Could add more RabbitMQ-specific assertions:
+	// - Exchange routing
+	// - Message persistence
+	// - Priority
+	// - etc.
+}
+
 // RabbitMQPublishSuite reimplements the publish tests using the shared test suite
 type RabbitMQPublishSuite struct {
 	testsuite.PublisherSuite
@@ -107,16 +129,13 @@ type RabbitMQPublishSuite struct {
 }
 
 func (s *RabbitMQPublishSuite) SetupSuite() {
-	// Get RabbitMQ config from testinfra
 	t := s.T()
 	t.Cleanup(testinfra.Start(t))
 	mqConfig := testinfra.NewMQRabbitMQConfig(t)
 
-	// Create RabbitMQ provider
 	provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
 
-	// Create test destination
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("rabbitmq"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
@@ -130,16 +149,15 @@ func (s *RabbitMQPublishSuite) SetupSuite() {
 		}),
 	)
 
-	// Create consumer for verification
 	consumer, err := NewRabbitMQConsumer(mqConfig)
 	require.NoError(t, err)
 	s.consumer = consumer
 
-	// Initialize base suite with config
 	s.InitSuite(testsuite.Config{
 		Provider: provider,
 		Dest:     &dest,
 		Consumer: consumer,
+		Asserter: &RabbitMQAsserter{}, // Add RabbitMQ-specific assertions
 	})
 }
 
@@ -147,11 +165,6 @@ func (s *RabbitMQPublishSuite) TearDownSuite() {
 	if s.consumer != nil {
 		s.consumer.Close()
 	}
-}
-
-// RabbitMQ specific test cases can be added here
-func (s *RabbitMQPublishSuite) TestRabbitMQExchangeBinding() {
-	// Test RabbitMQ-specific exchange binding behavior
 }
 
 func TestRabbitMQPublish(t *testing.T) {

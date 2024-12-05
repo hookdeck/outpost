@@ -18,6 +18,21 @@ import (
 type Message struct {
 	Data     []byte
 	Metadata map[string]string
+	// Raw contains the provider-specific message type (e.g. amqp.Delivery, http.Request)
+	Raw interface{}
+}
+
+// MessageAsserter allows providers to add their own assertions on the raw message
+type MessageAsserter interface {
+	// AssertMessage is called after the base assertions to allow provider-specific checks
+	AssertMessage(t TestingT, msg Message, event models.Event)
+}
+
+// TestingT is a subset of testing.T that we need for assertions
+type TestingT interface {
+	Errorf(format string, args ...interface{})
+	FailNow()
+	Helper()
 }
 
 // MessageConsumer is the interface that providers must implement
@@ -33,6 +48,8 @@ type Config struct {
 	Provider destregistry.Provider
 	Dest     *models.Destination
 	Consumer MessageConsumer
+	// Optional asserter for provider-specific message checks
+	Asserter MessageAsserter
 }
 
 // PublisherSuite is the base test suite that providers should embed
@@ -41,6 +58,7 @@ type PublisherSuite struct {
 	provider destregistry.Provider
 	dest     *models.Destination
 	consumer MessageConsumer
+	asserter MessageAsserter
 	pub      destregistry.Publisher
 }
 
@@ -48,10 +66,10 @@ func (s *PublisherSuite) InitSuite(cfg Config) {
 	s.provider = cfg.Provider
 	s.dest = cfg.Dest
 	s.consumer = cfg.Consumer
+	s.asserter = cfg.Asserter
 }
 
 func (s *PublisherSuite) SetupTest() {
-	// Create a new publisher for each test
 	pub, err := s.provider.CreatePublisher(context.Background(), s.dest)
 	s.Require().NoError(err)
 	s.pub = pub
@@ -63,10 +81,30 @@ func (s *PublisherSuite) TearDownTest() {
 	}
 }
 
-// Common test cases that all providers get "for free"
+// verifyMessage performs base message verification and calls provider-specific assertions
+func (s *PublisherSuite) verifyMessage(msg Message, event models.Event) {
+	// Base verification of data and metadata
+	var body map[string]interface{}
+	err := json.Unmarshal(msg.Data, &body)
+	s.Require().NoError(err, "failed to unmarshal message data")
+
+	// Compare data by converting both to JSON first to handle type differences
+	eventDataJSON, err := json.Marshal(event.Data)
+	s.Require().NoError(err, "failed to marshal event data")
+	msgDataJSON, err := json.Marshal(body)
+	s.Require().NoError(err, "failed to marshal message data")
+	s.Require().JSONEq(string(eventDataJSON), string(msgDataJSON), "message data mismatch")
+
+	// Compare metadata by converting both to map[string]string
+	s.Require().Equal(map[string]string(event.Metadata), msg.Metadata, "message metadata mismatch")
+
+	// Provider-specific assertions if available
+	if s.asserter != nil {
+		s.asserter.AssertMessage(s.T(), msg, event)
+	}
+}
 
 func (s *PublisherSuite) TestBasicPublish() {
-	// Create test event with realistic data
 	event := testutil.EventFactory.Any(
 		testutil.EventFactory.WithData(map[string]interface{}{
 			"test_key": "test_value",
@@ -76,18 +114,12 @@ func (s *PublisherSuite) TestBasicPublish() {
 		}),
 	)
 
-	// Publish event
 	err := s.pub.Publish(context.Background(), &event)
 	s.Require().NoError(err)
 
-	// Verify message was delivered
 	select {
 	case msg := <-s.consumer.Consume():
-		var body map[string]interface{}
-		err = json.Unmarshal(msg.Data, &body)
-		s.Require().NoError(err)
-		s.Equal("test_value", body["test_key"])
-		s.Equal("meta_value", msg.Metadata["meta_key"])
+		s.verifyMessage(msg, event)
 	case <-time.After(5 * time.Second):
 		s.Fail("timeout waiting for message")
 	}
@@ -98,27 +130,29 @@ func (s *PublisherSuite) TestConcurrentPublish() {
 	var wg sync.WaitGroup
 	errChan := make(chan error, numMessages)
 
+	events := make([]models.Event, numMessages)
+	for i := 0; i < numMessages; i++ {
+		events[i] = testutil.EventFactory.Any(
+			testutil.EventFactory.WithData(map[string]interface{}{
+				"message_id": i,
+			}),
+		)
+	}
+
 	// Publish messages concurrently
 	for i := 0; i < numMessages; i++ {
 		wg.Add(1)
-		go func(messageID int) {
+		go func(i int) {
 			defer wg.Done()
-			event := testutil.EventFactory.Any(
-				testutil.EventFactory.WithData(map[string]interface{}{
-					"message_id": messageID,
-				}),
-			)
-			if err := s.pub.Publish(context.Background(), &event); err != nil {
+			if err := s.pub.Publish(context.Background(), &events[i]); err != nil {
 				errChan <- err
 			}
 		}(i)
 	}
 
-	// Wait for all publishes to complete
 	wg.Wait()
 	close(errChan)
 
-	// Check for any publish errors
 	for err := range errChan {
 		s.Require().NoError(err)
 	}
@@ -130,10 +164,14 @@ func (s *PublisherSuite) TestConcurrentPublish() {
 	for i := 0; i < numMessages; i++ {
 		select {
 		case msg := <-s.consumer.Consume():
+			// Get the message ID first
 			var body map[string]interface{}
 			err := json.Unmarshal(msg.Data, &body)
 			s.Require().NoError(err)
 			messageID := int(body["message_id"].(float64))
+
+			// Verify against the correct event
+			s.verifyMessage(msg, events[messageID])
 			receivedMessages[messageID] = true
 		case <-timeout:
 			s.Fail("timeout waiting for messages")
@@ -148,19 +186,22 @@ func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
 	var successCount atomic.Int32
 	var closedCount atomic.Int32
 
-	// Start publishing messages
 	var wg sync.WaitGroup
+	events := make([]models.Event, totalMessages)
+	for i := 0; i < totalMessages; i++ {
+		events[i] = testutil.EventFactory.Any(
+			testutil.EventFactory.WithData(map[string]interface{}{
+				"message_id": i,
+			}),
+		)
+	}
+
+	// Start publishing messages
 	for i := 0; i < totalMessages; i++ {
 		wg.Add(1)
-		go func(messageID int) {
+		go func(i int) {
 			defer wg.Done()
-			event := testutil.EventFactory.Any(
-				testutil.EventFactory.WithData(map[string]interface{}{
-					"message_id": messageID,
-				}),
-			)
-
-			err := s.pub.Publish(context.Background(), &event)
+			err := s.pub.Publish(context.Background(), &events[i])
 			if err == nil {
 				successCount.Add(1)
 			} else if errors.Is(err, destregistry.ErrPublisherClosed) {
@@ -171,14 +212,11 @@ func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
 		}(i)
 	}
 
-	// Close the publisher
 	err := s.pub.Close()
 	s.Require().NoError(err)
 
-	// Wait for all publish attempts to complete
 	wg.Wait()
 
-	// Verify counts
 	total := successCount.Load() + closedCount.Load()
 	s.Equal(int32(totalMessages), total, "all publish attempts should either succeed or get closed error")
 	s.Greater(successCount.Load(), int32(0), "some messages should be published successfully")
@@ -197,6 +235,7 @@ func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
 			err := json.Unmarshal(msg.Data, &body)
 			s.Require().NoError(err)
 			messageID := int(body["message_id"].(float64))
+			s.verifyMessage(msg, events[messageID])
 			receivedMessages[messageID] = true
 			receivedCount++
 		case <-timeout:
