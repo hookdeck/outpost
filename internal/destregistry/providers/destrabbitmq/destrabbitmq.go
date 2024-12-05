@@ -48,7 +48,11 @@ func (d *RabbitMQDestination) CreatePublisher(ctx context.Context, destination *
 	if err != nil {
 		return nil, err
 	}
-	return &RabbitMQPublisher{url: rabbitURL(config, credentials), exchange: config.Exchange}, nil
+	return &RabbitMQPublisher{
+		BasePublisher: &destregistry.BasePublisher{},
+		url:           rabbitURL(config, credentials),
+		exchange:      config.Exchange,
+	}, nil
 }
 
 func (d *RabbitMQDestination) resolveMetadata(ctx context.Context, destination *models.Destination) (*RabbitMQDestinationConfig, *RabbitMQDestinationCredentials, error) {
@@ -66,20 +70,16 @@ func (d *RabbitMQDestination) resolveMetadata(ctx context.Context, destination *
 }
 
 type RabbitMQPublisher struct {
-	closed   bool
+	*destregistry.BasePublisher
 	url      string
 	exchange string
 	conn     *amqp091.Connection
 	channel  *amqp091.Channel
 	mu       sync.Mutex
-	active   sync.WaitGroup // Track active publishing operations
 }
 
 func (p *RabbitMQPublisher) Close() error {
-	p.closed = true
-
-	// Wait for any active publishing to complete
-	p.active.Wait()
+	p.BasePublisher.StartClose()
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -94,12 +94,10 @@ func (p *RabbitMQPublisher) Close() error {
 }
 
 func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) error {
-	if p.closed {
-		return destregistry.ErrPublisherClosed
+	if err := p.BasePublisher.StartPublish(); err != nil {
+		return err
 	}
-
-	p.active.Add(1)
-	defer p.active.Done()
+	defer p.BasePublisher.FinishPublish()
 
 	// Ensure we have a valid connection
 	if err := p.ensureConnection(ctx); err != nil {
