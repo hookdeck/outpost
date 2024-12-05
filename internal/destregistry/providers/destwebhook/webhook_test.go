@@ -222,6 +222,46 @@ func (s *WebhookPublishSuite) setupMultipleSecretsSuite() {
 	s.consumer = consumer
 }
 
+// Expired secrets test configuration
+func (s *WebhookPublishSuite) setupExpiredSecretsSuite() {
+	consumer := NewWebhookConsumer("x-outpost-")
+
+	provider, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	require.NoError(s.T(), err)
+
+	now := time.Now()
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": consumer.server.URL + "/webhook",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secrets": fmt.Sprintf(`[
+				{"key":"expired_secret","created_at":"%s"},
+				{"key":"active_secret1","created_at":"%s"},
+				{"key":"active_secret2","created_at":"%s"}
+			]`,
+				now.Add(-48*time.Hour).Format(time.RFC3339), // Expired secret (> 24h old)
+				now.Add(-12*time.Hour).Format(time.RFC3339), // Active secret
+				now.Add(-6*time.Hour).Format(time.RFC3339),  // Active secret
+			),
+		}),
+	)
+
+	s.InitSuite(testsuite.Config{
+		Provider: provider,
+		Dest:     &dest,
+		Consumer: consumer,
+		Asserter: &WebhookAsserter{
+			headerPrefix:       "x-outpost-",
+			expectedSignatures: 2, // Only expect signatures from active secrets
+			secrets:            []string{"active_secret1", "active_secret2"},
+		},
+	})
+
+	s.consumer = consumer
+}
+
 func TestWebhookPublish(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -245,6 +285,13 @@ func TestWebhookPublish(t *testing.T) {
 	t.Run("MultipleSecrets", func(t *testing.T) {
 		suite.Run(t, &WebhookPublishSuite{
 			setupFn: (*WebhookPublishSuite).setupMultipleSecretsSuite,
+		})
+	})
+
+	// Run expired secrets tests
+	t.Run("ExpiredSecrets", func(t *testing.T) {
+		suite.Run(t, &WebhookPublishSuite{
+			setupFn: (*WebhookPublishSuite).setupExpiredSecretsSuite,
 		})
 	})
 }
