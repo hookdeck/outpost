@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
+	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -300,7 +301,7 @@ func assertRequestContent(t *testing.T, rawBody []byte, expectedData map[string]
 }
 
 // Helper function to assert signature format
-func assertSignatureFormat(t *testing.T, signatureHeader string, expectedSignatureCount int) {
+func assertSignatureFormat(t testsuite.TestingT, signatureHeader string, expectedSignatureCount int) {
 	t.Helper()
 
 	parts := strings.SplitN(signatureHeader, ",", 2)

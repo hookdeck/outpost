@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
+	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -173,7 +174,7 @@ func TestWebhookRequest_ToHTTPRequest(t *testing.T) {
 	})
 }
 
-func assertValidSignature(t *testing.T, secret string, rawBody []byte, signatureHeader string) {
+func assertValidSignature(t testsuite.TestingT, secret string, rawBody []byte, signatureHeader string) {
 	t.Helper()
 
 	// Parse "t={timestamp},v0={signature1,signature2}" format

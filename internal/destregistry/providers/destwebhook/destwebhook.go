@@ -76,7 +76,13 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 	if err != nil {
 		return nil, err
 	}
-	return &WebhookPublisher{url: config.URL, headerPrefix: d.headerPrefix, secrets: creds.Secrets, timeout: d.timeout}, nil
+	return &WebhookPublisher{
+		BasePublisher: &destregistry.BasePublisher{},
+		url:           config.URL,
+		headerPrefix:  d.headerPrefix,
+		secrets:       creds.Secrets,
+		timeout:       d.timeout,
+	}, nil
 }
 
 func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *models.Destination) (*WebhookDestinationConfig, *WebhookDestinationCredentials, error) {
@@ -104,6 +110,7 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 }
 
 type WebhookPublisher struct {
+	*destregistry.BasePublisher
 	url          string
 	headerPrefix string
 	secrets      []WebhookSecret
@@ -111,10 +118,16 @@ type WebhookPublisher struct {
 }
 
 func (p *WebhookPublisher) Close() error {
+	p.BasePublisher.StartClose()
 	return nil
 }
 
 func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) error {
+	if err := p.BasePublisher.StartPublish(); err != nil {
+		return err
+	}
+	defer p.BasePublisher.FinishPublish()
+
 	rawBody, err := json.Marshal(event.Data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event data: %w", err)
@@ -130,8 +143,7 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) err
 		return destregistry.NewErrDestinationPublish(err)
 	}
 
-	client := &http.Client{}
-	resp, err := client.Do(httpReq)
+	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
 		return err
 	}
