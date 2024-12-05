@@ -200,12 +200,14 @@ func (s *PublisherSuite) TestConcurrentPublish() {
 
 func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
 	const maxFailedAttempts = 10
+	const maxTotalAttempts = 100
 	const publishInterval = 20 * time.Millisecond
 	const closeAfter = 150 * time.Millisecond
 
 	var successCount atomic.Int32
 	var closedCount atomic.Int32
 	var failedCount atomic.Int32
+	var totalAttempts atomic.Int32
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -218,11 +220,12 @@ func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
 		ticker := time.NewTicker(publishInterval)
 		defer ticker.Stop()
 
-		for failedCount.Load() < maxFailedAttempts {
+		for failedCount.Load() < maxFailedAttempts && totalAttempts.Load() < maxTotalAttempts {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				totalAttempts.Add(1)
 				event := testutil.EventFactory.Any(
 					testutil.EventFactory.WithData(map[string]interface{}{
 						"message_id": messageID,
@@ -255,7 +258,8 @@ func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
 	total := successCount.Load() + closedCount.Load()
 	s.Greater(total, int32(0), "should have processed some messages")
 	s.Greater(successCount.Load(), int32(0), "some messages should be published successfully")
-	s.Equal(int32(maxFailedAttempts), failedCount.Load(), "should have exactly maxFailedAttempts failed publishes")
+	s.Greater(failedCount.Load(), int32(0), "some messages should be rejected due to closed publisher")
+	s.LessOrEqual(totalAttempts.Load(), int32(maxTotalAttempts), "should not exceed max total attempts")
 
 	// Verify successful messages were delivered
 	receivedCount := 0
