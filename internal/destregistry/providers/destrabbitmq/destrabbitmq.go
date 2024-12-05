@@ -66,14 +66,21 @@ func (d *RabbitMQDestination) resolveMetadata(ctx context.Context, destination *
 }
 
 type RabbitMQPublisher struct {
+	closed   bool
 	url      string
 	exchange string
 	conn     *amqp091.Connection
 	channel  *amqp091.Channel
 	mu       sync.Mutex
+	active   sync.WaitGroup // Track active publishing operations
 }
 
 func (p *RabbitMQPublisher) Close() error {
+	p.closed = true
+
+	// Wait for any active publishing to complete
+	p.active.Wait()
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -87,6 +94,13 @@ func (p *RabbitMQPublisher) Close() error {
 }
 
 func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) error {
+	if p.closed {
+		return destregistry.ErrPublisherClosed
+	}
+
+	p.active.Add(1)
+	defer p.active.Done()
+
 	// Ensure we have a valid connection
 	if err := p.ensureConnection(ctx); err != nil {
 		return err

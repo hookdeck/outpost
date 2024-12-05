@@ -1,6 +1,9 @@
 package destregistry
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 type ErrDestinationValidation struct {
 	Errors []ValidationErrorDetail `json:"errors"`
@@ -32,3 +35,5 @@ func (e *ErrDestinationPublish) Error() string {
 func NewErrDestinationPublish(err error) error {
 	return &ErrDestinationPublish{Err: err}
 }
+
+var ErrPublisherClosed = errors.New("publisher is closed")

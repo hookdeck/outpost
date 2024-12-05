@@ -3,11 +3,14 @@ package destrabbitmq_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
@@ -131,6 +134,136 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 
 		// Verify all messages were received
 		require.Len(t, receivedMessages, numMessages)
+	})
+
+	t.Run("should wait for active publishes before closing", func(t *testing.T) {
+		// Start a slow publish operation
+		var publishCompleted bool
+		go func() {
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithData(map[string]interface{}{
+					"slow": "message",
+				}),
+			)
+			time.Sleep(100 * time.Millisecond) // Simulate slow publish
+			err := publisher.Publish(context.Background(), &event)
+			require.NoError(t, err)
+			publishCompleted = true
+		}()
+
+		// Try to close immediately
+		err = publisher.Close()
+		require.NoError(t, err)
+
+		// Verify publish completed
+		require.True(t, publishCompleted, "publish should complete before close")
+
+		// Verify message was delivered
+		select {
+		case delivery := <-deliveries:
+			var body map[string]interface{}
+			err := json.Unmarshal(delivery.Body, &body)
+			require.NoError(t, err)
+			require.Equal(t, "message", body["slow"])
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for message")
+		}
+	})
+}
+
+func TestRabbitMQDestination_ClosePublisher(t *testing.T) {
+	t.Parallel()
+	t.Cleanup(testinfra.Start(t))
+
+	mqConfig := testinfra.NewMQRabbitMQConfig(t)
+	provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
+	require.NoError(t, err)
+
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("rabbitmq"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"server_url": testutil.ExtractRabbitURL(mqConfig.RabbitMQ.ServerURL),
+			"exchange":   mqConfig.RabbitMQ.Exchange,
+			"queue":      mqConfig.RabbitMQ.Queue,
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"username": testutil.ExtractRabbitUsername(mqConfig.RabbitMQ.ServerURL),
+			"password": testutil.ExtractRabbitPassword(mqConfig.RabbitMQ.ServerURL),
+		}),
+	)
+
+	// Create publisher
+	publisher, err := provider.CreatePublisher(context.Background(), &destination)
+	require.NoError(t, err)
+
+	// Create message channel for verification
+	deliveries := make(chan amqp091.Delivery)
+	cleanup, err := setupRabbitMQConsumer(context.Background(), mqConfig, deliveries)
+	require.NoError(t, err)
+	defer cleanup()
+
+	t.Run("should handle close during concurrent publishes", func(t *testing.T) {
+		const totalMessages = 1000
+		var successCount atomic.Int32
+		var closedCount atomic.Int32
+
+		// Start publishing messages
+		var wg sync.WaitGroup
+		for i := 0; i < totalMessages; i++ {
+			wg.Add(1)
+			go func(messageID int) {
+				defer wg.Done()
+				event := testutil.EventFactory.Any(
+					testutil.EventFactory.WithData(map[string]interface{}{
+						"message_id": messageID,
+					}),
+				)
+
+				err := publisher.Publish(context.Background(), &event)
+				if err == nil {
+					successCount.Add(1)
+				} else if errors.Is(err, destregistry.ErrPublisherClosed) {
+					closedCount.Add(1)
+				} else {
+					t.Errorf("unexpected error: %v", err)
+				}
+			}(i)
+		}
+
+		// Close the publisher
+		err = publisher.Close()
+		require.NoError(t, err)
+
+		// Wait for all publish attempts to complete
+		wg.Wait()
+
+		// Verify counts
+		total := successCount.Load() + closedCount.Load()
+		require.Equal(t, int32(totalMessages), total, "all publish attempts should either succeed or get closed error")
+		require.Greater(t, successCount.Load(), int32(0), "some messages should be published successfully")
+		require.Greater(t, closedCount.Load(), int32(0), "some messages should be rejected due to closed publisher")
+
+		// Verify successful messages were delivered
+		receivedCount := 0
+		expectedCount := int(successCount.Load())
+		receivedMessages := make(map[int]bool)
+		timeout := time.After(5 * time.Second)
+
+		for receivedCount < expectedCount {
+			select {
+			case delivery := <-deliveries:
+				var body map[string]interface{}
+				err := json.Unmarshal(delivery.Body, &body)
+				require.NoError(t, err)
+				messageID := int(body["message_id"].(float64))
+				receivedMessages[messageID] = true
+				receivedCount++
+			case <-timeout:
+				t.Fatalf("timeout waiting for messages, got %d/%d", receivedCount, expectedCount)
+			}
+		}
+
+		require.Equal(t, expectedCount, len(receivedMessages), "should receive all successfully published messages")
 	})
 }
 
