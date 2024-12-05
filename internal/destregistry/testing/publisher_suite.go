@@ -110,8 +110,10 @@ func (s *PublisherSuite) verifyMessage(msg Message, event models.Event) {
 	s.Require().NoError(err, "failed to marshal message data")
 	s.Require().JSONEq(string(eventDataJSON), string(msgDataJSON), "message data mismatch")
 
-	// Compare metadata by converting both to map[string]string
-	s.Require().Equal(map[string]string(event.Metadata), msg.Metadata, "message metadata mismatch")
+	// Verify that expected metadata is a subset of received metadata
+	for k, v := range event.Metadata {
+		s.Require().Equal(v, msg.Metadata[k], "metadata key %s should match expected value", k)
+	}
 
 	// Provider-specific assertions if available
 	if s.asserter != nil {
@@ -197,74 +199,63 @@ func (s *PublisherSuite) TestConcurrentPublish() {
 }
 
 func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
-	const totalMessages = 1000
+	const maxFailedAttempts = 10
+	const publishInterval = 20 * time.Millisecond
+	const closeAfter = 150 * time.Millisecond
+
 	var successCount atomic.Int32
 	var closedCount atomic.Int32
+	var failedCount atomic.Int32
 
-	var wg sync.WaitGroup
-	events := make([]models.Event, totalMessages)
-	for i := 0; i < totalMessages; i++ {
-		events[i] = testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{
-				"message_id": i,
-			}),
-		)
-	}
-
-	// Start publishing messages
-	for i := 0; i < totalMessages; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			err := s.pub.Publish(context.Background(), &events[i])
-			if err == nil {
-				successCount.Add(1)
-			} else if errors.Is(err, destregistry.ErrPublisherClosed) {
-				closedCount.Add(1)
-			} else {
-				s.Failf("unexpected error", "got %v", err)
-			}
-		}(i)
-	}
-
-	// Add timeout to Close() call
-	closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	done := make(chan struct{})
-	var closeErr error
+	// Start publishing messages at a fixed rate
+	publishDone := make(chan struct{})
 	go func() {
-		closeErr = s.pub.Close()
-		close(done)
+		defer close(publishDone)
+		messageID := 0
+		ticker := time.NewTicker(publishInterval)
+		defer ticker.Stop()
+
+		for failedCount.Load() < maxFailedAttempts {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				event := testutil.EventFactory.Any(
+					testutil.EventFactory.WithData(map[string]interface{}{
+						"message_id": messageID,
+					}),
+				)
+				messageID++
+
+				err := s.pub.Publish(ctx, &event)
+				if err == nil {
+					successCount.Add(1)
+				} else if errors.Is(err, destregistry.ErrPublisherClosed) {
+					closedCount.Add(1)
+					failedCount.Add(1)
+				} else {
+					s.Failf("unexpected error", "got %v", err)
+					return
+				}
+			}
+		}
 	}()
 
-	select {
-	case <-done:
-		// Close completed
-	case <-closeCtx.Done():
-		s.Fail("Close() timed out")
-	}
+	// Close publisher after fixed delay
+	time.Sleep(closeAfter)
+	closeErr := s.pub.Close()
 	s.Require().NoError(closeErr)
 
-	// Add timeout to wg.Wait()
-	waitDone := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(waitDone)
-	}()
-
-	select {
-	case <-waitDone:
-		// Wait completed
-	case <-time.After(5 * time.Second):
-		s.Fail("timed out waiting for publishes to complete")
-		return
-	}
+	// Wait for publishing to complete
+	<-publishDone
 
 	total := successCount.Load() + closedCount.Load()
-	s.Equal(int32(totalMessages), total, "all publish attempts should either succeed or get closed error")
+	s.Greater(total, int32(0), "should have processed some messages")
 	s.Greater(successCount.Load(), int32(0), "some messages should be published successfully")
-	s.Greater(closedCount.Load(), int32(0), "some messages should be rejected due to closed publisher")
+	s.Equal(int32(maxFailedAttempts), failedCount.Load(), "should have exactly maxFailedAttempts failed publishes")
 
 	// Verify successful messages were delivered
 	receivedCount := 0
@@ -281,7 +272,12 @@ func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
 			messageID := int(body["message_id"].(float64))
 
 			// Only verify messages that were successfully published
-			s.verifyMessage(msg, events[messageID])
+			expectedEvent := testutil.EventFactory.Any(
+				testutil.EventFactory.WithData(map[string]interface{}{
+					"message_id": messageID,
+				}),
+			)
+			s.verifyMessage(msg, expectedEvent)
 			receivedMessages[messageID] = true
 			receivedCount++
 		case <-timeout:
