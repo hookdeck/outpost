@@ -2,17 +2,12 @@ package destwebhook_test
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
 	"encoding/json"
-	"fmt"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
-	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -172,36 +167,4 @@ func TestWebhookRequest_ToHTTPRequest(t *testing.T) {
 			assertValidSignature(t, secret.Key, rawBody, signatureHeader)
 		}
 	})
-}
-
-func assertValidSignature(t testsuite.TestingT, secret string, rawBody []byte, signatureHeader string) {
-	t.Helper()
-
-	// Parse "t={timestamp},v0={signature1,signature2}" format
-	parts := strings.SplitN(signatureHeader, ",", 2) // Split only on first comma
-	require.True(t, len(parts) >= 2, "signature header should have timestamp and signature parts")
-
-	timestampStr := strings.TrimPrefix(parts[0], "t=")
-	signatures := strings.Split(strings.TrimPrefix(parts[1], "v0="), ",")
-
-	timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
-	require.NoError(t, err, "timestamp should be a valid integer")
-
-	// Reconstruct the signed content
-	signedContent := fmt.Sprintf("%d.%s", timestamp, rawBody)
-
-	// Generate HMAC-SHA256
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(signedContent))
-	expectedSignature := fmt.Sprintf("%x", mac.Sum(nil))
-
-	// Check if any of the signatures match
-	found := false
-	for _, sig := range signatures {
-		if sig == expectedSignature {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "none of the signatures matched expected value")
 }

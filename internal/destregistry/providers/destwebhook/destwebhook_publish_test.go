@@ -2,319 +2,374 @@ package destwebhook_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 )
 
-type webhookDestinationSuite struct {
-	server        *httptest.Server
-	request       *http.Request
-	requestBody   []byte
-	responseCode  int
-	responseDelay time.Duration
-	webhookURL    string
+// WebhookConsumer implements testsuite.MessageConsumer
+type WebhookConsumer struct {
+	server       *httptest.Server
+	messages     chan testsuite.Message
+	headerPrefix string
+	wg           sync.WaitGroup
 }
 
-func (suite *webhookDestinationSuite) SetupTest(t *testing.T) {
-	if suite.responseCode == 0 {
-		suite.responseCode = http.StatusOK
+func NewWebhookConsumer(headerPrefix string) *WebhookConsumer {
+	consumer := &WebhookConsumer{
+		messages:     make(chan testsuite.Message, 100),
+		headerPrefix: headerPrefix,
 	}
 
-	suite.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		suite.request = r
-		var err error
-		suite.requestBody, err = io.ReadAll(r.Body)
+	consumer.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		consumer.wg.Add(1)
+		defer consumer.wg.Done()
+
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		if suite.responseDelay > 0 {
-			time.Sleep(suite.responseDelay)
+		// Convert headers to metadata
+		metadata := make(map[string]string)
+		for k, v := range r.Header {
+			if strings.HasPrefix(strings.ToLower(k), strings.ToLower(headerPrefix)) {
+				metadata[strings.TrimPrefix(strings.ToLower(k), strings.ToLower(headerPrefix))] = v[0]
+			}
 		}
 
-		w.WriteHeader(suite.responseCode)
+		consumer.messages <- testsuite.Message{
+			Data:     body,
+			Metadata: metadata,
+			Raw:      r, // Store the raw request for signature verification
+		}
+
+		w.WriteHeader(http.StatusOK)
 	}))
-	suite.webhookURL = suite.server.URL + "/webhook"
+
+	return consumer
 }
 
-func (suite *webhookDestinationSuite) TearDownTest(t *testing.T) {
-	suite.server.Close()
+func (c *WebhookConsumer) Consume() <-chan testsuite.Message {
+	return c.messages
 }
 
-func TestWebhookDestination_DefaultBehavior(t *testing.T) {
-	t.Parallel()
+func (c *WebhookConsumer) Close() error {
+	c.wg.Wait()
+	c.server.Close()
+	close(c.messages)
+	return nil
+}
 
-	suite := &webhookDestinationSuite{}
-	suite.SetupTest(t)
-	defer suite.TearDownTest(t)
+// WebhookAsserter implements testsuite.MessageAsserter
+type WebhookAsserter struct {
+	headerPrefix       string
+	expectedSignatures int
+	secrets            []string
+}
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader())
-	require.NoError(t, err)
+func (a *WebhookAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Message, event models.Event) {
+	req := msg.Raw.(*http.Request)
 
-	event := testutil.EventFactory.Any(
-		testutil.EventFactory.WithData(map[string]interface{}{
-			"test_key": "test_value",
-		}),
-		testutil.EventFactory.WithMetadata(map[string]string{
-			"meta_key": "meta_value",
-		}),
-	)
+	// Verify basic HTTP properties
+	assert.Equal(t, "POST", req.Method)
+	assert.Equal(t, "/webhook", req.URL.Path)
+	assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
 
-	t.Run("should send data and metadata correctly", func(t *testing.T) {
-		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook"),
-			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": suite.webhookURL,
-			}),
-		)
+	// Verify request content and metadata
+	for k, v := range event.Metadata {
+		assert.Equal(t, v, msg.Metadata[k], "metadata key %s should match expected value", k)
+	}
 
-		expectedData := map[string]interface{}{
-			"test_key": "test_value",
-			"nested": map[string]interface{}{
-				"field": "value",
-			},
+	// Verify signature if expected
+	if a.expectedSignatures > 0 {
+		signatureHeader := req.Header.Get(a.headerPrefix + "signature")
+		assertSignatureFormat(t, signatureHeader, a.expectedSignatures)
+
+		// Verify each expected signature
+		for _, secret := range a.secrets {
+			assertValidSignature(t, secret, msg.Data, signatureHeader)
 		}
-		expectedMetadata := map[string]string{
-			"meta_key1": "meta_value1",
-			"meta_key2": "meta_value2",
-		}
-
-		event := testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(expectedData),
-			testutil.EventFactory.WithMetadata(expectedMetadata),
-		)
-
-		publisher, err := webhookDestination.CreatePublisher(context.Background(), &destination)
-		require.NoError(t, err)
-		err = publisher.Publish(context.Background(), &event)
-		require.NoError(t, err)
-
-		require.NotNil(t, suite.request)
-		assert.Equal(t, "POST", suite.request.Method)
-		assert.Equal(t, "/webhook", suite.request.URL.Path)
-		assert.Equal(t, "application/json", suite.request.Header.Get("Content-Type"))
-		assertRequestContent(t, suite.requestBody, expectedData, expectedMetadata, "x-outpost-", suite.request)
-	})
-
-	t.Run("should send webhook request without secret", func(t *testing.T) {
-		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook"),
-			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": suite.webhookURL,
-			}),
-		)
-
-		publisher, err := webhookDestination.CreatePublisher(context.Background(), &destination)
-		require.NoError(t, err)
-		err = publisher.Publish(context.Background(), &event)
-		require.NoError(t, err)
-
-		require.NotNil(t, suite.request)
-		assert.Empty(t, suite.request.Header.Get("x-outpost-signature"))
-	})
-
-	t.Run("should send webhook request with one secret", func(t *testing.T) {
-		now := time.Now()
-		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook"),
-			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": suite.webhookURL,
-			}),
-			testutil.DestinationFactory.WithCredentials(map[string]string{
-				"secrets": fmt.Sprintf(`[{"key":"secret1","created_at":"%s"}]`,
-					now.Format(time.RFC3339)),
-			}),
-		)
-
-		publisher, err := webhookDestination.CreatePublisher(context.Background(), &destination)
-		require.NoError(t, err)
-		err = publisher.Publish(context.Background(), &event)
-		require.NoError(t, err)
-
-		require.NotNil(t, suite.request)
-		signatureHeader := suite.request.Header.Get("x-outpost-signature")
-		assertSignatureFormat(t, signatureHeader, 1)
-		assertValidSignature(t, "secret1", suite.requestBody, signatureHeader)
-	})
-
-	t.Run("should send webhook request with multiple active secrets", func(t *testing.T) {
-		now := time.Now()
-		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook"),
-			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": suite.webhookURL,
-			}),
-			testutil.DestinationFactory.WithCredentials(map[string]string{
-				"secrets": fmt.Sprintf(`[
-                    {"key":"secret1","created_at":"%s"},
-                    {"key":"secret2","created_at":"%s"}
-                ]`,
-					now.Add(-12*time.Hour).Format(time.RFC3339), // Active secret
-					now.Add(-6*time.Hour).Format(time.RFC3339),  // Active secret
-				),
-			}),
-		)
-
-		publisher, err := webhookDestination.CreatePublisher(context.Background(), &destination)
-		require.NoError(t, err)
-		err = publisher.Publish(context.Background(), &event)
-		require.NoError(t, err)
-
-		require.NotNil(t, suite.request)
-		signatureHeader := suite.request.Header.Get("x-outpost-signature")
-		assertSignatureFormat(t, signatureHeader, 2)
-
-		// Verify both signatures are valid
-		assertValidSignature(t, "secret1", suite.requestBody, signatureHeader)
-		assertValidSignature(t, "secret2", suite.requestBody, signatureHeader)
-	})
-
-	t.Run("should handle multiple secrets with expiration", func(t *testing.T) {
-		now := time.Now()
-		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook"),
-			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": suite.webhookURL,
-			}),
-			testutil.DestinationFactory.WithCredentials(map[string]string{
-				"secrets": fmt.Sprintf(`[
-                    {"key":"expired_secret","created_at":"%s"},
-                    {"key":"active_secret1","created_at":"%s"},
-                    {"key":"active_secret2","created_at":"%s"}
-                ]`,
-					now.Add(-48*time.Hour).Format(time.RFC3339), // Expired secret (> 24h old)
-					now.Add(-12*time.Hour).Format(time.RFC3339), // Active secret
-					now.Add(-6*time.Hour).Format(time.RFC3339),  // Active secret
-				),
-			}),
-		)
-
-		publisher, err := webhookDestination.CreatePublisher(context.Background(), &destination)
-		require.NoError(t, err)
-		err = publisher.Publish(context.Background(), &event)
-		require.NoError(t, err)
-
-		require.NotNil(t, suite.request)
-		signatureHeader := suite.request.Header.Get("x-outpost-signature")
-		assertSignatureFormat(t, signatureHeader, 2)
-
-		// Verify only active signatures are present
-		assertValidSignature(t, "active_secret1", suite.requestBody, signatureHeader)
-		assertValidSignature(t, "active_secret2", suite.requestBody, signatureHeader)
-	})
+	} else {
+		// Verify no signature when not expected
+		assert.Empty(t, req.Header.Get(a.headerPrefix+"signature"))
+	}
 }
 
-func TestWebhookDestination_CustomHeaderPrefix(t *testing.T) {
-	t.Parallel()
+// WebhookPublishSuite is the test suite for webhook publisher
+type WebhookPublishSuite struct {
+	testsuite.PublisherSuite
+	consumer *WebhookConsumer
+	setupFn  func(*WebhookPublishSuite)
+}
 
-	suite := &webhookDestinationSuite{}
-	suite.SetupTest(t)
-	defer suite.TearDownTest(t)
+func (s *WebhookPublishSuite) SetupSuite() {
+	s.setupFn(s)
+}
 
-	webhookDestination, err := destwebhook.New(
-		testutil.Registry.MetadataLoader(),
-		destwebhook.WithHeaderPrefix("x-custom-"),
-	)
-	require.NoError(t, err)
+func (s *WebhookPublishSuite) TearDownSuite() {
+	if s.consumer != nil {
+		s.consumer.Close()
+	}
+}
 
-	event := testutil.EventFactory.Any(
-		testutil.EventFactory.WithMetadata(map[string]string{
-			"meta_key": "meta_value",
-		}),
-	)
+// Basic publish test configuration
+func (s *WebhookPublishSuite) setupBasicSuite() {
+	consumer := NewWebhookConsumer("x-outpost-")
 
-	destination := testutil.DestinationFactory.Any(
+	provider, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	require.NoError(s.T(), err)
+
+	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"url": suite.webhookURL,
+			"url": consumer.server.URL + "/webhook",
 		}),
 	)
 
-	publisher, err := webhookDestination.CreatePublisher(context.Background(), &destination)
-	require.NoError(t, err)
-	err = publisher.Publish(context.Background(), &event)
-	require.NoError(t, err)
+	s.InitSuite(testsuite.Config{
+		Provider: provider,
+		Dest:     &dest,
+		Consumer: consumer,
+		Asserter: &WebhookAsserter{
+			headerPrefix: "x-outpost-",
+		},
+	})
 
-	require.NotNil(t, suite.request)
-	assert.Equal(t, "meta_value", suite.request.Header.Get("x-custom-meta_key"))
+	s.consumer = consumer
 }
 
-func TestWebhookDestination_Timeout(t *testing.T) {
+// Single secret test configuration
+func (s *WebhookPublishSuite) setupSingleSecretSuite() {
+	consumer := NewWebhookConsumer("x-outpost-")
+
+	provider, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	require.NoError(s.T(), err)
+
+	now := time.Now()
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": consumer.server.URL + "/webhook",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secrets": fmt.Sprintf(`[{"key":"secret1","created_at":"%s"}]`,
+				now.Format(time.RFC3339)),
+		}),
+	)
+
+	s.InitSuite(testsuite.Config{
+		Provider: provider,
+		Dest:     &dest,
+		Consumer: consumer,
+		Asserter: &WebhookAsserter{
+			headerPrefix:       "x-outpost-",
+			expectedSignatures: 1,
+			secrets:            []string{"secret1"},
+		},
+	})
+
+	s.consumer = consumer
+}
+
+// Multiple secrets test configuration
+func (s *WebhookPublishSuite) setupMultipleSecretsSuite() {
+	consumer := NewWebhookConsumer("x-outpost-")
+
+	provider, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	require.NoError(s.T(), err)
+
+	now := time.Now()
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": consumer.server.URL + "/webhook",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secrets": fmt.Sprintf(`[
+				{"key":"secret1","created_at":"%s"},
+				{"key":"secret2","created_at":"%s"}
+			]`,
+				now.Add(-12*time.Hour).Format(time.RFC3339),
+				now.Add(-6*time.Hour).Format(time.RFC3339),
+			),
+		}),
+	)
+
+	s.InitSuite(testsuite.Config{
+		Provider: provider,
+		Dest:     &dest,
+		Consumer: consumer,
+		Asserter: &WebhookAsserter{
+			headerPrefix:       "x-outpost-",
+			expectedSignatures: 2,
+			secrets:            []string{"secret1", "secret2"},
+		},
+	})
+
+	s.consumer = consumer
+}
+
+// Expired secrets test configuration
+func (s *WebhookPublishSuite) setupExpiredSecretsSuite() {
+	consumer := NewWebhookConsumer("x-outpost-")
+
+	provider, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	require.NoError(s.T(), err)
+
+	now := time.Now()
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": consumer.server.URL + "/webhook",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secrets": fmt.Sprintf(`[
+				{"key":"expired_secret","created_at":"%s"},
+				{"key":"active_secret1","created_at":"%s"},
+				{"key":"active_secret2","created_at":"%s"}
+			]`,
+				now.Add(-48*time.Hour).Format(time.RFC3339), // Expired secret (> 24h old)
+				now.Add(-12*time.Hour).Format(time.RFC3339), // Active secret
+				now.Add(-6*time.Hour).Format(time.RFC3339),  // Active secret
+			),
+		}),
+	)
+
+	s.InitSuite(testsuite.Config{
+		Provider: provider,
+		Dest:     &dest,
+		Consumer: consumer,
+		Asserter: &WebhookAsserter{
+			headerPrefix:       "x-outpost-",
+			expectedSignatures: 2, // Only expect signatures from active secrets
+			secrets:            []string{"active_secret1", "active_secret2"},
+		},
+	})
+
+	s.consumer = consumer
+}
+
+// Custom header prefix test configuration
+func (s *WebhookPublishSuite) setupCustomHeaderSuite() {
+	const customPrefix = "x-custom-"
+	consumer := NewWebhookConsumer(customPrefix)
+
+	provider, err := destwebhook.New(
+		testutil.Registry.MetadataLoader(),
+		destwebhook.WithHeaderPrefix(customPrefix),
+	)
+	require.NoError(s.T(), err)
+
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": consumer.server.URL + "/webhook",
+		}),
+	)
+
+	s.InitSuite(testsuite.Config{
+		Provider: provider,
+		Dest:     &dest,
+		Consumer: consumer,
+		Asserter: &WebhookAsserter{
+			headerPrefix: customPrefix,
+		},
+	})
+
+	s.consumer = consumer
+}
+
+func TestWebhookTimeout(t *testing.T) {
 	t.Parallel()
 
-	suite := &webhookDestinationSuite{
-		responseDelay: 2 * time.Second,
-	}
-	suite.SetupTest(t)
-	defer suite.TearDownTest(t)
+	// Setup test server with delay
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(2 * time.Second) // Delay longer than timeout
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
 
-	webhookDestination, err := destwebhook.New(
+	// Create webhook destination with short timeout
+	provider, err := destwebhook.New(
 		testutil.Registry.MetadataLoader(),
 		destwebhook.WithTimeout(1), // 1 second timeout
 	)
 	require.NoError(t, err)
 
-	event := testutil.EventFactory.Any()
-	destination := testutil.DestinationFactory.Any(
+	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"url": suite.webhookURL,
+			"url": server.URL + "/webhook",
 		}),
 	)
 
-	publisher, err := webhookDestination.CreatePublisher(context.Background(), &destination)
+	publisher, err := provider.CreatePublisher(context.Background(), &dest)
 	require.NoError(t, err)
+	defer publisher.Close()
+
+	// Attempt publish which should timeout
+	event := testutil.EventFactory.Any()
 	err = publisher.Publish(context.Background(), &event)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "context deadline exceeded")
 }
 
-// Helper function to assert webhook request content
-func assertRequestContent(t *testing.T, rawBody []byte, expectedData map[string]interface{}, expectedMetadata map[string]string, headerPrefix string, request *http.Request) {
-	t.Helper()
+func TestWebhookPublish(t *testing.T) {
+	t.Parallel()
+	testutil.CheckIntegrationTest(t)
 
-	// Verify body content
-	var actualBody map[string]interface{}
-	err := json.Unmarshal(rawBody, &actualBody)
-	require.NoError(t, err, "body should be valid JSON")
-	assert.Equal(t, expectedData, actualBody, "request body should match expected data")
+	// Run basic publish tests
+	t.Run("Basic", func(t *testing.T) {
+		t.Parallel()
+		suite.Run(t, &WebhookPublishSuite{
+			setupFn: (*WebhookPublishSuite).setupBasicSuite,
+		})
+	})
 
-	// Verify metadata in headers
-	for key, value := range expectedMetadata {
-		assert.Equal(t, value, request.Header.Get(headerPrefix+key),
-			"metadata header %s should match expected value", key)
-	}
-}
+	// Run single secret tests
+	t.Run("SingleSecret", func(t *testing.T) {
+		t.Parallel()
+		suite.Run(t, &WebhookPublishSuite{
+			setupFn: (*WebhookPublishSuite).setupSingleSecretSuite,
+		})
+	})
 
-// Helper function to assert signature format
-func assertSignatureFormat(t testsuite.TestingT, signatureHeader string, expectedSignatureCount int) {
-	t.Helper()
+	// Run multiple secrets tests
+	t.Run("MultipleSecrets", func(t *testing.T) {
+		t.Parallel()
+		suite.Run(t, &WebhookPublishSuite{
+			setupFn: (*WebhookPublishSuite).setupMultipleSecretsSuite,
+		})
+	})
 
-	parts := strings.SplitN(signatureHeader, ",", 2)
-	require.True(t, len(parts) >= 2, "signature header should have timestamp and signature parts")
+	// Run expired secrets tests
+	t.Run("ExpiredSecrets", func(t *testing.T) {
+		t.Parallel()
+		suite.Run(t, &WebhookPublishSuite{
+			setupFn: (*WebhookPublishSuite).setupExpiredSecretsSuite,
+		})
+	})
 
-	// Verify timestamp format
-	assert.True(t, strings.HasPrefix(parts[0], "t="), "should start with t=")
-	timestampStr := strings.TrimPrefix(parts[0], "t=")
-	_, err := strconv.ParseInt(timestampStr, 10, 64)
-	require.NoError(t, err, "timestamp should be a valid integer")
-
-	// Verify signature format and count
-	assert.True(t, strings.HasPrefix(parts[1], "v0="), "should start with v0=")
-	signatures := strings.Split(strings.TrimPrefix(parts[1], "v0="), ",")
-	assert.Len(t, signatures, expectedSignatureCount, "should have exact number of signatures")
+	// Run custom header prefix tests
+	t.Run("CustomHeaderPrefix", func(t *testing.T) {
+		t.Parallel()
+		suite.Run(t, &WebhookPublishSuite{
+			setupFn: (*WebhookPublishSuite).setupCustomHeaderSuite,
+		})
+	})
 }
