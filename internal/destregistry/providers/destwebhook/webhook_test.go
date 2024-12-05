@@ -1,6 +1,7 @@
 package destwebhook_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -262,6 +263,71 @@ func (s *WebhookPublishSuite) setupExpiredSecretsSuite() {
 	s.consumer = consumer
 }
 
+// Custom header prefix test configuration
+func (s *WebhookPublishSuite) setupCustomHeaderSuite() {
+	const customPrefix = "x-custom-"
+	consumer := NewWebhookConsumer(customPrefix)
+
+	provider, err := destwebhook.New(
+		testutil.Registry.MetadataLoader(),
+		destwebhook.WithHeaderPrefix(customPrefix),
+	)
+	require.NoError(s.T(), err)
+
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": consumer.server.URL + "/webhook",
+		}),
+	)
+
+	s.InitSuite(testsuite.Config{
+		Provider: provider,
+		Dest:     &dest,
+		Consumer: consumer,
+		Asserter: &WebhookAsserter{
+			headerPrefix: customPrefix,
+		},
+	})
+
+	s.consumer = consumer
+}
+
+func TestWebhookTimeout(t *testing.T) {
+	t.Parallel()
+
+	// Setup test server with delay
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(2 * time.Second) // Delay longer than timeout
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	// Create webhook destination with short timeout
+	provider, err := destwebhook.New(
+		testutil.Registry.MetadataLoader(),
+		destwebhook.WithTimeout(1), // 1 second timeout
+	)
+	require.NoError(t, err)
+
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": server.URL + "/webhook",
+		}),
+	)
+
+	publisher, err := provider.CreatePublisher(context.Background(), &dest)
+	require.NoError(t, err)
+	defer publisher.Close()
+
+	// Attempt publish which should timeout
+	event := testutil.EventFactory.Any()
+	err = publisher.Publish(context.Background(), &event)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "context deadline exceeded")
+}
+
 func TestWebhookPublish(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -292,6 +358,13 @@ func TestWebhookPublish(t *testing.T) {
 	t.Run("ExpiredSecrets", func(t *testing.T) {
 		suite.Run(t, &WebhookPublishSuite{
 			setupFn: (*WebhookPublishSuite).setupExpiredSecretsSuite,
+		})
+	})
+
+	// Run custom header prefix tests
+	t.Run("CustomHeaderPrefix", func(t *testing.T) {
+		suite.Run(t, &WebhookPublishSuite{
+			setupFn: (*WebhookPublishSuite).setupCustomHeaderSuite,
 		})
 	})
 }
