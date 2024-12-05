@@ -330,12 +330,12 @@ func TestWebhookTimeout(t *testing.T) {
 }
 
 func TestWebhookPublish(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	t.Parallel()
+	testutil.CheckIntegrationTest(t)
 
 	// Run basic publish tests
 	t.Run("Basic", func(t *testing.T) {
+		t.Parallel()
 		suite.Run(t, &WebhookPublishSuite{
 			setupFn: (*WebhookPublishSuite).setupBasicSuite,
 		})
@@ -343,6 +343,7 @@ func TestWebhookPublish(t *testing.T) {
 
 	// Run single secret tests
 	t.Run("SingleSecret", func(t *testing.T) {
+		t.Parallel()
 		suite.Run(t, &WebhookPublishSuite{
 			setupFn: (*WebhookPublishSuite).setupSingleSecretSuite,
 		})
@@ -350,6 +351,7 @@ func TestWebhookPublish(t *testing.T) {
 
 	// Run multiple secrets tests
 	t.Run("MultipleSecrets", func(t *testing.T) {
+		t.Parallel()
 		suite.Run(t, &WebhookPublishSuite{
 			setupFn: (*WebhookPublishSuite).setupMultipleSecretsSuite,
 		})
@@ -357,6 +359,7 @@ func TestWebhookPublish(t *testing.T) {
 
 	// Run expired secrets tests
 	t.Run("ExpiredSecrets", func(t *testing.T) {
+		t.Parallel()
 		suite.Run(t, &WebhookPublishSuite{
 			setupFn: (*WebhookPublishSuite).setupExpiredSecretsSuite,
 		})
@@ -364,6 +367,7 @@ func TestWebhookPublish(t *testing.T) {
 
 	// Run custom header prefix tests
 	t.Run("CustomHeaderPrefix", func(t *testing.T) {
+		t.Parallel()
 		suite.Run(t, &WebhookPublishSuite{
 			setupFn: (*WebhookPublishSuite).setupCustomHeaderSuite,
 		})
