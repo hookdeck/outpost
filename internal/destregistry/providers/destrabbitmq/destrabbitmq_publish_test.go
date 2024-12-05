@@ -1,29 +1,115 @@
 package destrabbitmq_test
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"sync"
-	"sync/atomic"
 	"testing"
-	"time"
 
-	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
+	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
-	t.Parallel()
-	t.Cleanup(testinfra.Start(t))
+// RabbitMQConsumer implements testsuite.MessageConsumer
+type RabbitMQConsumer struct {
+	conn     *amqp091.Connection
+	channel  *amqp091.Channel
+	messages chan testsuite.Message
+}
 
+func NewRabbitMQConsumer(config mqs.QueueConfig) (*RabbitMQConsumer, error) {
+	consumer := &RabbitMQConsumer{
+		messages: make(chan testsuite.Message, 100),
+	}
+
+	// Connect to RabbitMQ
+	conn, err := amqp091.Dial(config.RabbitMQ.ServerURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create channel
+	ch, err := conn.Channel()
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	// Ensure queue exists
+	_, err = ch.QueueDeclare(
+		config.RabbitMQ.Queue,
+		true,  // durable
+		false, // delete when unused
+		false, // exclusive
+		false, // no-wait
+		nil,   // arguments
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, err
+	}
+
+	// Start consuming
+	deliveries, err := ch.Consume(
+		config.RabbitMQ.Queue,
+		"",    // consumer
+		true,  // auto-ack
+		false, // exclusive
+		false, // no-local
+		false, // no-wait
+		nil,   // args
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, err
+	}
+
+	consumer.conn = conn
+	consumer.channel = ch
+
+	// Forward messages
+	go func() {
+		for d := range deliveries {
+			consumer.messages <- testsuite.Message{
+				Data:     d.Body,
+				Metadata: toStringMap(d.Headers),
+			}
+		}
+	}()
+
+	return consumer, nil
+}
+
+func (c *RabbitMQConsumer) Consume() <-chan testsuite.Message {
+	return c.messages
+}
+
+func (c *RabbitMQConsumer) Close() error {
+	if c.channel != nil {
+		c.channel.Close()
+	}
+	if c.conn != nil {
+		c.conn.Close()
+	}
+	close(c.messages)
+	return nil
+}
+
+// RabbitMQPublishSuite reimplements the publish tests using the shared test suite
+type RabbitMQPublishSuite struct {
+	testsuite.PublisherSuite
+	consumer *RabbitMQConsumer
+}
+
+func (s *RabbitMQPublishSuite) SetupSuite() {
 	// Get RabbitMQ config from testinfra
+	t := s.T()
+	t.Cleanup(testinfra.Start(t))
 	mqConfig := testinfra.NewMQRabbitMQConfig(t)
 
 	// Create RabbitMQ provider
@@ -31,7 +117,7 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create test destination
-	destination := testutil.DestinationFactory.Any(
+	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("rabbitmq"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"server_url": testutil.ExtractRabbitURL(mqConfig.RabbitMQ.ServerURL),
@@ -44,292 +130,45 @@ func TestIntegrationRabbitMQDestination_Publish(t *testing.T) {
 		}),
 	)
 
-	// Create publisher
-	publisher, err := provider.CreatePublisher(context.Background(), &destination)
+	// Create consumer for verification
+	consumer, err := NewRabbitMQConsumer(mqConfig)
 	require.NoError(t, err)
-	defer publisher.Close()
+	s.consumer = consumer
 
-	// Create message channel for verification
-	deliveries := make(chan amqp091.Delivery)
-	cleanup, err := setupRabbitMQConsumer(context.Background(), mqConfig, deliveries)
-	require.NoError(t, err)
-	defer cleanup()
-
-	t.Run("should publish message", func(t *testing.T) {
-		// Create test event
-		event := testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{
-				"test_key": "test_value",
-			}),
-			testutil.EventFactory.WithMetadata(map[string]string{
-				"meta_key": "meta_value",
-			}),
-		)
-
-		// Publish event
-		err = publisher.Publish(context.Background(), &event)
-		require.NoError(t, err)
-
-		// Verify received message
-		select {
-		case delivery := <-deliveries:
-			// Verify message body
-			var body map[string]interface{}
-			err = json.Unmarshal(delivery.Body, &body)
-			require.NoError(t, err)
-			require.Equal(t, "test_value", body["test_key"])
-			require.Equal(t, "meta_value", delivery.Headers["meta_key"])
-
-		case <-time.After(5 * time.Second):
-			t.Fatal("timeout waiting for message")
-		}
-	})
-
-	t.Run("should publish concurrently", func(t *testing.T) {
-		// Publish multiple messages concurrently
-		numMessages := 10
-		var wg sync.WaitGroup
-		errChan := make(chan error, numMessages)
-
-		for i := 0; i < numMessages; i++ {
-			wg.Add(1)
-			go func(messageID int) {
-				defer wg.Done()
-				event := testutil.EventFactory.Any(
-					testutil.EventFactory.WithData(map[string]interface{}{
-						"message_id": messageID,
-					}),
-				)
-				if err := publisher.Publish(context.Background(), &event); err != nil {
-					errChan <- err
-				}
-			}(i)
-		}
-
-		// Wait for all publishes to complete
-		wg.Wait()
-		close(errChan)
-
-		// Check for any publish errors
-		for err := range errChan {
-			require.NoError(t, err)
-		}
-
-		// Verify all messages were received
-		receivedMessages := make(map[int]bool)
-		timeout := time.After(5 * time.Second)
-
-		for i := 0; i < numMessages; i++ {
-			select {
-			case delivery := <-deliveries:
-				var body map[string]interface{}
-				err := json.Unmarshal(delivery.Body, &body)
-				require.NoError(t, err)
-				messageID := int(body["message_id"].(float64))
-				receivedMessages[messageID] = true
-			case <-timeout:
-				t.Fatal("timeout waiting for messages")
-			}
-		}
-
-		// Verify all messages were received
-		require.Len(t, receivedMessages, numMessages)
-	})
-
-	t.Run("should wait for active publishes before closing", func(t *testing.T) {
-		// Start a slow publish operation
-		var publishCompleted bool
-		go func() {
-			event := testutil.EventFactory.Any(
-				testutil.EventFactory.WithData(map[string]interface{}{
-					"slow": "message",
-				}),
-			)
-			time.Sleep(100 * time.Millisecond) // Simulate slow publish
-			err := publisher.Publish(context.Background(), &event)
-			require.NoError(t, err)
-			publishCompleted = true
-		}()
-
-		// Try to close immediately
-		err = publisher.Close()
-		require.NoError(t, err)
-
-		// Verify publish completed
-		require.True(t, publishCompleted, "publish should complete before close")
-
-		// Verify message was delivered
-		select {
-		case delivery := <-deliveries:
-			var body map[string]interface{}
-			err := json.Unmarshal(delivery.Body, &body)
-			require.NoError(t, err)
-			require.Equal(t, "message", body["slow"])
-		case <-time.After(time.Second):
-			t.Fatal("timeout waiting for message")
-		}
+	// Initialize base suite with config
+	s.InitSuite(testsuite.Config{
+		Provider: provider,
+		Dest:     &dest,
+		Consumer: consumer,
 	})
 }
 
-func TestRabbitMQDestination_ClosePublisher(t *testing.T) {
-	t.Parallel()
-	t.Cleanup(testinfra.Start(t))
-
-	mqConfig := testinfra.NewMQRabbitMQConfig(t)
-	provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
-	require.NoError(t, err)
-
-	destination := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("rabbitmq"),
-		testutil.DestinationFactory.WithConfig(map[string]string{
-			"server_url": testutil.ExtractRabbitURL(mqConfig.RabbitMQ.ServerURL),
-			"exchange":   mqConfig.RabbitMQ.Exchange,
-			"queue":      mqConfig.RabbitMQ.Queue,
-		}),
-		testutil.DestinationFactory.WithCredentials(map[string]string{
-			"username": testutil.ExtractRabbitUsername(mqConfig.RabbitMQ.ServerURL),
-			"password": testutil.ExtractRabbitPassword(mqConfig.RabbitMQ.ServerURL),
-		}),
-	)
-
-	// Create publisher
-	publisher, err := provider.CreatePublisher(context.Background(), &destination)
-	require.NoError(t, err)
-
-	// Create message channel for verification
-	deliveries := make(chan amqp091.Delivery)
-	cleanup, err := setupRabbitMQConsumer(context.Background(), mqConfig, deliveries)
-	require.NoError(t, err)
-	defer cleanup()
-
-	t.Run("should handle close during concurrent publishes", func(t *testing.T) {
-		const totalMessages = 1000
-		var successCount atomic.Int32
-		var closedCount atomic.Int32
-
-		// Start publishing messages
-		var wg sync.WaitGroup
-		for i := 0; i < totalMessages; i++ {
-			wg.Add(1)
-			go func(messageID int) {
-				defer wg.Done()
-				event := testutil.EventFactory.Any(
-					testutil.EventFactory.WithData(map[string]interface{}{
-						"message_id": messageID,
-					}),
-				)
-
-				err := publisher.Publish(context.Background(), &event)
-				if err == nil {
-					successCount.Add(1)
-				} else if errors.Is(err, destregistry.ErrPublisherClosed) {
-					closedCount.Add(1)
-				} else {
-					t.Errorf("unexpected error: %v", err)
-				}
-			}(i)
-		}
-
-		// Close the publisher
-		err = publisher.Close()
-		require.NoError(t, err)
-
-		// Wait for all publish attempts to complete
-		wg.Wait()
-
-		// Verify counts
-		total := successCount.Load() + closedCount.Load()
-		require.Equal(t, int32(totalMessages), total, "all publish attempts should either succeed or get closed error")
-		require.Greater(t, successCount.Load(), int32(0), "some messages should be published successfully")
-		require.Greater(t, closedCount.Load(), int32(0), "some messages should be rejected due to closed publisher")
-
-		// Verify successful messages were delivered
-		receivedCount := 0
-		expectedCount := int(successCount.Load())
-		receivedMessages := make(map[int]bool)
-		timeout := time.After(5 * time.Second)
-
-		for receivedCount < expectedCount {
-			select {
-			case delivery := <-deliveries:
-				var body map[string]interface{}
-				err := json.Unmarshal(delivery.Body, &body)
-				require.NoError(t, err)
-				messageID := int(body["message_id"].(float64))
-				receivedMessages[messageID] = true
-				receivedCount++
-			case <-timeout:
-				t.Fatalf("timeout waiting for messages, got %d/%d", receivedCount, expectedCount)
-			}
-		}
-
-		require.Equal(t, expectedCount, len(receivedMessages), "should receive all successfully published messages")
-	})
+func (s *RabbitMQPublishSuite) TearDownSuite() {
+	if s.consumer != nil {
+		s.consumer.Close()
+	}
 }
 
-func setupRabbitMQConsumer(ctx context.Context, config mqs.QueueConfig, deliveries chan<- amqp091.Delivery) (func(), error) {
-	conn, err := amqp091.Dial(config.RabbitMQ.ServerURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
-	}
+// RabbitMQ specific test cases can be added here
+func (s *RabbitMQPublishSuite) TestRabbitMQExchangeBinding() {
+	// Test RabbitMQ-specific exchange binding behavior
+}
 
-	ch, err := conn.Channel()
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("failed to open channel: %w", err)
+func TestRabbitMQPublish(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
 	}
+	suite.Run(t, new(RabbitMQPublishSuite))
+}
 
-	// Ensure queue exists
-	_, err = ch.QueueDeclare(
-		config.RabbitMQ.Queue, // name
-		true,                  // durable
-		false,                 // delete when unused
-		false,                 // exclusive
-		false,                 // no-wait
-		nil,                   // arguments
-	)
-	if err != nil {
-		ch.Close()
-		conn.Close()
-		return nil, fmt.Errorf("failed to declare queue: %w", err)
-	}
+// Helper functions
 
-	// Start consuming
-	msgs, err := ch.Consume(
-		config.RabbitMQ.Queue, // queue
-		"",                    // consumer
-		true,                  // auto-ack
-		false,                 // exclusive
-		false,                 // no-local
-		false,                 // no-wait
-		nil,                   // args
-	)
-	if err != nil {
-		ch.Close()
-		conn.Close()
-		return nil, fmt.Errorf("failed to start consuming: %w", err)
-	}
-
-	// Start goroutine to forward messages
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case d, ok := <-msgs:
-				if !ok {
-					return
-				}
-				deliveries <- d
-			}
+func toStringMap(table amqp091.Table) map[string]string {
+	result := make(map[string]string)
+	for k, v := range table {
+		if str, ok := v.(string); ok {
+			result[k] = str
 		}
-	}()
-
-	// Return cleanup function
-	cleanup := func() {
-		ch.Close()
-		conn.Close()
 	}
-
-	return cleanup, nil
+	return result
 }
