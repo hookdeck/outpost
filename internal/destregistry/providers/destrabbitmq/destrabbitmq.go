@@ -3,6 +3,8 @@ package destrabbitmq
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"sync"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
@@ -66,16 +68,95 @@ func (d *RabbitMQDestination) resolveMetadata(ctx context.Context, destination *
 type RabbitMQPublisher struct {
 	url      string
 	exchange string
+	conn     *amqp091.Connection
+	channel  *amqp091.Channel
+	mu       sync.Mutex
 }
 
 func (p *RabbitMQPublisher) Close() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.channel != nil {
+		p.channel.Close()
+	}
+	if p.conn != nil {
+		p.conn.Close()
+	}
 	return nil
 }
 
 func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) error {
-	if err := publishEvent(ctx, p.url, p.exchange, event); err != nil {
+	// Ensure we have a valid connection
+	if err := p.ensureConnection(ctx); err != nil {
+		return err
+	}
+
+	dataBytes, err := json.Marshal(event.Data)
+	if err != nil {
 		return destregistry.NewErrDestinationPublish(err)
 	}
+
+	headers := make(amqp091.Table)
+	for k, v := range event.Metadata {
+		headers[k] = v
+	}
+
+	if err := p.channel.PublishWithContext(ctx,
+		p.exchange, // exchange
+		"",         // routing key
+		false,      // mandatory
+		false,      // immediate
+		amqp091.Publishing{
+			ContentType: "application/json",
+			Headers:     headers,
+			Body:        []byte(dataBytes),
+		},
+	); err != nil {
+		return destregistry.NewErrDestinationPublish(err)
+	}
+
+	return nil
+}
+
+func (p *RabbitMQPublisher) ensureConnection(_ context.Context) error {
+	// Fast path: check if connection is valid without lock
+	if p.conn != nil && !p.conn.IsClosed() && p.channel != nil && !p.channel.IsClosed() {
+		return nil
+	}
+
+	// Slow path: need to create new connection
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Double check after acquiring lock
+	if p.conn != nil && !p.conn.IsClosed() && p.channel != nil && !p.channel.IsClosed() {
+		return nil
+	}
+
+	// Create new connection
+	conn, err := amqp091.Dial(p.url)
+	if err != nil {
+		return fmt.Errorf("failed to connect to RabbitMQ: %w", err)
+	}
+
+	// Create channel
+	channel, err := conn.Channel()
+	if err != nil {
+		conn.Close()
+		return fmt.Errorf("failed to create channel: %w", err)
+	}
+
+	// Update connection and channel
+	if p.conn != nil {
+		p.conn.Close()
+	}
+	if p.channel != nil {
+		p.channel.Close()
+	}
+	p.conn = conn
+	p.channel = channel
+
 	return nil
 }
 
@@ -116,4 +197,20 @@ func publishEvent(ctx context.Context, url string, exchange string, event *model
 			Body:        []byte(dataBytes),
 		},
 	)
+}
+
+// ===== TEST HELPERS =====
+
+func (p *RabbitMQPublisher) GetConnection() *amqp091.Connection {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.conn
+}
+
+func (p *RabbitMQPublisher) ForceConnectionClose() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.conn != nil {
+		p.conn.Close()
+	}
 }
