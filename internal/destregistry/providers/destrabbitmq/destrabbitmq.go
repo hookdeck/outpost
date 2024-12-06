@@ -132,16 +132,9 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) er
 }
 
 func (p *RabbitMQPublisher) ensureConnection(_ context.Context) error {
-	// Fast path: check if connection is valid without lock
-	if p.conn != nil && !p.conn.IsClosed() && p.channel != nil && !p.channel.IsClosed() {
-		return nil
-	}
-
-	// Slow path: need to create new connection
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Double check after acquiring lock
 	if p.conn != nil && !p.conn.IsClosed() && p.channel != nil && !p.channel.IsClosed() {
 		return nil
 	}
