@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
@@ -18,14 +19,24 @@ type mockProvider struct {
 	createCount int32
 }
 
-type mockPublisher struct{}
+type mockPublisher struct {
+	id int64 // unique instance identifier
+}
+
+var mockPublisherID int64
+
+func newMockPublisher() *mockPublisher {
+	return &mockPublisher{
+		id: atomic.AddInt64(&mockPublisherID, 1),
+	}
+}
 
 func (p *mockProvider) Metadata() *metadata.ProviderMetadata                         { return nil }
 func (p *mockProvider) Validate(ctx context.Context, dest *models.Destination) error { return nil }
 
 func (p *mockProvider) CreatePublisher(ctx context.Context, dest *models.Destination) (destregistry.Publisher, error) {
 	atomic.AddInt32(&p.createCount, 1)
-	return &mockPublisher{}, nil
+	return newMockPublisher(), nil
 }
 
 func (p *mockPublisher) Publish(ctx context.Context, event *models.Event) error { return nil }
@@ -202,4 +213,45 @@ func TestDestinationChanges(t *testing.T) {
 			assert.Equal(t, "second", secondEvents[0].Data["msg"])
 		}
 	})
+}
+
+func TestPublisherExpiration(t *testing.T) {
+	registry := destregistry.NewRegistry(&destregistry.Config{})
+	provider := &mockProvider{}
+	registry.RegisterProvider("mock", provider)
+
+	dest := &models.Destination{ID: "test", Type: "mock"}
+
+	// Get initial publisher
+	p1, err := registry.ResolvePublisher(context.Background(), dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id1 := p1.(*mockPublisher).id
+
+	// Check before expiration (500ms)
+	time.Sleep(500 * time.Millisecond)
+	p2, err := registry.ResolvePublisher(context.Background(), dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id2 := p2.(*mockPublisher).id
+
+	if id1 != id2 {
+		t.Error("Expected same publisher instance before expiration")
+	}
+
+	// Wait for expiration
+	time.Sleep(600 * time.Millisecond) // 500ms + 600ms = 1.1s total
+
+	// Get new publisher - should be different instance
+	p3, err := registry.ResolvePublisher(context.Background(), dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id3 := p3.(*mockPublisher).id
+
+	if id1 == id3 {
+		t.Error("Expected different publisher instance after expiration")
+	}
 }
