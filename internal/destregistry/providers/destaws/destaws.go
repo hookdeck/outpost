@@ -76,8 +76,9 @@ func (p *AWSDestination) CreatePublisher(ctx context.Context, destination *model
 	})
 
 	return &AWSPublisher{
-		client:   sqsClient,
-		queueURL: cfg.QueueURL,
+		BasePublisher: &destregistry.BasePublisher{},
+		client:        sqsClient,
+		queueURL:      cfg.QueueURL,
 	}, nil
 }
 
@@ -97,15 +98,22 @@ func (d *AWSDestination) resolveMetadata(ctx context.Context, destination *model
 }
 
 type AWSPublisher struct {
+	*destregistry.BasePublisher
 	client   *sqs.Client
 	queueURL string
 }
 
 func (p *AWSPublisher) Close() error {
+	p.BasePublisher.StartClose()
 	return nil
 }
 
 func (p *AWSPublisher) Publish(ctx context.Context, event *models.Event) error {
+	if err := p.BasePublisher.StartPublish(); err != nil {
+		return err
+	}
+	defer p.BasePublisher.FinishPublish()
+
 	dataBytes, err := json.Marshal(event.Data)
 	if err != nil {
 		return err
