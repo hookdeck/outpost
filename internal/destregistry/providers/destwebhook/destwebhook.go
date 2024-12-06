@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
@@ -140,19 +139,21 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) err
 	webhookReq := NewWebhookRequest(p.url, rawBody, event.Metadata, p.headerPrefix, p.secrets)
 	httpReq, err := webhookReq.ToHTTPRequest(ctx)
 	if err != nil {
-		return destregistry.NewErrDestinationPublish(err)
+		return err
 	}
 
 	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
-		return err
+		return destregistry.NewErrDestinationPublishAttempt(err, "webhook", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		log.Println(resp) // TODO: use proper logger
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+		return destregistry.NewErrDestinationPublishAttempt(fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(bodyBytes)), "webhook", map[string]interface{}{
+			"status": resp.StatusCode,
+			"body":   string(bodyBytes),
+		})
 	}
 
 	return nil

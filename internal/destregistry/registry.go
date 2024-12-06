@@ -89,11 +89,11 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 		return err
 	}
 	if err := publisher.Publish(ctx, event); err != nil {
-		var publishErr *ErrDestinationPublish
+		var publishErr *ErrDestinationPublishAttempt
 		if errors.As(err, &publishErr) {
 			return publishErr
 		}
-		return NewErrDestinationPublish(err)
+		return &ErrUnexpectedPublishError{Err: err}
 	}
 	return nil
 }

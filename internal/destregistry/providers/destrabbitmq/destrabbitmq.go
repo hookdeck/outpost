@@ -106,7 +106,7 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) er
 
 	dataBytes, err := json.Marshal(event.Data)
 	if err != nil {
-		return destregistry.NewErrDestinationPublish(err)
+		return err
 	}
 
 	headers := make(amqp091.Table)
@@ -125,7 +125,7 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) er
 			Body:        []byte(dataBytes),
 		},
 	); err != nil {
-		return destregistry.NewErrDestinationPublish(err)
+		return destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", err)
 	}
 
 	return nil

@@ -160,7 +160,7 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 // say logmq.Publish fails. Should that count as an attempt? What about an error BEFORE deliverying the message?
 // Should we write code to differentiate between these two types of errors (predeliveryErr and postdeliveryErr, for example)?
 func (h *messageHandler) shouldRetry(err error, deliveryEvent models.DeliveryEvent) bool {
-	_, isPublishErr := err.(*destregistry.ErrDestinationPublish)
+	_, isPublishErr := err.(*destregistry.ErrDestinationPublishAttempt)
 	if !isPublishErr {
 		return true
 	}
