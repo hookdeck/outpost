@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	mathrand "math/rand"
+	"os"
 	"strconv"
 	"testing"
 
@@ -26,6 +27,18 @@ var TestTopics = []string{
 func CheckIntegrationTest(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
+	}
+}
+
+func Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+}
+
+func Race(t *testing.T) {
+	if os.Getenv("TESTRACE") != "1" {
+		t.Skip("skipping race test")
 	}
 }
 

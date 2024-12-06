@@ -44,6 +44,9 @@ test/unit:
 test/integration:
 	go test $(TEST) $(TESTARGS) -run "Integration"
 
+test/race:
+	TESTRACE=1 go test $(TEST) $(TESTARGS) -race
+
 test/coverage:
 	go test $(TEST) $(TESTARGS) -coverprofile=coverage.out
 
