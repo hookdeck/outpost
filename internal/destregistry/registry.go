@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
-	"strings"
+	"hash/fnv"
+	"strconv"
 	"sync"
 
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
@@ -116,27 +116,13 @@ func (r *registry) ResolveProvider(destination *models.Destination) (Provider, e
 
 // MakePublisherKey creates a unique key for a destination that includes type and config
 func MakePublisherKey(dest *models.Destination) string {
-	var b strings.Builder
-	b.WriteString(dest.ID)
-	b.WriteByte('|')
-	b.WriteString(dest.Type)
-	b.WriteByte('|')
-
-	// Sort config keys for deterministic order
-	keys := make([]string, 0, len(dest.Config))
-	for k := range dest.Config {
-		keys = append(keys, k)
+	h := fnv.New64a()
+	for k, v := range dest.Config {
+		h.Write([]byte(k))
+		h.Write([]byte(v))
 	}
-	sort.Strings(keys)
-
-	for _, k := range keys {
-		b.WriteString(k)
-		b.WriteByte('=')
-		b.WriteString(dest.Config[k])
-		b.WriteByte(';')
-	}
-
-	return b.String()
+	h.Write([]byte(dest.Type))
+	return dest.ID + "." + strconv.FormatUint(h.Sum64(), 36)
 }
 
 func (r *registry) ResolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, error) {
