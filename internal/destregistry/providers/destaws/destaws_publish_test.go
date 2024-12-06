@@ -2,38 +2,117 @@ package destaws_test
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destaws"
+	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/util/awsutil"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestIntegrationAWSDestination_Publish(t *testing.T) {
-	t.Parallel()
+// SQSConsumer implements testsuite.MessageConsumer
+type SQSConsumer struct {
+	client   *sqs.Client
+	queueURL string
+	msgChan  chan testsuite.Message
+	done     chan struct{}
+}
+
+func NewSQSConsumer(client *sqs.Client, queueURL string) *SQSConsumer {
+	c := &SQSConsumer{
+		client:   client,
+		queueURL: queueURL,
+		msgChan:  make(chan testsuite.Message),
+		done:     make(chan struct{}),
+	}
+	go c.consume()
+	return c
+}
+
+func (c *SQSConsumer) consume() {
+	for {
+		select {
+		case <-c.done:
+			return
+		default:
+			result, err := c.client.ReceiveMessage(context.Background(), &sqs.ReceiveMessageInput{
+				QueueUrl:              aws.String(c.queueURL),
+				MaxNumberOfMessages:   1,
+				WaitTimeSeconds:       5,
+				MessageAttributeNames: []string{"All"},
+			})
+			if err != nil {
+				continue
+			}
+
+			for _, msg := range result.Messages {
+				metadata := make(map[string]string)
+				for k, v := range msg.MessageAttributes {
+					metadata[k] = *v.StringValue
+				}
+
+				c.msgChan <- testsuite.Message{
+					Data:     []byte(*msg.Body),
+					Metadata: metadata,
+					Raw:      msg,
+				}
+
+				// Delete the message after processing
+				_, _ = c.client.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
+					QueueUrl:      aws.String(c.queueURL),
+					ReceiptHandle: msg.ReceiptHandle,
+				})
+			}
+		}
+	}
+}
+
+func (c *SQSConsumer) Consume() <-chan testsuite.Message {
+	return c.msgChan
+}
+
+func (c *SQSConsumer) Close() error {
+	close(c.done)
+	return nil
+}
+
+type AWSSuite struct {
+	testsuite.PublisherSuite
+	consumer *SQSConsumer
+}
+
+func TestAWSSuite(t *testing.T) {
+	suite.Run(t, new(AWSSuite))
+}
+
+func (s *AWSSuite) SetupSuite() {
+	t := s.T()
 	t.Cleanup(testinfra.Start(t))
+	mqConfig := testinfra.NewMQAWSConfig(t, nil)
 
-	// Get LocalStack config from testinfra
-	awsConfig := testinfra.NewMQAWSConfig(t, nil)
-	sqsClient, err := awsutil.SQSClientFromConfig(context.Background(), awsConfig.AWSSQS)
+	// Setup AWS config and client
+	sqsClient, err := awsutil.SQSClientFromConfig(context.Background(), mqConfig.AWSSQS)
 	require.NoError(t, err)
-	queueURL, err := awsutil.EnsureQueue(context.Background(), sqsClient, awsConfig.AWSSQS.Topic, nil)
+	queueURL, err := awsutil.EnsureQueue(context.Background(), sqsClient, mqConfig.AWSSQS.Topic, nil)
 	require.NoError(t, err)
 
-	// Create AWS provider
+	// Create consumer
+	s.consumer = NewSQSConsumer(sqsClient, queueURL)
+
+	// Create provider
 	provider, err := destaws.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
 
-	// Create test destination
+	// Create destination
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("aws"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"endpoint":  awsConfig.AWSSQS.Endpoint, // LocalStack endpoint
+			"endpoint":  mqConfig.AWSSQS.Endpoint,
 			"queue_url": queueURL,
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
@@ -43,54 +122,17 @@ func TestIntegrationAWSDestination_Publish(t *testing.T) {
 		}),
 	)
 
-	t.Run("should create publisher and publish message", func(t *testing.T) {
-		ctx := context.Background()
+	// Initialize publisher suite
+	cfg := testsuite.Config{
+		Provider: provider,
+		Dest:     &destination,
+		Consumer: s.consumer,
+	}
+	s.InitSuite(cfg)
+}
 
-		// Create publisher
-		publisher, err := provider.CreatePublisher(ctx, &destination)
-		require.NoError(t, err)
-		defer publisher.Close()
-
-		// Create test event
-		event := testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{
-				"test_key": "test_value",
-			}),
-			testutil.EventFactory.WithMetadata(map[string]string{
-				"meta_key": "meta_value",
-			}),
-		)
-
-		// Publish event
-		err = publisher.Publish(ctx, &event)
-		require.NoError(t, err)
-
-		// Receive message from SQS to verify
-		result, err := sqsClient.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
-			QueueUrl:              aws.String(queueURL),
-			MaxNumberOfMessages:   1,
-			WaitTimeSeconds:       5,
-			MessageAttributeNames: []string{"All"},
-		})
-		require.NoError(t, err)
-		require.Len(t, result.Messages, 1)
-
-		msg := result.Messages[0]
-
-		// Verify message body
-		var body map[string]interface{}
-		err = json.Unmarshal([]byte(*msg.Body), &body)
-		require.NoError(t, err)
-		require.Equal(t, "test_value", body["test_key"])
-
-		// Verify metadata in message attributes
-		require.Equal(t, "meta_value", *msg.MessageAttributes["meta_key"].StringValue)
-
-		// Cleanup: Delete the message
-		_, err = sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
-			QueueUrl:      aws.String(queueURL),
-			ReceiptHandle: msg.ReceiptHandle,
-		})
-		require.NoError(t, err)
-	})
+func (s *AWSSuite) TearDownSuite() {
+	if s.consumer != nil {
+		s.consumer.Close()
+	}
 }
