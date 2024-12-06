@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
@@ -112,9 +114,36 @@ func (r *registry) ResolveProvider(destination *models.Destination) (Provider, e
 	return provider, nil
 }
 
+// MakePublisherKey creates a unique key for a destination that includes type and config
+func MakePublisherKey(dest *models.Destination) string {
+	var b strings.Builder
+	b.WriteString(dest.ID)
+	b.WriteByte('|')
+	b.WriteString(dest.Type)
+	b.WriteByte('|')
+
+	// Sort config keys for deterministic order
+	keys := make([]string, 0, len(dest.Config))
+	for k := range dest.Config {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(dest.Config[k])
+		b.WriteByte(';')
+	}
+
+	return b.String()
+}
+
 func (r *registry) ResolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, error) {
+	key := MakePublisherKey(destination)
+
 	r.mu.RLock()
-	publisher, exists := r.publishers[destination.ID]
+	publisher, exists := r.publishers[key]
 	r.mu.RUnlock()
 	if exists {
 		return publisher, nil
@@ -124,7 +153,7 @@ func (r *registry) ResolvePublisher(ctx context.Context, destination *models.Des
 	defer r.mu.Unlock()
 
 	// Double-check after acquiring write lock
-	if publisher, exists = r.publishers[destination.ID]; exists {
+	if publisher, exists = r.publishers[key]; exists {
 		return publisher, nil
 	}
 
@@ -138,7 +167,7 @@ func (r *registry) ResolvePublisher(ctx context.Context, destination *models.Des
 		return nil, fmt.Errorf("failed to create publisher: %w", err)
 	}
 
-	r.publishers[destination.ID] = publisher
+	r.publishers[key] = publisher
 	return publisher, nil
 }
 
