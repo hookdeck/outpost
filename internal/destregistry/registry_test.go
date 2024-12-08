@@ -49,7 +49,7 @@ func (p *mockPublisher) Close() error {
 func TestRegistryConcurrentPublisherManagement(t *testing.T) {
 	testutil.Race(t)
 
-	registry := destregistry.NewRegistry(&destregistry.Config{})
+	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
 	provider := &mockProvider{}
 	registry.RegisterProvider("mock", provider)
 
@@ -114,9 +114,10 @@ func (p *mockProviderWithConfig) Validate(ctx context.Context, dest *models.Dest
 }
 
 func TestDestinationChanges(t *testing.T) {
+	t.Parallel()
 	t.Run("config change", func(t *testing.T) {
 		publishedEvents = make(map[publishTarget][]models.Event)
-		registry := destregistry.NewRegistry(&destregistry.Config{})
+		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
 		provider := &mockProviderWithConfig{providerType: "mock1"}
 		registry.RegisterProvider("mock1", provider)
 
@@ -167,7 +168,7 @@ func TestDestinationChanges(t *testing.T) {
 
 	t.Run("type change", func(t *testing.T) {
 		publishedEvents = make(map[publishTarget][]models.Event)
-		registry := destregistry.NewRegistry(&destregistry.Config{})
+		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
 		provider1 := &mockProviderWithConfig{providerType: "mock1"}
 		provider2 := &mockProviderWithConfig{providerType: "mock2"}
 		registry.RegisterProvider("mock1", provider1)
@@ -220,9 +221,10 @@ func TestDestinationChanges(t *testing.T) {
 }
 
 func TestPublisherExpiration(t *testing.T) {
+	t.Parallel()
 	registry := destregistry.NewRegistry(&destregistry.Config{
 		PublisherTTL: 1 * time.Second,
-	})
+	}, testutil.CreateTestLogger(t))
 	provider := &mockProvider{}
 	registry.RegisterProvider("mock", provider)
 
@@ -251,10 +253,11 @@ func TestPublisherExpiration(t *testing.T) {
 }
 
 func TestPublisherCapacity(t *testing.T) {
+	t.Parallel()
 	registry := destregistry.NewRegistry(&destregistry.Config{
 		PublisherCacheSize: 2,         // Small size to test capacity
 		PublisherTTL:       time.Hour, // Long TTL to ensure expiration doesn't interfere
-	})
+	}, testutil.CreateTestLogger(t))
 	provider := &mockProvider{}
 	registry.RegisterProvider("mock", provider)
 
@@ -297,10 +300,11 @@ func TestPublisherCapacity(t *testing.T) {
 }
 
 func TestPublisherEviction(t *testing.T) {
+	t.Parallel()
 	registry := destregistry.NewRegistry(&destregistry.Config{
 		PublisherCacheSize: 1,         // Smallest possible size
 		PublisherTTL:       time.Hour, // Long TTL to ensure expiration doesn't interfere
-	})
+	}, testutil.CreateTestLogger(t))
 	provider := &mockProvider{}
 	registry.RegisterProvider("mock", provider)
 

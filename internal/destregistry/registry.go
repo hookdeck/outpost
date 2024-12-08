@@ -11,6 +11,8 @@ import (
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"go.uber.org/zap"
 )
 
 // Registry manages providers, their metadata, and publishers
@@ -58,7 +60,7 @@ type Config struct {
 	PublisherTTL            time.Duration
 }
 
-func NewRegistry(cfg *Config) *registry {
+func NewRegistry(cfg *Config, logger *otelzap.Logger) *registry {
 	if cfg.PublisherCacheSize == 0 {
 		cfg.PublisherCacheSize = defaultPublisherCacheSize
 	}
@@ -68,7 +70,12 @@ func NewRegistry(cfg *Config) *registry {
 
 	cache := expirable.NewLRU[string, Publisher](cfg.PublisherCacheSize,
 		func(key string, p Publisher) {
-			p.Close()
+			if err := p.Close(); err != nil {
+				logger.Error("failed to close publisher on eviction",
+					zap.String("key", key),
+					zap.Error(err),
+				)
+			}
 		},
 		cfg.PublisherTTL,
 	)

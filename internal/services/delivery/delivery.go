@@ -64,7 +64,7 @@ func NewService(ctx context.Context,
 	if handler == nil {
 		registry := destregistry.NewRegistry(&destregistry.Config{
 			DestinationMetadataPath: cfg.DestinationMetadataPath,
-		})
+		}, logger)
 		if err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
 			Webhook: &destregistrydefault.DestWebhookConfig{
 				HeaderPrefix: cfg.DestinationWebhookHeaderPrefix,
