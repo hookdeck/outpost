@@ -222,81 +222,173 @@ func TestDestinationChanges(t *testing.T) {
 
 func TestPublisherExpiration(t *testing.T) {
 	t.Parallel()
-	registry := destregistry.NewRegistry(&destregistry.Config{
-		PublisherTTL: 1 * time.Second,
-	}, testutil.CreateTestLogger(t))
-	provider := &mockProvider{}
-	registry.RegisterProvider("mock", provider)
 
-	dest := &models.Destination{ID: "test", Type: "mock"}
+	t.Run("basic expiration without access", func(t *testing.T) {
+		t.Parallel()
+		registry := destregistry.NewRegistry(&destregistry.Config{
+			PublisherTTL: time.Second,
+		}, testutil.CreateTestLogger(t))
+		provider := &mockProvider{}
+		registry.RegisterProvider("mock", provider)
 
-	// Get initial publisher
-	p1, err := registry.ResolvePublisher(context.Background(), dest)
-	require.NoError(t, err)
-	mp1 := p1.(*mockPublisher)
+		dest := &models.Destination{ID: "test", Type: "mock"}
 
-	// Check before expiration (500ms)
-	time.Sleep(500 * time.Millisecond)
-	p2, err := registry.ResolvePublisher(context.Background(), dest)
-	require.NoError(t, err)
-	assert.Equal(t, mp1.id, p2.(*mockPublisher).id, "Expected same publisher instance before expiration")
-	assert.False(t, mp1.closed, "Publisher should not be closed before expiration")
+		// Get initial publisher
+		p1, err := registry.ResolvePublisher(context.Background(), dest)
+		require.NoError(t, err)
+		mp1 := p1.(*mockPublisher)
+		// Cache: [p1]
 
-	// Wait for expiration
-	time.Sleep(600 * time.Millisecond) // 500ms + 600ms = 1.1s total
+		// Check before expiration (500ms)
+		time.Sleep(500 * time.Millisecond)
+		p2, err := registry.ResolvePublisher(context.Background(), dest)
+		require.NoError(t, err)
+		assert.Equal(t, mp1.id, p2.(*mockPublisher).id, "Expected same publisher instance before expiration")
+		assert.False(t, mp1.closed, "Publisher should not be closed before expiration")
+		// Cache: [p1] (still valid)
 
-	// Get new publisher - should be different instance
-	p3, err := registry.ResolvePublisher(context.Background(), dest)
-	require.NoError(t, err)
-	assert.NotEqual(t, mp1.id, p3.(*mockPublisher).id, "Expected different publisher instance after expiration")
-	assert.True(t, mp1.closed, "Expected expired publisher to be closed")
+		// Wait for expiration
+		time.Sleep(600 * time.Millisecond) // 500ms + 600ms = 1.1s total
+
+		// Get new publisher - should be different instance
+		p3, err := registry.ResolvePublisher(context.Background(), dest)
+		require.NoError(t, err)
+		assert.NotEqual(t, mp1.id, p3.(*mockPublisher).id, "Expected different publisher instance after expiration")
+		assert.True(t, mp1.closed, "Expected expired publisher to be closed")
+	})
+
+	t.Run("access extends expiration", func(t *testing.T) {
+		t.Parallel()
+		registry := destregistry.NewRegistry(&destregistry.Config{
+			PublisherTTL: time.Second,
+		}, testutil.CreateTestLogger(t))
+		provider := &mockProvider{}
+		registry.RegisterProvider("mock", provider)
+
+		dest := &models.Destination{ID: "test", Type: "mock"}
+
+		// Get initial publisher
+		p1, err := registry.ResolvePublisher(context.Background(), dest)
+		require.NoError(t, err)
+		mp1 := p1.(*mockPublisher)
+		// Cache: [p1]
+
+		// Access at 700ms to extend expiration
+		time.Sleep(700 * time.Millisecond)
+		p2, err := registry.ResolvePublisher(context.Background(), dest)
+		require.NoError(t, err)
+		assert.Equal(t, mp1.id, p2.(*mockPublisher).id, "Expected same publisher instance when refreshing")
+		// Cache: [p1] with refreshed expiration
+
+		// Wait 700ms more (total 1.4s, but only 700ms since last access)
+		time.Sleep(700 * time.Millisecond)
+		p3, err := registry.ResolvePublisher(context.Background(), dest)
+		require.NoError(t, err)
+		assert.Equal(t, mp1.id, p3.(*mockPublisher).id, "Expected same publisher instance within new expiration window")
+		assert.False(t, mp1.closed, "Publisher should not be closed when access extends expiration")
+
+		// Wait 400ms more (total 1.1s since last access)
+		time.Sleep(400 * time.Millisecond)
+		p4, err := registry.ResolvePublisher(context.Background(), dest)
+		require.NoError(t, err)
+		assert.NotEqual(t, mp1.id, p4.(*mockPublisher).id, "Expected different publisher instance after final expiration")
+		assert.True(t, mp1.closed, "Expected expired publisher to be closed")
+	})
 }
 
 func TestPublisherCapacity(t *testing.T) {
 	t.Parallel()
-	registry := destregistry.NewRegistry(&destregistry.Config{
-		PublisherCacheSize: 2,         // Small size to test capacity
-		PublisherTTL:       time.Hour, // Long TTL to ensure expiration doesn't interfere
-	}, testutil.CreateTestLogger(t))
-	provider := &mockProvider{}
-	registry.RegisterProvider("mock", provider)
 
-	// Create 3 destinations with different IDs
-	dests := []*models.Destination{
-		{ID: "test1", Type: "mock"},
-		{ID: "test2", Type: "mock"},
-		{ID: "test3", Type: "mock"},
-	}
+	t.Run("basic eviction without access", func(t *testing.T) {
+		t.Parallel()
+		registry := destregistry.NewRegistry(&destregistry.Config{
+			PublisherCacheSize: 2,         // Size of 2 for testing
+			PublisherTTL:       time.Hour, // Long TTL to ensure expiration doesn't interfere
+		}, testutil.CreateTestLogger(t))
+		provider := &mockProvider{}
+		registry.RegisterProvider("mock", provider)
 
-	// Get publishers for first two destinations
-	p1, err := registry.ResolvePublisher(context.Background(), dests[0])
-	require.NoError(t, err)
-	id1 := p1.(*mockPublisher).id
-	// Cache: [p1]
+		// Create 3 destinations with different IDs
+		dests := []*models.Destination{
+			{ID: "test1", Type: "mock"},
+			{ID: "test2", Type: "mock"},
+			{ID: "test3", Type: "mock"},
+		}
 
-	p2, err := registry.ResolvePublisher(context.Background(), dests[1])
-	require.NoError(t, err)
-	id2 := p2.(*mockPublisher).id
-	// Cache: [p2, p1]
+		// Get publishers for first two destinations
+		p1, err := registry.ResolvePublisher(context.Background(), dests[0])
+		require.NoError(t, err)
+		id1 := p1.(*mockPublisher).id
+		// Cache: [p1]
 
-	// Get publisher for third destination - should evict first one
-	_, err = registry.ResolvePublisher(context.Background(), dests[2])
-	require.NoError(t, err)
-	// Cache: [p3, p2], p1 evicted
+		p2, err := registry.ResolvePublisher(context.Background(), dests[1])
+		require.NoError(t, err)
+		id2 := p2.(*mockPublisher).id
+		// Cache: [p2, p1]
 
-	// Verify second publisher is still the same (not evicted)
-	p2Again, err := registry.ResolvePublisher(context.Background(), dests[1])
-	require.NoError(t, err)
-	id2Again := p2Again.(*mockPublisher).id
-	// Cache: [p2, p3]
-	assert.Equal(t, id2, id2Again, "Expected same instance for second destination (should not be evicted)")
+		// Get publisher for third destination - should evict p1
+		_, err = registry.ResolvePublisher(context.Background(), dests[2])
+		require.NoError(t, err)
+		// Cache: [p3, p2], p1 evicted
 
-	// Try to get first publisher again - should be a new instance
-	p1Again, err := registry.ResolvePublisher(context.Background(), dests[0])
-	require.NoError(t, err)
-	id1Again := p1Again.(*mockPublisher).id
-	// Cache: [p1Again, p2], p3 evicted
-	assert.NotEqual(t, id1, id1Again, "Expected new instance for first destination after eviction")
+		// Verify p2 is still cached
+		p2Again, err := registry.ResolvePublisher(context.Background(), dests[1])
+		require.NoError(t, err)
+		assert.Equal(t, id2, p2Again.(*mockPublisher).id, "Expected p2 to still be cached")
+
+		// Try to get first publisher again - should be new instance
+		p1Again, err := registry.ResolvePublisher(context.Background(), dests[0])
+		require.NoError(t, err)
+		assert.NotEqual(t, id1, p1Again.(*mockPublisher).id, "Expected p1 to be recreated")
+	})
+
+	t.Run("access refreshes cache order", func(t *testing.T) {
+		t.Parallel()
+		registry := destregistry.NewRegistry(&destregistry.Config{
+			PublisherCacheSize: 2,
+			PublisherTTL:       time.Hour,
+		}, testutil.CreateTestLogger(t))
+		provider := &mockProvider{}
+		registry.RegisterProvider("mock", provider)
+
+		dests := []*models.Destination{
+			{ID: "test1", Type: "mock"},
+			{ID: "test2", Type: "mock"},
+			{ID: "test3", Type: "mock"},
+		}
+
+		// Get first two publishers
+		p1, err := registry.ResolvePublisher(context.Background(), dests[0])
+		require.NoError(t, err)
+		id1 := p1.(*mockPublisher).id
+		// Cache: [p1]
+
+		p2, err := registry.ResolvePublisher(context.Background(), dests[1])
+		require.NoError(t, err)
+		id2 := p2.(*mockPublisher).id
+		// Cache: [p2, p1]
+
+		// Access p1 to make it most recently used
+		p1Again, err := registry.ResolvePublisher(context.Background(), dests[0])
+		require.NoError(t, err)
+		assert.Equal(t, id1, p1Again.(*mockPublisher).id, "Expected same p1 instance")
+		// Cache: [p1, p2]
+
+		// Add p3 - should evict p2 since it's now least recently used
+		_, err = registry.ResolvePublisher(context.Background(), dests[2])
+		require.NoError(t, err)
+		// Cache: [p3, p1], p2 evicted
+
+		// Verify p1 is still cached
+		p1Again, err = registry.ResolvePublisher(context.Background(), dests[0])
+		require.NoError(t, err)
+		assert.Equal(t, id1, p1Again.(*mockPublisher).id, "Expected p1 to still be cached")
+
+		// Verify p2 was evicted
+		p2Again, err := registry.ResolvePublisher(context.Background(), dests[1])
+		require.NoError(t, err)
+		assert.NotEqual(t, id2, p2Again.(*mockPublisher).id, "Expected p2 to be recreated")
+	})
 }
 
 func TestPublisherEviction(t *testing.T) {
