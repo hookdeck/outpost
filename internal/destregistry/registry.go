@@ -54,14 +54,23 @@ type registry struct {
 
 type Config struct {
 	DestinationMetadataPath string
+	PublisherCacheSize      int
+	PublisherTTL            time.Duration
 }
 
 func NewRegistry(cfg *Config) *registry {
-	cache := expirable.NewLRU[string, Publisher](10000,
+	if cfg.PublisherCacheSize == 0 {
+		cfg.PublisherCacheSize = defaultPublisherCacheSize
+	}
+	if cfg.PublisherTTL == 0 {
+		cfg.PublisherTTL = defaultPublisherTTL
+	}
+
+	cache := expirable.NewLRU[string, Publisher](cfg.PublisherCacheSize,
 		func(key string, p Publisher) {
 			p.Close()
 		},
-		time.Second,
+		cfg.PublisherTTL,
 	)
 
 	return &registry{
@@ -173,3 +182,8 @@ func (r *registry) ListProviderMetadata() map[string]*metadata.ProviderMetadata 
 	}
 	return metadataCopy
 }
+
+var (
+	defaultPublisherCacheSize = 10000
+	defaultPublisherTTL       = time.Minute
+)
