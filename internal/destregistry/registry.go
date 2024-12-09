@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
+	"github.com/hookdeck/outpost/internal/lru"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
@@ -51,7 +51,7 @@ type registry struct {
 	metadataLoader *metadata.MetadataLoader
 	metadata       map[string]*metadata.ProviderMetadata
 	providers      map[string]Provider
-	publishers     *expirable.LRU[string, Publisher]
+	publishers     *lru.Cache[string, Publisher]
 }
 
 type Config struct {
@@ -68,17 +68,16 @@ func NewRegistry(cfg *Config, logger *otelzap.Logger) *registry {
 		cfg.PublisherTTL = defaultPublisherTTL
 	}
 
-	cache := expirable.NewLRU[string, Publisher](cfg.PublisherCacheSize,
-		func(key string, p Publisher) {
-			if err := p.Close(); err != nil {
-				logger.Error("failed to close publisher on eviction",
-					zap.String("key", key),
-					zap.Error(err),
-				)
-			}
-		},
-		cfg.PublisherTTL,
-	)
+	onEvict := func(key string, p Publisher) {
+		if err := p.Close(); err != nil {
+			logger.Error("failed to close publisher on eviction",
+				zap.String("key", key),
+				zap.Error(err),
+			)
+		}
+	}
+
+	cache := lru.New[string, Publisher](cfg.PublisherCacheSize, cfg.PublisherTTL, onEvict)
 
 	return &registry{
 		metadataLoader: metadata.NewMetadataLoader(cfg.DestinationMetadataPath),
