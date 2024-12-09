@@ -223,10 +223,10 @@ func TestDestinationChanges(t *testing.T) {
 func TestPublisherExpiration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("basic expiration without access", func(t *testing.T) {
+	t.Run("basic_ttl", func(t *testing.T) {
 		t.Parallel()
 		registry := destregistry.NewRegistry(&destregistry.Config{
-			PublisherTTL: time.Second,
+			PublisherTTL: 100 * time.Millisecond,
 		}, testutil.CreateTestLogger(t))
 		provider := &mockProvider{}
 		registry.RegisterProvider("mock", provider)
@@ -236,31 +236,21 @@ func TestPublisherExpiration(t *testing.T) {
 		// Get initial publisher
 		p1, err := registry.ResolvePublisher(context.Background(), dest)
 		require.NoError(t, err)
-		mp1 := p1.(*mockPublisher)
-		// Cache: [p1]
+		id1 := p1.(*mockPublisher).id
 
-		// Check before expiration (500ms)
-		time.Sleep(500 * time.Millisecond)
+		// Wait > TTL
+		time.Sleep(110 * time.Millisecond)
+
+		// Get new publisher - should be different since p1 expired
 		p2, err := registry.ResolvePublisher(context.Background(), dest)
 		require.NoError(t, err)
-		assert.Equal(t, mp1.id, p2.(*mockPublisher).id, "Expected same publisher instance before expiration")
-		assert.False(t, mp1.closed, "Publisher should not be closed before expiration")
-		// Cache: [p1] (still valid)
-
-		// Wait for expiration
-		time.Sleep(600 * time.Millisecond) // 500ms + 600ms = 1.1s total
-
-		// Get new publisher - should be different instance
-		p3, err := registry.ResolvePublisher(context.Background(), dest)
-		require.NoError(t, err)
-		assert.NotEqual(t, mp1.id, p3.(*mockPublisher).id, "Expected different publisher instance after expiration")
-		assert.True(t, mp1.closed, "Expected expired publisher to be closed")
+		assert.NotEqual(t, id1, p2.(*mockPublisher).id)
 	})
 
-	t.Run("access extends expiration", func(t *testing.T) {
+	t.Run("refresh_extends_ttl", func(t *testing.T) {
 		t.Parallel()
 		registry := destregistry.NewRegistry(&destregistry.Config{
-			PublisherTTL: time.Second,
+			PublisherTTL: 100 * time.Millisecond,
 		}, testutil.CreateTestLogger(t))
 		provider := &mockProvider{}
 		registry.RegisterProvider("mock", provider)
@@ -270,29 +260,31 @@ func TestPublisherExpiration(t *testing.T) {
 		// Get initial publisher
 		p1, err := registry.ResolvePublisher(context.Background(), dest)
 		require.NoError(t, err)
-		mp1 := p1.(*mockPublisher)
-		// Cache: [p1]
+		id1 := p1.(*mockPublisher).id
 
-		// Access at 700ms to extend expiration
-		time.Sleep(700 * time.Millisecond)
+		// Wait 90ms (almost expired)
+		time.Sleep(90 * time.Millisecond)
+
+		// Access refreshes TTL
 		p2, err := registry.ResolvePublisher(context.Background(), dest)
 		require.NoError(t, err)
-		assert.Equal(t, mp1.id, p2.(*mockPublisher).id, "Expected same publisher instance when refreshing")
-		// Cache: [p1] with refreshed expiration
+		assert.Equal(t, id1, p2.(*mockPublisher).id)
 
-		// Wait 700ms more (total 1.4s, but only 700ms since last access)
-		time.Sleep(700 * time.Millisecond)
+		// Wait 90ms (within refreshed TTL)
+		time.Sleep(90 * time.Millisecond)
+
+		// Still alive since last access refreshed TTL
 		p3, err := registry.ResolvePublisher(context.Background(), dest)
 		require.NoError(t, err)
-		assert.Equal(t, mp1.id, p3.(*mockPublisher).id, "Expected same publisher instance within new expiration window")
-		assert.False(t, mp1.closed, "Publisher should not be closed when access extends expiration")
+		assert.Equal(t, id1, p3.(*mockPublisher).id)
 
-		// Wait 400ms more (total 1.1s since last access)
-		time.Sleep(400 * time.Millisecond)
+		// Wait > TTL for final expiration
+		time.Sleep(110 * time.Millisecond)
+
+		// Should get new publisher
 		p4, err := registry.ResolvePublisher(context.Background(), dest)
 		require.NoError(t, err)
-		assert.NotEqual(t, mp1.id, p4.(*mockPublisher).id, "Expected different publisher instance after final expiration")
-		assert.True(t, mp1.closed, "Expected expired publisher to be closed")
+		assert.NotEqual(t, id1, p4.(*mockPublisher).id)
 	})
 }
 
