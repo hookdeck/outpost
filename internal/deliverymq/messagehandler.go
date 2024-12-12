@@ -9,23 +9,22 @@ import (
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/destregistry"
-	"github.com/hookdeck/outpost/internal/eventtracer"
 	"github.com/hookdeck/outpost/internal/idempotence"
-	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 type messageHandler struct {
-	eventTracer    eventtracer.EventTracer
+	eventTracer    DeliveryTracer
 	logger         *otelzap.Logger
-	logMQ          *logmq.LogMQ
-	entityStore    models.EntityStore
-	logStore       models.LogStore
+	logMQ          LogPublisher
+	entityStore    DestinationGetter
+	logStore       EventGetter
 	retryScheduler scheduler.Scheduler
 	retryBackoff   backoff.Backoff
 	retryMaxCount  int
@@ -37,16 +36,30 @@ type Publisher interface {
 	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error
 }
 
-var _ consumer.MessageHandler = (*messageHandler)(nil)
+type LogPublisher interface {
+	Publish(ctx context.Context, deliveryEvent models.DeliveryEvent) error
+}
+
+type DestinationGetter interface {
+	RetrieveDestination(ctx context.Context, tenantID, destID string) (*models.Destination, error)
+}
+
+type EventGetter interface {
+	RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error)
+}
+
+type DeliveryTracer interface {
+	Deliver(ctx context.Context, deliveryEvent *models.DeliveryEvent) (context.Context, trace.Span)
+}
 
 func NewMessageHandler(
 	logger *otelzap.Logger,
 	redisClient *redis.Client,
-	logMQ *logmq.LogMQ,
-	entityStore models.EntityStore,
-	logStore models.LogStore,
+	logMQ LogPublisher,
+	entityStore DestinationGetter,
+	logStore EventGetter,
 	publisher Publisher,
-	eventTracer eventtracer.EventTracer,
+	eventTracer DeliveryTracer,
 	retryScheduler scheduler.Scheduler,
 	retryBackoff backoff.Backoff,
 	retryMaxCount int,

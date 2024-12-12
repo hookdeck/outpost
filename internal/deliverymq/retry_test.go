@@ -2,144 +2,144 @@ package deliverymq_test
 
 import (
 	"context"
-	"fmt"
-	"log"
-	"net/http"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/deliverymq"
-	"github.com/hookdeck/outpost/internal/logmq"
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
-	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 type RetryDeliveryMQSuite struct {
-	ctx              context.Context
-	mqConfig         *mqs.QueueConfig
-	retryMaxCount    int
-	webhookCallCount int
-	exporter         *tracetest.InMemoryExporter
-	redisClient      *redis.Client
-	entityStore      models.EntityStore
-	logStore         models.LogStore
-	deliveryMQ       *deliverymq.DeliveryMQ
-	tenant           models.Tenant
-	destination      models.Destination
-	webhookHandler   func(w http.ResponseWriter, r *http.Request)
-	teardown         func()
+	ctx           context.Context
+	mqConfig      *mqs.QueueConfig
+	retryMaxCount int
+	publisher     deliverymq.Publisher
+	eventGetter   deliverymq.EventGetter
+	logPublisher  deliverymq.LogPublisher
+	destGetter    deliverymq.DestinationGetter
+	deliveryMQ    *deliverymq.DeliveryMQ
+	teardown      func()
+}
+
+type mockPublisher struct {
+	responses []error
+	current   int
+}
+
+func newMockPublisher(responses []error) *mockPublisher {
+	return &mockPublisher{responses: responses}
+}
+
+func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error {
+	defer func() { m.current++ }()
+	if m.current >= len(m.responses) {
+		return nil
+	}
+	return m.responses[m.current]
+}
+
+type mockDestinationGetter struct {
+	dest    *models.Destination
+	err     error
+	current int // track number of calls
+}
+
+func (m *mockDestinationGetter) RetrieveDestination(ctx context.Context, tenantID, destID string) (*models.Destination, error) {
+	m.current++
+	return m.dest, m.err
+}
+
+type mockEventGetter struct {
+	events map[string]*models.Event
+}
+
+func newMockEventGetter() *mockEventGetter {
+	return &mockEventGetter{events: make(map[string]*models.Event)}
+}
+
+func (m *mockEventGetter) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {
+	event, ok := m.events[eventID]
+	if !ok {
+		return nil, nil
+	}
+	return event, nil
+}
+
+func (m *mockEventGetter) registerEvent(event *models.Event) {
+	m.events[event.ID] = event
+}
+
+type mockLogPublisher struct {
+	err error
+}
+
+func newMockLogPublisher(err error) *mockLogPublisher {
+	return &mockLogPublisher{err: err}
+}
+
+func (m *mockLogPublisher) Publish(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
+	return m.err
 }
 
 func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 	require.NotNil(t, s.ctx, "RetryDeliveryMQSuite.ctx is not set")
 	require.NotNil(t, s.mqConfig, "RetryDeliveryMQSuite.mqConfig is not set")
-	require.NotNil(t, s.logStore, "RetryDeliveryMQSuite.logStore is not set")
+	require.NotNil(t, s.publisher, "RetryDeliveryMQSuite.publisher is not set")
+	require.NotNil(t, s.eventGetter, "RetryDeliveryMQSuite.eventGetter is not set")
+	require.NotNil(t, s.logPublisher, "RetryDeliveryMQSuite.logPublisher is not set")
+	require.NotNil(t, s.destGetter, "RetryDeliveryMQSuite.destGetter is not set")
 
-	teardownFuncs := []func(){}
-
+	// Setup delivery MQ and handler
 	s.deliveryMQ = deliverymq.New(deliverymq.WithQueue(s.mqConfig))
 	cleanup, err := s.deliveryMQ.Init(s.ctx)
 	require.NoError(t, err)
-	teardownFuncs = append(teardownFuncs, cleanup)
 
-	mq := mqs.NewQueue(s.mqConfig)
-	subscription, err := mq.Subscribe(s.ctx)
-	require.NoError(t, err)
-	teardownFuncs = append(teardownFuncs, func() { subscription.Shutdown(s.ctx) })
-
-	if s.exporter == nil {
-		s.exporter = tracetest.NewInMemoryExporter()
-	}
-	if s.redisClient == nil {
-		s.redisClient = testutil.CreateTestRedisClient(t)
-	}
-	if s.entityStore == nil {
-		s.entityStore = models.NewEntityStore(s.redisClient, models.NewAESCipher(""), testutil.TestTopics)
-	}
-	logMQ := logmq.New(logmq.WithQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}))
-	cleanupLogMQ, err := logMQ.Init(s.ctx)
-	require.NoError(t, err)
-	teardownFuncs = append(teardownFuncs, cleanupLogMQ)
-
+	// Setup retry scheduler
 	retryScheduler := deliverymq.NewRetryScheduler(s.deliveryMQ, testutil.CreateTestRedisConfig(t))
 	require.NoError(t, retryScheduler.Init(s.ctx))
-	teardownFuncs = append(teardownFuncs, func() { retryScheduler.Shutdown() })
 	go retryScheduler.Monitor(s.ctx)
 
+	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		s.redisClient,
-		logMQ,
-		s.entityStore,
-		s.logStore,
-		testutil.Registry,
-		testutil.NewMockEventTracer(s.exporter),
+		testutil.CreateTestRedisClient(t),
+		s.logPublisher,
+		s.destGetter,
+		s.eventGetter,
+		s.publisher,
+		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		s.retryMaxCount,
 	)
 
+	// Setup message consumer
+	mq := mqs.NewQueue(s.mqConfig)
+	subscription, err := mq.Subscribe(s.ctx)
+	require.NoError(t, err)
+
 	go func() {
 		for {
 			msg, err := subscription.Receive(s.ctx)
 			if err != nil {
-				log.Println("subscription error", err)
 				return
 			}
 			handler.Handle(s.ctx, msg)
 		}
 	}()
 
-	// Setup webhook server
-	mux := http.NewServeMux()
-	s.webhookCallCount = 0
-	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.webhookHandler == nil {
-			time.Sleep(time.Second / 3)
-			s.webhookCallCount = s.webhookCallCount + 1
-			if s.webhookCallCount == 3 {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-			w.WriteHeader(http.StatusBadRequest)
-		} else {
-			s.webhookHandler(w, r)
-		}
-	}))
-	server := http.Server{
-		Addr:    testutil.RandomPort(),
-		Handler: mux,
-	}
-	webhookURL := "http://localhost" + server.Addr + "/webhook"
-	go func() {
-		server.ListenAndServe()
-	}()
-	teardownFuncs = append(teardownFuncs, func() {
-		server.Shutdown(s.ctx)
-	})
-
-	// Setup destination
-	s.tenant = models.Tenant{
-		ID: uuid.New().String(),
-	}
-	s.destination = testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhook"),
-		testutil.DestinationFactory.WithTenantID(s.tenant.ID),
-		testutil.DestinationFactory.WithConfig(map[string]string{"url": webhookURL}),
-	)
-	require.NoError(t, s.entityStore.UpsertDestination(s.ctx, s.destination))
-
 	s.teardown = func() {
-		for _, teardown := range teardownFuncs {
-			teardown()
-		}
+		subscription.Shutdown(s.ctx)
+		retryScheduler.Shutdown()
+		cleanup()
 	}
 }
 
@@ -148,245 +148,236 @@ func (suite *RetryDeliveryMQSuite) TeardownTest(t *testing.T) {
 }
 
 func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
+	// Test scenario:
+	// - Event is not eligible for retry
+	// - Publish fails with a publish error (not system error)
+	// - Should only attempt to publish once and not retry
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	queueConfig := &mqs.QueueConfig{
-		InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)},
-	}
-	logStore := &mockLogStore{}
+	// Setup test data
+	tenant := models.Tenant{ID: uuid.New().String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+		testutil.EventFactory.WithEligibleForRetry(false), // key test condition
+	)
+
+	// Setup mocks
+	publisher := newMockPublisher([]error{
+		&destregistry.ErrDestinationPublishAttempt{
+			Err:      errors.New("webhook returned 400"),
+			Provider: "webhook",
+		},
+	})
+	eventGetter := newMockEventGetter()
+	eventGetter.registerEvent(&event)
+
 	suite := &RetryDeliveryMQSuite{
 		ctx:           ctx,
-		mqConfig:      queueConfig,
-		logStore:      logStore,
+		mqConfig:      &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
+		publisher:     publisher,
+		eventGetter:   eventGetter,
+		logPublisher:  newMockLogPublisher(nil),
+		destGetter:    &mockDestinationGetter{dest: &destination},
 		retryMaxCount: 10,
 	}
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
 
-	// Act
-	event := testutil.EventFactory.Any(
-		testutil.EventFactory.WithTenantID(suite.tenant.ID),
-		testutil.EventFactory.WithDestinationID(suite.destination.ID),
-		testutil.EventFactory.WithEligibleForRetry(false),
-	)
-	logStore.registerEvent(&event)
 	deliveryEvent := models.DeliveryEvent{
 		ID:            uuid.New().String(),
 		Event:         event,
-		DestinationID: suite.destination.ID,
+		DestinationID: destination.ID,
 	}
 	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
 
-	// Assert
 	<-ctx.Done()
-	spans := suite.exporter.GetSpans()
-	var deliverSpans tracetest.SpanStubs
-	for _, span := range spans {
-		if span.Name != "Deliver" {
-			continue
-		}
-		deliverSpans = append(deliverSpans, span)
-	}
-	assert.Len(t, deliverSpans, 1)
+	assert.Equal(t, 1, publisher.current, "should only attempt once when retry is not eligible")
 }
 
 func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
+	// Test scenario:
+	// - Event is eligible for retry
+	// - First two publish attempts fail with publish errors
+	// - Third attempt succeeds
+	// - Should attempt exactly 3 times
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second) // expect 3 retries
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	queueConfig := &mqs.QueueConfig{
-		InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)},
-	}
-	logStore := &mockLogStore{}
+	// Setup test data
+	tenant := models.Tenant{ID: uuid.New().String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+		testutil.EventFactory.WithEligibleForRetry(true), // key test condition
+	)
+
+	// Setup mocks with two failures then success
+	publisher := newMockPublisher([]error{
+		&destregistry.ErrDestinationPublishAttempt{
+			Err:      errors.New("webhook returned 429"),
+			Provider: "webhook",
+		},
+		&destregistry.ErrDestinationPublishAttempt{
+			Err:      errors.New("webhook returned 503"),
+			Provider: "webhook",
+		},
+		nil, // succeeds on 3rd try
+	})
+	eventGetter := newMockEventGetter()
+	eventGetter.registerEvent(&event)
+
 	suite := &RetryDeliveryMQSuite{
-		ctx:           context.Background(),
-		mqConfig:      queueConfig,
-		logStore:      logStore,
+		ctx:           ctx,
+		mqConfig:      &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
+		publisher:     publisher,
+		eventGetter:   eventGetter,
+		logPublisher:  newMockLogPublisher(nil),
+		destGetter:    &mockDestinationGetter{dest: &destination},
 		retryMaxCount: 10,
 	}
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
 
-	// Act
-	event := testutil.EventFactory.Any(
-		testutil.EventFactory.WithTenantID(suite.tenant.ID),
-		testutil.EventFactory.WithDestinationID(suite.destination.ID),
-		testutil.EventFactory.WithEligibleForRetry(true),
-	)
-	logStore.registerEvent(&event)
 	deliveryEvent := models.DeliveryEvent{
 		ID:            uuid.New().String(),
 		Event:         event,
-		DestinationID: suite.destination.ID,
+		DestinationID: destination.ID,
 	}
 	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
 
-	// Assert
 	<-ctx.Done()
-	spans := suite.exporter.GetSpans()
-	var deliverSpans tracetest.SpanStubs
-	for _, span := range spans {
-		if span.Name != "Deliver" {
-			continue
-		}
-		deliverSpans = append(deliverSpans, span)
-	}
-	assert.Len(t, deliverSpans, 3)
+	assert.Equal(t, 3, publisher.current, "should retry until success (2 failures + 1 success)")
 }
 
-// TODO: test between publish error vs system error
-
 func TestDeliveryMQRetry_SystemError(t *testing.T) {
+	// Test scenario:
+	// - Event is NOT eligible for retry
+	// - But we get a system error (not a publish error)
+	// - System errors should always trigger retry regardless of retry eligibility
+	// - Should attempt multiple times (measured by handler executions)
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	queueConfig := &mqs.QueueConfig{
-		InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)},
-	}
-	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := newMockEntityStore(models.NewEntityStore(redisClient, models.NewAESCipher(""), testutil.TestTopics))
-	logStore := &mockLogStore{}
+	// Setup test data
+	tenant := models.Tenant{ID: uuid.New().String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+		testutil.EventFactory.WithEligibleForRetry(false), // even with retry disabled
+	)
+
+	// Setup mocks with system error
+	destGetter := &mockDestinationGetter{err: errors.New("destination lookup failed")}
+	eventGetter := newMockEventGetter()
+	eventGetter.registerEvent(&event)
+
 	suite := &RetryDeliveryMQSuite{
 		ctx:           ctx,
-		mqConfig:      queueConfig,
-		redisClient:   redisClient,
-		entityStore:   entityStore,
-		logStore:      logStore,
+		mqConfig:      &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
+		publisher:     newMockPublisher(nil), // publisher won't be called due to early error
+		eventGetter:   eventGetter,
+		logPublisher:  newMockLogPublisher(nil),
+		destGetter:    destGetter,
 		retryMaxCount: 10,
 	}
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
 
-	// Act
-	event := testutil.EventFactory.Any(
-		testutil.EventFactory.WithTenantID(suite.tenant.ID),
-		testutil.EventFactory.WithDestinationID(suite.destination.ID),
-		testutil.EventFactory.WithEligibleForRetry(false),
-	)
-	logStore.registerEvent(&event)
 	deliveryEvent := models.DeliveryEvent{
 		ID:            uuid.New().String(),
 		Event:         event,
-		DestinationID: suite.destination.ID,
+		DestinationID: destination.ID,
 	}
 	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
 
-	// Assert
 	<-ctx.Done()
-	spans := suite.exporter.GetSpans()
-	var deliverSpans tracetest.SpanStubs
-	for _, span := range spans {
-		if span.Name != "Deliver" {
-			continue
-		}
-		deliverSpans = append(deliverSpans, span)
-	}
-	assert.Greater(t, len(deliverSpans), 1, "expected delivery to be retried")
+	assert.Greater(t, destGetter.current, 1, "handler should execute multiple times on system error")
 }
 
 func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
+	// Test scenario:
+	// - Event is eligible for retry
+	// - Publishing continuously fails with publish errors
+	// - RetryMaxCount is 2 (allowing 1 initial + 2 retries = 3 total attempts)
+	// - Should stop after max retries even though errors continue
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // should be enough for more than 3 attempts
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	queueConfig := &mqs.QueueConfig{
-		InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)},
-	}
-	logStore := &mockLogStore{}
+	// Setup test data
+	tenant := models.Tenant{ID: uuid.New().String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+		testutil.EventFactory.WithEligibleForRetry(true),
+	)
+
+	// Setup mocks with continuous publish failures
+	publisher := newMockPublisher([]error{
+		&destregistry.ErrDestinationPublishAttempt{
+			Err:      errors.New("webhook returned 429"),
+			Provider: "webhook",
+		},
+		&destregistry.ErrDestinationPublishAttempt{
+			Err:      errors.New("webhook returned 429"),
+			Provider: "webhook",
+		},
+		&destregistry.ErrDestinationPublishAttempt{
+			Err:      errors.New("webhook returned 429"),
+			Provider: "webhook",
+		},
+		&destregistry.ErrDestinationPublishAttempt{
+			Err:      errors.New("webhook returned 429"),
+			Provider: "webhook",
+		}, // 4th attempt should never happen
+	})
+	eventGetter := newMockEventGetter()
+	eventGetter.registerEvent(&event)
+
 	suite := &RetryDeliveryMQSuite{
-		ctx:           context.Background(),
-		mqConfig:      queueConfig,
-		logStore:      logStore,
-		retryMaxCount: 2,
+		ctx:           ctx,
+		mqConfig:      &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
+		publisher:     publisher,
+		eventGetter:   eventGetter,
+		logPublisher:  newMockLogPublisher(nil),
+		destGetter:    &mockDestinationGetter{dest: &destination},
+		retryMaxCount: 2, // 1 initial + 2 retries = 3 total attempts
 	}
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
 
-	// Act
-	event := testutil.EventFactory.Any(
-		testutil.EventFactory.WithTenantID(suite.tenant.ID),
-		testutil.EventFactory.WithDestinationID(suite.destination.ID),
-		testutil.EventFactory.WithEligibleForRetry(true),
-	)
-	logStore.registerEvent(&event)
 	deliveryEvent := models.DeliveryEvent{
 		ID:            uuid.New().String(),
 		Event:         event,
-		DestinationID: suite.destination.ID,
+		DestinationID: destination.ID,
 	}
 	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
 
-	// Assert
 	<-ctx.Done()
-	spans := suite.exporter.GetSpans()
-	var deliverSpans tracetest.SpanStubs
-	for _, span := range spans {
-		if span.Name != "Deliver" {
-			continue
-		}
-		deliverSpans = append(deliverSpans, span)
-	}
-	assert.Len(t, deliverSpans, 3) // 1 initial attempt + 2 retries
-}
-
-type mockEntityStore struct {
-	models.EntityStore
-}
-
-func newMockEntityStore(entityStore models.EntityStore) models.EntityStore {
-	return &mockEntityStore{
-		EntityStore: entityStore,
-	}
-}
-
-func (m *mockEntityStore) RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*models.Destination, error) {
-	return nil, fmt.Errorf("err")
-}
-
-type mockLogStore struct {
-	events map[string]*models.Event
-}
-
-var _ models.LogStore = &mockLogStore{}
-
-func (m *mockLogStore) ListEvent(ctx context.Context, request models.ListEventRequest) ([]*models.Event, string, error) {
-	return nil, "", nil
-}
-
-func (m *mockLogStore) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {
-	if m.events == nil {
-		return nil, nil
-	}
-	event, ok := m.events[eventID]
-	if !ok {
-		return nil, nil
-	}
-	return event, nil
-}
-
-func (m *mockLogStore) ListDelivery(ctx context.Context, request models.ListDeliveryRequest) ([]*models.Delivery, error) {
-	return nil, nil
-}
-
-func (m *mockLogStore) InsertManyEvent(ctx context.Context, events []*models.Event) error {
-	return nil
-}
-
-func (m *mockLogStore) InsertManyDelivery(ctx context.Context, deliveries []*models.Delivery) error {
-	return nil
-}
-
-func (m *mockLogStore) registerEvent(event *models.Event) {
-	if m.events == nil {
-		m.events = make(map[string]*models.Event)
-	}
-	m.events[event.ID] = event
+	assert.Equal(t, 3, publisher.current, "should stop after max retries (1 initial + 2 retries = 3 total attempts)")
 }
