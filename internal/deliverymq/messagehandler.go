@@ -19,6 +19,10 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	errDestinationDisabled = errors.New("destination disabled")
+)
+
 type messageHandler struct {
 	eventTracer    DeliveryTracer
 	logger         *otelzap.Logger
@@ -119,17 +123,13 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 	defer span.End()
 	logger := h.logger.Ctx(ctx)
 	logger.Info("deliverymq handler", zap.String("delivery_event", deliveryEvent.ID))
-	destination, err := h.entityStore.RetrieveDestination(ctx, deliveryEvent.Event.TenantID, deliveryEvent.DestinationID)
+
+	destination, err := h.ensurePublishableDestination(ctx, deliveryEvent)
 	if err != nil {
-		logger.Error("failed to retrieve destination", zap.Error(err))
 		span.RecordError(err)
 		return err
 	}
-	if destination == nil {
-		logger.Error("destination not found")
-		span.RecordError(errors.New("destination not found"))
-		return models.ErrDestinationNotFound
-	}
+
 	var finalErr error
 	if err := h.publisher.PublishEvent(ctx, destination, &deliveryEvent.Event); err != nil {
 		logger.Error("failed to publish event", zap.Error(err))
@@ -171,7 +171,7 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 // say logmq.Publish fails. Should that count as an attempt? What about an error BEFORE deliverying the message?
 // Should we write code to differentiate between these two types of errors (predeliveryErr and postdeliveryErr, for example)?
 func (h *messageHandler) checkError(err error, deliveryEvent models.DeliveryEvent) (shouldScheduleRetry, shouldNack bool) {
-	if errors.Is(err, models.ErrDestinationDeleted) {
+	if errors.Is(err, models.ErrDestinationDeleted) || errors.Is(err, errDestinationDisabled) {
 		return false, false // ack
 	}
 
@@ -216,4 +216,25 @@ func (h *messageHandler) ensureDeliveryEvent(ctx context.Context, deliveryEvent 
 
 func idempotencyKeyFromDeliveryEvent(deliveryEvent models.DeliveryEvent) string {
 	return "idempotency:deliverymq:" + deliveryEvent.ID
+}
+
+// ensurePublishableDestination ensures that the destination exists and is in a publishable state.
+// Returns an error if the destination is not found, deleted, disabled, or any other state that
+// would prevent publishing.
+func (h *messageHandler) ensurePublishableDestination(ctx context.Context, deliveryEvent models.DeliveryEvent) (*models.Destination, error) {
+	logger := h.logger.Ctx(ctx)
+	destination, err := h.entityStore.RetrieveDestination(ctx, deliveryEvent.Event.TenantID, deliveryEvent.DestinationID)
+	if err != nil {
+		logger.Error("failed to retrieve destination", zap.Error(err))
+		return nil, err
+	}
+	if destination == nil {
+		logger.Error("destination not found")
+		return nil, models.ErrDestinationNotFound
+	}
+	if destination.DisabledAt != nil {
+		logger.Info("destination is disabled", zap.String("destination_id", destination.ID))
+		return nil, errDestinationDisabled
+	}
+	return destination, nil
 }

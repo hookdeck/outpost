@@ -641,3 +641,63 @@ func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 	assert.Equal(t, 1, publisher.current, "publish should succeed once")
 	assert.Equal(t, event.ID, eventGetter.lastRetrievedID, "event getter should be called with correct ID")
 }
+
+func TestMessageHandler_DestinationDisabled(t *testing.T) {
+	// Test scenario:
+	// - Destination is disabled
+	// - Should be treated as a destination error (not system error)
+	// - Should ack without retry or publish attempt
+	t.Parallel()
+
+	// Setup test data
+	tenant := models.Tenant{ID: uuid.New().String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+		testutil.DestinationFactory.WithDisabledAt(time.Now()),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+		testutil.EventFactory.WithEligibleForRetry(false),
+	)
+
+	// Setup mocks
+	destGetter := &mockDestinationGetter{dest: &destination}
+	eventGetter := newMockEventGetter()
+	eventGetter.registerEvent(&event)
+	retryScheduler := newMockRetryScheduler()
+	publisher := newMockPublisher([]error{nil}) // won't be called
+
+	// Setup message handler
+	handler := deliverymq.NewMessageHandler(
+		testutil.CreateTestLogger(t),
+		testutil.CreateTestRedisClient(t),
+		newMockLogPublisher(nil),
+		destGetter,
+		eventGetter,
+		publisher,
+		testutil.NewMockEventTracer(nil),
+		retryScheduler,
+		&backoff.ConstantBackoff{Interval: 1 * time.Second},
+		10,
+	)
+
+	// Create and handle message
+	deliveryEvent := models.DeliveryEvent{
+		ID:            uuid.New().String(),
+		Event:         event,
+		DestinationID: destination.ID,
+	}
+	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+
+	// Handle message
+	err := handler.Handle(context.Background(), msg)
+	require.Error(t, err)
+
+	// Assert behavior
+	assert.False(t, mockMsg.nacked, "message should not be nacked for disabled destination")
+	assert.True(t, mockMsg.acked, "message should be acked for disabled destination")
+	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
+	assert.Equal(t, 0, publisher.current, "should not attempt to publish to disabled destination")
+}
