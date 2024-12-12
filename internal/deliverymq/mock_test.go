@@ -3,6 +3,7 @@ package deliverymq_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/models"
@@ -38,23 +39,35 @@ func (m *mockDestinationGetter) RetrieveDestination(ctx context.Context, tenantI
 }
 
 type mockEventGetter struct {
-	events map[string]*models.Event
+	events          map[string]*models.Event
+	err             error
+	lastRetrievedID string
 }
 
 func newMockEventGetter() *mockEventGetter {
-	return &mockEventGetter{events: make(map[string]*models.Event)}
-}
-
-func (m *mockEventGetter) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {
-	event, ok := m.events[eventID]
-	if !ok {
-		return nil, nil
+	return &mockEventGetter{
+		events: make(map[string]*models.Event),
 	}
-	return event, nil
 }
 
 func (m *mockEventGetter) registerEvent(event *models.Event) {
 	m.events[event.ID] = event
+}
+
+func (m *mockEventGetter) clearError() {
+	m.err = nil
+}
+
+func (m *mockEventGetter) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	m.lastRetrievedID = eventID
+	event, ok := m.events[eventID]
+	if !ok {
+		return nil, errors.New("event not found")
+	}
+	return event, nil
 }
 
 type mockLogPublisher struct {
