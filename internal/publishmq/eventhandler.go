@@ -62,7 +62,7 @@ func NewEventHandler(
 var _ EventHandler = (*eventHandler)(nil)
 
 func (h *eventHandler) Handle(ctx context.Context, event *models.Event) error {
-	if !slices.Contains(h.topics, event.Topic) {
+	if event.Topic != "*" && !slices.Contains(h.topics, event.Topic) {
 		return ErrInvalidTopic
 	}
 	return h.idempotence.Exec(ctx, idempotencyKeyFromEvent(event), func(ctx context.Context) error {
@@ -88,8 +88,9 @@ func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error 
 
 	var g errgroup.Group
 	for _, destinationSummary := range matchedDestinations {
+		destID := destinationSummary.ID
 		g.Go(func() error {
-			return h.enqueueDeliveryEvent(ctx, models.NewDeliveryEvent(*event, destinationSummary.ID))
+			return h.enqueueDeliveryEvent(ctx, models.NewDeliveryEvent(*event, destID))
 		})
 	}
 	if err := g.Wait(); err != nil {
