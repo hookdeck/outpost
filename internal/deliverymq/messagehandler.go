@@ -94,18 +94,24 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	idempotenceHandler := func(ctx context.Context) error {
 		return h.doHandle(ctx, deliveryEvent)
 	}
-	err := h.idempotence.Exec(ctx, idempotencyKeyFromDeliveryEvent(deliveryEvent), idempotenceHandler)
-	if err != nil {
-		if h.shouldRetry(err, deliveryEvent) {
+	if err := h.idempotence.Exec(ctx, idempotencyKeyFromDeliveryEvent(deliveryEvent), idempotenceHandler); err != nil {
+		shouldScheduleRetry, shouldNack := h.checkError(err, deliveryEvent)
+		if shouldScheduleRetry {
 			if retryErr := h.scheduleRetry(ctx, deliveryEvent); retryErr != nil {
 				finalErr := errors.Join(err, retryErr)
 				msg.Nack()
 				return finalErr
 			}
 		}
+		if shouldNack {
+			msg.Nack()
+		} else {
+			msg.Ack()
+		}
+		return err
 	}
 	msg.Ack()
-	return err
+	return nil
 }
 
 func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
@@ -161,23 +167,22 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 	return finalErr
 }
 
-// shouldRetry checks if the event should be retried.
-// Qualifications:
-// - if the error is an internal error --> should be retried
-// - OR if the error is a publish error + event is eligible for retried + the attempt is less than max retry --> should be retried
-// Clarification between attemp & max retry: Event.Attempt is zero-based numbering. If Event.Attempt is 4, that means the event has failed 5 times.
-// That means 1 original attempt + 4 retries. If max retry is 5, then it should be retried 1 more time. Total attempt will be 6.
-//
-// Question: what to do if there's an "internal error"? How should that count against the attempt count?
-// For example, what if the error happens AFTER deliverying the message (doesn't matter whether it's successful or not),
+// QUESTION: What if an internal error happens AFTER deliverying the message (doesn't matter whether it's successful or not),
 // say logmq.Publish fails. Should that count as an attempt? What about an error BEFORE deliverying the message?
 // Should we write code to differentiate between these two types of errors (predeliveryErr and postdeliveryErr, for example)?
-func (h *messageHandler) shouldRetry(err error, deliveryEvent models.DeliveryEvent) bool {
-	_, isPublishErr := err.(*destregistry.ErrDestinationPublishAttempt)
-	if !isPublishErr {
-		return true
+func (h *messageHandler) checkError(err error, deliveryEvent models.DeliveryEvent) (shouldScheduleRetry, shouldNack bool) {
+	if errors.Is(err, models.ErrDestinationDeleted) {
+		return false, false // ack
 	}
-	return deliveryEvent.Event.EligibleForRetry && deliveryEvent.Attempt < h.retryMaxCount
+
+	if _, ok := err.(*destregistry.ErrDestinationPublishAttempt); ok {
+		if deliveryEvent.Event.EligibleForRetry && deliveryEvent.Attempt < h.retryMaxCount {
+			return true, false // schedule retry and ack
+		}
+		return false, false // ack and accept failure
+	}
+
+	return false, true // nack for system retry
 }
 
 func (h *messageHandler) scheduleRetry(ctx context.Context, deliveryEvent models.DeliveryEvent) error {

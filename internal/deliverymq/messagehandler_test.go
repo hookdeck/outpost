@@ -19,9 +19,8 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 	// Test scenario:
 	// - Event is NOT eligible for retry
 	// - Destination lookup fails with error (system error in destination getter)
-	// - Should retry regardless of retry eligibility
-	// - Message should be acked (for retry)
-	// - Retry should be scheduled
+	// - Should be nacked (let system retry)
+	// - Should NOT use retry scheduler
 	t.Parallel()
 
 	// Setup test data
@@ -66,12 +65,12 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
-	require.Error(t, err) // should return error
+	require.Error(t, err)
 
 	// Assert behavior
-	assert.True(t, mockMsg.acked, "message should be acked on system error because it's scheduled for retry")
-	assert.False(t, mockMsg.nacked, "message should not be nacked on system error because it's scheduled for retry")
-	assert.Len(t, retryScheduler.schedules, 1, "retry should be scheduled")
+	assert.True(t, mockMsg.nacked, "message should be nacked on system error")
+	assert.False(t, mockMsg.acked, "message should not be acked on system error")
+	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled for system error")
 }
 
 func TestMessageHandler_DestinationNotFound(t *testing.T) {
