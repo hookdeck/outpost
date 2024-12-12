@@ -29,66 +29,6 @@ type RetryDeliveryMQSuite struct {
 	teardown      func()
 }
 
-type mockPublisher struct {
-	responses []error
-	current   int
-}
-
-func newMockPublisher(responses []error) *mockPublisher {
-	return &mockPublisher{responses: responses}
-}
-
-func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error {
-	defer func() { m.current++ }()
-	if m.current >= len(m.responses) {
-		return nil
-	}
-	return m.responses[m.current]
-}
-
-type mockDestinationGetter struct {
-	dest    *models.Destination
-	err     error
-	current int // track number of calls
-}
-
-func (m *mockDestinationGetter) RetrieveDestination(ctx context.Context, tenantID, destID string) (*models.Destination, error) {
-	m.current++
-	return m.dest, m.err
-}
-
-type mockEventGetter struct {
-	events map[string]*models.Event
-}
-
-func newMockEventGetter() *mockEventGetter {
-	return &mockEventGetter{events: make(map[string]*models.Event)}
-}
-
-func (m *mockEventGetter) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {
-	event, ok := m.events[eventID]
-	if !ok {
-		return nil, nil
-	}
-	return event, nil
-}
-
-func (m *mockEventGetter) registerEvent(event *models.Event) {
-	m.events[event.ID] = event
-}
-
-type mockLogPublisher struct {
-	err error
-}
-
-func newMockLogPublisher(err error) *mockLogPublisher {
-	return &mockLogPublisher{err: err}
-}
-
-func (m *mockLogPublisher) Publish(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
-	return m.err
-}
-
 func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 	require.NotNil(t, s.ctx, "RetryDeliveryMQSuite.ctx is not set")
 	require.NotNil(t, s.mqConfig, "RetryDeliveryMQSuite.mqConfig is not set")

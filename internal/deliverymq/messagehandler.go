@@ -122,7 +122,7 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 	if destination == nil {
 		logger.Error("destination not found")
 		span.RecordError(errors.New("destination not found"))
-		return err
+		return models.ErrDestinationNotFound
 	}
 	var finalErr error
 	if err := h.publisher.PublishEvent(ctx, destination, &deliveryEvent.Event); err != nil {
