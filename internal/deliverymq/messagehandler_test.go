@@ -26,7 +26,6 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 	// Setup test data
 	tenant := models.Tenant{ID: uuid.New().String()}
 	destination := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
 	)
 	event := testutil.EventFactory.Any(
@@ -84,7 +83,6 @@ func TestMessageHandler_DestinationNotFound(t *testing.T) {
 	// Setup test data
 	tenant := models.Tenant{ID: uuid.New().String()}
 	destination := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
 	)
 	event := testutil.EventFactory.Any(
@@ -128,5 +126,61 @@ func TestMessageHandler_DestinationNotFound(t *testing.T) {
 	// Assert behavior
 	assert.True(t, mockMsg.nacked, "message should be nacked when destination not found")
 	assert.False(t, mockMsg.acked, "message should not be acked when destination not found")
+	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
+}
+
+func TestMessageHandler_DestinationDeleted(t *testing.T) {
+	// Test scenario:
+	// - Destination lookup returns ErrDestinationDeleted
+	// - Should return error but ack message (no retry needed)
+	// - No retry should be scheduled
+	t.Parallel()
+
+	// Setup test data
+	tenant := models.Tenant{ID: uuid.New().String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+		testutil.EventFactory.WithEligibleForRetry(true), // even with retry enabled
+	)
+
+	// Setup mocks
+	destGetter := &mockDestinationGetter{err: models.ErrDestinationDeleted}
+	eventGetter := newMockEventGetter()
+	eventGetter.registerEvent(&event)
+	retryScheduler := newMockRetryScheduler()
+
+	// Setup message handler
+	handler := deliverymq.NewMessageHandler(
+		testutil.CreateTestLogger(t),
+		testutil.CreateTestRedisClient(t),
+		newMockLogPublisher(nil),
+		destGetter,
+		eventGetter,
+		newMockPublisher(nil), // won't be called
+		testutil.NewMockEventTracer(nil),
+		retryScheduler,
+		&backoff.ConstantBackoff{Interval: 1 * time.Second},
+		10,
+	)
+
+	// Create and handle message
+	deliveryEvent := models.DeliveryEvent{
+		ID:            uuid.New().String(),
+		Event:         event,
+		DestinationID: destination.ID,
+	}
+	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+
+	// Handle message
+	err := handler.Handle(context.Background(), msg)
+	require.ErrorIs(t, err, models.ErrDestinationDeleted)
+
+	// Assert behavior
+	assert.False(t, mockMsg.nacked, "message should not be nacked when destination is deleted")
+	assert.True(t, mockMsg.acked, "message should be acked when destination is deleted")
 	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
 }
