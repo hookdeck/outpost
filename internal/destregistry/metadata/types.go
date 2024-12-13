@@ -29,4 +29,5 @@ type FieldSchema struct {
 	Description string `json:"description"`
 	Key         string `json:"key"`
 	Required    bool   `json:"required"`
+	Sensitive   bool   `json:"sensitive,omitempty"` // Whether the field value should be obfuscated in API responses
 }

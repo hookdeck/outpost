@@ -34,6 +34,23 @@ func newMockPublisher() *mockPublisher {
 
 func (p *mockProvider) Metadata() *metadata.ProviderMetadata                         { return nil }
 func (p *mockProvider) Validate(ctx context.Context, dest *models.Destination) error { return nil }
+func (p *mockProvider) ObfuscateDestination(dest *models.Destination) *models.Destination {
+	result := *dest // shallow copy
+	result.Config = make(map[string]string, len(dest.Config))
+	result.Credentials = make(map[string]string, len(dest.Credentials))
+
+	// Copy config values as is since this is a mock
+	for k, v := range dest.Config {
+		result.Config[k] = v
+	}
+
+	// Mask all credential values
+	for k := range dest.Credentials {
+		result.Credentials[k] = "****"
+	}
+
+	return &result
+}
 
 func (p *mockProvider) CreatePublisher(ctx context.Context, dest *models.Destination) (destregistry.Publisher, error) {
 	atomic.AddInt32(&p.createCount, 1)
@@ -111,6 +128,23 @@ func (p *mockProviderWithConfig) CreatePublisher(ctx context.Context, dest *mode
 func (p *mockProviderWithConfig) Metadata() *metadata.ProviderMetadata { return nil }
 func (p *mockProviderWithConfig) Validate(ctx context.Context, dest *models.Destination) error {
 	return nil
+}
+func (p *mockProviderWithConfig) ObfuscateDestination(dest *models.Destination) *models.Destination {
+	result := *dest // shallow copy
+	result.Config = make(map[string]string, len(dest.Config))
+	result.Credentials = make(map[string]string, len(dest.Credentials))
+
+	// Copy config values as is since this is a mock
+	for k, v := range dest.Config {
+		result.Config[k] = v
+	}
+
+	// Mask all credential values
+	for k := range dest.Credentials {
+		result.Credentials[k] = "****"
+	}
+
+	return &result
 }
 
 func TestDestinationChanges(t *testing.T) {
@@ -410,4 +444,33 @@ func TestPublisherEviction(t *testing.T) {
 	// Cache: [p2], p1 evicted
 
 	assert.True(t, mp1.closed, "Expected evicted publisher to be closed")
+}
+
+func TestObfuscateDestination(t *testing.T) {
+	t.Parallel()
+
+	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	provider := &mockProvider{}
+	registry.RegisterProvider("mock", provider)
+
+	dest := &models.Destination{
+		ID:   "test-dest",
+		Type: "mock",
+		Config: map[string]string{
+			"public_key": "visible-value",
+		},
+		Credentials: map[string]string{
+			"secret_key": "sensitive-value",
+		},
+	}
+
+	obfuscated, err := registry.ObfuscateDestination(dest)
+	require.NoError(t, err)
+
+	// Original destination should be unchanged
+	assert.Equal(t, "sensitive-value", dest.Credentials["secret_key"])
+
+	// Obfuscated destination should have masked credentials
+	assert.Equal(t, "visible-value", obfuscated.Config["public_key"])
+	assert.Equal(t, "****", obfuscated.Credentials["secret_key"])
 }

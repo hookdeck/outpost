@@ -33,6 +33,37 @@ func (p *BaseProvider) Metadata() *metadata.ProviderMetadata {
 	return p.metadata
 }
 
+// ObfuscateDestination returns a copy of the destination with sensitive fields masked
+func (p *BaseProvider) ObfuscateDestination(destination *models.Destination) *models.Destination {
+	result := *destination // shallow copy
+	result.Config = make(map[string]string, len(destination.Config))
+	result.Credentials = make(map[string]string, len(destination.Credentials))
+
+	// Copy and potentially mask config values
+	for _, field := range p.metadata.ConfigFields {
+		if value, exists := destination.Config[field.Key]; exists {
+			if field.Sensitive {
+				result.Config[field.Key] = "****"
+			} else {
+				result.Config[field.Key] = value
+			}
+		}
+	}
+
+	// Copy and potentially mask credential values
+	for _, field := range p.metadata.CredentialFields {
+		if value, exists := destination.Credentials[field.Key]; exists {
+			if field.Sensitive {
+				result.Credentials[field.Key] = "****"
+			} else {
+				result.Credentials[field.Key] = value
+			}
+		}
+	}
+
+	return &result
+}
+
 // Validate performs schema validation using the provider's metadata
 func (p *BaseProvider) Validate(ctx context.Context, destination *models.Destination) error {
 	if destination.Type != p.metadata.Type {

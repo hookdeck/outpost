@@ -9,5 +9,14 @@
       "required": true
     }
   ],
-  "credential_fields": []
+  "credential_fields": [
+    {
+      "key": "secrets",
+      "type": "string",
+      "label": "Webhook Secrets",
+      "description": "JSON array of webhook secrets with key and created_at fields",
+      "required": false,
+      "sensitive": true
+    }
+  ]
 }

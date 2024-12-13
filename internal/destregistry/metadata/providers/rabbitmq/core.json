@@ -29,14 +29,16 @@
       "type": "string",
       "label": "Username",
       "description": "RabbitMQ username",
-      "required": true
+      "required": true,
+      "sensitive": true
     },
     {
       "key": "password",
       "type": "string",
       "label": "Password",
       "description": "RabbitMQ password",
-      "required": true
+      "required": true,
+      "sensitive": true
     }
   ]
 }

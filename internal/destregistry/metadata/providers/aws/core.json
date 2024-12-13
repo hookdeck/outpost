@@ -15,21 +15,24 @@
       "type": "string",
       "label": "Access Key ID",
       "description": "AWS Access Key ID",
-      "required": true
+      "required": true,
+      "sensitive": true
     },
     {
       "key": "secret",
       "type": "string",
       "label": "Secret Access Key",
       "description": "AWS Secret Access Key",
-      "required": true
+      "required": true,
+      "sensitive": true
     },
     {
       "key": "session",
       "type": "string",
       "label": "Session Token",
       "description": "AWS Session Token (optional)",
-      "required": false
+      "required": false,
+      "sensitive": true
     }
   ]
 }
