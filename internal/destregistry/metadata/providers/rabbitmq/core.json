@@ -30,7 +30,7 @@
       "label": "Username",
       "description": "RabbitMQ username",
       "required": true,
-      "sensitive": true
+      "sensitive": false
     },
     {
       "key": "password",
