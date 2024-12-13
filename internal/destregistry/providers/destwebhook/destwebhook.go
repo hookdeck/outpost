@@ -63,6 +63,34 @@ func New(loader metadata.MetadataLoader, opts ...Option) (*WebhookDestination, e
 	return destination, nil
 }
 
+// ObfuscateDestination overrides the base implementation to handle webhook secrets
+func (d *WebhookDestination) ObfuscateDestination(destination *models.Destination) *models.Destination {
+	result := *destination // shallow copy
+	result.Config = make(map[string]string, len(destination.Config))
+	result.Credentials = make(map[string]string, len(destination.Credentials))
+
+	// Copy config values using base provider's logic
+	for key, value := range destination.Config {
+		result.Config[key] = value
+	}
+
+	// Handle webhook secrets specially
+	if secretsJSON, ok := destination.Credentials["secrets"]; ok {
+		var secrets []WebhookSecret
+		if err := json.Unmarshal([]byte(secretsJSON), &secrets); err == nil {
+			// Obfuscate each secret's key
+			for i := range secrets {
+				secrets[i].Key = destregistry.ObfuscateValue(secrets[i].Key)
+			}
+			if obfuscatedJSON, err := json.Marshal(secrets); err == nil {
+				result.Credentials["secrets"] = string(obfuscatedJSON)
+			}
+		}
+	}
+
+	return &result
+}
+
 func (d *WebhookDestination) Validate(ctx context.Context, destination *models.Destination) error {
 	if _, _, err := d.resolveConfig(ctx, destination); err != nil {
 		return err
