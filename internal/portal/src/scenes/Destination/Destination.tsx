@@ -1,7 +1,7 @@
 import { useParams, Link, useLocation, Route, Routes } from "react-router-dom";
 import useSWR from "swr";
-import destinationTypes from "../../destination-types";
 import { CopyButton } from "../../common/CopyButton/CopyButton";
+import { useDestinationType } from "../../destination-types";
 
 import "./Destination.scss";
 import Badge from "../../common/Badge/Badge";
@@ -26,11 +26,9 @@ const Destination = () => {
   const { destination_id } = useParams();
   const location = useLocation();
   const { data: destination } = useSWR(`destinations/${destination_id}`);
-  const { data: type } = useSWR(
-    destination && `destinations-types/${destination.type}`
-  );
+  const type = useDestinationType(destination?.type);
 
-  if (!destination) return <div>Loading...</div>;
+  if (!destination || !type) return <div>Loading...</div>;
 
   return (
     <>
@@ -56,27 +54,20 @@ const Destination = () => {
             Event Destinations
           </Link>{" "}
           <span className="subtitle-m">/</span>
-          <span className="subtitle-m">
-            {destinationTypes[destination.type].label}
-          </span>
+          <span className="subtitle-m">{type.label}</span>
         </div>
       </header>
       <div>
         <div className="header-container">
-          <div className="header-container__icon">
-            {destinationTypes[destination.type].icon}
-          </div>
+          <div
+            className="header-container__icon"
+            dangerouslySetInnerHTML={{ __html: type.icon as string }}
+          />
           <div className="header-container__content">
-            <h1 className="title-3xl">
-              {destinationTypes[destination.type].label}
-            </h1>
+            <h1 className="title-3xl">{type.label}</h1>
             <p className="body-m">
-              {destination.config[destinationTypes[destination.type].target]}{" "}
-              <CopyButton
-                value={
-                  destination.config[destinationTypes[destination.type].target]
-                }
-              />
+              {destination.config[type.target]}{" "}
+              <CopyButton value={destination.config[type.target]} />
             </p>
           </div>
         </div>
@@ -104,7 +95,10 @@ const Destination = () => {
             path="/settings"
             element={<DestinationSettings destination={destination} />}
           />
-          <Route path="/events" element={<Events destination={destination} />} />
+          <Route
+            path="/events"
+            element={<Events destination={destination} />}
+          />
           <Route
             path="/"
             element={
@@ -116,20 +110,14 @@ const Destination = () => {
                       <span className="body-m">ID</span>
                       <span className="mono-s">
                         {destination.id}{" "}
-                        <CopyButton
-                          value={
-                            destination.config[
-                              destinationTypes[destination.type].target
-                            ]
-                          }
-                        />
+                        <CopyButton value={destination.config[type.target]} />
                       </span>
                     </li>
                     <li>
                       <span className="body-m">Topics</span>
                       <span className="mono-s">
                         {destination.topics.length === 1 &&
-                        destination.topics[0] === "*" 
+                        destination.topics[0] === "*"
                           ? "All"
                           : destination.topics.map((topic) => topic).join(", ")}
                       </span>

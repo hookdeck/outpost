@@ -9,7 +9,7 @@ import { AddIcon, FilterIcon } from "../../common/Icons";
 import SearchInput from "../../common/SearchInput/SearchInput";
 import Table from "../../common/Table/Table";
 import Tooltip from "../../common/Tooltip/Tooltip";
-import destinationTypes from "../../destination-types";
+import { useDestinationTypes } from "../../destination-types";
 import CONFIGS from "../../config";
 
 // TODO: Add empty state
@@ -32,7 +32,12 @@ interface Destination {
 
 const DestinationList: React.FC = () => {
   const { data: destinations } = useSWR<Destination[]>("destinations");
+  const destination_types = useDestinationTypes();
   const [searchTerm, setSearchTerm] = useState("");
+
+  if (Object.keys(destination_types).length === 0) {
+    return <div>Loading...</div>;
+  }
 
   const table_columns = [
     { header: "Type", width: 160 },
@@ -47,7 +52,7 @@ const DestinationList: React.FC = () => {
     const search_value = searchTerm.toLowerCase();
     return (
       destination.type.toLowerCase().includes(search_value) ||
-      destination.config[destinationTypes[destination.type].target]
+      destination.config[destination_types[destination.type].target]
         .toLowerCase()
         .includes(search_value) ||
       destination.topics.some((topic) =>
@@ -61,15 +66,18 @@ const DestinationList: React.FC = () => {
       id: destination.id,
       entries: [
         <>
-          <div style={{ minWidth: "16px", width: "16px", display: "flex" }}>
-            {destinationTypes[destination.type].icon}
-          </div>
+          <div
+            style={{ minWidth: "16px", width: "16px", display: "flex" }}
+            dangerouslySetInnerHTML={{
+              __html: destination_types[destination.type].icon as string,
+            }}
+          />
           <span className="subtitle-m">
-            {destinationTypes[destination.type].label}
+            {destination_types[destination.type].label}
           </span>
         </>,
         <span className="muted-variant">
-          {destination.config[destinationTypes[destination.type].target]}
+          {destination.config[destination_types[destination.type].target]}
         </span>,
         <Tooltip
           content={
