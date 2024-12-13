@@ -3,6 +3,11 @@ package metadata
 
 import "github.com/santhosh-tekuri/jsonschema/v6"
 
+// MetadataLoader loads provider metadata
+type MetadataLoader interface {
+	Load(providerType string) (*ProviderMetadata, error)
+}
+
 type ProviderMetadata struct {
 	// From core.json
 	Type             string        `json:"type"`

@@ -11,13 +11,23 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 )
 
+// ObfuscateValue masks a sensitive value. For strings:
+// - Less than 10 characters: return "****" to avoid revealing length
+// - 10 or more characters: show first 4 characters + asterisks for the rest
+func ObfuscateValue(value string) string {
+	if len(value) < 10 {
+		return "****"
+	}
+	return value[:4] + strings.Repeat("*", len(value)-4)
+}
+
 // BaseProvider provides common functionality for all destination providers
 type BaseProvider struct {
 	metadata *metadata.ProviderMetadata
 }
 
 // NewBaseProvider creates a new base provider with loaded metadata
-func NewBaseProvider(loader *metadata.MetadataLoader, providerType string) (*BaseProvider, error) {
+func NewBaseProvider(loader metadata.MetadataLoader, providerType string) (*BaseProvider, error) {
 	meta, err := loader.Load(providerType)
 	if err != nil {
 		return nil, fmt.Errorf("loading provider metadata: %w", err)
@@ -39,25 +49,36 @@ func (p *BaseProvider) ObfuscateDestination(destination *models.Destination) *mo
 	result.Config = make(map[string]string, len(destination.Config))
 	result.Credentials = make(map[string]string, len(destination.Credentials))
 
-	// Copy and potentially mask config values
+	// Create maps of sensitive fields for quick lookup
+	sensitiveConfigFields := make(map[string]bool)
 	for _, field := range p.metadata.ConfigFields {
-		if value, exists := destination.Config[field.Key]; exists {
-			if field.Sensitive {
-				result.Config[field.Key] = "****"
-			} else {
-				result.Config[field.Key] = value
-			}
+		if field.Sensitive {
+			sensitiveConfigFields[field.Key] = true
 		}
 	}
 
-	// Copy and potentially mask credential values
+	sensitiveCredFields := make(map[string]bool)
 	for _, field := range p.metadata.CredentialFields {
-		if value, exists := destination.Credentials[field.Key]; exists {
-			if field.Sensitive {
-				result.Credentials[field.Key] = "****"
-			} else {
-				result.Credentials[field.Key] = value
-			}
+		if field.Sensitive {
+			sensitiveCredFields[field.Key] = true
+		}
+	}
+
+	// Copy all config values, masking only sensitive ones
+	for key, value := range destination.Config {
+		if sensitiveConfigFields[key] {
+			result.Config[key] = ObfuscateValue(value)
+		} else {
+			result.Config[key] = value
+		}
+	}
+
+	// Copy all credential values, masking only sensitive ones
+	for key, value := range destination.Credentials {
+		if sensitiveCredFields[key] {
+			result.Credentials[key] = ObfuscateValue(value)
+		} else {
+			result.Credentials[key] = value
 		}
 	}
 

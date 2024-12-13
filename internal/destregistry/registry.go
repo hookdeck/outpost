@@ -28,7 +28,7 @@ type Registry interface {
 	ResolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, error)
 
 	// Metadata access
-	MetadataLoader() *metadata.MetadataLoader
+	MetadataLoader() metadata.MetadataLoader
 	RetrieveProviderMetadata(providerType string) (*metadata.ProviderMetadata, error)
 	ListProviderMetadata() map[string]*metadata.ProviderMetadata
 }
@@ -51,7 +51,7 @@ type Publisher interface {
 }
 
 type registry struct {
-	metadataLoader *metadata.MetadataLoader
+	metadataLoader metadata.MetadataLoader
 	metadata       map[string]*metadata.ProviderMetadata
 	providers      map[string]Provider
 	publishers     *lru.Cache[string, Publisher]
@@ -171,7 +171,7 @@ func (r *registry) ResolvePublisher(ctx context.Context, destination *models.Des
 	return publisher, nil
 }
 
-func (r *registry) MetadataLoader() *metadata.MetadataLoader {
+func (r *registry) MetadataLoader() metadata.MetadataLoader {
 	return r.metadataLoader
 }
 

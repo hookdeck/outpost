@@ -33,7 +33,7 @@ type AWSDestinationCredentials struct {
 
 var _ destregistry.Provider = (*AWSDestination)(nil)
 
-func New(loader *metadata.MetadataLoader) (*AWSDestination, error) {
+func New(loader metadata.MetadataLoader) (*AWSDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "aws")
 	if err != nil {
 		return nil, err

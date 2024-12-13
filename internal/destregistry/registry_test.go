@@ -17,6 +17,7 @@ import (
 
 type mockProvider struct {
 	createCount int32
+	*destregistry.BaseProvider
 }
 
 type mockPublisher struct {
@@ -32,25 +33,60 @@ func newMockPublisher() *mockPublisher {
 	}
 }
 
-func (p *mockProvider) Metadata() *metadata.ProviderMetadata                         { return nil }
-func (p *mockProvider) Validate(ctx context.Context, dest *models.Destination) error { return nil }
-func (p *mockProvider) ObfuscateDestination(dest *models.Destination) *models.Destination {
-	result := *dest // shallow copy
-	result.Config = make(map[string]string, len(dest.Config))
-	result.Credentials = make(map[string]string, len(dest.Credentials))
+type mockMetadataLoader struct{}
 
-	// Copy config values as is since this is a mock
-	for k, v := range dest.Config {
-		result.Config[k] = v
-	}
-
-	// Mask all credential values
-	for k := range dest.Credentials {
-		result.Credentials[k] = "****"
-	}
-
-	return &result
+func (m *mockMetadataLoader) Load(providerType string) (*metadata.ProviderMetadata, error) {
+	return &metadata.ProviderMetadata{
+		Type: "mock",
+		ConfigFields: []metadata.FieldSchema{
+			{
+				Key:       "public_key",
+				Type:      "string",
+				Required:  true,
+				Sensitive: false,
+			},
+			{
+				Key:       "secret_key",
+				Type:      "string",
+				Required:  true,
+				Sensitive: true,
+			},
+		},
+		CredentialFields: []metadata.FieldSchema{
+			{
+				Key:       "api_key",
+				Type:      "string",
+				Required:  true,
+				Sensitive: true,
+			},
+			{
+				Key:       "token",
+				Type:      "string",
+				Required:  false,
+				Sensitive: true,
+			},
+			{
+				Key:       "code",
+				Type:      "string",
+				Required:  false,
+				Sensitive: true,
+			},
+		},
+	}, nil
 }
+
+func newMockProvider() (*mockProvider, error) {
+	base, err := destregistry.NewBaseProvider(&mockMetadataLoader{}, "mock")
+	if err != nil {
+		return nil, err
+	}
+
+	return &mockProvider{
+		BaseProvider: base,
+	}, nil
+}
+
+func (p *mockProvider) Validate(ctx context.Context, dest *models.Destination) error { return nil }
 
 func (p *mockProvider) CreatePublisher(ctx context.Context, dest *models.Destination) (destregistry.Publisher, error) {
 	atomic.AddInt32(&p.createCount, 1)
@@ -67,7 +103,8 @@ func TestRegistryConcurrentPublisherManagement(t *testing.T) {
 	testutil.Race(t)
 
 	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
-	provider := &mockProvider{}
+	provider, err := newMockProvider()
+	require.NoError(t, err)
 	registry.RegisterProvider("mock", provider)
 
 	const numGoroutines = 100
@@ -262,7 +299,8 @@ func TestPublisherExpiration(t *testing.T) {
 		registry := destregistry.NewRegistry(&destregistry.Config{
 			PublisherTTL: 100 * time.Millisecond,
 		}, testutil.CreateTestLogger(t))
-		provider := &mockProvider{}
+		provider, err := newMockProvider()
+		require.NoError(t, err)
 		registry.RegisterProvider("mock", provider)
 
 		dest := &models.Destination{ID: "test", Type: "mock"}
@@ -286,7 +324,8 @@ func TestPublisherExpiration(t *testing.T) {
 		registry := destregistry.NewRegistry(&destregistry.Config{
 			PublisherTTL: 100 * time.Millisecond,
 		}, testutil.CreateTestLogger(t))
-		provider := &mockProvider{}
+		provider, err := newMockProvider()
+		require.NoError(t, err)
 		registry.RegisterProvider("mock", provider)
 
 		dest := &models.Destination{ID: "test", Type: "mock"}
@@ -331,7 +370,8 @@ func TestPublisherCapacity(t *testing.T) {
 			PublisherCacheSize: 2,         // Size of 2 for testing
 			PublisherTTL:       time.Hour, // Long TTL to ensure expiration doesn't interfere
 		}, testutil.CreateTestLogger(t))
-		provider := &mockProvider{}
+		provider, err := newMockProvider()
+		require.NoError(t, err)
 		registry.RegisterProvider("mock", provider)
 
 		// Create 3 destinations with different IDs
@@ -374,7 +414,8 @@ func TestPublisherCapacity(t *testing.T) {
 			PublisherCacheSize: 2,
 			PublisherTTL:       time.Hour,
 		}, testutil.CreateTestLogger(t))
-		provider := &mockProvider{}
+		provider, err := newMockProvider()
+		require.NoError(t, err)
 		registry.RegisterProvider("mock", provider)
 
 		dests := []*models.Destination{
@@ -423,7 +464,8 @@ func TestPublisherEviction(t *testing.T) {
 		PublisherCacheSize: 1,         // Smallest possible size
 		PublisherTTL:       time.Hour, // Long TTL to ensure expiration doesn't interfere
 	}, testutil.CreateTestLogger(t))
-	provider := &mockProvider{}
+	provider, err := newMockProvider()
+	require.NoError(t, err)
 	registry.RegisterProvider("mock", provider)
 
 	// Create 2 destinations with different IDs
@@ -446,11 +488,60 @@ func TestPublisherEviction(t *testing.T) {
 	assert.True(t, mp1.closed, "Expected evicted publisher to be closed")
 }
 
+func TestObfuscateValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "****",
+		},
+		{
+			name:     "single character",
+			input:    "a",
+			expected: "****",
+		},
+		{
+			name:     "short string",
+			input:    "abc123",
+			expected: "****",
+		},
+		{
+			name:     "9 characters",
+			input:    "123456789",
+			expected: "****",
+		},
+		{
+			name:     "10 characters",
+			input:    "1234567890",
+			expected: "1234******",
+		},
+		{
+			name:     "long string",
+			input:    "abcdefghijklmnop",
+			expected: "abcd************",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := destregistry.ObfuscateValue(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestObfuscateDestination(t *testing.T) {
 	t.Parallel()
 
 	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
-	provider := &mockProvider{}
+	provider, err := newMockProvider()
+	require.NoError(t, err)
 	registry.RegisterProvider("mock", provider)
 
 	dest := &models.Destination{
@@ -458,9 +549,12 @@ func TestObfuscateDestination(t *testing.T) {
 		Type: "mock",
 		Config: map[string]string{
 			"public_key": "visible-value",
+			"secret_key": "sensitive-value-123",
 		},
 		Credentials: map[string]string{
-			"secret_key": "sensitive-value",
+			"api_key": "abcdefghijklmnop",
+			"token":   "xyz",
+			"code":    "1234",
 		},
 	}
 
@@ -468,9 +562,17 @@ func TestObfuscateDestination(t *testing.T) {
 	require.NoError(t, err)
 
 	// Original destination should be unchanged
-	assert.Equal(t, "sensitive-value", dest.Credentials["secret_key"])
+	assert.Equal(t, "sensitive-value-123", dest.Config["secret_key"])
+	assert.Equal(t, "abcdefghijklmnop", dest.Credentials["api_key"])
 
-	// Obfuscated destination should have masked credentials
+	// Non-sensitive fields should be unchanged
 	assert.Equal(t, "visible-value", obfuscated.Config["public_key"])
-	assert.Equal(t, "****", obfuscated.Credentials["secret_key"])
+
+	// Sensitive fields should be obfuscated according to length:
+	// - Less than 10 chars: "****"
+	// - 10+ chars: first 4 chars + asterisks
+	assert.Equal(t, "sens***************", obfuscated.Config["secret_key"]) // 19 chars
+	assert.Equal(t, "abcd************", obfuscated.Credentials["api_key"])  // 16 chars
+	assert.Equal(t, "****", obfuscated.Credentials["token"])                // 3 chars
+	assert.Equal(t, "****", obfuscated.Credentials["code"])                 // 4 chars
 }

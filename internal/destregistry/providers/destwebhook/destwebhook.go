@@ -51,7 +51,7 @@ func WithHeaderPrefix(prefix string) Option {
 	}
 }
 
-func New(loader *metadata.MetadataLoader, opts ...Option) (*WebhookDestination, error) {
+func New(loader metadata.MetadataLoader, opts ...Option) (*WebhookDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "webhook")
 	if err != nil {
 		return nil, err

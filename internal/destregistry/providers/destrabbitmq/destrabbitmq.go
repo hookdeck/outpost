@@ -28,7 +28,7 @@ type RabbitMQDestinationCredentials struct {
 
 var _ destregistry.Provider = (*RabbitMQDestination)(nil)
 
-func New(loader *metadata.MetadataLoader) (*RabbitMQDestination, error) {
+func New(loader metadata.MetadataLoader) (*RabbitMQDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "rabbitmq")
 	if err != nil {
 		return nil, err

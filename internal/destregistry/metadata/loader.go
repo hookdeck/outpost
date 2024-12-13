@@ -13,17 +13,17 @@ import (
 //go:embed providers/*
 var defaultFS embed.FS
 
-type MetadataLoader struct {
+type FSMetadataLoader struct {
 	basePath string
 }
 
-func NewMetadataLoader(basePath string) *MetadataLoader {
-	return &MetadataLoader{
+func NewMetadataLoader(basePath string) MetadataLoader {
+	return &FSMetadataLoader{
 		basePath: basePath,
 	}
 }
 
-func (l *MetadataLoader) Load(providerType string) (*ProviderMetadata, error) {
+func (l *FSMetadataLoader) Load(providerType string) (*ProviderMetadata, error) {
 	metadata := &ProviderMetadata{}
 
 	if err := l.loadCore(providerType, metadata); err != nil {
@@ -45,14 +45,14 @@ func (l *MetadataLoader) Load(providerType string) (*ProviderMetadata, error) {
 	return metadata, nil
 }
 
-func (l *MetadataLoader) loadCore(providerType string, metadata *ProviderMetadata) error {
+func (l *FSMetadataLoader) loadCore(providerType string, metadata *ProviderMetadata) error {
 	if err := l.loadJSONFile(providerType, "core.json", metadata); err != nil {
 		return fmt.Errorf("loading core metadata: %w", err)
 	}
 	return nil
 }
 
-func (l *MetadataLoader) loadValidation(providerType string, metadata *ProviderMetadata) error {
+func (l *FSMetadataLoader) loadValidation(providerType string, metadata *ProviderMetadata) error {
 	validationBytes, err := l.loadFile(providerType, "validation.json")
 	if err != nil {
 		return fmt.Errorf("loading validation schema: %w", err)
@@ -76,14 +76,14 @@ func (l *MetadataLoader) loadValidation(providerType string, metadata *ProviderM
 	return nil
 }
 
-func (l *MetadataLoader) loadUI(providerType string, metadata *ProviderMetadata) error {
+func (l *FSMetadataLoader) loadUI(providerType string, metadata *ProviderMetadata) error {
 	if err := l.loadJSONFile(providerType, "ui.json", metadata); err != nil {
 		return fmt.Errorf("loading UI metadata: %w", err)
 	}
 	return nil
 }
 
-func (l *MetadataLoader) loadInstructions(providerType string, metadata *ProviderMetadata) error {
+func (l *FSMetadataLoader) loadInstructions(providerType string, metadata *ProviderMetadata) error {
 	instructionsBytes, err := l.loadFile(providerType, "instructions.md")
 	if err != nil {
 		return fmt.Errorf("loading instructions: %w", err)
@@ -93,7 +93,7 @@ func (l *MetadataLoader) loadInstructions(providerType string, metadata *Provide
 }
 
 // loadFile tries filesystem first, falls back to embedded
-func (l *MetadataLoader) loadFile(providerType, filename string) ([]byte, error) {
+func (l *FSMetadataLoader) loadFile(providerType, filename string) ([]byte, error) {
 	// Try filesystem first if basePath is set
 	if l.basePath != "" {
 		path := filepath.Join(l.basePath, providerType, filename)
@@ -111,7 +111,7 @@ func (l *MetadataLoader) loadFile(providerType, filename string) ([]byte, error)
 	return bytes, nil
 }
 
-func (l *MetadataLoader) loadJSONFile(providerType, filename string, v interface{}) error {
+func (l *FSMetadataLoader) loadJSONFile(providerType, filename string, v interface{}) error {
 	bytes, err := l.loadFile(providerType, filename)
 	if err != nil {
 		return err
