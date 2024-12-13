@@ -76,6 +76,11 @@ func NewRouter(
 	adminRouter.PUT("/:tenantID", tenantHandlers.Upsert)
 	adminRouter.GET("/:tenantID/portal", RequireTenantMiddleware(logger, entityStore), tenantHandlers.RetrievePortal)
 
+	adminRouter.GET("/destination-types", destinationHandlers.ListProviderMetadata)
+	adminRouter.GET("/destination-types/:type", destinationHandlers.RetrieveProviderMetadata)
+	adminRouter.GET("/topics", topicHandlers.List)
+	adminRouter.POST("/publish", publishHandlers.Ingest)
+
 	// Tenant router is a router group that accepts either
 	// - a tenant's JWT token OR
 	// - the preconfigured API key
@@ -103,12 +108,9 @@ func NewRouter(
 	tenantRouter.GET("/:tenantID/events/:eventID", logHandlers.RetrieveEvent)
 	tenantRouter.GET("/:tenantID/events/:eventID/deliveries", logHandlers.ListDeliveryByEvent)
 
-	adminRouter.POST("/publish", publishHandlers.Ingest)
-
-	adminRouter.GET("/topics", topicHandlers.List)
-
-	adminRouter.GET("/destination-types", destinationHandlers.ListProviderMetadata)
-	adminRouter.GET("/destination-types/:type", destinationHandlers.RetrieveProviderMetadata)
+	tenantRouter.GET("/:tenantID/destination-types", destinationHandlers.ListProviderMetadata)
+	tenantRouter.GET("/:tenantID/destination-types/:type", destinationHandlers.RetrieveProviderMetadata)
+	tenantRouter.GET("/:tenantID/topics", topicHandlers.List)
 
 	return r
 }
