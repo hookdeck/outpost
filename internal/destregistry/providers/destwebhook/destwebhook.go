@@ -74,18 +74,13 @@ func (d *WebhookDestination) ObfuscateDestination(destination *models.Destinatio
 		result.Config[key] = value
 	}
 
-	// Handle webhook secrets specially
-	if secretsJSON, ok := destination.Credentials["secrets"]; ok {
-		var secrets []WebhookSecret
-		if err := json.Unmarshal([]byte(secretsJSON), &secrets); err == nil {
-			// Obfuscate each secret's key
-			for i := range secrets {
-				secrets[i].Key = destregistry.ObfuscateValue(secrets[i].Key)
-			}
-			if obfuscatedJSON, err := json.Marshal(secrets); err == nil {
-				result.Credentials["secrets"] = string(obfuscatedJSON)
-			}
-		}
+	// Copy credentials as is
+	// NOTE: Webhook secrets are intentionally not obfuscated for now because:
+	// 1. They're needed for secret rotation logic
+	// 2. They're less security-critical than other provider credentials (e.g. AWS keys)
+	// TODO: Implement proper secret obfuscation later if needed
+	for key, value := range destination.Credentials {
+		result.Credentials[key] = value
 	}
 
 	return &result

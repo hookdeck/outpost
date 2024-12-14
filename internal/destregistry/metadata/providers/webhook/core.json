@@ -16,7 +16,7 @@
       "label": "Webhook Secrets",
       "description": "JSON array of webhook secrets with key and created_at fields",
       "required": false,
-      "sensitive": true
+      "sensitive": false
     }
   ]
 }
