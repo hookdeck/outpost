@@ -2,7 +2,6 @@ package api
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -39,11 +38,6 @@ func (h *DestinationHandlers) List(c *gin.Context) {
 			Type:   typeParams,
 			Topics: topicsParams,
 		})
-	}
-	if opts.Filter == nil {
-		log.Println("no filter")
-	} else {
-		log.Println(*opts.Filter)
 	}
 
 	destinations, err := h.entityStore.ListDestinationByTenant(c.Request.Context(), c.Param("tenantID"), opts)
