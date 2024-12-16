@@ -21,7 +21,7 @@ func TestHmacSHA256_Sign(t *testing.T) {
 	assert.Equal(t, expected, signature)
 }
 
-func TestDefaultSignatureFormatter_Format(t *testing.T) {
+func TestDefaultSignatureFormatter(t *testing.T) {
 	formatter := destwebhook.DefaultSignatureFormatter{}
 	timestamp := time.Unix(1234567890, 0)
 	body := []byte(`{"hello":"world"}`)
@@ -32,12 +32,12 @@ func TestDefaultSignatureFormatter_Format(t *testing.T) {
 	assert.Equal(t, expected, result)
 }
 
-func TestDefaultHeaderFormatter_Format(t *testing.T) {
+func TestDefaultHeaderFormatter(t *testing.T) {
 	formatter := destwebhook.DefaultHeaderFormatter{}
 	timestamp := time.Unix(1234567890, 0)
 	signatures := []string{"abc123", "def456"}
 
-	result := formatter.FormatHeader(timestamp, signatures)
+	result := formatter.Format(timestamp, signatures)
 	expected := "t=1234567890,v0=abc123,def456"
 
 	assert.Equal(t, expected, result)

@@ -21,7 +21,7 @@ type SignatureFormatter interface {
 }
 
 type HeaderFormatter interface {
-	FormatHeader(timestamp time.Time, signatures []string) string
+	Format(timestamp time.Time, signatures []string) string
 }
 
 type SignatureEncoder interface {
@@ -48,10 +48,8 @@ func (f DefaultSignatureFormatter) Format(timestamp time.Time, body []byte) stri
 
 type DefaultHeaderFormatter struct{}
 
-func (f DefaultHeaderFormatter) FormatHeader(timestamp time.Time, signatures []string) string {
-	parts := []string{fmt.Sprintf("t=%d", timestamp.Unix())}
-	parts = append(parts, fmt.Sprintf("v0=%s", strings.Join(signatures, ",")))
-	return strings.Join(parts, ",")
+func (f DefaultHeaderFormatter) Format(timestamp time.Time, signatures []string) string {
+	return fmt.Sprintf("t=%d,v0=%s", timestamp.Unix(), strings.Join(signatures, ","))
 }
 
 type HmacSHA256 struct{}
@@ -151,5 +149,5 @@ func (sm *SignatureManager) GenerateSignatureHeader(timestamp time.Time, body []
 	if len(signatures) == 0 {
 		return ""
 	}
-	return sm.headerFormatter.FormatHeader(timestamp, signatures)
+	return sm.headerFormatter.Format(timestamp, signatures)
 }
