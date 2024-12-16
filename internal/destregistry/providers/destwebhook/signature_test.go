@@ -14,7 +14,7 @@ func TestHmacSHA256_Sign(t *testing.T) {
 	key := "test-secret"
 	content := `1234567890.{"hello":"world"}`
 
-	signature := algo.Sign(key, content)
+	signature := algo.Sign(key, content, destwebhook.HexEncoder{})
 	// Pre-computed expected signature for the given inputs
 	expected := "7054f74dae9f73e82b56ca73e8f81450097c698eeda0b00bb8728e89796baf2d"
 
@@ -111,4 +111,35 @@ func TestSignatureManager_MultipleValidSecrets(t *testing.T) {
 	// - 1 comma between t= and v0=
 	// - 2 commas between signatures
 	assert.Equal(t, 3, strings.Count(header, ","))
+}
+
+func TestSignatureEncoders(t *testing.T) {
+	tests := []struct {
+		name     string
+		encoder  destwebhook.SignatureEncoder
+		input    []byte
+		expected string
+	}{
+		{
+			name:     "hex encoder",
+			encoder:  destwebhook.HexEncoder{},
+			input:    []byte("test123"),
+			expected: "74657374313233", // hex representation of "test123"
+		},
+		{
+			name:     "base64 encoder",
+			encoder:  destwebhook.Base64Encoder{},
+			input:    []byte("test123"),
+			expected: "dGVzdDEyMw==", // base64 representation of "test123"
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.encoder.Encode(tt.input)
+			if result != tt.expected {
+				t.Errorf("got %v, want %v", result, tt.expected)
+			}
+		})
+	}
 }

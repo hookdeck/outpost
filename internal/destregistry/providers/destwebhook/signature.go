@@ -3,6 +3,7 @@ package destwebhook
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"sort"
@@ -11,7 +12,7 @@ import (
 )
 
 type SigningAlgorithm interface {
-	Sign(key string, content string) string
+	Sign(key string, content string, encoder SignatureEncoder) string
 	Name() string
 }
 
@@ -21,6 +22,22 @@ type SignatureFormatter interface {
 
 type HeaderFormatter interface {
 	FormatHeader(timestamp time.Time, signatures []string) string
+}
+
+type SignatureEncoder interface {
+	Encode([]byte) string
+}
+
+type HexEncoder struct{}
+
+func (e HexEncoder) Encode(b []byte) string {
+	return hex.EncodeToString(b)
+}
+
+type Base64Encoder struct{}
+
+func (e Base64Encoder) Encode(b []byte) string {
+	return base64.StdEncoding.EncodeToString(b)
 }
 
 type DefaultSignatureFormatter struct{}
@@ -43,15 +60,16 @@ func (h HmacSHA256) Name() string {
 	return "hmac-sha256"
 }
 
-func (h HmacSHA256) Sign(key string, content string) string {
+func (h HmacSHA256) Sign(key string, content string, encoder SignatureEncoder) string {
 	mac := hmac.New(sha256.New, []byte(key))
 	mac.Write([]byte(content))
-	return hex.EncodeToString(mac.Sum(nil))
+	return encoder.Encode(mac.Sum(nil))
 }
 
 type SignatureManager struct {
 	secrets         []WebhookSecret
 	algorithm       SigningAlgorithm
+	encoder         SignatureEncoder
 	sigFormatter    SignatureFormatter
 	headerFormatter HeaderFormatter
 }
@@ -61,6 +79,12 @@ type SignatureManagerOption func(*SignatureManager)
 func WithAlgorithm(algo SigningAlgorithm) SignatureManagerOption {
 	return func(sm *SignatureManager) {
 		sm.algorithm = algo
+	}
+}
+
+func WithEncoder(encoder SignatureEncoder) SignatureManagerOption {
+	return func(sm *SignatureManager) {
+		sm.encoder = encoder
 	}
 }
 
@@ -82,6 +106,7 @@ func NewSignatureManager(secrets []WebhookSecret, opts ...SignatureManagerOption
 		algorithm:       HmacSHA256{},
 		sigFormatter:    DefaultSignatureFormatter{},
 		headerFormatter: DefaultHeaderFormatter{},
+		encoder:         HexEncoder{},
 	}
 
 	for _, opt := range opts {
@@ -108,13 +133,13 @@ func (sm *SignatureManager) GenerateSignatures(timestamp time.Time, body []byte)
 
 	// Always use latest secret
 	latestSecret := sortedSecrets[0]
-	signatures = append(signatures, sm.algorithm.Sign(latestSecret.Key, content))
+	signatures = append(signatures, sm.algorithm.Sign(latestSecret.Key, content, sm.encoder))
 
 	// Add signatures for non-expired secrets that aren't the latest
 	now := time.Now()
 	for _, secret := range sortedSecrets[1:] {
 		if now.Sub(secret.CreatedAt) < 24*time.Hour {
-			signatures = append(signatures, sm.algorithm.Sign(secret.Key, content))
+			signatures = append(signatures, sm.algorithm.Sign(secret.Key, content, sm.encoder))
 		}
 	}
 
