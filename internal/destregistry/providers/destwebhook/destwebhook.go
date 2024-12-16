@@ -1,11 +1,13 @@
 package destwebhook
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -104,6 +106,7 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		headerPrefix:  d.headerPrefix,
 		secrets:       creds.Secrets,
 		timeout:       d.timeout,
+		sm:            NewSignatureManager(creds.Secrets),
 	}, nil
 }
 
@@ -136,6 +139,7 @@ type WebhookPublisher struct {
 	url          string
 	headerPrefix string
 	secrets      []WebhookSecret
+	sm           *SignatureManager
 	timeout      time.Duration
 }
 
@@ -177,28 +181,32 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) err
 
 // Format is a helper function to format the event data into an HTTP request.
 func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*http.Request, error) {
+	now := time.Now()
 	rawBody, err := json.Marshal(event.Data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal event data: %w", err)
 	}
 
-	webhookReq := NewWebhookRequest(p.url, rawBody, p.prepareMetadata(event), p.headerPrefix, p.secrets)
-	httpReq, err := webhookReq.ToHTTPRequest(ctx)
+	req, err := http.NewRequestWithContext(ctx, "POST", p.url, bytes.NewBuffer(rawBody))
 	if err != nil {
 		return nil, err
 	}
 
-	return httpReq, nil
-}
+	req.Header.Set("Content-Type", "application/json")
 
-func (p *WebhookPublisher) prepareMetadata(event *models.Event) map[string]string {
-	metadata := make(map[string]string)
-	if event.Metadata != nil {
-		for k, v := range event.Metadata {
-			metadata[k] = v
-		}
+	// Add default headers
+	req.Header.Set(p.headerPrefix+"timestamp", fmt.Sprintf("%d", now.Unix()))
+	req.Header.Set(p.headerPrefix+"event-id", event.ID)
+	req.Header.Set(p.headerPrefix+"topic", event.Topic)
+	signatureHeader := p.sm.GenerateSignatureHeader(now, rawBody)
+	if signatureHeader != "" {
+		req.Header.Set(p.headerPrefix+"signature", signatureHeader)
 	}
-	metadata["event-id"] = event.ID
-	metadata["topic"] = event.Topic
-	return metadata
+
+	// Add metadata headers with the specified prefix
+	for key, value := range event.Metadata {
+		req.Header.Set(p.headerPrefix+strings.ToLower(key), value)
+	}
+
+	return req, nil
 }
