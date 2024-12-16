@@ -144,35 +144,16 @@ func (p *WebhookPublisher) Close() error {
 	return nil
 }
 
-func (p *WebhookPublisher) prepareMetadata(event *models.Event) map[string]string {
-	metadata := make(map[string]string)
-	if event.Metadata != nil {
-		for k, v := range event.Metadata {
-			metadata[k] = v
-		}
-	}
-	metadata["event-id"] = event.ID
-	metadata["topic"] = event.Topic
-	return metadata
-}
-
 func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) error {
 	if err := p.BasePublisher.StartPublish(); err != nil {
 		return err
 	}
 	defer p.BasePublisher.FinishPublish()
 
-	rawBody, err := json.Marshal(event.Data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal event data: %w", err)
-	}
-
-	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 
-	webhookReq := NewWebhookRequest(p.url, rawBody, p.prepareMetadata(event), p.headerPrefix, p.secrets)
-	httpReq, err := webhookReq.ToHTTPRequest(ctx)
+	httpReq, err := p.Format(ctx, event)
 	if err != nil {
 		return err
 	}
@@ -192,4 +173,32 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) err
 	}
 
 	return nil
+}
+
+// Format is a helper function to format the event data into an HTTP request.
+func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*http.Request, error) {
+	rawBody, err := json.Marshal(event.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal event data: %w", err)
+	}
+
+	webhookReq := NewWebhookRequest(p.url, rawBody, p.prepareMetadata(event), p.headerPrefix, p.secrets)
+	httpReq, err := webhookReq.ToHTTPRequest(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return httpReq, nil
+}
+
+func (p *WebhookPublisher) prepareMetadata(event *models.Event) map[string]string {
+	metadata := make(map[string]string)
+	if event.Metadata != nil {
+		for k, v := range event.Metadata {
+			metadata[k] = v
+		}
+	}
+	metadata["event-id"] = event.ID
+	metadata["topic"] = event.Topic
+	return metadata
 }
