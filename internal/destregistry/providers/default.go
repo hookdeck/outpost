@@ -8,7 +8,11 @@ import (
 )
 
 type DestWebhookConfig struct {
-	HeaderPrefix string
+	HeaderPrefix                  string
+	DisableDefaultEventIDHeader   bool
+	DisableDefaultSignatureHeader bool
+	DisableDefaultTimestampHeader bool
+	DisableDefaultTopicHeader     bool
 }
 
 type RegisterDefaultDestinationOptions struct {
@@ -32,7 +36,13 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 
 	webhookOpts := []destwebhook.Option{}
 	if opts.Webhook != nil {
-		webhookOpts = append(webhookOpts, destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix))
+		webhookOpts = []destwebhook.Option{
+			destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
+			destwebhook.WithDisableDefaultEventIDHeader(opts.Webhook.DisableDefaultEventIDHeader),
+			destwebhook.WithDisableDefaultSignatureHeader(opts.Webhook.DisableDefaultSignatureHeader),
+			destwebhook.WithDisableDefaultTimestampHeader(opts.Webhook.DisableDefaultTimestampHeader),
+			destwebhook.WithDisableDefaultTopicHeader(opts.Webhook.DisableDefaultTopicHeader),
+		}
 	}
 	webhook, err := destwebhook.New(loader, webhookOpts...)
 	if err != nil {

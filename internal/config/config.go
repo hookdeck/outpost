@@ -48,7 +48,11 @@ type Config struct {
 
 	DisableTelemetry bool
 
-	DestinationWebhookHeaderPrefix string
+	DestinationWebhookHeaderPrefix                  string
+	DestinationWebhookDisableDefaultEventIDHeader   bool
+	DestinationWebhookDisableDefaultSignatureHeader bool
+	DestinationWebhookDisableDefaultTimestampHeader bool
+	DestinationWebhookDisableDefaultTopicHeader     bool
 
 	// Portal config
 	PortalRefererURL             string
@@ -198,7 +202,12 @@ func Parse(flags Flags) (*Config, error) {
 
 		DisableTelemetry: viper.GetBool("DISABLE_TELEMETRY"),
 
-		DestinationWebhookHeaderPrefix: viper.GetString("DESTINATION_WEBHOOK_HEADER_PREFIX"),
+		// Destination webhook config
+		DestinationWebhookHeaderPrefix:                  viper.GetString("DESTINATION_WEBHOOK_HEADER_PREFIX"),
+		DestinationWebhookDisableDefaultEventIDHeader:   viper.GetBool("DESTINATION_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER"),
+		DestinationWebhookDisableDefaultSignatureHeader: viper.GetBool("DESTINATION_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER"),
+		DestinationWebhookDisableDefaultTimestampHeader: viper.GetBool("DESTINATION_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER"),
+		DestinationWebhookDisableDefaultTopicHeader:     viper.GetBool("DESTINATION_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER"),
 
 		// Portal config
 		PortalRefererURL:             viper.GetString("PORTAL_REFERER_URL"),

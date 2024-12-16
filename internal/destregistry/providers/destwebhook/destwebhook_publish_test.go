@@ -388,25 +388,25 @@ func TestWebhookPublisher_DisableDefaultHeaders(t *testing.T) {
 	}{
 		{
 			name:           "disable event id header",
-			options:        []destwebhook.Option{destwebhook.WithDisableDefaultEventIDHeader()},
+			options:        []destwebhook.Option{destwebhook.WithDisableDefaultEventIDHeader(true)},
 			expectedHeader: "x-outpost-event-id",
 			shouldExist:    false,
 		},
 		{
 			name:           "disable signature header",
-			options:        []destwebhook.Option{destwebhook.WithDisableDefaultSignatureHeader()},
+			options:        []destwebhook.Option{destwebhook.WithDisableDefaultSignatureHeader(true)},
 			expectedHeader: "x-outpost-signature",
 			shouldExist:    false,
 		},
 		{
 			name:           "disable timestamp header",
-			options:        []destwebhook.Option{destwebhook.WithDisableDefaultTimestampHeader()},
+			options:        []destwebhook.Option{destwebhook.WithDisableDefaultTimestampHeader(true)},
 			expectedHeader: "x-outpost-timestamp",
 			shouldExist:    false,
 		},
 		{
 			name:           "disable topic header",
-			options:        []destwebhook.Option{destwebhook.WithDisableDefaultTopicHeader()},
+			options:        []destwebhook.Option{destwebhook.WithDisableDefaultTopicHeader(true)},
 			expectedHeader: "x-outpost-topic",
 			shouldExist:    false,
 		},

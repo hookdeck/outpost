@@ -67,7 +67,11 @@ func NewService(ctx context.Context,
 		}, logger)
 		if err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
 			Webhook: &destregistrydefault.DestWebhookConfig{
-				HeaderPrefix: cfg.DestinationWebhookHeaderPrefix,
+				HeaderPrefix:                  cfg.DestinationWebhookHeaderPrefix,
+				DisableDefaultEventIDHeader:   cfg.DestinationWebhookDisableDefaultEventIDHeader,
+				DisableDefaultSignatureHeader: cfg.DestinationWebhookDisableDefaultSignatureHeader,
+				DisableDefaultTimestampHeader: cfg.DestinationWebhookDisableDefaultTimestampHeader,
+				DisableDefaultTopicHeader:     cfg.DestinationWebhookDisableDefaultTopicHeader,
 			},
 		}); err != nil {
 			return nil, err

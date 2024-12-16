@@ -58,27 +58,27 @@ func WithHeaderPrefix(prefix string) Option {
 }
 
 // Add these options after the existing Option definitions
-func WithDisableDefaultEventIDHeader() Option {
+func WithDisableDefaultEventIDHeader(disable bool) Option {
 	return func(w *WebhookDestination) {
-		w.disableEventIDHeader = true
+		w.disableEventIDHeader = disable
 	}
 }
 
-func WithDisableDefaultSignatureHeader() Option {
+func WithDisableDefaultSignatureHeader(disable bool) Option {
 	return func(w *WebhookDestination) {
-		w.disableSignatureHeader = true
+		w.disableSignatureHeader = disable
 	}
 }
 
-func WithDisableDefaultTimestampHeader() Option {
+func WithDisableDefaultTimestampHeader(disable bool) Option {
 	return func(w *WebhookDestination) {
-		w.disableTimestampHeader = true
+		w.disableTimestampHeader = disable
 	}
 }
 
-func WithDisableDefaultTopicHeader() Option {
+func WithDisableDefaultTopicHeader(disable bool) Option {
 	return func(w *WebhookDestination) {
-		w.disableTopicHeader = true
+		w.disableTopicHeader = disable
 	}
 }
 
