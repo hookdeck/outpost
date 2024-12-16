@@ -378,3 +378,73 @@ func TestWebhookPublish(t *testing.T) {
 		})
 	})
 }
+
+func TestWebhookPublisher_DisableDefaultHeaders(t *testing.T) {
+	tests := []struct {
+		name           string
+		options        []destwebhook.Option
+		expectedHeader string
+		shouldExist    bool
+	}{
+		{
+			name:           "disable event id header",
+			options:        []destwebhook.Option{destwebhook.WithDisableDefaultEventIDHeader()},
+			expectedHeader: "x-outpost-event-id",
+			shouldExist:    false,
+		},
+		{
+			name:           "disable signature header",
+			options:        []destwebhook.Option{destwebhook.WithDisableDefaultSignatureHeader()},
+			expectedHeader: "x-outpost-signature",
+			shouldExist:    false,
+		},
+		{
+			name:           "disable timestamp header",
+			options:        []destwebhook.Option{destwebhook.WithDisableDefaultTimestampHeader()},
+			expectedHeader: "x-outpost-timestamp",
+			shouldExist:    false,
+		},
+		{
+			name:           "disable topic header",
+			options:        []destwebhook.Option{destwebhook.WithDisableDefaultTopicHeader()},
+			expectedHeader: "x-outpost-topic",
+			shouldExist:    false,
+		},
+		{
+			name:           "default headers enabled",
+			options:        []destwebhook.Option{},
+			expectedHeader: "x-outpost-event-id",
+			shouldExist:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dest, err := destwebhook.New(testutil.Registry.MetadataLoader(), tt.options...)
+			require.NoError(t, err)
+
+			destination := testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithType("webhook"),
+				testutil.DestinationFactory.WithConfig(map[string]string{
+					"url": "http://example.com",
+				}),
+			)
+
+			publisher, err := dest.CreatePublisher(context.Background(), &destination)
+			require.NoError(t, err)
+
+			req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &models.Event{
+				ID:    "test-id",
+				Topic: "test-topic",
+				Data:  map[string]interface{}{"key": "value"},
+			})
+			require.NoError(t, err)
+
+			if tt.shouldExist {
+				assert.NotEmpty(t, req.Header.Get(tt.expectedHeader))
+			} else {
+				assert.Empty(t, req.Header.Get(tt.expectedHeader))
+			}
+		})
+	}
+}

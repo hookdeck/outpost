@@ -17,8 +17,12 @@ import (
 
 type WebhookDestination struct {
 	*destregistry.BaseProvider
-	timeout      time.Duration
-	headerPrefix string
+	timeout                time.Duration
+	headerPrefix           string
+	disableEventIDHeader   bool
+	disableSignatureHeader bool
+	disableTimestampHeader bool
+	disableTopicHeader     bool
 }
 
 type WebhookDestinationConfig struct {
@@ -50,6 +54,31 @@ func WithTimeout(seconds int) Option {
 func WithHeaderPrefix(prefix string) Option {
 	return func(w *WebhookDestination) {
 		w.headerPrefix = prefix
+	}
+}
+
+// Add these options after the existing Option definitions
+func WithDisableDefaultEventIDHeader() Option {
+	return func(w *WebhookDestination) {
+		w.disableEventIDHeader = true
+	}
+}
+
+func WithDisableDefaultSignatureHeader() Option {
+	return func(w *WebhookDestination) {
+		w.disableSignatureHeader = true
+	}
+}
+
+func WithDisableDefaultTimestampHeader() Option {
+	return func(w *WebhookDestination) {
+		w.disableTimestampHeader = true
+	}
+}
+
+func WithDisableDefaultTopicHeader() Option {
+	return func(w *WebhookDestination) {
+		w.disableTopicHeader = true
 	}
 }
 
@@ -101,12 +130,16 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		return nil, err
 	}
 	return &WebhookPublisher{
-		BasePublisher: &destregistry.BasePublisher{},
-		url:           config.URL,
-		headerPrefix:  d.headerPrefix,
-		secrets:       creds.Secrets,
-		timeout:       d.timeout,
-		sm:            NewSignatureManager(creds.Secrets),
+		BasePublisher:          &destregistry.BasePublisher{},
+		url:                    config.URL,
+		headerPrefix:           d.headerPrefix,
+		secrets:                creds.Secrets,
+		timeout:                d.timeout,
+		sm:                     NewSignatureManager(creds.Secrets),
+		disableEventIDHeader:   d.disableEventIDHeader,
+		disableSignatureHeader: d.disableSignatureHeader,
+		disableTimestampHeader: d.disableTimestampHeader,
+		disableTopicHeader:     d.disableTopicHeader,
 	}, nil
 }
 
@@ -136,11 +169,15 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 
 type WebhookPublisher struct {
 	*destregistry.BasePublisher
-	url          string
-	headerPrefix string
-	secrets      []WebhookSecret
-	sm           *SignatureManager
-	timeout      time.Duration
+	url                    string
+	headerPrefix           string
+	secrets                []WebhookSecret
+	sm                     *SignatureManager
+	timeout                time.Duration
+	disableEventIDHeader   bool
+	disableSignatureHeader bool
+	disableTimestampHeader bool
+	disableTopicHeader     bool
 }
 
 func (p *WebhookPublisher) Close() error {
@@ -194,13 +231,21 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// Add default headers
-	req.Header.Set(p.headerPrefix+"timestamp", fmt.Sprintf("%d", now.Unix()))
-	req.Header.Set(p.headerPrefix+"event-id", event.ID)
-	req.Header.Set(p.headerPrefix+"topic", event.Topic)
-	signatureHeader := p.sm.GenerateSignatureHeader(now, rawBody)
-	if signatureHeader != "" {
-		req.Header.Set(p.headerPrefix+"signature", signatureHeader)
+	// Add default headers unless disabled
+	if !p.disableTimestampHeader {
+		req.Header.Set(p.headerPrefix+"timestamp", fmt.Sprintf("%d", now.Unix()))
+	}
+	if !p.disableEventIDHeader {
+		req.Header.Set(p.headerPrefix+"event-id", event.ID)
+	}
+	if !p.disableTopicHeader {
+		req.Header.Set(p.headerPrefix+"topic", event.Topic)
+	}
+	if !p.disableSignatureHeader {
+		signatureHeader := p.sm.GenerateSignatureHeader(now, rawBody)
+		if signatureHeader != "" {
+			req.Header.Set(p.headerPrefix+"signature", signatureHeader)
+		}
 	}
 
 	// Add metadata headers with the specified prefix
