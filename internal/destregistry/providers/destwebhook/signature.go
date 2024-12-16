@@ -13,6 +13,7 @@ import (
 
 type SigningAlgorithm interface {
 	Sign(key string, content string, encoder SignatureEncoder) string
+	Verify(key string, content string, signature string, encoder SignatureEncoder) bool
 	Name() string
 }
 
@@ -62,6 +63,11 @@ func (h HmacSHA256) Sign(key string, content string, encoder SignatureEncoder) s
 	mac := hmac.New(sha256.New, []byte(key))
 	mac.Write([]byte(content))
 	return encoder.Encode(mac.Sum(nil))
+}
+
+func (h HmacSHA256) Verify(key string, content string, signature string, encoder SignatureEncoder) bool {
+	expectedSignature := h.Sign(key, content, encoder)
+	return hmac.Equal([]byte(signature), []byte(expectedSignature))
 }
 
 type SignatureManager struct {
@@ -150,4 +156,9 @@ func (sm *SignatureManager) GenerateSignatureHeader(timestamp time.Time, body []
 		return ""
 	}
 	return sm.headerFormatter.Format(timestamp, signatures)
+}
+
+func (sm *SignatureManager) VerifySignature(signature, key string, timestamp time.Time, body []byte) bool {
+	content := sm.sigFormatter.Format(timestamp, body)
+	return sm.algorithm.Verify(key, content, signature, sm.encoder)
 }

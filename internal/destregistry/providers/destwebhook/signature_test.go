@@ -43,76 +43,6 @@ func TestDefaultHeaderFormatter(t *testing.T) {
 	assert.Equal(t, expected, result)
 }
 
-func TestSignatureManager_GenerateSignatures(t *testing.T) {
-	now := time.Now()
-	secrets := []destwebhook.WebhookSecret{
-		{Key: "latest", CreatedAt: now},
-		{Key: "old-valid", CreatedAt: now.Add(-23 * time.Hour)},
-		{Key: "expired", CreatedAt: now.Add(-25 * time.Hour)},
-	}
-
-	manager := destwebhook.NewSignatureManager(secrets)
-	timestamp := time.Unix(1234567890, 0)
-	body := []byte(`{"hello":"world"}`)
-
-	signatures := manager.GenerateSignatures(timestamp, body)
-
-	// Should contain timestamp and at least 2 signatures (latest and old-valid)
-	assert.Len(t, signatures, 2)
-}
-
-func TestSignatureManager_GenerateSignatureHeader(t *testing.T) {
-	now := time.Now()
-	secrets := []destwebhook.WebhookSecret{
-		{Key: "latest", CreatedAt: now},
-		{Key: "old-valid", CreatedAt: now.Add(-23 * time.Hour)},
-	}
-
-	manager := destwebhook.NewSignatureManager(secrets)
-	timestamp := time.Unix(1234567890, 0)
-	body := []byte(`{"hello":"world"}`)
-
-	header := manager.GenerateSignatureHeader(timestamp, body)
-
-	assert.Contains(t, header, "t=1234567890")
-	assert.Contains(t, header, "v0=")
-	assert.Contains(t, header, "v0=")
-	assert.Contains(t, header, ",")
-}
-
-func TestSignatureManager_NoSecrets(t *testing.T) {
-	manager := destwebhook.NewSignatureManager(nil)
-	signatures := manager.GenerateSignatures(time.Now(), []byte("test"))
-	assert.Nil(t, signatures)
-
-	header := manager.GenerateSignatureHeader(time.Now(), []byte("test"))
-	assert.Empty(t, header)
-}
-
-func TestSignatureManager_MultipleValidSecrets(t *testing.T) {
-	now := time.Now()
-	secrets := []destwebhook.WebhookSecret{
-		{Key: "latest", CreatedAt: now},
-		{Key: "recent1", CreatedAt: now.Add(-12 * time.Hour)},
-		{Key: "recent2", CreatedAt: now.Add(-20 * time.Hour)},
-		{Key: "expired", CreatedAt: now.Add(-25 * time.Hour)},
-	}
-
-	manager := destwebhook.NewSignatureManager(secrets)
-	timestamp := time.Unix(1234567890, 0)
-	body := []byte(`{"hello":"world"}`)
-
-	signatures := manager.GenerateSignatures(timestamp, body)
-	assert.Len(t, signatures, 3) // Should include latest + 2 recent secrets
-
-	header := manager.GenerateSignatureHeader(timestamp, body)
-	assert.Contains(t, header, "t=1234567890")
-	// For 3 signatures, we expect:
-	// - 1 comma between t= and v0=
-	// - 2 commas between signatures
-	assert.Equal(t, 3, strings.Count(header, ","))
-}
-
 func TestSignatureEncoders(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -142,4 +72,107 @@ func TestSignatureEncoders(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSignatureManager(t *testing.T) {
+	t.Run("no secrets", func(t *testing.T) {
+		manager := destwebhook.NewSignatureManager(nil)
+		signatures := manager.GenerateSignatures(time.Now(), []byte("test"))
+		assert.Nil(t, signatures)
+
+		header := manager.GenerateSignatureHeader(time.Now(), []byte("test"))
+		assert.Empty(t, header)
+	})
+
+	t.Run("single old secret", func(t *testing.T) {
+		oldSecret := destwebhook.WebhookSecret{
+			Key:       "old_secret",
+			CreatedAt: time.Now().Add(-48 * time.Hour), // 48 hours old
+		}
+		body := []byte("test")
+		timestamp := time.Now()
+
+		manager := destwebhook.NewSignatureManager([]destwebhook.WebhookSecret{oldSecret})
+		signatures := manager.GenerateSignatures(timestamp, body)
+		assert.Len(t, signatures, 1, "should generate signature for single secret regardless of age")
+
+		// Verify signature is valid with correct key
+		assert.True(t, manager.VerifySignature(
+			signatures[0],
+			oldSecret.Key,
+			timestamp,
+			body,
+		), "signature should be valid with correct key")
+	})
+
+	t.Run("latest secret priority", func(t *testing.T) {
+		now := time.Now()
+		secrets := []destwebhook.WebhookSecret{
+			{Key: "oldest", CreatedAt: now.Add(-96 * time.Hour)},
+			{Key: "older", CreatedAt: now.Add(-72 * time.Hour)},
+			{Key: "latest", CreatedAt: now.Add(-48 * time.Hour)}, // Old but latest
+		}
+		body := []byte("test")
+		timestamp := time.Now()
+
+		manager := destwebhook.NewSignatureManager(secrets)
+		signatures := manager.GenerateSignatures(timestamp, body)
+		assert.Len(t, signatures, 1, "should only use latest secret")
+
+		// Verify signature is valid with latest key
+		assert.True(t, manager.VerifySignature(
+			signatures[0],
+			"latest",
+			timestamp,
+			body,
+		), "signature should be valid with latest key")
+
+		// Verify signature is invalid with older keys
+		assert.False(t, manager.VerifySignature(
+			signatures[0],
+			"older",
+			timestamp,
+			body,
+		), "signature should be invalid with older key")
+	})
+
+	t.Run("multiple valid secrets", func(t *testing.T) {
+		now := time.Now()
+		secrets := []destwebhook.WebhookSecret{
+			{Key: "latest", CreatedAt: now},
+			{Key: "recent1", CreatedAt: now.Add(-12 * time.Hour)},
+			{Key: "recent2", CreatedAt: now.Add(-20 * time.Hour)},
+			{Key: "expired", CreatedAt: now.Add(-25 * time.Hour)},
+		}
+
+		manager := destwebhook.NewSignatureManager(secrets)
+		timestamp := time.Unix(1234567890, 0)
+		body := []byte(`{"hello":"world"}`)
+
+		signatures := manager.GenerateSignatures(timestamp, body)
+		assert.Len(t, signatures, 3, "should include latest + 2 recent secrets")
+
+		// Verify each signature is valid with its corresponding key
+		validKeys := []string{"latest", "recent1", "recent2"}
+		for i, sig := range signatures {
+			assert.True(t, manager.VerifySignature(
+				sig,
+				validKeys[i],
+				timestamp,
+				body,
+			), "signature should be valid with its corresponding key")
+		}
+
+		// Verify signature is invalid with expired key
+		assert.False(t, manager.VerifySignature(
+			signatures[0],
+			"expired",
+			timestamp,
+			body,
+		), "signature should be invalid with expired key")
+
+		header := manager.GenerateSignatureHeader(timestamp, body)
+		assert.Contains(t, header, "t=1234567890")
+		assert.Equal(t, 3, strings.Count(header, ","), "should have correct number of commas in header")
+	})
 }
