@@ -56,13 +56,39 @@ type SignatureManager struct {
 	headerFormatter HeaderFormatter
 }
 
-func NewSignatureManager(secrets []WebhookSecret) *SignatureManager {
-	return &SignatureManager{
+type SignatureManagerOption func(*SignatureManager)
+
+func WithAlgorithm(algo SigningAlgorithm) SignatureManagerOption {
+	return func(sm *SignatureManager) {
+		sm.algorithm = algo
+	}
+}
+
+func WithSignatureFormatter(formatter SignatureFormatter) SignatureManagerOption {
+	return func(sm *SignatureManager) {
+		sm.sigFormatter = formatter
+	}
+}
+
+func WithHeaderFormatter(formatter HeaderFormatter) SignatureManagerOption {
+	return func(sm *SignatureManager) {
+		sm.headerFormatter = formatter
+	}
+}
+
+func NewSignatureManager(secrets []WebhookSecret, opts ...SignatureManagerOption) *SignatureManager {
+	sm := &SignatureManager{
 		secrets:         secrets,
 		algorithm:       HmacSHA256{},
 		sigFormatter:    DefaultSignatureFormatter{},
 		headerFormatter: DefaultHeaderFormatter{},
 	}
+
+	for _, opt := range opts {
+		opt(sm)
+	}
+
+	return sm
 }
 
 func (sm *SignatureManager) GenerateSignatures(timestamp time.Time, body []byte) []string {
