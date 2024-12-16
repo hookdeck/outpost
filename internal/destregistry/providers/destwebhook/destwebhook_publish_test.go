@@ -90,6 +90,11 @@ func (a *WebhookAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mess
 	assert.Equal(t, "/webhook", req.URL.Path)
 	assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
 
+	// Verify default headers
+	assert.NotEmpty(t, req.Header.Get(a.headerPrefix+"timestamp"), "timestamp header should be present")
+	assert.Equal(t, event.ID, req.Header.Get(a.headerPrefix+"event-id"), "event-id header should match")
+	assert.Equal(t, event.Topic, req.Header.Get(a.headerPrefix+"topic"), "topic header should match")
+
 	// Verify request content and metadata
 	for k, v := range event.Metadata {
 		assert.Equal(t, v, msg.Metadata[k], "metadata key %s should match expected value", k)

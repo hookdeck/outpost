@@ -144,6 +144,18 @@ func (p *WebhookPublisher) Close() error {
 	return nil
 }
 
+func (p *WebhookPublisher) prepareMetadata(event *models.Event) map[string]string {
+	metadata := make(map[string]string)
+	if event.Metadata != nil {
+		for k, v := range event.Metadata {
+			metadata[k] = v
+		}
+	}
+	metadata["event-id"] = event.ID
+	metadata["topic"] = event.Topic
+	return metadata
+}
+
 func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) error {
 	if err := p.BasePublisher.StartPublish(); err != nil {
 		return err
@@ -159,7 +171,7 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) err
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 
-	webhookReq := NewWebhookRequest(p.url, rawBody, event.Metadata, p.headerPrefix, p.secrets)
+	webhookReq := NewWebhookRequest(p.url, rawBody, p.prepareMetadata(event), p.headerPrefix, p.secrets)
 	httpReq, err := webhookReq.ToHTTPRequest(ctx)
 	if err != nil {
 		return err

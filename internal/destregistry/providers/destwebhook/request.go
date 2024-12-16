@@ -64,6 +64,10 @@ func (wr *WebhookRequest) ToHTTPRequest(ctx context.Context) (*http.Request, err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+
+	// Add timestamp header
+	req.Header.Set(wr.HeaderPrefix+"timestamp", fmt.Sprintf("%d", wr.Timestamp))
+
 	if len(wr.Signatures) > 0 {
 		// Format: t=123,v0=abc123,def456
 		signatureHeader := fmt.Sprintf("t=%d,v0=%s",

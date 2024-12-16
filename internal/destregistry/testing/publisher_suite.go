@@ -199,15 +199,21 @@ func (s *PublisherSuite) TestConcurrentPublish() {
 }
 
 func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
-	const maxFailedAttempts = 10
-	const maxTotalAttempts = 100
-	const publishInterval = 20 * time.Millisecond
-	const closeAfter = 150 * time.Millisecond
+	const (
+		maxFailedAttempts = 10
+		maxTotalAttempts  = 100
+		publishInterval   = 20 * time.Millisecond
+		closeAfter        = 150 * time.Millisecond
+	)
 
 	var successCount atomic.Int32
 	var closedCount atomic.Int32
 	var failedCount atomic.Int32
 	var totalAttempts atomic.Int32
+
+	// Track published events
+	var eventsMu sync.RWMutex
+	publishedEvents := make(map[int]models.Event)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -231,6 +237,12 @@ func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
 						"message_id": messageID,
 					}),
 				)
+
+				// Store event before publishing
+				eventsMu.Lock()
+				publishedEvents[messageID] = event
+				eventsMu.Unlock()
+
 				messageID++
 
 				err := s.pub.Publish(ctx, &event)
@@ -275,12 +287,11 @@ func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
 			s.Require().NoError(err)
 			messageID := int(body["message_id"].(float64))
 
-			// Only verify messages that were successfully published
-			expectedEvent := testutil.EventFactory.Any(
-				testutil.EventFactory.WithData(map[string]interface{}{
-					"message_id": messageID,
-				}),
-			)
+			// Get the original event for verification
+			eventsMu.RLock()
+			expectedEvent := publishedEvents[messageID]
+			eventsMu.RUnlock()
+
 			s.verifyMessage(msg, expectedEvent)
 			receivedMessages[messageID] = true
 			receivedCount++
