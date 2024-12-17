@@ -72,6 +72,8 @@ func NewService(ctx context.Context,
 				DisableDefaultSignatureHeader: cfg.DestinationWebhookDisableDefaultSignatureHeader,
 				DisableDefaultTimestampHeader: cfg.DestinationWebhookDisableDefaultTimestampHeader,
 				DisableDefaultTopicHeader:     cfg.DestinationWebhookDisableDefaultTopicHeader,
+				SignatureContentTemplate:      cfg.DestinationWebhookSignatureContentTemplate,
+				SignatureHeaderTemplate:       cfg.DestinationWebhookSignatureHeaderTemplate,
 			},
 		}); err != nil {
 			return nil, err

@@ -53,6 +53,8 @@ type Config struct {
 	DestinationWebhookDisableDefaultSignatureHeader bool
 	DestinationWebhookDisableDefaultTimestampHeader bool
 	DestinationWebhookDisableDefaultTopicHeader     bool
+	DestinationWebhookSignatureContentTemplate      string
+	DestinationWebhookSignatureHeaderTemplate       string
 
 	// Portal config
 	PortalRefererURL             string
@@ -208,6 +210,8 @@ func Parse(flags Flags) (*Config, error) {
 		DestinationWebhookDisableDefaultSignatureHeader: viper.GetBool("DESTINATION_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER"),
 		DestinationWebhookDisableDefaultTimestampHeader: viper.GetBool("DESTINATION_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER"),
 		DestinationWebhookDisableDefaultTopicHeader:     viper.GetBool("DESTINATION_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER"),
+		DestinationWebhookSignatureContentTemplate:      viper.GetString("DESTINATION_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE"),
+		DestinationWebhookSignatureHeaderTemplate:       viper.GetString("DESTINATION_WEBHOOK_SIGNATURE_HEADER_TEMPLATE"),
 
 		// Portal config
 		PortalRefererURL:             viper.GetString("PORTAL_REFERER_URL"),

@@ -13,6 +13,8 @@ type DestWebhookConfig struct {
 	DisableDefaultSignatureHeader bool
 	DisableDefaultTimestampHeader bool
 	DisableDefaultTopicHeader     bool
+	SignatureContentTemplate      string
+	SignatureHeaderTemplate       string
 }
 
 type RegisterDefaultDestinationOptions struct {
@@ -42,6 +44,8 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 			destwebhook.WithDisableDefaultSignatureHeader(opts.Webhook.DisableDefaultSignatureHeader),
 			destwebhook.WithDisableDefaultTimestampHeader(opts.Webhook.DisableDefaultTimestampHeader),
 			destwebhook.WithDisableDefaultTopicHeader(opts.Webhook.DisableDefaultTopicHeader),
+			destwebhook.WithSignatureContentTemplate(opts.Webhook.SignatureContentTemplate),
+			destwebhook.WithSignatureHeaderTemplate(opts.Webhook.SignatureHeaderTemplate),
 		}
 	}
 	webhook, err := destwebhook.New(loader, webhookOpts...)

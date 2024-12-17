@@ -54,6 +54,8 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 			DisableDefaultSignatureHeader: cfg.DestinationWebhookDisableDefaultSignatureHeader,
 			DisableDefaultTimestampHeader: cfg.DestinationWebhookDisableDefaultTimestampHeader,
 			DisableDefaultTopicHeader:     cfg.DestinationWebhookDisableDefaultTopicHeader,
+			SignatureContentTemplate:      cfg.DestinationWebhookSignatureContentTemplate,
+			SignatureHeaderTemplate:       cfg.DestinationWebhookSignatureHeaderTemplate,
 		},
 	}); err != nil {
 		return nil, err
