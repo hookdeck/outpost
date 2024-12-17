@@ -204,17 +204,28 @@ func (sm *SignatureManager) GenerateSignatures(content SignaturePayload) []strin
 
 	formattedContent := sm.sigFormatter.Format(content)
 	var signatures []string
-
-	// Always use latest secret
-	latestSecret := sortedSecrets[0]
-	signatures = append(signatures, sm.algorithm.Sign(latestSecret.Key, formattedContent, sm.encoder))
-
-	// Add signatures for non-expired secrets that aren't the latest
 	now := time.Now()
+
+	// Check if latest secret is valid
+	latestSecret := sortedSecrets[0]
+	if latestSecret.InvalidAt == nil || now.Before(*latestSecret.InvalidAt) {
+		signatures = append(signatures, sm.algorithm.Sign(latestSecret.Key, formattedContent, sm.encoder))
+	}
+
+	// Add signatures for valid non-latest secrets
 	for _, secret := range sortedSecrets[1:] {
-		if now.Sub(secret.CreatedAt) < 24*time.Hour {
-			signatures = append(signatures, sm.algorithm.Sign(secret.Key, formattedContent, sm.encoder))
+		// Check InvalidAt first if it exists
+		if secret.InvalidAt != nil {
+			if now.After(*secret.InvalidAt) {
+				continue
+			}
+		} else {
+			// Fall back to 24-hour window check
+			if now.Sub(secret.CreatedAt) >= 24*time.Hour {
+				continue
+			}
 		}
+		signatures = append(signatures, sm.algorithm.Sign(secret.Key, formattedContent, sm.encoder))
 	}
 
 	return signatures

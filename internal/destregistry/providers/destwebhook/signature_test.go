@@ -296,4 +296,98 @@ func TestSignatureManager(t *testing.T) {
 		assert.Contains(t, header, "t=1234567890")
 		assert.Equal(t, 3, strings.Count(header, ","), "should have correct number of commas in header")
 	})
+
+	t.Run("custom invalidation time", func(t *testing.T) {
+		now := time.Now()
+		invalidAt := now.Add(-1 * time.Hour)       // Invalidated 1 hour ago
+		futureInvalidAt := now.Add(12 * time.Hour) // Will be invalid in 12 hours
+
+		secrets := []destwebhook.WebhookSecret{
+			{Key: "latest", CreatedAt: now},
+			{Key: "valid_custom", CreatedAt: now.Add(-12 * time.Hour), InvalidAt: &futureInvalidAt},
+			{Key: "invalid_custom", CreatedAt: now.Add(-12 * time.Hour), InvalidAt: &invalidAt},
+			{Key: "valid_default", CreatedAt: now.Add(-12 * time.Hour)},
+		}
+
+		manager := destwebhook.NewSignatureManager(secrets)
+		timestamp := time.Unix(1234567890, 0)
+		body := `{"hello":"world"}`
+		payload := destwebhook.SignaturePayload{
+			Timestamp: timestamp,
+			Body:      body,
+			EventID:   "test-id",
+			Topic:     "test-topic",
+		}
+
+		signatures := manager.GenerateSignatures(payload)
+		assert.Len(t, signatures, 3, "should include latest + valid secrets")
+
+		// Verify each signature is valid with its corresponding key
+		validKeys := []string{"latest", "valid_custom", "valid_default"}
+		for i, sig := range signatures {
+			assert.True(t, manager.VerifySignature(
+				sig,
+				validKeys[i],
+				payload,
+			), "signature should be valid with its corresponding key")
+		}
+
+		// Verify signature is invalid with manually invalidated key
+		assert.False(t, manager.VerifySignature(
+			signatures[0],
+			"invalid_custom",
+			payload,
+		), "signature should be invalid with manually invalidated key")
+	})
+
+	t.Run("invalid latest secret", func(t *testing.T) {
+		now := time.Now()
+		invalidAt := now.Add(-1 * time.Hour) // Invalidated 1 hour ago
+
+		t.Run("with no other valid secrets", func(t *testing.T) {
+			secrets := []destwebhook.WebhookSecret{
+				{Key: "latest", CreatedAt: now, InvalidAt: &invalidAt},
+				{Key: "old1", CreatedAt: now.Add(-25 * time.Hour)}, // Past 24h window
+				{Key: "old2", CreatedAt: now.Add(-26 * time.Hour)}, // Past 24h window
+			}
+
+			manager := destwebhook.NewSignatureManager(secrets)
+			signatures := manager.GenerateSignatures(destwebhook.SignaturePayload{
+				Timestamp: time.Unix(1234567890, 0),
+				Body:      "test",
+				EventID:   "test-id",
+				Topic:     "test-topic",
+			})
+			assert.Empty(t, signatures, "should return empty signatures when latest is invalid and no other valid secrets")
+		})
+
+		t.Run("with other valid secrets", func(t *testing.T) {
+			secrets := []destwebhook.WebhookSecret{
+				{Key: "latest", CreatedAt: now, InvalidAt: &invalidAt},
+				{Key: "recent", CreatedAt: now.Add(-12 * time.Hour)}, // Within 24h window
+				{Key: "old", CreatedAt: now.Add(-25 * time.Hour)},    // Past 24h window
+			}
+
+			manager := destwebhook.NewSignatureManager(secrets)
+			signatures := manager.GenerateSignatures(destwebhook.SignaturePayload{
+				Timestamp: time.Unix(1234567890, 0),
+				Body:      "test",
+				EventID:   "test-id",
+				Topic:     "test-topic",
+			})
+			assert.Len(t, signatures, 1, "should only include valid non-latest secrets")
+
+			// Verify signature is valid with the recent key
+			assert.True(t, manager.VerifySignature(
+				signatures[0],
+				"recent",
+				destwebhook.SignaturePayload{
+					Timestamp: time.Unix(1234567890, 0),
+					Body:      "test",
+					EventID:   "test-id",
+					Topic:     "test-topic",
+				},
+			), "signature should be valid with recent key")
+		})
+	})
 }

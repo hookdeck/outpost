@@ -32,8 +32,9 @@ type WebhookDestinationConfig struct {
 }
 
 type WebhookSecret struct {
-	Key       string    `json:"key"`
-	CreatedAt time.Time `json:"created_at"`
+	Key       string     `json:"key"`
+	CreatedAt time.Time  `json:"created_at"`
+	InvalidAt *time.Time `json:"invalid_at,omitempty"`
 }
 
 type WebhookDestinationCredentials struct {
@@ -186,6 +187,34 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 				Field: "credentials.secrets",
 				Type:  "invalid_format",
 			}})
+		}
+
+		// Validate each secret
+		for i, secret := range creds.Secrets {
+			// Validate required fields
+			if secret.Key == "" {
+				return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+					Field: fmt.Sprintf("credentials.secrets[%d].key", i),
+					Type:  "required",
+				}})
+			}
+			if secret.CreatedAt.IsZero() {
+				return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+					Field: fmt.Sprintf("credentials.secrets[%d].created_at", i),
+					Type:  "required",
+				}})
+			}
+
+			// Validate invalid_at if provided
+			if secret.InvalidAt != nil {
+				// Check if invalid_at is after created_at
+				if !secret.InvalidAt.After(secret.CreatedAt) {
+					return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+						Field: fmt.Sprintf("credentials.secrets[%d].invalid_at", i),
+						Type:  "invalid_value",
+					}})
+				}
+			}
 		}
 	}
 

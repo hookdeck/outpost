@@ -14,7 +14,7 @@
       "key": "secrets",
       "type": "string",
       "label": "Webhook Secrets",
-      "description": "JSON array of webhook secrets with key and created_at fields",
+      "description": "JSON array of webhook secrets. Each secret should have: key (string), created_at (ISO 8601 timestamp), and optionally invalid_at (ISO 8601 timestamp) to manually invalidate the secret before the default 24-hour window",
       "required": false,
       "sensitive": false
     }
