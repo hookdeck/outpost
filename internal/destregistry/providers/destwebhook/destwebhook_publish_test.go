@@ -480,8 +480,23 @@ func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 		},
 		{
 			name:            "custom templates",
-			contentTemplate: "ts={{.Timestamp}};data={{.Body}}",
-			headerTemplate:  "time={{.Timestamp}};sigs={{.Signatures}}",
+			contentTemplate: `ts={{.Timestamp.Unix}};data={{.Body}}`,
+			headerTemplate:  `time={{.Timestamp.Unix}};sigs={{.Signatures | join ","}}`,
+			validateHeader: func(header string) bool {
+				return strings.HasPrefix(header, "time=") && strings.Contains(header, ";sigs=")
+			},
+			extractSignature: func(header string) (string, error) {
+				parts := strings.Split(header, "sigs=")
+				if len(parts) != 2 {
+					return "", fmt.Errorf("invalid signature header format")
+				}
+				return strings.Split(parts[1], ",")[0], nil
+			},
+		},
+		{
+			name:            "custom templates with event data",
+			contentTemplate: `ts={{.Timestamp.Unix}};id={{.EventID}};topic={{.Topic}};data={{.Body}}`,
+			headerTemplate:  `time={{.Timestamp.Unix}};sigs={{.Signatures | join ","}}`,
 			validateHeader: func(header string) bool {
 				return strings.HasPrefix(header, "time=") && strings.Contains(header, ";sigs=")
 			},
@@ -544,8 +559,12 @@ func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 			assert.True(t, sm.VerifySignature(
 				signature,
 				secret.Key,
-				now,
-				[]byte(`{"hello":"world"}`),
+				destwebhook.SignaturePayload{
+					Timestamp: now,
+					Body:      `{"hello":"world"}`,
+					EventID:   event.ID,
+					Topic:     event.Topic,
+				},
 			), "signature should verify with expected content")
 		})
 	}

@@ -11,7 +11,23 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/Masterminds/sprig/v3"
 )
+
+type SignaturePayload struct {
+	EventID   string
+	Topic     string
+	Timestamp time.Time
+	Body      string
+}
+
+type HeaderPayload struct {
+	EventID    string
+	Topic      string
+	Timestamp  time.Time
+	Signatures []string
+}
 
 type SigningAlgorithm interface {
 	Sign(key string, content string, encoder SignatureEncoder) string
@@ -20,11 +36,11 @@ type SigningAlgorithm interface {
 }
 
 type SignatureFormatter interface {
-	Format(timestamp time.Time, body []byte) string
+	Format(content SignaturePayload) string
 }
 
 type HeaderFormatter interface {
-	Format(timestamp time.Time, signatures []string) string
+	Format(content HeaderPayload) string
 }
 
 type SignatureEncoder interface {
@@ -44,76 +60,66 @@ func (e Base64Encoder) Encode(b []byte) string {
 }
 
 type SignatureFormatterImpl struct {
-	template string
+	template *template.Template
 }
 
-func NewSignatureFormatter(template string) *SignatureFormatterImpl {
-	if template == "" {
-		template = "{{.Timestamp}}.{{.Body}}"
-	}
-	return &SignatureFormatterImpl{template: template}
-}
-
-func (f *SignatureFormatterImpl) fallback(timestamp time.Time, body []byte) string {
-	return fmt.Sprintf("%d.%s", timestamp.Unix(), body)
-}
-
-func (f *SignatureFormatterImpl) Format(timestamp time.Time, body []byte) string {
-	data := struct {
-		Timestamp int64
-		Body      string
-	}{
-		Timestamp: timestamp.Unix(),
-		Body:      string(body),
+func NewSignatureFormatter(templateStr string) *SignatureFormatterImpl {
+	if templateStr == "" {
+		templateStr = `{{.Timestamp.Unix}}.{{.Body}}`
 	}
 
-	tmpl, err := template.New("signature").Parse(f.template)
+	tmpl := template.New("signature").Funcs(sprig.TxtFuncMap())
+
+	// Parse template, fallback to default if fails
+	parsed, err := tmpl.Parse(templateStr)
 	if err != nil {
-		return f.fallback(timestamp, body)
+		parsed, _ = tmpl.Parse(`{{.Timestamp.Unix}}.{{.Body}}`)
 	}
 
+	return &SignatureFormatterImpl{template: parsed}
+}
+
+func (f *SignatureFormatterImpl) fallback(content SignaturePayload) string {
+	return fmt.Sprintf("%d.%s", content.Timestamp.Unix(), content.Body)
+}
+
+func (f *SignatureFormatterImpl) Format(content SignaturePayload) string {
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return f.fallback(timestamp, body)
+	if err := f.template.Execute(&buf, content); err != nil {
+		return f.fallback(content)
 	}
-
 	return buf.String()
 }
 
 type HeaderFormatterImpl struct {
-	template string
+	template *template.Template
 }
 
-func NewHeaderFormatter(template string) *HeaderFormatterImpl {
-	if template == "" {
-		template = "t={{.Timestamp}},v0={{.Signatures}}"
-	}
-	return &HeaderFormatterImpl{template: template}
-}
-
-func (f *HeaderFormatterImpl) fallback(timestamp time.Time, signatures []string) string {
-	return fmt.Sprintf("t=%d,v0=%s", timestamp.Unix(), strings.Join(signatures, ","))
-}
-
-func (f *HeaderFormatterImpl) Format(timestamp time.Time, signatures []string) string {
-	data := struct {
-		Timestamp  int64
-		Signatures string
-	}{
-		Timestamp:  timestamp.Unix(),
-		Signatures: strings.Join(signatures, ","),
+func NewHeaderFormatter(templateStr string) *HeaderFormatterImpl {
+	if templateStr == "" {
+		templateStr = `t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}`
 	}
 
-	tmpl, err := template.New("header").Parse(f.template)
+	tmpl := template.New("header").Funcs(sprig.TxtFuncMap())
+
+	// Parse template, fallback to default if fails
+	parsed, err := tmpl.Parse(templateStr)
 	if err != nil {
-		return f.fallback(timestamp, signatures)
+		parsed, _ = tmpl.Parse(`t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}`)
 	}
 
+	return &HeaderFormatterImpl{template: parsed}
+}
+
+func (f *HeaderFormatterImpl) fallback(content HeaderPayload) string {
+	return fmt.Sprintf("t=%d,v0=%s", content.Timestamp.Unix(), strings.Join(content.Signatures, ","))
+}
+
+func (f *HeaderFormatterImpl) Format(content HeaderPayload) string {
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return f.fallback(timestamp, signatures)
+	if err := f.template.Execute(&buf, content); err != nil {
+		return f.fallback(content)
 	}
-
 	return buf.String()
 }
 
@@ -184,7 +190,7 @@ func NewSignatureManager(secrets []WebhookSecret, opts ...SignatureManagerOption
 	return sm
 }
 
-func (sm *SignatureManager) GenerateSignatures(timestamp time.Time, body []byte) []string {
+func (sm *SignatureManager) GenerateSignatures(content SignaturePayload) []string {
 	if len(sm.secrets) == 0 {
 		return nil
 	}
@@ -196,33 +202,38 @@ func (sm *SignatureManager) GenerateSignatures(timestamp time.Time, body []byte)
 		return sortedSecrets[i].CreatedAt.After(sortedSecrets[j].CreatedAt)
 	})
 
-	content := sm.sigFormatter.Format(timestamp, body)
+	formattedContent := sm.sigFormatter.Format(content)
 	var signatures []string
 
 	// Always use latest secret
 	latestSecret := sortedSecrets[0]
-	signatures = append(signatures, sm.algorithm.Sign(latestSecret.Key, content, sm.encoder))
+	signatures = append(signatures, sm.algorithm.Sign(latestSecret.Key, formattedContent, sm.encoder))
 
 	// Add signatures for non-expired secrets that aren't the latest
 	now := time.Now()
 	for _, secret := range sortedSecrets[1:] {
 		if now.Sub(secret.CreatedAt) < 24*time.Hour {
-			signatures = append(signatures, sm.algorithm.Sign(secret.Key, content, sm.encoder))
+			signatures = append(signatures, sm.algorithm.Sign(secret.Key, formattedContent, sm.encoder))
 		}
 	}
 
 	return signatures
 }
 
-func (sm *SignatureManager) GenerateSignatureHeader(timestamp time.Time, body []byte) string {
-	signatures := sm.GenerateSignatures(timestamp, body)
+func (sm *SignatureManager) GenerateSignatureHeader(content SignaturePayload) string {
+	signatures := sm.GenerateSignatures(content)
 	if len(signatures) == 0 {
 		return ""
 	}
-	return sm.headerFormatter.Format(timestamp, signatures)
+	return sm.headerFormatter.Format(HeaderPayload{
+		EventID:    content.EventID,
+		Topic:      content.Topic,
+		Timestamp:  content.Timestamp,
+		Signatures: signatures,
+	})
 }
 
-func (sm *SignatureManager) VerifySignature(signature, key string, timestamp time.Time, body []byte) bool {
-	content := sm.sigFormatter.Format(timestamp, body)
-	return sm.algorithm.Verify(key, content, signature, sm.encoder)
+func (sm *SignatureManager) VerifySignature(signature, key string, content SignaturePayload) bool {
+	formattedContent := sm.sigFormatter.Format(content)
+	return sm.algorithm.Verify(key, formattedContent, signature, sm.encoder)
 }

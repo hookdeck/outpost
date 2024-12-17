@@ -23,7 +23,7 @@ func TestHmacSHA256_Sign(t *testing.T) {
 
 func TestSignatureFormatter(t *testing.T) {
 	timestamp := time.Unix(1234567890, 0)
-	body := []byte(`{"hello":"world"}`)
+	body := `{"hello":"world"}`
 
 	tests := []struct {
 		name     string
@@ -37,7 +37,7 @@ func TestSignatureFormatter(t *testing.T) {
 		},
 		{
 			name:     "custom template",
-			template: "ts={{.Timestamp}};content={{.Body}}",
+			template: "ts={{.Timestamp.Unix}};content={{.Body}}",
 			want:     "ts=1234567890;content={\"hello\":\"world\"}",
 		},
 		{
@@ -47,7 +47,7 @@ func TestSignatureFormatter(t *testing.T) {
 		},
 		{
 			name:     "template matching legacy format",
-			template: "{{.Timestamp}}.{{.Body}}",
+			template: "{{.Timestamp.Unix}}.{{.Body}}",
 			want:     "1234567890.{\"hello\":\"world\"}",
 		},
 		{
@@ -55,12 +55,22 @@ func TestSignatureFormatter(t *testing.T) {
 			template: "{{.Timestamp.{{.Body}}", // Missing closing brace
 			want:     "1234567890.{\"hello\":\"world\"}",
 		},
+		{
+			name:     "template with event data",
+			template: "ts={{.Timestamp.Unix}};id={{.EventID}};topic={{.Topic}};data={{.Body}}",
+			want:     "ts=1234567890;id=test-id;topic=test-topic;data={\"hello\":\"world\"}",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			formatter := destwebhook.NewSignatureFormatter(tt.template)
-			result := formatter.Format(timestamp, body)
+			result := formatter.Format(destwebhook.SignaturePayload{
+				Timestamp: timestamp,
+				Body:      body,
+				EventID:   "test-id",
+				Topic:     "test-topic",
+			})
 			assert.Equal(t, tt.want, result)
 		})
 	}
@@ -82,7 +92,7 @@ func TestHeaderFormatter(t *testing.T) {
 		},
 		{
 			name:     "custom template",
-			template: "timestamp={{.Timestamp}};signatures={{.Signatures}}",
+			template: `timestamp={{.Timestamp.Unix}};signatures={{.Signatures | join ","}}`,
 			want:     "timestamp=1234567890;signatures=abc123,def456",
 		},
 		{
@@ -92,7 +102,7 @@ func TestHeaderFormatter(t *testing.T) {
 		},
 		{
 			name:     "template matching legacy format",
-			template: "t={{.Timestamp}},v0={{.Signatures}}",
+			template: `t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}`,
 			want:     "t=1234567890,v0=abc123,def456",
 		},
 		{
@@ -100,12 +110,22 @@ func TestHeaderFormatter(t *testing.T) {
 			template: "t={{.Timestamp},v0={{.Signatures}", // Missing closing brace
 			want:     "t=1234567890,v0=abc123,def456",
 		},
+		{
+			name:     "template with event data",
+			template: `t={{.Timestamp.Unix}},id={{.EventID}},topic={{.Topic}},v0={{.Signatures | join ","}}`,
+			want:     "t=1234567890,id=test-id,topic=test-topic,v0=abc123,def456",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			formatter := destwebhook.NewHeaderFormatter(tt.template)
-			result := formatter.Format(timestamp, signatures)
+			result := formatter.Format(destwebhook.HeaderPayload{
+				Timestamp:  timestamp,
+				Signatures: signatures,
+				EventID:    "test-id",
+				Topic:      "test-topic",
+			})
 			assert.Equal(t, tt.want, result)
 		})
 	}
@@ -145,10 +165,16 @@ func TestSignatureEncoders(t *testing.T) {
 func TestSignatureManager(t *testing.T) {
 	t.Run("no secrets", func(t *testing.T) {
 		manager := destwebhook.NewSignatureManager(nil)
-		signatures := manager.GenerateSignatures(time.Now(), []byte("test"))
+		signatures := manager.GenerateSignatures(destwebhook.SignaturePayload{
+			Timestamp: time.Now(),
+			Body:      "test",
+		})
 		assert.Nil(t, signatures)
 
-		header := manager.GenerateSignatureHeader(time.Now(), []byte("test"))
+		header := manager.GenerateSignatureHeader(destwebhook.SignaturePayload{
+			Timestamp: time.Now(),
+			Body:      "test",
+		})
 		assert.Empty(t, header)
 	})
 
@@ -157,19 +183,24 @@ func TestSignatureManager(t *testing.T) {
 			Key:       "old_secret",
 			CreatedAt: time.Now().Add(-48 * time.Hour), // 48 hours old
 		}
-		body := []byte("test")
+		body := "test"
 		timestamp := time.Now()
+		payload := destwebhook.SignaturePayload{
+			Timestamp: timestamp,
+			Body:      body,
+			EventID:   "test-id",
+			Topic:     "test-topic",
+		}
 
 		manager := destwebhook.NewSignatureManager([]destwebhook.WebhookSecret{oldSecret})
-		signatures := manager.GenerateSignatures(timestamp, body)
+		signatures := manager.GenerateSignatures(payload)
 		assert.Len(t, signatures, 1, "should generate signature for single secret regardless of age")
 
 		// Verify signature is valid with correct key
 		assert.True(t, manager.VerifySignature(
 			signatures[0],
 			oldSecret.Key,
-			timestamp,
-			body,
+			payload,
 		), "signature should be valid with correct key")
 	})
 
@@ -180,27 +211,31 @@ func TestSignatureManager(t *testing.T) {
 			{Key: "older", CreatedAt: now.Add(-72 * time.Hour)},
 			{Key: "latest", CreatedAt: now.Add(-48 * time.Hour)}, // Old but latest
 		}
-		body := []byte("test")
+		body := "test"
 		timestamp := time.Now()
+		payload := destwebhook.SignaturePayload{
+			Timestamp: timestamp,
+			Body:      body,
+			EventID:   "test-id",
+			Topic:     "test-topic",
+		}
 
 		manager := destwebhook.NewSignatureManager(secrets)
-		signatures := manager.GenerateSignatures(timestamp, body)
+		signatures := manager.GenerateSignatures(payload)
 		assert.Len(t, signatures, 1, "should only use latest secret")
 
 		// Verify signature is valid with latest key
 		assert.True(t, manager.VerifySignature(
 			signatures[0],
 			"latest",
-			timestamp,
-			body,
+			payload,
 		), "signature should be valid with latest key")
 
 		// Verify signature is invalid with older keys
 		assert.False(t, manager.VerifySignature(
 			signatures[0],
 			"older",
-			timestamp,
-			body,
+			payload,
 		), "signature should be invalid with older key")
 	})
 
@@ -215,9 +250,14 @@ func TestSignatureManager(t *testing.T) {
 
 		manager := destwebhook.NewSignatureManager(secrets)
 		timestamp := time.Unix(1234567890, 0)
-		body := []byte(`{"hello":"world"}`)
+		body := `{"hello":"world"}`
 
-		signatures := manager.GenerateSignatures(timestamp, body)
+		signatures := manager.GenerateSignatures(destwebhook.SignaturePayload{
+			Timestamp: timestamp,
+			Body:      body,
+			EventID:   "test-id",
+			Topic:     "test-topic",
+		})
 		assert.Len(t, signatures, 3, "should include latest + 2 recent secrets")
 
 		// Verify each signature is valid with its corresponding key
@@ -226,8 +266,12 @@ func TestSignatureManager(t *testing.T) {
 			assert.True(t, manager.VerifySignature(
 				sig,
 				validKeys[i],
-				timestamp,
-				body,
+				destwebhook.SignaturePayload{
+					Timestamp: timestamp,
+					Body:      body,
+					EventID:   "test-id",
+					Topic:     "test-topic",
+				},
 			), "signature should be valid with its corresponding key")
 		}
 
@@ -235,11 +279,20 @@ func TestSignatureManager(t *testing.T) {
 		assert.False(t, manager.VerifySignature(
 			signatures[0],
 			"expired",
-			timestamp,
-			body,
+			destwebhook.SignaturePayload{
+				Timestamp: timestamp,
+				Body:      body,
+				EventID:   "test-id",
+				Topic:     "test-topic",
+			},
 		), "signature should be invalid with expired key")
 
-		header := manager.GenerateSignatureHeader(timestamp, body)
+		header := manager.GenerateSignatureHeader(destwebhook.SignaturePayload{
+			Timestamp: timestamp,
+			Body:      body,
+			EventID:   "test-id",
+			Topic:     "test-topic",
+		})
 		assert.Contains(t, header, "t=1234567890")
 		assert.Equal(t, 3, strings.Count(header, ","), "should have correct number of commas in header")
 	})

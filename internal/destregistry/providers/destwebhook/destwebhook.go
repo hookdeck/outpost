@@ -267,7 +267,12 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 		req.Header.Set(p.headerPrefix+"topic", event.Topic)
 	}
 	if !p.disableSignatureHeader {
-		signatureHeader := p.sm.GenerateSignatureHeader(now, rawBody)
+		signatureHeader := p.sm.GenerateSignatureHeader(SignaturePayload{
+			EventID:   event.ID,
+			Topic:     event.Topic,
+			Timestamp: now,
+			Body:      string(rawBody),
+		})
 		if signatureHeader != "" {
 			req.Header.Set(p.headerPrefix+"signature", signatureHeader)
 		}
