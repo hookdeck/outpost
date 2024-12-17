@@ -3,10 +3,13 @@ package destwebhook
 import (
 	"bytes"
 	"crypto/hmac"
+	"crypto/md5"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"hash"
 	"sort"
 	"strings"
 	"text/template"
@@ -123,19 +126,43 @@ func (f *HeaderFormatterImpl) Format(content HeaderPayload) string {
 	return buf.String()
 }
 
-type HmacSHA256 struct{}
-
-func (h HmacSHA256) Name() string {
-	return "hmac-sha256"
+type HmacAlgo struct {
+	name string
+	hash func() hash.Hash
 }
 
-func (h HmacSHA256) Sign(key string, content string, encoder SignatureEncoder) string {
-	mac := hmac.New(sha256.New, []byte(key))
+func NewHmacSHA256() *HmacAlgo {
+	return &HmacAlgo{
+		name: "hmac-sha256",
+		hash: sha256.New,
+	}
+}
+
+func NewHmacSHA1() *HmacAlgo {
+	return &HmacAlgo{
+		name: "hmac-sha1",
+		hash: sha1.New,
+	}
+}
+
+func NewHmacMD5() *HmacAlgo {
+	return &HmacAlgo{
+		name: "hmac-md5",
+		hash: md5.New,
+	}
+}
+
+func (h *HmacAlgo) Name() string {
+	return h.name
+}
+
+func (h *HmacAlgo) Sign(key string, content string, encoder SignatureEncoder) string {
+	mac := hmac.New(h.hash, []byte(key))
 	mac.Write([]byte(content))
 	return encoder.Encode(mac.Sum(nil))
 }
 
-func (h HmacSHA256) Verify(key string, content string, signature string, encoder SignatureEncoder) bool {
+func (h *HmacAlgo) Verify(key string, content string, signature string, encoder SignatureEncoder) bool {
 	expectedSignature := h.Sign(key, content, encoder)
 	return hmac.Equal([]byte(signature), []byte(expectedSignature))
 }
@@ -177,7 +204,7 @@ func WithHeaderFormatter(formatter HeaderFormatter) SignatureManagerOption {
 func NewSignatureManager(secrets []WebhookSecret, opts ...SignatureManagerOption) *SignatureManager {
 	sm := &SignatureManager{
 		secrets:         secrets,
-		algorithm:       HmacSHA256{},
+		algorithm:       NewHmacSHA256(),
 		sigFormatter:    NewSignatureFormatter(""),
 		headerFormatter: NewHeaderFormatter(""),
 		encoder:         HexEncoder{},

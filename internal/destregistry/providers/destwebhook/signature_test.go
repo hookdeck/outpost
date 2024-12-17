@@ -9,16 +9,41 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestHmacSHA256_Sign(t *testing.T) {
-	algo := destwebhook.HmacSHA256{}
+func TestHmacAlgorithms(t *testing.T) {
 	key := "test-secret"
 	content := `1234567890.{"hello":"world"}`
 
-	signature := algo.Sign(key, content, destwebhook.HexEncoder{})
-	// Pre-computed expected signature for the given inputs
-	expected := "7054f74dae9f73e82b56ca73e8f81450097c698eeda0b00bb8728e89796baf2d"
+	tests := []struct {
+		name     string
+		algo     destwebhook.SigningAlgorithm
+		expected string // hex-encoded signature
+	}{
+		{
+			name:     "hmac-sha256",
+			algo:     destwebhook.NewHmacSHA256(),
+			expected: "7054f74dae9f73e82b56ca73e8f81450097c698eeda0b00bb8728e89796baf2d",
+		},
+		{
+			name:     "hmac-sha1",
+			algo:     destwebhook.NewHmacSHA1(),
+			expected: "e2f4423c54f5385099d8e3fbb01237d415ee8fdf",
+		},
+		{
+			name:     "hmac-md5",
+			algo:     destwebhook.NewHmacMD5(),
+			expected: "aa98470ad83d2d02006b1a67d2c3b4eb",
+		},
+	}
 
-	assert.Equal(t, expected, signature)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			signature := tt.algo.Sign(key, content, destwebhook.HexEncoder{})
+			assert.Equal(t, tt.expected, signature)
+
+			// Basic verification test
+			assert.True(t, tt.algo.Verify(key, content, signature, destwebhook.HexEncoder{}))
+		})
+	}
 }
 
 func TestSignatureFormatter(t *testing.T) {
