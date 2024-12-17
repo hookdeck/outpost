@@ -17,12 +17,14 @@ import (
 
 type WebhookDestination struct {
 	*destregistry.BaseProvider
-	timeout                time.Duration
-	headerPrefix           string
-	disableEventIDHeader   bool
-	disableSignatureHeader bool
-	disableTimestampHeader bool
-	disableTopicHeader     bool
+	timeout                  time.Duration
+	headerPrefix             string
+	signatureContentTemplate string
+	signatureHeaderTemplate  string
+	disableEventIDHeader     bool
+	disableSignatureHeader   bool
+	disableTimestampHeader   bool
+	disableTopicHeader       bool
 }
 
 type WebhookDestinationConfig struct {
@@ -82,12 +84,28 @@ func WithDisableDefaultTopicHeader(disable bool) Option {
 	}
 }
 
+func WithSignatureContentTemplate(template string) Option {
+	return func(w *WebhookDestination) {
+		w.signatureContentTemplate = template
+	}
+}
+
+func WithSignatureHeaderTemplate(template string) Option {
+	return func(w *WebhookDestination) {
+		w.signatureHeaderTemplate = template
+	}
+}
+
 func New(loader metadata.MetadataLoader, opts ...Option) (*WebhookDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "webhook")
 	if err != nil {
 		return nil, err
 	}
-	destination := &WebhookDestination{BaseProvider: base, timeout: 30 * time.Second, headerPrefix: "x-outpost-"}
+	destination := &WebhookDestination{
+		BaseProvider: base,
+		timeout:      30 * time.Second,
+		headerPrefix: "x-outpost-",
+	}
 	for _, opt := range opts {
 		opt(destination)
 	}
@@ -129,13 +147,20 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 	if err != nil {
 		return nil, err
 	}
+
+	sm := NewSignatureManager(
+		creds.Secrets,
+		WithSignatureFormatter(NewSignatureFormatter(d.signatureContentTemplate)),
+		WithHeaderFormatter(NewHeaderFormatter(d.signatureHeaderTemplate)),
+	)
+
 	return &WebhookPublisher{
 		BasePublisher:          &destregistry.BasePublisher{},
 		url:                    config.URL,
 		headerPrefix:           d.headerPrefix,
 		secrets:                creds.Secrets,
 		timeout:                d.timeout,
-		sm:                     NewSignatureManager(creds.Secrets),
+		sm:                     sm,
 		disableEventIDHeader:   d.disableEventIDHeader,
 		disableSignatureHeader: d.disableSignatureHeader,
 		disableTimestampHeader: d.disableTimestampHeader,
@@ -218,7 +243,7 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) err
 
 // Format is a helper function to format the event data into an HTTP request.
 func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*http.Request, error) {
-	now := time.Now()
+	now := getTime(ctx)
 	rawBody, err := json.Marshal(event.Data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal event data: %w", err)
@@ -254,4 +279,19 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 	}
 
 	return req, nil
+}
+
+type ctxKey string
+
+const fixedTimeKey ctxKey = "fixed_time"
+
+func WithFixedTime(ctx context.Context, t time.Time) context.Context {
+	return context.WithValue(ctx, fixedTimeKey, t)
+}
+
+func getTime(ctx context.Context) time.Time {
+	if t, ok := ctx.Value(fixedTimeKey).(time.Time); ok {
+		return t
+	}
+	return time.Now()
 }

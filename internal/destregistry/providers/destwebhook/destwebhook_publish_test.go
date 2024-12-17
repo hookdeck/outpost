@@ -433,11 +433,11 @@ func TestWebhookPublisher_DisableDefaultHeaders(t *testing.T) {
 			publisher, err := dest.CreatePublisher(context.Background(), &destination)
 			require.NoError(t, err)
 
-			req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &models.Event{
-				ID:    "test-id",
-				Topic: "test-topic",
-				Data:  map[string]interface{}{"key": "value"},
-			})
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+			)
+
+			req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
 			require.NoError(t, err)
 
 			if tt.shouldExist {
@@ -445,6 +445,108 @@ func TestWebhookPublisher_DisableDefaultHeaders(t *testing.T) {
 			} else {
 				assert.Empty(t, req.Header.Get(tt.expectedHeader))
 			}
+		})
+	}
+}
+
+func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
+	now := time.Now()
+	secret := destwebhook.WebhookSecret{
+		Key:       "test-secret",
+		CreatedAt: now,
+	}
+
+	tests := []struct {
+		name             string
+		contentTemplate  string
+		headerTemplate   string
+		validateHeader   func(string) bool
+		extractSignature func(string) (string, error)
+	}{
+		{
+			name:            "default templates",
+			contentTemplate: "",
+			headerTemplate:  "",
+			validateHeader: func(header string) bool {
+				return strings.HasPrefix(header, "t=") && strings.Contains(header, ",v0=")
+			},
+			extractSignature: func(header string) (string, error) {
+				parts := strings.Split(header, "v0=")
+				if len(parts) != 2 {
+					return "", fmt.Errorf("invalid signature header format")
+				}
+				return strings.Split(parts[1], ",")[0], nil
+			},
+		},
+		{
+			name:            "custom templates",
+			contentTemplate: "ts={{.Timestamp}};data={{.Body}}",
+			headerTemplate:  "time={{.Timestamp}};sigs={{.Signatures}}",
+			validateHeader: func(header string) bool {
+				return strings.HasPrefix(header, "time=") && strings.Contains(header, ";sigs=")
+			},
+			extractSignature: func(header string) (string, error) {
+				parts := strings.Split(header, "sigs=")
+				if len(parts) != 2 {
+					return "", fmt.Errorf("invalid signature header format")
+				}
+				return strings.Split(parts[1], ",")[0], nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider, err := destwebhook.New(
+				testutil.Registry.MetadataLoader(),
+				destwebhook.WithSignatureContentTemplate(tt.contentTemplate),
+				destwebhook.WithSignatureHeaderTemplate(tt.headerTemplate),
+			)
+			require.NoError(t, err)
+
+			destination := testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithType("webhook"),
+				testutil.DestinationFactory.WithConfig(map[string]string{
+					"url": "http://example.com",
+				}),
+				testutil.DestinationFactory.WithCredentials(map[string]string{
+					"secrets": fmt.Sprintf(`[{"key":"%s","created_at":"%s"}]`,
+						secret.Key,
+						secret.CreatedAt.Format(time.RFC3339)),
+				}),
+			)
+
+			publisher, err := provider.CreatePublisher(context.Background(), &destination)
+			require.NoError(t, err)
+
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithData(map[string]interface{}{"hello": "world"}),
+			)
+
+			req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
+			require.NoError(t, err)
+
+			// Verify header format
+			signatureHeader := req.Header.Get("x-outpost-signature")
+			assert.True(t, tt.validateHeader(signatureHeader), "header format should match expected pattern")
+
+			// Extract signature using test case's extraction function
+			signature, err := tt.extractSignature(signatureHeader)
+			require.NoError(t, err)
+
+			// Create a new signature manager to verify
+			sm := destwebhook.NewSignatureManager(
+				[]destwebhook.WebhookSecret{secret},
+				destwebhook.WithSignatureFormatter(destwebhook.NewSignatureFormatter(tt.contentTemplate)),
+			)
+
+			// Verify signature matches expected content
+			assert.True(t, sm.VerifySignature(
+				signature,
+				secret.Key,
+				now,
+				[]byte(`{"hello":"world"}`),
+			), "signature should verify with expected content")
 		})
 	}
 }
