@@ -21,26 +21,94 @@ func TestHmacSHA256_Sign(t *testing.T) {
 	assert.Equal(t, expected, signature)
 }
 
-func TestDefaultSignatureFormatter(t *testing.T) {
-	formatter := destwebhook.DefaultSignatureFormatter{}
+func TestSignatureFormatter(t *testing.T) {
 	timestamp := time.Unix(1234567890, 0)
 	body := []byte(`{"hello":"world"}`)
 
-	result := formatter.Format(timestamp, body)
-	expected := "1234567890.{\"hello\":\"world\"}"
+	tests := []struct {
+		name     string
+		template string
+		want     string
+	}{
+		{
+			name:     "default template",
+			template: "",
+			want:     "1234567890.{\"hello\":\"world\"}",
+		},
+		{
+			name:     "custom template",
+			template: "ts={{.Timestamp}};content={{.Body}}",
+			want:     "ts=1234567890;content={\"hello\":\"world\"}",
+		},
+		{
+			name:     "invalid template",
+			template: "{{.Invalid}}", // This should fallback to default format
+			want:     "1234567890.{\"hello\":\"world\"}",
+		},
+		{
+			name:     "template matching legacy format",
+			template: "{{.Timestamp}}.{{.Body}}",
+			want:     "1234567890.{\"hello\":\"world\"}",
+		},
+		{
+			name:     "template with malformed syntax",
+			template: "{{.Timestamp.{{.Body}}", // Missing closing brace
+			want:     "1234567890.{\"hello\":\"world\"}",
+		},
+	}
 
-	assert.Equal(t, expected, result)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			formatter := destwebhook.NewSignatureFormatter(tt.template)
+			result := formatter.Format(timestamp, body)
+			assert.Equal(t, tt.want, result)
+		})
+	}
 }
 
-func TestDefaultHeaderFormatter(t *testing.T) {
-	formatter := destwebhook.DefaultHeaderFormatter{}
+func TestHeaderFormatter(t *testing.T) {
 	timestamp := time.Unix(1234567890, 0)
 	signatures := []string{"abc123", "def456"}
 
-	result := formatter.Format(timestamp, signatures)
-	expected := "t=1234567890,v0=abc123,def456"
+	tests := []struct {
+		name     string
+		template string
+		want     string
+	}{
+		{
+			name:     "default template",
+			template: "",
+			want:     "t=1234567890,v0=abc123,def456",
+		},
+		{
+			name:     "custom template",
+			template: "timestamp={{.Timestamp}};signatures={{.Signatures}}",
+			want:     "timestamp=1234567890;signatures=abc123,def456",
+		},
+		{
+			name:     "invalid template",
+			template: "{{.Invalid}}", // This should fallback to default format
+			want:     "t=1234567890,v0=abc123,def456",
+		},
+		{
+			name:     "template matching legacy format",
+			template: "t={{.Timestamp}},v0={{.Signatures}}",
+			want:     "t=1234567890,v0=abc123,def456",
+		},
+		{
+			name:     "template with malformed syntax",
+			template: "t={{.Timestamp},v0={{.Signatures}", // Missing closing brace
+			want:     "t=1234567890,v0=abc123,def456",
+		},
+	}
 
-	assert.Equal(t, expected, result)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			formatter := destwebhook.NewHeaderFormatter(tt.template)
+			result := formatter.Format(timestamp, signatures)
+			assert.Equal(t, tt.want, result)
+		})
+	}
 }
 
 func TestSignatureEncoders(t *testing.T) {

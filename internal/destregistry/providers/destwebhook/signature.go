@@ -1,6 +1,7 @@
 package destwebhook
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 )
 
@@ -41,16 +43,78 @@ func (e Base64Encoder) Encode(b []byte) string {
 	return base64.StdEncoding.EncodeToString(b)
 }
 
-type DefaultSignatureFormatter struct{}
+type SignatureFormatterImpl struct {
+	template string
+}
 
-func (f DefaultSignatureFormatter) Format(timestamp time.Time, body []byte) string {
+func NewSignatureFormatter(template string) *SignatureFormatterImpl {
+	if template == "" {
+		template = "{{.Timestamp}}.{{.Body}}"
+	}
+	return &SignatureFormatterImpl{template: template}
+}
+
+func (f *SignatureFormatterImpl) fallback(timestamp time.Time, body []byte) string {
 	return fmt.Sprintf("%d.%s", timestamp.Unix(), body)
 }
 
-type DefaultHeaderFormatter struct{}
+func (f *SignatureFormatterImpl) Format(timestamp time.Time, body []byte) string {
+	data := struct {
+		Timestamp int64
+		Body      string
+	}{
+		Timestamp: timestamp.Unix(),
+		Body:      string(body),
+	}
 
-func (f DefaultHeaderFormatter) Format(timestamp time.Time, signatures []string) string {
+	tmpl, err := template.New("signature").Parse(f.template)
+	if err != nil {
+		return f.fallback(timestamp, body)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return f.fallback(timestamp, body)
+	}
+
+	return buf.String()
+}
+
+type HeaderFormatterImpl struct {
+	template string
+}
+
+func NewHeaderFormatter(template string) *HeaderFormatterImpl {
+	if template == "" {
+		template = "t={{.Timestamp}},v0={{.Signatures}}"
+	}
+	return &HeaderFormatterImpl{template: template}
+}
+
+func (f *HeaderFormatterImpl) fallback(timestamp time.Time, signatures []string) string {
 	return fmt.Sprintf("t=%d,v0=%s", timestamp.Unix(), strings.Join(signatures, ","))
+}
+
+func (f *HeaderFormatterImpl) Format(timestamp time.Time, signatures []string) string {
+	data := struct {
+		Timestamp  int64
+		Signatures string
+	}{
+		Timestamp:  timestamp.Unix(),
+		Signatures: strings.Join(signatures, ","),
+	}
+
+	tmpl, err := template.New("header").Parse(f.template)
+	if err != nil {
+		return f.fallback(timestamp, signatures)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return f.fallback(timestamp, signatures)
+	}
+
+	return buf.String()
 }
 
 type HmacSHA256 struct{}
@@ -108,8 +172,8 @@ func NewSignatureManager(secrets []WebhookSecret, opts ...SignatureManagerOption
 	sm := &SignatureManager{
 		secrets:         secrets,
 		algorithm:       HmacSHA256{},
-		sigFormatter:    DefaultSignatureFormatter{},
-		headerFormatter: DefaultHeaderFormatter{},
+		sigFormatter:    NewSignatureFormatter(""),
+		headerFormatter: NewHeaderFormatter(""),
 		encoder:         HexEncoder{},
 	}
 
