@@ -15,6 +15,11 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
+const (
+	DefaultEncoding  = "hex"
+	DefaultAlgorithm = "hmac-sha256"
+)
+
 type WebhookDestination struct {
 	*destregistry.BaseProvider
 	timeout                  time.Duration
@@ -25,6 +30,8 @@ type WebhookDestination struct {
 	disableSignatureHeader   bool
 	disableTimestampHeader   bool
 	disableTopicHeader       bool
+	encoding                 string
+	algorithm                string
 }
 
 type WebhookDestinationConfig struct {
@@ -97,6 +104,18 @@ func WithSignatureHeaderTemplate(template string) Option {
 	}
 }
 
+func WithSignatureEncoding(encoding string) Option {
+	return func(w *WebhookDestination) {
+		w.encoding = encoding
+	}
+}
+
+func WithSignatureAlgorithm(algorithm string) Option {
+	return func(w *WebhookDestination) {
+		w.algorithm = algorithm
+	}
+}
+
 func New(loader metadata.MetadataLoader, opts ...Option) (*WebhookDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "webhook")
 	if err != nil {
@@ -106,6 +125,8 @@ func New(loader metadata.MetadataLoader, opts ...Option) (*WebhookDestination, e
 		BaseProvider: base,
 		timeout:      30 * time.Second,
 		headerPrefix: "x-outpost-",
+		encoding:     DefaultEncoding,
+		algorithm:    DefaultAlgorithm,
 	}
 	for _, opt := range opts {
 		opt(destination)
@@ -143,6 +164,38 @@ func (d *WebhookDestination) Validate(ctx context.Context, destination *models.D
 	return nil
 }
 
+// GetEncoder returns the appropriate SignatureEncoder for the given encoding
+func GetEncoder(encoding string) SignatureEncoder {
+	switch encoding {
+	case "base64":
+		return Base64Encoder{}
+	case "hex":
+		return HexEncoder{}
+	default:
+		return HexEncoder{} // default to hex
+	}
+}
+
+// GetAlgorithm returns the appropriate SigningAlgorithm for the given algorithm name
+func GetAlgorithm(algorithm string) SigningAlgorithm {
+	switch algorithm {
+	case "hmac-sha1":
+		return NewHmacSHA1()
+	case "hmac-sha256":
+		return NewHmacSHA256()
+	default:
+		return NewHmacSHA256() // default to hmac-sha256
+	}
+}
+
+func (d *WebhookDestination) GetSignatureEncoding() string {
+	return d.encoding
+}
+
+func (d *WebhookDestination) GetSignatureAlgorithm() string {
+	return d.algorithm
+}
+
 func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
 	config, creds, err := d.resolveConfig(ctx, destination)
 	if err != nil {
@@ -153,6 +206,8 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		creds.Secrets,
 		WithSignatureFormatter(NewSignatureFormatter(d.signatureContentTemplate)),
 		WithHeaderFormatter(NewHeaderFormatter(d.signatureHeaderTemplate)),
+		WithEncoder(GetEncoder(d.encoding)),
+		WithAlgorithm(GetAlgorithm(d.algorithm)),
 	)
 
 	return &WebhookPublisher{
