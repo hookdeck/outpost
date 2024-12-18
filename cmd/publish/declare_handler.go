@@ -8,7 +8,7 @@ import (
 func handleDeclare(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch r.URL.Query().Get("method") {
-	case "aws":
+	case "aws_sqs":
 		err = declareAWS()
 	case "rabbitmq":
 		err = declareRabbitMQ()

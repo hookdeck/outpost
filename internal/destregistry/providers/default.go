@@ -2,7 +2,7 @@ package destregistrydefault
 
 import (
 	"github.com/hookdeck/outpost/internal/destregistry"
-	"github.com/hookdeck/outpost/internal/destregistry/providers/destaws"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destawssqs"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 )
@@ -26,11 +26,11 @@ type RegisterDefaultDestinationOptions struct {
 func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestinationOptions) error {
 	loader := registry.MetadataLoader()
 
-	aws, err := destaws.New(loader)
+	awsSQS, err := destawssqs.New(loader)
 	if err != nil {
 		return err
 	}
-	registry.RegisterProvider("aws", aws)
+	registry.RegisterProvider("aws_sqs", awsSQS)
 
 	rabbitmq, err := destrabbitmq.New(loader)
 	if err != nil {

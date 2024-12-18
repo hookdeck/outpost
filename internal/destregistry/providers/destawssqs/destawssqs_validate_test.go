@@ -1,20 +1,20 @@
-package destaws_test
+package destawssqs_test
 
 import (
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
-	destaws "github.com/hookdeck/outpost/internal/destregistry/providers/destaws"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destawssqs"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestAWSDestination_Validate(t *testing.T) {
+func TestAWSSQSDestination_Validate(t *testing.T) {
 	t.Parallel()
 
 	validDestination := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("aws"),
+		testutil.DestinationFactory.WithType("aws_sqs"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"queue_url": "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue",
 			"endpoint":  "https://sqs.us-east-1.amazonaws.com",
@@ -26,19 +26,19 @@ func TestAWSDestination_Validate(t *testing.T) {
 		}),
 	)
 
-	awsDestination, err := destaws.New(testutil.Registry.MetadataLoader())
+	awsSQSDestination, err := destawssqs.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
 		t.Parallel()
-		assert.NoError(t, awsDestination.Validate(nil, &validDestination))
+		assert.NoError(t, awsSQSDestination.Validate(nil, &validDestination))
 	})
 
 	t.Run("should validate invalid type", func(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
 		invalidDestination.Type = "invalid"
-		err := awsDestination.Validate(nil, &invalidDestination)
+		err := awsSQSDestination.Validate(nil, &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "type", validationErr.Errors[0].Field)
@@ -51,7 +51,7 @@ func TestAWSDestination_Validate(t *testing.T) {
 		invalidDestination.Config = map[string]string{
 			"endpoint": "https://sqs.us-east-1.amazonaws.com",
 		}
-		err := awsDestination.Validate(nil, &invalidDestination)
+		err := awsSQSDestination.Validate(nil, &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.queue_url", validationErr.Errors[0].Field)
@@ -65,7 +65,7 @@ func TestAWSDestination_Validate(t *testing.T) {
 			"queue_url": "not-a-valid-url",
 			"endpoint":  "https://sqs.us-east-1.amazonaws.com",
 		}
-		err := awsDestination.Validate(nil, &invalidDestination)
+		err := awsSQSDestination.Validate(nil, &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.queue_url", validationErr.Errors[0].Field)
@@ -79,7 +79,7 @@ func TestAWSDestination_Validate(t *testing.T) {
 			"queue_url": "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue",
 			"endpoint":  "not-a-valid-url",
 		}
-		err := awsDestination.Validate(nil, &invalidDestination)
+		err := awsSQSDestination.Validate(nil, &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.endpoint", validationErr.Errors[0].Field)
@@ -90,7 +90,7 @@ func TestAWSDestination_Validate(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
 		invalidDestination.Credentials = map[string]string{}
-		err := awsDestination.Validate(nil, &invalidDestination)
+		err := awsSQSDestination.Validate(nil, &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		// Could be either key or secret that's reported first

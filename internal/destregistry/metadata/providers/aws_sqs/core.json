@@ -1,5 +1,5 @@
 {
-  "type": "aws",
+  "type": "aws_sqs",
   "config_fields": [
     {
       "key": "queue_url",

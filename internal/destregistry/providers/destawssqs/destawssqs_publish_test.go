@@ -1,4 +1,4 @@
-package destaws_test
+package destawssqs_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	"github.com/hookdeck/outpost/internal/destregistry/providers/destaws"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destawssqs"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/util/awsutil"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
@@ -81,16 +81,16 @@ func (c *SQSConsumer) Close() error {
 	return nil
 }
 
-type AWSSuite struct {
+type AWSSQSSuite struct {
 	testsuite.PublisherSuite
 	consumer *SQSConsumer
 }
 
-func TestAWSSuite(t *testing.T) {
-	suite.Run(t, new(AWSSuite))
+func TestAWSSQSSuite(t *testing.T) {
+	suite.Run(t, new(AWSSQSSuite))
 }
 
-func (s *AWSSuite) SetupSuite() {
+func (s *AWSSQSSuite) SetupSuite() {
 	t := s.T()
 	t.Cleanup(testinfra.Start(t))
 	mqConfig := testinfra.NewMQAWSConfig(t, nil)
@@ -105,12 +105,12 @@ func (s *AWSSuite) SetupSuite() {
 	s.consumer = NewSQSConsumer(sqsClient, queueURL)
 
 	// Create provider
-	provider, err := destaws.New(testutil.Registry.MetadataLoader())
+	provider, err := destawssqs.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
 
 	// Create destination
 	destination := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("aws"),
+		testutil.DestinationFactory.WithType("aws_sqs"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"endpoint":  mqConfig.AWSSQS.Endpoint,
 			"queue_url": queueURL,
@@ -131,7 +131,7 @@ func (s *AWSSuite) SetupSuite() {
 	s.InitSuite(cfg)
 }
 
-func (s *AWSSuite) TearDownSuite() {
+func (s *AWSSQSSuite) TearDownSuite() {
 	if s.consumer != nil {
 		s.consumer.Close()
 	}

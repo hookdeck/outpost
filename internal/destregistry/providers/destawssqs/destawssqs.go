@@ -1,4 +1,4 @@
-package destaws
+package destawssqs
 
 import (
 	"context"
@@ -16,35 +16,35 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
-type AWSDestination struct {
+type AWSSQSDestination struct {
 	*destregistry.BaseProvider
 }
 
-type AWSDestinationConfig struct {
+type AWSSQSDestinationConfig struct {
 	Endpoint string // optional
 	QueueURL string
 }
 
-type AWSDestinationCredentials struct {
+type AWSSQSDestinationCredentials struct {
 	Key     string
 	Secret  string
 	Session string // optional
 }
 
-var _ destregistry.Provider = (*AWSDestination)(nil)
+var _ destregistry.Provider = (*AWSSQSDestination)(nil)
 
-func New(loader metadata.MetadataLoader) (*AWSDestination, error) {
-	base, err := destregistry.NewBaseProvider(loader, "aws")
+func New(loader metadata.MetadataLoader) (*AWSSQSDestination, error) {
+	base, err := destregistry.NewBaseProvider(loader, "aws_sqs")
 	if err != nil {
 		return nil, err
 	}
 
-	return &AWSDestination{
+	return &AWSSQSDestination{
 		BaseProvider: base,
 	}, nil
 }
 
-func (d *AWSDestination) Validate(ctx context.Context, destination *models.Destination) error {
+func (d *AWSSQSDestination) Validate(ctx context.Context, destination *models.Destination) error {
 	_, _, err := d.resolveMetadata(ctx, destination)
 	if err != nil {
 		return err
@@ -52,7 +52,7 @@ func (d *AWSDestination) Validate(ctx context.Context, destination *models.Desti
 	return nil
 }
 
-func (p *AWSDestination) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
+func (p *AWSSQSDestination) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
 	cfg, creds, err := p.resolveMetadata(ctx, destination)
 	if err != nil {
 		return nil, err
@@ -75,40 +75,40 @@ func (p *AWSDestination) CreatePublisher(ctx context.Context, destination *model
 		}
 	})
 
-	return &AWSPublisher{
+	return &AWSSQSPublisher{
 		BasePublisher: &destregistry.BasePublisher{},
 		client:        sqsClient,
 		queueURL:      cfg.QueueURL,
 	}, nil
 }
 
-func (d *AWSDestination) resolveMetadata(ctx context.Context, destination *models.Destination) (*AWSDestinationConfig, *AWSDestinationCredentials, error) {
+func (d *AWSSQSDestination) resolveMetadata(ctx context.Context, destination *models.Destination) (*AWSSQSDestinationConfig, *AWSSQSDestinationCredentials, error) {
 	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
 		return nil, nil, err
 	}
 
-	return &AWSDestinationConfig{
+	return &AWSSQSDestinationConfig{
 			Endpoint: destination.Config["endpoint"],
 			QueueURL: destination.Config["queue_url"],
-		}, &AWSDestinationCredentials{
+		}, &AWSSQSDestinationCredentials{
 			Key:     destination.Credentials["key"],
 			Secret:  destination.Credentials["secret"],
 			Session: destination.Credentials["session"],
 		}, nil
 }
 
-type AWSPublisher struct {
+type AWSSQSPublisher struct {
 	*destregistry.BasePublisher
 	client   *sqs.Client
 	queueURL string
 }
 
-func (p *AWSPublisher) Close() error {
+func (p *AWSSQSPublisher) Close() error {
 	p.BasePublisher.StartClose()
 	return nil
 }
 
-func (p *AWSPublisher) Publish(ctx context.Context, event *models.Event) error {
+func (p *AWSSQSPublisher) Publish(ctx context.Context, event *models.Event) error {
 	if err := p.BasePublisher.StartPublish(); err != nil {
 		return err
 	}

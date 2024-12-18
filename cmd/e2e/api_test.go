@@ -1002,10 +1002,10 @@ func (suite *basicSuite) TestDestinationTypesAPI() {
 						"statusCode": map[string]any{"const": 200},
 						"body": map[string]interface{}{
 							"type":     "object",
-							"required": []interface{}{"webhook", "aws", "rabbitmq"},
+							"required": []interface{}{"webhook", "aws_sqs", "rabbitmq"},
 							"properties": map[string]interface{}{
 								"webhook":  providerSchema,
-								"aws":      providerSchema,
+								"aws_sqs":  providerSchema,
 								"rabbitmq": providerSchema,
 							},
 						},

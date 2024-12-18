@@ -34,7 +34,7 @@ $ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: ••••••' \
 --data '{
-    "type": "aws",
+    "type": "aws_sqs",
     "topics": ["*"],
     "config": {
         "endpoint": "http://localhost:4566",
@@ -46,7 +46,7 @@ $ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
 ```json
 {
   "id": "...",
-  "type": "aws",
+  "type": "aws_sqs",
   "topics": [
     "*"
   ],
