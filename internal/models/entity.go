@@ -93,7 +93,7 @@ func NewEntityStore(redisClient *redis.Client, opts ...EntityStoreOption) Entity
 func (s *entityStoreImpl) RetrieveTenant(ctx context.Context, tenantID string) (*Tenant, error) {
 	pipe := s.redisClient.Pipeline()
 	tenantCmd := pipe.HGetAll(ctx, redisTenantID(tenantID))
-	topicsCmd := pipe.HGetAll(ctx, redisTenantDestinationSummaryKey(tenantID))
+	destinationListCmd := pipe.HGetAll(ctx, redisTenantDestinationSummaryKey(tenantID))
 
 	if _, err := pipe.Exec(ctx); err != nil {
 		return nil, err
@@ -111,7 +111,7 @@ func (s *entityStoreImpl) RetrieveTenant(ctx context.Context, tenantID string) (
 		return nil, err
 	}
 
-	destinationSummaryList, err := s.parselistDestinationSummaryByTenantCmd(topicsCmd, ListDestinationByTenantOpts{})
+	destinationSummaryList, err := s.parseListDestinationSummaryByTenantCmd(destinationListCmd, ListDestinationByTenantOpts{})
 	if err != nil {
 		return nil, err
 	}
@@ -186,10 +186,10 @@ func (s *entityStoreImpl) DeleteTenant(ctx context.Context, tenantID string) err
 }
 
 func (s *entityStoreImpl) listDestinationSummaryByTenant(ctx context.Context, tenantID string, opts ListDestinationByTenantOpts) ([]DestinationSummary, error) {
-	return s.parselistDestinationSummaryByTenantCmd(s.redisClient.HGetAll(ctx, redisTenantDestinationSummaryKey(tenantID)), opts)
+	return s.parseListDestinationSummaryByTenantCmd(s.redisClient.HGetAll(ctx, redisTenantDestinationSummaryKey(tenantID)), opts)
 }
 
-func (s *entityStoreImpl) parselistDestinationSummaryByTenantCmd(cmd *redis.MapStringStringCmd, opts ListDestinationByTenantOpts) ([]DestinationSummary, error) {
+func (s *entityStoreImpl) parseListDestinationSummaryByTenantCmd(cmd *redis.MapStringStringCmd, opts ListDestinationByTenantOpts) ([]DestinationSummary, error) {
 	destinationSummaryListHash, err := cmd.Result()
 	if err != nil {
 		if err == redis.Nil {

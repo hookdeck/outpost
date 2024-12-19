@@ -2,7 +2,6 @@ package models
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
@@ -103,7 +102,6 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request ListEventRequest) 
 	}
 	var nextCursor string
 	if len(events) > 0 {
-		log.Println("format", events[len(events)-1].Time, events[len(events)-1].Time.Format(time.RFC3339))
 		nextCursor = events[len(events)-1].Time.Format(time.RFC3339)
 	}
 

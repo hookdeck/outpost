@@ -69,6 +69,7 @@ func Basic(t *testing.T) *config.Config {
 		RetryMaxCount:                   3,
 		LogBatcherDelayThresholdSeconds: 1,
 		LogBatcherItemCountThreshold:    100,
+		MaxDestinationsPerTenant:        20,
 		DestinationWebhookHeaderPrefix:  "x-outpost-",
 	}
 }
