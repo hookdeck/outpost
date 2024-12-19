@@ -129,6 +129,17 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	if err := publisher.Publish(timeoutCtx, event); err != nil {
 		var publishErr *ErrDestinationPublishAttempt
 		if errors.As(err, &publishErr) {
+			// Check if the wrapped error is a timeout
+			if errors.Is(publishErr.Err, context.DeadlineExceeded) {
+				return &ErrDestinationPublishAttempt{
+					Err:      publishErr.Err,
+					Provider: destination.Type,
+					Data: map[string]interface{}{
+						"error":   "timeout",
+						"timeout": r.config.DeliveryTimeout.String(),
+					},
+				}
+			}
 			return publishErr
 		}
 		if errors.Is(err, context.DeadlineExceeded) {

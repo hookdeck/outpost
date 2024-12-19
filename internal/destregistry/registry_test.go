@@ -19,12 +19,14 @@ type mockProvider struct {
 	createCount int32
 	*destregistry.BaseProvider
 	publishDelay time.Duration
+	mockError    error
 }
 
 type mockPublisher struct {
 	id           int64
 	closed       bool
 	publishDelay time.Duration
+	mockError    error
 }
 
 var mockPublisherID int64
@@ -94,14 +96,21 @@ func (p *mockProvider) CreatePublisher(ctx context.Context, dest *models.Destina
 	atomic.AddInt32(&p.createCount, 1)
 	pub := newMockPublisher()
 	pub.publishDelay = p.publishDelay
+	pub.mockError = p.mockError
 	return pub, nil
 }
 
 func (p *mockPublisher) Publish(ctx context.Context, event *models.Event) error {
 	select {
 	case <-time.After(p.publishDelay):
+		if p.mockError != nil {
+			return p.mockError
+		}
 		return nil
 	case <-ctx.Done():
+		if p.mockError != nil {
+			return p.mockError
+		}
 		return ctx.Err()
 	}
 }
@@ -621,6 +630,36 @@ func TestPublishEventTimeout(t *testing.T) {
 		provider, err := newMockProvider()
 		require.NoError(t, err)
 		provider.publishDelay = timeout * 2
+		err = registry.RegisterProvider("test", provider)
+		require.NoError(t, err)
+
+		destination := &models.Destination{
+			Type: "test",
+		}
+		event := &models.Event{}
+
+		err = registry.PublishEvent(context.Background(), destination, event)
+		assert.Error(t, err)
+
+		var publishErr *destregistry.ErrDestinationPublishAttempt
+		assert.ErrorAs(t, err, &publishErr)
+		assert.Equal(t, "test", publishErr.Provider)
+
+		data, ok := publishErr.Data.(map[string]interface{})
+		assert.True(t, ok, "Expected Data to be map[string]interface{}")
+		assert.Equal(t, "timeout", data["error"])
+		assert.Equal(t, timeout.String(), data["timeout"])
+	})
+
+	t.Run("should handle wrapped timeout error from provider", func(t *testing.T) {
+		registry := destregistry.NewRegistry(&destregistry.Config{
+			DeliveryTimeout: timeout,
+		}, logger)
+
+		provider, err := newMockProvider()
+		require.NoError(t, err)
+		provider.publishDelay = timeout * 2
+		provider.mockError = destregistry.NewErrDestinationPublishAttempt(context.DeadlineExceeded, "test", context.DeadlineExceeded)
 		err = registry.RegisterProvider("test", provider)
 		require.NoError(t, err)
 

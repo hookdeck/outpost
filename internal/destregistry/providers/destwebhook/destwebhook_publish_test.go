@@ -299,41 +299,6 @@ func (s *WebhookPublishSuite) setupCustomHeaderSuite() {
 	s.consumer = consumer
 }
 
-func TestWebhookTimeout(t *testing.T) {
-	t.Parallel()
-
-	// Setup test server with delay
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(2 * time.Second) // Delay longer than timeout
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	// Create webhook destination with short timeout
-	provider, err := destwebhook.New(
-		testutil.Registry.MetadataLoader(),
-		destwebhook.WithTimeout(1), // 1 second timeout
-	)
-	require.NoError(t, err)
-
-	dest := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhook"),
-		testutil.DestinationFactory.WithConfig(map[string]string{
-			"url": server.URL + "/webhook",
-		}),
-	)
-
-	publisher, err := provider.CreatePublisher(context.Background(), &dest)
-	require.NoError(t, err)
-	defer publisher.Close()
-
-	// Attempt publish which should timeout
-	event := testutil.EventFactory.Any()
-	err = publisher.Publish(context.Background(), &event)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "context deadline exceeded")
-}
-
 func TestWebhookPublish(t *testing.T) {
 	t.Parallel()
 	testutil.CheckIntegrationTest(t)

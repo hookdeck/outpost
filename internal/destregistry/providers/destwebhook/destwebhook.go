@@ -22,7 +22,6 @@ const (
 
 type WebhookDestination struct {
 	*destregistry.BaseProvider
-	timeout                  time.Duration
 	headerPrefix             string
 	signatureContentTemplate string
 	signatureHeaderTemplate  string
@@ -52,13 +51,6 @@ var _ destregistry.Provider = (*WebhookDestination)(nil)
 
 // Option is a functional option for configuring WebhookDestination
 type Option func(*WebhookDestination)
-
-// WithTimeout sets a custom timeout for the webhook requests
-func WithTimeout(seconds int) Option {
-	return func(w *WebhookDestination) {
-		w.timeout = time.Duration(seconds) * time.Second
-	}
-}
 
 // WithHeaderPrefix sets a custom prefix for webhook request headers
 func WithHeaderPrefix(prefix string) Option {
@@ -123,7 +115,6 @@ func New(loader metadata.MetadataLoader, opts ...Option) (*WebhookDestination, e
 	}
 	destination := &WebhookDestination{
 		BaseProvider: base,
-		timeout:      30 * time.Second,
 		headerPrefix: "x-outpost-",
 		encoding:     DefaultEncoding,
 		algorithm:    DefaultAlgorithm,
@@ -215,7 +206,6 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		url:                    config.URL,
 		headerPrefix:           d.headerPrefix,
 		secrets:                creds.Secrets,
-		timeout:                d.timeout,
 		sm:                     sm,
 		disableEventIDHeader:   d.disableEventIDHeader,
 		disableSignatureHeader: d.disableSignatureHeader,
@@ -282,7 +272,6 @@ type WebhookPublisher struct {
 	headerPrefix           string
 	secrets                []WebhookSecret
 	sm                     *SignatureManager
-	timeout                time.Duration
 	disableEventIDHeader   bool
 	disableSignatureHeader bool
 	disableTimestampHeader bool
@@ -299,9 +288,6 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) err
 		return err
 	}
 	defer p.BasePublisher.FinishPublish()
-
-	ctx, cancel := context.WithTimeout(ctx, p.timeout)
-	defer cancel()
 
 	httpReq, err := p.Format(ctx, event)
 	if err != nil {
