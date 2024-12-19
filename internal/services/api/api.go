@@ -89,7 +89,10 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	} else {
 		eventTracer = eventtracer.NewEventTracer()
 	}
-	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher(cfg.EncryptionSecret), cfg.Topics)
+	entityStore := models.NewEntityStore(redisClient,
+		models.WithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
+		models.WithAvailableTopics(cfg.Topics),
+	)
 	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer, cfg.Topics)
 	router := NewRouter(
 		RouterConfig{

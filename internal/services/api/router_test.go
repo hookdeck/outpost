@@ -69,7 +69,10 @@ func setupTestEntityStore(_ *testing.T, redisClient *redis.Client, cipher models
 	if cipher == nil {
 		cipher = models.NewAESCipher("secret")
 	}
-	return models.NewEntityStore(redisClient, cipher, testutil.TestTopics)
+	return models.NewEntityStore(redisClient,
+		models.WithCipher(cipher),
+		models.WithAvailableTopics(testutil.TestTopics),
+	)
 }
 
 func TestRouterWithAPIKey(t *testing.T) {

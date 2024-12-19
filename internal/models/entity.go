@@ -54,12 +54,32 @@ type entityStoreImpl struct {
 
 var _ EntityStore = (*entityStoreImpl)(nil)
 
-func NewEntityStore(redisClient *redis.Client, cipher Cipher, availableTopics []string) EntityStore {
-	return &entityStoreImpl{
-		redisClient:     redisClient,
-		cipher:          cipher,
-		availableTopics: availableTopics,
+type EntityStoreOption func(*entityStoreImpl)
+
+func WithCipher(cipher Cipher) EntityStoreOption {
+	return func(s *entityStoreImpl) {
+		s.cipher = cipher
 	}
+}
+
+func WithAvailableTopics(topics []string) EntityStoreOption {
+	return func(s *entityStoreImpl) {
+		s.availableTopics = topics
+	}
+}
+
+func NewEntityStore(redisClient *redis.Client, opts ...EntityStoreOption) EntityStore {
+	store := &entityStoreImpl{
+		redisClient:     redisClient,
+		cipher:          NewAESCipher(""),
+		availableTopics: []string{},
+	}
+
+	for _, opt := range opts {
+		opt(store)
+	}
+
+	return store
 }
 
 func (s *entityStoreImpl) RetrieveTenant(ctx context.Context, tenantID string) (*Tenant, error) {

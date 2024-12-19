@@ -88,8 +88,8 @@ func NewService(ctx context.Context,
 		}
 		entityStore := models.NewEntityStore(
 			redisClient,
-			models.NewAESCipher(cfg.EncryptionSecret),
-			cfg.Topics,
+			models.WithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
+			models.WithAvailableTopics(cfg.Topics),
 		)
 		logStore := models.NewLogStore(chDB)
 		deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig))

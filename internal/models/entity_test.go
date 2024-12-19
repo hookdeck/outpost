@@ -20,7 +20,10 @@ func TestEntityStore_TenantCRUD(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
+	entityStore := models.NewEntityStore(redisClient,
+		models.WithCipher(models.NewAESCipher("secret")),
+		models.WithAvailableTopics(testutil.TestTopics),
+	)
 
 	input := models.Tenant{
 		ID:        uuid.New().String(),
@@ -93,7 +96,10 @@ func TestEntityStore_DestinationCRUD(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
+	entityStore := models.NewEntityStore(redisClient,
+		models.WithCipher(models.NewAESCipher("secret")),
+		models.WithAvailableTopics(testutil.TestTopics),
+	)
 
 	input := models.Destination{
 		ID:     uuid.New().String(),
@@ -170,7 +176,10 @@ func TestEntityStore_ListDestinationEmpty(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
+	entityStore := models.NewEntityStore(redisClient,
+		models.WithCipher(models.NewAESCipher("secret")),
+		models.WithAvailableTopics(testutil.TestTopics),
+	)
 
 	destinations, err := entityStore.ListDestinationByTenant(context.Background(), uuid.New().String())
 	require.NoError(t, err)
@@ -180,7 +189,10 @@ func TestEntityStore_ListDestinationEmpty(t *testing.T) {
 func TestEntityStore_DeleteTenantAndAssociatedDestinations(t *testing.T) {
 	t.Parallel()
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
+	entityStore := models.NewEntityStore(redisClient,
+		models.WithCipher(models.NewAESCipher("secret")),
+		models.WithAvailableTopics(testutil.TestTopics),
+	)
 	tenant := models.Tenant{
 		ID:        uuid.New().String(),
 		CreatedAt: time.Now(),
@@ -210,7 +222,10 @@ func TestEntityStore_DestinationCredentialsEncryption(t *testing.T) {
 
 	redisClient := testutil.CreateTestRedisClient(t)
 	cipher := models.NewAESCipher("secret")
-	entityStore := models.NewEntityStore(redisClient, cipher, testutil.TestTopics)
+	entityStore := models.NewEntityStore(redisClient,
+		models.WithCipher(cipher),
+		models.WithAvailableTopics(testutil.TestTopics),
+	)
 
 	testEntityStoreDestinationCredentialsEncryption(t, redisClient, cipher, entityStore)
 }
@@ -268,7 +283,10 @@ func (suite *multiDestinationSuite) SetupTest(t *testing.T) {
 		suite.ctx = context.Background()
 	}
 	suite.redisClient = testutil.CreateTestRedisClient(t)
-	suite.entityStore = models.NewEntityStore(suite.redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
+	suite.entityStore = models.NewEntityStore(suite.redisClient,
+		models.WithCipher(models.NewAESCipher("secret")),
+		models.WithAvailableTopics(testutil.TestTopics),
+	)
 	suite.destinations = make([]models.Destination, 5)
 	suite.tenant = models.Tenant{
 		ID:        uuid.New().String(),
@@ -561,7 +579,10 @@ func TestDestinationEnableDisable(t *testing.T) {
 	t.Parallel()
 
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
+	entityStore := models.NewEntityStore(redisClient,
+		models.WithCipher(models.NewAESCipher("secret")),
+		models.WithAvailableTopics(testutil.TestTopics),
+	)
 
 	input := testutil.DestinationFactory.Any()
 	require.NoError(t, entityStore.UpsertDestination(context.Background(), input))
@@ -647,7 +668,10 @@ func TestEntityStore_DeleteDestination(t *testing.T) {
 
 	ctx := context.Background()
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.NewAESCipher("secret"), testutil.TestTopics)
+	entityStore := models.NewEntityStore(redisClient,
+		models.WithCipher(models.NewAESCipher("secret")),
+		models.WithAvailableTopics(testutil.TestTopics),
+	)
 
 	destination := testutil.DestinationFactory.Any()
 	require.NoError(t, entityStore.CreateDestination(ctx, destination))
