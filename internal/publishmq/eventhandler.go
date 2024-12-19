@@ -62,7 +62,7 @@ func NewEventHandler(
 var _ EventHandler = (*eventHandler)(nil)
 
 func (h *eventHandler) Handle(ctx context.Context, event *models.Event) error {
-	if event.Topic != "*" && !slices.Contains(h.topics, event.Topic) {
+	if len(h.topics) > 0 && event.Topic != "*" && !slices.Contains(h.topics, event.Topic) {
 		return ErrInvalidTopic
 	}
 	return h.idempotence.Exec(ctx, idempotencyKeyFromEvent(event), func(ctx context.Context) error {

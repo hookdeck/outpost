@@ -148,11 +148,6 @@ func Parse(flags Flags) (*Config, error) {
 		}
 	}
 
-	topics, err := parseTopics(viper)
-	if err != nil {
-		return nil, err
-	}
-
 	// MQs
 	publishQueueConfig, err := mqs.ParseQueueConfig(viper, "PUBLISH")
 	if err != nil {
@@ -185,7 +180,7 @@ func Parse(flags Flags) (*Config, error) {
 		JWTSecret:                viper.GetString("JWT_SECRET"),
 		EncryptionSecret:         viper.GetString("ENCRYPTION_SECRET"),
 		PortalProxyURL:           portalProxyURL,
-		Topics:                   topics,
+		Topics:                   parseTopics(viper),
 		MaxDestinationsPerTenant: mustInt(viper, "MAX_DESTINATIONS_PER_TENANT"),
 		Redis: &redis.RedisConfig{
 			Host:     viper.GetString("REDIS_HOST"),
@@ -266,19 +261,15 @@ func parseService(viper *v.Viper, flags Flags) (*ServiceType, error) {
 	return &service, nil
 }
 
-func parseTopics(viper *v.Viper) ([]string, error) {
+func parseTopics(viper *v.Viper) []string {
 	topicStr := viper.GetString("TOPICS")
 	if topicStr == "" {
-		return nil, makeEmptyErr("TOPICS")
+		return []string{}
 	}
 	topics := strings.Split(topicStr, ",")
 	for i, topic := range topics {
 		topics[i] = strings.TrimSpace(topic)
 	}
 	sort.Strings(topics)
-	return topics, nil
-}
-
-func makeEmptyErr(key string) error {
-	return errors.New(key + " is empty")
+	return topics
 }

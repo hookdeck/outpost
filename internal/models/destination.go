@@ -117,6 +117,10 @@ func (t *Topics) Validate(availableTopics []string) error {
 	if t.MatchesAll() {
 		return nil
 	}
+	// If no available topics are configured, allow any topics
+	if len(availableTopics) == 0 {
+		return nil
+	}
 	for _, topic := range *t {
 		if topic == "*" {
 			return ErrInvalidTopics
