@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -21,7 +23,7 @@ type AWSSQSDestination struct {
 }
 
 type AWSSQSDestinationConfig struct {
-	Endpoint string // optional
+	Endpoint string
 	QueueURL string
 }
 
@@ -69,9 +71,20 @@ func (p *AWSSQSDestination) CreatePublisher(ctx context.Context, destination *mo
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
+	baseURL, region, err := ParseQueueURL(cfg.QueueURL)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Endpoint != "" {
+		baseURL = cfg.Endpoint
+	}
+
 	sqsClient := sqs.NewFromConfig(sdkConfig, func(o *sqs.Options) {
-		if cfg.Endpoint != "" {
-			o.BaseEndpoint = awssdk.String(cfg.Endpoint)
+		if baseURL != "" {
+			o.BaseEndpoint = awssdk.String(baseURL)
+		}
+		if region != "" {
+			o.Region = region
 		}
 	})
 
@@ -108,15 +121,10 @@ func (p *AWSSQSPublisher) Close() error {
 	return nil
 }
 
-func (p *AWSSQSPublisher) Publish(ctx context.Context, event *models.Event) error {
-	if err := p.BasePublisher.StartPublish(); err != nil {
-		return err
-	}
-	defer p.BasePublisher.FinishPublish()
-
+func (p *AWSSQSPublisher) Format(ctx context.Context, event *models.Event) (*sqs.SendMessageInput, error) {
 	dataBytes, err := json.Marshal(event.Data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	attrs := make(map[string]types.MessageAttributeValue)
@@ -127,13 +135,46 @@ func (p *AWSSQSPublisher) Publish(ctx context.Context, event *models.Event) erro
 		}
 	}
 
-	if _, err = p.client.SendMessage(ctx, &sqs.SendMessageInput{
+	return &sqs.SendMessageInput{
 		QueueUrl:          awssdk.String(p.queueURL),
 		MessageBody:       awssdk.String(string(dataBytes)),
 		MessageAttributes: attrs,
-	}); err != nil {
+	}, nil
+}
+
+func (p *AWSSQSPublisher) Publish(ctx context.Context, event *models.Event) error {
+	if err := p.BasePublisher.StartPublish(); err != nil {
+		return err
+	}
+	defer p.BasePublisher.FinishPublish()
+
+	msg, err := p.Format(ctx, event)
+	if err != nil {
 		return err
 	}
 
+	if _, err = p.client.SendMessage(ctx, msg); err != nil {
+		return destregistry.NewErrDestinationPublishAttempt(err, "aws_sqs", map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+
 	return nil
+}
+
+// ParseQueueURL extracts the full URL into baseURL & region
+func ParseQueueURL(queueURL string) (baseURL string, region string, err error) {
+	parsedURL, err := url.Parse(queueURL)
+	if err != nil {
+		err = fmt.Errorf("failed to parse queue URL: %v", err)
+		return
+	}
+
+	baseURL = fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
+	if strings.Contains(baseURL, "amazonaws.com") {
+		region = strings.Split(parsedURL.Host, ".")[1]
+		return
+	}
+
+	return
 }
