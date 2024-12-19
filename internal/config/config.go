@@ -22,14 +22,15 @@ const (
 )
 
 type Config struct {
-	Service          ServiceType
-	Port             int
-	Hostname         string
-	APIKey           string
-	JWTSecret        string
-	EncryptionSecret string
-	PortalProxyURL   string
-	Topics           []string
+	Service                  ServiceType
+	Port                     int
+	Hostname                 string
+	APIKey                   string
+	JWTSecret                string
+	EncryptionSecret         string
+	PortalProxyURL           string
+	Topics                   []string
+	MaxDestinationsPerTenant int
 
 	Redis                           *redis.RedisConfig
 	ClickHouse                      *clickhouse.ClickHouseConfig
@@ -84,6 +85,7 @@ var defaultConfig = map[string]any{
 	"MAX_RETRY_COUNT":                     10,
 	"LOG_BATCHER_DELAY_THRESHOLD_SECONDS": 5,
 	"LOG_BATCHER_ITEM_COUNT_THRESHOLD":    100,
+	"MAX_DESTINATIONS_PER_TENANT":         20,
 	"DESTINATION_METADATA_PATH":           "config/outpost/destinations",
 	"DESTINATION_WEBHOOK_HEADER_PREFIX":   "x-outpost-",
 }
@@ -176,14 +178,15 @@ func Parse(flags Flags) (*Config, error) {
 
 	// Initialize config values
 	config := &Config{
-		Hostname:         hostname,
-		Service:          *service,
-		Port:             getPort(viper),
-		APIKey:           viper.GetString("API_KEY"),
-		JWTSecret:        viper.GetString("JWT_SECRET"),
-		EncryptionSecret: viper.GetString("ENCRYPTION_SECRET"),
-		PortalProxyURL:   portalProxyURL,
-		Topics:           topics,
+		Hostname:                 hostname,
+		Service:                  *service,
+		Port:                     getPort(viper),
+		APIKey:                   viper.GetString("API_KEY"),
+		JWTSecret:                viper.GetString("JWT_SECRET"),
+		EncryptionSecret:         viper.GetString("ENCRYPTION_SECRET"),
+		PortalProxyURL:           portalProxyURL,
+		Topics:                   topics,
+		MaxDestinationsPerTenant: mustInt(viper, "MAX_DESTINATIONS_PER_TENANT"),
 		Redis: &redis.RedisConfig{
 			Host:     viper.GetString("REDIS_HOST"),
 			Port:     mustInt(viper, "REDIS_PORT"),

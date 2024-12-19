@@ -728,3 +728,49 @@ func TestMultiSuite_DeleteAndMatch(t *testing.T) {
 		}
 	})
 }
+
+func TestEntityStore_MaxDestinationsPerTenant(t *testing.T) {
+	t.Parallel()
+
+	redisClient := testutil.CreateTestRedisClient(t)
+	maxDestinations := 2
+	entityStore := models.NewEntityStore(redisClient,
+		models.WithCipher(models.NewAESCipher("secret")),
+		models.WithAvailableTopics(testutil.TestTopics),
+		models.WithMaxDestinationsPerTenant(maxDestinations),
+	)
+
+	tenant := models.Tenant{
+		ID:        uuid.New().String(),
+		CreatedAt: time.Now(),
+	}
+	require.NoError(t, entityStore.UpsertTenant(context.Background(), tenant))
+
+	// Should be able to create up to maxDestinations
+	for i := 0; i < maxDestinations; i++ {
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+		)
+		err := entityStore.CreateDestination(context.Background(), destination)
+		require.NoError(t, err, "Should be able to create destination %d", i+1)
+	}
+
+	// Should fail when trying to create one more
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	err := entityStore.CreateDestination(context.Background(), destination)
+	require.Error(t, err)
+	require.ErrorIs(t, err, models.ErrMaxDestinationsPerTenantReached)
+
+	// Should be able to create after deleting one
+	destinations, err := entityStore.ListDestinationByTenant(context.Background(), tenant.ID)
+	require.NoError(t, err)
+	require.NoError(t, entityStore.DeleteDestination(context.Background(), tenant.ID, destinations[0].ID))
+
+	destination = testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	err = entityStore.CreateDestination(context.Background(), destination)
+	require.NoError(t, err, "Should be able to create destination after deleting one")
+}

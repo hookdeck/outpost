@@ -92,6 +92,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	entityStore := models.NewEntityStore(redisClient,
 		models.WithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
 		models.WithAvailableTopics(cfg.Topics),
+		models.WithMaxDestinationsPerTenant(cfg.MaxDestinationsPerTenant),
 	)
 	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer, cfg.Topics)
 	router := NewRouter(

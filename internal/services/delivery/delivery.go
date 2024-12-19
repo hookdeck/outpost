@@ -86,10 +86,10 @@ func NewService(ctx context.Context,
 		} else {
 			eventTracer = eventtracer.NewEventTracer()
 		}
-		entityStore := models.NewEntityStore(
-			redisClient,
+		entityStore := models.NewEntityStore(redisClient,
 			models.WithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
 			models.WithAvailableTopics(cfg.Topics),
+			models.WithMaxDestinationsPerTenant(cfg.MaxDestinationsPerTenant),
 		)
 		logStore := models.NewLogStore(chDB)
 		deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig))

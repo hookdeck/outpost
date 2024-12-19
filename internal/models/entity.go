@@ -11,8 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/redis"
 )
 
-// TODO: get this from config
-const MAX_DESTINATIONS_PER_TENANT = 100
+const defaultMaxDestinationsPerTenant = 20
 
 type EntityStore interface {
 	RetrieveTenant(ctx context.Context, tenantID string) (*Tenant, error)
@@ -27,11 +26,12 @@ type EntityStore interface {
 }
 
 var (
-	ErrTenantNotFound       = errors.New("tenant does not exist")
-	ErrTenantDeleted        = errors.New("tenant has been deleted")
-	ErrDuplicateDestination = errors.New("destination already exists")
-	ErrDestinationNotFound  = errors.New("destination does not exist")
-	ErrDestinationDeleted   = errors.New("destination has been deleted")
+	ErrTenantNotFound                  = errors.New("tenant does not exist")
+	ErrTenantDeleted                   = errors.New("tenant has been deleted")
+	ErrDuplicateDestination            = errors.New("destination already exists")
+	ErrDestinationNotFound             = errors.New("destination does not exist")
+	ErrDestinationDeleted              = errors.New("destination has been deleted")
+	ErrMaxDestinationsPerTenantReached = errors.New("maximum number of destinations per tenant reached")
 )
 
 func redisTenantID(tenantID string) string {
@@ -47,9 +47,10 @@ func redisDestinationID(destinationID, tenantID string) string {
 }
 
 type entityStoreImpl struct {
-	redisClient     *redis.Client
-	cipher          Cipher
-	availableTopics []string
+	redisClient              *redis.Client
+	cipher                   Cipher
+	availableTopics          []string
+	maxDestinationsPerTenant int
 }
 
 var _ EntityStore = (*entityStoreImpl)(nil)
@@ -68,11 +69,18 @@ func WithAvailableTopics(topics []string) EntityStoreOption {
 	}
 }
 
+func WithMaxDestinationsPerTenant(maxDestinationsPerTenant int) EntityStoreOption {
+	return func(s *entityStoreImpl) {
+		s.maxDestinationsPerTenant = maxDestinationsPerTenant
+	}
+}
+
 func NewEntityStore(redisClient *redis.Client, opts ...EntityStoreOption) EntityStore {
 	store := &entityStoreImpl{
-		redisClient:     redisClient,
-		cipher:          NewAESCipher(""),
-		availableTopics: []string{},
+		redisClient:              redisClient,
+		cipher:                   NewAESCipher(""),
+		availableTopics:          []string{},
+		maxDestinationsPerTenant: defaultMaxDestinationsPerTenant,
 	}
 
 	for _, opt := range opts {
@@ -265,6 +273,16 @@ func (m *entityStoreImpl) CreateDestination(ctx context.Context, destination Des
 			return ErrDuplicateDestination
 		}
 	}
+
+	// Check if tenant has reached max destinations by counting entries in the summary hash
+	count, err := m.redisClient.HLen(ctx, redisTenantDestinationSummaryKey(destination.TenantID)).Result()
+	if err != nil {
+		return err
+	}
+	if count >= int64(m.maxDestinationsPerTenant) {
+		return ErrMaxDestinationsPerTenantReached
+	}
+
 	return m.UpsertDestination(ctx, destination)
 }
 
