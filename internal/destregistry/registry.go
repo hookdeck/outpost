@@ -55,12 +55,14 @@ type registry struct {
 	metadata       map[string]*metadata.ProviderMetadata
 	providers      map[string]Provider
 	publishers     *lru.Cache[string, Publisher]
+	config         Config
 }
 
 type Config struct {
 	DestinationMetadataPath string
 	PublisherCacheSize      int
 	PublisherTTL            time.Duration
+	DeliveryTimeout         time.Duration
 }
 
 func NewRegistry(cfg *Config, logger *otelzap.Logger) *registry {
@@ -69,6 +71,9 @@ func NewRegistry(cfg *Config, logger *otelzap.Logger) *registry {
 	}
 	if cfg.PublisherTTL == 0 {
 		cfg.PublisherTTL = defaultPublisherTTL
+	}
+	if cfg.DeliveryTimeout == 0 {
+		cfg.DeliveryTimeout = defaultDeliveryTimeout
 	}
 
 	onEvict := func(key string, p Publisher) {
@@ -87,6 +92,7 @@ func NewRegistry(cfg *Config, logger *otelzap.Logger) *registry {
 		metadata:       make(map[string]*metadata.ProviderMetadata),
 		providers:      make(map[string]Provider),
 		publishers:     cache,
+		config:         *cfg,
 	}
 }
 
@@ -115,10 +121,25 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	if err != nil {
 		return err
 	}
-	if err := publisher.Publish(ctx, event); err != nil {
+
+	// Create a new context with timeout
+	timeoutCtx, cancel := context.WithTimeout(ctx, r.config.DeliveryTimeout)
+	defer cancel()
+
+	if err := publisher.Publish(timeoutCtx, event); err != nil {
 		var publishErr *ErrDestinationPublishAttempt
 		if errors.As(err, &publishErr) {
 			return publishErr
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return &ErrDestinationPublishAttempt{
+				Err:      err,
+				Provider: destination.Type,
+				Data: map[string]interface{}{
+					"error":   "timeout",
+					"timeout": r.config.DeliveryTimeout.String(),
+				},
+			}
 		}
 		return &ErrUnexpectedPublishError{Err: err}
 	}
@@ -203,4 +224,5 @@ func (r *registry) ObfuscateDestination(destination *models.Destination) (*model
 var (
 	defaultPublisherCacheSize = 10000
 	defaultPublisherTTL       = time.Minute
+	defaultDeliveryTimeout    = 5 * time.Second
 )

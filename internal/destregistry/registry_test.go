@@ -18,11 +18,13 @@ import (
 type mockProvider struct {
 	createCount int32
 	*destregistry.BaseProvider
+	publishDelay time.Duration
 }
 
 type mockPublisher struct {
-	id     int64
-	closed bool
+	id           int64
+	closed       bool
+	publishDelay time.Duration
 }
 
 var mockPublisherID int64
@@ -90,10 +92,20 @@ func (p *mockProvider) Validate(ctx context.Context, dest *models.Destination) e
 
 func (p *mockProvider) CreatePublisher(ctx context.Context, dest *models.Destination) (destregistry.Publisher, error) {
 	atomic.AddInt32(&p.createCount, 1)
-	return newMockPublisher(), nil
+	pub := newMockPublisher()
+	pub.publishDelay = p.publishDelay
+	return pub, nil
 }
 
-func (p *mockPublisher) Publish(ctx context.Context, event *models.Event) error { return nil }
+func (p *mockPublisher) Publish(ctx context.Context, event *models.Event) error {
+	select {
+	case <-time.After(p.publishDelay):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (p *mockPublisher) Close() error {
 	p.closed = true
 	return nil
@@ -575,4 +587,58 @@ func TestObfuscateDestination(t *testing.T) {
 	assert.Equal(t, "abcd************", obfuscated.Credentials["api_key"])  // 16 chars
 	assert.Equal(t, "****", obfuscated.Credentials["token"])                // 3 chars
 	assert.Equal(t, "****", obfuscated.Credentials["code"])                 // 4 chars
+}
+
+func TestPublishEventTimeout(t *testing.T) {
+	timeout := 100 * time.Millisecond
+	logger := testutil.CreateTestLogger(t)
+
+	t.Run("should not return timeout error when publish completes within timeout", func(t *testing.T) {
+		registry := destregistry.NewRegistry(&destregistry.Config{
+			DeliveryTimeout: timeout,
+		}, logger)
+
+		provider, err := newMockProvider()
+		require.NoError(t, err)
+		provider.publishDelay = timeout / 2
+		err = registry.RegisterProvider("test", provider)
+		require.NoError(t, err)
+
+		destination := &models.Destination{
+			Type: "test",
+		}
+		event := &models.Event{}
+
+		err = registry.PublishEvent(context.Background(), destination, event)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return timeout error when publish exceeds timeout", func(t *testing.T) {
+		registry := destregistry.NewRegistry(&destregistry.Config{
+			DeliveryTimeout: timeout,
+		}, logger)
+
+		provider, err := newMockProvider()
+		require.NoError(t, err)
+		provider.publishDelay = timeout * 2
+		err = registry.RegisterProvider("test", provider)
+		require.NoError(t, err)
+
+		destination := &models.Destination{
+			Type: "test",
+		}
+		event := &models.Event{}
+
+		err = registry.PublishEvent(context.Background(), destination, event)
+		assert.Error(t, err)
+
+		var publishErr *destregistry.ErrDestinationPublishAttempt
+		assert.ErrorAs(t, err, &publishErr)
+		assert.Equal(t, "test", publishErr.Provider)
+
+		data, ok := publishErr.Data.(map[string]interface{})
+		assert.True(t, ok, "Expected Data to be map[string]interface{}")
+		assert.Equal(t, "timeout", data["error"])
+		assert.Equal(t, timeout.String(), data["timeout"])
+	})
 }

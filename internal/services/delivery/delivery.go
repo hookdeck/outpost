@@ -64,6 +64,7 @@ func NewService(ctx context.Context,
 	if handler == nil {
 		registry := destregistry.NewRegistry(&destregistry.Config{
 			DestinationMetadataPath: cfg.DestinationMetadataPath,
+			DeliveryTimeout:         time.Duration(cfg.DeliveryTimeoutSeconds) * time.Second,
 		}, logger)
 		if err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
 			Webhook: &destregistrydefault.DestWebhookConfig{

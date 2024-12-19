@@ -67,6 +67,7 @@ func Basic(t *testing.T) *config.Config {
 		LogMaxConcurrency:               3,
 		RetryIntervalSeconds:            1,
 		RetryMaxCount:                   3,
+		DeliveryTimeoutSeconds:          5,
 		LogBatcherDelayThresholdSeconds: 1,
 		LogBatcherItemCountThreshold:    100,
 		MaxDestinationsPerTenant:        20,

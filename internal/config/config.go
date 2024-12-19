@@ -43,6 +43,7 @@ type Config struct {
 	LogMaxConcurrency               int
 	RetryIntervalSeconds            int
 	RetryMaxCount                   int
+	DeliveryTimeoutSeconds          int
 	LogBatcherDelayThresholdSeconds int
 	LogBatcherItemCountThreshold    int
 	DestinationMetadataPath         string
@@ -83,6 +84,7 @@ var defaultConfig = map[string]any{
 	"LOGMQ_MAX_CONCURRENCY":               1,
 	"RETRY_INTERVAL_SECONDS":              30,
 	"MAX_RETRY_COUNT":                     10,
+	"DELIVERY_TIMEOUT_SECONDS":            5,
 	"LOG_BATCHER_DELAY_THRESHOLD_SECONDS": 5,
 	"LOG_BATCHER_ITEM_COUNT_THRESHOLD":    100,
 	"MAX_DESTINATIONS_PER_TENANT":         20,
@@ -198,6 +200,7 @@ func Parse(flags Flags) (*Config, error) {
 		LogMaxConcurrency:               mustInt(viper, "LOGMQ_MAX_CONCURRENCY"),
 		RetryIntervalSeconds:            mustInt(viper, "RETRY_INTERVAL_SECONDS"),
 		RetryMaxCount:                   mustInt(viper, "MAX_RETRY_COUNT"),
+		DeliveryTimeoutSeconds:          mustInt(viper, "DELIVERY_TIMEOUT_SECONDS"),
 		LogBatcherDelayThresholdSeconds: mustInt(viper, "LOG_BATCHER_DELAY_THRESHOLD_SECONDS"),
 		LogBatcherItemCountThreshold:    mustInt(viper, "LOG_BATCHER_ITEM_COUNT_THRESHOLD"),
 		DestinationMetadataPath:         viper.GetString("DESTINATION_METADATA_PATH"),
