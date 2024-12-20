@@ -9,7 +9,10 @@ import CONFIGS from "../../config";
 import DestinationSettings from "./DestinationSettings/DestinationSettings";
 import Events from "./Events/Events";
 import { Loading } from "../../common/Icons";
-import { Destination as DestinationType } from "../../typings/Destination";
+import {
+  Destination as DestinationType,
+  DestinationTypeReference,
+} from "../../typings/Destination";
 
 // Define the tab interface
 interface Tab {
@@ -133,23 +136,28 @@ const Destination = () => {
                           </span>
                         </li>
                       )}
-                      {[
-                        ...Object.entries(destination.config),
-                        ...Object.entries(destination.credentials),
-                      ].map(([key, value]) => (
-                        <li key={key}>
-                          <span className="body-m">
-                            {key
-                              .split("_")
-                              .map(
-                                (word) =>
-                                  word.charAt(0).toUpperCase() + word.slice(1)
-                              )
-                              .join(" ")}
-                          </span>
-                          <span className="mono-s">{value}</span>
-                        </li>
-                      ))}
+                      {Object.entries(destination.config).map(
+                        ([key, value]) => (
+                          <DestinationDetailsField
+                            key={key}
+                            fieldType="config"
+                            fieldKey={key}
+                            type={type}
+                            value={value}
+                          />
+                        )
+                      )}
+                      {Object.entries(destination.credentials).map(
+                        ([key, value]) => (
+                          <DestinationDetailsField
+                            key={key}
+                            fieldType="credentials"
+                            fieldKey={key}
+                            type={type}
+                            value={value}
+                          />
+                        )
+                      )}
                       <li>
                         <span className="body-m">Created At</span>
                         <span className="body-m">
@@ -200,3 +208,34 @@ const Destination = () => {
 };
 
 export default Destination;
+
+function DestinationDetailsField(props: {
+  type: DestinationTypeReference;
+  fieldType: "config" | "credentials";
+  fieldKey: string;
+  value: JSX.Element;
+}) {
+  let label = "";
+  if (props.fieldType === "config") {
+    label =
+      props.type.config_fields.find((field) => field.key === props.fieldKey)
+        ?.label || "";
+  } else {
+    label =
+      props.type.credential_fields.find((field) => field.key === props.fieldKey)
+        ?.label || "";
+  }
+  if (label === "") {
+    label = props.fieldKey
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  }
+
+  return (
+    <li>
+      <span className="body-m">{label}</span>
+      <span className="mono-s">{props.value}</span>
+    </li>
+  );
+}
