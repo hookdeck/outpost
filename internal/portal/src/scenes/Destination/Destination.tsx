@@ -117,8 +117,7 @@ const Destination = () => {
                       <li>
                         <span className="body-m">ID</span>
                         <span className="mono-s">
-                          {destination.id}{" "}
-                          <CopyButton value={destination.config[type.target]} />
+                          {destination.id} <CopyButton value={destination.id} />
                         </span>
                       </li>
                       {CONFIGS.TOPICS && (
