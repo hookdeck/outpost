@@ -66,7 +66,7 @@ func TestIntegrationAPIService_PublishMQConsumer(t *testing.T) {
 			PublishQueueConfig:    &publishQueueConfig,
 			DeliveryQueueConfig:   &deliveryQueueConfig,
 			PublishMaxConcurrency: 1,
-			EncryptionSecret:      "secret",
+			AESEncryptionSecret:   "secret",
 			Topics:                testutil.TestTopics,
 		},
 		testutil.CreateTestLogger(t),

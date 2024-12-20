@@ -31,7 +31,7 @@ type messageHandler struct {
 	logStore       EventGetter
 	retryScheduler scheduler.Scheduler
 	retryBackoff   backoff.Backoff
-	retryMaxCount  int
+	retryMaxLimit  int
 	idempotence    idempotence.Idempotence
 	publisher      Publisher
 }
@@ -66,7 +66,7 @@ func NewMessageHandler(
 	eventTracer DeliveryTracer,
 	retryScheduler scheduler.Scheduler,
 	retryBackoff backoff.Backoff,
-	retryMaxCount int,
+	retryMaxLimit int,
 ) consumer.MessageHandler {
 	return &messageHandler{
 		eventTracer:    eventTracer,
@@ -77,7 +77,7 @@ func NewMessageHandler(
 		publisher:      publisher,
 		retryScheduler: retryScheduler,
 		retryBackoff:   retryBackoff,
-		retryMaxCount:  retryMaxCount,
+		retryMaxLimit:  retryMaxLimit,
 		idempotence: idempotence.New(redisClient,
 			idempotence.WithTimeout(5*time.Second),
 			idempotence.WithSuccessfulTTL(24*time.Hour),
@@ -176,7 +176,7 @@ func (h *messageHandler) checkError(err error, deliveryEvent models.DeliveryEven
 	}
 
 	if _, ok := err.(*destregistry.ErrDestinationPublishAttempt); ok {
-		if deliveryEvent.Event.EligibleForRetry && deliveryEvent.Attempt < h.retryMaxCount {
+		if deliveryEvent.Event.EligibleForRetry && deliveryEvent.Attempt < h.retryMaxLimit {
 			return true, false // schedule retry and ack
 		}
 		return false, false // ack and accept failure

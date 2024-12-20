@@ -88,7 +88,7 @@ func NewService(ctx context.Context,
 			eventTracer = eventtracer.NewEventTracer()
 		}
 		entityStore := models.NewEntityStore(redisClient,
-			models.WithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
+			models.WithCipher(models.NewAESCipher(cfg.AESEncryptionSecret)),
 			models.WithAvailableTopics(cfg.Topics),
 			models.WithMaxDestinationsPerTenant(cfg.MaxDestinationsPerTenant),
 		)
@@ -120,7 +120,7 @@ func NewService(ctx context.Context,
 				Interval: time.Duration(cfg.RetryIntervalSeconds) * time.Second,
 				Base:     2,
 			},
-			cfg.RetryMaxCount,
+			cfg.RetryMaxLimit,
 		)
 	}
 

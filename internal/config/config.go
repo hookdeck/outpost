@@ -22,34 +22,51 @@ const (
 )
 
 type Config struct {
-	Service                  ServiceType
-	Port                     int
-	Hostname                 string
-	APIKey                   string
-	JWTSecret                string
-	EncryptionSecret         string
-	PortalProxyURL           string
-	Topics                   []string
-	MaxDestinationsPerTenant int
+	Service  ServiceType
+	Hostname string
 
-	Redis                           *redis.RedisConfig
-	ClickHouse                      *clickhouse.ClickHouseConfig
-	OpenTelemetry                   *otel.OpenTelemetryConfig
-	PublishQueueConfig              *mqs.QueueConfig
-	DeliveryQueueConfig             *mqs.QueueConfig
-	LogQueueConfig                  *mqs.QueueConfig
-	PublishMaxConcurrency           int
-	DeliveryMaxConcurrency          int
-	LogMaxConcurrency               int
-	RetryIntervalSeconds            int
-	RetryMaxCount                   int
-	DeliveryTimeoutSeconds          int
+	OpenTelemetry *otel.OpenTelemetryConfig
+
+	// API
+	Port         int
+	APIKey       string
+	APIJWTSecret string
+
+	// Application
+	AESEncryptionSecret string
+	Topics              []string
+
+	// Infrastructure
+	Redis      *redis.RedisConfig
+	ClickHouse *clickhouse.ClickHouseConfig
+	// MQs
+	PublishQueueConfig  *mqs.QueueConfig
+	DeliveryQueueConfig *mqs.QueueConfig
+	LogQueueConfig      *mqs.QueueConfig
+
+	// Consumers
+	PublishMaxConcurrency  int
+	DeliveryMaxConcurrency int
+	LogMaxConcurrency      int
+
+	// Delivery Retry
+	RetryIntervalSeconds int
+	RetryMaxLimit        int
+
+	// Event Delivery
+	MaxDestinationsPerTenant int
+	DeliveryTimeoutSeconds   int
+
+	// Destination Registry
+	DestinationMetadataPath string
+
+	// Log batcher configuration
 	LogBatcherDelayThresholdSeconds int
 	LogBatcherItemCountThreshold    int
-	DestinationMetadataPath         string
 
 	DisableTelemetry bool
 
+	// Destwebhook
 	DestinationWebhookHeaderPrefix                  string
 	DestinationWebhookDisableDefaultEventIDHeader   bool
 	DestinationWebhookDisableDefaultSignatureHeader bool
@@ -67,29 +84,43 @@ type Config struct {
 	PortalOrgName                string
 	PortalForceTheme             string
 	PortalDisableOutpostBranding bool
+
+	// Dev
+	PortalProxyURL string
 }
 
 var defaultConfig = map[string]any{
-	"PORT":                                3333,
-	"REDIS_HOST":                          "127.0.0.1",
-	"REDIS_PORT":                          6379,
-	"REDIS_PASSWORD":                      "",
-	"REDIS_DATABASE":                      0,
-	"DELIVERY_RABBITMQ_EXCHANGE":          "outpost",
-	"DELIVERY_RABBITMQ_QUEUE":             "outpost.delivery",
-	"LOG_RABBITMQ_EXCHANGE":               "outpost_logs",
-	"LOG_RABBITMQ_QUEUE":                  "outpost_logs.log",
-	"PUBLISHMQ_MAX_CONCURRENCY":           1,
-	"DELIVERYMQ_MAX_CONCURRENCY":          1,
-	"LOGMQ_MAX_CONCURRENCY":               1,
-	"RETRY_INTERVAL_SECONDS":              30,
-	"MAX_RETRY_COUNT":                     10,
-	"DELIVERY_TIMEOUT_SECONDS":            5,
-	"LOG_BATCHER_DELAY_THRESHOLD_SECONDS": 5,
-	"LOG_BATCHER_ITEM_COUNT_THRESHOLD":    100,
-	"MAX_DESTINATIONS_PER_TENANT":         20,
-	"DESTINATION_METADATA_PATH":           "config/outpost/destinations",
-	"DESTINATION_WEBHOOK_HEADER_PREFIX":   "x-outpost-",
+	// Infrastructure
+	"PORT":           3333,
+	"REDIS_HOST":     "127.0.0.1",
+	"REDIS_PORT":     6379,
+	"REDIS_PASSWORD": "",
+	"REDIS_DATABASE": 0,
+	// MQs
+	"DELIVERY_RABBITMQ_EXCHANGE": "outpost",
+	"DELIVERY_RABBITMQ_QUEUE":    "outpost.delivery",
+	"LOG_RABBITMQ_EXCHANGE":      "outpost_logs",
+	"LOG_RABBITMQ_QUEUE":         "outpost_logs.log",
+	// MQ Publishers
+	"DELIVERY_RETRY_LIMIT": 5,
+	"LOG_RETRY_LIMIT":      5,
+	// Consumers
+	"PUBLISH_MAX_CONCURRENCY":  1,
+	"DELIVERY_MAX_CONCURRENCY": 1,
+	"LOG_MAX_CONCURRENCY":      1,
+	// Delivery Retry
+	"RETRY_INTERVAL_SECONDS": 30,
+	"MAX_RETRY_LIMIT":        10,
+	// Event Delivery
+	"DELIVERY_TIMEOUT_SECONDS": 5,
+	// Log batcher configuration
+	"LOG_BATCH_THRESHOLD_SECONDS": 10,
+	"LOG_BATCH_SIZE":              1000,
+	// Misc
+	"MAX_DESTINATIONS_PER_TENANT": 20,
+	"DESTINATION_METADATA_PATH":   "config/outpost/destinations",
+	// Destination webhook config
+	"DESTINATION_WEBHOOK_HEADER_PREFIX": "x-outpost-",
 }
 
 var (
@@ -159,12 +190,12 @@ func Parse(flags Flags) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	deliveryQueueConfig.Policy.RetryLimit = viper.GetInt("DELIVERYMQ_RETRY_LIMIT")
+	deliveryQueueConfig.Policy.RetryLimit = viper.GetInt("DELIVERY_RETRY_LIMIT")
 	logQueueConfig, err := mqs.ParseQueueConfig(viper, "LOG")
 	if err != nil {
 		return nil, err
 	}
-	logQueueConfig.Policy.RetryLimit = viper.GetInt("LOGMQ_RETRY_LIMIT")
+	logQueueConfig.Policy.RetryLimit = viper.GetInt("LOG_RETRY_LIMIT")
 
 	portalProxyURL := viper.GetString("PORTAL_PROXY_URL")
 	if portalProxyURL != "" {
@@ -179,8 +210,8 @@ func Parse(flags Flags) (*Config, error) {
 		Service:                  *service,
 		Port:                     getPort(viper),
 		APIKey:                   viper.GetString("API_KEY"),
-		JWTSecret:                viper.GetString("JWT_SECRET"),
-		EncryptionSecret:         viper.GetString("ENCRYPTION_SECRET"),
+		APIJWTSecret:             viper.GetString("API_JWT_SECRET"),
+		AESEncryptionSecret:      viper.GetString("AES_ENCRYPTION_SECRET"),
 		PortalProxyURL:           portalProxyURL,
 		Topics:                   parseTopics(viper),
 		MaxDestinationsPerTenant: mustInt(viper, "MAX_DESTINATIONS_PER_TENANT"),
@@ -195,14 +226,14 @@ func Parse(flags Flags) (*Config, error) {
 		PublishQueueConfig:              publishQueueConfig,
 		DeliveryQueueConfig:             deliveryQueueConfig,
 		LogQueueConfig:                  logQueueConfig,
-		PublishMaxConcurrency:           mustInt(viper, "PUBLISHMQ_MAX_CONCURRENCY"),
-		DeliveryMaxConcurrency:          mustInt(viper, "DELIVERYMQ_MAX_CONCURRENCY"),
-		LogMaxConcurrency:               mustInt(viper, "LOGMQ_MAX_CONCURRENCY"),
+		PublishMaxConcurrency:           mustInt(viper, "PUBLISH_MAX_CONCURRENCY"),
+		DeliveryMaxConcurrency:          mustInt(viper, "DELIVERY_MAX_CONCURRENCY"),
+		LogMaxConcurrency:               mustInt(viper, "LOG_MAX_CONCURRENCY"),
 		RetryIntervalSeconds:            mustInt(viper, "RETRY_INTERVAL_SECONDS"),
-		RetryMaxCount:                   mustInt(viper, "MAX_RETRY_COUNT"),
+		RetryMaxLimit:                   mustInt(viper, "MAX_RETRY_LIMIT"),
 		DeliveryTimeoutSeconds:          mustInt(viper, "DELIVERY_TIMEOUT_SECONDS"),
-		LogBatcherDelayThresholdSeconds: mustInt(viper, "LOG_BATCHER_DELAY_THRESHOLD_SECONDS"),
-		LogBatcherItemCountThreshold:    mustInt(viper, "LOG_BATCHER_ITEM_COUNT_THRESHOLD"),
+		LogBatcherDelayThresholdSeconds: mustInt(viper, "LOG_BATCH_THRESHOLD_SECONDS"),
+		LogBatcherItemCountThreshold:    mustInt(viper, "LOG_BATCH_SIZE"),
 		DestinationMetadataPath:         viper.GetString("DESTINATION_METADATA_PATH"),
 
 		DisableTelemetry: viper.GetBool("DISABLE_TELEMETRY"),

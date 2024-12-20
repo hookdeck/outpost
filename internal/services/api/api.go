@@ -91,7 +91,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		eventTracer = eventtracer.NewEventTracer()
 	}
 	entityStore := models.NewEntityStore(redisClient,
-		models.WithCipher(models.NewAESCipher(cfg.EncryptionSecret)),
+		models.WithCipher(models.NewAESCipher(cfg.AESEncryptionSecret)),
 		models.WithAvailableTopics(cfg.Topics),
 		models.WithMaxDestinationsPerTenant(cfg.MaxDestinationsPerTenant),
 	)
@@ -100,7 +100,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		RouterConfig{
 			Hostname:       cfg.Hostname,
 			APIKey:         cfg.APIKey,
-			JWTSecret:      cfg.JWTSecret,
+			JWTSecret:      cfg.APIJWTSecret,
 			PortalProxyURL: cfg.PortalProxyURL,
 			Topics:         cfg.Topics,
 			Registry:       registry,
