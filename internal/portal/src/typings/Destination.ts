@@ -4,6 +4,12 @@ interface ConfigField {
   description: string;
   key: string;
   required: boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  minlength?: number;
+  maxlength?: number;
+  pattern?: string;
 }
 
 interface CredentialField extends ConfigField {

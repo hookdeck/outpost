@@ -4,7 +4,6 @@ import {
 } from "../../typings/Destination";
 import "./DestinationConfigFields.scss";
 
-// TODO: Figure out how to handle custom validation
 const DestinationConfigFields = ({
   destination,
   type,
@@ -35,6 +34,9 @@ const DestinationConfigFields = ({
                     ""
               }
               required={field.required}
+              minLength={field.minlength}
+              maxLength={field.maxlength}
+              pattern={field.pattern}
             />
           )}
           {field.description && (

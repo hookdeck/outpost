@@ -5,7 +5,7 @@
       "key": "server_url",
       "type": "text",
       "label": "Server URL",
-      "description": "The RabbitMQ server URL (e.g., amqp://localhost:5672)",
+      "description": "The RabbitMQ server URL (e.g., myrabbitmq.com:5672)",
       "required": true
     },
     {

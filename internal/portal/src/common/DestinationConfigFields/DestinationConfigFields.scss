@@ -14,6 +14,13 @@
     }
   }
 
+  input {
+    &:invalid {
+      // TODO: use color variable or update styling
+      background-color: #fee2e2;
+    }
+  }
+
   .description {
     font-size: var(--font-size-s);
     line-height: var(--line-height-s);
