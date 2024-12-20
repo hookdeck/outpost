@@ -1,3 +1,6 @@
 {
-  "extends": "./node_modules/@tsconfig/vite-react/tsconfig.json"
+  "extends": "./node_modules/@tsconfig/vite-react/tsconfig.json",
+  "compilerOptions": {
+    "incremental": true
+  }
 }
