@@ -217,7 +217,7 @@ const DestinationSettings = ({
       <hr />
       <div className="destination-settings__actions">
         <h2 className="title-l">
-          {destination.disabled_at ? "Enabled" : "Disable"} event destination
+          {destination.disabled_at ? "Enable" : "Disable"} event destination
         </h2>
         <p className="body-m muted">
           {destination.disabled_at
