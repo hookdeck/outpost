@@ -144,6 +144,9 @@ func (s *WebhookPublishSuite) setupBasicSuite() {
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": consumer.server.URL + "/webhook",
 		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secret": "test-secret",
+		}),
 	)
 
 	s.InitSuite(testsuite.Config{
@@ -151,7 +154,9 @@ func (s *WebhookPublishSuite) setupBasicSuite() {
 		Dest:     &dest,
 		Consumer: consumer,
 		Asserter: &WebhookAsserter{
-			headerPrefix: "x-outpost-",
+			headerPrefix:       "x-outpost-",
+			expectedSignatures: 1,
+			secrets:            []string{"test-secret"},
 		},
 	})
 
@@ -165,15 +170,13 @@ func (s *WebhookPublishSuite) setupSingleSecretSuite() {
 	provider, err := destwebhook.New(testutil.Registry.MetadataLoader())
 	require.NoError(s.T(), err)
 
-	now := time.Now()
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": consumer.server.URL + "/webhook",
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
-			"secrets": fmt.Sprintf(`[{"key":"secret1","created_at":"%s"}]`,
-				now.Format(time.RFC3339)),
+			"secret": "secret1",
 		}),
 	)
 
@@ -199,19 +202,16 @@ func (s *WebhookPublishSuite) setupMultipleSecretsSuite() {
 	require.NoError(s.T(), err)
 
 	now := time.Now()
+	invalidAt := now.Add(24 * time.Hour)
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": consumer.server.URL + "/webhook",
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
-			"secrets": fmt.Sprintf(`[
-				{"key":"secret1","created_at":"%s"},
-				{"key":"secret2","created_at":"%s"}
-			]`,
-				now.Add(-12*time.Hour).Format(time.RFC3339),
-				now.Add(-6*time.Hour).Format(time.RFC3339),
-			),
+			"secret":                     "secret2",
+			"previous_secret":            "secret1",
+			"previous_secret_invalid_at": invalidAt.Format(time.RFC3339),
 		}),
 	)
 
@@ -222,7 +222,7 @@ func (s *WebhookPublishSuite) setupMultipleSecretsSuite() {
 		Asserter: &WebhookAsserter{
 			headerPrefix:       "x-outpost-",
 			expectedSignatures: 2,
-			secrets:            []string{"secret1", "secret2"},
+			secrets:            []string{"secret2", "secret1"},
 		},
 	})
 
@@ -237,21 +237,16 @@ func (s *WebhookPublishSuite) setupExpiredSecretsSuite() {
 	require.NoError(s.T(), err)
 
 	now := time.Now()
+	invalidAt := now.Add(-1 * time.Hour) // Previous secret is already invalid
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": consumer.server.URL + "/webhook",
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
-			"secrets": fmt.Sprintf(`[
-				{"key":"expired_secret","created_at":"%s"},
-				{"key":"active_secret1","created_at":"%s"},
-				{"key":"active_secret2","created_at":"%s"}
-			]`,
-				now.Add(-48*time.Hour).Format(time.RFC3339), // Expired secret (> 24h old)
-				now.Add(-12*time.Hour).Format(time.RFC3339), // Active secret
-				now.Add(-6*time.Hour).Format(time.RFC3339),  // Active secret
-			),
+			"secret":                     "active_secret",
+			"previous_secret":            "expired_secret",
+			"previous_secret_invalid_at": invalidAt.Format(time.RFC3339),
 		}),
 	)
 
@@ -261,8 +256,8 @@ func (s *WebhookPublishSuite) setupExpiredSecretsSuite() {
 		Consumer: consumer,
 		Asserter: &WebhookAsserter{
 			headerPrefix:       "x-outpost-",
-			expectedSignatures: 2, // Only expect signatures from active secrets
-			secrets:            []string{"active_secret1", "active_secret2"},
+			expectedSignatures: 1, // Only expect signature from active secret
+			secrets:            []string{"active_secret"},
 		},
 	})
 
@@ -285,6 +280,9 @@ func (s *WebhookPublishSuite) setupCustomHeaderSuite() {
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": consumer.server.URL + "/webhook",
 		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secret": "test-secret",
+		}),
 	)
 
 	s.InitSuite(testsuite.Config{
@@ -292,7 +290,9 @@ func (s *WebhookPublishSuite) setupCustomHeaderSuite() {
 		Dest:     &dest,
 		Consumer: consumer,
 		Asserter: &WebhookAsserter{
-			headerPrefix: customPrefix,
+			headerPrefix:       customPrefix,
+			expectedSignatures: 1,
+			secrets:            []string{"test-secret"},
 		},
 	})
 
@@ -393,6 +393,9 @@ func TestWebhookPublisher_DisableDefaultHeaders(t *testing.T) {
 				testutil.DestinationFactory.WithConfig(map[string]string{
 					"url": "http://example.com",
 				}),
+				testutil.DestinationFactory.WithCredentials(map[string]string{
+					"secret": "test-secret",
+				}),
 			)
 
 			publisher, err := dest.CreatePublisher(context.Background(), &destination)
@@ -415,11 +418,15 @@ func TestWebhookPublisher_DisableDefaultHeaders(t *testing.T) {
 }
 
 func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
-	now := time.Now()
-	secret := destwebhook.WebhookSecret{
-		Key:       "test-secret",
-		CreatedAt: now,
-	}
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": "http://example.com",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secret": "test-secret",
+		}),
+	)
 
 	tests := []struct {
 		name             string
@@ -484,19 +491,7 @@ func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			destination := testutil.DestinationFactory.Any(
-				testutil.DestinationFactory.WithType("webhook"),
-				testutil.DestinationFactory.WithConfig(map[string]string{
-					"url": "http://example.com",
-				}),
-				testutil.DestinationFactory.WithCredentials(map[string]string{
-					"secrets": fmt.Sprintf(`[{"key":"%s","created_at":"%s"}]`,
-						secret.Key,
-						secret.CreatedAt.Format(time.RFC3339)),
-				}),
-			)
-
-			publisher, err := provider.CreatePublisher(context.Background(), &destination)
+			publisher, err := provider.CreatePublisher(context.Background(), &dest)
 			require.NoError(t, err)
 
 			event := testutil.EventFactory.Any(
@@ -515,15 +510,22 @@ func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 			require.NoError(t, err)
 
 			// Create a new signature manager to verify
+			now := time.Now()
+			secrets := []destwebhook.WebhookSecret{
+				{
+					Key:       "test-secret",
+					CreatedAt: now,
+				},
+			}
 			sm := destwebhook.NewSignatureManager(
-				[]destwebhook.WebhookSecret{secret},
+				secrets,
 				destwebhook.WithSignatureFormatter(destwebhook.NewSignatureFormatter(tt.contentTemplate)),
 			)
 
 			// Verify signature matches expected content
 			assert.True(t, sm.VerifySignature(
 				signature,
-				secret.Key,
+				"test-secret",
 				destwebhook.SignaturePayload{
 					Timestamp: now,
 					Body:      `{"hello":"world"}`,

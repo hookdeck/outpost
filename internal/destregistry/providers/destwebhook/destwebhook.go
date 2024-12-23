@@ -45,7 +45,9 @@ type WebhookSecret struct {
 }
 
 type WebhookDestinationCredentials struct {
-	Secrets []WebhookSecret
+	Secret                  string    `json:"secret"`
+	PreviousSecret          string    `json:"previous_secret,omitempty"`
+	PreviousSecretInvalidAt time.Time `json:"previous_secret_invalid_at,omitempty"`
 }
 
 var _ destregistry.Provider = (*WebhookDestination)(nil)
@@ -194,8 +196,25 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		return nil, err
 	}
 
+	// Convert credentials to WebhookSecret format
+	now := time.Now()
+	secrets := []WebhookSecret{
+		{
+			Key:       creds.Secret,
+			CreatedAt: now,
+		},
+	}
+
+	if creds.PreviousSecret != "" {
+		secrets = append(secrets, WebhookSecret{
+			Key:       creds.PreviousSecret,
+			CreatedAt: now.Add(-1 * time.Hour), // Set to 1 hour before current secret
+			InvalidAt: &creds.PreviousSecretInvalidAt,
+		})
+	}
+
 	sm := NewSignatureManager(
-		creds.Secrets,
+		secrets,
 		WithSignatureFormatter(NewSignatureFormatter(d.signatureContentTemplate)),
 		WithHeaderFormatter(NewHeaderFormatter(d.signatureHeaderTemplate)),
 		WithEncoder(GetEncoder(d.encoding)),
@@ -206,7 +225,7 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		BasePublisher:          &destregistry.BasePublisher{},
 		url:                    config.URL,
 		headerPrefix:           d.headerPrefix,
-		secrets:                creds.Secrets,
+		secrets:                secrets,
 		sm:                     sm,
 		disableEventIDHeader:   d.disableEventIDHeader,
 		disableSignatureHeader: d.disableSignatureHeader,
@@ -224,46 +243,43 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 		URL: destination.Config["url"],
 	}
 
-	// Parse secrets from destination credentials
-	var creds WebhookDestinationCredentials
-	if secretsJson, ok := destination.Credentials["secrets"]; ok && secretsJson != "" {
-		if err := json.Unmarshal([]byte(secretsJson), &creds.Secrets); err != nil {
+	// Parse credentials directly from map
+	creds := &WebhookDestinationCredentials{
+		Secret:         destination.Credentials["secret"],
+		PreviousSecret: destination.Credentials["previous_secret"],
+	}
+
+	// Parse previous_secret_invalid_at if present
+	if invalidAtStr := destination.Credentials["previous_secret_invalid_at"]; invalidAtStr != "" {
+		invalidAt, err := time.Parse(time.RFC3339, invalidAtStr)
+		if err != nil {
 			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
-				Field: "credentials.secrets",
+				Field: "credentials.previous_secret_invalid_at",
 				Type:  "pattern",
 			}})
 		}
+		creds.PreviousSecretInvalidAt = invalidAt
+	}
 
-		// Validate each secret
-		for i, secret := range creds.Secrets {
-			// Validate required fields
-			if secret.Key == "" {
-				return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
-					Field: fmt.Sprintf("credentials.secrets[%d].key", i),
-					Type:  "required",
-				}})
-			}
-			if secret.CreatedAt.IsZero() {
-				return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
-					Field: fmt.Sprintf("credentials.secrets[%d].created_at", i),
-					Type:  "required",
-				}})
-			}
+	// Validate required fields
+	if creds.Secret == "" {
+		return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+			Field: "credentials.secret",
+			Type:  "required",
+		}})
+	}
 
-			// Validate invalid_at if provided
-			if secret.InvalidAt != nil {
-				// Check if invalid_at is after created_at
-				if !secret.InvalidAt.After(secret.CreatedAt) {
-					return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
-						Field: fmt.Sprintf("credentials.secrets[%d].invalid_at", i),
-						Type:  "invalid_value",
-					}})
-				}
-			}
+	// If previous secret is provided, validate invalidation time
+	if creds.PreviousSecret != "" {
+		if creds.PreviousSecretInvalidAt.IsZero() {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+				Field: "credentials.previous_secret_invalid_at",
+				Type:  "required",
+			}})
 		}
 	}
 
-	return config, &creds, nil
+	return config, creds, nil
 }
 
 // validateURL checks if a string is a valid URL

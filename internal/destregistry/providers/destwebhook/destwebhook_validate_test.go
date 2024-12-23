@@ -18,7 +18,9 @@ func TestWebhookDestination_Validate(t *testing.T) {
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": "https://example.com",
 		}),
-		testutil.DestinationFactory.WithCredentials(map[string]string{}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secret": "test-secret",
+		}),
 	)
 
 	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader())
@@ -77,7 +79,7 @@ func TestWebhookDestination_ValidateSecrets(t *testing.T) {
 			"url": "https://example.com",
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
-			"secrets": `[{"key":"secret1","created_at":"2024-01-01T00:00:00Z"}]`,
+			"secret": "secret1",
 		}),
 	)
 
@@ -89,43 +91,55 @@ func TestWebhookDestination_ValidateSecrets(t *testing.T) {
 		assert.NoError(t, webhookDestination.Validate(nil, &validDestination))
 	})
 
-	t.Run("should validate malformed secrets", func(t *testing.T) {
+	t.Run("should validate missing secret", func(t *testing.T) {
+		t.Parallel()
+		invalidDestination := validDestination
+		invalidDestination.Credentials = map[string]string{}
+		err := webhookDestination.Validate(nil, &invalidDestination)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "credentials.secret", validationErr.Errors[0].Field)
+		assert.Equal(t, "required", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should validate previous secret without invalid_at", func(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
 		invalidDestination.Credentials = map[string]string{
-			"secrets": `invalid-json`,
+			"secret":          "secret1",
+			"previous_secret": "secret2",
 		}
 		err := webhookDestination.Validate(nil, &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
-		assert.Equal(t, "credentials.secrets", validationErr.Errors[0].Field)
-		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
+		assert.Equal(t, "credentials.previous_secret_invalid_at", validationErr.Errors[0].Field)
+		assert.Equal(t, "required", validationErr.Errors[0].Type)
 	})
 
-	t.Run("should validate invalid secret format", func(t *testing.T) {
+	t.Run("should validate malformed previous_secret_invalid_at", func(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
 		invalidDestination.Credentials = map[string]string{
-			"secrets": `[{"key":"","created_at":"invalid-date"}]`,
+			"secret":                     "secret1",
+			"previous_secret":            "secret2",
+			"previous_secret_invalid_at": "not-a-timestamp",
 		}
 		err := webhookDestination.Validate(nil, &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
-		assert.Equal(t, "credentials.secrets", validationErr.Errors[0].Field)
+		assert.Equal(t, "credentials.previous_secret_invalid_at", validationErr.Errors[0].Field)
 		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
 	})
 
-	t.Run("should validate multiple valid secrets", func(t *testing.T) {
+	t.Run("should validate valid destination with previous secret", func(t *testing.T) {
 		t.Parallel()
-		destWithMultipleSecrets := validDestination
-		destWithMultipleSecrets.Credentials = map[string]string{
-			"secrets": `[
-                {"key":"secret1","created_at":"2024-01-01T00:00:00Z"},
-                {"key":"secret2","created_at":"2024-01-02T00:00:00Z"},
-                {"key":"secret3","created_at":"2024-01-03T00:00:00Z"}
-            ]`,
+		validDestWithPrevious := validDestination
+		validDestWithPrevious.Credentials = map[string]string{
+			"secret":                     "secret1",
+			"previous_secret":            "secret2",
+			"previous_secret_invalid_at": "2024-01-02T00:00:00Z",
 		}
-		assert.NoError(t, webhookDestination.Validate(nil, &destWithMultipleSecrets))
+		assert.NoError(t, webhookDestination.Validate(nil, &validDestWithPrevious))
 	})
 }
 
