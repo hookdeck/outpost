@@ -3,6 +3,7 @@ package destwebhook_test
 import (
 	"encoding/hex"
 	"testing"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
@@ -213,5 +214,64 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		// Verify that credentials map was initialized and a secret was generated
 		assert.NotNil(t, destination.Credentials)
 		assert.NotEmpty(t, destination.Credentials["secret"])
+	})
+
+	t.Run("should rotate secret when requested", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret":        "current-secret",
+				"rotate_secret": "true",
+			}),
+		)
+
+		err := webhookDestination.Preprocess(&destination)
+		require.NoError(t, err)
+
+		// Verify that the current secret became the previous secret
+		assert.Equal(t, "current-secret", destination.Credentials["previous_secret"])
+
+		// Verify that a new secret was generated
+		assert.NotEqual(t, "current-secret", destination.Credentials["secret"])
+		assert.NotEmpty(t, destination.Credentials["secret"])
+		assert.Len(t, destination.Credentials["secret"], 64)
+		_, err = hex.DecodeString(destination.Credentials["secret"])
+		assert.NoError(t, err, "generated secret should be a valid hex string")
+
+		// Verify that previous_secret_invalid_at was set to ~24h from now
+		invalidAt, err := time.Parse(time.RFC3339, destination.Credentials["previous_secret_invalid_at"])
+		require.NoError(t, err)
+		expectedTime := time.Now().Add(24 * time.Hour)
+		assert.WithinDuration(t, expectedTime, invalidAt, 5*time.Second)
+
+		// Verify that rotate_secret flag was removed
+		_, exists := destination.Credentials["rotate_secret"]
+		assert.False(t, exists)
+	})
+
+	t.Run("should respect custom invalidation time during rotation", func(t *testing.T) {
+		t.Parallel()
+		customInvalidAt := time.Now().Add(48 * time.Hour).Format(time.RFC3339)
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret":                     "current-secret",
+				"rotate_secret":              "true",
+				"previous_secret_invalid_at": customInvalidAt,
+			}),
+		)
+
+		err := webhookDestination.Preprocess(&destination)
+		require.NoError(t, err)
+
+		// Verify that the custom invalidation time was preserved
+		assert.Equal(t, customInvalidAt, destination.Credentials["previous_secret_invalid_at"])
 	})
 }

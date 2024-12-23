@@ -280,10 +280,35 @@ func validateURL(urlStr string) (*url.URL, error) {
 	return parsedURL, nil
 }
 
-// Preprocess sets a default secret if one isn't provided
+// Preprocess sets a default secret if one isn't provided and handles secret rotation
 func (d *WebhookDestination) Preprocess(destination *models.Destination) error {
 	if destination.Credentials == nil {
 		destination.Credentials = make(map[string]string)
+	}
+
+	// Handle secret rotation if requested
+	if _, ok := destination.Credentials["rotate_secret"]; ok {
+		// Current secret becomes previous secret
+		if currentSecret := destination.Credentials["secret"]; currentSecret != "" {
+			destination.Credentials["previous_secret"] = currentSecret
+
+			// Set invalidation time to 24 hours from now if not provided
+			if destination.Credentials["previous_secret_invalid_at"] == "" {
+				invalidAt := time.Now().Add(24 * time.Hour)
+				destination.Credentials["previous_secret_invalid_at"] = invalidAt.Format(time.RFC3339)
+			}
+
+			// Generate new secret
+			newSecret, err := generateSignatureSecret()
+			if err != nil {
+				return err
+			}
+			destination.Credentials["secret"] = newSecret
+
+			// Remove the rotate flag
+			delete(destination.Credentials, "rotate_secret")
+		}
+		return nil
 	}
 
 	// If no secret is provided, generate a random one
