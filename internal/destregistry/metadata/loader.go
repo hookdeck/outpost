@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 //go:embed providers/*
@@ -30,10 +28,6 @@ func (l *FSMetadataLoader) Load(providerType string) (*ProviderMetadata, error) 
 		return nil, err
 	}
 
-	if err := l.loadValidation(providerType, metadata); err != nil {
-		return nil, err
-	}
-
 	if err := l.loadUI(providerType, metadata); err != nil {
 		return nil, err
 	}
@@ -49,30 +43,6 @@ func (l *FSMetadataLoader) loadCore(providerType string, metadata *ProviderMetad
 	if err := l.loadJSONFile(providerType, "core.json", metadata); err != nil {
 		return fmt.Errorf("loading core metadata: %w", err)
 	}
-	return nil
-}
-
-func (l *FSMetadataLoader) loadValidation(providerType string, metadata *ProviderMetadata) error {
-	validationBytes, err := l.loadFile(providerType, "validation.json")
-	if err != nil {
-		return fmt.Errorf("loading validation schema: %w", err)
-	}
-
-	// Parse and store the raw schema
-	if err := json.Unmarshal(validationBytes, &metadata.ValidationSchema); err != nil {
-		return fmt.Errorf("parsing validation schema: %w", err)
-	}
-
-	compiler := jsonschema.NewCompiler()
-	if err := compiler.AddResource("schema.json", metadata.ValidationSchema); err != nil {
-		return fmt.Errorf("adding validation schema: %w", err)
-	}
-
-	metadata.Validation, err = compiler.Compile("schema.json")
-	if err != nil {
-		return fmt.Errorf("compiling validation schema: %w", err)
-	}
-
 	return nil
 }
 

@@ -69,7 +69,7 @@ func TestAWSSQSDestination_Validate(t *testing.T) {
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.queue_url", validationErr.Errors[0].Field)
-		assert.Equal(t, "format", validationErr.Errors[0].Type)
+		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
 	})
 
 	t.Run("should validate malformed endpoint", func(t *testing.T) {
@@ -83,7 +83,7 @@ func TestAWSSQSDestination_Validate(t *testing.T) {
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.endpoint", validationErr.Errors[0].Field)
-		assert.Equal(t, "format", validationErr.Errors[0].Type)
+		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
 	})
 
 	t.Run("should validate missing credentials", func(t *testing.T) {

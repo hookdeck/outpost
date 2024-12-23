@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -219,18 +220,17 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 		return nil, nil, err
 	}
 
-	// Extract URL from destination config
 	config := &WebhookDestinationConfig{
 		URL: destination.Config["url"],
 	}
 
 	// Parse secrets from destination credentials
 	var creds WebhookDestinationCredentials
-	if secretsJson, ok := destination.Credentials["secrets"]; ok {
+	if secretsJson, ok := destination.Credentials["secrets"]; ok && secretsJson != "" {
 		if err := json.Unmarshal([]byte(secretsJson), &creds.Secrets); err != nil {
 			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
 				Field: "credentials.secrets",
-				Type:  "invalid_format",
+				Type:  "pattern",
 			}})
 		}
 
@@ -264,6 +264,30 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 	}
 
 	return config, &creds, nil
+}
+
+// validateURL checks if a string is a valid URL
+func validateURL(urlStr string) (*url.URL, error) {
+	if urlStr == "" {
+		return nil, fmt.Errorf("URL is empty")
+	}
+
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if scheme is http or https
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return nil, fmt.Errorf("URL must use http or https scheme")
+	}
+
+	// Check if host is present
+	if parsedURL.Host == "" {
+		return nil, fmt.Errorf("URL must have a host")
+	}
+
+	return parsedURL, nil
 }
 
 type WebhookPublisher struct {

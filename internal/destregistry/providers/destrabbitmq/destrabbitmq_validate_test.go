@@ -16,7 +16,7 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 	validDestination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("rabbitmq"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"server_url": "amqp://localhost:5672",
+			"server_url": "localhost:5672",
 			"exchange":   "test-exchange",
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
@@ -61,7 +61,7 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
 		invalidDestination.Config = map[string]string{
-			"server_url": "amqp://localhost:5672",
+			"server_url": "localhost:5672",
 		}
 		err := rabbitmqDestination.Validate(nil, &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
@@ -81,7 +81,7 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.server_url", validationErr.Errors[0].Field)
-		assert.Equal(t, "format", validationErr.Errors[0].Type)
+		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
 	})
 
 	t.Run("should validate missing credentials", func(t *testing.T) {

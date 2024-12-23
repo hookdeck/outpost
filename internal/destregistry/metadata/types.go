@@ -1,8 +1,6 @@
 // internal/destregistry/metadata/types.go
 package metadata
 
-import "github.com/santhosh-tekuri/jsonschema/v6"
-
 // MetadataLoader loads provider metadata
 type MetadataLoader interface {
 	Load(providerType string) (*ProviderMetadata, error)
@@ -22,10 +20,6 @@ type ProviderMetadata struct {
 
 	// From instructions.md
 	Instructions string `json:"instructions"`
-
-	// From validation.json
-	ValidationSchema map[string]interface{} `json:"validation"` // Raw JSON schema
-	Validation       *jsonschema.Schema     `json:"-"`          // Compiled schema for internal use
 }
 
 type FieldSchema struct {

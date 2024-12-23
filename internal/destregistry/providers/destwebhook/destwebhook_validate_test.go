@@ -64,7 +64,7 @@ func TestWebhookDestination_Validate(t *testing.T) {
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.url", validationErr.Errors[0].Field)
-		assert.Equal(t, "format", validationErr.Errors[0].Type)
+		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
 	})
 }
 
@@ -112,7 +112,7 @@ func TestWebhookDestination_ValidateSecrets(t *testing.T) {
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "credentials.secrets", validationErr.Errors[0].Field)
-		assert.Equal(t, "invalid_format", validationErr.Errors[0].Type)
+		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
 	})
 
 	t.Run("should validate multiple valid secrets", func(t *testing.T) {

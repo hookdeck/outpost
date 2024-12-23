@@ -3,12 +3,12 @@ package destregistry
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/santhosh-tekuri/jsonschema/v6"
-	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 )
 
 // ObfuscateValue masks a sensitive value. For strings:
@@ -85,7 +85,7 @@ func (p *BaseProvider) ObfuscateDestination(destination *models.Destination) *mo
 	return &result
 }
 
-// Validate performs schema validation using the provider's metadata
+// Validate performs field-level validation using the provider's metadata
 func (p *BaseProvider) Validate(ctx context.Context, destination *models.Destination) error {
 	if destination.Type != p.metadata.Type {
 		return NewErrDestinationValidation([]ValidationErrorDetail{{
@@ -94,92 +94,91 @@ func (p *BaseProvider) Validate(ctx context.Context, destination *models.Destina
 		}})
 	}
 
-	// Convert the config and credentials to map[string]interface{} for JSON schema validation
-	validationData := map[string]interface{}{
-		"config":      map[string]interface{}{},
-		"credentials": map[string]interface{}{},
-	}
+	var errors []ValidationErrorDetail
 
-	// Copy config values
-	for k, v := range destination.Config {
-		validationData["config"].(map[string]interface{})[k] = v
-	}
-
-	// Copy credentials values
-	for k, v := range destination.Credentials {
-		validationData["credentials"].(map[string]interface{})[k] = v
-	}
-
-	// Validate using JSON schema
-	if err := p.metadata.Validation.Validate(validationData); err != nil {
-		if validationErr, ok := err.(*jsonschema.ValidationError); ok {
-			errors := formatJSONSchemaErrors(validationErr)
-			if len(errors) == 0 {
-				return NewErrDestinationValidation([]ValidationErrorDetail{{
-					Field: "root",
-					Type:  "unknown",
-				}})
-			}
-			return NewErrDestinationValidation(errors)
+	// Validate config fields
+	for _, field := range p.metadata.ConfigFields {
+		if err := validateField(field, destination.Config[field.Key], "config."+field.Key); err != nil {
+			errors = append(errors, *err)
 		}
+	}
+
+	// Validate credential fields
+	for _, field := range p.metadata.CredentialFields {
+		if err := validateField(field, destination.Credentials[field.Key], "credentials."+field.Key); err != nil {
+			errors = append(errors, *err)
+		}
+	}
+
+	if len(errors) > 0 {
+		return NewErrDestinationValidation(errors)
 	}
 
 	return nil
 }
 
-func formatPropertyPath(pathParts []string) string {
-	var parts []string
-	for _, part := range pathParts {
-		if part != "" {
-			parts = append(parts, part)
+func validateField(field metadata.FieldSchema, value string, path string) *ValidationErrorDetail {
+	// Check existence/required first
+	if value == "" {
+		if field.Required {
+			return &ValidationErrorDetail{
+				Field: path,
+				Type:  "required",
+			}
 		}
+		return nil
 	}
-	if len(parts) == 0 {
-		return "root"
-	}
-	return strings.Join(parts, ".")
-}
 
-func formatJSONSchemaErrors(validationErr *jsonschema.ValidationError) []ValidationErrorDetail {
-	var errors []ValidationErrorDetail
-
-	var processError func(*jsonschema.ValidationError)
-	processError = func(verr *jsonschema.ValidationError) {
-		if verr.InstanceLocation != nil {
-			propertyPath := formatPropertyPath(verr.InstanceLocation)
-			if errorKind, ok := verr.ErrorKind.(interface{ KeywordPath() []string }); ok {
-				keywordPath := errorKind.KeywordPath()
-				errorType := keywordPath[len(keywordPath)-1]
-
-				// Handle required field errors specially
-				if errorType == "required" {
-					if required, ok := verr.ErrorKind.(*kind.Required); ok {
-						for _, missingField := range required.Missing {
-							fullPath := propertyPath
-							if fullPath != "root" {
-								fullPath = fullPath + "." + missingField
-							}
-							errors = append(errors, ValidationErrorDetail{
-								Field: fullPath,
-								Type:  "required",
-							})
-						}
-						return
-					}
-				}
-
-				errors = append(errors, ValidationErrorDetail{
-					Field: propertyPath,
-					Type:  errorType,
-				})
+	if field.Type == "number" {
+		num, err := strconv.Atoi(value)
+		if err != nil {
+			return &ValidationErrorDetail{
+				Field: path,
+				Type:  "type",
 			}
 		}
 
-		for _, cause := range verr.Causes {
-			processError(cause)
+		if field.Min != nil && num < *field.Min {
+			return &ValidationErrorDetail{
+				Field: path,
+				Type:  "min",
+			}
+		}
+
+		if field.Max != nil && num > *field.Max {
+			return &ValidationErrorDetail{
+				Field: path,
+				Type:  "max",
+			}
+		}
+
+		return nil
+	}
+
+	// String validation
+	if field.MinLength != nil && len(value) < *field.MinLength {
+		return &ValidationErrorDetail{
+			Field: path,
+			Type:  "minlength",
 		}
 	}
 
-	processError(validationErr)
-	return errors
+	if field.MaxLength != nil && len(value) > *field.MaxLength {
+		return &ValidationErrorDetail{
+			Field: path,
+			Type:  "maxlength",
+		}
+	}
+
+	if field.Pattern != nil {
+		matched, err := regexp.MatchString(*field.Pattern, value)
+		if err != nil || !matched {
+			return &ValidationErrorDetail{
+				Field: path,
+				Type:  "pattern",
+			}
+		}
+	}
+
+	return nil
 }

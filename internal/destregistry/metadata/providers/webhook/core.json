@@ -6,7 +6,8 @@
       "type": "text",
       "label": "Webhook URL",
       "description": "The URL to send webhook requests to",
-      "required": true
+      "required": true,
+      "pattern": "^https?:\\/\\/(?:localhost|127\\.0\\.0\\.1|\\[::1\\]|(?:[\\w\\-]+\\.)+[a-z]{2,})(?::\\d{1,5})?(?:\\/[\\w\\-\\/\\.~:?#\\[\\]@!$&'\\(\\)*+,;=]*)?$"
     }
   ],
   "credential_fields": [
