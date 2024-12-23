@@ -2,6 +2,7 @@ package destregistry_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -178,6 +179,7 @@ func (p *mockPublisherWithConfig) Close() error { return nil }
 
 type mockProviderWithConfig struct {
 	providerType string
+	preprocessFn func(*models.Destination) error
 	*destregistry.BaseProvider
 }
 
@@ -192,15 +194,22 @@ func newMockProviderWithConfig(providerType string) (*mockProviderWithConfig, er
 	}, nil
 }
 
-func (p *mockProviderWithConfig) CreatePublisher(ctx context.Context, dest *models.Destination) (destregistry.Publisher, error) {
+func (p *mockProviderWithConfig) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
 	return &mockPublisherWithConfig{
 		providerType: p.providerType,
-		config:       dest.Config["id"], // Use generic config ID instead of URL
+		config:       destination.Config["id"],
 	}, nil
 }
 
-func (p *mockProviderWithConfig) ComputeTarget(dest *models.Destination) string {
+func (p *mockProviderWithConfig) ComputeTarget(destination *models.Destination) string {
 	return "mock-target"
+}
+
+func (p *mockProviderWithConfig) Preprocess(destination *models.Destination) error {
+	if p.preprocessFn != nil {
+		return p.preprocessFn(destination)
+	}
+	return nil
 }
 
 func TestDestinationChanges(t *testing.T) {
@@ -709,4 +718,83 @@ func TestDisplayDestination(t *testing.T) {
 	assert.Equal(t, "value", display.Config["public_key"])
 	assert.Equal(t, "****", display.Config["secret_key"])
 	assert.Equal(t, "secr******", display.Credentials["api_key"])
+}
+
+func TestPreprocessDestination(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		destination *models.Destination
+		preprocess  func(*models.Destination) error
+		wantErr     bool
+	}{
+		{
+			name: "noop preprocess",
+			destination: &models.Destination{
+				Type: "mock",
+				Config: map[string]string{
+					"key": "value",
+				},
+			},
+			preprocess: nil, // Use base provider's implementation
+			wantErr:    false,
+		},
+		{
+			name: "modify config",
+			destination: &models.Destination{
+				Type: "mock",
+				Config: map[string]string{
+					"key": "value",
+				},
+			},
+			preprocess: func(d *models.Destination) error {
+				d.Config["processed"] = "true"
+				return nil
+			},
+			wantErr: false,
+		},
+		{
+			name: "preprocess error",
+			destination: &models.Destination{
+				Type: "mock",
+				Config: map[string]string{
+					"key": "value",
+				},
+			},
+			preprocess: func(d *models.Destination) error {
+				return errors.New("preprocess error")
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+			provider, err := newMockProviderWithConfig("mock")
+			require.NoError(t, err)
+
+			if tt.preprocess != nil {
+				provider.preprocessFn = tt.preprocess
+			}
+
+			err = registry.RegisterProvider("mock", provider)
+			require.NoError(t, err)
+
+			err = registry.PreprocessDestination(tt.destination)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			if tt.name == "modify config" {
+				assert.Equal(t, "true", tt.destination.Config["processed"])
+			}
+		})
+	}
 }

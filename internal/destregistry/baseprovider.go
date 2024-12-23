@@ -182,3 +182,8 @@ func validateField(field metadata.FieldSchema, value string, path string) *Valid
 
 	return nil
 }
+
+// Preprocess is a noop by default
+func (p *BaseProvider) Preprocess(destination *models.Destination) error {
+	return nil
+}

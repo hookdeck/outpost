@@ -75,6 +75,10 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
+	if err := h.registry.PreprocessDestination(&destination); err != nil {
+		AbortWithValidationError(c, err)
+		return
+	}
 	if err := h.entityStore.CreateDestination(c.Request.Context(), destination); err != nil {
 		h.handleUpsertDestinationError(c, err)
 		return
@@ -142,6 +146,12 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 			AbortWithValidationError(c, err)
 			return
 		}
+	}
+
+	// Always preprocess before updating
+	if err := h.registry.PreprocessDestination(destination); err != nil {
+		AbortWithValidationError(c, err)
+		return
 	}
 
 	// Update destination.

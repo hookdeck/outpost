@@ -21,6 +21,7 @@ type Registry interface {
 	ValidateDestination(ctx context.Context, destination *models.Destination) error
 	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error
 	DisplayDestination(destination *models.Destination) (*DestinationDisplay, error)
+	PreprocessDestination(destination *models.Destination) error
 
 	// Provider management
 	RegisterProvider(destinationType string, provider Provider) error
@@ -45,6 +46,8 @@ type Provider interface {
 	ObfuscateDestination(destination *models.Destination) *models.Destination
 	// ComputeTarget returns a human-readable target string for the destination
 	ComputeTarget(destination *models.Destination) string
+	// Preprocess modifies the destination before it is stored in the DB
+	Preprocess(destination *models.Destination) error
 }
 
 type Publisher interface {
@@ -251,6 +254,15 @@ func (r *registry) DisplayDestination(destination *models.Destination) (*Destina
 		Destination: obfuscated,
 		Target:      target,
 	}, nil
+}
+
+// PreprocessDestination resolves the provider and calls its Preprocess method
+func (r *registry) PreprocessDestination(destination *models.Destination) error {
+	provider, err := r.ResolveProvider(destination)
+	if err != nil {
+		return err
+	}
+	return provider.Preprocess(destination)
 }
 
 var (
