@@ -274,4 +274,27 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		// Verify that the custom invalidation time was preserved
 		assert.Equal(t, customInvalidAt, destination.Credentials["previous_secret_invalid_at"])
 	})
+
+	t.Run("should set default previous_secret_invalid_at when previous_secret is provided", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret":          "current-secret",
+				"previous_secret": "old-secret",
+			}),
+		)
+
+		err := webhookDestination.Preprocess(&destination)
+		require.NoError(t, err)
+
+		// Verify that previous_secret_invalid_at was set to ~24h from now
+		invalidAt, err := time.Parse(time.RFC3339, destination.Credentials["previous_secret_invalid_at"])
+		require.NoError(t, err)
+		expectedTime := time.Now().Add(24 * time.Hour)
+		assert.WithinDuration(t, expectedTime, invalidAt, 5*time.Second)
+	})
 }

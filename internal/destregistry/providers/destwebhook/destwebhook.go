@@ -295,6 +295,12 @@ func (d *WebhookDestination) Preprocess(destination *models.Destination) error {
 		destination.Credentials["secret"] = secret
 	}
 
+	// If previous_secret is provided but previous_secret_invalid_at is not, set it to 24 hours from now
+	if destination.Credentials["previous_secret"] != "" && destination.Credentials["previous_secret_invalid_at"] == "" {
+		invalidAt := time.Now().Add(24 * time.Hour)
+		destination.Credentials["previous_secret_invalid_at"] = invalidAt.Format(time.RFC3339)
+	}
+
 	return nil
 }
 
