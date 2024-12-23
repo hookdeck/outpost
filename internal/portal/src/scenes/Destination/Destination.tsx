@@ -76,8 +76,7 @@ const Destination = () => {
             <div className="header-container__content">
               <h1 className="title-3xl">{type.label}</h1>
               <p className="body-m">
-                {destination.config[type.target]}{" "}
-                <CopyButton value={destination.config[type.target]} />
+                {destination.target} <CopyButton value={destination.target} />
               </p>
             </div>
           </div>

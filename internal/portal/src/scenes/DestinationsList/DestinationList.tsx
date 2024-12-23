@@ -62,9 +62,7 @@ const DestinationList: React.FC = () => {
 
           return (
             destination.type.toLowerCase().includes(search_value) ||
-            destination.config[destination_types[destination.type].target]
-              .toLowerCase()
-              .includes(search_value)
+            destination.target.toLowerCase().includes(search_value)
           );
         })
       : [];
@@ -84,9 +82,7 @@ const DestinationList: React.FC = () => {
             {destination_types[destination.type].label}
           </span>
         </>,
-        <span className="muted-variant">
-          {destination.config[destination_types[destination.type].target]}
-        </span>,
+        <span className="muted-variant">{destination.target}</span>,
         CONFIGS.TOPICS ? (
           <Tooltip
             content={

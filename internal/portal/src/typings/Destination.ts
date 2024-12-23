@@ -24,7 +24,6 @@ interface DestinationTypeReference {
   label: string;
   description: string;
   icon: string;
-  target: string;
 }
 
 interface Destination {
