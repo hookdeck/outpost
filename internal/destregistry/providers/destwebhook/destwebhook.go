@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -254,30 +253,6 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 	}
 
 	return config, creds, nil
-}
-
-// validateURL checks if a string is a valid URL
-func validateURL(urlStr string) (*url.URL, error) {
-	if urlStr == "" {
-		return nil, fmt.Errorf("URL is empty")
-	}
-
-	parsedURL, err := url.Parse(urlStr)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check if scheme is http or https
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return nil, fmt.Errorf("URL must use http or https scheme")
-	}
-
-	// Check if host is present
-	if parsedURL.Host == "" {
-		return nil, fmt.Errorf("URL must have a host")
-	}
-
-	return parsedURL, nil
 }
 
 // Preprocess sets a default secret if one isn't provided and handles secret rotation
