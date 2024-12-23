@@ -1,12 +1,6 @@
 import useSWR from "swr";
 import { DestinationTypeReference } from "./typings/Destination";
 
-const targets = {
-  webhook: "url",
-  rabbitmq: "exchange",
-  aws: "queue_url",
-};
-
 export function useDestinationTypes(): Record<
   string,
   DestinationTypeReference
@@ -16,13 +10,7 @@ export function useDestinationTypes(): Record<
   if (!data) {
     return {};
   }
-  return Object.values(data).reduce((acc, type) => {
-    acc[type.type] = {
-      ...type,
-      target: targets[type.type as keyof typeof targets],
-    };
-    return acc;
-  }, {} as Record<string, DestinationTypeReference>);
+  return data;
 }
 
 export function useDestinationType(
