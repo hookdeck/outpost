@@ -30,7 +30,7 @@ type Registry interface {
 	// Metadata access
 	MetadataLoader() metadata.MetadataLoader
 	RetrieveProviderMetadata(providerType string) (*metadata.ProviderMetadata, error)
-	ListProviderMetadata() map[string]*metadata.ProviderMetadata
+	ListProviderMetadata() []*metadata.ProviderMetadata
 }
 
 // Provider interface handles validation and publisher creation
@@ -217,13 +217,14 @@ func (r *registry) RetrieveProviderMetadata(providerType string) (*metadata.Prov
 	return meta, nil
 }
 
-func (r *registry) ListProviderMetadata() map[string]*metadata.ProviderMetadata {
-	// Return a copy to prevent modification of internal state
-	metadataCopy := make(map[string]*metadata.ProviderMetadata, len(r.metadata))
-	for k, v := range r.metadata {
-		metadataCopy[k] = v
+// ListProviderMetadata returns a list of all registered provider metadata
+func (r *registry) ListProviderMetadata() []*metadata.ProviderMetadata {
+	// Convert map to slice
+	metadataList := make([]*metadata.ProviderMetadata, 0, len(r.metadata))
+	for _, v := range r.metadata {
+		metadataList = append(metadataList, v)
 	}
-	return metadataCopy
+	return metadataList
 }
 
 func (r *registry) ObfuscateDestination(destination *models.Destination) (*models.Destination, error) {
