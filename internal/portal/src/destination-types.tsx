@@ -5,12 +5,14 @@ export function useDestinationTypes(): Record<
   string,
   DestinationTypeReference
 > {
-  const { data } =
-    useSWR<Record<string, DestinationTypeReference>>("destination-types");
+  const { data } = useSWR<DestinationTypeReference[]>("destination-types");
   if (!data) {
     return {};
   }
-  return data;
+  return data.reduce((acc, type) => {
+    acc[type.type] = type;
+    return acc;
+  }, {} as Record<string, DestinationTypeReference>);
 }
 
 export function useDestinationType(
