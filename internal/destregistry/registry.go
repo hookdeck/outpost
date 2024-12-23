@@ -20,7 +20,7 @@ type Registry interface {
 	// Operations
 	ValidateDestination(ctx context.Context, destination *models.Destination) error
 	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error
-	ObfuscateDestination(destination *models.Destination) (*models.Destination, error)
+	DisplayDestination(destination *models.Destination) (*DestinationDisplay, error)
 
 	// Provider management
 	RegisterProvider(destinationType string, provider Provider) error
@@ -43,6 +43,8 @@ type Provider interface {
 	Metadata() *metadata.ProviderMetadata
 	// ObfuscateDestination returns a copy of the destination with sensitive fields masked
 	ObfuscateDestination(destination *models.Destination) *models.Destination
+	// ComputeTarget returns a human-readable target string for the destination
+	ComputeTarget(destination *models.Destination) string
 }
 
 type Publisher interface {
@@ -230,6 +232,24 @@ func (r *registry) ObfuscateDestination(destination *models.Destination) (*model
 		return nil, err
 	}
 	return provider.ObfuscateDestination(destination), nil
+}
+
+func (r *registry) DisplayDestination(destination *models.Destination) (*DestinationDisplay, error) {
+	provider, err := r.ResolveProvider(destination)
+	if err != nil {
+		return nil, err
+	}
+
+	// First obfuscate the destination
+	obfuscated := provider.ObfuscateDestination(destination)
+
+	// Then compute the target
+	target := provider.ComputeTarget(destination)
+
+	return &DestinationDisplay{
+		Destination: obfuscated,
+		Target:      target,
+	}, nil
 }
 
 var (

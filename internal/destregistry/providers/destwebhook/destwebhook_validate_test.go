@@ -128,3 +128,22 @@ func TestWebhookDestination_ValidateSecrets(t *testing.T) {
 		assert.NoError(t, webhookDestination.Validate(nil, &destWithMultipleSecrets))
 	})
 }
+
+func TestWebhookDestination_ComputeTarget(t *testing.T) {
+	t.Parallel()
+
+	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	require.NoError(t, err)
+
+	t.Run("should return url as target", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com/webhook",
+			}),
+		)
+		target := webhookDestination.ComputeTarget(&destination)
+		assert.Equal(t, "https://example.com/webhook", target)
+	})
+}

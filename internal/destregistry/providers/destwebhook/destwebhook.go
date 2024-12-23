@@ -379,3 +379,7 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 
 	return req, nil
 }
+
+func (d *WebhookDestination) ComputeTarget(destination *models.Destination) string {
+	return destination.Config["url"]
+}

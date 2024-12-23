@@ -100,6 +100,10 @@ func (p *mockProvider) CreatePublisher(ctx context.Context, dest *models.Destina
 	return pub, nil
 }
 
+func (p *mockProvider) ComputeTarget(dest *models.Destination) string {
+	return "mock-target"
+}
+
 func (p *mockPublisher) Publish(ctx context.Context, event *models.Event) error {
 	select {
 	case <-time.After(p.publishDelay):
@@ -174,6 +178,18 @@ func (p *mockPublisherWithConfig) Close() error { return nil }
 
 type mockProviderWithConfig struct {
 	providerType string
+	*destregistry.BaseProvider
+}
+
+func newMockProviderWithConfig(providerType string) (*mockProviderWithConfig, error) {
+	base, err := destregistry.NewBaseProvider(&mockMetadataLoader{}, providerType)
+	if err != nil {
+		return nil, err
+	}
+	return &mockProviderWithConfig{
+		providerType: providerType,
+		BaseProvider: base,
+	}, nil
 }
 
 func (p *mockProviderWithConfig) CreatePublisher(ctx context.Context, dest *models.Destination) (destregistry.Publisher, error) {
@@ -183,26 +199,8 @@ func (p *mockProviderWithConfig) CreatePublisher(ctx context.Context, dest *mode
 	}, nil
 }
 
-func (p *mockProviderWithConfig) Metadata() *metadata.ProviderMetadata { return nil }
-func (p *mockProviderWithConfig) Validate(ctx context.Context, dest *models.Destination) error {
-	return nil
-}
-func (p *mockProviderWithConfig) ObfuscateDestination(dest *models.Destination) *models.Destination {
-	result := *dest // shallow copy
-	result.Config = make(map[string]string, len(dest.Config))
-	result.Credentials = make(map[string]string, len(dest.Credentials))
-
-	// Copy config values as is since this is a mock
-	for k, v := range dest.Config {
-		result.Config[k] = v
-	}
-
-	// Mask all credential values
-	for k := range dest.Credentials {
-		result.Credentials[k] = "****"
-	}
-
-	return &result
+func (p *mockProviderWithConfig) ComputeTarget(dest *models.Destination) string {
+	return "mock-target"
 }
 
 func TestDestinationChanges(t *testing.T) {
@@ -210,7 +208,8 @@ func TestDestinationChanges(t *testing.T) {
 	t.Run("config change", func(t *testing.T) {
 		publishedEvents = make(map[publishTarget][]models.Event)
 		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
-		provider := &mockProviderWithConfig{providerType: "mock1"}
+		provider, err := newMockProviderWithConfig("mock1")
+		require.NoError(t, err)
 		registry.RegisterProvider("mock1", provider)
 
 		// Create initial destination
@@ -224,7 +223,7 @@ func TestDestinationChanges(t *testing.T) {
 
 		// Publish first event
 		event1 := &models.Event{Data: map[string]interface{}{"msg": "first"}}
-		err := registry.PublishEvent(context.Background(), dest, event1)
+		err = registry.PublishEvent(context.Background(), dest, event1)
 		require.NoError(t, err)
 
 		// Update destination with new config
@@ -261,8 +260,10 @@ func TestDestinationChanges(t *testing.T) {
 	t.Run("type change", func(t *testing.T) {
 		publishedEvents = make(map[publishTarget][]models.Event)
 		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
-		provider1 := &mockProviderWithConfig{providerType: "mock1"}
-		provider2 := &mockProviderWithConfig{providerType: "mock2"}
+		provider1, err := newMockProviderWithConfig("mock1")
+		require.NoError(t, err)
+		provider2, err := newMockProviderWithConfig("mock2")
+		require.NoError(t, err)
 		registry.RegisterProvider("mock1", provider1)
 		registry.RegisterProvider("mock2", provider2)
 
@@ -277,7 +278,7 @@ func TestDestinationChanges(t *testing.T) {
 
 		// Publish first event
 		event1 := &models.Event{Data: map[string]interface{}{"msg": "first"}}
-		err := registry.PublishEvent(context.Background(), dest, event1)
+		err = registry.PublishEvent(context.Background(), dest, event1)
 		require.NoError(t, err)
 
 		// Update destination type
@@ -680,4 +681,32 @@ func TestPublishEventTimeout(t *testing.T) {
 		assert.Equal(t, "timeout", data["error"])
 		assert.Equal(t, timeout.String(), data["timeout"])
 	})
+}
+
+func TestDisplayDestination(t *testing.T) {
+	t.Parallel()
+
+	dest := &models.Destination{
+		Type: "mock",
+		Config: map[string]string{
+			"public_key": "value",
+			"secret_key": "secret",
+		},
+		Credentials: map[string]string{
+			"api_key": "secret-key",
+		},
+	}
+
+	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	provider, err := newMockProviderWithConfig("mock")
+	require.NoError(t, err)
+	err = registry.RegisterProvider("mock", provider)
+	require.NoError(t, err)
+
+	display, err := registry.DisplayDestination(dest)
+	require.NoError(t, err)
+	assert.Equal(t, "mock-target", display.Target)
+	assert.Equal(t, "value", display.Config["public_key"])
+	assert.Equal(t, "****", display.Config["secret_key"])
+	assert.Equal(t, "secr******", display.Credentials["api_key"])
 }

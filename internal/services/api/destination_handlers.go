@@ -46,18 +46,18 @@ func (h *DestinationHandlers) List(c *gin.Context) {
 		return
 	}
 
-	// Obfuscate sensitive fields for each destination
-	obfuscatedDestinations := make([]*models.Destination, len(destinations))
+	// Convert destinations to display format
+	displayDestinations := make([]*destregistry.DestinationDisplay, len(destinations))
 	for i, dest := range destinations {
-		obfuscated, err := h.registry.ObfuscateDestination(&dest)
+		display, err := h.registry.DisplayDestination(&dest)
 		if err != nil {
 			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 			return
 		}
-		obfuscatedDestinations[i] = obfuscated
+		displayDestinations[i] = display
 	}
 
-	c.JSON(http.StatusOK, obfuscatedDestinations)
+	c.JSON(http.StatusOK, displayDestinations)
 }
 
 func (h *DestinationHandlers) Create(c *gin.Context) {
@@ -80,12 +80,12 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		return
 	}
 
-	obfuscated, err := h.registry.ObfuscateDestination(&destination)
+	display, err := h.registry.DisplayDestination(&destination)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	c.JSON(http.StatusCreated, obfuscated)
+	c.JSON(http.StatusCreated, display)
 }
 
 func (h *DestinationHandlers) Retrieve(c *gin.Context) {
@@ -94,12 +94,12 @@ func (h *DestinationHandlers) Retrieve(c *gin.Context) {
 		return
 	}
 
-	obfuscated, err := h.registry.ObfuscateDestination(destination)
+	display, err := h.registry.DisplayDestination(destination)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	c.JSON(http.StatusOK, obfuscated)
+	c.JSON(http.StatusOK, display)
 }
 
 func (h *DestinationHandlers) Update(c *gin.Context) {
@@ -150,12 +150,12 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		return
 	}
 
-	obfuscated, err := h.registry.ObfuscateDestination(destination)
+	display, err := h.registry.DisplayDestination(destination)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	c.JSON(http.StatusOK, obfuscated)
+	c.JSON(http.StatusOK, display)
 }
 
 func (h *DestinationHandlers) Delete(c *gin.Context) {
@@ -168,12 +168,12 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 		return
 	}
 
-	obfuscated, err := h.registry.ObfuscateDestination(destination)
+	display, err := h.registry.DisplayDestination(destination)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	c.JSON(http.StatusOK, obfuscated)
+	c.JSON(http.StatusOK, display)
 }
 
 func (h *DestinationHandlers) Disable(c *gin.Context) {
@@ -221,12 +221,12 @@ func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool
 		}
 	}
 
-	obfuscated, err := h.registry.ObfuscateDestination(destination)
+	display, err := h.registry.DisplayDestination(destination)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	c.JSON(http.StatusOK, obfuscated)
+	c.JSON(http.StatusOK, display)
 }
 
 func (h *DestinationHandlers) mustRetrieveDestination(c *gin.Context, tenantID, destinationID string) *models.Destination {

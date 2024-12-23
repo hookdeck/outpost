@@ -98,3 +98,23 @@ func TestAWSSQSDestination_Validate(t *testing.T) {
 		assert.Equal(t, "required", validationErr.Errors[0].Type)
 	})
 }
+
+func TestAWSSQSDestination_ComputeTarget(t *testing.T) {
+	t.Parallel()
+
+	awsSQSDestination, err := destawssqs.New(testutil.Registry.MetadataLoader())
+	require.NoError(t, err)
+
+	t.Run("should return queue_url as target", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("aws_sqs"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"queue_url": "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue",
+				"endpoint":  "https://sqs.us-east-1.amazonaws.com",
+			}),
+		)
+		target := awsSQSDestination.ComputeTarget(&destination)
+		assert.Equal(t, "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue", target)
+	})
+}

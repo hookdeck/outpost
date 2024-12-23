@@ -96,3 +96,50 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		assert.Equal(t, "required", validationErr.Errors[0].Type)
 	})
 }
+
+func TestRabbitMQDestination_ComputeTarget(t *testing.T) {
+	t.Parallel()
+
+	rabbitmqDestination, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
+	require.NoError(t, err)
+
+	t.Run("should return exchange -> routing_key as target when both are present", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("rabbitmq"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"server_url":  "localhost:5672",
+				"exchange":    "my-exchange",
+				"routing_key": "my-key",
+			}),
+		)
+		target := rabbitmqDestination.ComputeTarget(&destination)
+		assert.Equal(t, "my-exchange -> my-key", target)
+	})
+
+	t.Run("should return only exchange when routing_key is empty", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("rabbitmq"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"server_url": "localhost:5672",
+				"exchange":   "my-exchange",
+			}),
+		)
+		target := rabbitmqDestination.ComputeTarget(&destination)
+		assert.Equal(t, "my-exchange", target)
+	})
+
+	t.Run("should return only routing_key when exchange is empty", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("rabbitmq"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"server_url":  "localhost:5672",
+				"routing_key": "my-key",
+			}),
+		)
+		target := rabbitmqDestination.ComputeTarget(&destination)
+		assert.Equal(t, "my-key", target)
+	})
+}

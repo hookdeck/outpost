@@ -219,3 +219,15 @@ func (p *RabbitMQPublisher) ForceConnectionClose() {
 		p.conn.Close()
 	}
 }
+
+func (d *RabbitMQDestination) ComputeTarget(destination *models.Destination) string {
+	exchange := destination.Config["exchange"]
+	routingKey := destination.Config["routing_key"]
+	if exchange == "" {
+		return routingKey
+	}
+	if routingKey == "" {
+		return exchange
+	}
+	return exchange + " -> " + routingKey
+}
