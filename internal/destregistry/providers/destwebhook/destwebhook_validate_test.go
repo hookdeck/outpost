@@ -1,6 +1,7 @@
 package destwebhook_test
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -91,17 +92,6 @@ func TestWebhookDestination_ValidateSecrets(t *testing.T) {
 		assert.NoError(t, webhookDestination.Validate(nil, &validDestination))
 	})
 
-	t.Run("should validate missing secret", func(t *testing.T) {
-		t.Parallel()
-		invalidDestination := validDestination
-		invalidDestination.Credentials = map[string]string{}
-		err := webhookDestination.Validate(nil, &invalidDestination)
-		var validationErr *destregistry.ErrDestinationValidation
-		assert.ErrorAs(t, err, &validationErr)
-		assert.Equal(t, "credentials.secret", validationErr.Errors[0].Field)
-		assert.Equal(t, "required", validationErr.Errors[0].Type)
-	})
-
 	t.Run("should validate previous secret without invalid_at", func(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
@@ -159,5 +149,69 @@ func TestWebhookDestination_ComputeTarget(t *testing.T) {
 		)
 		target := webhookDestination.ComputeTarget(&destination)
 		assert.Equal(t, "https://example.com/webhook", target)
+	})
+}
+
+func TestWebhookDestination_Preprocess(t *testing.T) {
+	t.Parallel()
+
+	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	require.NoError(t, err)
+
+	t.Run("should generate default secret if not provided", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+		)
+
+		err := webhookDestination.Preprocess(&destination)
+		require.NoError(t, err)
+
+		// Verify that a secret was generated
+		assert.NotEmpty(t, destination.Credentials["secret"])
+		// Verify that the secret is a valid hex string of length 64 (32 bytes)
+		assert.Len(t, destination.Credentials["secret"], 64)
+		_, err = hex.DecodeString(destination.Credentials["secret"])
+		assert.NoError(t, err, "generated secret should be a valid hex string")
+	})
+
+	t.Run("should not override existing secret", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "existing-secret",
+			}),
+		)
+
+		err := webhookDestination.Preprocess(&destination)
+		require.NoError(t, err)
+
+		// Verify that the existing secret was not changed
+		assert.Equal(t, "existing-secret", destination.Credentials["secret"])
+	})
+
+	t.Run("should initialize credentials map if nil", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+		)
+		destination.Credentials = nil
+
+		err := webhookDestination.Preprocess(&destination)
+		require.NoError(t, err)
+
+		// Verify that credentials map was initialized and a secret was generated
+		assert.NotNil(t, destination.Credentials)
+		assert.NotEmpty(t, destination.Credentials["secret"])
 	})
 }

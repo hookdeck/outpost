@@ -3,6 +3,8 @@ package destwebhook
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -128,6 +130,10 @@ func New(loader metadata.MetadataLoader, opts ...Option) (*WebhookDestination, e
 	return destination, nil
 }
 
+func (d *WebhookDestination) ComputeTarget(destination *models.Destination) string {
+	return destination.Config["url"]
+}
+
 // ObfuscateDestination overrides the base implementation to handle webhook secrets
 func (d *WebhookDestination) ObfuscateDestination(destination *models.Destination) *models.Destination {
 	result := *destination // shallow copy
@@ -156,30 +162,6 @@ func (d *WebhookDestination) Validate(ctx context.Context, destination *models.D
 		return err
 	}
 	return nil
-}
-
-// GetEncoder returns the appropriate SignatureEncoder for the given encoding
-func GetEncoder(encoding string) SignatureEncoder {
-	switch encoding {
-	case "base64":
-		return Base64Encoder{}
-	case "hex":
-		return HexEncoder{}
-	default:
-		return HexEncoder{} // default to hex
-	}
-}
-
-// GetAlgorithm returns the appropriate SigningAlgorithm for the given algorithm name
-func GetAlgorithm(algorithm string) SigningAlgorithm {
-	switch algorithm {
-	case "hmac-sha1":
-		return NewHmacSHA1()
-	case "hmac-sha256":
-		return NewHmacSHA256()
-	default:
-		return NewHmacSHA256() // default to hmac-sha256
-	}
 }
 
 func (d *WebhookDestination) GetSignatureEncoding() string {
@@ -261,14 +243,6 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 		creds.PreviousSecretInvalidAt = invalidAt
 	}
 
-	// Validate required fields
-	if creds.Secret == "" {
-		return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
-			Field: "credentials.secret",
-			Type:  "required",
-		}})
-	}
-
 	// If previous secret is provided, validate invalidation time
 	if creds.PreviousSecret != "" {
 		if creds.PreviousSecretInvalidAt.IsZero() {
@@ -304,6 +278,24 @@ func validateURL(urlStr string) (*url.URL, error) {
 	}
 
 	return parsedURL, nil
+}
+
+// Preprocess sets a default secret if one isn't provided
+func (d *WebhookDestination) Preprocess(destination *models.Destination) error {
+	if destination.Credentials == nil {
+		destination.Credentials = make(map[string]string)
+	}
+
+	// If no secret is provided, generate a random one
+	if destination.Credentials["secret"] == "" {
+		secret, err := generateSignatureSecret()
+		if err != nil {
+			return err
+		}
+		destination.Credentials["secret"] = secret
+	}
+
+	return nil
 }
 
 type WebhookPublisher struct {
@@ -396,6 +388,37 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 	return req, nil
 }
 
-func (d *WebhookDestination) ComputeTarget(destination *models.Destination) string {
-	return destination.Config["url"]
+// generateSignatureSecret creates a cryptographically secure random secret suitable for HMAC signatures.
+// The secret is 32 bytes (256 bits) encoded as a hex string.
+func generateSignatureSecret() (string, error) {
+	// Generate a random 32-byte hex string
+	randomBytes := make([]byte, 32)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return "", fmt.Errorf("failed to generate random secret: %w", err)
+	}
+	return hex.EncodeToString(randomBytes), nil
+}
+
+// GetEncoder returns the appropriate SignatureEncoder for the given encoding
+func GetEncoder(encoding string) SignatureEncoder {
+	switch encoding {
+	case "base64":
+		return Base64Encoder{}
+	case "hex":
+		return HexEncoder{}
+	default:
+		return HexEncoder{} // default to hex
+	}
+}
+
+// GetAlgorithm returns the appropriate SigningAlgorithm for the given algorithm name
+func GetAlgorithm(algorithm string) SigningAlgorithm {
+	switch algorithm {
+	case "hmac-sha1":
+		return NewHmacSHA1()
+	case "hmac-sha256":
+		return NewHmacSHA256()
+	default:
+		return NewHmacSHA256() // default to hmac-sha256
+	}
 }
