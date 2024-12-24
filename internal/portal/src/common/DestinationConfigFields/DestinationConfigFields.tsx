@@ -45,7 +45,11 @@ const DestinationConfigFields = ({
               type="checkbox"
               id={field.key}
               name={field.key}
-              defaultChecked={destination.config[field.key] || false}
+              defaultChecked={
+                destination.config[field.key] ??
+                destination.credentials[field.key] ??
+                false
+              }
               disabled={field.disabled}
               required={field.required}
             />
