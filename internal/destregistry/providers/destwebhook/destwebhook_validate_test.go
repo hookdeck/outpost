@@ -444,4 +444,45 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should remove extra fields from credentials map", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret":                     "current-secret",
+				"previous_secret":            "old-secret",
+				"previous_secret_invalid_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+				"extra_field":                "should be removed",
+				"another_extra":              "also removed",
+				"rotate_secret":              "false",
+			}),
+		)
+
+		err := webhookDestination.Preprocess(&destination, nil)
+		require.NoError(t, err)
+
+		// Verify that only expected fields are present
+		expectedFields := map[string]bool{
+			"secret":                     true,
+			"previous_secret":            true,
+			"previous_secret_invalid_at": true,
+		}
+
+		// Check that only expected fields exist
+		for key := range destination.Credentials {
+			assert.True(t, expectedFields[key], "unexpected field %q found in credentials", key)
+		}
+
+		// Check that all expected fields are present
+		assert.Equal(t, len(expectedFields), len(destination.Credentials), "credentials map has wrong number of fields")
+
+		// Verify values are preserved for expected fields
+		assert.Equal(t, "current-secret", destination.Credentials["secret"])
+		assert.Equal(t, "old-secret", destination.Credentials["previous_secret"])
+		assert.NotEmpty(t, destination.Credentials["previous_secret_invalid_at"])
+	})
 }

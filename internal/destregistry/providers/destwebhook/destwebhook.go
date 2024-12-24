@@ -243,13 +243,11 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 	}
 
 	// If previous secret is provided, validate invalidation time
-	if creds.PreviousSecret != "" {
-		if creds.PreviousSecretInvalidAt.IsZero() {
-			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
-				Field: "credentials.previous_secret_invalid_at",
-				Type:  "required",
-			}})
-		}
+	if creds.PreviousSecret != "" && creds.PreviousSecretInvalidAt.IsZero() {
+		return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+			Field: "credentials.previous_secret_invalid_at",
+			Type:  "required",
+		}})
 	}
 
 	return config, creds, nil
@@ -262,11 +260,11 @@ func (d *WebhookDestination) Preprocess(newDestination *models.Destination, orig
 		newDestination.Credentials = make(map[string]string)
 	}
 
-	// Handle secret rotation if requested
-	rotateValue := strings.ToLower(newDestination.Credentials["rotate_secret"])
-	shouldRotate := rotateValue == "true" || rotateValue == "1" || rotateValue == "on" || rotateValue == "yes"
+	// Create new credentials map to ensure clean state
+	newCreds := make(map[string]string)
 
-	if shouldRotate {
+	// Handle secret rotation if requested
+	if isTruthy(newDestination.Credentials["rotate_secret"]) {
 		// Can't rotate secret if there's no original destination (initial creation)
 		if originalDestination == nil {
 			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
@@ -284,46 +282,58 @@ func (d *WebhookDestination) Preprocess(newDestination *models.Destination, orig
 			}})
 		}
 
-		// Create new credentials map to ensure clean state
-		newCreds := make(map[string]string)
-
-		// Copy current secret to previous_secret
-		newCreds["previous_secret"] = currentSecret
-
-		// Set invalidation time to 24 hours from now if not provided
-		if newDestination.Credentials["previous_secret_invalid_at"] == "" {
-			invalidAt := time.Now().Add(24 * time.Hour)
-			newCreds["previous_secret_invalid_at"] = invalidAt.Format(time.RFC3339)
-		} else {
-			newCreds["previous_secret_invalid_at"] = newDestination.Credentials["previous_secret_invalid_at"]
-		}
-
 		// Generate new secret
 		newSecret, err := generateSignatureSecret()
 		if err != nil {
 			return err
 		}
-		newCreds["secret"] = newSecret
 
-		// Replace credentials map with new one
-		newDestination.Credentials = newCreds
+		// Build credentials
+		newCreds["secret"] = newSecret
+		newCreds["previous_secret"] = currentSecret
+
+		// Set invalidation time to 24 hours from now if not provided
+		if invalidAt := newDestination.Credentials["previous_secret_invalid_at"]; invalidAt != "" {
+			newCreds["previous_secret_invalid_at"] = invalidAt
+		} else {
+			newCreds["previous_secret_invalid_at"] = time.Now().Add(24 * time.Hour).Format(time.RFC3339)
+		}
 	} else {
-		// If no secret is provided, generate one
-		if newDestination.Credentials["secret"] == "" {
+		// Copy existing secret or generate a new one
+		if existingSecret := newDestination.Credentials["secret"]; existingSecret != "" {
+			newCreds["secret"] = existingSecret
+		} else {
 			secret, err := generateSignatureSecret()
 			if err != nil {
 				return err
 			}
-			newDestination.Credentials["secret"] = secret
+			newCreds["secret"] = secret
 		}
 
-		// If previous_secret is provided but previous_secret_invalid_at is not, set it to 24 hours from now
-		if newDestination.Credentials["previous_secret"] != "" && newDestination.Credentials["previous_secret_invalid_at"] == "" {
-			invalidAt := time.Now().Add(24 * time.Hour)
-			newDestination.Credentials["previous_secret_invalid_at"] = invalidAt.Format(time.RFC3339)
+		// Handle previous_secret if provided
+		if previousSecret := newDestination.Credentials["previous_secret"]; previousSecret != "" {
+			newCreds["previous_secret"] = previousSecret
+
+			// Set invalidation time to 24 hours from now if not provided
+			if invalidAt := newDestination.Credentials["previous_secret_invalid_at"]; invalidAt != "" {
+				newCreds["previous_secret_invalid_at"] = invalidAt
+			} else {
+				newCreds["previous_secret_invalid_at"] = time.Now().Add(24 * time.Hour).Format(time.RFC3339)
+			}
 		}
 	}
 
+	// Validate the new credentials
+	if _, _, err := d.resolveConfig(context.Background(), &models.Destination{
+		Type:        newDestination.Type,
+		Config:      newDestination.Config,
+		Credentials: newCreds,
+	}); err != nil {
+		return err
+	}
+
+	// Replace credentials map with new one
+	newDestination.Credentials = newCreds
 	return nil
 }
 
@@ -449,5 +459,15 @@ func GetAlgorithm(algorithm string) SigningAlgorithm {
 		return NewHmacSHA256()
 	default:
 		return NewHmacSHA256() // default to hmac-sha256
+	}
+}
+
+// isTruthy checks if a string value represents a truthy value
+func isTruthy(value string) bool {
+	switch strings.ToLower(value) {
+	case "true", "1", "on", "yes":
+		return true
+	default:
+		return false
 	}
 }
