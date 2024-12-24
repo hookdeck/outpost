@@ -356,4 +356,92 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		expectedTime := time.Now().Add(24 * time.Hour)
 		assert.WithinDuration(t, expectedTime, invalidAt, 5*time.Second)
 	})
+
+	t.Run("should rotate secret when requested with various truthy values", func(t *testing.T) {
+		t.Parallel()
+		truthyValues := []string{"true", "1", "on", "yes", "TRUE", "ON", "Yes"}
+
+		for _, value := range truthyValues {
+			t.Run(value, func(t *testing.T) {
+				t.Parallel()
+				originalDestination := testutil.DestinationFactory.Any(
+					testutil.DestinationFactory.WithType("webhook"),
+					testutil.DestinationFactory.WithConfig(map[string]string{
+						"url": "https://example.com",
+					}),
+					testutil.DestinationFactory.WithCredentials(map[string]string{
+						"secret": "current-secret",
+					}),
+				)
+
+				newDestination := testutil.DestinationFactory.Any(
+					testutil.DestinationFactory.WithType("webhook"),
+					testutil.DestinationFactory.WithConfig(map[string]string{
+						"url": "https://example.com",
+					}),
+					testutil.DestinationFactory.WithCredentials(map[string]string{
+						"rotate_secret": value,
+					}),
+				)
+
+				err := webhookDestination.Preprocess(&newDestination, &originalDestination)
+				require.NoError(t, err)
+
+				// Verify that the current secret became the previous secret
+				assert.Equal(t, "current-secret", newDestination.Credentials["previous_secret"])
+
+				// Verify that a new secret was generated
+				assert.NotEqual(t, "current-secret", newDestination.Credentials["secret"])
+				assert.NotEmpty(t, newDestination.Credentials["secret"])
+				assert.Len(t, newDestination.Credentials["secret"], 64)
+				_, err = hex.DecodeString(newDestination.Credentials["secret"])
+				assert.NoError(t, err, "generated secret should be a valid hex string")
+
+				// Verify that previous_secret_invalid_at was set to ~24h from now
+				invalidAt, err := time.Parse(time.RFC3339, newDestination.Credentials["previous_secret_invalid_at"])
+				require.NoError(t, err)
+				expectedTime := time.Now().Add(24 * time.Hour)
+				assert.WithinDuration(t, expectedTime, invalidAt, 5*time.Second)
+			})
+		}
+	})
+
+	t.Run("should not rotate secret with falsy values", func(t *testing.T) {
+		t.Parallel()
+		falsyValues := []string{"false", "0", "off", "no", "FALSE", "OFF", "No", ""}
+
+		for _, value := range falsyValues {
+			t.Run(value, func(t *testing.T) {
+				t.Parallel()
+				originalDestination := testutil.DestinationFactory.Any(
+					testutil.DestinationFactory.WithType("webhook"),
+					testutil.DestinationFactory.WithConfig(map[string]string{
+						"url": "https://example.com",
+					}),
+					testutil.DestinationFactory.WithCredentials(map[string]string{
+						"secret": "current-secret",
+					}),
+				)
+
+				newDestination := testutil.DestinationFactory.Any(
+					testutil.DestinationFactory.WithType("webhook"),
+					testutil.DestinationFactory.WithConfig(map[string]string{
+						"url": "https://example.com",
+					}),
+					testutil.DestinationFactory.WithCredentials(map[string]string{
+						"secret":        "current-secret",
+						"rotate_secret": value,
+					}),
+				)
+
+				err := webhookDestination.Preprocess(&newDestination, &originalDestination)
+				require.NoError(t, err)
+
+				// Verify that the secret was not changed
+				assert.Equal(t, "current-secret", newDestination.Credentials["secret"])
+				// Verify that no previous_secret was set
+				assert.Empty(t, newDestination.Credentials["previous_secret"])
+			})
+		}
+	})
 }
