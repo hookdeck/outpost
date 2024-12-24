@@ -9,7 +9,7 @@ import (
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
 )
 
-func (suite *basicSuite) TestPublishAPI() {
+func (suite *basicSuite) TestDestwebhookPublish() {
 	tenantID := uuid.New().String()
 	sampleDestinationID := uuid.New().String()
 	eventIDs := []string{
