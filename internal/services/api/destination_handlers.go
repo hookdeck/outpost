@@ -75,7 +75,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
-	if err := h.registry.PreprocessDestination(&destination); err != nil {
+	if err := h.registry.PreprocessDestination(&destination, nil); err != nil {
 		AbortWithValidationError(c, err)
 		return
 	}
@@ -114,16 +114,18 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		return
 	}
 
-	// Get destination.
-	destination := h.mustRetrieveDestination(c, c.Param("tenantID"), c.Param("destinationID"))
-	if destination == nil {
+	// Retrieve destination.
+	originalDestination := h.mustRetrieveDestination(c, c.Param("tenantID"), c.Param("destinationID"))
+	if originalDestination == nil {
 		return
 	}
 
+	updatedDestination := *originalDestination
+
 	// Validate.
 	if input.Topics != nil {
-		destination.Topics = input.Topics
-		if err := destination.Validate(h.topics); err != nil {
+		updatedDestination.Topics = input.Topics
+		if err := updatedDestination.Validate(h.topics); err != nil {
 			AbortWithValidationError(c, err)
 			return
 		}
@@ -131,36 +133,36 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	shouldRevalidate := false
 	if input.Type != "" {
 		shouldRevalidate = true
-		destination.Type = input.Type
+		updatedDestination.Type = input.Type
 	}
 	if input.Config != nil {
 		shouldRevalidate = true
-		destination.Config = input.Config
+		updatedDestination.Config = input.Config
 	}
 	if input.Credentials != nil {
 		shouldRevalidate = true
-		destination.Credentials = input.Credentials
+		updatedDestination.Credentials = input.Credentials
 	}
 	if shouldRevalidate {
-		if err := h.registry.ValidateDestination(c.Request.Context(), destination); err != nil {
+		if err := h.registry.ValidateDestination(c.Request.Context(), &updatedDestination); err != nil {
 			AbortWithValidationError(c, err)
 			return
 		}
 	}
 
 	// Always preprocess before updating
-	if err := h.registry.PreprocessDestination(destination); err != nil {
+	if err := h.registry.PreprocessDestination(&updatedDestination, originalDestination); err != nil {
 		AbortWithValidationError(c, err)
 		return
 	}
 
 	// Update destination.
-	if err := h.entityStore.UpsertDestination(c.Request.Context(), *destination); err != nil {
+	if err := h.entityStore.UpsertDestination(c.Request.Context(), updatedDestination); err != nil {
 		h.handleUpsertDestinationError(c, err)
 		return
 	}
 
-	display, err := h.registry.DisplayDestination(destination)
+	display, err := h.registry.DisplayDestination(&updatedDestination)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return

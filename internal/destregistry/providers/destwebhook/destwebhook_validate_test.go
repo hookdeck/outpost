@@ -168,7 +168,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination)
+		err := webhookDestination.Preprocess(&destination, nil)
 		require.NoError(t, err)
 
 		// Verify that a secret was generated
@@ -191,7 +191,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination)
+		err := webhookDestination.Preprocess(&destination, nil)
 		require.NoError(t, err)
 
 		// Verify that the existing secret was not changed
@@ -208,7 +208,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		)
 		destination.Credentials = nil
 
-		err := webhookDestination.Preprocess(&destination)
+		err := webhookDestination.Preprocess(&destination, nil)
 		require.NoError(t, err)
 
 		// Verify that credentials map was initialized and a secret was generated
@@ -229,7 +229,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination)
+		err := webhookDestination.Preprocess(&destination, nil)
 		require.NoError(t, err)
 
 		// Verify that the current secret became the previous secret
@@ -268,7 +268,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination)
+		err := webhookDestination.Preprocess(&destination, nil)
 		require.NoError(t, err)
 
 		// Verify that the custom invalidation time was preserved
@@ -288,7 +288,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination)
+		err := webhookDestination.Preprocess(&destination, nil)
 		require.NoError(t, err)
 
 		// Verify that previous_secret_invalid_at was set to ~24h from now

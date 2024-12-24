@@ -179,7 +179,7 @@ func (p *mockPublisherWithConfig) Close() error { return nil }
 
 type mockProviderWithConfig struct {
 	providerType string
-	preprocessFn func(*models.Destination) error
+	preprocessFn func(*models.Destination, *models.Destination) error
 	*destregistry.BaseProvider
 }
 
@@ -205,9 +205,9 @@ func (p *mockProviderWithConfig) ComputeTarget(destination *models.Destination) 
 	return "mock-target"
 }
 
-func (p *mockProviderWithConfig) Preprocess(destination *models.Destination) error {
+func (p *mockProviderWithConfig) Preprocess(newDestination *models.Destination, originalDestination *models.Destination) error {
 	if p.preprocessFn != nil {
-		return p.preprocessFn(destination)
+		return p.preprocessFn(newDestination, originalDestination)
 	}
 	return nil
 }
@@ -589,7 +589,7 @@ func TestObfuscateDestination(t *testing.T) {
 		},
 	}
 
-	obfuscated, err := registry.ObfuscateDestination(dest)
+	obfuscated, err := registry.DisplayDestination(dest)
 	require.NoError(t, err)
 
 	// Original destination should be unchanged
@@ -726,7 +726,7 @@ func TestPreprocessDestination(t *testing.T) {
 	tests := []struct {
 		name        string
 		destination *models.Destination
-		preprocess  func(*models.Destination) error
+		preprocess  func(*models.Destination, *models.Destination) error
 		wantErr     bool
 	}{
 		{
@@ -748,8 +748,8 @@ func TestPreprocessDestination(t *testing.T) {
 					"key": "value",
 				},
 			},
-			preprocess: func(d *models.Destination) error {
-				d.Config["processed"] = "true"
+			preprocess: func(newDestination *models.Destination, originalDestination *models.Destination) error {
+				newDestination.Config["processed"] = "true"
 				return nil
 			},
 			wantErr: false,
@@ -762,7 +762,7 @@ func TestPreprocessDestination(t *testing.T) {
 					"key": "value",
 				},
 			},
-			preprocess: func(d *models.Destination) error {
+			preprocess: func(newDestination *models.Destination, originalDestination *models.Destination) error {
 				return errors.New("preprocess error")
 			},
 			wantErr: true,
@@ -785,7 +785,7 @@ func TestPreprocessDestination(t *testing.T) {
 			err = registry.RegisterProvider("mock", provider)
 			require.NoError(t, err)
 
-			err = registry.PreprocessDestination(tt.destination)
+			err = registry.PreprocessDestination(tt.destination, nil)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
