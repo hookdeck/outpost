@@ -119,3 +119,17 @@ func (sdk *sdk) ListEvent(ctx context.Context, destinationID string) ([]destinat
 
 	return events, nil
 }
+
+func (sdk *sdk) ClearEvents(ctx context.Context, destinationID string) error {
+	resp, err := sdk.client.delete(ctx, "/destinations/"+destinationID+"/events")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to clear events, status code: %d", resp.StatusCode)
+	}
+
+	return nil
+}

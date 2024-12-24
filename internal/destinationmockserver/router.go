@@ -27,6 +27,7 @@ func NewRouter(entityStore EntityStore) http.Handler {
 	r.POST("/webhook/:destinationID", handlers.ReceiveWebhookEvent)
 
 	r.GET("/destinations/:destinationID/events", handlers.ListEvent)
+	r.DELETE("/destinations/:destinationID/events", handlers.ClearEvents)
 
 	return r.Handler()
 }
@@ -122,4 +123,22 @@ func (h *Handlers) ListEvent(c *gin.Context) {
 	} else {
 		c.JSON(http.StatusOK, events)
 	}
+}
+
+func (h *Handlers) ClearEvents(c *gin.Context) {
+	destinationID := c.Param("destinationID")
+	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), destinationID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+	if destination == nil {
+		c.JSON(http.StatusNotFound, gin.H{"message": "destination not found"})
+		return
+	}
+	if err := h.entityStore.ClearEvents(c.Request.Context(), destinationID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+	c.Status(http.StatusOK)
 }
