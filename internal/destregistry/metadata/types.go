@@ -28,6 +28,7 @@ type FieldSchema struct {
 	Description string  `json:"description"`
 	Key         string  `json:"key"`
 	Required    bool    `json:"required"`
+	Disabled    bool    `json:"disabled,omitempty"`
 	Sensitive   bool    `json:"sensitive,omitempty"` // Whether the field value should be obfuscated in API responses
 	Min         *int    `json:"min,omitempty"`       // Minimum value for numeric fields
 	Max         *int    `json:"max,omitempty"`       // Maximum value for numeric fields

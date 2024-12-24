@@ -1,9 +1,10 @@
 interface ConfigField {
-  type: "text";
+  type: "text" | "checkbox";
   label: string;
   description: string;
   key: string;
   required: boolean;
+  disabled?: boolean;
   min?: number;
   max?: number;
   step?: number;

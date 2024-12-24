@@ -27,16 +27,27 @@ const DestinationConfigFields = ({
               id={field.key}
               name={field.key}
               defaultValue={
-                "sensitive" in field && field.sensitive
+                "sensitive" in field && field.sensitive && !field.disabled
                   ? ""
                   : destination.config[field.key] ||
                     destination.credentials[field.key] ||
                     ""
               }
+              disabled={field.disabled}
               required={field.required}
               minLength={field.minlength}
               maxLength={field.maxlength}
               pattern={field.pattern}
+            />
+          )}
+          {field.type === "checkbox" && (
+            <input
+              type="checkbox"
+              id={field.key}
+              name={field.key}
+              defaultChecked={destination.config[field.key] || false}
+              disabled={field.disabled}
+              required={field.required}
             />
           )}
           {field.description && (

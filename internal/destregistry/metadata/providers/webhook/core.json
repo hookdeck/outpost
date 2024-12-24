@@ -12,12 +12,20 @@
   ],
   "credential_fields": [
     {
-      "key": "secrets",
+      "key": "secret",
       "type": "text",
-      "label": "Webhook Secrets",
-      "description": "JSON array of webhook secrets. Each secret should have: key (string), created_at (ISO 8601 timestamp), and optionally invalid_at (ISO 8601 timestamp) to manually invalidate the secret before the default 24-hour window",
+      "label": "Secret",
+      "description": "The current webhook secret used for signature verification. If not provided, a random one will be generated.",
+      "disabled": true,
       "required": false,
-      "sensitive": false
+      "sensitive": true
+    },
+    {
+      "key": "rotate_secret",
+      "type": "checkbox",
+      "label": "Rotate Secret",
+      "description": "Set to 'true' to rotate the current secret. Current secret becomes previous_secret and a new secret is generated.",
+      "required": false
     }
   ]
 }
