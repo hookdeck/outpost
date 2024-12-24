@@ -19,6 +19,11 @@
       // TODO: use color variable or update styling
       background-color: #fee2e2;
     }
+
+    &[type="checkbox"] {
+      width: var(--line-height-xs);
+      height: var(--line-height-xs);
+    }
   }
 
   .description {
