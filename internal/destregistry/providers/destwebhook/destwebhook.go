@@ -263,7 +263,10 @@ func (d *WebhookDestination) Preprocess(newDestination *models.Destination, orig
 	}
 
 	// Handle secret rotation if requested
-	if newDestination.Credentials["rotate_secret"] == "true" {
+	rotateValue := strings.ToLower(newDestination.Credentials["rotate_secret"])
+	shouldRotate := rotateValue == "true" || rotateValue == "1" || rotateValue == "on" || rotateValue == "yes"
+
+	if shouldRotate {
 		// Can't rotate secret if there's no original destination (initial creation)
 		if originalDestination == nil {
 			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
