@@ -257,48 +257,68 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 
 // Preprocess sets a default secret if one isn't provided and handles secret rotation
 func (d *WebhookDestination) Preprocess(newDestination *models.Destination, originalDestination *models.Destination) error {
+	// Initialize credentials map if nil
 	if newDestination.Credentials == nil {
 		newDestination.Credentials = make(map[string]string)
 	}
 
 	// Handle secret rotation if requested
-	if _, ok := newDestination.Credentials["rotate_secret"]; ok {
-		// Current secret becomes previous secret
-		if currentSecret := newDestination.Credentials["secret"]; currentSecret != "" {
-			newDestination.Credentials["previous_secret"] = currentSecret
-
-			// Set invalidation time to 24 hours from now if not provided
-			if newDestination.Credentials["previous_secret_invalid_at"] == "" {
-				invalidAt := time.Now().Add(24 * time.Hour)
-				newDestination.Credentials["previous_secret_invalid_at"] = invalidAt.Format(time.RFC3339)
-			}
-
-			// Generate new secret
-			newSecret, err := generateSignatureSecret()
-			if err != nil {
-				return err
-			}
-			newDestination.Credentials["secret"] = newSecret
-
-			// Remove the rotate flag
-			delete(newDestination.Credentials, "rotate_secret")
+	if newDestination.Credentials["rotate_secret"] == "true" {
+		// Can't rotate secret if there's no original destination (initial creation)
+		if originalDestination == nil {
+			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+				Field: "credentials.rotate_secret",
+				Type:  "invalid",
+			}})
 		}
-		return nil
-	}
 
-	// If no secret is provided, generate a random one
-	if newDestination.Credentials["secret"] == "" {
-		secret, err := generateSignatureSecret()
+		// Get current secret from original destination
+		currentSecret := originalDestination.Credentials["secret"]
+		if currentSecret == "" {
+			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+				Field: "credentials.secret",
+				Type:  "required",
+			}})
+		}
+
+		// Create new credentials map to ensure clean state
+		newCreds := make(map[string]string)
+
+		// Copy current secret to previous_secret
+		newCreds["previous_secret"] = currentSecret
+
+		// Set invalidation time to 24 hours from now if not provided
+		if newDestination.Credentials["previous_secret_invalid_at"] == "" {
+			invalidAt := time.Now().Add(24 * time.Hour)
+			newCreds["previous_secret_invalid_at"] = invalidAt.Format(time.RFC3339)
+		} else {
+			newCreds["previous_secret_invalid_at"] = newDestination.Credentials["previous_secret_invalid_at"]
+		}
+
+		// Generate new secret
+		newSecret, err := generateSignatureSecret()
 		if err != nil {
 			return err
 		}
-		newDestination.Credentials["secret"] = secret
-	}
+		newCreds["secret"] = newSecret
 
-	// If previous_secret is provided but previous_secret_invalid_at is not, set it to 24 hours from now
-	if newDestination.Credentials["previous_secret"] != "" && newDestination.Credentials["previous_secret_invalid_at"] == "" {
-		invalidAt := time.Now().Add(24 * time.Hour)
-		newDestination.Credentials["previous_secret_invalid_at"] = invalidAt.Format(time.RFC3339)
+		// Replace credentials map with new one
+		newDestination.Credentials = newCreds
+	} else {
+		// If no secret is provided, generate one
+		if newDestination.Credentials["secret"] == "" {
+			secret, err := generateSignatureSecret()
+			if err != nil {
+				return err
+			}
+			newDestination.Credentials["secret"] = secret
+		}
+
+		// If previous_secret is provided but previous_secret_invalid_at is not, set it to 24 hours from now
+		if newDestination.Credentials["previous_secret"] != "" && newDestination.Credentials["previous_secret_invalid_at"] == "" {
+			invalidAt := time.Now().Add(24 * time.Hour)
+			newDestination.Credentials["previous_secret_invalid_at"] = invalidAt.Format(time.RFC3339)
+		}
 	}
 
 	return nil
