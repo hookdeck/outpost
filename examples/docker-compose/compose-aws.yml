@@ -1,7 +1,6 @@
 services:
   aws:
     image: localstack/localstack:latest
-    hostname: aws
     environment:
       - SERVICES=sns,sts,sqs
     ports:

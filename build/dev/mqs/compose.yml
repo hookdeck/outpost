@@ -3,7 +3,6 @@ name: "outpost-mqs"
 services:
   rabbitmq:
     image: rabbitmq:3-management
-    container_name: rabbitmq
     ports:
       - 5672:5672
       - 15672:15672
@@ -11,7 +10,6 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
   aws:
     image: localstack/localstack:latest
-    hostname: aws
     environment:
       - SERVICES=sns,sts,sqs
     ports:
