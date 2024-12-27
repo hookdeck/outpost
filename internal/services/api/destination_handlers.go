@@ -301,8 +301,8 @@ func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destina
 }
 
 type UpdateDestinationRequest struct {
-	Type        string            `json:"type" binding:"-"`
-	Topics      models.Topics     `json:"topics" binding:"-"`
-	Config      map[string]string `json:"config" binding:"-"`
-	Credentials map[string]string `json:"credentials" binding:"-"`
+	Type        string             `json:"type" binding:"-"`
+	Topics      models.Topics      `json:"topics" binding:"-"`
+	Config      map[string]string  `json:"config" binding:"-"`
+	Credentials models.Credentials `json:"credentials" binding:"-"`
 }

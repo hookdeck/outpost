@@ -181,6 +181,7 @@ type Credentials map[string]string
 
 var _ encoding.BinaryMarshaler = &Credentials{}
 var _ encoding.BinaryUnmarshaler = &Credentials{}
+var _ json.Unmarshaler = &Credentials{}
 
 func (c *Credentials) MarshalBinary() ([]byte, error) {
 	return json.Marshal(c)
@@ -188,4 +189,44 @@ func (c *Credentials) MarshalBinary() ([]byte, error) {
 
 func (c *Credentials) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, c)
+}
+
+func (c *Credentials) UnmarshalJSON(data []byte) error {
+	// First try to unmarshal as map[string]string
+	var stringMap map[string]string
+	if err := json.Unmarshal(data, &stringMap); err == nil {
+		*c = stringMap
+		return nil
+	}
+
+	// If that fails, try map[string]interface{} to handle mixed types
+	var mixedMap map[string]interface{}
+	if err := json.Unmarshal(data, &mixedMap); err != nil {
+		return err
+	}
+
+	// Convert all values to strings
+	result := make(map[string]string)
+	for k, v := range mixedMap {
+		switch val := v.(type) {
+		case string:
+			result[k] = val
+		case bool:
+			result[k] = fmt.Sprintf("%v", val)
+		case float64:
+			result[k] = fmt.Sprintf("%v", val)
+		case nil:
+			result[k] = ""
+		default:
+			// For other types, try to convert to string using JSON marshaling
+			if b, err := json.Marshal(val); err == nil {
+				result[k] = string(b)
+			} else {
+				result[k] = fmt.Sprintf("%v", val)
+			}
+		}
+	}
+
+	*c = result
+	return nil
 }

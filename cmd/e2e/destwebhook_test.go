@@ -9,6 +9,11 @@ import (
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
 )
 
+// TestingT is an interface wrapper around *testing.T
+type TestingT interface {
+	Errorf(format string, args ...interface{})
+}
+
 func (suite *basicSuite) TestDestwebhookPublish() {
 	tenantID := uuid.New().String()
 	sampleDestinationID := uuid.New().String()
@@ -389,4 +394,80 @@ func (suite *basicSuite) TestDestwebhookPublish() {
 		},
 	}
 	suite.RunAPITests(suite.T(), tests)
+}
+
+func (suite *basicSuite) TestDestwebhookSecretRotation() {
+	tenantID := uuid.New().String()
+	destinationID := uuid.New().String()
+
+	// Setup tenant
+	resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodPUT,
+		Path:   "/" + tenantID,
+	}))
+	suite.Require().NoError(err)
+	suite.Require().Equal(http.StatusCreated, resp.StatusCode)
+
+	// Create destination without secret
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodPOST,
+		Path:   "/" + tenantID + "/destinations",
+		Body: map[string]interface{}{
+			"id":     destinationID,
+			"type":   "webhook",
+			"topics": "*",
+			"config": map[string]interface{}{
+				"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
+			},
+		},
+	}))
+	suite.Require().NoError(err)
+	suite.Require().Equal(http.StatusCreated, resp.StatusCode)
+
+	// Get destination and verify initial state
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodGET,
+		Path:   "/" + tenantID + "/destinations/" + destinationID,
+	}))
+	suite.Require().NoError(err)
+	suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+	dest := resp.Body.(map[string]interface{})
+	creds, ok := dest["credentials"].(map[string]interface{})
+	suite.Require().True(ok)
+	suite.Require().NotEmpty(creds["secret"])
+	suite.Require().Nil(creds["previous_secret"])
+	suite.Require().Nil(creds["previous_secret_invalid_at"])
+
+	initialSecret := creds["secret"].(string)
+
+	// Rotate secret
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodPATCH,
+		Path:   "/" + tenantID + "/destinations/" + destinationID,
+		Body: map[string]interface{}{
+			"credentials": map[string]interface{}{
+				"rotate_secret": true,
+			},
+		},
+	}))
+	suite.Require().NoError(err)
+	suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+	// Get destination and verify rotated state
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodGET,
+		Path:   "/" + tenantID + "/destinations/" + destinationID,
+	}))
+	suite.Require().NoError(err)
+	suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+	dest = resp.Body.(map[string]interface{})
+	creds, ok = dest["credentials"].(map[string]interface{})
+	suite.Require().True(ok)
+	suite.Require().NotEmpty(creds["secret"])
+	suite.Require().NotEmpty(creds["previous_secret"])
+	suite.Require().NotEmpty(creds["previous_secret_invalid_at"])
+	suite.Require().Equal(initialSecret, creds["previous_secret"])
+	suite.Require().NotEqual(initialSecret, creds["secret"])
 }
