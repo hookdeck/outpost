@@ -8,6 +8,7 @@ services:
       dockerfile: ./build/dev/Dockerfile
     volumes:
       - ../../:/app
+      - go_mod_cache:/go/pkg
     depends_on:
       redis:
         condition: service_started
@@ -23,6 +24,7 @@ services:
     image: outpost
     volumes:
       - ../..:/app
+      - go_mod_cache:/go/pkg
     depends_on:
       redis:
         condition: service_started
@@ -38,6 +40,7 @@ services:
     image: outpost
     volumes:
       - ../..:/app
+      - go_mod_cache:/go/pkg
     depends_on:
       redis:
         condition: service_started
@@ -59,7 +62,7 @@ services:
     environment:
       - NODE_ENV=development
     env_file: ../../.env
-    command: sh -c "npm install && npx vite dev --host" 
+    command: sh -c "npm install && npx vite dev --host"
 
   redis:
     image: redis:7.4-alpine
@@ -107,12 +110,27 @@ services:
       timeout: 1s
       retries: 30
 
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml
+    ports:
+      - 1888:1888 # pprof extension
+      - 8888:8888 # Prometheus metrics exposed by the Collector
+      - 8889:8889 # Prometheus exporter metrics
+      - 13133:13133 # health_check extension
+      - 4317:4317 # OTLP gRPC receiver
+      - 4318:4318 # OTLP http receiver
+      - 55679:55679 # zpages extension
+
 volumes:
   redis:
     driver: local
   clickhouse:
     driver: local
   portal_node_modules:
+    driver: local
+  go_mod_cache:
     driver: local
 
 networks:
