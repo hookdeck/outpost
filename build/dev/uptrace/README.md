@@ -35,7 +35,10 @@ Here's the environment variables you need to set for Outpost to send telemetry d
 
 ```
 OTEL_SERVICE_NAME=outpost
-OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="localhost:14317"
-OTEL_EXPORTER_OTLP_METRICS_ENDPOINT="localhost:14317"
-OTEL_EXPORTER_OTLP_LOGS_ENDPOINT="localhost:14317"
+OTEL_EXPORTER_OTLP_ENDPOINT="dns://uptrace:14317"
+OTEL_EXPORTER_OTLP_HEADERS="uptrace-dsn=http://outpost_secret_token@uptrace:14318?grpc=14317"
+OTEL_EXPORTER_OTLP_INSECURE="true"
+# OTEL_TRACES_EXPORTER="none" # disable traces
+# OTEL_METRICS_EXPORTER="none" # disable metrics
+# OTEL_LOGS_EXPORTER="none" # disable logs
 ```

@@ -14,9 +14,14 @@ In production, if Outpost is run as a singular service, then the service name ca
 
 Besides `OTEL_SERVICE_NAME`, we support the official [OpenTelemetry Environment Variable Specification](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/).
 
-With OTEL, there are 3 telemetry data: traces, metrics, and logs. By default, Outpost will export all of them. You can provide a generic `OTEL_EXPORTER_OTLP_ENDPOINT` in that case.
+To specify the exporter endpoint, you can use `OTEL_EXPORTER_OTLP_ENDPOINT` or individual exporters such as `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`, or `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`.
 
-If you don't want to receive all telemetry, you must specify which data to receive by specifying the exporter URL individually. For example, if you only want to receive only traces & metrics:
+By default, Outpost will export all Telemetry data. You can disable specific telemetry by setting its exporter to `none`. For example, if you only want to receive traces & metrics:
 
-✅ you MUST specify `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` and `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`
-❌ you MUST not provide `OTEL_EXPORTER_OTLP_ENDPOINT` nor `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`
+```
+OTEL_TRACES_EXPORTER="otlp" # default
+OTEL_METRICS_EXPORTER="otlp" # default
+OTEL_LOGS_EXPORTER="none" # disable logs
+```
+
+Currently, we only support `otlp` exporter. If you have specific needs for other exporter configuration (like Prometheus), you must set up your own OTEL collector and configure it accordingly.
