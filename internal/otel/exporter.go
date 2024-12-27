@@ -9,6 +9,9 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/exporters/stdout/stdoutlog"
+	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
+	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -35,8 +38,13 @@ func newTraceProvider(ctx context.Context, config *OpenTelemetryConfig) (*trace.
 		}
 
 		return trace.NewTracerProvider(trace.WithBatcher(traceExporter)), nil
+	case "console", "stdout":
+		exporter, err := stdouttrace.New()
+		if err != nil {
+			return nil, err
+		}
+		return trace.NewTracerProvider(trace.WithBatcher(exporter)), nil
 	default:
-		// For future exporters like "console", "jaeger", etc.
 		return trace.NewTracerProvider(), nil
 	}
 }
@@ -62,8 +70,13 @@ func newMeterProvider(ctx context.Context, config *OpenTelemetryConfig) (*metric
 		}
 
 		return metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(metricExporter))), nil
+	case "console", "stdout":
+		exporter, err := stdoutmetric.New()
+		if err != nil {
+			return nil, err
+		}
+		return metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(exporter))), nil
 	default:
-		// For future exporters like "prometheus", etc.
 		return metric.NewMeterProvider(), nil
 	}
 }
@@ -89,8 +102,13 @@ func newLoggerProvider(ctx context.Context, config *OpenTelemetryConfig) (*log.L
 		}
 
 		return log.NewLoggerProvider(log.WithProcessor(log.NewBatchProcessor(logExporter))), nil
+	case "console", "stdout":
+		exporter, err := stdoutlog.New()
+		if err != nil {
+			return nil, err
+		}
+		return log.NewLoggerProvider(log.WithProcessor(log.NewBatchProcessor(exporter))), nil
 	default:
-		// For future exporters like "console", etc.
 		return log.NewLoggerProvider(), nil
 	}
 }
