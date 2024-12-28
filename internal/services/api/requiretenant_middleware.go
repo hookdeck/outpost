@@ -3,6 +3,8 @@ package api
 import (
 	"net/http"
 
+	"errors"
+
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
@@ -37,6 +39,7 @@ func RequireTenantMiddleware(logger *otelzap.Logger, entityStore models.EntitySt
 func mustTenantFromContext(c *gin.Context) *models.Tenant {
 	tenant, ok := c.Get("tenant")
 	if !ok {
+		AbortWithError(c, http.StatusInternalServerError, errors.New("tenant not found in context"))
 		return nil
 	}
 	return tenant.(*models.Tenant)

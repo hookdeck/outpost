@@ -26,6 +26,9 @@ func NewLogHandlers(
 
 func (h *LogHandlers) ListEvent(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
+	if tenant == nil {
+		return
+	}
 	cursor := c.Query("cursor")
 	limitStr := c.Query("limit")
 	limit, err := strconv.Atoi(limitStr)
@@ -56,6 +59,9 @@ func (h *LogHandlers) ListEvent(c *gin.Context) {
 
 func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
+	if tenant == nil {
+		return
+	}
 	eventID := c.Param("eventID")
 	event, err := h.logStore.RetrieveEvent(c.Request.Context(), tenant.ID, eventID)
 	if err != nil {
@@ -71,7 +77,10 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 
 // TODO: consider authz where eventID doesn't belong to tenantID?
 func (h *LogHandlers) ListDeliveryByEvent(c *gin.Context) {
-	mustTenantFromContext(c)
+	tenant := mustTenantFromContext(c)
+	if tenant == nil {
+		return
+	}
 	eventID := c.Param("eventID")
 	deliveries, err := h.logStore.ListDelivery(c.Request.Context(), models.ListDeliveryRequest{
 		EventID: eventID,

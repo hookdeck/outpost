@@ -61,6 +61,9 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 
 func (h *TenantHandlers) Retrieve(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
+	if tenant == nil {
+		return
+	}
 	c.JSON(http.StatusOK, tenant)
 }
 
@@ -85,6 +88,9 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 
 func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
+	if tenant == nil {
+		return
+	}
 	jwtToken, err := JWT.New(h.jwtSecret, tenant.ID)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
