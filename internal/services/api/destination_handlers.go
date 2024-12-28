@@ -40,7 +40,12 @@ func (h *DestinationHandlers) List(c *gin.Context) {
 		})
 	}
 
-	destinations, err := h.entityStore.ListDestinationByTenant(c.Request.Context(), c.Param("tenantID"), opts)
+	tenantID := mustTenantIDFromContext(c)
+	if tenantID == "" {
+		return
+	}
+
+	destinations, err := h.entityStore.ListDestinationByTenant(c.Request.Context(), tenantID, opts)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -66,7 +71,13 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
-	destination := input.ToDestination(c.Param("tenantID"))
+
+	tenantID := mustTenantIDFromContext(c)
+	if tenantID == "" {
+		return
+	}
+
+	destination := input.ToDestination(tenantID)
 	if err := destination.Validate(h.topics); err != nil {
 		AbortWithValidationError(c, err)
 		return
@@ -93,7 +104,11 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 }
 
 func (h *DestinationHandlers) Retrieve(c *gin.Context) {
-	destination := h.mustRetrieveDestination(c, c.Param("tenantID"), c.Param("destinationID"))
+	tenantID := mustTenantIDFromContext(c)
+	if tenantID == "" {
+		return
+	}
+	destination := h.mustRetrieveDestination(c, tenantID, c.Param("destinationID"))
 	if destination == nil {
 		return
 	}
@@ -115,7 +130,11 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	}
 
 	// Retrieve destination.
-	originalDestination := h.mustRetrieveDestination(c, c.Param("tenantID"), c.Param("destinationID"))
+	tenantID := mustTenantIDFromContext(c)
+	if tenantID == "" {
+		return
+	}
+	originalDestination := h.mustRetrieveDestination(c, tenantID, c.Param("destinationID"))
 	if originalDestination == nil {
 		return
 	}
@@ -171,7 +190,11 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 }
 
 func (h *DestinationHandlers) Delete(c *gin.Context) {
-	destination := h.mustRetrieveDestination(c, c.Param("tenantID"), c.Param("destinationID"))
+	tenantID := mustTenantIDFromContext(c)
+	if tenantID == "" {
+		return
+	}
+	destination := h.mustRetrieveDestination(c, tenantID, c.Param("destinationID"))
 	if destination == nil {
 		return
 	}
@@ -212,7 +235,11 @@ func (h *DestinationHandlers) RetrieveProviderMetadata(c *gin.Context) {
 }
 
 func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool) {
-	destination := h.mustRetrieveDestination(c, c.Param("tenantID"), c.Param("destinationID"))
+	tenantID := mustTenantIDFromContext(c)
+	if tenantID == "" {
+		return
+	}
+	destination := h.mustRetrieveDestination(c, tenantID, c.Param("destinationID"))
 	if destination == nil {
 		return
 	}

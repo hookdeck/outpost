@@ -28,7 +28,10 @@ func NewTenantHandlers(
 }
 
 func (h *TenantHandlers) Upsert(c *gin.Context) {
-	tenantID := c.Param("tenantID")
+	tenantID := mustTenantIDFromContext(c)
+	if tenantID == "" {
+		return
+	}
 
 	// Check existing tenant.
 	tenant, err := h.entityStore.RetrieveTenant(c.Request.Context(), tenantID)
@@ -62,7 +65,11 @@ func (h *TenantHandlers) Retrieve(c *gin.Context) {
 }
 
 func (h *TenantHandlers) Delete(c *gin.Context) {
-	tenantID := c.Param("tenantID")
+	tenantID := mustTenantIDFromContext(c)
+	if tenantID == "" {
+		return
+	}
+
 	err := h.entityStore.DeleteTenant(c.Request.Context(), tenantID)
 	if err != nil {
 		if err == models.ErrTenantNotFound {

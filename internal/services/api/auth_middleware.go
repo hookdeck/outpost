@@ -10,6 +10,7 @@ import (
 
 var (
 	ErrInvalidBearerToken = errors.New("invalid token")
+	ErrTenantIDNotFound   = errors.New("tenantID not found in context")
 )
 
 func SetTenantIDMiddleware() gin.HandlerFunc {
@@ -81,4 +82,13 @@ func extractBearerToken(header string) (string, error) {
 		return "", errors.New("invalid bearer token")
 	}
 	return strings.TrimPrefix(header, "Bearer "), nil
+}
+
+func mustTenantIDFromContext(c *gin.Context) string {
+	tenantID, exists := c.Get("tenantID")
+	if !exists {
+		AbortWithError(c, http.StatusInternalServerError, ErrTenantIDNotFound)
+		return ""
+	}
+	return tenantID.(string)
 }
