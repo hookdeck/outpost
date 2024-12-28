@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 
@@ -53,6 +54,41 @@ func APIKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFu
 		}
 		if authorizationToken == apiKey {
 			c.Next()
+			return
+		}
+
+		tokenTenantID, err := JWT.ExtractTenantID(jwtKey, authorizationToken)
+		if err != nil {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		// If tenantID param exists, verify it matches token
+		if paramTenantID := c.Param("tenantID"); paramTenantID != "" && paramTenantID != tokenTenantID {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		// Set tenantID in context
+		c.Set("tenantID", tokenTenantID)
+		c.Next()
+	}
+}
+
+// TenantJWTAuthMiddleware handles JWT authentication and sets tenantID from the token
+func TenantJWTAuthMiddleware(jwtKey string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		header := c.GetHeader("Authorization")
+		log.Println("header", header, header == "")
+		if header == "" {
+			log.Println("header is empty")
+			AbortWithError(c, http.StatusBadRequest, ErrInvalidBearerToken)
+			return
+		}
+
+		authorizationToken, err := extractBearerToken(header)
+		if err != nil {
+			AbortWithError(c, http.StatusBadRequest, ErrInvalidBearerToken)
 			return
 		}
 

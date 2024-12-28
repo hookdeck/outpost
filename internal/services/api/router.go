@@ -27,6 +27,19 @@ type RouterConfig struct {
 	Registry       destregistry.Registry
 }
 
+type routeDefinition struct {
+	method   string
+	path     string
+	handlers []gin.HandlerFunc
+}
+
+// registerRoutes registers routes to the given router
+func registerRoutes(router *gin.RouterGroup, routes []routeDefinition) {
+	for _, route := range routes {
+		router.Handle(route.method, route.path, route.handlers...)
+	}
+}
+
 func NewRouter(
 	cfg RouterConfig,
 	portalConfigs map[string]string,
@@ -72,49 +85,67 @@ func NewRouter(
 
 	// Admin router is a router group with the API key auth mechanism.
 	adminRouter := apiRouter.Group("/",
-		SetTenantIDMiddleware(),
 		APIKeyAuthMiddleware(cfg.APIKey),
 	)
 
-	adminRouter.PUT("/:tenantID", tenantHandlers.Upsert)
-	adminRouter.GET("/:tenantID/portal", RequireTenantMiddleware(logger, entityStore), tenantHandlers.RetrievePortal)
-
-	adminRouter.GET("/destination-types", destinationHandlers.ListProviderMetadata)
-	adminRouter.GET("/destination-types/:type", destinationHandlers.RetrieveProviderMetadata)
-	adminRouter.GET("/topics", topicHandlers.List)
+	adminRouter.PUT("/:tenantID", SetTenantIDMiddleware(), tenantHandlers.Upsert)
+	adminRouter.GET("/:tenantID/portal", SetTenantIDMiddleware(), RequireTenantMiddleware(logger, entityStore), tenantHandlers.RetrievePortal)
 	adminRouter.POST("/publish", publishHandlers.Ingest)
 
-	// Tenant router is a router group that accepts either
-	// - a tenant's JWT token OR
-	// - the preconfigured API key
-	//
-	// If the Outpost service deployment isn't configured with an API key, then
-	// it's assumed that the service runs in a secure environment
-	// and the JWT check is NOT necessary either.
-	tenantRouter := apiRouter.Group("/",
+	// Generic routes
+	// 1: If tenantID param is present, support both API key and JWT auth
+	// 2: If tenantID param is not present, also support both API key and JWT auth
+	tenantAgnosticRoutes := []routeDefinition{
+		{http.MethodGet, "/destination-types", []gin.HandlerFunc{destinationHandlers.ListProviderMetadata}},
+		{http.MethodGet, "/destination-types/:type", []gin.HandlerFunc{destinationHandlers.RetrieveProviderMetadata}},
+		{http.MethodGet, "/topics", []gin.HandlerFunc{topicHandlers.List}},
+	}
+
+	// Tenant-specific routes
+	// 1: If tenantID param is present, support both API key and JWT auth
+	// 2: If tenantID param is not present, support only JWT auth
+	tenantSpecificRoutes := []routeDefinition{
+		// Tenant routes
+		{http.MethodGet, "", []gin.HandlerFunc{tenantHandlers.Retrieve}},
+		{http.MethodDelete, "", []gin.HandlerFunc{tenantHandlers.Delete}},
+
+		// Destination routes
+		{http.MethodGet, "/destinations", []gin.HandlerFunc{destinationHandlers.List}},
+		{http.MethodPost, "/destinations", []gin.HandlerFunc{destinationHandlers.Create}},
+		{http.MethodGet, "/destinations/:destinationID", []gin.HandlerFunc{destinationHandlers.Retrieve}},
+		{http.MethodPatch, "/destinations/:destinationID", []gin.HandlerFunc{destinationHandlers.Update}},
+		{http.MethodDelete, "/destinations/:destinationID", []gin.HandlerFunc{destinationHandlers.Delete}},
+		{http.MethodPut, "/destinations/:destinationID/enable", []gin.HandlerFunc{destinationHandlers.Enable}},
+		{http.MethodPut, "/destinations/:destinationID/disable", []gin.HandlerFunc{destinationHandlers.Disable}},
+
+		// Event routes
+		{http.MethodGet, "/events", []gin.HandlerFunc{logHandlers.ListEvent}},
+		{http.MethodGet, "/events/:eventID", []gin.HandlerFunc{logHandlers.RetrieveEvent}},
+		{http.MethodGet, "/events/:eventID/deliveries", []gin.HandlerFunc{logHandlers.ListDeliveryByEvent}},
+	}
+
+	// Tenant router with either API key or JWT auth
+	tenantParamRouter := apiRouter.Group("/:tenantID",
 		SetTenantIDMiddleware(),
 		APIKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret),
+	)
+
+	// Router without tenantID & JWT auth
+	tenantSpecificRouterWithoutTenantID := apiRouter.Group("",
+		TenantJWTAuthMiddleware(cfg.JWTSecret),
 		RequireTenantMiddleware(logger, entityStore),
 	)
 
-	tenantRouter.GET("/:tenantID", tenantHandlers.Retrieve)
-	tenantRouter.DELETE("/:tenantID", tenantHandlers.Delete)
+	// Router without tenantID params with both API key and JWT auth
+	tenantAgnosticRouterWithAuth := apiRouter.Group("",
+		APIKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret),
+	)
 
-	tenantRouter.GET("/:tenantID/destinations", destinationHandlers.List)
-	tenantRouter.POST("/:tenantID/destinations", destinationHandlers.Create)
-	tenantRouter.GET("/:tenantID/destinations/:destinationID", destinationHandlers.Retrieve)
-	tenantRouter.PATCH("/:tenantID/destinations/:destinationID", destinationHandlers.Update)
-	tenantRouter.DELETE("/:tenantID/destinations/:destinationID", destinationHandlers.Delete)
-	tenantRouter.PUT("/:tenantID/destinations/:destinationID/enable", destinationHandlers.Enable)
-	tenantRouter.PUT("/:tenantID/destinations/:destinationID/disable", destinationHandlers.Disable)
-
-	tenantRouter.GET("/:tenantID/events", logHandlers.ListEvent)
-	tenantRouter.GET("/:tenantID/events/:eventID", logHandlers.RetrieveEvent)
-	tenantRouter.GET("/:tenantID/events/:eventID/deliveries", logHandlers.ListDeliveryByEvent)
-
-	tenantRouter.GET("/:tenantID/destination-types", destinationHandlers.ListProviderMetadata)
-	tenantRouter.GET("/:tenantID/destination-types/:type", destinationHandlers.RetrieveProviderMetadata)
-	tenantRouter.GET("/:tenantID/topics", topicHandlers.List)
+	// Register routes to both routers
+	registerRoutes(tenantParamRouter, tenantAgnosticRoutes)
+	registerRoutes(tenantParamRouter.Group("", RequireTenantMiddleware(logger, entityStore)), tenantSpecificRoutes)
+	registerRoutes(tenantAgnosticRouterWithAuth, tenantAgnosticRoutes)
+	registerRoutes(tenantSpecificRouterWithoutTenantID, tenantSpecificRoutes)
 
 	return r
 }
