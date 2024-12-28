@@ -71,7 +71,10 @@ func NewRouter(
 	topicHandlers := NewTopicHandlers(logger, cfg.Topics)
 
 	// Admin router is a router group with the API key auth mechanism.
-	adminRouter := apiRouter.Group("/", APIKeyAuthMiddleware(cfg.APIKey))
+	adminRouter := apiRouter.Group("/",
+		SetTenantIDMiddleware(),
+		APIKeyAuthMiddleware(cfg.APIKey),
+	)
 
 	adminRouter.PUT("/:tenantID", tenantHandlers.Upsert)
 	adminRouter.GET("/:tenantID/portal", RequireTenantMiddleware(logger, entityStore), tenantHandlers.RetrievePortal)
@@ -89,6 +92,7 @@ func NewRouter(
 	// it's assumed that the service runs in a secure environment
 	// and the JWT check is NOT necessary either.
 	tenantRouter := apiRouter.Group("/",
+		SetTenantIDMiddleware(),
 		APIKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret),
 		RequireTenantMiddleware(logger, entityStore),
 	)

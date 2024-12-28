@@ -12,6 +12,16 @@ var (
 	ErrInvalidBearerToken = errors.New("invalid token")
 )
 
+func SetTenantIDMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tenantID := c.Param("tenantID")
+		if tenantID != "" {
+			c.Set("tenantID", tenantID)
+		}
+		c.Next()
+	}
+}
+
 func APIKeyAuthMiddleware(apiKey string) gin.HandlerFunc {
 	if apiKey == "" {
 		return func(c *gin.Context) {
@@ -44,16 +54,21 @@ func APIKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFu
 			c.Next()
 			return
 		}
-		tenantID := c.Param("tenantID")
-		valid, err := JWT.Verify(jwtKey, authorizationToken, tenantID)
+
+		tokenTenantID, err := JWT.ExtractTenantID(jwtKey, authorizationToken)
 		if err != nil {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-		if !valid {
+
+		// If tenantID param exists, verify it matches token
+		if paramTenantID := c.Param("tenantID"); paramTenantID != "" && paramTenantID != tokenTenantID {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
+
+		// Set tenantID in context
+		c.Set("tenantID", tokenTenantID)
 		c.Next()
 	}
 }
