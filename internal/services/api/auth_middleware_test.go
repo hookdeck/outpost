@@ -344,3 +344,159 @@ func TestTenantJWTAuthMiddleware(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthRole(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	t.Parallel()
+
+	t.Run("APIKeyAuthMiddleware", func(t *testing.T) {
+		t.Run("should set RoleAdmin when apiKey is empty", func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+			handler := api.APIKeyAuthMiddleware("")
+			var role string
+			nextHandler := func(c *gin.Context) {
+				val, exists := c.Get("authRole")
+				if exists {
+					role = val.(string)
+				}
+			}
+
+			handler(c)
+			nextHandler(c)
+
+			assert.Equal(t, api.RoleAdmin, role)
+		})
+
+		t.Run("should set RoleAdmin when valid API key", func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			c.Request.Header.Set("Authorization", "Bearer key")
+
+			handler := api.APIKeyAuthMiddleware("key")
+			var role string
+			nextHandler := func(c *gin.Context) {
+				val, exists := c.Get("authRole")
+				if exists {
+					role = val.(string)
+				}
+			}
+
+			handler(c)
+			nextHandler(c)
+
+			assert.Equal(t, api.RoleAdmin, role)
+		})
+	})
+
+	t.Run("APIKeyOrTenantJWTAuthMiddleware", func(t *testing.T) {
+		t.Run("should set RoleAdmin when apiKey is empty", func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+			handler := api.APIKeyOrTenantJWTAuthMiddleware("", "jwt_secret")
+			var role string
+			nextHandler := func(c *gin.Context) {
+				val, exists := c.Get("authRole")
+				if exists {
+					role = val.(string)
+				}
+			}
+
+			handler(c)
+			nextHandler(c)
+
+			assert.Equal(t, api.RoleAdmin, role)
+		})
+
+		t.Run("should set RoleAdmin when using API key", func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			c.Request.Header.Set("Authorization", "Bearer key")
+
+			handler := api.APIKeyOrTenantJWTAuthMiddleware("key", "jwt_secret")
+			var role string
+			nextHandler := func(c *gin.Context) {
+				val, exists := c.Get("authRole")
+				if exists {
+					role = val.(string)
+				}
+			}
+
+			handler(c)
+			nextHandler(c)
+
+			assert.Equal(t, api.RoleAdmin, role)
+		})
+
+		t.Run("should set RoleTenant when using valid JWT", func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			token := newJWTToken(t, "jwt_secret", "tenant-id")
+			c.Request.Header.Set("Authorization", "Bearer "+token)
+
+			handler := api.APIKeyOrTenantJWTAuthMiddleware("key", "jwt_secret")
+			var role string
+			nextHandler := func(c *gin.Context) {
+				val, exists := c.Get("authRole")
+				if exists {
+					role = val.(string)
+				}
+			}
+
+			handler(c)
+			nextHandler(c)
+
+			assert.Equal(t, api.RoleTenant, role)
+		})
+	})
+
+	t.Run("TenantJWTAuthMiddleware", func(t *testing.T) {
+		t.Run("should set RoleTenant when using valid JWT", func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			token := newJWTToken(t, "jwt_secret", "tenant-id")
+			c.Request.Header.Set("Authorization", "Bearer "+token)
+
+			handler := api.TenantJWTAuthMiddleware("key", "jwt_secret")
+			var role string
+			nextHandler := func(c *gin.Context) {
+				val, exists := c.Get("authRole")
+				if exists {
+					role = val.(string)
+				}
+			}
+
+			handler(c)
+			nextHandler(c)
+
+			assert.Equal(t, api.RoleTenant, role)
+		})
+
+		t.Run("should not set role when apiKey is empty", func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			token := newJWTToken(t, "jwt_secret", "tenant-id")
+			c.Request.Header.Set("Authorization", "Bearer "+token)
+
+			handler := api.TenantJWTAuthMiddleware("", "jwt_secret")
+			var roleExists bool
+			nextHandler := func(c *gin.Context) {
+				_, roleExists = c.Get("authRole")
+			}
+
+			handler(c)
+			nextHandler(c)
+
+			assert.False(t, roleExists)
+		})
+	})
+}
