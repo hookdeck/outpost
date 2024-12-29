@@ -89,6 +89,7 @@ func NewRouter(
 	)
 
 	adminRouter.PUT("/:tenantID", SetTenantIDMiddleware(), tenantHandlers.Upsert)
+	adminRouter.GET("/:tenantID/token", SetTenantIDMiddleware(), RequireTenantMiddleware(logger, entityStore), tenantHandlers.RetrieveToken)
 	adminRouter.GET("/:tenantID/portal", SetTenantIDMiddleware(), RequireTenantMiddleware(logger, entityStore), tenantHandlers.RetrievePortal)
 	adminRouter.POST("/publish", publishHandlers.Ingest)
 

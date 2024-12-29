@@ -86,6 +86,19 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 	return
 }
 
+func (h *TenantHandlers) RetrieveToken(c *gin.Context) {
+	tenant := mustTenantFromContext(c)
+	if tenant == nil {
+		return
+	}
+	jwtToken, err := JWT.New(h.jwtSecret, tenant.ID)
+	if err != nil {
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": jwtToken})
+}
+
 func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 	if tenant == nil {
