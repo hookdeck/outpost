@@ -243,6 +243,39 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, w.Code)
 	})
 
+	t.Run("should return 404 for JWT-only routes when apiKey is empty", func(t *testing.T) {
+		t.Parallel()
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/destinations", nil)
+		req.Header.Set("Authorization", "Bearer "+validToken)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("should return 404 for JWT-only routes with invalid token when apiKey is empty", func(t *testing.T) {
+		t.Parallel()
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/destinations", nil)
+		req.Header.Set("Authorization", "Bearer invalid")
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("should return 404 for JWT-only routes with invalid bearer format when apiKey is empty", func(t *testing.T) {
+		t.Parallel()
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/destinations", nil)
+		req.Header.Set("Authorization", "NotBearer "+validToken)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
 	t.Run("should allow unauthenticated request to tenant routes", func(t *testing.T) {
 		t.Parallel()
 
@@ -264,18 +297,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("should allow admin request to tenant routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenantIDnotfound", nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should allow tenant-auth request to admin routes", func(t *testing.T) {
+	t.Run("should allow tenant-auth request to tenant routes", func(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
@@ -284,27 +306,5 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should block request with invalid bearer authorization header", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID, nil)
-		req.Header.Set("Authorization", "NotBearer "+validToken)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("should block request with bearer authorization header with invalid token", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID, nil)
-		req.Header.Set("Authorization", "Bearer invalid")
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 }

@@ -133,7 +133,7 @@ func NewRouter(
 
 	// Router without tenantID & JWT auth
 	tenantSpecificRouterWithoutTenantID := apiRouter.Group("",
-		TenantJWTAuthMiddleware(cfg.JWTSecret),
+		TenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret),
 		RequireTenantMiddleware(logger, entityStore),
 	)
 
@@ -146,7 +146,10 @@ func NewRouter(
 	registerRoutes(tenantParamRouter, tenantAgnosticRoutes)
 	registerRoutes(tenantParamRouter.Group("", RequireTenantMiddleware(logger, entityStore)), tenantSpecificRoutes)
 	registerRoutes(tenantAgnosticRouterWithAuth, tenantAgnosticRoutes)
-	registerRoutes(tenantSpecificRouterWithoutTenantID, tenantSpecificRoutes)
+	// Only register JWT-only routes when apiKey is set
+	if cfg.APIKey != "" {
+		registerRoutes(tenantSpecificRouterWithoutTenantID, tenantSpecificRoutes)
+	}
 
 	return r
 }

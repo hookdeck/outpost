@@ -2,7 +2,6 @@ package api
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 
@@ -10,8 +9,18 @@ import (
 )
 
 var (
-	ErrInvalidBearerToken = errors.New("invalid token")
+	ErrMissingAuthHeader  = errors.New("missing authorization header")
+	ErrInvalidBearerToken = errors.New("invalid bearer token format")
 	ErrTenantIDNotFound   = errors.New("tenantID not found in context")
+)
+
+const (
+	// Context keys
+	authRoleKey = "authRole"
+
+	// Role values
+	RoleAdmin  = "admin"
+	RoleTenant = "tenant"
 )
 
 func SetTenantIDMiddleware() gin.HandlerFunc {
@@ -24,40 +33,81 @@ func SetTenantIDMiddleware() gin.HandlerFunc {
 	}
 }
 
+// validateAuthHeader checks the Authorization header and returns the token if valid
+func validateAuthHeader(c *gin.Context) (string, error) {
+	header := c.GetHeader("Authorization")
+	if header == "" {
+		return "", ErrMissingAuthHeader
+	}
+	if !strings.HasPrefix(header, "Bearer ") {
+		return "", ErrInvalidBearerToken
+	}
+	token := strings.TrimPrefix(header, "Bearer ")
+	if token == "" {
+		return "", ErrInvalidBearerToken
+	}
+	return token, nil
+}
+
 func APIKeyAuthMiddleware(apiKey string) gin.HandlerFunc {
+	// When apiKey is empty, everything is admin-only through VPC
 	if apiKey == "" {
 		return func(c *gin.Context) {
+			c.Set(authRoleKey, RoleAdmin)
 			c.Next()
 		}
 	}
 
 	return func(c *gin.Context) {
-		authorizationToken, err := extractBearerToken(c.GetHeader("Authorization"))
+		token, err := validateAuthHeader(c)
 		if err != nil {
-			AbortWithError(c, http.StatusBadRequest, ErrInvalidBearerToken)
-			return
-		}
-		if authorizationToken != apiKey {
+			if errors.Is(err, ErrInvalidBearerToken) {
+				c.AbortWithStatus(http.StatusBadRequest)
+				return
+			}
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
+
+		if token != apiKey {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		c.Set(authRoleKey, RoleAdmin)
 		c.Next()
 	}
 }
 
 func APIKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
+	// When apiKey is empty, everything is admin-only through VPC
+	if apiKey == "" {
+		return func(c *gin.Context) {
+			c.Set(authRoleKey, RoleAdmin)
+			c.Next()
+		}
+	}
+
 	return func(c *gin.Context) {
-		authorizationToken, err := extractBearerToken(c.GetHeader("Authorization"))
+		token, err := validateAuthHeader(c)
 		if err != nil {
-			AbortWithError(c, http.StatusBadRequest, ErrInvalidBearerToken)
+			if errors.Is(err, ErrInvalidBearerToken) {
+				c.AbortWithStatus(http.StatusBadRequest)
+				return
+			}
+			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-		if authorizationToken == apiKey {
+
+		// Try API key first
+		if token == apiKey {
+			c.Set(authRoleKey, RoleAdmin)
 			c.Next()
 			return
 		}
 
-		tokenTenantID, err := JWT.ExtractTenantID(jwtKey, authorizationToken)
+		// Try JWT auth
+		tokenTenantID, err := JWT.ExtractTenantID(jwtKey, token)
 		if err != nil {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
@@ -69,30 +119,31 @@ func APIKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFu
 			return
 		}
 
-		// Set tenantID in context
 		c.Set("tenantID", tokenTenantID)
+		c.Set(authRoleKey, RoleTenant)
 		c.Next()
 	}
 }
 
-// TenantJWTAuthMiddleware handles JWT authentication and sets tenantID from the token
-func TenantJWTAuthMiddleware(jwtKey string) gin.HandlerFunc {
+func TenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		header := c.GetHeader("Authorization")
-		log.Println("header", header, header == "")
-		if header == "" {
-			log.Println("header is empty")
-			AbortWithError(c, http.StatusBadRequest, ErrInvalidBearerToken)
+		// When apiKey is empty, JWT-only routes should be unauthorized
+		if apiKey == "" {
+			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
 
-		authorizationToken, err := extractBearerToken(header)
+		token, err := validateAuthHeader(c)
 		if err != nil {
-			AbortWithError(c, http.StatusBadRequest, ErrInvalidBearerToken)
+			if errors.Is(err, ErrInvalidBearerToken) {
+				c.AbortWithStatus(http.StatusBadRequest)
+				return
+			}
+			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
 
-		tokenTenantID, err := JWT.ExtractTenantID(jwtKey, authorizationToken)
+		tokenTenantID, err := JWT.ExtractTenantID(jwtKey, token)
 		if err != nil {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
@@ -104,26 +155,20 @@ func TenantJWTAuthMiddleware(jwtKey string) gin.HandlerFunc {
 			return
 		}
 
-		// Set tenantID in context
 		c.Set("tenantID", tokenTenantID)
+		c.Set(authRoleKey, RoleTenant)
 		c.Next()
 	}
-}
-
-func extractBearerToken(header string) (string, error) {
-	if header == "" {
-		return "", nil
-	}
-	if !strings.HasPrefix(header, "Bearer ") {
-		return "", errors.New("invalid bearer token")
-	}
-	return strings.TrimPrefix(header, "Bearer "), nil
 }
 
 func mustTenantIDFromContext(c *gin.Context) string {
 	tenantID, exists := c.Get("tenantID")
 	if !exists {
-		AbortWithError(c, http.StatusInternalServerError, ErrTenantIDNotFound)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return ""
+	}
+	if tenantID == nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
 		return ""
 	}
 	return tenantID.(string)
