@@ -50,6 +50,14 @@ func (s *e2eSuite) AuthRequest(req httpclient.Request) httpclient.Request {
 	return req
 }
 
+func (s *e2eSuite) AuthJWTRequest(req httpclient.Request, token string) httpclient.Request {
+	if req.Headers == nil {
+		req.Headers = map[string]string{}
+	}
+	req.Headers["Authorization"] = fmt.Sprintf("Bearer %s", token)
+	return req
+}
+
 func (suite *e2eSuite) RunAPITests(t *testing.T, tests []APITest) {
 	t.Helper()
 	for _, test := range tests {

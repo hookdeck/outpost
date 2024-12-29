@@ -1043,6 +1043,201 @@ func (suite *basicSuite) TestDestinationTypesAPI() {
 	suite.RunAPITests(suite.T(), tests)
 }
 
+func (suite *basicSuite) TestJWTAuthAPI() {
+	// Step 1: Create tenant and get JWT token
+	tenantID := uuid.New().String()
+	destinationID := uuid.New().String()
+
+	// Create tenant first using admin auth
+	createTenantTests := []APITest{
+		{
+			Name: "PUT /:tenantID to create tenant",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+	}
+	suite.RunAPITests(suite.T(), createTenantTests)
+
+	// Step 2: Get JWT token - need to do this manually since we need to extract the token
+	tokenResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodGET,
+		Path:   "/" + tenantID + "/token",
+	}))
+	suite.Require().NoError(err)
+	suite.Require().Equal(http.StatusOK, tokenResp.StatusCode)
+
+	bodyMap := tokenResp.Body.(map[string]interface{})
+	token := bodyMap["token"].(string)
+	suite.Require().NotEmpty(token)
+
+	// Step 3: Test various endpoints with JWT auth
+	jwtTests := []APITest{
+		// Test tenant-specific routes with tenantID param
+		{
+			Name: "GET /:tenantID with JWT should work",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID,
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations with JWT should work",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations",
+			}, token),
+			Expected: APITestExpectation{
+				Validate: makeDestinationListValidator(0),
+			},
+		},
+		{
+			Name: "POST /:tenantID/destinations with JWT should work",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
+				Body: map[string]interface{}{
+					"id":     destinationID,
+					"type":   "webhook",
+					"topics": "*",
+					"config": map[string]interface{}{
+						"url": "http://host.docker.internal:4444",
+					},
+				},
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+
+		// Test tenant-specific routes without tenantID param
+		{
+			Name: "GET /destinations with JWT should work",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/destinations",
+			}, token),
+			Expected: APITestExpectation{
+				Validate: makeDestinationListValidator(1),
+			},
+		},
+		{
+			Name: "POST /destinations with JWT should work",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/destinations",
+				Body: map[string]interface{}{
+					"type":   "webhook",
+					"topics": "*",
+					"config": map[string]interface{}{
+						"url": "http://host.docker.internal:4444",
+					},
+				},
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+
+		// Test tenant-agnostic routes with tenantID param
+		{
+			Name: "GET /:tenantID/destination-types with JWT should work",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destination-types",
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID/topics with JWT should work",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/topics",
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+
+		// Test tenant-agnostic routes without tenantID param
+		{
+			Name: "GET /destination-types with JWT should work",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/destination-types",
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Name: "GET /topics with JWT should work",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/topics",
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+
+		// Test wrong tenantID
+		{
+			Name: "GET /wrong-tenant-id with JWT should fail",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + uuid.New().String(),
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnauthorized,
+				},
+			},
+		},
+
+		// Clean up - delete tenant
+		{
+			Name: "DELETE /:tenantID with JWT should work",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodDELETE,
+				Path:   "/" + tenantID,
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+	}
+
+	suite.RunAPITests(suite.T(), jwtTests)
+}
+
 func makeDestinationListValidator(length int) map[string]any {
 	return map[string]any{
 		"type": "object",
