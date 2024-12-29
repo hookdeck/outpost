@@ -308,3 +308,55 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 }
+
+func TestTokenAndPortalRoutes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		apiKey    string
+		jwtSecret string
+		path      string
+	}{
+		{
+			name:      "token route should return 404 when apiKey is empty",
+			apiKey:    "",
+			jwtSecret: "secret",
+			path:      "/tenant-id/token",
+		},
+		{
+			name:      "token route should return 404 when jwtSecret is empty",
+			apiKey:    "key",
+			jwtSecret: "",
+			path:      "/tenant-id/token",
+		},
+		{
+			name:      "portal route should return 404 when apiKey is empty",
+			apiKey:    "",
+			jwtSecret: "secret",
+			path:      "/tenant-id/portal",
+		},
+		{
+			name:      "portal route should return 404 when jwtSecret is empty",
+			apiKey:    "key",
+			jwtSecret: "",
+			path:      "/tenant-id/portal",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router, _, _ := setupTestRouter(t, tt.apiKey, tt.jwtSecret)
+
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", baseAPIPath+"/"+tt.path, nil)
+			if tt.apiKey != "" {
+				req.Header.Set("Authorization", "Bearer "+tt.apiKey)
+			}
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusNotFound, w.Code)
+		})
+	}
+}

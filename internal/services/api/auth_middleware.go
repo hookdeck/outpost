@@ -127,9 +127,9 @@ func APIKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFu
 
 func TenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// When apiKey is empty, JWT-only routes should be unauthorized
-		if apiKey == "" {
-			c.AbortWithStatus(http.StatusUnauthorized)
+		// When apiKey or jwtKey is empty, JWT-only routes should not exist
+		if apiKey == "" || jwtKey == "" {
+			c.AbortWithStatus(http.StatusNotFound)
 			return
 		}
 

@@ -271,11 +271,18 @@ func TestTenantJWTAuthMiddleware(t *testing.T) {
 		wantTenantID  string
 	}{
 		{
-			name:       "should return 401 when apiKey is empty",
+			name:       "should return 404 when apiKey is empty",
 			apiKey:     "",
 			jwtSecret:  "secret",
 			header:     "Bearer token",
-			wantStatus: http.StatusUnauthorized,
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "should return 404 when jwtSecret is empty",
+			apiKey:     "key",
+			jwtSecret:  "",
+			header:     "Bearer token",
+			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:         "should return 401 when no auth header",
