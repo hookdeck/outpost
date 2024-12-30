@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/cmd/e2e/configs"
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
 	"github.com/hookdeck/outpost/internal/app"
@@ -119,6 +120,7 @@ type basicSuite struct {
 func (suite *basicSuite) SetupSuite() {
 	t := suite.T()
 	t.Cleanup(testinfra.Start(t))
+	gin.SetMode(gin.TestMode)
 	mockServerBaseURL := testinfra.GetMockServer(t)
 	suite.e2eSuite = e2eSuite{
 		ctx:               context.Background(),

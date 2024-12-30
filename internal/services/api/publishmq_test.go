@@ -25,10 +25,10 @@ func TestIntegrationAPIService_PublishMQConsumer(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
+	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	// ===== Arrange =====
-	gin.SetMode(gin.TestMode)
 	ctx := context.Background()
 
 	publishQueueConfig := mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}

@@ -310,7 +310,6 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 }
 
 func TestTokenAndPortalRoutes(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
 	tests := []struct {
