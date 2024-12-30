@@ -168,7 +168,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{})
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 		require.NoError(t, err)
 
 		// Verify that a secret was generated
@@ -179,7 +179,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		assert.NoError(t, err, "generated secret should be a valid hex string")
 	})
 
-	t.Run("should not override existing secret", func(t *testing.T) {
+	t.Run("should preserve existing secret for admin", func(t *testing.T) {
 		t.Parallel()
 		destination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
@@ -187,15 +187,136 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 				"url": "https://example.com",
 			}),
 			testutil.DestinationFactory.WithCredentials(map[string]string{
-				"secret": "existing-secret",
+				"secret": "custom-secret",
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{})
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "admin"})
 		require.NoError(t, err)
 
-		// Verify that the existing secret was not changed
-		assert.Equal(t, "existing-secret", destination.Credentials["secret"])
+		// Verify that the custom secret was preserved
+		assert.Equal(t, "custom-secret", destination.Credentials["secret"])
+	})
+
+	t.Run("tenant should not be able to override existing secret", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "custom-secret",
+			}),
+		)
+
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "credentials.secret", validationErr.Errors[0].Field)
+		assert.Equal(t, "forbidden", validationErr.Errors[0].Type)
+	})
+
+	t.Run("tenant should be able to rotate secret", func(t *testing.T) {
+		t.Parallel()
+		originalDestination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "current-secret",
+			}),
+		)
+
+		newDestination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"rotate_secret": "true",
+			}),
+		)
+
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+		require.NoError(t, err)
+
+		// Verify that the current secret became the previous secret
+		assert.Equal(t, "current-secret", newDestination.Credentials["previous_secret"])
+
+		// Verify that a new secret was generated
+		assert.NotEqual(t, "current-secret", newDestination.Credentials["secret"])
+		assert.NotEmpty(t, newDestination.Credentials["secret"])
+		assert.Len(t, newDestination.Credentials["secret"], 64)
+		_, err = hex.DecodeString(newDestination.Credentials["secret"])
+		assert.NoError(t, err, "generated secret should be a valid hex string")
+
+		// Verify that previous_secret_invalid_at was set to ~24h from now
+		invalidAt, err := time.Parse(time.RFC3339, newDestination.Credentials["previous_secret_invalid_at"])
+		require.NoError(t, err)
+		expectedTime := time.Now().Add(24 * time.Hour)
+		assert.WithinDuration(t, expectedTime, invalidAt, 5*time.Second)
+	})
+
+	t.Run("admin should be able to set previous_secret directly", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret":          "current-secret",
+				"previous_secret": "old-secret",
+			}),
+		)
+
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "admin"})
+		require.NoError(t, err)
+
+		// Verify that previous_secret was kept
+		assert.Equal(t, "old-secret", destination.Credentials["previous_secret"])
+	})
+
+	t.Run("tenant should not be able to set previous_secret directly", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret":          "current-secret",
+				"previous_secret": "old-secret",
+			}),
+		)
+
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "credentials.previous_secret", validationErr.Errors[0].Field)
+		assert.Equal(t, "forbidden", validationErr.Errors[0].Type)
+	})
+
+	t.Run("tenant should not be able to set previous_secret_invalid_at directly", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret":                     "current-secret",
+				"previous_secret_invalid_at": time.Now().Add(48 * time.Hour).Format(time.RFC3339),
+			}),
+		)
+
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "credentials.previous_secret_invalid_at", validationErr.Errors[0].Field)
+		assert.Equal(t, "forbidden", validationErr.Errors[0].Type)
 	})
 
 	t.Run("should initialize credentials map if nil", func(t *testing.T) {
@@ -347,7 +468,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{})
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "admin"})
 		require.NoError(t, err)
 
 		// Verify that previous_secret_invalid_at was set to ~24h from now
@@ -462,7 +583,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{})
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "admin"})
 		require.NoError(t, err)
 
 		// Verify that only expected fields are present
