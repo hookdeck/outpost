@@ -168,7 +168,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination, nil)
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{})
 		require.NoError(t, err)
 
 		// Verify that a secret was generated
@@ -191,7 +191,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination, nil)
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{})
 		require.NoError(t, err)
 
 		// Verify that the existing secret was not changed
@@ -208,7 +208,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		)
 		destination.Credentials = nil
 
-		err := webhookDestination.Preprocess(&destination, nil)
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{})
 		require.NoError(t, err)
 
 		// Verify that credentials map was initialized and a secret was generated
@@ -238,7 +238,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&newDestination, &originalDestination)
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
 		require.NoError(t, err)
 
 		// Verify that the current secret became the previous secret
@@ -282,7 +282,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&newDestination, &originalDestination)
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
 		require.NoError(t, err)
 
 		// Verify that the custom invalidation time was preserved
@@ -301,7 +301,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination, nil)
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{})
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "credentials.rotate_secret", validationErr.Errors[0].Field)
@@ -327,7 +327,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&newDestination, &originalDestination)
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "credentials.secret", validationErr.Errors[0].Field)
@@ -347,7 +347,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination, nil)
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{})
 		require.NoError(t, err)
 
 		// Verify that previous_secret_invalid_at was set to ~24h from now
@@ -384,7 +384,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 					}),
 				)
 
-				err := webhookDestination.Preprocess(&newDestination, &originalDestination)
+				err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
 				require.NoError(t, err)
 
 				// Verify that the current secret became the previous secret
@@ -434,7 +434,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 					}),
 				)
 
-				err := webhookDestination.Preprocess(&newDestination, &originalDestination)
+				err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
 				require.NoError(t, err)
 
 				// Verify that the secret was not changed
@@ -462,7 +462,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination, nil)
+		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{})
 		require.NoError(t, err)
 
 		// Verify that only expected fields are present

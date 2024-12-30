@@ -254,7 +254,7 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 }
 
 // Preprocess sets a default secret if one isn't provided and handles secret rotation
-func (d *WebhookDestination) Preprocess(newDestination *models.Destination, originalDestination *models.Destination) error {
+func (d *WebhookDestination) Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {
 	// Initialize credentials map if nil
 	if newDestination.Credentials == nil {
 		newDestination.Credentials = make(map[string]string)

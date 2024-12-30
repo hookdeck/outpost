@@ -15,13 +15,18 @@ import (
 	"go.uber.org/zap"
 )
 
+// PreprocessDestinationOpts contains options for preprocessing a destination
+type PreprocessDestinationOpts struct {
+	Role string
+}
+
 // Registry manages providers, their metadata, and publishers
 type Registry interface {
 	// Operations
 	ValidateDestination(ctx context.Context, destination *models.Destination) error
 	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error
 	DisplayDestination(destination *models.Destination) (*DestinationDisplay, error)
-	PreprocessDestination(newDestination *models.Destination, originalDestination *models.Destination) error
+	PreprocessDestination(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error
 
 	// Provider management
 	RegisterProvider(destinationType string, provider Provider) error
@@ -47,7 +52,7 @@ type Provider interface {
 	// ComputeTarget returns a human-readable target string for the destination
 	ComputeTarget(destination *models.Destination) string
 	// Preprocess modifies the destination before it is stored in the DB
-	Preprocess(newDestination *models.Destination, originalDestination *models.Destination) error
+	Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error
 }
 
 type Publisher interface {
@@ -257,12 +262,12 @@ func (r *registry) DisplayDestination(destination *models.Destination) (*Destina
 }
 
 // PreprocessDestination resolves the provider and calls its Preprocess method
-func (r *registry) PreprocessDestination(newDestination *models.Destination, originalDestination *models.Destination) error {
+func (r *registry) PreprocessDestination(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error {
 	provider, err := r.ResolveProvider(newDestination)
 	if err != nil {
 		return err
 	}
-	return provider.Preprocess(newDestination, originalDestination)
+	return provider.Preprocess(newDestination, originalDestination, opts)
 }
 
 var (

@@ -179,7 +179,7 @@ func (p *mockPublisherWithConfig) Close() error { return nil }
 
 type mockProviderWithConfig struct {
 	providerType string
-	preprocessFn func(*models.Destination, *models.Destination) error
+	preprocessFn func(*models.Destination, *models.Destination, *destregistry.PreprocessDestinationOpts) error
 	*destregistry.BaseProvider
 }
 
@@ -205,9 +205,9 @@ func (p *mockProviderWithConfig) ComputeTarget(destination *models.Destination) 
 	return "mock-target"
 }
 
-func (p *mockProviderWithConfig) Preprocess(newDestination *models.Destination, originalDestination *models.Destination) error {
+func (p *mockProviderWithConfig) Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {
 	if p.preprocessFn != nil {
-		return p.preprocessFn(newDestination, originalDestination)
+		return p.preprocessFn(newDestination, originalDestination, opts)
 	}
 	return nil
 }
@@ -726,7 +726,7 @@ func TestPreprocessDestination(t *testing.T) {
 	tests := []struct {
 		name        string
 		destination *models.Destination
-		preprocess  func(*models.Destination, *models.Destination) error
+		preprocess  func(*models.Destination, *models.Destination, *destregistry.PreprocessDestinationOpts) error
 		wantErr     bool
 	}{
 		{
@@ -748,7 +748,7 @@ func TestPreprocessDestination(t *testing.T) {
 					"key": "value",
 				},
 			},
-			preprocess: func(newDestination *models.Destination, originalDestination *models.Destination) error {
+			preprocess: func(newDestination *models.Destination, originalDestination *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {
 				newDestination.Config["processed"] = "true"
 				return nil
 			},
@@ -762,7 +762,7 @@ func TestPreprocessDestination(t *testing.T) {
 					"key": "value",
 				},
 			},
-			preprocess: func(newDestination *models.Destination, originalDestination *models.Destination) error {
+			preprocess: func(newDestination *models.Destination, originalDestination *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {
 				return errors.New("preprocess error")
 			},
 			wantErr: true,
@@ -785,7 +785,7 @@ func TestPreprocessDestination(t *testing.T) {
 			err = registry.RegisterProvider("mock", provider)
 			require.NoError(t, err)
 
-			err = registry.PreprocessDestination(tt.destination, nil)
+			err = registry.PreprocessDestination(tt.destination, nil, &destregistry.PreprocessDestinationOpts{})
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
