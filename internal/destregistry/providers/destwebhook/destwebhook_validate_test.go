@@ -287,7 +287,6 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 				"url": "https://example.com",
 			}),
 			testutil.DestinationFactory.WithCredentials(map[string]string{
-				"secret":          "current-secret",
 				"previous_secret": "old-secret",
 			}),
 		)
@@ -307,7 +306,6 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 				"url": "https://example.com",
 			}),
 			testutil.DestinationFactory.WithCredentials(map[string]string{
-				"secret":                     "current-secret",
 				"previous_secret_invalid_at": time.Now().Add(48 * time.Hour).Format(time.RFC3339),
 			}),
 		)
