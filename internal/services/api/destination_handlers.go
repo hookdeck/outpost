@@ -304,11 +304,11 @@ func (h *DestinationHandlers) handleUpsertDestinationError(c *gin.Context, err e
 // ===== Requests =====
 
 type CreateDestinationRequest struct {
-	ID          string            `json:"id" binding:"-"`
-	Type        string            `json:"type" binding:"required"`
-	Topics      models.Topics     `json:"topics" binding:"required"`
-	Config      map[string]string `json:"config" binding:"required"`
-	Credentials map[string]string `json:"credentials" binding:"-"`
+	ID          string             `json:"id" binding:"-"`
+	Type        string             `json:"type" binding:"required"`
+	Topics      models.Topics      `json:"topics" binding:"required"`
+	Config      map[string]string  `json:"config" binding:"required"`
+	Credentials models.Credentials `json:"credentials" binding:"-"`
 }
 
 func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destination {
