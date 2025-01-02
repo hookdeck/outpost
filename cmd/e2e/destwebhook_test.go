@@ -424,7 +424,7 @@ func (suite *basicSuite) TestDestwebhookSecretRotation() {
 	suite.Require().NoError(err)
 	suite.Require().Equal(http.StatusCreated, resp.StatusCode)
 
-	// Get destination and verify initial state
+	// Get initial secret and verify initial state
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
 		Path:   "/" + tenantID + "/destinations/" + destinationID,
@@ -556,6 +556,26 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 				},
 			},
 		},
+	}
+	suite.RunAPITests(suite.T(), tests)
+
+	// Get initial secret and verify initial state
+	resp, err := suite.client.Do(suite.AuthJWTRequest(httpclient.Request{
+		Method: httpclient.MethodGET,
+		Path:   "/" + tenantID + "/destinations/" + destinationID,
+	}, token))
+	suite.Require().NoError(err)
+	suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+	dest := resp.Body.(map[string]interface{})
+	creds := dest["credentials"].(map[string]interface{})
+	initialSecret := creds["secret"].(string)
+	suite.Require().NotEmpty(initialSecret)
+	suite.Require().Nil(creds["previous_secret"])
+	suite.Require().Nil(creds["previous_secret_invalid_at"])
+
+	// Continue with permission tests
+	permissionTests := []APITest{
 		{
 			Name: "PATCH /:tenantID/destinations/:destinationID - attempt to update secret directly",
 			Request: suite.AuthJWTRequest(httpclient.Request{
@@ -667,17 +687,20 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 									"properties": map[string]interface{}{
 										"secret": map[string]interface{}{
 											"type":      "string",
-											"minLength": 1,
+											"minLength": 32,
+											"pattern":   "^[a-zA-Z0-9]+$",
 										},
 										"previous_secret": map[string]interface{}{
-											"type":      "string",
-											"minLength": 1,
+											"type":  "string",
+											"const": initialSecret,
 										},
 										"previous_secret_invalid_at": map[string]interface{}{
-											"type":      "string",
-											"minLength": 1,
+											"type":    "string",
+											"format":  "date-time",
+											"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}",
 										},
 									},
+									"additionalProperties": false,
 								},
 							},
 						},
@@ -686,7 +709,7 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 			},
 		},
 	}
-	suite.RunAPITests(suite.T(), tests)
+	suite.RunAPITests(suite.T(), permissionTests)
 
 	// Clean up using admin auth
 	cleanupTests := []APITest{
