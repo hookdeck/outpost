@@ -339,7 +339,7 @@ type UpdateDestinationRequest struct {
 }
 
 func mustRoleFromContext(c *gin.Context) string {
-	if role, exists := c.Get("role"); exists {
+	if role, exists := c.Get(authRoleKey); exists {
 		if roleStr, ok := role.(string); ok {
 			return roleStr
 		}
