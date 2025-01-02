@@ -618,7 +618,7 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 					Body: map[string]interface{}{
 						"message": "validation error",
 						"data": map[string]interface{}{
-							"credentials.previous_secret": "forbidden",
+							"credentials.secret": "required",
 						},
 					},
 				},
@@ -641,7 +641,7 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 					Body: map[string]interface{}{
 						"message": "validation error",
 						"data": map[string]interface{}{
-							"credentials.previous_secret_invalid_at": "forbidden",
+							"credentials.secret": "required",
 						},
 					},
 				},
@@ -913,6 +913,79 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
+			Name: "PATCH /:tenantID/destinations/:destinationID - attempt to set invalid previous_secret_invalid_at format",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPATCH,
+				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Body: map[string]interface{}{
+					"credentials": map[string]interface{}{
+						"secret":                     newSecret,
+						"previous_secret":            secret,
+						"previous_secret_invalid_at": "invalid-date",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnprocessableEntity,
+					Body: map[string]interface{}{
+						"message": "validation error",
+						"data": map[string]interface{}{
+							"credentials.previous_secret_invalid_at": "pattern",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "PATCH /:tenantID/destinations/:destinationID - attempt to set previous_secret without invalid_at",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPATCH,
+				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Body: map[string]interface{}{
+					"credentials": map[string]interface{}{
+						"secret":          newSecret,
+						"previous_secret": secret,
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnprocessableEntity,
+					Body: map[string]interface{}{
+						"message": "validation error",
+						"data": map[string]interface{}{
+							"credentials.previous_secret_invalid_at": "required",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "PATCH /:tenantID/destinations/:destinationID - attempt to set previous_secret_invalid_at without previous_secret",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPATCH,
+				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Body: map[string]interface{}{
+					"credentials": map[string]interface{}{
+						"secret":                     newSecret,
+						"previous_secret_invalid_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnprocessableEntity,
+					Body: map[string]interface{}{
+						"message": "validation error",
+						"data": map[string]interface{}{
+							"credentials.previous_secret": "required",
+						},
+					},
+				},
+			},
+		},
+		{
 			Name: "PATCH /:tenantID/destinations/:destinationID - set previous_secret directly",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
@@ -989,6 +1062,30 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
 					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Name: "PATCH /:tenantID/destinations/:destinationID - attempt to set previous_secret and previous_secret_invalid_at without secret",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPATCH,
+				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Body: map[string]interface{}{
+					"credentials": map[string]interface{}{
+						"previous_secret":            secret,
+						"previous_secret_invalid_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnprocessableEntity,
+					Body: map[string]interface{}{
+						"message": "validation error",
+						"data": map[string]interface{}{
+							"credentials.secret": "required",
+						},
+					},
 				},
 			},
 		},

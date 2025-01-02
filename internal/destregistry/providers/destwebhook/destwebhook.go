@@ -230,6 +230,21 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 		PreviousSecret: destination.Credentials["previous_secret"],
 	}
 
+	// Skip validation if no relevant credentials are passed
+	if destination.Credentials["secret"] == "" &&
+		destination.Credentials["previous_secret"] == "" &&
+		destination.Credentials["previous_secret_invalid_at"] == "" {
+		return config, creds, nil
+	}
+
+	// If any credentials are passed, secret is required
+	if creds.Secret == "" {
+		return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+			Field: "credentials.secret",
+			Type:  "required",
+		}})
+	}
+
 	// Parse previous_secret_invalid_at if present
 	if invalidAtStr := destination.Credentials["previous_secret_invalid_at"]; invalidAtStr != "" {
 		invalidAt, err := time.Parse(time.RFC3339, invalidAtStr)
@@ -246,6 +261,14 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 	if creds.PreviousSecret != "" && creds.PreviousSecretInvalidAt.IsZero() {
 		return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
 			Field: "credentials.previous_secret_invalid_at",
+			Type:  "required",
+		}})
+	}
+
+	// If previous_secret_invalid_at is provided, validate previous_secret
+	if !creds.PreviousSecretInvalidAt.IsZero() && creds.PreviousSecret == "" {
+		return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+			Field: "credentials.previous_secret",
 			Type:  "required",
 		}})
 	}
