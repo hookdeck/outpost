@@ -37,11 +37,13 @@ func ParseConfig(viper *viper.Viper) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse delivery queue config: %w", err)
 	}
+	deliveryMQ.Policy.RetryLimit = viper.GetInt("DELIVERY_RETRY_LIMIT")
 
 	logMQ, err := parser.parseQueue("LOG")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse log queue config: %w", err)
 	}
+	logMQ.Policy.RetryLimit = viper.GetInt("LOG_RETRY_LIMIT")
 
 	return &Config{
 		DeliveryMQ: deliveryMQ,
