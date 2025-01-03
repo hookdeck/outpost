@@ -61,7 +61,7 @@ func (q *AWSQueue) Init(ctx context.Context) (func(), error) {
 }
 
 func (q *AWSQueue) Publish(ctx context.Context, incomingMessage IncomingMessage) error {
-	return q.base.Publish(ctx, q.topic, incomingMessage)
+	return q.base.Publish(ctx, q.topic, incomingMessage, nil)
 }
 
 func (q *AWSQueue) Subscribe(ctx context.Context) (Subscription, error) {

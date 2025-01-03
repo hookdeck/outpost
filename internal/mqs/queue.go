@@ -92,7 +92,7 @@ func (q *InMemoryQueue) Init(ctx context.Context) (func(), error) {
 }
 
 func (q *InMemoryQueue) Publish(ctx context.Context, incomingMessage IncomingMessage) error {
-	return q.base.Publish(ctx, q.topic, incomingMessage)
+	return q.base.Publish(ctx, q.topic, incomingMessage, nil)
 }
 
 func (q *InMemoryQueue) Subscribe(ctx context.Context) (Subscription, error) {
@@ -157,7 +157,7 @@ func (q *wrappedBaseQueue) initTracer() {
 	q.tracer = otel.GetTracerProvider().Tracer("github.com/hookdeck/outpost/internal/mqs")
 }
 
-func (q *wrappedBaseQueue) Publish(ctx context.Context, topic *pubsub.Topic, incomingMessage IncomingMessage) error {
+func (q *wrappedBaseQueue) Publish(ctx context.Context, topic *pubsub.Topic, incomingMessage IncomingMessage, metadata map[string]string) error {
 	q.once.Do(q.initTracer)
 	ctx, span := q.tracer.Start(ctx, "Queue.Publish")
 	defer span.End()
@@ -167,7 +167,7 @@ func (q *wrappedBaseQueue) Publish(ctx context.Context, topic *pubsub.Topic, inc
 		span.RecordError(err)
 		return err
 	}
-	err = topic.Send(ctx, &pubsub.Message{Body: msg.Body})
+	err = topic.Send(ctx, &pubsub.Message{Body: msg.Body, Metadata: metadata})
 	if err != nil {
 		span.RecordError(err)
 		return err

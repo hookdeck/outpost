@@ -61,7 +61,7 @@ func (infra *infraRabbitMQ) Declare(ctx context.Context) error {
 	}
 	if err := ch.QueueBind(
 		infra.cfg.RabbitMQ.Queue,    // queue name
-		"",                          // routing key
+		infra.cfg.RabbitMQ.Queue,    // routing key
 		infra.cfg.RabbitMQ.Exchange, // exchange
 		false,
 		nil,

@@ -33,7 +33,15 @@ func (q *RabbitMQQueue) Init(ctx context.Context) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	q.topic = rabbitpubsub.OpenTopic(q.conn, q.config.Exchange, nil)
+
+	var opts *rabbitpubsub.TopicOptions
+	if q.config.Queue != "" {
+		opts = &rabbitpubsub.TopicOptions{
+			KeyName: "Queue",
+		}
+	}
+
+	q.topic = rabbitpubsub.OpenTopic(q.conn, q.config.Exchange, opts)
 	return func() {
 		q.conn.Close()
 		q.topic.Shutdown(ctx)
@@ -41,7 +49,9 @@ func (q *RabbitMQQueue) Init(ctx context.Context) (func(), error) {
 }
 
 func (q *RabbitMQQueue) Publish(ctx context.Context, incomingMessage IncomingMessage) error {
-	return q.base.Publish(ctx, q.topic, incomingMessage)
+	return q.base.Publish(ctx, q.topic, incomingMessage, map[string]string{
+		"Queue": q.config.Queue,
+	})
 }
 
 func (q *RabbitMQQueue) Subscribe(ctx context.Context) (Subscription, error) {
