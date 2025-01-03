@@ -3,9 +3,11 @@ package mqinfra
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/rabbitmq/amqp091-go"
+	"github.com/spf13/viper"
 )
 
 type infraRabbitMQ struct {
@@ -154,4 +156,28 @@ func (infra *infraRabbitMQ) TearDown(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+type rabbitMQParser struct {
+	viper *viper.Viper
+}
+
+func (p *rabbitMQParser) parseQueue(queueType string) (*mqs.QueueConfig, error) {
+	serverURL := p.viper.GetString("RABBITMQ_SERVER_URL")
+	if serverURL == "" {
+		return nil, errors.New("RABBITMQ_SERVER_URL is not set")
+	}
+
+	queue := p.viper.GetString(fmt.Sprintf("RABBITMQ_%s_QUEUE", queueType))
+	if queue == "" {
+		return nil, fmt.Errorf("RABBITMQ_%s_QUEUE is not set", queueType)
+	}
+
+	return &mqs.QueueConfig{
+		RabbitMQ: &mqs.RabbitMQConfig{
+			ServerURL: serverURL,
+			Exchange:  p.viper.GetString("RABBITMQ_EXCHANGE"),
+			Queue:     queue,
+		},
+	}, nil
 }
