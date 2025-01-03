@@ -183,6 +183,7 @@ func (s *APIService) Run(ctx context.Context) error {
 		subscription, err := s.publishMQ.Subscribe(ctx)
 		if err != nil {
 			// TODO: handle error
+			s.logger.Ctx(ctx).Error("failed to subscribe to publishmq", zap.Error(err))
 			return err
 		}
 		go func() {

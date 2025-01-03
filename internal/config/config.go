@@ -10,8 +10,10 @@ import (
 	"strings"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
+	"github.com/hookdeck/outpost/internal/mqinfra"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/otel"
+	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/joho/godotenv"
 	v "github.com/spf13/viper"
@@ -182,20 +184,14 @@ func Parse(flags Flags) (*Config, error) {
 	}
 
 	// MQs
-	publishQueueConfig, err := mqs.ParseQueueConfig(viper, "PUBLISH")
+	publishConfig, err := publishmq.ParseConfig(viper)
 	if err != nil {
 		return nil, err
 	}
-	deliveryQueueConfig, err := mqs.ParseQueueConfig(viper, "DELIVERY")
+	mqinfraConfig, err := mqinfra.ParseConfig(viper)
 	if err != nil {
 		return nil, err
 	}
-	deliveryQueueConfig.Policy.RetryLimit = viper.GetInt("DELIVERY_RETRY_LIMIT")
-	logQueueConfig, err := mqs.ParseQueueConfig(viper, "LOG")
-	if err != nil {
-		return nil, err
-	}
-	logQueueConfig.Policy.RetryLimit = viper.GetInt("LOG_RETRY_LIMIT")
 
 	portalProxyURL := viper.GetString("PORTAL_PROXY_URL")
 	if portalProxyURL != "" {
@@ -223,9 +219,9 @@ func Parse(flags Flags) (*Config, error) {
 		},
 		ClickHouse:                      clickHouseConfig,
 		OpenTelemetry:                   openTelemetry,
-		PublishQueueConfig:              publishQueueConfig,
-		DeliveryQueueConfig:             deliveryQueueConfig,
-		LogQueueConfig:                  logQueueConfig,
+		PublishQueueConfig:              publishConfig.MQ,
+		DeliveryQueueConfig:             mqinfraConfig.DeliveryMQ,
+		LogQueueConfig:                  mqinfraConfig.LogMQ,
 		PublishMaxConcurrency:           mustInt(viper, "PUBLISH_MAX_CONCURRENCY"),
 		DeliveryMaxConcurrency:          mustInt(viper, "DELIVERY_MAX_CONCURRENCY"),
 		LogMaxConcurrency:               mustInt(viper, "LOG_MAX_CONCURRENCY"),
