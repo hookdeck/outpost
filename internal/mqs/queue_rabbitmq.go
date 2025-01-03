@@ -2,53 +2,18 @@ package mqs
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/rabbitmq/amqp091-go"
-	"github.com/spf13/viper"
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/rabbitpubsub"
 )
-
-// ============================== Config ==============================
 
 type RabbitMQConfig struct {
 	ServerURL string
 	Exchange  string // optional
 	Queue     string
 }
-
-func (c *QueueConfig) parseRabbitMQConfig(viper *viper.Viper, prefix string) {
-	if !viper.IsSet(prefix + "_RABBITMQ_SERVER_URL") {
-		return
-	}
-
-	config := &RabbitMQConfig{}
-	config.ServerURL = viper.GetString(prefix + "_RABBITMQ_SERVER_URL")
-	config.Exchange = viper.GetString(prefix + "_RABBITMQ_EXCHANGE")
-	config.Queue = viper.GetString(prefix + "_RABBITMQ_QUEUE")
-
-	c.RabbitMQ = config
-}
-
-func (c *QueueConfig) validateRabbitMQConfig() error {
-	if c.RabbitMQ == nil {
-		return nil
-	}
-
-	if c.RabbitMQ.ServerURL == "" {
-		return errors.New("RabbitMQ Server URL is not set")
-	}
-
-	if c.RabbitMQ.Queue == "" {
-		return errors.New("RabbitMQ Queue is not set")
-	}
-
-	return nil
-}
-
-// ============================== Queue ==============================
 
 type RabbitMQQueue struct {
 	base   *wrappedBaseQueue

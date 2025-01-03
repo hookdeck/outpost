@@ -10,57 +10,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/spf13/viper"
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/awssnssqs"
 )
-
-// ============================== Config ==============================
 
 type AWSSQSConfig struct {
 	Endpoint                  string // optional - dev-focused
 	Region                    string
 	ServiceAccountCredentials string
 	Topic                     string
-}
-
-func (c *QueueConfig) parseAWSSQSConfig(viper *viper.Viper, prefix string) {
-	if !viper.IsSet(prefix + "_AWS_SQS_SERVICE_ACCOUNT_CREDS") {
-		return
-	}
-
-	config := &AWSSQSConfig{}
-	config.Endpoint = viper.GetString(prefix + "_AWS_SQS_ENDPOINT")
-	config.Region = viper.GetString(prefix + "_AWS_SQS_REGION")
-	config.ServiceAccountCredentials = viper.GetString(prefix + "_AWS_SQS_SERVICE_ACCOUNT_CREDS")
-	config.Topic = viper.GetString(prefix + "_AWS_SQS_TOPIC")
-
-	c.AWSSQS = config
-}
-
-func (c *QueueConfig) validateAWSSQSConfig() error {
-	if c.AWSSQS == nil {
-		return nil
-	}
-
-	if c.AWSSQS.ServiceAccountCredentials == "" {
-		return errors.New("AWS SQS Service Account Credentials is not set")
-	} else {
-		creds := strings.Split(c.AWSSQS.ServiceAccountCredentials, ":")
-		if len(creds) != 3 {
-			return errors.New("Invalid AWS Service Account Credentials")
-		}
-	}
-
-	if c.AWSSQS.Region == "" {
-		return errors.New("AWS SQS Region is not set")
-	}
-
-	if c.AWSSQS.Topic == "" {
-		return errors.New("AWS SQS Topic is not set")
-	}
-
-	return nil
 }
 
 func (c *AWSSQSConfig) ToCredentials() (*credentials.StaticCredentialsProvider, error) {
@@ -71,8 +29,6 @@ func (c *AWSSQSConfig) ToCredentials() (*credentials.StaticCredentialsProvider, 
 	awsCreds := credentials.NewStaticCredentialsProvider(creds[0], creds[1], creds[2])
 	return &awsCreds, nil
 }
-
-// ============================== Queue ==============================
 
 type AWSQueue struct {
 	once        *sync.Once
