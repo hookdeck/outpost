@@ -192,6 +192,7 @@ func (s *PublisherSuite) TestConcurrentPublish() {
 			receivedMessages[messageID] = true
 		case <-timeout:
 			s.Fail("timeout waiting for messages")
+			return
 		}
 	}
 
