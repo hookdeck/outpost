@@ -105,8 +105,9 @@ When using RabbitMQ for internal mq, Outpost will provision these infrastructure
 
 1. exchange
 2. queue
-3. dead-lettered exchange: exchange name + `.dlx`
 4. dead-lettered queue: queue name + `.dlq`
+
+Specifically, Outpost will provision one main topic exchange (default name `outpost`) and use routing key to route messages to each queues. For each queue, there is a dead-lettered queue with the same name + `.dlq` bounded to the main exchange.
 
 **Visibility Timeout**:
 

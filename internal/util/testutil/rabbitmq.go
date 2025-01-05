@@ -44,7 +44,7 @@ func DeclareTestRabbitMQInfrastructure(ctx context.Context, config *mqs.RabbitMQ
 	}
 	return ch.QueueBind(
 		queue.Name,      // queue name
-		"",              // routing key
+		queue.Name,      // routing key
 		config.Exchange, // exchange
 		false,
 		nil,

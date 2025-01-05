@@ -173,7 +173,7 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 		mqs.QueueConfig{
 			RabbitMQ: &mqs.RabbitMQConfig{
 				ServerURL: testinfra.EnsureRabbitMQ(),
-				Exchange:  exchange + ".dlx",
+				Exchange:  exchange,
 				Queue:     queue + ".dlq",
 			},
 		},
