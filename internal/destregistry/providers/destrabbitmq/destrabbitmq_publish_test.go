@@ -139,9 +139,9 @@ func (s *RabbitMQPublishSuite) SetupSuite() {
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("rabbitmq"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"server_url": testutil.ExtractRabbitURL(mqConfig.RabbitMQ.ServerURL),
-			"exchange":   mqConfig.RabbitMQ.Exchange,
-			"queue":      mqConfig.RabbitMQ.Queue,
+			"server_url":  testutil.ExtractRabbitURL(mqConfig.RabbitMQ.ServerURL),
+			"exchange":    mqConfig.RabbitMQ.Exchange,
+			"routing_key": mqConfig.RabbitMQ.Queue,
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
 			"username": testutil.ExtractRabbitUsername(mqConfig.RabbitMQ.ServerURL),

@@ -17,8 +17,9 @@ type RabbitMQDestination struct {
 }
 
 type RabbitMQDestinationConfig struct {
-	ServerURL string // TODO: consider renaming
-	Exchange  string
+	ServerURL  string // TODO: consider renaming
+	Exchange   string
+	RoutingKey string
 }
 
 type RabbitMQDestinationCredentials struct {
@@ -52,6 +53,7 @@ func (d *RabbitMQDestination) CreatePublisher(ctx context.Context, destination *
 		BasePublisher: &destregistry.BasePublisher{},
 		url:           rabbitURL(config, credentials),
 		exchange:      config.Exchange,
+		routingKey:    config.RoutingKey,
 	}, nil
 }
 
@@ -61,8 +63,9 @@ func (d *RabbitMQDestination) resolveMetadata(ctx context.Context, destination *
 	}
 
 	return &RabbitMQDestinationConfig{
-			ServerURL: destination.Config["server_url"],
-			Exchange:  destination.Config["exchange"],
+			ServerURL:  destination.Config["server_url"],
+			Exchange:   destination.Config["exchange"],
+			RoutingKey: destination.Config["routing_key"],
 		}, &RabbitMQDestinationCredentials{
 			Username: destination.Credentials["username"],
 			Password: destination.Credentials["password"],
@@ -71,11 +74,12 @@ func (d *RabbitMQDestination) resolveMetadata(ctx context.Context, destination *
 
 type RabbitMQPublisher struct {
 	*destregistry.BasePublisher
-	url      string
-	exchange string
-	conn     *amqp091.Connection
-	channel  *amqp091.Channel
-	mu       sync.Mutex
+	url        string
+	exchange   string
+	routingKey string
+	conn       *amqp091.Connection
+	channel    *amqp091.Channel
+	mu         sync.Mutex
 }
 
 func (p *RabbitMQPublisher) Close() error {
@@ -115,10 +119,10 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) er
 	}
 
 	if err := p.channel.PublishWithContext(ctx,
-		p.exchange, // exchange
-		"",         // routing key
-		false,      // mandatory
-		false,      // immediate
+		p.exchange,   // exchange
+		p.routingKey, // routing key
+		false,        // mandatory
+		false,        // immediate
 		amqp091.Publishing{
 			ContentType: "application/json",
 			Headers:     headers,
