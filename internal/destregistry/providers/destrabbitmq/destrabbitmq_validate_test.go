@@ -115,6 +115,24 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		}
 		assert.NoError(t, rabbitmqDestination.Validate(nil, &validDestWithEmptyExchange))
 	})
+
+	t.Run("should validate empty exchange and routing_key as invalid", func(t *testing.T) {
+		t.Parallel()
+		invalidDest := validDestination
+		invalidDest.Config = map[string]string{
+			"server_url":  "localhost:5672",
+			"exchange":    "",
+			"routing_key": "",
+		}
+		err := rabbitmqDestination.Validate(nil, &invalidDest)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Len(t, validationErr.Errors, 2)
+		assert.Equal(t, "config.exchange", validationErr.Errors[0].Field)
+		assert.Equal(t, "either_required", validationErr.Errors[0].Type)
+		assert.Equal(t, "config.routing_key", validationErr.Errors[1].Field)
+		assert.Equal(t, "either_required", validationErr.Errors[1].Type)
+	})
 }
 
 func TestRabbitMQDestination_ComputeTarget(t *testing.T) {

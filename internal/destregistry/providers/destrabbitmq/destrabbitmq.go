@@ -38,9 +38,25 @@ func New(loader metadata.MetadataLoader) (*RabbitMQDestination, error) {
 }
 
 func (d *RabbitMQDestination) Validate(ctx context.Context, destination *models.Destination) error {
-	if _, _, err := d.resolveMetadata(ctx, destination); err != nil {
+	config, _, err := d.resolveMetadata(ctx, destination)
+	if err != nil {
 		return err
 	}
+
+	// At least one of exchange or routing_key must be non-empty
+	if config.Exchange == "" && config.RoutingKey == "" {
+		return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+			{
+				Field: "config.exchange",
+				Type:  "either_required",
+			},
+			{
+				Field: "config.routing_key",
+				Type:  "either_required",
+			},
+		})
+	}
+
 	return nil
 }
 
