@@ -16,8 +16,9 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 	validDestination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("rabbitmq"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"server_url": "localhost:5672",
-			"exchange":   "test-exchange",
+			"server_url":  "localhost:5672",
+			"exchange":    "test-exchange",
+			"routing_key": "test.key",
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
 			"username": "guest",
@@ -44,6 +45,18 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		assert.Equal(t, "invalid_type", validationErr.Errors[0].Type)
 	})
 
+	t.Run("should validate missing credentials", func(t *testing.T) {
+		t.Parallel()
+		invalidDestination := validDestination
+		invalidDestination.Credentials = map[string]string{}
+		err := rabbitmqDestination.Validate(nil, &invalidDestination)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		// Could be either username or password that's reported first
+		assert.Contains(t, []string{"credentials.username", "credentials.password"}, validationErr.Errors[0].Field)
+		assert.Equal(t, "required", validationErr.Errors[0].Type)
+	})
+
 	t.Run("should validate missing server_url", func(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
@@ -54,19 +67,6 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.server_url", validationErr.Errors[0].Field)
-		assert.Equal(t, "required", validationErr.Errors[0].Type)
-	})
-
-	t.Run("should validate missing exchange", func(t *testing.T) {
-		t.Parallel()
-		invalidDestination := validDestination
-		invalidDestination.Config = map[string]string{
-			"server_url": "localhost:5672",
-		}
-		err := rabbitmqDestination.Validate(nil, &invalidDestination)
-		var validationErr *destregistry.ErrDestinationValidation
-		assert.ErrorAs(t, err, &validationErr)
-		assert.Equal(t, "config.exchange", validationErr.Errors[0].Field)
 		assert.Equal(t, "required", validationErr.Errors[0].Type)
 	})
 
@@ -84,16 +84,36 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
 	})
 
-	t.Run("should validate missing credentials", func(t *testing.T) {
+	t.Run("should validate valid destination without exchange", func(t *testing.T) {
 		t.Parallel()
-		invalidDestination := validDestination
-		invalidDestination.Credentials = map[string]string{}
-		err := rabbitmqDestination.Validate(nil, &invalidDestination)
-		var validationErr *destregistry.ErrDestinationValidation
-		assert.ErrorAs(t, err, &validationErr)
-		// Could be either username or password that's reported first
-		assert.Contains(t, []string{"credentials.username", "credentials.password"}, validationErr.Errors[0].Field)
-		assert.Equal(t, "required", validationErr.Errors[0].Type)
+		validDestWithoutExchange := validDestination
+		validDestWithoutExchange.Config = map[string]string{
+			"server_url":  "localhost:5672",
+			"routing_key": "test.key",
+		}
+		assert.NoError(t, rabbitmqDestination.Validate(nil, &validDestWithoutExchange))
+	})
+
+	t.Run("should validate empty routing_key as valid", func(t *testing.T) {
+		t.Parallel()
+		validDestWithEmptyRoutingKey := validDestination
+		validDestWithEmptyRoutingKey.Config = map[string]string{
+			"server_url":  "localhost:5672",
+			"exchange":    "test-exchange",
+			"routing_key": "",
+		}
+		assert.NoError(t, rabbitmqDestination.Validate(nil, &validDestWithEmptyRoutingKey))
+	})
+
+	t.Run("should validate empty exchange as valid", func(t *testing.T) {
+		t.Parallel()
+		validDestWithEmptyExchange := validDestination
+		validDestWithEmptyExchange.Config = map[string]string{
+			"server_url":  "localhost:5672",
+			"exchange":    "",
+			"routing_key": "test.key",
+		}
+		assert.NoError(t, rabbitmqDestination.Validate(nil, &validDestWithEmptyExchange))
 	})
 }
 

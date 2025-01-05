@@ -14,7 +14,7 @@
       "type": "text",
       "label": "Exchange",
       "description": "The RabbitMQ exchange to publish messages to",
-      "required": true
+      "required": false
     },
     {
       "key": "routing_key",
