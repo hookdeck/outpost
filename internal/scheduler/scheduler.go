@@ -26,6 +26,7 @@ type Scheduler interface {
 	Init(context.Context) error
 	Schedule(context.Context, string, time.Duration, ...ScheduleOption) error
 	Monitor(context.Context) error
+	Cancel(context.Context, string) error
 	Shutdown() error
 }
 
@@ -121,6 +122,18 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 			}()
 		}
 	}
+}
+
+func (s *schedulerImpl) Cancel(ctx context.Context, taskID string) error {
+	// Generate the RSMQ ID for this task
+	rsmqID := generateRSMQID(taskID)
+
+	// Delete the message - RSMQ returns ErrMessageNotFound if it doesn't exist
+	err := s.rsmqClient.DeleteMessage(s.name, rsmqID)
+	if err == rsmq.ErrMessageNotFound {
+		return nil // Task already gone is not an error
+	}
+	return err
 }
 
 func (s *schedulerImpl) Shutdown() error {

@@ -205,3 +205,55 @@ func TestScheduler_CustomID(t *testing.T) {
 		require.Equal(t, task, (*msgs)[1])
 	})
 }
+
+func TestScheduler_Cancel(t *testing.T) {
+	t.Parallel()
+
+	redisConfig := testutil.CreateTestRedisConfig(t)
+	ctx := context.Background()
+
+	setupTestScheduler := func(t *testing.T) (scheduler.Scheduler, *[]string) {
+		msgs := []string{}
+		exec := func(_ context.Context, task string) error {
+			msgs = append(msgs, task)
+			return nil
+		}
+
+		s := scheduler.New(uuid.New().String(), redisConfig, exec)
+		require.NoError(t, s.Init(ctx))
+		go s.Monitor(ctx)
+
+		t.Cleanup(func() {
+			s.Shutdown()
+		})
+
+		return s, &msgs
+	}
+
+	t.Run("cancel removes scheduled task", func(t *testing.T) {
+		s, msgs := setupTestScheduler(t)
+
+		task := "task_to_cancel"
+		id := "cancel_id"
+
+		// Schedule task with 1s delay
+		require.NoError(t, s.Schedule(ctx, task, time.Second, scheduler.WithTaskID(id)))
+
+		// Cancel it immediately
+		require.NoError(t, s.Cancel(ctx, id))
+
+		// Wait past when it would have executed
+		time.Sleep(time.Second + 100*time.Millisecond)
+		require.Empty(t, *msgs, "cancelled task should not execute")
+	})
+
+	t.Run("cancel is idempotent", func(t *testing.T) {
+		s, _ := setupTestScheduler(t)
+
+		id := "non_existent_id"
+		// Cancel non-existent task should not error
+		require.NoError(t, s.Cancel(ctx, id))
+		// Cancel again should still not error
+		require.NoError(t, s.Cancel(ctx, id))
+	})
+}
