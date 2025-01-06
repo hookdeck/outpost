@@ -204,6 +204,30 @@ func TestScheduler_CustomID(t *testing.T) {
 		require.Equal(t, task, (*msgs)[0])
 		require.Equal(t, task, (*msgs)[1])
 	})
+
+	t.Run("ID can be reused after task executes", func(t *testing.T) {
+		s, msgs := setupTestScheduler(t)
+
+		id := "reusable_id"
+		task1 := "first_task"
+		task2 := "second_task"
+
+		// Schedule first task
+		require.NoError(t, s.Schedule(ctx, task1, 100*time.Millisecond, scheduler.WithTaskID(id)))
+
+		// Wait for first task to execute
+		time.Sleep(200 * time.Millisecond)
+		require.Len(t, *msgs, 1)
+		require.Equal(t, task1, (*msgs)[0])
+
+		// Schedule second task with same ID
+		require.NoError(t, s.Schedule(ctx, task2, 100*time.Millisecond, scheduler.WithTaskID(id)))
+
+		// Wait for second task to execute
+		time.Sleep(200 * time.Millisecond)
+		require.Len(t, *msgs, 2)
+		require.Equal(t, task2, (*msgs)[1])
+	})
 }
 
 func TestScheduler_Cancel(t *testing.T) {
