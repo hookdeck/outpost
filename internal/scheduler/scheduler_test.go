@@ -125,3 +125,83 @@ func TestScheduler_VisibilityTimeout(t *testing.T) {
 	require.Equal(t, id, msgs[1])
 	require.Equal(t, id, msgs[2])
 }
+
+func TestScheduler_CustomID(t *testing.T) {
+	t.Parallel()
+
+	redisConfig := testutil.CreateTestRedisConfig(t)
+	ctx := context.Background()
+
+	setupTestScheduler := func(t *testing.T) (scheduler.Scheduler, *[]string) {
+		msgs := []string{}
+		exec := func(_ context.Context, task string) error {
+			msgs = append(msgs, task)
+			return nil
+		}
+
+		s := scheduler.New(uuid.New().String(), redisConfig, exec)
+		require.NoError(t, s.Init(ctx))
+		go s.Monitor(ctx)
+
+		t.Cleanup(func() {
+			s.Shutdown()
+		})
+
+		return s, &msgs
+	}
+
+	t.Run("different IDs execute independently", func(t *testing.T) {
+		s, msgs := setupTestScheduler(t)
+
+		task := "test_task"
+		id1 := "custom_id_1"
+		id2 := "custom_id_2"
+
+		// Schedule same task with different IDs
+		require.NoError(t, s.Schedule(ctx, task, 0, scheduler.WithTaskID(id1)))
+		require.NoError(t, s.Schedule(ctx, task, 0, scheduler.WithTaskID(id2)))
+
+		time.Sleep(time.Second / 2)
+		require.Len(t, *msgs, 2)
+		require.Equal(t, task, (*msgs)[0])
+		require.Equal(t, task, (*msgs)[1])
+	})
+
+	t.Run("same ID overrides previous task and timing", func(t *testing.T) {
+		s, msgs := setupTestScheduler(t)
+
+		id := "override_id"
+		task1 := "original_task"
+		task2 := "override_task"
+
+		// Schedule first task for 1s
+		require.NoError(t, s.Schedule(ctx, task1, time.Second, scheduler.WithTaskID(id)))
+
+		// Override with second task for 2s
+		require.NoError(t, s.Schedule(ctx, task2, 2*time.Second, scheduler.WithTaskID(id)))
+
+		// At 1s mark (original task's time), nothing should execute
+		time.Sleep(time.Second + 100*time.Millisecond)
+		require.Empty(t, *msgs, "no task should execute at 1s")
+
+		// At 2s mark, only the override should execute
+		time.Sleep(time.Second + 100*time.Millisecond)
+		require.Len(t, *msgs, 1, "override task should execute at 2s")
+		require.Equal(t, task2, (*msgs)[0], "only override task should execute")
+	})
+
+	t.Run("no ID generates unique IDs", func(t *testing.T) {
+		s, msgs := setupTestScheduler(t)
+
+		task := "same_task"
+
+		// Schedule same task multiple times without ID
+		require.NoError(t, s.Schedule(ctx, task, 0))
+		require.NoError(t, s.Schedule(ctx, task, 0))
+
+		time.Sleep(time.Second / 2)
+		require.Len(t, *msgs, 2)
+		require.Equal(t, task, (*msgs)[0])
+		require.Equal(t, task, (*msgs)[1])
+	})
+}

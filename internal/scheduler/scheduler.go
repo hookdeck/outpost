@@ -10,9 +10,21 @@ import (
 	"github.com/hookdeck/outpost/internal/rsmq"
 )
 
+type ScheduleOption func(*scheduleOptions)
+
+type scheduleOptions struct {
+	id string
+}
+
+func WithTaskID(id string) ScheduleOption {
+	return func(o *scheduleOptions) {
+		o.id = id
+	}
+}
+
 type Scheduler interface {
 	Init(context.Context) error
-	Schedule(context.Context, string, time.Duration) error
+	Schedule(context.Context, string, time.Duration, ...ScheduleOption) error
 	Monitor(context.Context) error
 	Shutdown() error
 }
@@ -62,11 +74,26 @@ func (s *schedulerImpl) Init(ctx context.Context) error {
 	return nil
 }
 
-func (s *schedulerImpl) Schedule(ctx context.Context, message string, delay time.Duration) error {
-	if _, err := s.rsmqClient.SendMessage(s.name, message, uint(delay.Seconds())); err != nil {
-		return err
+func (s *schedulerImpl) Schedule(ctx context.Context, task string, delay time.Duration, opts ...ScheduleOption) error {
+	// Parse options
+	options := &scheduleOptions{}
+	for _, opt := range opts {
+		opt(options)
 	}
-	return nil
+
+	// Convert delay to seconds and round up
+	delaySeconds := uint(delay.Seconds() + 0.5)
+
+	// Generate RSMQ ID if not provided
+	var rsmqOpts []rsmq.SendMessageOption
+	if options.id != "" {
+		rsmqID := generateRSMQID(options.id)
+		rsmqOpts = append(rsmqOpts, rsmq.WithMessageID(rsmqID))
+	}
+
+	// Send message
+	_, err := s.rsmqClient.SendMessage(s.name, task, delaySeconds, rsmqOpts...)
+	return err
 }
 
 func (s *schedulerImpl) Monitor(ctx context.Context) error {
