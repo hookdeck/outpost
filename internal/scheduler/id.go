@@ -7,10 +7,19 @@ import (
 )
 
 // generateRSMQID creates a valid RSMQ ID from a task identifier.
-// The resulting ID will be deterministic (same input = same output)
-// and follow RSMQ's format requirements:
-// - 10 chars base36 timestamp prefix
-// - 22 chars base36 encoded hash suffix
+// The resulting ID will be:
+// - Deterministic (same input = same output)
+// - 32 characters long
+// - Alphanumeric (base36)
+// - Composed of:
+//   - First 10 chars: fixed "0000000000" (timestamp part, not used for ordering)
+//   - Last 22 chars: base36 encoded SHA-256 hash of the input
+//
+// Note: The timestamp part is fixed because we use Redis's sorted set scores
+// for timing, not the ID's timestamp. This ensures that overriding a message
+// with the same ID but different delay works correctly. The scheduler package
+// does not use msg.Sent for timing as it can be inaccurate for overridden
+// messages.
 func generateRSMQID(taskID string) string {
 	// First 10 chars: fixed timestamp in base36
 	// Using 0 as timestamp since we don't use it for ordering

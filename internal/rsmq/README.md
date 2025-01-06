@@ -1,11 +1,25 @@
 # RSMQ Fork
 
-This is a fork of [go-rsmq](https://github.com/semihbkgr/go-rsmq) v1.3.1 (commit [d0f7bbc](https://github.com/semihbkgr/go-rsmq/commit/d0f7bbcf5b9e898e4c36db4f0a5ea3b2f53b0b7f)).
+This is a fork of [github.com/semihbkgr/go-rsmq](https://github.com/semihbkgr/go-rsmq) v1.3.1 (commit d0f7bbc).
 
-## Why Fork?
+## Changes from Original
 
-This fork was created to add support for custom message IDs, enabling better control over message scheduling and cancellation.
+The main change in this fork is support for custom message IDs. This allows for:
+- Deterministic message IDs based on your own identifiers
+- Message deduplication
+- Message overriding/rescheduling
+
+### Custom ID Notes
+
+When using custom IDs, be aware that:
+- The `msg.Sent` timestamp will not reflect the actual send time for overridden messages
+  - This field is derived from the message ID's timestamp part
+  - For custom IDs, we use a fixed timestamp to avoid timing issues
+  - Use Redis sorted set scores (via the `delay` parameter) for actual timing
+- Message timing is controlled by Redis sorted set scores, not by the ID's timestamp part
+- IDs must be exactly 32 characters long and contain only alphanumeric characters
+- Overriding a message with the same ID but different delay will correctly update the timing
 
 ## Original License
 
-The original project is licensed under MIT. See the original repository for more details. 
+MIT License - see original repository for details. 

@@ -335,10 +335,12 @@ func (rsmq *RedisSMQ) DeleteQueue(qname string) error {
 	return nil
 }
 
-// SendMessage sends message to the queue
-// to refer queue delay:
-//
-//	id,err:=redisRsmq.SendMessage(qname,message,rsmq.UnsetDelay)
+// SendMessage sends a message to the queue.
+// If a custom ID is provided via WithMessageID option:
+// - The message will use that ID instead of generating a new one
+// - If a message with that ID already exists, it will be overridden
+// - The msg.Sent timestamp will not reflect the actual send time for overridden messages
+// - Message timing is controlled by the delay parameter, not by the ID's timestamp
 func (rsmq *RedisSMQ) SendMessage(qname string, message string, delay uint, opts ...SendMessageOption) (string, error) {
 	if err := validateQname(qname); err != nil {
 		return "", err
