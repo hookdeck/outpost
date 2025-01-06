@@ -29,7 +29,7 @@ type messageHandler struct {
 	logMQ          LogPublisher
 	entityStore    DestinationGetter
 	logStore       EventGetter
-	retryScheduler scheduler.Scheduler
+	retryScheduler RetryScheduler
 	retryBackoff   backoff.Backoff
 	retryMaxLimit  int
 	idempotence    idempotence.Idempotence
@@ -42,6 +42,10 @@ type Publisher interface {
 
 type LogPublisher interface {
 	Publish(ctx context.Context, deliveryEvent models.DeliveryEvent) error
+}
+
+type RetryScheduler interface {
+	Schedule(ctx context.Context, task string, delay time.Duration, opts ...scheduler.ScheduleOption) error
 }
 
 type DestinationGetter interface {
@@ -64,7 +68,7 @@ func NewMessageHandler(
 	logStore EventGetter,
 	publisher Publisher,
 	eventTracer DeliveryTracer,
-	retryScheduler scheduler.Scheduler,
+	retryScheduler RetryScheduler,
 	retryBackoff backoff.Backoff,
 	retryMaxLimit int,
 ) consumer.MessageHandler {

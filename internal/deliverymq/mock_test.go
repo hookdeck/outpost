@@ -8,6 +8,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/models"
 	mqs "github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/scheduler"
 )
 
 type mockPublisher struct {
@@ -90,16 +91,10 @@ func newMockRetryScheduler() *mockRetryScheduler {
 	return &mockRetryScheduler{schedules: make([]string, 0)}
 }
 
-func (m *mockRetryScheduler) Schedule(ctx context.Context, message string, delay time.Duration) error {
+func (m *mockRetryScheduler) Schedule(ctx context.Context, message string, delay time.Duration, opts ...scheduler.ScheduleOption) error {
 	m.schedules = append(m.schedules, message)
 	return nil
 }
-
-func (m *mockRetryScheduler) Monitor(ctx context.Context) error { return nil }
-
-func (m *mockRetryScheduler) Init(ctx context.Context) error { return nil }
-
-func (m *mockRetryScheduler) Shutdown() error { return nil }
 
 type mockMessage struct {
 	id     string
