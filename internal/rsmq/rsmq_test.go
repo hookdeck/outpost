@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
@@ -670,5 +671,169 @@ func TestRedisSMQ_DeleteMessage(t *testing.T) {
 		err = rsmq.DeleteMessage(qname, "invalid message id")
 		assert.NotNil(t, err, "error is nil on deleting a message with invalid id")
 		assert.Equal(t, ErrInvalidID, err, "error is not as expected")
+	})
+}
+
+func TestRedisSMQ_SendMessage_WithCustomID(t *testing.T) {
+	client := preIntegrationTest(t)
+
+	rsmq := NewRedisSMQ(client, "test")
+	qname := "myqueue"
+	message := "test message"
+	// Format: 10 chars base36 timestamp + 22 chars alphanumeric
+	customID := "kf12mn5ui9" + "ABCDEFGHIJKLMNOPQRSTUV"
+
+	t.Run("success with custom ID", func(t *testing.T) {
+		err := rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsmq.DeleteQueue(qname)
+
+		id, err := rsmq.SendMessage(qname, message, UnsetDelay, WithMessageID(customID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if id != customID {
+			t.Errorf("expected message ID %s, got %s", customID, id)
+		}
+
+		// Verify message can be received
+		msg, err := rsmq.ReceiveMessage(qname, UnsetVt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if msg.ID != customID {
+			t.Errorf("expected received message ID %s, got %s", customID, msg.ID)
+		}
+		if msg.Message != message {
+			t.Errorf("expected message content %s, got %s", message, msg.Message)
+		}
+	})
+
+	t.Run("error with invalid custom ID", func(t *testing.T) {
+		err := rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsmq.DeleteQueue(qname)
+
+		_, err = rsmq.SendMessage(qname, message, UnsetDelay, WithMessageID("invalid"))
+		if err == nil {
+			t.Error("expected error for invalid message ID")
+		}
+		if err != ErrInvalidID {
+			t.Errorf("expected error %v, got %v", ErrInvalidID, err)
+		}
+	})
+
+	t.Run("backward compatibility without custom ID", func(t *testing.T) {
+		err := rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsmq.DeleteQueue(qname)
+
+		id, err := rsmq.SendMessage(qname, message, UnsetDelay)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(id) != 32 {
+			t.Errorf("expected generated ID length 32, got %d", len(id))
+		}
+	})
+
+	t.Run("duplicate message ID overrides previous message", func(t *testing.T) {
+		err := rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsmq.DeleteQueue(qname)
+
+		// Send first message
+		firstMessage := "first message"
+		_, err = rsmq.SendMessage(qname, firstMessage, UnsetDelay, WithMessageID(customID))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Send second message with same ID
+		secondMessage := "second message"
+		_, err = rsmq.SendMessage(qname, secondMessage, UnsetDelay, WithMessageID(customID))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify only the second message exists and is receivable
+		msg, err := rsmq.ReceiveMessage(qname, UnsetVt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if msg == nil {
+			t.Fatal("expected to receive a message")
+		}
+		if msg.ID != customID {
+			t.Errorf("expected message ID %s, got %s", customID, msg.ID)
+		}
+		if msg.Message != secondMessage {
+			t.Errorf("expected message content %s, got %s", secondMessage, msg.Message)
+		}
+
+		// Verify no more messages exist
+		msg, err = rsmq.ReceiveMessage(qname, UnsetVt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if msg != nil {
+			t.Error("expected no more messages, but received one")
+		}
+	})
+
+	t.Run("override changes delay timing", func(t *testing.T) {
+		err := rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsmq.DeleteQueue(qname)
+
+		// Schedule first message for 1s
+		firstMessage := "first message"
+		_, err = rsmq.SendMessage(qname, firstMessage, 1, WithMessageID(customID))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Override with second message for 2s
+		secondMessage := "second message"
+		_, err = rsmq.SendMessage(qname, secondMessage, 2, WithMessageID(customID))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// After 1s, no message should be available
+		time.Sleep(time.Second)
+		msg, err := rsmq.ReceiveMessage(qname, UnsetVt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if msg != nil {
+			t.Error("expected no message after 1s, but received one")
+		}
+
+		// After another 1s (total 2s), message should be available
+		time.Sleep(time.Second)
+		msg, err = rsmq.ReceiveMessage(qname, UnsetVt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if msg == nil {
+			t.Fatal("expected to receive a message after 2s")
+		}
+		if msg.ID != customID {
+			t.Errorf("expected message ID %s, got %s", customID, msg.ID)
+		}
+		if msg.Message != secondMessage {
+			t.Errorf("expected message content %s, got %s", secondMessage, msg.Message)
+		}
 	})
 }

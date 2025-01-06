@@ -16,6 +16,20 @@ const (
 	UnsetMaxsize = -(int(^uint(0)>>1) - 1)
 )
 
+// SendMessageOption is a function that configures sendMessageOptions
+type SendMessageOption func(*sendMessageOptions)
+
+type sendMessageOptions struct {
+	id string
+}
+
+// WithMessageID returns a SendMessageOption that sets a custom message ID
+func WithMessageID(id string) SendMessageOption {
+	return func(o *sendMessageOptions) {
+		o.id = id
+	}
+}
+
 const (
 	q      = ":Q"
 	queues = "QUEUES"
@@ -325,12 +339,17 @@ func (rsmq *RedisSMQ) DeleteQueue(qname string) error {
 // to refer queue delay:
 //
 //	id,err:=redisRsmq.SendMessage(qname,message,rsmq.UnsetDelay)
-func (rsmq *RedisSMQ) SendMessage(qname string, message string, delay uint) (string, error) {
+func (rsmq *RedisSMQ) SendMessage(qname string, message string, delay uint, opts ...SendMessageOption) (string, error) {
 	if err := validateQname(qname); err != nil {
 		return "", err
 	}
 
-	queue, err := rsmq.getQueue(qname, true)
+	options := &sendMessageOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	queue, err := rsmq.getQueue(qname, options.id == "")
 	if err != nil {
 		return "", err
 	}
@@ -349,18 +368,27 @@ func (rsmq *RedisSMQ) SendMessage(qname string, message string, delay uint) (str
 
 	key := rsmq.ns + qname
 
+	// Use custom ID if provided, otherwise use generated one
+	messageID := queue.uid
+	if options.id != "" {
+		if err := validateID(options.id); err != nil {
+			return "", err
+		}
+		messageID = options.id
+	}
+
 	tx := rsmq.client.TxPipeline()
 	tx.ZAdd(key, redis.Z{
 		Score:  float64(queue.ts + uint64(delay)*1000),
-		Member: queue.uid,
+		Member: messageID,
 	})
-	tx.HSet(key+q, queue.uid, message)
+	tx.HSet(key+q, messageID, message)
 	tx.HIncrBy(key+q, "totalsent", 1)
 	if _, err := tx.Exec(); err != nil {
 		return "", err
 	}
 
-	return queue.uid, nil
+	return messageID, nil
 }
 
 // ReceiveMessage receives message from the queue
