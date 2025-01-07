@@ -91,12 +91,14 @@ func (m *mockLogPublisher) Publish(ctx context.Context, deliveryEvent models.Del
 type mockRetryScheduler struct {
 	schedules []string
 	taskIDs   []string
+	canceled  []string
 }
 
 func newMockRetryScheduler() *mockRetryScheduler {
 	return &mockRetryScheduler{
 		schedules: make([]string, 0),
 		taskIDs:   make([]string, 0),
+		canceled:  make([]string, 0),
 	}
 }
 
@@ -111,6 +113,11 @@ func (m *mockRetryScheduler) Schedule(ctx context.Context, message string, delay
 		taskID = options.ID
 	}
 	m.taskIDs = append(m.taskIDs, taskID)
+	return nil
+}
+
+func (m *mockRetryScheduler) Cancel(ctx context.Context, taskID string) error {
+	m.canceled = append(m.canceled, taskID)
 	return nil
 }
 
