@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -108,5 +109,12 @@ func NewErrBadRequest(err error) ErrorResponse {
 		Err:     err,
 		Code:    http.StatusBadRequest,
 		Message: err.Error(),
+	}
+}
+
+func NewErrNotFound(resource string) ErrorResponse {
+	return ErrorResponse{
+		Code:    http.StatusNotFound,
+		Message: fmt.Sprintf("%s not found", resource),
 	}
 }

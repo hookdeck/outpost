@@ -145,6 +145,7 @@ func NewRouter(
 	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, entityStore)
 	destinationHandlers := NewDestinationHandlers(logger, entityStore, cfg.Topics, cfg.Registry)
 	publishHandlers := NewPublishHandlers(logger, publishmqEventHandler)
+	retryHandlers := NewRetryHandlers(logger, entityStore, logStore, deliveryMQ)
 	logHandlers := NewLogHandlers(logger, logStore)
 	topicHandlers := NewTopicHandlers(logger, cfg.Topics)
 
@@ -360,6 +361,16 @@ func NewRouter(
 			Middlewares: []gin.HandlerFunc{
 				RequireTenantMiddleware(logger, entityStore),
 			},
+		},
+
+		// Retry routes
+		{
+			Method:             http.MethodPost,
+			Path:               "/:tenantID/destinations/:destinationID/events/:eventID/retry",
+			Handler:            retryHandlers.Retry,
+			AuthScope:          AuthScopeAdminOrTenant,
+			Mode:               RouteModeAlways,
+			AllowTenantFromJWT: true,
 		},
 	}
 

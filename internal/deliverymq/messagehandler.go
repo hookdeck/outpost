@@ -46,6 +46,7 @@ type LogPublisher interface {
 
 type RetryScheduler interface {
 	Schedule(ctx context.Context, task string, delay time.Duration, opts ...scheduler.ScheduleOption) error
+	Cancel(ctx context.Context, taskID string) error
 }
 
 type DestinationGetter interface {
@@ -155,19 +156,27 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 			Status:          models.DeliveryStatusOK,
 			Time:            time.Now(),
 		}
-	}
-	logErr := h.logMQ.Publish(ctx, deliveryEvent)
-	if logErr != nil {
-		logger.Error("failed to publish log event", zap.Error(logErr))
-		if finalErr == nil {
-			finalErr = logErr
-		} else {
-			finalErr = errors.Join(finalErr, logErr)
+
+		// If this was a successful manual retry, clear any pending scheduled retries
+		if deliveryEvent.Manual {
+			if err := h.retryScheduler.Cancel(ctx, deliveryEvent.GetRetryID()); err != nil {
+				logger.Error("failed to cancel scheduled retry", zap.Error(err))
+				// TODO: Evaluate if we should propagate this error.
+				// Currently we don't return it since the delivery was successful,
+				// but this means a scheduled retry might still happen later.
+			}
 		}
 	}
-	if finalErr != nil {
-		span.RecordError(finalErr)
+
+	if err := h.logMQ.Publish(ctx, deliveryEvent); err != nil {
+		logger.Error("failed to publish delivery log", zap.Error(err))
+		if finalErr != nil {
+			finalErr = errors.Join(finalErr, err)
+		} else {
+			finalErr = err
+		}
 	}
+
 	return finalErr
 }
 
@@ -180,6 +189,12 @@ func (h *messageHandler) checkError(err error, deliveryEvent models.DeliveryEven
 	}
 
 	if _, ok := err.(*destregistry.ErrDestinationPublishAttempt); ok {
+		// For manual retries, don't schedule another retry
+		if deliveryEvent.Manual {
+			return false, false // ack and accept failure
+		}
+
+		// For scheduled retries, check eligibility
 		if deliveryEvent.Event.EligibleForRetry && deliveryEvent.Attempt < h.retryMaxLimit {
 			return true, false // schedule retry and ack
 		}

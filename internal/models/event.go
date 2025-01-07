@@ -94,6 +94,7 @@ type DeliveryEvent struct {
 	Event         Event
 	Delivery      *Delivery
 	Telemetry     *DeliveryEventTelemetry
+	Manual        bool // Indicates if this is a manual retry
 }
 
 var _ mqs.IncomingMessage = &DeliveryEvent{}
@@ -125,6 +126,12 @@ func NewDeliveryEvent(event Event, destinationID string) DeliveryEvent {
 		Event:         event,
 		Attempt:       0,
 	}
+}
+
+func NewManualDeliveryEvent(event Event, destinationID string) DeliveryEvent {
+	deliveryEvent := NewDeliveryEvent(event, destinationID)
+	deliveryEvent.Manual = true
+	return deliveryEvent
 }
 
 const (
