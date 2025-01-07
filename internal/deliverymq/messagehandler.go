@@ -3,6 +3,7 @@ package deliverymq
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,9 +20,50 @@ import (
 	"go.uber.org/zap"
 )
 
+func idempotencyKeyFromDeliveryEvent(deliveryEvent models.DeliveryEvent) string {
+	return "idempotency:deliverymq:" + deliveryEvent.ID
+}
+
 var (
 	errDestinationDisabled = errors.New("destination disabled")
 )
+
+// Error types to distinguish between different stages of delivery
+type PreDeliveryError struct {
+	err error
+}
+
+func (e *PreDeliveryError) Error() string {
+	return fmt.Sprintf("pre-delivery error: %v", e.err)
+}
+
+func (e *PreDeliveryError) Unwrap() error {
+	return e.err
+}
+
+type DeliveryError struct {
+	err error
+}
+
+func (e *DeliveryError) Error() string {
+	return fmt.Sprintf("delivery error: %v", e.err)
+}
+
+func (e *DeliveryError) Unwrap() error {
+	return e.err
+}
+
+type PostDeliveryError struct {
+	err error
+}
+
+func (e *PostDeliveryError) Error() string {
+	return fmt.Sprintf("post-delivery error: %v", e.err)
+}
+
+func (e *PostDeliveryError) Unwrap() error {
+	return e.err
+}
 
 type messageHandler struct {
 	eventTracer    DeliveryTracer
@@ -92,116 +134,175 @@ func NewMessageHandler(
 
 func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	deliveryEvent := models.DeliveryEvent{}
+
+	// Parse message
 	if err := deliveryEvent.FromMessage(msg); err != nil {
-		msg.Nack()
-		return err
+		return h.handleError(msg, &PreDeliveryError{err: err})
 	}
+
+	h.logger.Ctx(ctx).Info("deliverymq handler", zap.String("delivery_event", deliveryEvent.ID))
+
+	// Ensure event data
 	if err := h.ensureDeliveryEvent(ctx, &deliveryEvent); err != nil {
+		return h.handleError(msg, &PreDeliveryError{err: err})
+	}
+
+	// Get destination
+	destination, err := h.ensurePublishableDestination(ctx, deliveryEvent)
+	if err != nil {
+		return h.handleError(msg, &PreDeliveryError{err: err})
+	}
+
+	// Handle delivery
+	err = h.idempotence.Exec(ctx, idempotencyKeyFromDeliveryEvent(deliveryEvent), func(ctx context.Context) error {
+		return h.doHandle(ctx, deliveryEvent, destination)
+	})
+	return h.handleError(msg, err)
+}
+
+func (h *messageHandler) handleError(msg *mqs.Message, err error) error {
+	shouldNack := h.shouldNackError(err)
+	if shouldNack {
 		msg.Nack()
-		return err
+	} else {
+		msg.Ack()
 	}
-	idempotenceHandler := func(ctx context.Context) error {
-		return h.doHandle(ctx, deliveryEvent)
-	}
-	if err := h.idempotence.Exec(ctx, idempotencyKeyFromDeliveryEvent(deliveryEvent), idempotenceHandler); err != nil {
-		shouldScheduleRetry, shouldNack := h.checkError(err, deliveryEvent)
-		if shouldScheduleRetry {
+	return err
+}
+
+func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.DeliveryEvent, destination *models.Destination) error {
+	_, span := h.eventTracer.Deliver(ctx, &deliveryEvent)
+	defer span.End()
+
+	if err := h.publisher.PublishEvent(ctx, destination, &deliveryEvent.Event); err != nil {
+		h.logger.Ctx(ctx).Error("failed to publish event", zap.Error(err))
+		deliveryErr := &DeliveryError{err: err}
+
+		if h.shouldScheduleRetry(deliveryEvent, err) {
 			if retryErr := h.scheduleRetry(ctx, deliveryEvent); retryErr != nil {
-				finalErr := errors.Join(err, retryErr)
-				msg.Nack()
-				return finalErr
+				return h.logDeliveryResult(ctx, deliveryEvent, errors.Join(err, retryErr))
 			}
 		}
-		if shouldNack {
-			msg.Nack()
-		} else {
-			msg.Ack()
+		return h.logDeliveryResult(ctx, deliveryEvent, deliveryErr)
+	}
+
+	// Handle successful delivery
+	if deliveryEvent.Manual {
+		if err := h.retryScheduler.Cancel(ctx, deliveryEvent.GetRetryID()); err != nil {
+			h.logger.Ctx(ctx).Error("failed to cancel scheduled retry", zap.Error(err))
+			return h.logDeliveryResult(ctx, deliveryEvent, err)
 		}
+	}
+	return h.logDeliveryResult(ctx, deliveryEvent, nil)
+}
+
+func (h *messageHandler) hasDeliveryError(err error) bool {
+	var delErr *DeliveryError
+	return errors.As(err, &delErr)
+}
+
+func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent models.DeliveryEvent, err error) error {
+	// Set up delivery record
+	deliveryEvent.Delivery = &models.Delivery{
+		ID:              uuid.New().String(),
+		DeliveryEventID: deliveryEvent.ID,
+		EventID:         deliveryEvent.Event.ID,
+		DestinationID:   deliveryEvent.DestinationID,
+		Time:            time.Now(),
+	}
+
+	// Check for delivery failures in the error chain
+	if h.hasDeliveryError(err) {
+		deliveryEvent.Delivery.Status = models.DeliveryStatusFailed
+	} else {
+		deliveryEvent.Delivery.Status = models.DeliveryStatusOK
+	}
+
+	// Publish delivery log
+	if logErr := h.logMQ.Publish(ctx, deliveryEvent); logErr != nil {
+		h.logger.Ctx(ctx).Error("failed to publish delivery log", zap.Error(logErr))
+		if err != nil {
+			return &PostDeliveryError{err: errors.Join(err, logErr)}
+		}
+		return &PostDeliveryError{err: logErr}
+	}
+
+	// If we have a DeliveryError, return it as is
+	var delErr *DeliveryError
+	if errors.As(err, &delErr) {
 		return err
 	}
-	msg.Ack()
+
+	// If we have a PreDeliveryError, return it as is
+	var preErr *PreDeliveryError
+	if errors.As(err, &preErr) {
+		return err
+	}
+
+	// For any other error, wrap it in PostDeliveryError
+	if err != nil {
+		return &PostDeliveryError{err: err}
+	}
+
 	return nil
 }
 
-func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
-	_, span := h.eventTracer.Deliver(ctx, &deliveryEvent)
-	defer span.End()
-	logger := h.logger.Ctx(ctx)
-	logger.Info("deliverymq handler", zap.String("delivery_event", deliveryEvent.ID))
-
-	destination, err := h.ensurePublishableDestination(ctx, deliveryEvent)
-	if err != nil {
-		span.RecordError(err)
-		return err
+func (h *messageHandler) shouldScheduleRetry(deliveryEvent models.DeliveryEvent, err error) bool {
+	if deliveryEvent.Manual {
+		return false
 	}
-
-	var finalErr error
-	if err := h.publisher.PublishEvent(ctx, destination, &deliveryEvent.Event); err != nil {
-		logger.Error("failed to publish event", zap.Error(err))
-		finalErr = err
-		deliveryEvent.Delivery = &models.Delivery{
-			ID:              uuid.New().String(),
-			DeliveryEventID: deliveryEvent.ID,
-			EventID:         deliveryEvent.Event.ID,
-			DestinationID:   deliveryEvent.DestinationID,
-			Status:          models.DeliveryStatusFailed,
-			Time:            time.Now(),
-		}
-	} else {
-		deliveryEvent.Delivery = &models.Delivery{
-			ID:              uuid.New().String(),
-			DeliveryEventID: deliveryEvent.ID,
-			EventID:         deliveryEvent.Event.ID,
-			DestinationID:   deliveryEvent.DestinationID,
-			Status:          models.DeliveryStatusOK,
-			Time:            time.Now(),
-		}
-
-		// If this was a successful manual retry, clear any pending scheduled retries
-		if deliveryEvent.Manual {
-			if err := h.retryScheduler.Cancel(ctx, deliveryEvent.GetRetryID()); err != nil {
-				logger.Error("failed to cancel scheduled retry", zap.Error(err))
-				// TODO: Evaluate if we should propagate this error.
-				// Currently we don't return it since the delivery was successful,
-				// but this means a scheduled retry might still happen later.
-			}
-		}
+	if !deliveryEvent.Event.EligibleForRetry {
+		return false
 	}
-
-	if err := h.logMQ.Publish(ctx, deliveryEvent); err != nil {
-		logger.Error("failed to publish delivery log", zap.Error(err))
-		if finalErr != nil {
-			finalErr = errors.Join(finalErr, err)
-		} else {
-			finalErr = err
-		}
+	if _, ok := err.(*destregistry.ErrDestinationPublishAttempt); !ok {
+		return false
 	}
-
-	return finalErr
+	// Attempt starts at 0 for initial attempt, so we can compare directly
+	return deliveryEvent.Attempt < h.retryMaxLimit
 }
 
-// QUESTION: What if an internal error happens AFTER deliverying the message (doesn't matter whether it's successful or not),
-// say logmq.Publish fails. Should that count as an attempt? What about an error BEFORE deliverying the message?
-// Should we write code to differentiate between these two types of errors (predeliveryErr and postdeliveryErr, for example)?
-func (h *messageHandler) checkError(err error, deliveryEvent models.DeliveryEvent) (shouldScheduleRetry, shouldNack bool) {
-	if errors.Is(err, models.ErrDestinationDeleted) || errors.Is(err, errDestinationDisabled) {
-		return false, false // ack
+func (h *messageHandler) shouldNackError(err error) bool {
+	if err == nil {
+		return false // Success case, always ack
 	}
 
+	// Handle pre-delivery errors (system errors)
+	var preErr *PreDeliveryError
+	if errors.As(err, &preErr) {
+		// Don't nack if it's a permanent error
+		if errors.Is(preErr.err, models.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
+			return false
+		}
+		return true // Nack other pre-delivery errors
+	}
+
+	// Handle delivery errors
+	var delErr *DeliveryError
+	if errors.As(err, &delErr) {
+		return h.shouldNackDeliveryError(delErr.err)
+	}
+
+	// Handle post-delivery errors
+	var postErr *PostDeliveryError
+	if errors.As(err, &postErr) {
+		// Check if this wraps a delivery error
+		var delErr *DeliveryError
+		if errors.As(postErr.err, &delErr) {
+			return h.shouldNackDeliveryError(delErr.err)
+		}
+		return true // Nack other post-delivery errors
+	}
+
+	// For any other error type, nack for safety
+	return true
+}
+
+func (h *messageHandler) shouldNackDeliveryError(err error) bool {
+	// Don't nack if it's a delivery attempt error (handled by retry scheduling)
 	if _, ok := err.(*destregistry.ErrDestinationPublishAttempt); ok {
-		// For manual retries, don't schedule another retry
-		if deliveryEvent.Manual {
-			return false, false // ack and accept failure
-		}
-
-		// For scheduled retries, check eligibility
-		if deliveryEvent.Event.EligibleForRetry && deliveryEvent.Attempt < h.retryMaxLimit {
-			return true, false // schedule retry and ack
-		}
-		return false, false // ack and accept failure
+		return false
 	}
-
-	return false, true // nack for system retry
+	return true // Nack other delivery errors
 }
 
 func (h *messageHandler) scheduleRetry(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
@@ -231,10 +332,6 @@ func (h *messageHandler) ensureDeliveryEvent(ctx context.Context, deliveryEvent 
 	deliveryEvent.Event = *event
 
 	return nil
-}
-
-func idempotencyKeyFromDeliveryEvent(deliveryEvent models.DeliveryEvent) string {
-	return "idempotency:deliverymq:" + deliveryEvent.ID
 }
 
 // ensurePublishableDestination ensures that the destination exists and is in a publishable state.
