@@ -10,15 +10,15 @@ import (
 	"github.com/hookdeck/outpost/internal/rsmq"
 )
 
-type ScheduleOption func(*scheduleOptions)
+type ScheduleOption func(*ScheduleOptions)
 
-type scheduleOptions struct {
-	id string
+type ScheduleOptions struct {
+	ID string
 }
 
 func WithTaskID(id string) ScheduleOption {
-	return func(o *scheduleOptions) {
-		o.id = id
+	return func(o *ScheduleOptions) {
+		o.ID = id
 	}
 }
 
@@ -77,7 +77,7 @@ func (s *schedulerImpl) Init(ctx context.Context) error {
 
 func (s *schedulerImpl) Schedule(ctx context.Context, task string, delay time.Duration, opts ...ScheduleOption) error {
 	// Parse options
-	options := &scheduleOptions{}
+	options := &ScheduleOptions{}
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -87,8 +87,8 @@ func (s *schedulerImpl) Schedule(ctx context.Context, task string, delay time.Du
 
 	// Generate RSMQ ID if not provided
 	var rsmqOpts []rsmq.SendMessageOption
-	if options.id != "" {
-		rsmqID := generateRSMQID(options.id)
+	if options.ID != "" {
+		rsmqID := generateRSMQID(options.ID)
 		rsmqOpts = append(rsmqOpts, rsmq.WithMessageID(rsmqID))
 	}
 

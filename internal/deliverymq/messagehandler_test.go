@@ -247,6 +247,8 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	assert.False(t, mockMsg.nacked, "message should not be nacked when scheduling retry")
 	assert.True(t, mockMsg.acked, "message should be acked when scheduling retry")
 	assert.Len(t, retryScheduler.schedules, 1, "retry should be scheduled")
+	assert.Equal(t, deliveryEvent.GetRetryID(), retryScheduler.taskIDs[0],
+		"should use GetRetryID for task ID")
 }
 
 func TestMessageHandler_PublishError_NotEligible(t *testing.T) {

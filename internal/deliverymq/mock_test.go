@@ -11,6 +11,11 @@ import (
 	"github.com/hookdeck/outpost/internal/scheduler"
 )
 
+// scheduleOptions mirrors the private type in scheduler package
+type scheduleOptions struct {
+	id string
+}
+
 type mockPublisher struct {
 	responses []error
 	current   int
@@ -85,14 +90,27 @@ func (m *mockLogPublisher) Publish(ctx context.Context, deliveryEvent models.Del
 
 type mockRetryScheduler struct {
 	schedules []string
+	taskIDs   []string
 }
 
 func newMockRetryScheduler() *mockRetryScheduler {
-	return &mockRetryScheduler{schedules: make([]string, 0)}
+	return &mockRetryScheduler{
+		schedules: make([]string, 0),
+		taskIDs:   make([]string, 0),
+	}
 }
 
 func (m *mockRetryScheduler) Schedule(ctx context.Context, message string, delay time.Duration, opts ...scheduler.ScheduleOption) error {
 	m.schedules = append(m.schedules, message)
+
+	// Capture the task ID by applying the option
+	var taskID string
+	if len(opts) > 0 {
+		options := &scheduler.ScheduleOptions{}
+		opts[0](options)
+		taskID = options.ID
+	}
+	m.taskIDs = append(m.taskIDs, taskID)
 	return nil
 }
 

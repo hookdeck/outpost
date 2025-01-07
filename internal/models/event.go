@@ -110,6 +110,10 @@ func (e *DeliveryEvent) ToMessage() (*mqs.Message, error) {
 	return &mqs.Message{Body: data}, nil
 }
 
+func (e *DeliveryEvent) GetRetryID() string {
+	return e.Event.ID
+}
+
 func NewDeliveryEvent(event Event, destinationID string) DeliveryEvent {
 	return DeliveryEvent{
 		ID:            uuid.New().String(),

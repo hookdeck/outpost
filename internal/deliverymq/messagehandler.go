@@ -195,7 +195,7 @@ func (h *messageHandler) scheduleRetry(ctx context.Context, deliveryEvent models
 	if err != nil {
 		return err
 	}
-	return h.retryScheduler.Schedule(ctx, retryMessageStr, h.retryBackoff.Duration(deliveryEvent.Attempt))
+	return h.retryScheduler.Schedule(ctx, retryMessageStr, h.retryBackoff.Duration(deliveryEvent.Attempt), scheduler.WithTaskID(deliveryEvent.GetRetryID()))
 }
 
 // ensureDeliveryEvent ensures that the delivery event struct has full data.
