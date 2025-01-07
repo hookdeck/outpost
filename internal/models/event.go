@@ -110,6 +110,10 @@ func (e *DeliveryEvent) ToMessage() (*mqs.Message, error) {
 	return &mqs.Message{Body: data}, nil
 }
 
+// GetRetryID returns the ID used for scheduling retries.
+// We use Event.ID instead of DeliveryEvent.ID because:
+// 1. Each event should only have one scheduled retry at a time
+// 2. Event.ID is always accessible, while DeliveryEvent.ID may require additional queries in retry scenarios
 func (e *DeliveryEvent) GetRetryID() string {
 	return e.Event.ID
 }
