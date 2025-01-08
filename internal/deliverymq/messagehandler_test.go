@@ -153,12 +153,13 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 	eventGetter := newMockEventGetter()
 	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
+	logPublisher := newMockLogPublisher(nil)
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		testutil.CreateTestRedisClient(t),
-		newMockLogPublisher(nil),
+		logPublisher,
 		destGetter,
 		eventGetter,
 		newMockPublisher(nil), // won't be called
@@ -184,6 +185,7 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 	assert.False(t, mockMsg.nacked, "message should not be nacked when destination is deleted")
 	assert.True(t, mockMsg.acked, "message should be acked when destination is deleted")
 	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
+	assert.Empty(t, logPublisher.deliveries, "should not log delivery for pre-delivery error")
 }
 
 func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
@@ -216,12 +218,13 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 			Provider: "webhook",
 		},
 	})
+	logPublisher := newMockLogPublisher(nil)
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		testutil.CreateTestRedisClient(t),
-		newMockLogPublisher(nil),
+		logPublisher,
 		destGetter,
 		eventGetter,
 		publisher,
@@ -249,6 +252,8 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	assert.Len(t, retryScheduler.schedules, 1, "retry should be scheduled")
 	assert.Equal(t, deliveryEvent.GetRetryID(), retryScheduler.taskIDs[0],
 		"should use GetRetryID for task ID")
+	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
+	assert.Equal(t, models.DeliveryStatusFailed, logPublisher.deliveries[0].Delivery.Status, "delivery status should be Failed")
 }
 
 func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
@@ -281,12 +286,13 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 			Provider: "webhook",
 		},
 	})
+	logPublisher := newMockLogPublisher(nil)
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		testutil.CreateTestRedisClient(t),
-		newMockLogPublisher(nil),
+		logPublisher,
 		destGetter,
 		eventGetter,
 		publisher,
@@ -313,6 +319,8 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 	assert.True(t, mockMsg.acked, "message should be acked for ineligible retry")
 	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
 	assert.Equal(t, 1, publisher.current, "should only attempt once")
+	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
+	assert.Equal(t, models.DeliveryStatusFailed, logPublisher.deliveries[0].Delivery.Status, "delivery status should be Failed")
 }
 
 func TestMessageHandler_EventGetterError(t *testing.T) {
@@ -339,12 +347,13 @@ func TestMessageHandler_EventGetterError(t *testing.T) {
 	eventGetter.err = errors.New("failed to get event")
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil})
+	logPublisher := newMockLogPublisher(nil)
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		testutil.CreateTestRedisClient(t),
-		newMockLogPublisher(nil),
+		logPublisher,
 		destGetter,
 		eventGetter,
 		publisher,
@@ -403,12 +412,13 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil}) // Successful publish
+	logPublisher := newMockLogPublisher(nil)
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		testutil.CreateTestRedisClient(t),
-		newMockLogPublisher(nil),
+		logPublisher,
 		destGetter,
 		eventGetter,
 		publisher,
@@ -441,6 +451,8 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
 	assert.Equal(t, 1, publisher.current, "publish should succeed once")
 	assert.Equal(t, event.ID, eventGetter.lastRetrievedID, "event getter should be called with correct ID")
+	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
+	assert.Equal(t, models.DeliveryStatusOK, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK")
 }
 
 func TestMessageHandler_Idempotency(t *testing.T) {
@@ -610,12 +622,13 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil}) // won't be called
+	logPublisher := newMockLogPublisher(nil)
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		testutil.CreateTestRedisClient(t),
-		newMockLogPublisher(nil),
+		logPublisher,
 		destGetter,
 		eventGetter,
 		publisher,
@@ -642,6 +655,7 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 	assert.True(t, mockMsg.acked, "message should be acked for disabled destination")
 	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
 	assert.Equal(t, 0, publisher.current, "should not attempt to publish to disabled destination")
+	assert.Empty(t, logPublisher.deliveries, "should not log delivery for pre-delivery error")
 }
 
 func TestMessageHandler_LogPublisherError(t *testing.T) {

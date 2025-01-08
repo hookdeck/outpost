@@ -338,18 +338,17 @@ func (h *messageHandler) ensureDeliveryEvent(ctx context.Context, deliveryEvent 
 // Returns an error if the destination is not found, deleted, disabled, or any other state that
 // would prevent publishing.
 func (h *messageHandler) ensurePublishableDestination(ctx context.Context, deliveryEvent models.DeliveryEvent) (*models.Destination, error) {
-	logger := h.logger.Ctx(ctx)
 	destination, err := h.entityStore.RetrieveDestination(ctx, deliveryEvent.Event.TenantID, deliveryEvent.DestinationID)
 	if err != nil {
-		logger.Error("failed to retrieve destination", zap.Error(err))
+		h.logger.Ctx(ctx).Error("failed to retrieve destination", zap.Error(err))
 		return nil, err
 	}
 	if destination == nil {
-		logger.Error("destination not found")
+		h.logger.Ctx(ctx).Error("destination not found")
 		return nil, models.ErrDestinationNotFound
 	}
 	if destination.DisabledAt != nil {
-		logger.Info("destination is disabled", zap.String("destination_id", destination.ID))
+		h.logger.Ctx(ctx).Info("destination is disabled", zap.String("destination_id", destination.ID))
 		return nil, errDestinationDisabled
 	}
 	return destination, nil
