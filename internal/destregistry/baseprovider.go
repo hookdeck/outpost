@@ -16,7 +16,7 @@ import (
 // - 10 or more characters: show first 4 characters + asterisks for the rest
 func ObfuscateValue(value string) string {
 	if len(value) < 10 {
-		return strings.Repeat("*", len(value))
+		return "****"
 	}
 	return value[:4] + strings.Repeat("*", len(value)-4)
 }
