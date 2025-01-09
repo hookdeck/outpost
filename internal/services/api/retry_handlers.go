@@ -32,8 +32,10 @@ func NewRetryHandlers(logger *otelzap.Logger, entityStore models.EntityStore, lo
 	}
 }
 
-// isEligibleForRetry checks if a destination/event pair is eligible for retry based on delivery history
-func isEligibleForRetry(destination *models.Destination, deliveries []*models.Delivery) error {
+// isEligibleForManualRetry checks if a destination/event pair is eligible for manual retry based on delivery history.
+// Note: This function deliberately ignores event.EligibleForRetry since manual retries should be allowed
+// regardless of the event's automatic retry settings.
+func isEligibleForManualRetry(destination *models.Destination, deliveries []*models.Delivery) error {
 	if destination.DisabledAt != nil {
 		return ErrDestinationDisabled
 	}
@@ -91,7 +93,7 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 	}
 
 	// 3. Validate retry eligibility
-	if err := isEligibleForRetry(destination, deliveries); err != nil {
+	if err := isEligibleForManualRetry(destination, deliveries); err != nil {
 		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 		return
 	}
