@@ -7,6 +7,18 @@ import (
 	v "github.com/spf13/viper"
 )
 
+type OpenTelemetryTypeConfig struct {
+	Exporter string `yaml:"exporter" env:"OTEL_EXPORTER"`
+	Protocol string `yaml:"protocol" env:"OTEL_PROTOCOL"`
+}
+
+type OpenTelemetryConfig struct {
+	ServiceName string                   `yaml:"service_name" env:"OTEL_SERVICE_NAME"`
+	Traces      *OpenTelemetryTypeConfig `yaml:"traces"`
+	Metrics     *OpenTelemetryTypeConfig `yaml:"metrics"`
+	Logs        *OpenTelemetryTypeConfig `yaml:"logs"`
+}
+
 func getProtocol(viper *v.Viper, telemetryType string) string {
 	// Check type-specific protocol first
 	protocol := viper.GetString(fmt.Sprintf("OTEL_EXPORTER_OTLP_%s_PROTOCOL", telemetryType))
@@ -21,25 +33,23 @@ func getProtocol(viper *v.Viper, telemetryType string) string {
 	return protocol
 }
 
-// If the user has set OTEL_SERVICE_NAME, we assume they are managing their own OpenTelemetry configuration.
-// The SDK will automatically read the environment variables for configuration.
-func parseOpenTelemetryConfig(viper *v.Viper) (*otel.OpenTelemetryConfig, error) {
-	if viper.GetString("OTEL_SERVICE_NAME") == "" {
-		return nil, nil
+func (c *OpenTelemetryConfig) ToOTELConfig() *otel.OpenTelemetryConfig {
+	if c == nil || c.ServiceName == "" {
+		return nil
 	}
 
 	return &otel.OpenTelemetryConfig{
 		Traces: &otel.OpenTelemetryTypeConfig{
-			Exporter: viper.GetString("OTEL_TRACES_EXPORTER"),
-			Protocol: getProtocol(viper, "TRACES"),
+			Exporter: c.Traces.Exporter,
+			Protocol: c.Traces.Protocol,
 		},
 		Metrics: &otel.OpenTelemetryTypeConfig{
-			Exporter: viper.GetString("OTEL_METRICS_EXPORTER"),
-			Protocol: getProtocol(viper, "METRICS"),
+			Exporter: c.Metrics.Exporter,
+			Protocol: c.Metrics.Protocol,
 		},
 		Logs: &otel.OpenTelemetryTypeConfig{
-			Exporter: viper.GetString("OTEL_LOGS_EXPORTER"),
-			Protocol: getProtocol(viper, "LOGS"),
+			Exporter: c.Logs.Exporter,
+			Protocol: c.Logs.Protocol,
 		},
-	}, nil
+	}
 }

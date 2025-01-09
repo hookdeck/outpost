@@ -12,6 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.27
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.3
 	github.com/aws/smithy-go v1.20.3
+	github.com/caarlos0/env/v9 v9.0.0
 	github.com/gin-contrib/static v1.1.2
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-playground/validator/v10 v10.22.0
@@ -55,6 +56,7 @@ require (
 	gocloud.dev v0.39.0
 	gocloud.dev/pubsub/rabbitpubsub v0.39.0
 	golang.org/x/sync v0.8.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -183,5 +185,4 @@ require (
 	google.golang.org/grpc v1.65.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
