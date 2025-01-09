@@ -100,6 +100,18 @@ func (d *AWSSQSDestination) resolveMetadata(ctx context.Context, destination *mo
 		return nil, nil, err
 	}
 
+	if endpoint := destination.Config["endpoint"]; endpoint != "" {
+		parsedURL, err := url.Parse(endpoint)
+		if err != nil || !parsedURL.IsAbs() || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "config.endpoint",
+					Type:  "pattern",
+				},
+			})
+		}
+	}
+
 	return &AWSSQSDestinationConfig{
 			Endpoint: destination.Config["endpoint"],
 			QueueURL: destination.Config["queue_url"],
