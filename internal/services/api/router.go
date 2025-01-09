@@ -59,7 +59,7 @@ type routeDefinition struct {
 }
 
 // registerRoutes registers routes to the given router based on route definitions and config
-func registerRoutes(router *gin.RouterGroup, cfg RouterConfig, routes []RouteDefinition, logger *otelzap.Logger, entityStore models.EntityStore) {
+func registerRoutes(router *gin.RouterGroup, cfg RouterConfig, routes []RouteDefinition) {
 	isPortalMode := cfg.APIKey != "" && cfg.JWTSecret != ""
 
 	for _, route := range routes {
@@ -381,7 +381,7 @@ func NewRouter(
 	apiRoutes = append(apiRoutes, tenantAgnosticRoutes...)
 	apiRoutes = append(apiRoutes, tenantSpecificRoutes...)
 
-	registerRoutes(apiRouter, cfg, apiRoutes, logger, entityStore)
+	registerRoutes(apiRouter, cfg, apiRoutes)
 
 	return r
 }
