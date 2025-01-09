@@ -179,7 +179,7 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
-	require.ErrorIs(t, err, models.ErrDestinationDeleted)
+	require.NoError(t, err)
 
 	// Assert behavior
 	assert.False(t, mockMsg.nacked, "message should not be nacked when destination is deleted")
@@ -648,13 +648,14 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	// Assert behavior
-	assert.False(t, mockMsg.nacked, "message should not be nacked for disabled destination")
 	assert.True(t, mockMsg.acked, "message should be acked for disabled destination")
-	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
+	assert.False(t, mockMsg.nacked, "message should not be nacked for disabled destination")
 	assert.Equal(t, 0, publisher.current, "should not attempt to publish to disabled destination")
+	assert.Empty(t, retryScheduler.schedules, "should not schedule retry")
+	assert.Empty(t, retryScheduler.canceled, "should not attempt to cancel retries")
 	assert.Empty(t, logPublisher.deliveries, "should not log delivery for pre-delivery error")
 }
 

@@ -167,6 +167,14 @@ func (h *messageHandler) handleError(msg *mqs.Message, err error) error {
 	} else {
 		msg.Ack()
 	}
+
+	// Don't return error for expected cases
+	var preErr *PreDeliveryError
+	if errors.As(err, &preErr) {
+		if errors.Is(preErr.err, models.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
+			return nil
+		}
+	}
 	return err
 }
 
