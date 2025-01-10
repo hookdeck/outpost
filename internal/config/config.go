@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/caarlos0/env/v9"
+	"github.com/hookdeck/outpost/internal/clickhouse"
+	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
@@ -13,20 +15,6 @@ import (
 const (
 	Namespace = "Outpost"
 )
-
-type RedisConfig struct {
-	Host     string `yaml:"host" env:"REDIS_HOST"`
-	Port     int    `yaml:"port" env:"REDIS_PORT"`
-	Password string `yaml:"password" env:"REDIS_PASSWORD"`
-	Database int    `yaml:"database" env:"REDIS_DATABASE"`
-}
-
-type ClickHouseConfig struct {
-	Addr     string `yaml:"addr" env:"CLICKHOUSE_ADDR"`
-	Username string `yaml:"username" env:"CLICKHOUSE_USERNAME"`
-	Password string `yaml:"password" env:"CLICKHOUSE_PASSWORD"`
-	Database string `yaml:"database" env:"CLICKHOUSE_DATABASE"`
-}
 
 type Config struct {
 	Service  ServiceType `yaml:"service" env:"SERVICE"`
@@ -177,4 +165,36 @@ func Parse(flags Flags) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+type RedisConfig struct {
+	Host     string `yaml:"host" env:"REDIS_HOST"`
+	Port     int    `yaml:"port" env:"REDIS_PORT"`
+	Password string `yaml:"password" env:"REDIS_PASSWORD"`
+	Database int    `yaml:"database" env:"REDIS_DATABASE"`
+}
+
+func (c *RedisConfig) ToConfig() *redis.RedisConfig {
+	return &redis.RedisConfig{
+		Host:     c.Host,
+		Port:     c.Port,
+		Password: c.Password,
+		Database: c.Database,
+	}
+}
+
+type ClickHouseConfig struct {
+	Addr     string `yaml:"addr" env:"CLICKHOUSE_ADDR"`
+	Username string `yaml:"username" env:"CLICKHOUSE_USERNAME"`
+	Password string `yaml:"password" env:"CLICKHOUSE_PASSWORD"`
+	Database string `yaml:"database" env:"CLICKHOUSE_DATABASE"`
+}
+
+func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
+	return &clickhouse.ClickHouseConfig{
+		Addr:     c.Addr,
+		Username: c.Username,
+		Password: c.Password,
+		Database: c.Database,
+	}
 }

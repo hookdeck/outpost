@@ -33,7 +33,7 @@ func getProtocol(viper *v.Viper, telemetryType string) string {
 	return protocol
 }
 
-func (c *OpenTelemetryConfig) ToOTELConfig() *otel.OpenTelemetryConfig {
+func (c *OpenTelemetryConfig) ToConfig() *otel.OpenTelemetryConfig {
 	if c == nil || c.ServiceName == "" {
 		return nil
 	}

@@ -64,20 +64,20 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		return nil, err
 	}
 
-	deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig))
+	deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.MQs.GetDeliveryQueueConfig()))
 	cleanupDeliveryMQ, err := deliveryMQ.Init(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	redisClient, err := redis.New(ctx, cfg.Redis)
+	redisClient, err := redis.New(ctx, cfg.Redis.ToConfig())
 	if err != nil {
 		return nil, err
 	}
 
 	var logStore models.LogStore
 	if cfg.ClickHouse != nil {
-		chDB, err := clickhouse.New(cfg.ClickHouse)
+		chDB, err := clickhouse.New(cfg.ClickHouse.ToConfig())
 		if err != nil {
 			return nil, err
 		}
@@ -125,7 +125,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	)
 
 	// deliverymqRetryScheduler
-	deliverymqRetryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis)
+	deliverymqRetryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig())
 	if err := deliverymqRetryScheduler.Init(ctx); err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: router,
 	}
-	service.publishMQ = publishmq.New(publishmq.WithQueue(cfg.PublishQueueConfig))
+	service.publishMQ = publishmq.New(publishmq.WithQueue(cfg.PublishMQ.GetQueueConfig()))
 	service.deliveryMQ = deliveryMQ
 	service.entityStore = entityStore
 	service.eventHandler = eventHandler

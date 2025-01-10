@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/infra"
-	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 )
@@ -18,50 +17,50 @@ func Basic(t *testing.T) *config.Config {
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	clickHouseConfig := testinfra.NewClickHouseConfig(t)
 	rabbitmqServerURL := testinfra.EnsureRabbitMQ()
-	deliveryMQConfig := mqs.QueueConfig{
-		RabbitMQ: &mqs.RabbitMQConfig{
-			ServerURL: rabbitmqServerURL,
-			Exchange:  uuid.New().String(),
-			Queue:     uuid.New().String(),
+	mqsConfig := config.MQsConfig{
+		RabbitMQ: &config.RabbitMQConfig{
+			ServerURL:     rabbitmqServerURL,
+			Exchange:      uuid.New().String(),
+			DeliveryQueue: uuid.New().String(),
+			LogQueue:      uuid.New().String(),
 		},
-		Policy: mqs.Policy{
-			RetryLimit: 5,
-		},
-	}
-	logMQConfig := mqs.QueueConfig{
-		RabbitMQ: &mqs.RabbitMQConfig{
-			ServerURL: rabbitmqServerURL,
-			Exchange:  uuid.New().String(),
-			Queue:     uuid.New().String(),
-		},
-		Policy: mqs.Policy{
-			RetryLimit: 5,
-		},
+		AWSSQS:             &config.AWSSQSConfig{},
+		DeliveryRetryLimit: 5,
+		LogRetryLimit:      5,
 	}
 	t.Cleanup(func() {
 		if err := infra.Teardown(context.Background(), infra.Config{
-			DeliveryMQ: &deliveryMQConfig,
-			LogMQ:      &logMQConfig,
+			DeliveryMQ: mqsConfig.GetDeliveryQueueConfig(),
+			LogMQ:      mqsConfig.GetLogQueueConfig(),
 		}); err != nil {
 			log.Println("Teardown failed:", err)
 		}
 	})
 
 	return &config.Config{
-		Hostname:                        "outpost",
-		Service:                         config.ServiceTypeSingular,
-		Port:                            testutil.RandomPortNumber(),
-		APIKey:                          "apikey",
-		APIJWTSecret:                    "jwtsecret",
-		AESEncryptionSecret:             "encryptionsecret",
-		PortalProxyURL:                  "",
-		Topics:                          testutil.TestTopics,
-		Redis:                           redisConfig,
-		ClickHouse:                      &clickHouseConfig,
+		Hostname:            "outpost",
+		Service:             config.ServiceTypeSingular,
+		Port:                testutil.RandomPortNumber(),
+		APIKey:              "apikey",
+		APIJWTSecret:        "jwtsecret",
+		AESEncryptionSecret: "encryptionsecret",
+		PortalProxyURL:      "",
+		Topics:              testutil.TestTopics,
+		Redis: &config.RedisConfig{
+			Host:     redisConfig.Host,
+			Port:     redisConfig.Port,
+			Password: redisConfig.Password,
+			Database: redisConfig.Database,
+		},
+		ClickHouse: &config.ClickHouseConfig{
+			Addr:     clickHouseConfig.Addr,
+			Username: clickHouseConfig.Username,
+			Password: clickHouseConfig.Password,
+			Database: clickHouseConfig.Database,
+		},
 		OpenTelemetry:                   nil,
-		PublishQueueConfig:              nil,
-		DeliveryQueueConfig:             &deliveryMQConfig,
-		LogQueueConfig:                  &logMQConfig,
+		PublishMQ:                       nil,
+		MQs:                             &mqsConfig,
 		PublishMaxConcurrency:           3,
 		DeliveryMaxConcurrency:          3,
 		LogMaxConcurrency:               3,

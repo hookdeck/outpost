@@ -43,7 +43,7 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		otelzap.WithMinLevel(zap.InfoLevel), // TODO: allow configuration
 	)
 
-	chDB, err := clickhouse.New(cfg.ClickHouse)
+	chDB, err := clickhouse.New(cfg.ClickHouse.ToConfig())
 	if err != nil {
 		return err
 	}
@@ -53,8 +53,8 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	}
 
 	if err := infra.Declare(mainContext, infra.Config{
-		DeliveryMQ: cfg.DeliveryQueueConfig,
-		LogMQ:      cfg.LogQueueConfig,
+		DeliveryMQ: cfg.MQs.GetDeliveryQueueConfig(),
+		LogMQ:      cfg.MQs.GetLogQueueConfig(),
 	}); err != nil {
 		return err
 	}
@@ -64,7 +64,7 @@ func run(mainContext context.Context, cfg *config.Config) error {
 
 	// Set up OpenTelemetry.
 	if cfg.OpenTelemetry != nil {
-		otelShutdown, err := otel.SetupOTelSDK(ctx, cfg.OpenTelemetry)
+		otelShutdown, err := otel.SetupOTelSDK(ctx, cfg.OpenTelemetry.ToConfig())
 		if err != nil {
 			cancel()
 			return err

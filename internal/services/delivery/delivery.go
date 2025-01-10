@@ -44,17 +44,17 @@ func NewService(ctx context.Context,
 
 	cleanupFuncs := []func(){}
 
-	redisClient, err := redis.New(ctx, cfg.Redis)
+	redisClient, err := redis.New(ctx, cfg.Redis.ToConfig())
 	if err != nil {
 		return nil, err
 	}
 
-	chDB, err := clickhouse.New(cfg.ClickHouse)
+	chDB, err := clickhouse.New(cfg.ClickHouse.ToConfig())
 	if err != nil {
 		return nil, err
 	}
 
-	logMQ := logmq.New(logmq.WithQueue(cfg.LogQueueConfig))
+	logMQ := logmq.New(logmq.WithQueue(cfg.MQs.GetLogQueueConfig()))
 	cleanupLogMQ, err := logMQ.Init(ctx)
 	if err != nil {
 		return nil, err
@@ -93,13 +93,13 @@ func NewService(ctx context.Context,
 			models.WithMaxDestinationsPerTenant(cfg.MaxDestinationsPerTenant),
 		)
 		logStore := models.NewLogStore(chDB)
-		deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig))
+		deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.MQs.GetDeliveryQueueConfig()))
 		cleanupDeliveryMQ, err := deliveryMQ.Init(ctx)
 		if err != nil {
 			return nil, err
 		}
 		cleanupFuncs = append(cleanupFuncs, cleanupDeliveryMQ)
-		retryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis)
+		retryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig())
 		if err := retryScheduler.Init(ctx); err != nil {
 			return nil, err
 		}
@@ -128,7 +128,7 @@ func NewService(ctx context.Context,
 		Logger:      logger,
 		RedisClient: redisClient,
 		Handler:     handler,
-		DeliveryMQ:  deliverymq.New(deliverymq.WithQueue(cfg.DeliveryQueueConfig)),
+		DeliveryMQ:  deliverymq.New(deliverymq.WithQueue(cfg.MQs.GetDeliveryQueueConfig())),
 		consumerOptions: &consumerOptions{
 			concurreny: cfg.DeliveryMaxConcurrency,
 		},
