@@ -38,7 +38,6 @@ func Basic(t *testing.T) *config.Config {
 	})
 
 	return &config.Config{
-		Hostname:            "outpost",
 		Service:             config.ServiceTypeSingular,
 		Port:                testutil.RandomPortNumber(),
 		APIKey:              "apikey",

@@ -41,10 +41,10 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *te
 	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer, testutil.TestTopics)
 	router := api.NewRouter(
 		api.RouterConfig{
-			Hostname:  "",
-			APIKey:    apiKey,
-			JWTSecret: jwtSecret,
-			Topics:    testutil.TestTopics,
+			ServiceName: "",
+			APIKey:      apiKey,
+			JWTSecret:   jwtSecret,
+			Topics:      testutil.TestTopics,
 		},
 		map[string]string{},
 		logger,

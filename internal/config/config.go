@@ -17,9 +17,7 @@ const (
 )
 
 type Config struct {
-	Service  ServiceType `yaml:"service" env:"SERVICE"`
-	Hostname string      `yaml:"hostname"`
-
+	Service       ServiceType          `yaml:"service" env:"SERVICE"`
 	OpenTelemetry *OpenTelemetryConfig `yaml:"open_telemetry"`
 
 	// API
@@ -139,12 +137,6 @@ func Parse(flags Flags) (*Config, error) {
 	if err := env.Parse(config); err != nil {
 		return nil, err
 	}
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, err
-	}
-	config.Hostname = hostname
 
 	// Parse service type from flag & env
 	service, err := ServiceTypeFromString(flags.Service)

@@ -53,3 +53,10 @@ func (c *OpenTelemetryConfig) ToConfig() *otel.OpenTelemetryConfig {
 		},
 	}
 }
+
+func (c *OpenTelemetryConfig) GetServiceName() string {
+	if c == nil {
+		return ""
+	}
+	return c.ServiceName
+}

@@ -98,7 +98,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer, cfg.Topics)
 	router := NewRouter(
 		RouterConfig{
-			Hostname:       cfg.Hostname,
+			ServiceName:    cfg.OpenTelemetry.GetServiceName(),
 			APIKey:         cfg.APIKey,
 			JWTSecret:      cfg.APIJWTSecret,
 			PortalProxyURL: cfg.PortalProxyURL,

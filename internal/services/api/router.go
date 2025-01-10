@@ -44,7 +44,7 @@ type RouteDefinition struct {
 }
 
 type RouterConfig struct {
-	Hostname       string
+	ServiceName    string
 	APIKey         string
 	JWTSecret      string
 	PortalProxyURL string
@@ -126,7 +126,7 @@ func NewRouter(
 		})
 	}
 
-	r.Use(otelgin.Middleware(cfg.Hostname))
+	r.Use(otelgin.Middleware(cfg.ServiceName))
 	r.Use(MetricsMiddleware())
 	r.Use(ErrorHandlerMiddleware(logger))
 
