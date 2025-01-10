@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/caarlos0/env/v9"
@@ -124,10 +123,10 @@ func (c *Config) initDefaults() {
 	c.DestinationWebhookHeaderPrefix = "x-outpost-"
 }
 
-func (c *Config) parseConfigFile(flagPath string) error {
+func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error {
 	// Get config file path from flag or env
 	configPath := flagPath
-	if envPath := os.Getenv("CONFIG"); envPath != "" {
+	if envPath := osInterface.Getenv("CONFIG"); envPath != "" {
 		if configPath != "" && configPath != envPath {
 			return fmt.Errorf("conflicting config paths: flag=%s env=%s", configPath, envPath)
 		}
@@ -137,7 +136,7 @@ func (c *Config) parseConfigFile(flagPath string) error {
 	// If no explicit config path, try default locations
 	if configPath == "" {
 		for _, loc := range defaultConfigLocations {
-			if _, err := os.Stat(loc); err == nil {
+			if _, err := osInterface.Stat(loc); err == nil {
 				configPath = loc
 				break
 			}
@@ -148,7 +147,7 @@ func (c *Config) parseConfigFile(flagPath string) error {
 		return nil
 	}
 
-	data, err := os.ReadFile(configPath)
+	data, err := osInterface.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("error reading config file: %w", err)
 	}
@@ -201,13 +200,17 @@ func (c *Config) validate(flags Flags) error {
 }
 
 func Parse(flags Flags) (*Config, error) {
+	return ParseWithOS(flags, defaultOS)
+}
+
+func ParseWithOS(flags Flags, osInterface OSInterface) (*Config, error) {
 	var config Config
 
 	// Initialize defaults
 	config.initDefaults()
 
 	// Parse config file
-	if err := config.parseConfigFile(flags.Config); err != nil {
+	if err := config.parseConfigFile(flags.Config, osInterface); err != nil {
 		return nil, err
 	}
 
