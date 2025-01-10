@@ -2,8 +2,10 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/caarlos0/env/v9"
 	"github.com/hookdeck/outpost/internal/clickhouse"
@@ -15,6 +17,14 @@ import (
 const (
 	Namespace = "Outpost"
 )
+
+var defaultConfigLocations = []string{
+	".env",
+	".outpost.yaml",
+	"config/outpost.yaml",
+	"config/outpost/config.yaml",
+	"config/outpost/.env",
+}
 
 type Config struct {
 	Service       ServiceType          `yaml:"service" env:"SERVICE"`
@@ -86,77 +96,132 @@ var (
 	ErrMismatchedServiceType = errors.New("service type mismatch")
 )
 
-func Parse(flags Flags) (*Config, error) {
-	// Initialize with defaults
-	config := &Config{
-		Port: 3333,
-		Redis: &RedisConfig{
-			Host: "127.0.0.1",
-			Port: 6379,
+func (c *Config) initDefaults() {
+	c.Port = 3333
+	c.Redis = &RedisConfig{
+		Host: "127.0.0.1",
+		Port: 6379,
+	}
+	c.MQs = &MQsConfig{
+		RabbitMQ: &RabbitMQConfig{
+			Exchange:      "outpost",
+			DeliveryQueue: "outpost-delivery",
+			LogQueue:      "outpost-log",
 		},
-		MQs: &MQsConfig{
-			RabbitMQ: &RabbitMQConfig{
-				Exchange:      "outpost",
-				DeliveryQueue: "outpost-delivery",
-				LogQueue:      "outpost-log",
-			},
-			DeliveryRetryLimit: 5,
-			LogRetryLimit:      5,
-		},
-		PublishMaxConcurrency:           1,
-		DeliveryMaxConcurrency:          1,
-		LogMaxConcurrency:               1,
-		RetryIntervalSeconds:            30,
-		RetryMaxLimit:                   10,
-		MaxDestinationsPerTenant:        20,
-		DeliveryTimeoutSeconds:          5,
-		DestinationMetadataPath:         "config/outpost/destinations",
-		LogBatcherDelayThresholdSeconds: 10,
-		LogBatcherItemCountThreshold:    1000,
-		DestinationWebhookHeaderPrefix:  "x-outpost-",
+		DeliveryRetryLimit: 5,
+		LogRetryLimit:      5,
+	}
+	c.PublishMaxConcurrency = 1
+	c.DeliveryMaxConcurrency = 1
+	c.LogMaxConcurrency = 1
+	c.RetryIntervalSeconds = 30
+	c.RetryMaxLimit = 10
+	c.MaxDestinationsPerTenant = 20
+	c.DeliveryTimeoutSeconds = 5
+	c.DestinationMetadataPath = "config/outpost/destinations"
+	c.LogBatcherDelayThresholdSeconds = 10
+	c.LogBatcherItemCountThreshold = 1000
+	c.DestinationWebhookHeaderPrefix = "x-outpost-"
+}
+
+func (c *Config) parseConfigFile(flagPath string) error {
+	// Get config file path from flag or env
+	configPath := flagPath
+	if envPath := os.Getenv("CONFIG"); envPath != "" {
+		if configPath != "" && configPath != envPath {
+			return fmt.Errorf("conflicting config paths: flag=%s env=%s", configPath, envPath)
+		}
+		configPath = envPath
 	}
 
-	// Load .env file to environment variables
-	err := godotenv.Load()
+	// If no explicit config path, try default locations
+	if configPath == "" {
+		for _, loc := range defaultConfigLocations {
+			if _, err := os.Stat(loc); err == nil {
+				configPath = loc
+				break
+			}
+		}
+	}
+
+	if configPath == "" {
+		return nil
+	}
+
+	data, err := os.ReadFile(configPath)
 	if err != nil {
-		// Ignore error if file does not exist
+		return fmt.Errorf("error reading config file: %w", err)
 	}
 
-	// Parse YAML config file if provided (overrides defaults)
-	if flags.Config != "" {
-		data, err := os.ReadFile(flags.Config)
+	// Parse based on file extension
+	if strings.HasSuffix(strings.ToLower(configPath), ".env") {
+		envMap, err := godotenv.Read(configPath)
 		if err != nil {
-			return nil, err
+			return fmt.Errorf("error loading .env file: %w", err)
 		}
-		if err := yaml.Unmarshal(data, config); err != nil {
-			return nil, err
+		if err := env.ParseWithOptions(c, env.Options{
+			Environment: envMap,
+		}); err != nil {
+			return fmt.Errorf("error parsing .env file: %w", err)
+		}
+	} else {
+		if err := yaml.Unmarshal(data, c); err != nil {
+			return fmt.Errorf("error parsing yaml config: %w", err)
 		}
 	}
+	return nil
+}
 
-	// Parse environment variables (highest priority)
-	if err := env.Parse(config); err != nil {
-		return nil, err
+func (c *Config) parseEnvVariables() error {
+	if err := env.Parse(c); err != nil {
+		return fmt.Errorf("error parsing environment variables: %w", err)
 	}
+	return nil
+}
 
+func (c *Config) validate(flags Flags) error {
 	// Parse service type from flag & env
 	service, err := ServiceTypeFromString(flags.Service)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	var zeroService ServiceType
-	if config.Service == zeroService {
-		config.Service = service
-	} else if config.Service != service {
-		return nil, ErrMismatchedServiceType
+	if c.Service == zeroService {
+		c.Service = service
+	} else if c.Service != service {
+		return ErrMismatchedServiceType
 	}
 
-	if config.PortalProxyURL != "" {
-		if _, err := url.Parse(config.PortalProxyURL); err != nil {
-			return nil, err
+	if c.PortalProxyURL != "" {
+		if _, err := url.Parse(c.PortalProxyURL); err != nil {
+			return err
 		}
 	}
+	return nil
+}
 
-	return config, nil
+func Parse(flags Flags) (*Config, error) {
+	var config Config
+
+	// Initialize defaults
+	config.initDefaults()
+
+	// Parse config file
+	if err := config.parseConfigFile(flags.Config); err != nil {
+		return nil, err
+	}
+
+	// Parse environment variables (highest priority)
+	if err := config.parseEnvVariables(); err != nil {
+		return nil, err
+	}
+
+	// Validate configuration
+	if err := config.validate(flags); err != nil {
+		return nil, err
+	}
+
+	return &config, nil
 }
 
 type RedisConfig struct {
