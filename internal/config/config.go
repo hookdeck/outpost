@@ -17,12 +17,20 @@ const (
 	Namespace = "Outpost"
 )
 
-var defaultConfigLocations = []string{
-	".env",
-	".outpost.yaml",
-	"config/outpost.yaml",
-	"config/outpost/config.yaml",
-	"config/outpost/.env",
+func getConfigLocations() []string {
+	return []string{
+		// Relative paths
+		".env",
+		".outpost.yaml",
+		"config/outpost.yaml",
+		"config/outpost/config.yaml",
+		"config/outpost/.env",
+
+		// Container-friendly absolute paths
+		"/config/outpost.yaml",
+		"/config/outpost/config.yaml",
+		"/config/outpost/.env",
+	}
 }
 
 type Config struct {
@@ -135,7 +143,7 @@ func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error
 
 	// If no explicit config path, try default locations
 	if configPath == "" {
-		for _, loc := range defaultConfigLocations {
+		for _, loc := range getConfigLocations() {
 			if _, err := osInterface.Stat(loc); err == nil {
 				configPath = loc
 				break
