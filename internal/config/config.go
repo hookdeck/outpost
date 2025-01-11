@@ -34,7 +34,7 @@ func getConfigLocations() []string {
 }
 
 type Config struct {
-	Service       ServiceType          `yaml:"service" env:"SERVICE"`
+	Service       string               `yaml:"service" env:"SERVICE"`
 	OpenTelemetry *OpenTelemetryConfig `yaml:"open_telemetry"`
 
 	// API
@@ -101,6 +101,7 @@ type Config struct {
 
 var (
 	ErrMismatchedServiceType = errors.New("service type mismatch")
+	ErrInvalidServiceType    = errors.New("invalid service type")
 )
 
 func (c *Config) initDefaults() {
@@ -160,6 +161,11 @@ func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error
 		return fmt.Errorf("error reading config file: %w", err)
 	}
 
+	// Skip empty files
+	if len(data) == 0 {
+		return nil
+	}
+
 	// Parse based on file extension
 	if strings.HasSuffix(strings.ToLower(configPath), ".env") {
 		envMap, err := godotenv.Read(configPath)
@@ -179,24 +185,44 @@ func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error
 	return nil
 }
 
-func (c *Config) parseEnvVariables() error {
-	if err := env.Parse(c); err != nil {
-		return fmt.Errorf("error parsing environment variables: %w", err)
+func (c *Config) parseEnvVariables(osInterface OSInterface) error {
+	// For testing, use the mock environment
+	if _, ok := osInterface.(*defaultOSImpl); !ok {
+		// Build environment map from all env vars
+		envMap := make(map[string]string)
+		for _, env := range osInterface.Environ() {
+			if i := strings.Index(env, "="); i >= 0 {
+				envMap[env[:i]] = env[i+1:]
+			}
+		}
+		return env.ParseWithOptions(c, env.Options{Environment: envMap})
 	}
-	return nil
+
+	// For real OS, use env.Parse directly
+	return env.Parse(c)
 }
 
-func (c *Config) validate(flags Flags) error {
+// Validate checks if the configuration is valid
+func (c *Config) Validate(flags Flags) error {
 	// Parse service type from flag & env
-	service, err := ServiceTypeFromString(flags.Service)
+	flagService, err := ServiceTypeFromString(flags.Service)
 	if err != nil {
 		return err
 	}
-	var zeroService ServiceType
-	if c.Service == zeroService {
-		c.Service = service
-	} else if c.Service != service {
+
+	configService, err := c.GetService()
+	if err != nil {
+		return err
+	}
+
+	// If service is set in config (via env or file), it must match flag
+	if c.Service != "" && configService != flagService {
 		return ErrMismatchedServiceType
+	}
+
+	// If no service set in config, use flag value
+	if c.Service == "" {
+		c.Service = flags.Service
 	}
 
 	if c.PortalProxyURL != "" {
@@ -207,32 +233,43 @@ func (c *Config) validate(flags Flags) error {
 	return nil
 }
 
-func Parse(flags Flags) (*Config, error) {
-	return ParseWithOS(flags, defaultOS)
-}
-
-func ParseWithOS(flags Flags, osInterface OSInterface) (*Config, error) {
+// ParseWithoutValidation parses the config without validation
+func ParseWithoutValidation(flags Flags, osInterface OSInterface) (*Config, error) {
 	var config Config
 
 	// Initialize defaults
 	config.initDefaults()
 
-	// Parse config file
+	// Parse config file (lower priority)
 	if err := config.parseConfigFile(flags.Config, osInterface); err != nil {
 		return nil, err
 	}
 
 	// Parse environment variables (highest priority)
-	if err := config.parseEnvVariables(); err != nil {
-		return nil, err
-	}
-
-	// Validate configuration
-	if err := config.validate(flags); err != nil {
+	if err := config.parseEnvVariables(osInterface); err != nil {
 		return nil, err
 	}
 
 	return &config, nil
+}
+
+// Parse is the main entry point for parsing and validating config
+func Parse(flags Flags) (*Config, error) {
+	return ParseWithOS(flags, defaultOS)
+}
+
+// ParseWithOS parses and validates config with a custom OS interface
+func ParseWithOS(flags Flags, osInterface OSInterface) (*Config, error) {
+	config, err := ParseWithoutValidation(flags, osInterface)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := config.Validate(flags); err != nil {
+		return nil, err
+	}
+
+	return config, nil
 }
 
 type RedisConfig struct {

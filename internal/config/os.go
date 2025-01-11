@@ -5,13 +5,26 @@ import "os"
 type OSInterface interface {
 	Getenv(key string) string
 	Stat(name string) (os.FileInfo, error)
-	ReadFile(filename string) ([]byte, error)
+	ReadFile(name string) ([]byte, error)
+	Environ() []string
 }
 
-var defaultOS = OSInterface(osAdapter{})
+var defaultOS OSInterface = &defaultOSImpl{}
 
-type osAdapter struct{}
+type defaultOSImpl struct{}
 
-func (osAdapter) Getenv(key string) string                 { return os.Getenv(key) }
-func (osAdapter) Stat(name string) (os.FileInfo, error)    { return os.Stat(name) }
-func (osAdapter) ReadFile(filename string) ([]byte, error) { return os.ReadFile(filename) }
+func (d *defaultOSImpl) Getenv(key string) string {
+	return os.Getenv(key)
+}
+
+func (d *defaultOSImpl) Stat(name string) (os.FileInfo, error) {
+	return os.Stat(name)
+}
+
+func (d *defaultOSImpl) ReadFile(name string) ([]byte, error) {
+	return os.ReadFile(name)
+}
+
+func (d *defaultOSImpl) Environ() []string {
+	return os.Environ()
+}

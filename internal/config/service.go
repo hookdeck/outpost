@@ -1,8 +1,6 @@
 package config
 
-import (
-	"fmt"
-)
+type ServiceType int
 
 const (
 	ServiceTypeSingular ServiceType = iota
@@ -10,8 +8,6 @@ const (
 	ServiceTypeLog
 	ServiceTypeDelivery
 )
-
-type ServiceType int
 
 func (s ServiceType) String() string {
 	switch s {
@@ -38,5 +34,10 @@ func ServiceTypeFromString(s string) (ServiceType, error) {
 	case "delivery":
 		return ServiceTypeDelivery, nil
 	}
-	return ServiceType(-1), fmt.Errorf("unknown service: %s", s)
+	return ServiceType(-1), ErrInvalidServiceType
+}
+
+// GetService returns the ServiceType for the config
+func (c *Config) GetService() (ServiceType, error) {
+	return ServiceTypeFromString(c.Service)
 }
