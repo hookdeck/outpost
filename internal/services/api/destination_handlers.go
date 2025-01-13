@@ -164,12 +164,6 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		shouldRevalidate = true
 		updatedDestination.Credentials = mergeStringMaps(originalDestination.Credentials, input.Credentials)
 	}
-	if shouldRevalidate {
-		if err := h.registry.ValidateDestination(c.Request.Context(), &updatedDestination); err != nil {
-			AbortWithValidationError(c, err)
-			return
-		}
-	}
 
 	// Always preprocess before updating
 	if err := h.registry.PreprocessDestination(&updatedDestination, originalDestination, &destregistry.PreprocessDestinationOpts{
@@ -177,6 +171,13 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	}); err != nil {
 		AbortWithValidationError(c, err)
 		return
+	}
+
+	if shouldRevalidate {
+		if err := h.registry.ValidateDestination(c.Request.Context(), &updatedDestination); err != nil {
+			AbortWithValidationError(c, err)
+			return
+		}
 	}
 
 	// Update destination.

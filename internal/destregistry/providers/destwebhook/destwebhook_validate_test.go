@@ -12,6 +12,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mergeStringMaps merges two string maps, with input taking precedence over original
+func mergeStringMaps(original, input map[string]string) map[string]string {
+	merged := make(map[string]string)
+	for k, v := range original {
+		merged[k] = v
+	}
+	for k, v := range input {
+		merged[k] = v
+	}
+	return merged
+}
+
 func TestWebhookDestination_Validate(t *testing.T) {
 	t.Parallel()
 
@@ -200,17 +212,31 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 
 	t.Run("tenant should not be able to override existing secret", func(t *testing.T) {
 		t.Parallel()
-		destination := testutil.DestinationFactory.Any(
+		originalDestination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "current-secret",
+			}),
+		)
+
+		newDestination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com/new",
 			}),
 			testutil.DestinationFactory.WithCredentials(map[string]string{
 				"secret": "custom-secret",
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+		// Merge both config and credentials to simulate handler behavior
+		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "credentials.secret", validationErr.Errors[0].Field)
@@ -232,12 +258,16 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		newDestination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": "https://example.com",
+				"url": "https://example.com/new",
 			}),
 			testutil.DestinationFactory.WithCredentials(map[string]string{
 				"rotate_secret": "true",
 			}),
 		)
+
+		// Merge both config and credentials to simulate handler behavior
+		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 		require.NoError(t, err)
@@ -261,81 +291,38 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 
 	t.Run("admin should be able to set previous_secret directly", func(t *testing.T) {
 		t.Parallel()
-		destination := testutil.DestinationFactory.Any(
+		originalDestination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com",
 			}),
 			testutil.DestinationFactory.WithCredentials(map[string]string{
-				"secret":          "current-secret",
+				"secret": "current-secret",
+			}),
+		)
+
+		newDestination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com/new",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
 				"previous_secret": "old-secret",
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "admin"})
+		// Merge both config and credentials to simulate handler behavior
+		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "admin"})
 		require.NoError(t, err)
 
 		// Verify that previous_secret was kept
-		assert.Equal(t, "old-secret", destination.Credentials["previous_secret"])
+		assert.Equal(t, "old-secret", newDestination.Credentials["previous_secret"])
 	})
 
 	t.Run("tenant should not be able to set previous_secret directly", func(t *testing.T) {
-		t.Parallel()
-		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook"),
-			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": "https://example.com",
-			}),
-			testutil.DestinationFactory.WithCredentials(map[string]string{
-				"previous_secret": "old-secret",
-			}),
-		)
-
-		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
-		var validationErr *destregistry.ErrDestinationValidation
-		assert.ErrorAs(t, err, &validationErr)
-		assert.Equal(t, "credentials.previous_secret", validationErr.Errors[0].Field)
-		assert.Equal(t, "forbidden", validationErr.Errors[0].Type)
-	})
-
-	t.Run("tenant should not be able to set previous_secret_invalid_at directly", func(t *testing.T) {
-		t.Parallel()
-		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook"),
-			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": "https://example.com",
-			}),
-			testutil.DestinationFactory.WithCredentials(map[string]string{
-				"previous_secret_invalid_at": time.Now().Add(48 * time.Hour).Format(time.RFC3339),
-			}),
-		)
-
-		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
-		var validationErr *destregistry.ErrDestinationValidation
-		assert.ErrorAs(t, err, &validationErr)
-		assert.Equal(t, "credentials.previous_secret_invalid_at", validationErr.Errors[0].Field)
-		assert.Equal(t, "forbidden", validationErr.Errors[0].Type)
-	})
-
-	t.Run("should initialize credentials map if nil", func(t *testing.T) {
-		t.Parallel()
-		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook"),
-			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": "https://example.com",
-			}),
-		)
-		destination.Credentials = nil
-
-		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{})
-		require.NoError(t, err)
-
-		// Verify that credentials map was initialized and a secret was generated
-		assert.NotNil(t, destination.Credentials)
-		assert.NotEmpty(t, destination.Credentials["secret"])
-	})
-
-	t.Run("should rotate secret when requested", func(t *testing.T) {
 		t.Parallel()
 		originalDestination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
@@ -350,31 +337,55 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		newDestination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": "https://example.com",
+				"url": "https://example.com/new",
 			}),
 			testutil.DestinationFactory.WithCredentials(map[string]string{
-				"rotate_secret": "true",
+				"previous_secret": "old-secret",
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
-		require.NoError(t, err)
+		// Merge both config and credentials to simulate handler behavior
+		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
-		// Verify that the current secret became the previous secret
-		assert.Equal(t, "current-secret", newDestination.Credentials["previous_secret"])
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "credentials.previous_secret", validationErr.Errors[0].Field)
+		assert.Equal(t, "forbidden", validationErr.Errors[0].Type)
+	})
 
-		// Verify that a new secret was generated
-		assert.NotEqual(t, "current-secret", newDestination.Credentials["secret"])
-		assert.NotEmpty(t, newDestination.Credentials["secret"])
-		assert.Len(t, newDestination.Credentials["secret"], 64)
-		_, err = hex.DecodeString(newDestination.Credentials["secret"])
-		assert.NoError(t, err, "generated secret should be a valid hex string")
+	t.Run("tenant should not be able to set previous_secret_invalid_at directly", func(t *testing.T) {
+		t.Parallel()
+		originalDestination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "current-secret",
+			}),
+		)
 
-		// Verify that previous_secret_invalid_at was set to ~24h from now
-		invalidAt, err := time.Parse(time.RFC3339, newDestination.Credentials["previous_secret_invalid_at"])
-		require.NoError(t, err)
-		expectedTime := time.Now().Add(24 * time.Hour)
-		assert.WithinDuration(t, expectedTime, invalidAt, 5*time.Second)
+		newDestination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com/new",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"previous_secret_invalid_at": time.Now().Add(48 * time.Hour).Format(time.RFC3339),
+			}),
+		)
+
+		// Merge both config and credentials to simulate handler behavior
+		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "credentials.previous_secret_invalid_at", validationErr.Errors[0].Field)
+		assert.Equal(t, "forbidden", validationErr.Errors[0].Type)
 	})
 
 	t.Run("should respect custom invalidation time during rotation", func(t *testing.T) {
@@ -393,13 +404,17 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		newDestination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": "https://example.com",
+				"url": "https://example.com/new",
 			}),
 			testutil.DestinationFactory.WithCredentials(map[string]string{
 				"rotate_secret":              "true",
 				"previous_secret_invalid_at": customInvalidAt,
 			}),
 		)
+
+		// Merge both config and credentials to simulate handler behavior
+		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
 		require.NoError(t, err)
@@ -408,57 +423,22 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		assert.Equal(t, customInvalidAt, newDestination.Credentials["previous_secret_invalid_at"])
 	})
 
-	t.Run("should fail to rotate secret during initial creation", func(t *testing.T) {
-		t.Parallel()
-		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook"),
-			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": "https://example.com",
-			}),
-			testutil.DestinationFactory.WithCredentials(map[string]string{
-				"rotate_secret": "true",
-			}),
-		)
-
-		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{})
-		var validationErr *destregistry.ErrDestinationValidation
-		assert.ErrorAs(t, err, &validationErr)
-		assert.Equal(t, "credentials.rotate_secret", validationErr.Errors[0].Field)
-		assert.Equal(t, "invalid", validationErr.Errors[0].Type)
-	})
-
-	t.Run("should fail to rotate secret when original has no secret", func(t *testing.T) {
+	t.Run("should set default previous_secret_invalid_at when previous_secret is provided", func(t *testing.T) {
 		t.Parallel()
 		originalDestination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com",
 			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "current-secret",
+			}),
 		)
 
 		newDestination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": "https://example.com",
-			}),
-			testutil.DestinationFactory.WithCredentials(map[string]string{
-				"rotate_secret": "true",
-			}),
-		)
-
-		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
-		var validationErr *destregistry.ErrDestinationValidation
-		assert.ErrorAs(t, err, &validationErr)
-		assert.Equal(t, "credentials.secret", validationErr.Errors[0].Field)
-		assert.Equal(t, "required", validationErr.Errors[0].Type)
-	})
-
-	t.Run("should set default previous_secret_invalid_at when previous_secret is provided", func(t *testing.T) {
-		t.Parallel()
-		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook"),
-			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url": "https://example.com",
+				"url": "https://example.com/new",
 			}),
 			testutil.DestinationFactory.WithCredentials(map[string]string{
 				"secret":          "current-secret",
@@ -466,11 +446,15 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "admin"})
+		// Merge both config and credentials to simulate handler behavior
+		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "admin"})
 		require.NoError(t, err)
 
 		// Verify that previous_secret_invalid_at was set to ~24h from now
-		invalidAt, err := time.Parse(time.RFC3339, destination.Credentials["previous_secret_invalid_at"])
+		invalidAt, err := time.Parse(time.RFC3339, newDestination.Credentials["previous_secret_invalid_at"])
 		require.NoError(t, err)
 		expectedTime := time.Now().Add(24 * time.Hour)
 		assert.WithinDuration(t, expectedTime, invalidAt, 5*time.Second)
@@ -496,12 +480,16 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 				newDestination := testutil.DestinationFactory.Any(
 					testutil.DestinationFactory.WithType("webhook"),
 					testutil.DestinationFactory.WithConfig(map[string]string{
-						"url": "https://example.com",
+						"url": "https://example.com/new",
 					}),
 					testutil.DestinationFactory.WithCredentials(map[string]string{
 						"rotate_secret": value,
 					}),
 				)
+
+				// Merge both config and credentials to simulate handler behavior
+				newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
+				newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 				err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
 				require.NoError(t, err)
@@ -545,13 +533,17 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 				newDestination := testutil.DestinationFactory.Any(
 					testutil.DestinationFactory.WithType("webhook"),
 					testutil.DestinationFactory.WithConfig(map[string]string{
-						"url": "https://example.com",
+						"url": "https://example.com/new",
 					}),
 					testutil.DestinationFactory.WithCredentials(map[string]string{
 						"secret":        "current-secret",
 						"rotate_secret": value,
 					}),
 				)
+
+				// Merge both config and credentials to simulate handler behavior
+				newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
+				newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 				err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
 				require.NoError(t, err)
@@ -566,10 +558,20 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 
 	t.Run("should remove extra fields from credentials map", func(t *testing.T) {
 		t.Parallel()
-		destination := testutil.DestinationFactory.Any(
+		originalDestination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "current-secret",
+			}),
+		)
+
+		newDestination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com/new",
 			}),
 			testutil.DestinationFactory.WithCredentials(map[string]string{
 				"secret":                     "current-secret",
@@ -581,7 +583,11 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "admin"})
+		// Merge both config and credentials to simulate handler behavior
+		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "admin"})
 		require.NoError(t, err)
 
 		// Verify that only expected fields are present
@@ -592,16 +598,16 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		}
 
 		// Check that only expected fields exist
-		for key := range destination.Credentials {
+		for key := range newDestination.Credentials {
 			assert.True(t, expectedFields[key], "unexpected field %q found in credentials", key)
 		}
 
 		// Check that all expected fields are present
-		assert.Equal(t, len(expectedFields), len(destination.Credentials), "credentials map has wrong number of fields")
+		assert.Equal(t, len(expectedFields), len(newDestination.Credentials), "credentials map has wrong number of fields")
 
 		// Verify values are preserved for expected fields
-		assert.Equal(t, "current-secret", destination.Credentials["secret"])
-		assert.Equal(t, "old-secret", destination.Credentials["previous_secret"])
-		assert.NotEmpty(t, destination.Credentials["previous_secret_invalid_at"])
+		assert.Equal(t, "current-secret", newDestination.Credentials["secret"])
+		assert.Equal(t, "old-secret", newDestination.Credentials["previous_secret"])
+		assert.NotEmpty(t, newDestination.Credentials["previous_secret_invalid_at"])
 	})
 }

@@ -606,9 +606,7 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 				Path:   "/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
-						"secret":                     "", // test if empty string is allowed (should be yes)
-						"previous_secret":            "another-secret",
-						"previous_secret_invalid_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+						"previous_secret": "another-secret",
 					},
 				},
 			}, token),
@@ -618,7 +616,7 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 					Body: map[string]interface{}{
 						"message": "validation error",
 						"data": map[string]interface{}{
-							"credentials.secret": "required",
+							"credentials.previous_secret": "forbidden",
 						},
 					},
 				},
@@ -641,7 +639,7 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 					Body: map[string]interface{}{
 						"message": "validation error",
 						"data": map[string]interface{}{
-							"credentials.secret": "required",
+							"credentials.previous_secret_invalid_at": "forbidden",
 						},
 					},
 				},
@@ -876,6 +874,9 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 	}
 	suite.RunAPITests(suite.T(), createTests)
 
+	updatedPreviousSecret := secret + "_2"
+	updatedPreviousSecretInvalidAt := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
+
 	// Second group: Test update flows using the destination with custom secret
 	updateTests := []APITest{
 		{
@@ -944,18 +945,16 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 				Path:   "/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
-						"secret":          newSecret,
-						"previous_secret": secret,
+						"previous_secret": updatedPreviousSecret,
 					},
 				},
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
-					StatusCode: http.StatusUnprocessableEntity,
+					StatusCode: http.StatusOK,
 					Body: map[string]interface{}{
-						"message": "validation error",
-						"data": map[string]interface{}{
-							"credentials.previous_secret_invalid_at": "required",
+						"credentials": map[string]interface{}{
+							"previous_secret": updatedPreviousSecret,
 						},
 					},
 				},
@@ -968,25 +967,24 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 				Path:   "/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
-						"secret":                     newSecret,
-						"previous_secret_invalid_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+						"previous_secret_invalid_at": updatedPreviousSecretInvalidAt,
 					},
 				},
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
-					StatusCode: http.StatusUnprocessableEntity,
+					StatusCode: http.StatusOK,
 					Body: map[string]interface{}{
-						"message": "validation error",
-						"data": map[string]interface{}{
-							"credentials.previous_secret": "required",
+						"credentials": map[string]interface{}{
+							"previous_secret":            updatedPreviousSecret,
+							"previous_secret_invalid_at": updatedPreviousSecretInvalidAt,
 						},
 					},
 				},
 			},
 		},
 		{
-			Name: "PATCH /:tenantID/destinations/:destinationID - set previous_secret directly",
+			Name: "PATCH /:tenantID/destinations/:destinationID - overrides everything",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
 				Path:   "/" + tenantID + "/destinations/" + destinationID,
@@ -1072,6 +1070,7 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 				Path:   "/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
+						"secret":                     "",
 						"previous_secret":            secret,
 						"previous_secret_invalid_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
 					},
@@ -1123,6 +1122,59 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 											"type":    "string",
 											"format":  "date-time",
 											"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}",
+										},
+									},
+									"additionalProperties": false,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "PATCH /:tenantID/destinations/:destinationID - admin unset previous_secret",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPATCH,
+				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Body: map[string]interface{}{
+					"credentials": map[string]interface{}{
+						"previous_secret":            "",
+						"previous_secret_invalid_at": "",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations/:destinationID - verify previous_secret was unset",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations/" + destinationID,
+			}),
+			Expected: APITestExpectation{
+				Validate: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"statusCode": map[string]interface{}{
+							"const": 200,
+						},
+						"body": map[string]interface{}{
+							"type":     "object",
+							"required": []interface{}{"credentials"},
+							"properties": map[string]interface{}{
+								"credentials": map[string]interface{}{
+									"type":     "object",
+									"required": []interface{}{"secret"},
+									"properties": map[string]interface{}{
+										"secret": map[string]interface{}{
+											"type":      "string",
+											"minLength": 32,
+											"pattern":   "^[a-zA-Z0-9]+$",
 										},
 									},
 									"additionalProperties": false,

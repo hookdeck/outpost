@@ -562,7 +562,9 @@ func (suite *basicSuite) TestDestinationsAPI() {
 				Method: httpclient.MethodPATCH,
 				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
 				Body: map[string]interface{}{
-					"config": map[string]interface{}{},
+					"config": map[string]interface{}{
+						"url": "",
+					},
 				},
 			}),
 			Expected: APITestExpectation{
