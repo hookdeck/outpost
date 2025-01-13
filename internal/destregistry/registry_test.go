@@ -530,22 +530,22 @@ func TestObfuscateValue(t *testing.T) {
 		{
 			name:     "empty string",
 			input:    "",
-			expected: "****",
+			expected: "",
 		},
 		{
 			name:     "single character",
 			input:    "a",
-			expected: "****",
+			expected: "*",
 		},
 		{
 			name:     "short string",
 			input:    "abc123",
-			expected: "****",
+			expected: "******",
 		},
 		{
 			name:     "9 characters",
 			input:    "123456789",
-			expected: "****",
+			expected: "*********",
 		},
 		{
 			name:     "10 characters",
@@ -600,11 +600,11 @@ func TestObfuscateDestination(t *testing.T) {
 	assert.Equal(t, "visible-value", obfuscated.Config["public_key"])
 
 	// Sensitive fields should be obfuscated according to length:
-	// - Less than 10 chars: "****"
+	// - Less than 10 chars: replace each character with an asterisk
 	// - 10+ chars: first 4 chars + asterisks
 	assert.Equal(t, "sens***************", obfuscated.Config["secret_key"]) // 19 chars
 	assert.Equal(t, "abcd************", obfuscated.Credentials["api_key"])  // 16 chars
-	assert.Equal(t, "****", obfuscated.Credentials["token"])                // 3 chars
+	assert.Equal(t, "***", obfuscated.Credentials["token"])                 // 3 chars
 	assert.Equal(t, "****", obfuscated.Credentials["code"])                 // 4 chars
 }
 
@@ -716,7 +716,7 @@ func TestDisplayDestination(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "mock-target", display.Target)
 	assert.Equal(t, "value", display.Config["public_key"])
-	assert.Equal(t, "****", display.Config["secret_key"])
+	assert.Equal(t, "******", display.Config["secret_key"])
 	assert.Equal(t, "secr******", display.Credentials["api_key"])
 }
 

@@ -11,9 +11,9 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
-// ObfuscateValue masks a sensitive value. For strings:
-// - Less than 10 characters: return "****" to avoid revealing length
-// - 10 or more characters: show first 4 characters + asterisks for the rest
+// ObfuscateValue masks a sensitive value with the following rules:
+// - For strings with length >= 10: show first 4 characters + asterisks for the rest
+// - For strings with length < 10: replace each character with an asterisk
 func ObfuscateValue(value string) string {
 	if len(value) < 10 {
 		return strings.Repeat("*", len(value))
