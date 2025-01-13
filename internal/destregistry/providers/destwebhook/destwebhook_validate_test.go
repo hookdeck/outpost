@@ -7,22 +7,11 @@ import (
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
+	"github.com/hookdeck/outpost/internal/util/maputil"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// mergeStringMaps merges two string maps, with input taking precedence over original
-func mergeStringMaps(original, input map[string]string) map[string]string {
-	merged := make(map[string]string)
-	for k, v := range original {
-		merged[k] = v
-	}
-	for k, v := range input {
-		merged[k] = v
-	}
-	return merged
-}
 
 func TestWebhookDestination_Validate(t *testing.T) {
 	t.Parallel()
@@ -233,8 +222,8 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		// Merge both config and credentials to simulate handler behavior
-		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
-		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+		newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 		var validationErr *destregistry.ErrDestinationValidation
@@ -266,8 +255,8 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		// Merge both config and credentials to simulate handler behavior
-		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
-		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+		newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 		require.NoError(t, err)
@@ -312,8 +301,8 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		// Merge both config and credentials to simulate handler behavior
-		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
-		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+		newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "admin"})
 		require.NoError(t, err)
@@ -345,8 +334,8 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		// Merge both config and credentials to simulate handler behavior
-		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
-		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+		newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 		var validationErr *destregistry.ErrDestinationValidation
@@ -378,8 +367,8 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		// Merge both config and credentials to simulate handler behavior
-		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
-		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+		newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 		var validationErr *destregistry.ErrDestinationValidation
@@ -413,8 +402,8 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		// Merge both config and credentials to simulate handler behavior
-		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
-		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+		newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
 		require.NoError(t, err)
@@ -447,8 +436,8 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		// Merge both config and credentials to simulate handler behavior
-		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
-		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+		newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "admin"})
 		require.NoError(t, err)
@@ -488,8 +477,8 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 				)
 
 				// Merge both config and credentials to simulate handler behavior
-				newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
-				newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+				newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
+				newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 				err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
 				require.NoError(t, err)
@@ -542,8 +531,8 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 				)
 
 				// Merge both config and credentials to simulate handler behavior
-				newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
-				newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+				newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
+				newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 				err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
 				require.NoError(t, err)
@@ -584,8 +573,8 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		// Merge both config and credentials to simulate handler behavior
-		newDestination.Config = mergeStringMaps(originalDestination.Config, newDestination.Config)
-		newDestination.Credentials = mergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+		newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
 		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "admin"})
 		require.NoError(t, err)

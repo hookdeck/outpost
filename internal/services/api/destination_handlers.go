@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/util/maputil"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
@@ -158,11 +159,11 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	}
 	if input.Config != nil {
 		shouldRevalidate = true
-		updatedDestination.Config = mergeStringMaps(originalDestination.Config, input.Config)
+		updatedDestination.Config = maputil.MergeStringMaps(originalDestination.Config, input.Config)
 	}
 	if input.Credentials != nil {
 		shouldRevalidate = true
-		updatedDestination.Credentials = mergeStringMaps(originalDestination.Credentials, input.Credentials)
+		updatedDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, input.Credentials)
 	}
 
 	// Always preprocess before updating
@@ -337,17 +338,6 @@ type UpdateDestinationRequest struct {
 	Topics      models.Topics      `json:"topics" binding:"-"`
 	Config      map[string]string  `json:"config" binding:"-"`
 	Credentials models.Credentials `json:"credentials" binding:"-"`
-}
-
-func mergeStringMaps(original, input map[string]string) map[string]string {
-	merged := make(map[string]string)
-	for k, v := range original {
-		merged[k] = v
-	}
-	for k, v := range input {
-		merged[k] = v
-	}
-	return merged
 }
 
 func mustRoleFromContext(c *gin.Context) string {
