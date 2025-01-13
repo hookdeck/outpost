@@ -7,18 +7,42 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// validConfig returns a config with all required fields set
+func validConfig() *config.Config {
+	return &config.Config{
+		Redis: &config.RedisConfig{
+			Host: "localhost",
+			Port: 6379,
+		},
+		ClickHouse: &config.ClickHouseConfig{
+			Addr: "localhost:9000",
+		},
+		MQs: &config.MQsConfig{
+			RabbitMQ: &config.RabbitMQConfig{
+				ServerURL:     "amqp://localhost:5672",
+				Exchange:      "outpost",
+				DeliveryQueue: "outpost-delivery",
+				LogQueue:      "outpost-log",
+			},
+		},
+		AESEncryptionSecret: "secret",
+	}
+}
+
 func TestValidateService(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  config.Config
+		config  *config.Config
 		flags   config.Flags
 		wantErr error
 	}{
 		{
-			name: "empty service type becomes flag value",
-			config: config.Config{
-				Service: "",
-			},
+			name: "empty service takes flag value",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Service = ""
+				return c
+			}(),
 			flags: config.Flags{
 				Service: "api",
 			},
@@ -26,9 +50,11 @@ func TestValidateService(t *testing.T) {
 		},
 		{
 			name: "matching service types",
-			config: config.Config{
-				Service: "api",
-			},
+			config: func() *config.Config {
+				c := validConfig()
+				c.Service = "api"
+				return c
+			}(),
 			flags: config.Flags{
 				Service: "api",
 			},
@@ -36,19 +62,23 @@ func TestValidateService(t *testing.T) {
 		},
 		{
 			name: "mismatched service types",
-			config: config.Config{
-				Service: "log",
-			},
+			config: func() *config.Config {
+				c := validConfig()
+				c.Service = "api"
+				return c
+			}(),
 			flags: config.Flags{
-				Service: "api",
+				Service: "delivery",
 			},
 			wantErr: config.ErrMismatchedServiceType,
 		},
 		{
 			name: "invalid service type in flag",
-			config: config.Config{
-				Service: "",
-			},
+			config: func() *config.Config {
+				c := validConfig()
+				c.Service = ""
+				return c
+			}(),
 			flags: config.Flags{
 				Service: "invalid",
 			},
@@ -58,55 +88,199 @@ func TestValidateService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := tt.config // Make a copy to avoid modifying test data
-			err := cfg.Validate(tt.flags)
+			err := tt.config.Validate(tt.flags)
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
 				assert.NoError(t, err)
-				// Check that empty service is set to flag value
+				// If no error, check that service was set correctly
 				if tt.config.Service == "" {
-					assert.Equal(t, tt.flags.Service, cfg.Service)
+					assert.Equal(t, tt.flags.Service, tt.config.Service)
 				}
 			}
 		})
 	}
 }
 
-func TestValidatePortalProxyURL(t *testing.T) {
+func TestRedis(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  config.Config
-		wantErr bool
+		config  *config.Config
+		wantErr error
 	}{
 		{
-			name: "empty url is valid",
-			config: config.Config{
-				PortalProxyURL: "",
-			},
-			wantErr: false,
+			name:    "valid redis config",
+			config:  validConfig(),
+			wantErr: nil,
 		},
 		{
-			name: "valid url",
-			config: config.Config{
-				PortalProxyURL: "http://localhost:3000",
-			},
-			wantErr: false,
+			name: "missing redis config",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Redis = nil
+				return c
+			}(),
+			wantErr: config.ErrMissingRedis,
 		},
 		{
-			name: "invalid url",
-			config: config.Config{
-				PortalProxyURL: "://invalid",
-			},
-			wantErr: true,
+			name: "missing redis host",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Redis.Host = ""
+				return c
+			}(),
+			wantErr: config.ErrMissingRedis,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.config.Validate(config.Flags{})
-			if tt.wantErr {
-				assert.Error(t, err)
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestClickHouse(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  *config.Config
+		wantErr error
+	}{
+		{
+			name:    "valid clickhouse config",
+			config:  validConfig(),
+			wantErr: nil,
+		},
+		{
+			name: "missing clickhouse config",
+			config: func() *config.Config {
+				c := validConfig()
+				c.ClickHouse = nil
+				return c
+			}(),
+			wantErr: config.ErrMissingClickHouse,
+		},
+		{
+			name: "missing clickhouse addr",
+			config: func() *config.Config {
+				c := validConfig()
+				c.ClickHouse.Addr = ""
+				return c
+			}(),
+			wantErr: config.ErrMissingClickHouse,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate(config.Flags{})
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestMQs(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  *config.Config
+		wantErr error
+	}{
+		{
+			name:    "valid mqs config",
+			config:  validConfig(),
+			wantErr: nil,
+		},
+		{
+			name: "missing mqs config",
+			config: func() *config.Config {
+				c := validConfig()
+				c.MQs = nil
+				return c
+			}(),
+			wantErr: config.ErrMissingMQs,
+		},
+		{
+			name: "missing rabbitmq config",
+			config: func() *config.Config {
+				c := validConfig()
+				c.MQs.RabbitMQ = nil
+				return c
+			}(),
+			wantErr: config.ErrMissingMQs,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate(config.Flags{})
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestMisc(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  *config.Config
+		wantErr error
+	}{
+		{
+			name:    "valid aes secret",
+			config:  validConfig(),
+			wantErr: nil,
+		},
+		{
+			name: "missing aes secret",
+			config: func() *config.Config {
+				c := validConfig()
+				c.AESEncryptionSecret = ""
+				return c
+			}(),
+			wantErr: config.ErrMissingAESSecret,
+		},
+		{
+			name:    "valid portal proxy url",
+			config:  validConfig(),
+			wantErr: nil,
+		},
+		{
+			name: "empty portal proxy url is valid",
+			config: func() *config.Config {
+				c := validConfig()
+				c.PortalProxyURL = ""
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "invalid portal proxy url",
+			config: func() *config.Config {
+				c := validConfig()
+				c.PortalProxyURL = "://invalid"
+				return c
+			}(),
+			wantErr: config.ErrInvalidPortalProxyURL,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate(config.Flags{})
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
 				assert.NoError(t, err)
 			}

@@ -121,23 +121,24 @@ func constructServices(
 	wg *sync.WaitGroup,
 	logger *otelzap.Logger,
 ) ([]Service, error) {
+	serviceType := cfg.MustGetService()
 	services := []Service{}
 
-	if cfg.Service == config.ServiceTypeAPI || cfg.Service == config.ServiceTypeSingular {
+	if serviceType == config.ServiceTypeAPI || serviceType == config.ServiceTypeSingular {
 		service, err := api.NewService(ctx, wg, cfg, logger)
 		if err != nil {
 			return nil, err
 		}
 		services = append(services, service)
 	}
-	if cfg.Service == config.ServiceTypeDelivery || cfg.Service == config.ServiceTypeSingular {
+	if serviceType == config.ServiceTypeDelivery || serviceType == config.ServiceTypeSingular {
 		service, err := delivery.NewService(ctx, wg, cfg, logger, nil)
 		if err != nil {
 			return nil, err
 		}
 		services = append(services, service)
 	}
-	if cfg.Service == config.ServiceTypeLog || cfg.Service == config.ServiceTypeSingular {
+	if serviceType == config.ServiceTypeLog || serviceType == config.ServiceTypeSingular {
 		service, err := log.NewService(ctx, wg, cfg, logger, nil)
 		if err != nil {
 			return nil, err

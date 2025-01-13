@@ -22,7 +22,7 @@ import (
 
 type e2eSuite struct {
 	ctx               context.Context
-	config            *config.Config
+	config            config.Config
 	mockServerBaseURL string
 	mockServerInfra   *testinfra.MockServerInfra
 	cleanup           func()
@@ -32,7 +32,7 @@ type e2eSuite struct {
 func (suite *e2eSuite) SetupSuite() {
 	suite.client = httpclient.New(fmt.Sprintf("http://localhost:%d/api/v1", suite.config.Port), suite.config.APIKey)
 	go func() {
-		application := app.New(suite.config)
+		application := app.New(&suite.config)
 		if err := application.Run(suite.ctx); err != nil {
 			log.Println("Application failed to run", err)
 		}
@@ -122,9 +122,13 @@ func (suite *basicSuite) SetupSuite() {
 	t.Cleanup(testinfra.Start(t))
 	gin.SetMode(gin.TestMode)
 	mockServerBaseURL := testinfra.GetMockServer(t)
+
+	cfg := configs.Basic(t)
+	require.NoError(t, cfg.Validate(config.Flags{}))
+
 	suite.e2eSuite = e2eSuite{
 		ctx:               context.Background(),
-		config:            configs.Basic(t),
+		config:            cfg,
 		mockServerBaseURL: mockServerBaseURL,
 		mockServerInfra:   testinfra.NewMockServerInfra(mockServerBaseURL),
 		cleanup:           func() {},

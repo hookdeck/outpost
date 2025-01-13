@@ -50,7 +50,7 @@ func TestDefaultValues(t *testing.T) {
 		envVars: make(map[string]string),
 	}
 
-	cfg, err := config.ParseWithOS(config.Flags{}, mockOS)
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
 	assert.NoError(t, err)
 
 	// Test only fields that have explicit defaults
@@ -84,6 +84,11 @@ redis:
   host: custom.redis.local
   password: custom_secret
   database: 1
+clickhouse:
+  addr: localhost:9000
+  username: default
+  password: secret
+  database: default
 topics:
   - topic1
   - topic2
@@ -100,6 +105,7 @@ log_max_concurrency: 5
 retry_interval_seconds: 60
 max_destinations_per_tenant: 50
 delivery_timeout_seconds: 10
+aes_encryption_secret: test-secret
 `),
 		},
 		envVars: map[string]string{
@@ -107,10 +113,9 @@ delivery_timeout_seconds: 10
 		},
 	}
 
-	cfg, err := config.ParseWithOS(config.Flags{}, mockOS)
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
 	assert.NoError(t, err)
 
-	// Test only overridden values
 	assert.Equal(t, 9090, cfg.Port)
 	assert.Equal(t, "custom.redis.local", cfg.Redis.Host)
 	assert.Equal(t, "custom_secret", cfg.Redis.Password)
@@ -127,6 +132,11 @@ delivery_timeout_seconds: 10
 	assert.Equal(t, 60, cfg.RetryIntervalSeconds)
 	assert.Equal(t, 50, cfg.MaxDestinationsPerTenant)
 	assert.Equal(t, 10, cfg.DeliveryTimeoutSeconds)
+	assert.Equal(t, "test-secret", cfg.AESEncryptionSecret)
+	assert.Equal(t, "localhost:9000", cfg.ClickHouse.Addr)
+	assert.Equal(t, "default", cfg.ClickHouse.Username)
+	assert.Equal(t, "secret", cfg.ClickHouse.Password)
+	assert.Equal(t, "default", cfg.ClickHouse.Database)
 }
 
 func TestConfigFileResolution(t *testing.T) {
@@ -190,9 +200,9 @@ func TestConfigFileResolution(t *testing.T) {
 				envVars: map[string]string{"CONFIG": tt.envPath},
 			}
 
-			cfg, err := config.ParseWithOS(config.Flags{Config: tt.flagPath}, mockOS)
+			cfg, err := config.ParseWithoutValidation(config.Flags{Config: tt.flagPath}, mockOS)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ParseWithOS() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ParseWithoutValidation() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !tt.wantErr && cfg != nil {

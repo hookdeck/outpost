@@ -12,7 +12,7 @@ import (
 	"github.com/hookdeck/outpost/internal/util/testutil"
 )
 
-func Basic(t *testing.T) *config.Config {
+func Basic(t *testing.T) config.Config {
 	// Config
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	clickHouseConfig := testinfra.NewClickHouseConfig(t)
@@ -37,8 +37,8 @@ func Basic(t *testing.T) *config.Config {
 		}
 	})
 
-	return &config.Config{
-		Service:             config.ServiceTypeSingular,
+	return config.Config{
+		Service:             config.ServiceTypeSingular.String(),
 		Port:                testutil.RandomPortNumber(),
 		APIKey:              "apikey",
 		APIJWTSecret:        "jwtsecret",

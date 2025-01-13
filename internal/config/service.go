@@ -36,8 +36,3 @@ func ServiceTypeFromString(s string) (ServiceType, error) {
 	}
 	return ServiceType(-1), ErrInvalidServiceType
 }
-
-// GetService returns the ServiceType for the config
-func (c *Config) GetService() (ServiceType, error) {
-	return ServiceTypeFromString(c.Service)
-}

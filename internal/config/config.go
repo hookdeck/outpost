@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/caarlos0/env/v9"
@@ -34,6 +33,8 @@ func getConfigLocations() []string {
 }
 
 type Config struct {
+	validated bool // tracks whether Validate() has been called successfully
+
 	Service       string               `yaml:"service" env:"SERVICE"`
 	OpenTelemetry *OpenTelemetryConfig `yaml:"open_telemetry"`
 
@@ -102,6 +103,11 @@ type Config struct {
 var (
 	ErrMismatchedServiceType = errors.New("service type mismatch")
 	ErrInvalidServiceType    = errors.New("invalid service type")
+	ErrMissingRedis          = errors.New("redis configuration is required")
+	ErrMissingClickHouse     = errors.New("clickhouse configuration is required")
+	ErrMissingMQs            = errors.New("message queue configuration is required")
+	ErrMissingAESSecret      = errors.New("AES encryption secret is required")
+	ErrInvalidPortalProxyURL = errors.New("invalid portal proxy url")
 )
 
 func (c *Config) initDefaults() {
@@ -202,35 +208,19 @@ func (c *Config) parseEnvVariables(osInterface OSInterface) error {
 	return env.Parse(c)
 }
 
-// Validate checks if the configuration is valid
-func (c *Config) Validate(flags Flags) error {
-	// Parse service type from flag & env
-	flagService, err := ServiceTypeFromString(flags.Service)
-	if err != nil {
-		return err
-	}
+// GetService returns ServiceType with error checking
+func (c *Config) GetService() (ServiceType, error) {
+	return ServiceTypeFromString(c.Service)
+}
 
-	configService, err := c.GetService()
-	if err != nil {
-		return err
+// MustGetService returns ServiceType without error checking - panics if called before validation
+func (c *Config) MustGetService() ServiceType {
+	if !c.validated {
+		panic("MustGetService called before validation")
 	}
-
-	// If service is set in config (via env or file), it must match flag
-	if c.Service != "" && configService != flagService {
-		return ErrMismatchedServiceType
-	}
-
-	// If no service set in config, use flag value
-	if c.Service == "" {
-		c.Service = flags.Service
-	}
-
-	if c.PortalProxyURL != "" {
-		if _, err := url.Parse(c.PortalProxyURL); err != nil {
-			return err
-		}
-	}
-	return nil
+	// We can skip error checking since validation ensures this is valid
+	svc, _ := ServiceTypeFromString(c.Service)
+	return svc
 }
 
 // ParseWithoutValidation parses the config without validation
