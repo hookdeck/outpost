@@ -13,62 +13,58 @@ import (
 )
 
 func Basic(t *testing.T) config.Config {
-	// Config
+	// Get test infrastructure configs
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	clickHouseConfig := testinfra.NewClickHouseConfig(t)
 	rabbitmqServerURL := testinfra.EnsureRabbitMQ()
-	mqsConfig := config.MQsConfig{
-		RabbitMQ: &config.RabbitMQConfig{
-			ServerURL:     rabbitmqServerURL,
-			Exchange:      uuid.New().String(),
-			DeliveryQueue: uuid.New().String(),
-			LogQueue:      uuid.New().String(),
-		},
-		AWSSQS:             &config.AWSSQSConfig{},
-		DeliveryRetryLimit: 5,
-		LogRetryLimit:      5,
-	}
+
+	// Start with defaults
+	c := &config.Config{}
+	c.InitDefaults()
+
+	// Override only what's needed for e2e tests
+	c.Service = config.ServiceTypeSingular.String()
+	c.Port = testutil.RandomPortNumber()
+	c.APIKey = "apikey"
+	c.APIJWTSecret = "jwtsecret"
+	c.AESEncryptionSecret = "encryptionsecret"
+	c.Topics = testutil.TestTopics
+
+	// Infrastructure overrides
+	c.Redis.Host = redisConfig.Host
+	c.Redis.Port = redisConfig.Port
+	c.Redis.Password = redisConfig.Password
+	c.Redis.Database = redisConfig.Database
+
+	c.ClickHouse.Addr = clickHouseConfig.Addr
+	c.ClickHouse.Username = clickHouseConfig.Username
+	c.ClickHouse.Password = clickHouseConfig.Password
+	c.ClickHouse.Database = clickHouseConfig.Database
+
+	// MQ overrides
+	c.MQs.RabbitMQ.ServerURL = rabbitmqServerURL
+	c.MQs.RabbitMQ.Exchange = uuid.New().String()
+	c.MQs.RabbitMQ.DeliveryQueue = uuid.New().String()
+	c.MQs.RabbitMQ.LogQueue = uuid.New().String()
+
+	// Test-specific overrides
+	c.PublishMaxConcurrency = 3
+	c.DeliveryMaxConcurrency = 3
+	c.LogMaxConcurrency = 3
+	c.RetryIntervalSeconds = 1
+	c.RetryMaxLimit = 3
+	c.LogBatcherDelayThresholdSeconds = 1
+	c.LogBatcherItemCountThreshold = 100
+
+	// Setup cleanup
 	t.Cleanup(func() {
 		if err := infra.Teardown(context.Background(), infra.Config{
-			DeliveryMQ: mqsConfig.GetDeliveryQueueConfig(),
-			LogMQ:      mqsConfig.GetLogQueueConfig(),
+			DeliveryMQ: c.MQs.GetDeliveryQueueConfig(),
+			LogMQ:      c.MQs.GetLogQueueConfig(),
 		}); err != nil {
 			log.Println("Teardown failed:", err)
 		}
 	})
 
-	return config.Config{
-		Service:             config.ServiceTypeSingular.String(),
-		Port:                testutil.RandomPortNumber(),
-		APIKey:              "apikey",
-		APIJWTSecret:        "jwtsecret",
-		AESEncryptionSecret: "encryptionsecret",
-		PortalProxyURL:      "",
-		Topics:              testutil.TestTopics,
-		Redis: config.RedisConfig{
-			Host:     redisConfig.Host,
-			Port:     redisConfig.Port,
-			Password: redisConfig.Password,
-			Database: redisConfig.Database,
-		},
-		ClickHouse: config.ClickHouseConfig{
-			Addr:     clickHouseConfig.Addr,
-			Username: clickHouseConfig.Username,
-			Password: clickHouseConfig.Password,
-			Database: clickHouseConfig.Database,
-		},
-		OpenTelemetry:                   config.OpenTelemetryConfig{},
-		PublishMQ:                       nil,
-		MQs:                             mqsConfig,
-		PublishMaxConcurrency:           3,
-		DeliveryMaxConcurrency:          3,
-		LogMaxConcurrency:               3,
-		RetryIntervalSeconds:            1,
-		RetryMaxLimit:                   3,
-		DeliveryTimeoutSeconds:          5,
-		LogBatcherDelayThresholdSeconds: 1,
-		LogBatcherItemCountThreshold:    100,
-		MaxDestinationsPerTenant:        20,
-		DestinationWebhookHeaderPrefix:  "x-outpost-",
-	}
+	return *c
 }
