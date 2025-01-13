@@ -45,21 +45,21 @@ func Basic(t *testing.T) config.Config {
 		AESEncryptionSecret: "encryptionsecret",
 		PortalProxyURL:      "",
 		Topics:              testutil.TestTopics,
-		Redis: &config.RedisConfig{
+		Redis: config.RedisConfig{
 			Host:     redisConfig.Host,
 			Port:     redisConfig.Port,
 			Password: redisConfig.Password,
 			Database: redisConfig.Database,
 		},
-		ClickHouse: &config.ClickHouseConfig{
+		ClickHouse: config.ClickHouseConfig{
 			Addr:     clickHouseConfig.Addr,
 			Username: clickHouseConfig.Username,
 			Password: clickHouseConfig.Password,
 			Database: clickHouseConfig.Database,
 		},
-		OpenTelemetry:                   nil,
+		OpenTelemetry:                   config.OpenTelemetryConfig{},
 		PublishMQ:                       nil,
-		MQs:                             &mqsConfig,
+		MQs:                             mqsConfig,
 		PublishMaxConcurrency:           3,
 		DeliveryMaxConcurrency:          3,
 		LogMaxConcurrency:               3,

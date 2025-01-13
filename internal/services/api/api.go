@@ -75,17 +75,14 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		return nil, err
 	}
 
-	var logStore models.LogStore
-	if cfg.ClickHouse != nil {
-		chDB, err := clickhouse.New(cfg.ClickHouse.ToConfig())
-		if err != nil {
-			return nil, err
-		}
-		logStore = models.NewLogStore(chDB)
+	chDB, err := clickhouse.New(cfg.ClickHouse.ToConfig())
+	if err != nil {
+		return nil, err
 	}
+	logStore := models.NewLogStore(chDB)
 
 	var eventTracer eventtracer.EventTracer
-	if cfg.OpenTelemetry == nil {
+	if cfg.OpenTelemetry.ToConfig() == nil {
 		eventTracer = eventtracer.NewNoopEventTracer()
 	} else {
 		eventTracer = eventtracer.NewEventTracer()

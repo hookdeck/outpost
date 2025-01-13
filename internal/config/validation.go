@@ -34,6 +34,10 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
+	if err := c.OpenTelemetry.Validate(); err != nil {
+		return err
+	}
+
 	// Mark as validated if we get here
 	c.validated = true
 	return nil
@@ -52,8 +56,8 @@ func (c *Config) validateService(flags Flags) error {
 		return err
 	}
 
-	// If service is set in config (via env or file), it must match flag
-	if c.Service != "" && configService != flagService {
+	// If service is set in config, it must match flag (unless flag is empty)
+	if c.Service != "" && flags.Service != "" && configService != flagService {
 		return ErrMismatchedServiceType
 	}
 
@@ -67,7 +71,7 @@ func (c *Config) validateService(flags Flags) error {
 
 // validateRedis validates the Redis configuration
 func (c *Config) validateRedis() error {
-	if c.Redis == nil || c.Redis.Host == "" {
+	if c.Redis.Host == "" {
 		return ErrMissingRedis
 	}
 	return nil
@@ -75,7 +79,7 @@ func (c *Config) validateRedis() error {
 
 // validateClickHouse validates the ClickHouse configuration
 func (c *Config) validateClickHouse() error {
-	if c.ClickHouse == nil || c.ClickHouse.Addr == "" {
+	if c.ClickHouse.Addr == "" {
 		return ErrMissingClickHouse
 	}
 	return nil
@@ -83,19 +87,13 @@ func (c *Config) validateClickHouse() error {
 
 // validateMQs validates the MQs configuration
 func (c *Config) validateMQs() error {
-	if c.MQs == nil || c.MQs.RabbitMQ == nil {
-		return ErrMissingMQs
-	}
-
 	// Check delivery queue
-	deliveryConfig := c.MQs.GetDeliveryQueueConfig()
-	if deliveryConfig == nil {
+	if c.MQs.GetDeliveryQueueConfig() == nil {
 		return ErrMissingMQs
 	}
 
 	// Check log queue
-	logConfig := c.MQs.GetLogQueueConfig()
-	if logConfig == nil {
+	if c.MQs.GetLogQueueConfig() == nil {
 		return ErrMissingMQs
 	}
 

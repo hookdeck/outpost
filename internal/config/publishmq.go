@@ -21,14 +21,11 @@ type PublishRabbitMQConfig struct {
 }
 
 type PublishMQConfig struct {
-	AWSSQS   *PublishAWSSQSConfig   `yaml:"aws_sqs"`
-	RabbitMQ *PublishRabbitMQConfig `yaml:"rabbitmq"`
+	AWSSQS   PublishAWSSQSConfig   `yaml:"aws_sqs"`
+	RabbitMQ PublishRabbitMQConfig `yaml:"rabbitmq"`
 }
 
-func (c *PublishMQConfig) GetInfraType() string {
-	if c == nil {
-		return ""
-	}
+func (c PublishMQConfig) GetInfraType() string {
 	if hasPublishAWSSQSConfig(c.AWSSQS) {
 		return "awssqs"
 	}
@@ -39,10 +36,6 @@ func (c *PublishMQConfig) GetInfraType() string {
 }
 
 func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
-	if c == nil {
-		return nil
-	}
-
 	infraType := c.GetInfraType()
 	switch infraType {
 	case "awssqs":
@@ -68,11 +61,11 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 	}
 }
 
-func hasPublishAWSSQSConfig(config *PublishAWSSQSConfig) bool {
-	return config != nil && config.AccessKeyID != "" &&
+func hasPublishAWSSQSConfig(config PublishAWSSQSConfig) bool {
+	return config.AccessKeyID != "" &&
 		config.SecretAccessKey != "" && config.Region != ""
 }
 
-func hasPublishRabbitMQConfig(config *PublishRabbitMQConfig) bool {
-	return config != nil && config.ServerURL != ""
+func hasPublishRabbitMQConfig(config PublishRabbitMQConfig) bool {
+	return config.ServerURL != ""
 }

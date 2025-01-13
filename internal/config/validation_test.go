@@ -9,24 +9,15 @@ import (
 
 // validConfig returns a config with all required fields set
 func validConfig() *config.Config {
-	return &config.Config{
-		Redis: &config.RedisConfig{
-			Host: "localhost",
-			Port: 6379,
-		},
-		ClickHouse: &config.ClickHouseConfig{
-			Addr: "localhost:9000",
-		},
-		MQs: &config.MQsConfig{
-			RabbitMQ: &config.RabbitMQConfig{
-				ServerURL:     "amqp://localhost:5672",
-				Exchange:      "outpost",
-				DeliveryQueue: "outpost-delivery",
-				LogQueue:      "outpost-log",
-			},
-		},
-		AESEncryptionSecret: "secret",
-	}
+	c := &config.Config{}
+	c.InitDefaults()
+
+	// Override only what's needed for validation
+	c.ClickHouse.Addr = "localhost:9000"
+	c.MQs.RabbitMQ.ServerURL = "amqp://localhost:5672"
+	c.AESEncryptionSecret = "secret"
+
+	return c
 }
 
 func TestValidateService(t *testing.T) {
@@ -57,6 +48,18 @@ func TestValidateService(t *testing.T) {
 			}(),
 			flags: config.Flags{
 				Service: "api",
+			},
+			wantErr: nil,
+		},
+		{
+			name: "config service with empty flag service is valid",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Service = "api"
+				return c
+			}(),
+			flags: config.Flags{
+				Service: "",
 			},
 			wantErr: nil,
 		},
@@ -117,7 +120,7 @@ func TestRedis(t *testing.T) {
 			name: "missing redis config",
 			config: func() *config.Config {
 				c := validConfig()
-				c.Redis = nil
+				c.Redis = config.RedisConfig{}
 				return c
 			}(),
 			wantErr: config.ErrMissingRedis,
@@ -160,7 +163,7 @@ func TestClickHouse(t *testing.T) {
 			name: "missing clickhouse config",
 			config: func() *config.Config {
 				c := validConfig()
-				c.ClickHouse = nil
+				c.ClickHouse = config.ClickHouseConfig{}
 				return c
 			}(),
 			wantErr: config.ErrMissingClickHouse,
@@ -203,16 +206,7 @@ func TestMQs(t *testing.T) {
 			name: "missing mqs config",
 			config: func() *config.Config {
 				c := validConfig()
-				c.MQs = nil
-				return c
-			}(),
-			wantErr: config.ErrMissingMQs,
-		},
-		{
-			name: "missing rabbitmq config",
-			config: func() *config.Config {
-				c := validConfig()
-				c.MQs.RabbitMQ = nil
+				c.MQs = config.MQsConfig{}
 				return c
 			}(),
 			wantErr: config.ErrMissingMQs,
@@ -273,6 +267,87 @@ func TestMisc(t *testing.T) {
 				return c
 			}(),
 			wantErr: config.ErrInvalidPortalProxyURL,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate(config.Flags{})
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestOpenTelemetry(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  *config.Config
+		wantErr error
+	}{
+		{
+			name:    "empty config is valid",
+			config:  validConfig(),
+			wantErr: nil,
+		},
+		{
+			name: "valid grpc protocol",
+			config: func() *config.Config {
+				c := validConfig()
+				c.OpenTelemetry = config.OpenTelemetryConfig{
+					ServiceName: "test",
+					Traces: config.OpenTelemetryTypeConfig{
+						Protocol: "grpc",
+					},
+				}
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "valid http protocol",
+			config: func() *config.Config {
+				c := validConfig()
+				c.OpenTelemetry = config.OpenTelemetryConfig{
+					ServiceName: "test",
+					Traces: config.OpenTelemetryTypeConfig{
+						Protocol: "http",
+					},
+				}
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "invalid protocol",
+			config: func() *config.Config {
+				c := validConfig()
+				c.OpenTelemetry = config.OpenTelemetryConfig{
+					ServiceName: "test",
+					Traces: config.OpenTelemetryTypeConfig{
+						Protocol: "invalid",
+					},
+				}
+				return c
+			}(),
+			wantErr: config.ErrInvalidOTelProtocol,
+		},
+		{
+			name: "empty service name disables OpenTelemetry",
+			config: func() *config.Config {
+				c := validConfig()
+				c.OpenTelemetry = config.OpenTelemetryConfig{
+					ServiceName: "",
+					Traces: config.OpenTelemetryTypeConfig{
+						Protocol: "invalid", // Even invalid protocol should be ok when disabled
+					},
+				}
+				return c
+			}(),
+			wantErr: nil,
 		},
 	}
 

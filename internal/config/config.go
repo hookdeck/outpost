@@ -35,8 +35,8 @@ func getConfigLocations() []string {
 type Config struct {
 	validated bool // tracks whether Validate() has been called successfully
 
-	Service       string               `yaml:"service" env:"SERVICE"`
-	OpenTelemetry *OpenTelemetryConfig `yaml:"open_telemetry"`
+	Service       string              `yaml:"service" env:"SERVICE"`
+	OpenTelemetry OpenTelemetryConfig `yaml:"open_telemetry"`
 
 	// API
 	Port         int    `yaml:"port" env:"PORT"`
@@ -48,12 +48,12 @@ type Config struct {
 	Topics              []string `yaml:"topics" env:"TOPICS" envSeparator:","`
 
 	// Infrastructure
-	Redis      *RedisConfig      `yaml:"redis"`
-	ClickHouse *ClickHouseConfig `yaml:"clickhouse"`
-	MQs        *MQsConfig        `yaml:"mqs"`
+	Redis      RedisConfig      `yaml:"redis"`
+	ClickHouse ClickHouseConfig `yaml:"clickhouse"`
+	MQs        MQsConfig        `yaml:"mqs"`
 
 	// PublishMQ
-	PublishMQ *PublishMQConfig `yaml:"publishmq"`
+	PublishMQ PublishMQConfig `yaml:"publishmq"`
 
 	// Consumers
 	PublishMaxConcurrency  int `yaml:"publish_max_concurrency" env:"PUBLISH_MAX_CONCURRENCY"`
@@ -101,24 +101,32 @@ type Config struct {
 }
 
 var (
-	ErrMismatchedServiceType = errors.New("service type mismatch")
-	ErrInvalidServiceType    = errors.New("invalid service type")
-	ErrMissingRedis          = errors.New("redis configuration is required")
-	ErrMissingClickHouse     = errors.New("clickhouse configuration is required")
-	ErrMissingMQs            = errors.New("message queue configuration is required")
-	ErrMissingAESSecret      = errors.New("AES encryption secret is required")
-	ErrInvalidPortalProxyURL = errors.New("invalid portal proxy url")
+	ErrMismatchedServiceType = errors.New("config validation error: service type mismatch")
+	ErrInvalidServiceType    = errors.New("config validation error: invalid service type")
+	ErrMissingRedis          = errors.New("config validation error: redis configuration is required")
+	ErrMissingClickHouse     = errors.New("config validation error: clickhouse configuration is required")
+	ErrMissingMQs            = errors.New("config validation error: message queue configuration is required")
+	ErrMissingAESSecret      = errors.New("config validation error: AES encryption secret is required")
+	ErrInvalidPortalProxyURL = errors.New("config validation error: invalid portal proxy url")
 )
 
-func (c *Config) initDefaults() {
+func (c *Config) InitDefaults() {
 	c.Port = 3333
-	c.Redis = &RedisConfig{
+	c.OpenTelemetry = OpenTelemetryConfig{}
+	c.Redis = RedisConfig{
 		Host: "127.0.0.1",
 		Port: 6379,
 	}
-	c.MQs = &MQsConfig{
-		RabbitMQ: &RabbitMQConfig{
+	c.ClickHouse = ClickHouseConfig{
+		Database: "outpost",
+	}
+	c.MQs = MQsConfig{
+		RabbitMQ: RabbitMQConfig{
 			Exchange:      "outpost",
+			DeliveryQueue: "outpost-delivery",
+			LogQueue:      "outpost-log",
+		},
+		AWSSQS: AWSSQSConfig{
 			DeliveryQueue: "outpost-delivery",
 			LogQueue:      "outpost-log",
 		},
@@ -228,7 +236,7 @@ func ParseWithoutValidation(flags Flags, osInterface OSInterface) (*Config, erro
 	var config Config
 
 	// Initialize defaults
-	config.initDefaults()
+	config.InitDefaults()
 
 	// Parse config file (lower priority)
 	if err := config.parseConfigFile(flags.Config, osInterface); err != nil {

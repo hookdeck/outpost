@@ -37,10 +37,6 @@ func NewService(ctx context.Context,
 	logger *otelzap.Logger,
 	handler consumer.MessageHandler,
 ) (*LogService, error) {
-	if cfg.ClickHouse == nil {
-		return nil, errors.New("missing clickhouse configuration")
-	}
-
 	wg.Add(1)
 
 	redisClient, err := redis.New(ctx, cfg.Redis.ToConfig())

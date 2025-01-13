@@ -24,16 +24,13 @@ type RabbitMQConfig struct {
 }
 
 type MQsConfig struct {
-	AWSSQS             *AWSSQSConfig   `yaml:"aws_sqs"`
-	RabbitMQ           *RabbitMQConfig `yaml:"rabbitmq"`
-	DeliveryRetryLimit int             `yaml:"delivery_retry_limit" env:"DELIVERY_RETRY_LIMIT"`
-	LogRetryLimit      int             `yaml:"log_retry_limit" env:"LOG_RETRY_LIMIT"`
+	AWSSQS             AWSSQSConfig   `yaml:"aws_sqs"`
+	RabbitMQ           RabbitMQConfig `yaml:"rabbitmq"`
+	DeliveryRetryLimit int            `yaml:"delivery_retry_limit" env:"DELIVERY_RETRY_LIMIT"`
+	LogRetryLimit      int            `yaml:"log_retry_limit" env:"LOG_RETRY_LIMIT"`
 }
 
-func (c *MQsConfig) GetInfraType() string {
-	if c == nil {
-		return ""
-	}
+func (c MQsConfig) GetInfraType() string {
 	if hasAWSSQSConfig(c.AWSSQS) {
 		return "awssqs"
 	}
@@ -73,10 +70,7 @@ func (c *MQsConfig) getQueueConfig(queueName string) *mqs.QueueConfig {
 	}
 }
 
-func (c *MQsConfig) GetDeliveryQueueConfig() *mqs.QueueConfig {
-	if c == nil {
-		return nil
-	}
+func (c MQsConfig) GetDeliveryQueueConfig() *mqs.QueueConfig {
 	infraType := c.GetInfraType()
 	switch infraType {
 	case "awssqs":
@@ -88,10 +82,7 @@ func (c *MQsConfig) GetDeliveryQueueConfig() *mqs.QueueConfig {
 	}
 }
 
-func (c *MQsConfig) GetLogQueueConfig() *mqs.QueueConfig {
-	if c == nil {
-		return nil
-	}
+func (c MQsConfig) GetLogQueueConfig() *mqs.QueueConfig {
 	infraType := c.GetInfraType()
 	switch infraType {
 	case "awssqs":
@@ -104,11 +95,11 @@ func (c *MQsConfig) GetLogQueueConfig() *mqs.QueueConfig {
 }
 
 // Helper functions to check for required fields
-func hasAWSSQSConfig(config *AWSSQSConfig) bool {
-	return config != nil && config.AccessKeyID != "" &&
+func hasAWSSQSConfig(config AWSSQSConfig) bool {
+	return config.AccessKeyID != "" &&
 		config.SecretAccessKey != "" && config.Region != ""
 }
 
-func hasRabbitMQConfig(config *RabbitMQConfig) bool {
-	return config != nil && config.ServerURL != ""
+func hasRabbitMQConfig(config RabbitMQConfig) bool {
+	return config.ServerURL != ""
 }

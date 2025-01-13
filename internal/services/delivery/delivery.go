@@ -82,7 +82,7 @@ func NewService(ctx context.Context,
 			return nil, err
 		}
 		var eventTracer eventtracer.EventTracer
-		if cfg.OpenTelemetry == nil {
+		if cfg.OpenTelemetry.ToConfig() == nil {
 			eventTracer = eventtracer.NewNoopEventTracer()
 		} else {
 			eventTracer = eventtracer.NewEventTracer()
