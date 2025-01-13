@@ -289,3 +289,39 @@ func TestConfigPrecedence(t *testing.T) {
 		})
 	}
 }
+
+func TestMixedYAMLAndEnvConfig(t *testing.T) {
+	yamlConfig := `
+mqs:
+  delivery_retry_limit: 10
+  log_retry_limit: 15
+  rabbitmq:
+    exchange: custom-exchange
+`
+	mockOS := &mockOS{
+		files: map[string][]byte{
+			"config.yaml": []byte(yamlConfig),
+		},
+		envVars: map[string]string{
+			"CONFIG":                  "config.yaml",
+			"RABBITMQ_SERVER_URL":     "amqp://user:pass@host:5672",
+			"RABBITMQ_DELIVERY_QUEUE": "env-delivery-queue",
+			"RABBITMQ_EXCHANGE":       "env-exchange",
+		},
+	}
+
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+	assert.NoError(t, err)
+
+	// Values from YAML
+	assert.Equal(t, 10, cfg.MQs.DeliveryRetryLimit)
+	assert.Equal(t, 15, cfg.MQs.LogRetryLimit)
+
+	// Values from env should override YAML
+	assert.Equal(t, "env-exchange", cfg.MQs.RabbitMQ.Exchange)
+	assert.Equal(t, "amqp://user:pass@host:5672", cfg.MQs.RabbitMQ.ServerURL)
+	assert.Equal(t, "env-delivery-queue", cfg.MQs.RabbitMQ.DeliveryQueue)
+
+	// Default values should still be present for unset fields
+	assert.Equal(t, "outpost-log", cfg.MQs.RabbitMQ.LogQueue) // from InitDefaults
+}
