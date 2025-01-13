@@ -254,7 +254,7 @@ func TestMisc(t *testing.T) {
 			name: "empty portal proxy url is valid",
 			config: func() *config.Config {
 				c := validConfig()
-				c.PortalProxyURL = ""
+				c.Portal.ProxyURL = ""
 				return c
 			}(),
 			wantErr: nil,
@@ -263,7 +263,7 @@ func TestMisc(t *testing.T) {
 			name: "invalid portal proxy url",
 			config: func() *config.Config {
 				c := validConfig()
-				c.PortalProxyURL = "://invalid"
+				c.Portal.ProxyURL = "://invalid"
 				return c
 			}(),
 			wantErr: config.ErrInvalidPortalProxyURL,

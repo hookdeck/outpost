@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -45,22 +43,10 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	wg.Add(1)
 
 	registry := destregistry.NewRegistry(&destregistry.Config{
-		DestinationMetadataPath: cfg.DestinationMetadataPath,
+		DestinationMetadataPath: cfg.Destinations.MetadataPath,
 		DeliveryTimeout:         time.Duration(cfg.DeliveryTimeoutSeconds) * time.Second,
 	}, logger)
-	if err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
-		Webhook: &destregistrydefault.DestWebhookConfig{
-			HeaderPrefix:                  cfg.DestinationWebhookHeaderPrefix,
-			DisableDefaultEventIDHeader:   cfg.DestinationWebhookDisableDefaultEventIDHeader,
-			DisableDefaultSignatureHeader: cfg.DestinationWebhookDisableDefaultSignatureHeader,
-			DisableDefaultTimestampHeader: cfg.DestinationWebhookDisableDefaultTimestampHeader,
-			DisableDefaultTopicHeader:     cfg.DestinationWebhookDisableDefaultTopicHeader,
-			SignatureContentTemplate:      cfg.DestinationWebhookSignatureContentTemplate,
-			SignatureHeaderTemplate:       cfg.DestinationWebhookSignatureHeaderTemplate,
-			SignatureEncoding:             cfg.DestinationWebhookSignatureEncoding,
-			SignatureAlgorithm:            cfg.DestinationWebhookSignatureAlgorithm,
-		},
-	}); err != nil {
+	if err := destregistrydefault.RegisterDefault(registry, cfg.Destinations.ToConfig()); err != nil {
 		return nil, err
 	}
 
@@ -95,23 +81,12 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer, cfg.Topics)
 	router := NewRouter(
 		RouterConfig{
-			ServiceName:    cfg.OpenTelemetry.GetServiceName(),
-			APIKey:         cfg.APIKey,
-			JWTSecret:      cfg.APIJWTSecret,
-			PortalProxyURL: cfg.PortalProxyURL,
-			Topics:         cfg.Topics,
-			Registry:       registry,
-		},
-		map[string]string{
-			"PROXY_URL":                cfg.PortalProxyURL,
-			"REFERER_URL":              cfg.PortalRefererURL,
-			"FAVICON_URL":              cfg.PortalFaviconURL,
-			"LOGO":                     cfg.PortalLogo,
-			"ORGANIZATION_NAME":        cfg.PortalOrgName,
-			"FORCE_THEME":              cfg.PortalForceTheme,
-			"TOPICS":                   strings.Join(cfg.Topics, ","),
-			"DISABLE_OUTPOST_BRANDING": strconv.FormatBool(cfg.PortalDisableOutpostBranding),
-			"DISABLE_TELEMETRY":        strconv.FormatBool(cfg.DisableTelemetry),
+			ServiceName:  cfg.OpenTelemetry.GetServiceName(),
+			APIKey:       cfg.APIKey,
+			JWTSecret:    cfg.APIJWTSecret,
+			Topics:       cfg.Topics,
+			Registry:     registry,
+			PortalConfig: cfg.GetPortalConfig(),
 		},
 		logger,
 		redisClient,

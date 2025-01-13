@@ -44,12 +44,12 @@ type RouteDefinition struct {
 }
 
 type RouterConfig struct {
-	ServiceName    string
-	APIKey         string
-	JWTSecret      string
-	PortalProxyURL string
-	Topics         []string
-	Registry       destregistry.Registry
+	ServiceName  string
+	APIKey       string
+	JWTSecret    string
+	Topics       []string
+	Registry     destregistry.Registry
+	PortalConfig portal.PortalConfig
 }
 
 type routeDefinition struct {
@@ -106,7 +106,6 @@ func buildMiddlewareChain(cfg RouterConfig, def RouteDefinition) []gin.HandlerFu
 
 func NewRouter(
 	cfg RouterConfig,
-	portalConfigs map[string]string,
 	logger *otelzap.Logger,
 	redisClient *redis.Client,
 	deliveryMQ *deliverymq.DeliveryMQ,
@@ -130,10 +129,7 @@ func NewRouter(
 	r.Use(MetricsMiddleware())
 	r.Use(ErrorHandlerMiddleware(logger))
 
-	portal.AddRoutes(r, portal.PortalConfig{
-		ProxyURL: cfg.PortalProxyURL,
-		Configs:  portalConfigs,
-	})
+	portal.AddRoutes(r, cfg.PortalConfig)
 
 	apiRouter := r.Group("/api/v1")
 	apiRouter.Use(SetTenantIDMiddleware())

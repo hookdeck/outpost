@@ -30,7 +30,7 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
-	if err := c.validatePortalProxyURL(); err != nil {
+	if err := c.validatePortal(); err != nil {
 		return err
 	}
 
@@ -109,9 +109,9 @@ func (c *Config) validateAESEncryptionSecret() error {
 }
 
 // validatePortalProxyURL validates the portal proxy URL if set
-func (c *Config) validatePortalProxyURL() error {
-	if c.PortalProxyURL != "" {
-		if _, err := url.Parse(c.PortalProxyURL); err != nil {
+func (c *Config) validatePortal() error {
+	if c.Portal.ProxyURL != "" {
+		if _, err := url.Parse(c.Portal.ProxyURL); err != nil {
 			return ErrInvalidPortalProxyURL
 		}
 	}

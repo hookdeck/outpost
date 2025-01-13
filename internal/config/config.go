@@ -77,27 +77,11 @@ type Config struct {
 
 	DisableTelemetry bool `yaml:"disable_telemetry" env:"DISABLE_TELEMETRY"`
 
-	// Destwebhook
-	DestinationWebhookHeaderPrefix                  string `yaml:"destination_webhook_header_prefix" env:"DESTINATION_WEBHOOK_HEADER_PREFIX"`
-	DestinationWebhookDisableDefaultEventIDHeader   bool   `yaml:"destination_webhook_disable_default_event_id_header" env:"DESTINATION_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER"`
-	DestinationWebhookDisableDefaultSignatureHeader bool   `yaml:"destination_webhook_disable_default_signature_header" env:"DESTINATION_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER"`
-	DestinationWebhookDisableDefaultTimestampHeader bool   `yaml:"destination_webhook_disable_default_timestamp_header" env:"DESTINATION_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER"`
-	DestinationWebhookDisableDefaultTopicHeader     bool   `yaml:"destination_webhook_disable_default_topic_header" env:"DESTINATION_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER"`
-	DestinationWebhookSignatureContentTemplate      string `yaml:"destination_webhook_signature_content_template" env:"DESTINATION_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE"`
-	DestinationWebhookSignatureHeaderTemplate       string `yaml:"destination_webhook_signature_header_template" env:"DESTINATION_WEBHOOK_SIGNATURE_HEADER_TEMPLATE"`
-	DestinationWebhookSignatureEncoding             string `yaml:"destination_webhook_signature_encoding" env:"DESTINATION_WEBHOOK_SIGNATURE_ENCODING"`
-	DestinationWebhookSignatureAlgorithm            string `yaml:"destination_webhook_signature_algorithm" env:"DESTINATION_WEBHOOK_SIGNATURE_ALGORITHM"`
+	// Destinations
+	Destinations DestinationsConfig `yaml:"destinations"`
 
-	// Portal config
-	PortalRefererURL             string `yaml:"portal_referer_url" env:"PORTAL_REFERER_URL"`
-	PortalFaviconURL             string `yaml:"portal_favicon_url" env:"PORTAL_FAVICON_URL"`
-	PortalLogo                   string `yaml:"portal_logo" env:"PORTAL_LOGO"`
-	PortalOrgName                string `yaml:"portal_org_name" env:"PORTAL_ORGANIZATION_NAME"`
-	PortalForceTheme             string `yaml:"portal_force_theme" env:"PORTAL_FORCE_THEME"`
-	PortalDisableOutpostBranding bool   `yaml:"portal_disable_outpost_branding" env:"PORTAL_DISABLE_OUTPOST_BRANDING"`
-
-	// Dev
-	PortalProxyURL string `yaml:"portal_proxy_url" env:"PORTAL_PROXY_URL"`
+	// Portal
+	Portal PortalConfig `yaml:"portal"`
 }
 
 var (
@@ -140,10 +124,16 @@ func (c *Config) InitDefaults() {
 	c.RetryMaxLimit = 10
 	c.MaxDestinationsPerTenant = 20
 	c.DeliveryTimeoutSeconds = 5
-	c.DestinationMetadataPath = "config/outpost/destinations"
 	c.LogBatcherDelayThresholdSeconds = 10
 	c.LogBatcherItemCountThreshold = 1000
-	c.DestinationWebhookHeaderPrefix = "x-outpost-"
+
+	// Set defaults for Destinations config
+	c.Destinations = DestinationsConfig{
+		MetadataPath: "config/outpost/destinations",
+		Webhook: DestinationWebhookConfig{
+			HeaderPrefix: "x-outpost-",
+		},
+	}
 }
 
 func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error {

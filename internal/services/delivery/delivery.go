@@ -63,22 +63,10 @@ func NewService(ctx context.Context,
 
 	if handler == nil {
 		registry := destregistry.NewRegistry(&destregistry.Config{
-			DestinationMetadataPath: cfg.DestinationMetadataPath,
+			DestinationMetadataPath: cfg.Destinations.MetadataPath,
 			DeliveryTimeout:         time.Duration(cfg.DeliveryTimeoutSeconds) * time.Second,
 		}, logger)
-		if err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
-			Webhook: &destregistrydefault.DestWebhookConfig{
-				HeaderPrefix:                  cfg.DestinationWebhookHeaderPrefix,
-				DisableDefaultEventIDHeader:   cfg.DestinationWebhookDisableDefaultEventIDHeader,
-				DisableDefaultSignatureHeader: cfg.DestinationWebhookDisableDefaultSignatureHeader,
-				DisableDefaultTimestampHeader: cfg.DestinationWebhookDisableDefaultTimestampHeader,
-				DisableDefaultTopicHeader:     cfg.DestinationWebhookDisableDefaultTopicHeader,
-				SignatureContentTemplate:      cfg.DestinationWebhookSignatureContentTemplate,
-				SignatureHeaderTemplate:       cfg.DestinationWebhookSignatureHeaderTemplate,
-				SignatureEncoding:             cfg.DestinationWebhookSignatureEncoding,
-				SignatureAlgorithm:            cfg.DestinationWebhookSignatureAlgorithm,
-			},
-		}); err != nil {
+		if err := destregistrydefault.RegisterDefault(registry, cfg.Destinations.ToConfig()); err != nil {
 			return nil, err
 		}
 		var eventTracer eventtracer.EventTracer
