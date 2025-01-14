@@ -70,8 +70,8 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, 20, cfg.MaxDestinationsPerTenant)
 	assert.Equal(t, 5, cfg.DeliveryTimeoutSeconds)
 	assert.Equal(t, "config/outpost/destinations", cfg.Destinations.MetadataPath)
-	assert.Equal(t, 10, cfg.LogBatcherDelayThresholdSeconds)
-	assert.Equal(t, 1000, cfg.LogBatcherItemCountThreshold)
+	assert.Equal(t, 10, cfg.LogBatchThresholdSeconds)
+	assert.Equal(t, 1000, cfg.LogBatchSize)
 	assert.Equal(t, "x-outpost-", cfg.Destinations.Webhook.HeaderPrefix)
 }
 

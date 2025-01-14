@@ -73,8 +73,8 @@ delivery_max_concurrency: 1 # Max number of delivery messages to process concurr
 log_max_concurrency: 1 # Max number of log messages to process concurrently
 
 ## Log Batcher
-log_batcher_delay_threshold_seconds: 10 # Delay threshold for batching logs
-log_batcher_item_count_threshold: 1000 # Item count threshold for batching
+log_batch_threshold_seconds: 10 # Time to wait before sending a batch of logs (env: LOG_BATCH_THRESHOLD_SECONDS)
+log_batch_size: 1000 # Maximum number of logs to include in a batch (env: LOG_BATCH_SIZE)
 
 ## Portal
 portal:

@@ -72,8 +72,8 @@ type Config struct {
 	DestinationMetadataPath string `yaml:"destination_metadata_path" env:"DESTINATION_METADATA_PATH"`
 
 	// Log batcher configuration
-	LogBatcherDelayThresholdSeconds int `yaml:"log_batcher_delay_threshold_seconds" env:"LOG_BATCH_THRESHOLD_SECONDS"`
-	LogBatcherItemCountThreshold    int `yaml:"log_batcher_item_count_threshold" env:"LOG_BATCH_SIZE"`
+	LogBatchThresholdSeconds int `yaml:"log_batch_threshold_seconds" env:"LOG_BATCH_THRESHOLD_SECONDS"`
+	LogBatchSize             int `yaml:"log_batch_size" env:"LOG_BATCH_SIZE"`
 
 	DisableTelemetry bool `yaml:"disable_telemetry" env:"DISABLE_TELEMETRY"`
 
@@ -124,8 +124,8 @@ func (c *Config) InitDefaults() {
 	c.RetryMaxLimit = 10
 	c.MaxDestinationsPerTenant = 20
 	c.DeliveryTimeoutSeconds = 5
-	c.LogBatcherDelayThresholdSeconds = 10
-	c.LogBatcherItemCountThreshold = 1000
+	c.LogBatchThresholdSeconds = 10
+	c.LogBatchSize = 1000
 
 	// Set defaults for Destinations config
 	c.Destinations = DestinationsConfig{

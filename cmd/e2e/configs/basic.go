@@ -53,8 +53,8 @@ func Basic(t *testing.T) config.Config {
 	c.LogMaxConcurrency = 3
 	c.RetryIntervalSeconds = 1
 	c.RetryMaxLimit = 3
-	c.LogBatcherDelayThresholdSeconds = 1
-	c.LogBatcherItemCountThreshold = 100
+	c.LogBatchThresholdSeconds = 1
+	c.LogBatchSize = 100
 
 	// Setup cleanup
 	t.Cleanup(func() {

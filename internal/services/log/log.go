@@ -53,8 +53,8 @@ func NewService(ctx context.Context,
 	var deliveryBatcher *batcher.Batcher[*models.Delivery]
 	if handler == nil {
 		batcherCfg := batcherConfig{
-			ItemCountThreshold: cfg.LogBatcherItemCountThreshold,
-			DelayThreshold:     time.Duration(cfg.LogBatcherDelayThresholdSeconds) * time.Second,
+			ItemCountThreshold: cfg.LogBatchSize,
+			DelayThreshold:     time.Duration(cfg.LogBatchThresholdSeconds) * time.Second,
 		}
 		batcher, err := makeBatcher(ctx, logger, models.NewLogStore(chDB), batcherCfg)
 		if err != nil {
