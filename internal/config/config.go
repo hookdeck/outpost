@@ -36,7 +36,7 @@ type Config struct {
 	validated bool // tracks whether Validate() has been called successfully
 
 	Service       string              `yaml:"service" env:"SERVICE"`
-	OpenTelemetry OpenTelemetryConfig `yaml:"open_telemetry"`
+	OpenTelemetry OpenTelemetryConfig `yaml:"otel"`
 
 	// API
 	APIPort      int    `yaml:"api_port" env:"API_PORT"`
