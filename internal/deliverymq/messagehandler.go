@@ -188,20 +188,20 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 
 		if h.shouldScheduleRetry(deliveryEvent, err) {
 			if retryErr := h.scheduleRetry(ctx, deliveryEvent); retryErr != nil {
-				return h.logDeliveryResult(ctx, deliveryEvent, errors.Join(err, retryErr))
+				return h.logDeliveryResult(ctx, &deliveryEvent, errors.Join(err, retryErr))
 			}
 		}
-		return h.logDeliveryResult(ctx, deliveryEvent, deliveryErr)
+		return h.logDeliveryResult(ctx, &deliveryEvent, deliveryErr)
 	}
 
 	// Handle successful delivery
 	if deliveryEvent.Manual {
 		if err := h.retryScheduler.Cancel(ctx, deliveryEvent.GetRetryID()); err != nil {
 			h.logger.Ctx(ctx).Error("failed to cancel scheduled retry", zap.Error(err))
-			return h.logDeliveryResult(ctx, deliveryEvent, err)
+			return h.logDeliveryResult(ctx, &deliveryEvent, err)
 		}
 	}
-	return h.logDeliveryResult(ctx, deliveryEvent, nil)
+	return h.logDeliveryResult(ctx, &deliveryEvent, nil)
 }
 
 func (h *messageHandler) hasDeliveryError(err error) bool {
@@ -209,7 +209,7 @@ func (h *messageHandler) hasDeliveryError(err error) bool {
 	return errors.As(err, &delErr)
 }
 
-func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent models.DeliveryEvent, err error) error {
+func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent *models.DeliveryEvent, err error) error {
 	// Set up delivery record
 	deliveryEvent.Delivery = &models.Delivery{
 		ID:              uuid.New().String(),
@@ -227,7 +227,7 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent mo
 	}
 
 	// Publish delivery log
-	if logErr := h.logMQ.Publish(ctx, deliveryEvent); logErr != nil {
+	if logErr := h.logMQ.Publish(ctx, *deliveryEvent); logErr != nil {
 		h.logger.Ctx(ctx).Error("failed to publish delivery log", zap.Error(logErr))
 		if err != nil {
 			return &PostDeliveryError{err: errors.Join(err, logErr)}

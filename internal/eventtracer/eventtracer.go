@@ -75,12 +75,24 @@ func (d *DeliverSpan) End(options ...trace.SpanEndOption) {
 		d.Span.End(options...)
 		return
 	}
-	startTime, err := time.Parse(time.RFC3339Nano, d.deliveryEvent.Event.Telemetry.ReceivedTime)
-	if err == nil {
-		d.emeter.DeliveryLatency(context.Background(),
-			time.Since(startTime),
-			emetrics.DeliveryLatencyOpts{Type: "TODO"})
+	if d.deliveryEvent.Delivery == nil {
+		d.Span.End(options...)
+		return
 	}
+
+	ok := d.deliveryEvent.Delivery.Status == models.DeliveryStatusOK
+	startTime, err := time.Parse(time.RFC3339Nano, d.deliveryEvent.Event.Telemetry.ReceivedTime)
+	if err != nil {
+		// TODO: handle error?
+		d.Span.End(options...)
+		return
+	}
+
+	d.emeter.DeliveryLatency(context.Background(),
+		time.Since(startTime),
+		emetrics.DeliveryLatencyOpts{Type: "TODO"})
+	d.emeter.EventDelivered(context.Background(), d.deliveryEvent, ok)
+
 	d.Span.End(options...)
 }
 

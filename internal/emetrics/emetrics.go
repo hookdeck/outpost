@@ -117,7 +117,7 @@ func (e *emetricsImpl) EventPublished(ctx context.Context, event *models.Event) 
 }
 
 func (e *emetricsImpl) EventEligbible(ctx context.Context, event *models.Event) {
-	e.eventPublishedCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("topic", event.Topic)))
+	e.eventEligibleCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("topic", event.Topic)))
 }
 
 func (e *emetricsImpl) APIResponseLatency(ctx context.Context, latency time.Duration, opts APIResponseLatencyOpts) {
