@@ -325,3 +325,61 @@ mqs:
 	// Default values should still be present for unset fields
 	assert.Equal(t, "outpost-log", cfg.MQs.RabbitMQ.LogQueue) // from InitDefaults
 }
+
+func TestDestinationConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		files   map[string][]byte
+		envVars map[string]string
+		want    string // expected header prefix
+	}{
+		{
+			name:    "default header prefix",
+			files:   map[string][]byte{},
+			envVars: map[string]string{},
+			want:    "x-outpost-",
+		},
+		{
+			name: "yaml config header prefix",
+			files: map[string][]byte{
+				"config.yaml": []byte(`
+destinations:
+  webhook:
+    header_prefix: "x-custom-"
+`),
+			},
+			envVars: map[string]string{
+				"CONFIG": "config.yaml",
+			},
+			want: "x-custom-",
+		},
+		{
+			name: "env overrides yaml config",
+			files: map[string][]byte{
+				"config.yaml": []byte(`
+destinations:
+  webhook:
+    header_prefix: "x-custom-"
+`),
+			},
+			envVars: map[string]string{
+				"CONFIG":                             "config.yaml",
+				"DESTINATIONS_WEBHOOK_HEADER_PREFIX": "x-env-",
+			},
+			want: "x-env-",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{
+				files:   tt.files,
+				envVars: tt.envVars,
+			}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Destinations.Webhook.HeaderPrefix)
+		})
+	}
+}
