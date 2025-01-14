@@ -17,37 +17,25 @@ services:
       aws:
         condition: service_healthy
     environment:
-      - "DELIVERY_AWS_SQS_ENDPOINT=http://aws:4566"
-      - "DELIVERY_AWS_SQS_REGION=eu-central-1"
-      - "DELIVERY_AWS_SQS_SERVICE_ACCOUNT_CREDS=test:test:"
-      - "DELIVERY_AWS_SQS_TOPIC=outpost_delivery"
-      - "LOG_AWS_SQS_ENDPOINT=http://aws:4566"
-      - "LOG_AWS_SQS_REGION=eu-central-1"
-      - "LOG_AWS_SQS_SERVICE_ACCOUNT_CREDS=test:test:"
-      - "LOG_AWS_SQS_TOPIC=outpost_log"
+      - AWS_SQS_ENDPOINT=http://aws:4566
+      - AWS_SQS_REGION=us-east-1
+      - AWS_SQS_ACCESS_KEY_ID=test
+      - AWS_SQS_SECRET_ACCESS_KEY=test
   delivery:
     depends_on:
       aws:
         condition: service_healthy
     environment:
-      - "DELIVERY_AWS_SQS_ENDPOINT=http://aws:4566"
-      - "DELIVERY_AWS_SQS_REGION=eu-central-1"
-      - "DELIVERY_AWS_SQS_SERVICE_ACCOUNT_CREDS=test:test:"
-      - "DELIVERY_AWS_SQS_TOPIC=outpost_delivery"
-      - "LOG_AWS_SQS_ENDPOINT=http://aws:4566"
-      - "LOG_AWS_SQS_REGION=eu-central-1"
-      - "LOG_AWS_SQS_SERVICE_ACCOUNT_CREDS=test:test:"
-      - "LOG_AWS_SQS_TOPIC=outpost_log"
+      - AWS_SQS_ENDPOINT=http://aws:4566
+      - AWS_SQS_REGION=us-east-1
+      - AWS_SQS_ACCESS_KEY_ID=test
+      - AWS_SQS_SECRET_ACCESS_KEY=test
   log:
     depends_on:
       aws:
         condition: service_healthy
     environment:
-      - "DELIVERY_AWS_SQS_ENDPOINT=http://aws:4566"
-      - "DELIVERY_AWS_SQS_REGION=eu-central-1"
-      - "DELIVERY_AWS_SQS_SERVICE_ACCOUNT_CREDS=test:test:"
-      - "DELIVERY_AWS_SQS_TOPIC=outpost_delivery"
-      - "LOG_AWS_SQS_ENDPOINT=http://aws:4566"
-      - "LOG_AWS_SQS_REGION=eu-central-1"
-      - "LOG_AWS_SQS_SERVICE_ACCOUNT_CREDS=test:test:"
-      - "LOG_AWS_SQS_TOPIC=outpost_log"
+      - AWS_SQS_ENDPOINT=http://aws:4566
+      - AWS_SQS_REGION=us-east-1
+      - AWS_SQS_ACCESS_KEY_ID=test
+      - AWS_SQS_SECRET_ACCESS_KEY=test

@@ -9,7 +9,7 @@ services:
       clickhouse:
         condition: service_healthy
     ports:
-      - "${PORT}:${PORT}"
+      - 3333:3333
     volumes:
       - ./config/outpost:/config/outpost
     environment:
@@ -23,6 +23,8 @@ services:
         condition: service_started
       clickhouse:
         condition: service_healthy
+    volumes:
+      - ./config/outpost:/config/outpost
     environment:
       SERVICE: delivery
 
@@ -34,6 +36,8 @@ services:
         condition: service_started
       clickhouse:
         condition: service_healthy
+    volumes:
+      - ./config/outpost:/config/outpost
     environment:
       SERVICE: log
 

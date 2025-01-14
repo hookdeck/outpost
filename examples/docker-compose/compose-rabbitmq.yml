@@ -17,31 +17,16 @@ services:
       rabbitmq:
         condition: service_healthy
     environment:
-      - "DELIVERY_RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
-      - "DELIVERY_RABBITMQ_EXCHANGE=outpost_delivery"
-      - "DELIVERY_RABBITMQ_QUEUE=outpost_delivery"
-      - "LOG_RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
-      - "LOG_RABBITMQ_EXCHANGE=outpost_log"
-      - "LOG_RABBITMQ_QUEUE=outpost_log"
+      - "RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
   delivery:
     depends_on:
       rabbitmq:
         condition: service_healthy
     environment:
-      - "DELIVERY_RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
-      - "DELIVERY_RABBITMQ_EXCHANGE=outpost_delivery"
-      - "DELIVERY_RABBITMQ_QUEUE=outpost_delivery"
-      - "LOG_RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
-      - "LOG_RABBITMQ_EXCHANGE=outpost_log"
-      - "LOG_RABBITMQ_QUEUE=outpost_log"
+      - "RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
   log:
     depends_on:
       rabbitmq:
         condition: service_healthy
     environment:
-      - "DELIVERY_RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
-      - "DELIVERY_RABBITMQ_EXCHANGE=outpost_delivery"
-      - "DELIVERY_RABBITMQ_QUEUE=outpost_delivery"
-      - "LOG_RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
-      - "LOG_RABBITMQ_EXCHANGE=outpost_log"
-      - "LOG_RABBITMQ_QUEUE=outpost_log"
+      - "RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"

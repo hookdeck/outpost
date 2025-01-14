@@ -1,0 +1,18 @@
+topics:
+  - user.created
+  - user.updated
+  - user.deleted
+
+mqs:
+  delivery_retry_limit: 10
+  log_retry_limit: 10
+
+destinations:
+  webhook:
+    header_prefix: "x-yaml-"
+
+portal:
+  referer_url: "https://example.com"
+  favicon_url: "https://example.com/favicon.svg"
+  logo: "https://example.com"
+  organization_name: "Acme"
