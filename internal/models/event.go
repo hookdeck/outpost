@@ -57,15 +57,17 @@ type EventTelemetry struct {
 }
 
 type Event struct {
-	ID               string          `json:"id"`
-	TenantID         string          `json:"tenant_id"`
-	DestinationID    string          `json:"destination_id"`
-	Topic            string          `json:"topic"`
-	EligibleForRetry bool            `json:"eligible_for_retry"`
-	Time             time.Time       `json:"time"`
-	Metadata         Metadata        `json:"metadata"`
-	Data             Data            `json:"data"`
-	Telemetry        *EventTelemetry `json:"-"`
+	ID               string    `json:"id"`
+	TenantID         string    `json:"tenant_id"`
+	DestinationID    string    `json:"destination_id"`
+	Topic            string    `json:"topic"`
+	EligibleForRetry bool      `json:"eligible_for_retry"`
+	Time             time.Time `json:"time"`
+	Metadata         Metadata  `json:"metadata"`
+	Data             Data      `json:"data"`
+
+	// Telemetry data, must exist to properly trace events between publish receiver & delivery handler
+	Telemetry *EventTelemetry `json:"telemetry,omitempty"`
 }
 
 var _ mqs.IncomingMessage = &Event{}
