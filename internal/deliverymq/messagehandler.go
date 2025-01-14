@@ -100,7 +100,7 @@ type EventGetter interface {
 }
 
 type DeliveryTracer interface {
-	Deliver(ctx context.Context, deliveryEvent *models.DeliveryEvent) (context.Context, trace.Span)
+	Deliver(ctx context.Context, deliveryEvent *models.DeliveryEvent, destination *models.Destination) (context.Context, trace.Span)
 }
 
 func NewMessageHandler(
@@ -179,7 +179,7 @@ func (h *messageHandler) handleError(msg *mqs.Message, err error) error {
 }
 
 func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.DeliveryEvent, destination *models.Destination) error {
-	_, span := h.eventTracer.Deliver(ctx, &deliveryEvent)
+	_, span := h.eventTracer.Deliver(ctx, &deliveryEvent, destination)
 	defer span.End()
 
 	if err := h.publisher.PublishEvent(ctx, destination, &deliveryEvent.Event); err != nil {

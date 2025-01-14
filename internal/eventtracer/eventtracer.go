@@ -13,7 +13,7 @@ import (
 type EventTracer interface {
 	Receive(context.Context, *models.Event) (context.Context, trace.Span)
 	StartDelivery(context.Context, *models.DeliveryEvent) (context.Context, trace.Span)
-	Deliver(context.Context, *models.DeliveryEvent) (context.Context, trace.Span)
+	Deliver(context.Context, *models.DeliveryEvent, *models.Destination) (context.Context, trace.Span)
 }
 
 type eventTracerImpl struct {
@@ -62,6 +62,7 @@ type DeliverSpan struct {
 	trace.Span
 	emeter        emetrics.OutpostMetrics
 	deliveryEvent *models.DeliveryEvent
+	destination   *models.Destination
 	err           error
 }
 
@@ -90,15 +91,15 @@ func (d *DeliverSpan) End(options ...trace.SpanEndOption) {
 
 	d.emeter.DeliveryLatency(context.Background(),
 		time.Since(startTime),
-		emetrics.DeliveryLatencyOpts{Type: "TODO"})
-	d.emeter.EventDelivered(context.Background(), d.deliveryEvent, ok)
+		emetrics.DeliveryLatencyOpts{Type: d.destination.Type})
+	d.emeter.EventDelivered(context.Background(), d.deliveryEvent, ok, d.destination.Type)
 
 	d.Span.End(options...)
 }
 
-func (t *eventTracerImpl) Deliver(_ context.Context, deliveryEvent *models.DeliveryEvent) (context.Context, trace.Span) {
+func (t *eventTracerImpl) Deliver(_ context.Context, deliveryEvent *models.DeliveryEvent, destination *models.Destination) (context.Context, trace.Span) {
 	ctx, span := t.tracer.Start(t.getRemoteDeliveryEventSpanContext(deliveryEvent), "EventTracer.Deliver")
-	deliverySpan := &DeliverSpan{Span: span, emeter: t.emeter, deliveryEvent: deliveryEvent}
+	deliverySpan := &DeliverSpan{Span: span, emeter: t.emeter, deliveryEvent: deliveryEvent, destination: destination}
 	return ctx, deliverySpan
 }
 

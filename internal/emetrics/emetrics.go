@@ -12,7 +12,7 @@ import (
 
 type OutpostMetrics interface {
 	DeliveryLatency(ctx context.Context, latency time.Duration, opts DeliveryLatencyOpts)
-	EventDelivered(ctx context.Context, deliveryEvent *models.DeliveryEvent, ok bool)
+	EventDelivered(ctx context.Context, deliveryEvent *models.DeliveryEvent, ok bool, destinationType string)
 	EventPublished(ctx context.Context, event *models.Event)
 	EventEligbible(ctx context.Context, event *models.Event)
 	APIResponseLatency(ctx context.Context, latency time.Duration, opts APIResponseLatencyOpts)
@@ -99,7 +99,7 @@ func (e *emetricsImpl) DeliveryLatency(ctx context.Context, latency time.Duratio
 	e.deliveryLatency.Record(ctx, latency.Milliseconds(), metric.WithAttributes(attribute.String("type", opts.Type)))
 }
 
-func (e *emetricsImpl) EventDelivered(ctx context.Context, deliveryEvent *models.DeliveryEvent, ok bool) {
+func (e *emetricsImpl) EventDelivered(ctx context.Context, deliveryEvent *models.DeliveryEvent, ok bool, destinationType string) {
 	var status string
 	if ok {
 		status = models.DeliveryStatusOK
@@ -107,7 +107,7 @@ func (e *emetricsImpl) EventDelivered(ctx context.Context, deliveryEvent *models
 		status = models.DeliveryStatusFailed
 	}
 	e.eventDeliveredCounter.Add(ctx, 1, metric.WithAttributes(
-		attribute.String("type", "TODO"),
+		attribute.String("type", destinationType),
 		attribute.String("status", status),
 	))
 }

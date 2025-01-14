@@ -29,7 +29,7 @@ func (t *noopEventTracer) StartDelivery(ctx context.Context, deliveryEvent *mode
 	return ctx, span
 }
 
-func (t *noopEventTracer) Deliver(ctx context.Context, deliveryEvent *models.DeliveryEvent) (context.Context, trace.Span) {
+func (t *noopEventTracer) Deliver(ctx context.Context, deliveryEvent *models.DeliveryEvent, destination *models.Destination) (context.Context, trace.Span) {
 	_, span := t.tracer.Start(ctx, "EventTracer.Deliver")
 	return ctx, span
 }
