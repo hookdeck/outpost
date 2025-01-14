@@ -15,4 +15,4 @@ portal:
 
 destinations:
   webhook:
-    header_prefix: "x-custom-"
+    header_prefix: "x-acme-"
