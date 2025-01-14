@@ -109,13 +109,15 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		Addr:    fmt.Sprintf(":%d", cfg.APIPort),
 		Handler: router,
 	}
-	service.publishMQ = publishmq.New(publishmq.WithQueue(cfg.PublishMQ.GetQueueConfig()))
 	service.deliveryMQ = deliveryMQ
 	service.entityStore = entityStore
 	service.eventHandler = eventHandler
 	service.deliverymqRetryScheduler = deliverymqRetryScheduler
 	service.consumerOptions = &consumerOptions{
 		concurreny: cfg.PublishMaxConcurrency,
+	}
+	if cfg.PublishMQ.GetQueueConfig() != nil {
+		service.publishMQ = publishmq.New(publishmq.WithQueue(cfg.PublishMQ.GetQueueConfig()))
 	}
 
 	go func() {
