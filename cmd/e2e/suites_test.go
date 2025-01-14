@@ -30,7 +30,7 @@ type e2eSuite struct {
 }
 
 func (suite *e2eSuite) SetupSuite() {
-	suite.client = httpclient.New(fmt.Sprintf("http://localhost:%d/api/v1", suite.config.Port), suite.config.APIKey)
+	suite.client = httpclient.New(fmt.Sprintf("http://localhost:%d/api/v1", suite.config.APIPort), suite.config.APIKey)
 	go func() {
 		application := app.New(&suite.config)
 		if err := application.Run(suite.ctx); err != nil {

@@ -39,7 +39,7 @@ type Config struct {
 	OpenTelemetry OpenTelemetryConfig `yaml:"open_telemetry"`
 
 	// API
-	Port         int    `yaml:"port" env:"PORT"`
+	APIPort      int    `yaml:"api_port" env:"API_PORT"`
 	APIKey       string `yaml:"api_key" env:"API_KEY"`
 	APIJWTSecret string `yaml:"api_jwt_secret" env:"API_JWT_SECRET"`
 
@@ -95,7 +95,7 @@ var (
 )
 
 func (c *Config) InitDefaults() {
-	c.Port = 3333
+	c.APIPort = 3333
 	c.OpenTelemetry = OpenTelemetryConfig{}
 	c.Redis = RedisConfig{
 		Host: "127.0.0.1",

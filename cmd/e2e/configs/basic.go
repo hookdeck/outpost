@@ -24,7 +24,7 @@ func Basic(t *testing.T) config.Config {
 
 	// Override only what's needed for e2e tests
 	c.Service = config.ServiceTypeSingular.String()
-	c.Port = testutil.RandomPortNumber()
+	c.APIPort = testutil.RandomPortNumber()
 	c.APIKey = "apikey"
 	c.APIJWTSecret = "jwtsecret"
 	c.AESEncryptionSecret = "encryptionsecret"

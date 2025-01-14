@@ -54,7 +54,7 @@ func TestDefaultValues(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test only fields that have explicit defaults
-	assert.Equal(t, 3333, cfg.Port)
+	assert.Equal(t, 3333, cfg.APIPort)
 	assert.Equal(t, "127.0.0.1", cfg.Redis.Host)
 	assert.Equal(t, 6379, cfg.Redis.Port)
 	assert.Equal(t, "outpost", cfg.MQs.RabbitMQ.Exchange)
@@ -79,7 +79,7 @@ func TestYAMLConfig(t *testing.T) {
 	mockOS := &mockOS{
 		files: map[string][]byte{
 			"config.yaml": []byte(`
-port: 9090
+api_port: 9090
 redis:
   host: custom.redis.local
   password: custom_secret
@@ -116,7 +116,7 @@ aes_encryption_secret: test-secret
 	cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
 	assert.NoError(t, err)
 
-	assert.Equal(t, 9090, cfg.Port)
+	assert.Equal(t, 9090, cfg.APIPort)
 	assert.Equal(t, "custom.redis.local", cfg.Redis.Host)
 	assert.Equal(t, "custom_secret", cfg.Redis.Password)
 	assert.Equal(t, 1, cfg.Redis.Database)
@@ -153,9 +153,9 @@ func TestConfigFileResolution(t *testing.T) {
 			flagPath: "config.yaml",
 			envPath:  "config.yaml",
 			files: map[string][]byte{
-				"config.yaml": []byte(`port: 8080`),
+				"config.yaml": []byte(`api_port: 8080`),
 			},
-			want:    &config.Config{Port: 8080},
+			want:    &config.Config{APIPort: 8080},
 			wantErr: false,
 		},
 		{
@@ -163,8 +163,8 @@ func TestConfigFileResolution(t *testing.T) {
 			flagPath: "flag.yaml",
 			envPath:  "env.yaml",
 			files: map[string][]byte{
-				"flag.yaml": []byte(`port: 8080`),
-				"env.yaml":  []byte(`port: 9090`),
+				"flag.yaml": []byte(`api_port: 8080`),
+				"env.yaml":  []byte(`api_port: 9090`),
 			},
 			want:    nil,
 			wantErr: true,
@@ -173,22 +173,22 @@ func TestConfigFileResolution(t *testing.T) {
 			name:    "env path used when flag not provided",
 			envPath: "env.yaml",
 			files: map[string][]byte{
-				"env.yaml": []byte(`port: 9090`),
+				"env.yaml": []byte(`api_port: 9090`),
 			},
-			want:    &config.Config{Port: 9090},
+			want:    &config.Config{APIPort: 9090},
 			wantErr: false,
 		},
 		{
 			name: "default locations checked in order",
 			files: map[string][]byte{
-				"config/outpost/config.yaml": []byte(`port: 7070`),
+				"config/outpost/config.yaml": []byte(`api_port: 7070`),
 			},
-			want:    &config.Config{Port: 7070},
+			want:    &config.Config{APIPort: 7070},
 			wantErr: false,
 		},
 		{
 			name:    "no error when no config found",
-			want:    &config.Config{Port: 3333}, // Default port value
+			want:    &config.Config{APIPort: 3333}, // Default port value
 			wantErr: false,
 		},
 	}
@@ -206,7 +206,7 @@ func TestConfigFileResolution(t *testing.T) {
 				return
 			}
 			if !tt.wantErr && cfg != nil {
-				assert.Equal(t, tt.want.Port, cfg.Port)
+				assert.Equal(t, tt.want.APIPort, cfg.APIPort)
 			}
 		})
 	}
@@ -220,7 +220,7 @@ func TestConfigPrecedence(t *testing.T) {
 	)
 
 	// Helper variables for string/byte representations
-	configYAML := fmt.Sprintf(`port: %d`, configPort)
+	configYAML := fmt.Sprintf(`api_port: %d`, configPort)
 	envPortStr := fmt.Sprintf("%d", envPort)
 
 	tests := []struct {
@@ -251,8 +251,8 @@ func TestConfigPrecedence(t *testing.T) {
 				"config.yaml": []byte(configYAML),
 			},
 			envVars: map[string]string{
-				"CONFIG": "config.yaml",
-				"PORT":   envPortStr,
+				"CONFIG":   "config.yaml",
+				"API_PORT": envPortStr,
 			},
 			wantPort: envPort,
 		},
@@ -260,7 +260,7 @@ func TestConfigPrecedence(t *testing.T) {
 			name:  "env var overrides default when no config file",
 			files: map[string][]byte{},
 			envVars: map[string]string{
-				"PORT": envPortStr,
+				"API_PORT": envPortStr,
 			},
 			wantPort: envPort,
 		},
@@ -285,7 +285,7 @@ func TestConfigPrecedence(t *testing.T) {
 
 			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
 			assert.NoError(t, err)
-			assert.Equal(t, tt.wantPort, cfg.Port)
+			assert.Equal(t, tt.wantPort, cfg.APIPort)
 		})
 	}
 }
