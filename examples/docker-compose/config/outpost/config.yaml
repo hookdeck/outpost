@@ -2,7 +2,6 @@ topics:
   - user.created
   - user.updated
   - user.deleted
-  - user.another
 
 mqs:
   delivery_retry_limit: 10
