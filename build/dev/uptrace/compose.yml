@@ -1,5 +1,16 @@
 name: "outpost-uptrace"
 services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+      - "8888:8888" # Telemetry metrics
+      - "8889:8889" # Prometheus metrics
+
   uptrace_clickhouse:
     image: clickhouse/clickhouse-server:24.7
     restart: on-failure
