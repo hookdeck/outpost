@@ -1,0 +1,97 @@
+# Outpost Configuration Example
+# This is a comprehensive list of available configuration options.
+# While all options can be configured here, it is recommended to use environment variables
+# for sensitive values (secrets, credentials, API keys, etc.) instead of storing them in this file.
+# Each configuration option can be overridden by its corresponding environment variable.
+
+# Service
+service: "" # Service type: "", "api", "log", "delivery" (empty string for singular mode that runs all services)
+
+# Infrastructure Configuration
+## Redis
+redis:
+  host: "127.0.0.1" # Default Redis host
+  port: 6379 # Default Redis port
+  password: "" # Redis password
+  database: 0 # Redis database number
+
+## ClickHouse
+clickhouse:
+  addr: "" # ClickHouse address (e.g., localhost:9000)
+  username: "" # ClickHouse username
+  password: "" # ClickHouse password
+  database: "outpost" # Default database name
+
+## Message Queue
+mqs:
+  # Retry Configuration for Message Processing
+  # After exceeding these limits, messages will be moved to the dead-letter queue
+  delivery_retry_limit: 5 # Number of failed delivery message processing attempts before moving to DLQ
+  log_retry_limit: 5 # Number of failed log message processing attempts before moving to DLQ
+
+  # Choose either RabbitMQ or AWS SQS configuration
+
+  # RabbitMQ Configuration Example
+  rabbitmq:
+    server_url: "amqp://user:pass@localhost:5672" # RabbitMQ server URL with credentials
+    exchange: "outpost" # Exchange name for message routing
+    delivery_queue: "outpost-delivery" # Queue for delivery events
+    log_queue: "outpost-log" # Queue for log events
+
+  # AWS SQS Configuration Example
+  awssqs:
+    access_key_id: "YOUR_AWS_ACCESS_KEY" # AWS access key ID
+    secret_access_key: "YOUR_AWS_SECRET_KEY" # AWS secret access key
+    region: "us-west-2" # AWS region
+    endpoint: "https://sqs.us-west-2.amazonaws.com" # SQS endpoint (optional, for custom endpoints)
+    delivery_queue: "outpost-delivery" # SQS queue name for delivery events
+    log_queue: "outpost-log" # SQS queue name for log events
+
+# Application Configuration
+aes_encryption_secret: "" # Secret for AES encryption
+topics: # List of topics to subscribe to
+  - user.created
+  - user.updated
+  - user.deleted
+
+## API
+api_port: 3333 # Default port for the API server
+api_key: "" # API key for authentication
+api_jwt_secret: "" # JWT secret for authentication
+
+## Delivery
+max_destinations_per_tenant: 20 # Maximum destinations per tenant
+delivery_timeout_seconds: 5 # Timeout for delivery operations
+
+## Event Delivery Retry
+retry_interval_seconds: 30 # Interval between event delivery retries
+retry_max_limit: 10 # Maximum number of event delivery retries
+
+## Consumer Settings
+publish_max_concurrency: 1 # Max number of publish messages to process concurrently
+delivery_max_concurrency: 1 # Max number of delivery messages to process concurrently
+log_max_concurrency: 1 # Max number of log messages to process concurrently
+
+## Log Batcher
+log_batcher_delay_threshold_seconds: 10 # Delay threshold for batching logs
+log_batcher_item_count_threshold: 1000 # Item count threshold for batching
+
+## Portal
+portal:
+  referer_url: "https://example.com" # Portal referer URL
+  favicon_url: "https://example.com/favicon.svg" # Portal favicon URL
+  logo: "https://example.com" # Portal logo URL
+  organization_name: "Acme" # Organization name
+
+# Destinations Configuration
+destinations:
+  metadata_path: "config/outpost/destinations" # Path to destination metadata
+  webhook:
+    header_prefix: "x-custom-" # Prefix for webhook headers
+
+# Note: OpenTelemetry Configuration
+# It is recommended to configure OpenTelemetry using environment variables as they are better supported by the SDK.
+# Example environment variables:
+# - OTEL_SERVICE_NAME: Service name (if provided, OpenTelemetry will be enabled)
+# - OTEL_EXPORTER_OTLP_ENDPOINT: OpenTelemetry collector endpoint
+# - OTEL_EXPORTER_OTLP_PROTOCOL: Protocol (grpc or http)

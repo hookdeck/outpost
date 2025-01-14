@@ -1,5 +1,6 @@
 # Environment variables
 .env
+.outpost.yaml
 
 # Built binaries
 /dist
