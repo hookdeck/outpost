@@ -20,6 +20,12 @@ up/mqs:
 down/mqs:
 	docker-compose -f build/dev/mqs/compose.yml down
 
+up/grafana:
+	docker-compose -f build/dev/grafana/compose.yml up -d
+
+down/grafana:
+	docker-compose -f build/dev/grafana/compose.yml down
+
 up/uptrace:
 	docker-compose -f build/dev/uptrace/compose.yml up -d
 

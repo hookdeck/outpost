@@ -1,13 +1,19 @@
+extensions:
+  health_check:
+
 receivers:
   otlp:
     protocols:
       grpc:
-        endpoint: "0.0.0.0:4317"
+        endpoint: 0.0.0.0:4317
       http:
-        endpoint: "0.0.0.0:4318"
+        endpoint: 0.0.0.0:4318
 
 processors:
   batch:
+    send_batch_size: 50
+    timeout: 500ms
+    send_batch_max_size: 100
   memory_limiter:
     check_interval: 1s
     limit_mib: 500
@@ -18,24 +24,19 @@ exporters:
     verbosity: detailed
   prometheus:
     endpoint: "0.0.0.0:8889"
-    const_labels:
-      service_name: outpost
 
 service:
   telemetry:
     metrics:
+      address: ":8888"
       level: detailed
-      address: "0.0.0.0:8888"
+    logs:
+      level: debug
+      initial_fields:
+        service: "otel-collector"
+  extensions: [health_check]
   pipelines:
-    traces:
-      receivers: [otlp]
-      processors: [memory_limiter, batch]
-      exporters: [debug]
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, batch]
       exporters: [debug, prometheus]
-    logs:
-      receivers: [otlp]
-      processors: [memory_limiter, batch]
-      exporters: [debug]
