@@ -50,6 +50,7 @@ type RouterConfig struct {
 	Topics       []string
 	Registry     destregistry.Registry
 	PortalConfig portal.PortalConfig
+	GinMode      string
 }
 
 type routeDefinition struct {
@@ -113,6 +114,11 @@ func NewRouter(
 	logStore models.LogStore,
 	publishmqEventHandler publishmq.EventHandler,
 ) http.Handler {
+	// Only set mode from config if we're not in test mode
+	if gin.Mode() != gin.TestMode {
+		gin.SetMode(cfg.GinMode)
+	}
+
 	r := gin.Default()
 
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {

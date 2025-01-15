@@ -42,6 +42,7 @@ type Config struct {
 	APIPort      int    `yaml:"api_port" env:"API_PORT"`
 	APIKey       string `yaml:"api_key" env:"API_KEY"`
 	APIJWTSecret string `yaml:"api_jwt_secret" env:"API_JWT_SECRET"`
+	GinMode      string `yaml:"gin_mode" env:"GIN_MODE"`
 
 	// Application
 	AESEncryptionSecret string   `yaml:"aes_encryption_secret" env:"AES_ENCRYPTION_SECRET"`
@@ -97,6 +98,7 @@ var (
 func (c *Config) InitDefaults() {
 	c.APIPort = 3333
 	c.OpenTelemetry = OpenTelemetryConfig{}
+	c.GinMode = "release"
 	c.Redis = RedisConfig{
 		Host: "127.0.0.1",
 		Port: 6379,

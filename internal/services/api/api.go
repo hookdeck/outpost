@@ -87,6 +87,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 			Topics:       cfg.Topics,
 			Registry:     registry,
 			PortalConfig: cfg.GetPortalConfig(),
+			GinMode:      cfg.GinMode,
 		},
 		logger,
 		redisClient,
