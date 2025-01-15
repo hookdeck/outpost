@@ -22,35 +22,59 @@ func NewMetadataLoader(basePath string) MetadataLoader {
 }
 
 func (l *FSMetadataLoader) Load(providerType string) (*ProviderMetadata, error) {
+	// First load the embedded metadata
+	embeddedMetadata := &ProviderMetadata{}
+	if err := l.loadEmbeddedJSONFile(providerType, "metadata.json", embeddedMetadata); err != nil {
+		return nil, fmt.Errorf("loading embedded metadata: %w", err)
+	}
+
+	// Try to load filesystem metadata for merging
+	if l.basePath != "" {
+		if fsMetadata, err := l.loadFilesystemMetadata(providerType); err == nil {
+			// Merge filesystem metadata into embedded metadata (left merge)
+			l.mergeMetadata(embeddedMetadata, fsMetadata)
+		}
+	}
+
+	// Load instructions separately
+	if err := l.loadInstructions(providerType, embeddedMetadata); err != nil {
+		return nil, fmt.Errorf("loading instructions: %w", err)
+	}
+
+	return embeddedMetadata, nil
+}
+
+func (l *FSMetadataLoader) loadFilesystemMetadata(providerType string) (*ProviderMetadata, error) {
 	metadata := &ProviderMetadata{}
+	path := filepath.Join(l.basePath, providerType, "metadata.json")
 
-	if err := l.loadCore(providerType, metadata); err != nil {
+	bytes, err := os.ReadFile(path)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := l.loadUI(providerType, metadata); err != nil {
-		return nil, err
-	}
-
-	if err := l.loadInstructions(providerType, metadata); err != nil {
-		return nil, err
+	if err := json.Unmarshal(bytes, metadata); err != nil {
+		return nil, fmt.Errorf("parsing filesystem metadata.json: %w", err)
 	}
 
 	return metadata, nil
 }
 
-func (l *FSMetadataLoader) loadCore(providerType string, metadata *ProviderMetadata) error {
-	if err := l.loadJSONFile(providerType, "core.json", metadata); err != nil {
-		return fmt.Errorf("loading core metadata: %w", err)
+func (l *FSMetadataLoader) mergeMetadata(base, override *ProviderMetadata) {
+	// Only override non-empty values
+	if override.Label != "" {
+		base.Label = override.Label
 	}
-	return nil
-}
-
-func (l *FSMetadataLoader) loadUI(providerType string, metadata *ProviderMetadata) error {
-	if err := l.loadJSONFile(providerType, "ui.json", metadata); err != nil {
-		return fmt.Errorf("loading UI metadata: %w", err)
+	if override.Description != "" {
+		base.Description = override.Description
 	}
-	return nil
+	if override.Icon != "" {
+		base.Icon = override.Icon
+	}
+	if override.RemoteSetupURL != "" {
+		base.RemoteSetupURL = override.RemoteSetupURL
+	}
+	// Don't override Type, ConfigFields, or CredentialFields as those are core functionality
 }
 
 func (l *FSMetadataLoader) loadInstructions(providerType string, metadata *ProviderMetadata) error {
@@ -81,8 +105,8 @@ func (l *FSMetadataLoader) loadFile(providerType, filename string) ([]byte, erro
 	return bytes, nil
 }
 
-func (l *FSMetadataLoader) loadJSONFile(providerType, filename string, v interface{}) error {
-	bytes, err := l.loadFile(providerType, filename)
+func (l *FSMetadataLoader) loadEmbeddedJSONFile(providerType, filename string, v interface{}) error {
+	bytes, err := defaultFS.ReadFile(filepath.Join("providers", providerType, filename))
 	if err != nil {
 		return err
 	}

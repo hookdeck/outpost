@@ -12,63 +12,83 @@ import (
 func TestMetadataLoader(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	t.Run("loads from embedded files when basePath is empty", func(t *testing.T) {
+	t.Run("loads from embedded metadata.json", func(t *testing.T) {
 		loader := NewMetadataLoader("")
 		metadata, err := loader.Load("webhook")
 		require.NoError(t, err)
 		assert.Equal(t, "webhook", metadata.Type)
 	})
 
-	t.Run("loads from filesystem when file exists", func(t *testing.T) {
+	t.Run("merges filesystem metadata.json", func(t *testing.T) {
 		providerDir := filepath.Join(tmpDir, "webhook")
 		require.NoError(t, os.MkdirAll(providerDir, 0755))
 
-		// Create custom core.json
-		writeTestFile(t, filepath.Join(providerDir, "core.json"), `{
-			"type": "webhook",
-			"config_fields": [{"type": "text", "label": "Custom", "key": "custom", "required": true}],
-			"credential_fields": []
+		writeTestFile(t, filepath.Join(providerDir, "metadata.json"), `{
+			"label": "Custom Label",
+			"description": "Custom Description",
+			"icon": "custom-icon"
 		}`)
 
 		loader := NewMetadataLoader(tmpDir)
 		metadata, err := loader.Load("webhook")
 		require.NoError(t, err)
-		assert.Equal(t, "Custom", metadata.ConfigFields[0].Label)
+
+		// UI fields should be overridden
+		assert.Equal(t, "Custom Label", metadata.Label)
+		assert.Equal(t, "Custom Description", metadata.Description)
+		assert.Equal(t, "custom-icon", metadata.Icon)
+
+		// Core fields should be preserved
+		assert.Equal(t, "webhook", metadata.Type)
+		assert.NotEmpty(t, metadata.ConfigFields)
 	})
 
-	t.Run("falls back to embedded when file doesn't exist in filesystem", func(t *testing.T) {
-		// Create directory but don't create any files
+	t.Run("preserves core fields during merge", func(t *testing.T) {
 		providerDir := filepath.Join(tmpDir, "webhook")
 		require.NoError(t, os.MkdirAll(providerDir, 0755))
+
+		writeTestFile(t, filepath.Join(providerDir, "metadata.json"), `{
+			"type": "different-type",
+			"config_fields": [],
+			"credential_fields": [],
+			"label": "Custom Label"
+		}`)
 
 		loader := NewMetadataLoader(tmpDir)
 		metadata, err := loader.Load("webhook")
 		require.NoError(t, err)
-		assert.Equal(t, "webhook", metadata.Type) // Should get this from embedded
+
+		// Core fields should not be overridden
+		assert.Equal(t, "webhook", metadata.Type)
+		assert.NotEmpty(t, metadata.ConfigFields)
+
+		// UI fields should be overridden
+		assert.Equal(t, "Custom Label", metadata.Label)
 	})
 
-	t.Run("returns error when provider doesn't exist anywhere", func(t *testing.T) {
+	t.Run("loads instructions.md separately", func(t *testing.T) {
+		providerDir := filepath.Join(tmpDir, "webhook")
+		require.NoError(t, os.MkdirAll(providerDir, 0755))
+
+		customInstructions := "# Custom Instructions"
+		writeTestFile(t, filepath.Join(providerDir, "instructions.md"), customInstructions)
+		writeTestFile(t, filepath.Join(providerDir, "metadata.json"), `{
+			"label": "Custom Label"
+		}`)
+
+		loader := NewMetadataLoader(tmpDir)
+		metadata, err := loader.Load("webhook")
+		require.NoError(t, err)
+
+		assert.Equal(t, customInstructions, metadata.Instructions)
+		assert.Equal(t, "Custom Label", metadata.Label)
+		assert.Equal(t, "webhook", metadata.Type)
+	})
+
+	t.Run("returns error when provider doesn't exist", func(t *testing.T) {
 		loader := NewMetadataLoader(tmpDir)
 		_, err := loader.Load("nonexistent")
 		assert.Error(t, err)
-	})
-
-	t.Run("loads mixed sources (filesystem + embedded)", func(t *testing.T) {
-		providerDir := filepath.Join(tmpDir, "webhook")
-		require.NoError(t, os.MkdirAll(providerDir, 0755))
-
-		// Only override instructions.md
-		customInstructions := "# Custom Instructions"
-		writeTestFile(t, filepath.Join(providerDir, "instructions.md"), customInstructions)
-
-		loader := NewMetadataLoader(tmpDir)
-		metadata, err := loader.Load("webhook")
-		require.NoError(t, err)
-
-		// Should use custom instructions
-		assert.Equal(t, customInstructions, metadata.Instructions)
-		// But embedded core.json
-		assert.Equal(t, "webhook", metadata.Type)
 	})
 }
 

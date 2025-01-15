@@ -7,19 +7,14 @@ type MetadataLoader interface {
 }
 
 type ProviderMetadata struct {
-	// From core.json
 	Type             string        `json:"type"`
 	ConfigFields     []FieldSchema `json:"config_fields"`
 	CredentialFields []FieldSchema `json:"credential_fields"`
-
-	// From ui.json
-	Label          string `json:"label"`
-	Description    string `json:"description"`
-	Icon           string `json:"icon"`
-	RemoteSetupURL string `json:"remote_setup_url,omitempty"`
-
-	// From instructions.md
-	Instructions string `json:"instructions"`
+	Label            string        `json:"label"`
+	Description      string        `json:"description"`
+	Icon             string        `json:"icon"`
+	RemoteSetupURL   string        `json:"remote_setup_url,omitempty"`
+	Instructions     string        `json:"instructions"`
 }
 
 type FieldSchema struct {
