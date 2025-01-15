@@ -36,6 +36,7 @@ type Config struct {
 	validated bool // tracks whether Validate() has been called successfully
 
 	Service       string              `yaml:"service" env:"SERVICE"`
+	LogLevel      string              `yaml:"log_level" env:"LOG_LEVEL"`
 	OpenTelemetry OpenTelemetryConfig `yaml:"otel"`
 
 	// API
@@ -97,6 +98,7 @@ var (
 
 func (c *Config) InitDefaults() {
 	c.APIPort = 3333
+	c.LogLevel = "info"
 	c.OpenTelemetry = OpenTelemetryConfig{}
 	c.GinMode = "release"
 	c.Redis = RedisConfig{

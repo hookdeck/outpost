@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -34,16 +35,11 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 func run(mainContext context.Context, cfg *config.Config) error {
-	zapConfig := zap.NewProductionConfig()
-	zapConfig.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
-	zapLogger, err := zapConfig.Build()
+	logger, err := makeLogger(cfg.LogLevel)
 	if err != nil {
 		return err
 	}
-	defer zapLogger.Sync()
-	logger := otelzap.New(zapLogger,
-		otelzap.WithMinLevel(zap.InfoLevel), // TODO: allow configuration
-	)
+	defer logger.Sync()
 
 	chDB, err := clickhouse.New(cfg.ClickHouse.ToConfig())
 	if err != nil {
@@ -149,4 +145,33 @@ func constructServices(
 	}
 
 	return services, nil
+}
+
+func makeLogger(logLevel string) (*otelzap.Logger, error) {
+	level := zap.InfoLevel
+	switch strings.ToLower(logLevel) {
+	case "debug":
+		level = zap.DebugLevel
+	case "info":
+		level = zap.InfoLevel
+	case "warn":
+		level = zap.WarnLevel
+	case "error":
+		level = zap.ErrorLevel
+	case "fatal":
+		level = zap.FatalLevel
+	default:
+		level = zap.InfoLevel
+	}
+
+	zapConfig := zap.NewProductionConfig()
+	zapConfig.Level = zap.NewAtomicLevelAt(level)
+	zapLogger, err := zapConfig.Build()
+	if err != nil {
+		return nil, err
+	}
+
+	return otelzap.New(zapLogger,
+		otelzap.WithMinLevel(level),
+	), nil
 }
