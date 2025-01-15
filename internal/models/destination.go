@@ -20,13 +20,13 @@ var (
 
 type Destination struct {
 	ID          string      `json:"id" redis:"id"`
+	TenantID    string      `json:"tenant_id" redis:"-"`
 	Type        string      `json:"type" redis:"type"`
 	Topics      Topics      `json:"topics" redis:"-"`
 	Config      Config      `json:"config" redis:"-"`
 	Credentials Credentials `json:"credentials" redis:"-"`
 	CreatedAt   time.Time   `json:"created_at" redis:"created_at"`
 	DisabledAt  *time.Time  `json:"disabled_at" redis:"disabled_at"`
-	TenantID    string      `json:"-" redis:"-"`
 }
 
 func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Cipher) error {

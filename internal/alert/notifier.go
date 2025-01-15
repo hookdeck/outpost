@@ -16,17 +16,12 @@ type httpAlertNotifier struct {
 // NewHTTPAlertNotifier creates a new HTTP-based alert notifier
 func NewHTTPAlertNotifier(callbackURL string) AlertNotifier {
 	return &httpAlertNotifier{
-		client:      &http.Client{},
+		client:      http.DefaultClient,
 		callbackURL: callbackURL,
 	}
 }
 
 func (n *httpAlertNotifier) Notify(ctx context.Context, alert Alert) error {
-	// Set default topic if not set
-	if alert.Topic == "" {
-		alert.Topic = "event.failed"
-	}
-
 	// Marshal alert to JSON
 	body, err := json.Marshal(alert)
 	if err != nil {
