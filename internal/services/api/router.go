@@ -128,7 +128,7 @@ func NewRouter(
 	r.Use(LatencyMiddleware()) // LatencyMiddleware must be after Metrics & Logger to fully capture latency first
 
 	// Application logic
-	r.Use(ErrorHandlerMiddleware(logger))
+	r.Use(ErrorHandlerMiddleware())
 
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
 		v.RegisterTagNameFunc(func(fld reflect.StructField) string {

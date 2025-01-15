@@ -34,13 +34,15 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 func run(mainContext context.Context, cfg *config.Config) error {
-	zapLogger, err := zap.NewProduction()
+	zapConfig := zap.NewProductionConfig()
+	zapConfig.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	zapLogger, err := zapConfig.Build()
 	if err != nil {
 		return err
 	}
 	defer zapLogger.Sync()
 	logger := otelzap.New(zapLogger,
-		otelzap.WithMinLevel(zap.InfoLevel), // TODO: allow configuration
+		otelzap.WithMinLevel(zap.DebugLevel), // TODO: allow configuration
 	)
 
 	chDB, err := clickhouse.New(cfg.ClickHouse.ToConfig())

@@ -10,11 +10,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/hookdeck/outpost/internal/destregistry"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
-	"go.uber.org/zap"
 )
 
-func ErrorHandlerMiddleware(logger *otelzap.Logger) gin.HandlerFunc {
+func ErrorHandlerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 
@@ -25,10 +23,6 @@ func ErrorHandlerMiddleware(logger *otelzap.Logger) gin.HandlerFunc {
 
 		var errorResponse ErrorResponse
 		errorResponse.Parse(err.Err)
-
-		if errorResponse.Code > 499 {
-			logger.Ctx(c.Request.Context()).Error("internal server error", zap.Error(errorResponse.Err))
-		}
 		handleErrorResponse(c, errorResponse)
 	}
 }
