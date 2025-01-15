@@ -34,10 +34,10 @@ type AlertStore interface {
 // AlertEvaluator determines when alerts should be triggered
 type AlertEvaluator interface {
 	// ShouldAlert determines if an alert should be sent based on failures and debouncing
-	ShouldAlert(failures int64, lastAlertTime time.Time, config AlertConfig) bool
+	ShouldAlert(failures int64, lastAlertTime time.Time) bool
 
 	// GetAlertLevel returns the threshold level reached (e.g., 50%, 70%, 90%, 100%)
-	GetAlertLevel(failures int64, config AlertConfig) (int, bool)
+	GetAlertLevel(failures int64) (int, bool)
 }
 
 // AlertNotifier sends alerts to configured destinations
