@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/hookdeck/outpost/internal/destregistry"
+	pkgerrors "github.com/pkg/errors"
 )
 
 func ErrorHandlerMiddleware() gin.HandlerFunc {
@@ -42,6 +43,7 @@ func (e *ErrorResponse) Parse(err error) {
 	var errorResponse ErrorResponse
 	if errors.As(err, &errorResponse) {
 		*e = errorResponse
+		e.Err = errorResponse.Err
 		return
 	}
 
@@ -53,11 +55,13 @@ func (e *ErrorResponse) Parse(err error) {
 		e.Code = -1
 		e.Message = "validation error"
 		e.Data = out
+		e.Err = err
 		return
 	}
 	if isInvalidJSON(err) {
 		e.Code = http.StatusBadRequest
 		e.Message = "invalid JSON"
+		e.Err = err
 		return
 	}
 
@@ -71,10 +75,12 @@ func (e *ErrorResponse) Parse(err error) {
 		e.Code = http.StatusUnprocessableEntity
 		e.Message = "validation error"
 		e.Data = validationDetails
+		e.Err = err
 		return
 	}
 
 	e.Message = err.Error()
+	e.Err = err
 }
 
 func isInvalidJSON(err error) bool {
@@ -92,7 +98,7 @@ func handleErrorResponse(c *gin.Context, response ErrorResponse) {
 
 func NewErrInternalServer(err error) ErrorResponse {
 	return ErrorResponse{
-		Err:     err,
+		Err:     pkgerrors.WithStack(err),
 		Code:    http.StatusInternalServerError,
 		Message: "internal server error",
 	}

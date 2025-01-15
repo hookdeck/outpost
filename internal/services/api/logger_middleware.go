@@ -1,27 +1,86 @@
 package api
 
 import (
+	"fmt"
 	"math"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
+// getErrorFields extracts error information and returns zap fields
+func getErrorFields(err error) []zap.Field {
+	var originalErr error
+
+	// If it's our ErrorResponse, get the inner error
+	if errResp, ok := err.(ErrorResponse); ok {
+		err = errResp.Err
+	}
+
+	// Keep the wrapped error for stack trace but get original for type/message
+	wrappedErr := err
+	if cause := errors.Unwrap(err); cause != nil {
+		originalErr = cause
+	} else {
+		originalErr = err
+	}
+
+	fields := []zap.Field{
+		zap.String("error", originalErr.Error()),
+		zap.String("error_type", fmt.Sprintf("%T", originalErr)),
+	}
+
+	// Get the stack trace from the wrapped error
+	type stackTracer interface {
+		StackTrace() errors.StackTrace
+	}
+	var st stackTracer
+	if errors.As(wrappedErr, &st) {
+		trace := fmt.Sprintf("%+v", st.StackTrace())
+		lines := strings.Split(trace, "\n")
+		var filtered []string
+
+		for i := 0; i < len(lines); i++ {
+			line := lines[i]
+			if strings.Contains(line, "github.com/hookdeck/outpost") {
+				filtered = append(filtered, line)
+				// Include the next line if it's a file path
+				if i+1 < len(lines) && strings.HasPrefix(lines[i+1], "\t") {
+					filtered = append(filtered, lines[i+1])
+				}
+				// Stop at the first handler
+				if strings.Contains(line, "Handler") {
+					break
+				}
+			}
+		}
+
+		if len(filtered) > 0 {
+			fields = append(fields, zap.String("error_trace", strings.Join(filtered, "\n")))
+		}
+	}
+
+	return fields
+}
+
 func LoggerMiddleware(logger *otelzap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Create a logger without stacktrace for errors
-		logger := logger.Ctx(c.Request.Context())
-
+		logger := logger.Ctx(c.Request.Context()).WithOptions(zap.AddStacktrace(zap.FatalLevel))
 		c.Next()
 
-		// Get request latency in ms, rounded to 2 decimal places
-		latencyMs := float64(GetRequestLatency(c)) / float64(time.Millisecond)
-		latencyMs = math.Round(latencyMs*100) / 100
+		// Basic request fields
+		fields := []zap.Field{
+			zap.String("method", c.Request.Method),
+			zap.Int("status", c.Writer.Status()),
+			zap.Float64("latency_ms", math.Round(float64(GetRequestLatency(c))/float64(time.Millisecond)*100)/100),
+			zap.String("client_ip", c.ClientIP()),
+		}
 
-		// Keep both normalized and raw paths
+		// Path fields
 		rawPath := c.Request.URL.Path
 		normalizedPath := rawPath
 		params := make(map[string]string)
@@ -29,43 +88,29 @@ func LoggerMiddleware(logger *otelzap.Logger) gin.HandlerFunc {
 			normalizedPath = strings.Replace(normalizedPath, p.Value, ":"+p.Key, 1)
 			params[p.Key] = p.Value
 		}
-
-		fields := []zap.Field{
+		fields = append(fields,
 			zap.String("path", normalizedPath),
 			zap.String("raw_path", rawPath),
-			zap.String("query", c.Request.URL.RawQuery),
-			zap.String("method", c.Request.Method),
-			zap.Int("status", c.Writer.Status()),
-			zap.Float64("latency_ms", latencyMs),
-			zap.String("client_ip", c.ClientIP()),
+		)
+		if c.Request.URL.RawQuery != "" {
+			fields = append(fields, zap.String("query", c.Request.URL.RawQuery))
 		}
-
-		// Only add params if we have any
 		if len(params) > 0 {
 			fields = append(fields, zap.Any("params", params))
 		}
 
-		status := c.Writer.Status()
-		hasErrors := len(c.Errors) > 0 || status >= 400
-
-		if hasErrors {
-			// Extract error messages if any
-			if len(c.Errors) > 0 {
-				var errs []string
-				for _, err := range c.Errors {
-					errs = append(errs, err.Err.Error())
-				}
-				fields = append(fields, zap.Strings("errors", errs))
-			}
-
-			// Keep error log clean with just essential info
-			if status >= 500 {
-				// For 5xx errors, log as error with stacktrace
-				logger.Error("request completed", fields...)
+		// Error fields if any
+		if len(c.Errors) > 0 {
+			err := c.Errors.Last().Err
+			if c.Writer.Status() >= 500 {
+				fields = append(fields, getErrorFields(err)...)
 			} else {
-				// Everything else (including 4xx) logs as info
-				logger.Info("request completed", fields...)
+				fields = append(fields, zap.String("error", err.Error()))
 			}
+		}
+
+		if c.Writer.Status() >= 500 {
+			logger.Error("request completed", fields...)
 		} else {
 			logger.Info("request completed", fields...)
 		}
