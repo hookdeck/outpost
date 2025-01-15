@@ -119,7 +119,16 @@ func NewRouter(
 		gin.SetMode(cfg.GinMode)
 	}
 
-	r := gin.Default()
+	r := gin.New()
+	// Core middlewares
+	r.Use(gin.Recovery())
+	r.Use(otelgin.Middleware(cfg.ServiceName))
+	r.Use(MetricsMiddleware())
+	r.Use(LoggerMiddleware(logger))
+	r.Use(LatencyMiddleware()) // LatencyMiddleware must be after Metrics & Logger to fully capture latency first
+
+	// Application logic
+	r.Use(ErrorHandlerMiddleware(logger))
 
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
 		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
@@ -130,10 +139,6 @@ func NewRouter(
 			return name
 		})
 	}
-
-	r.Use(otelgin.Middleware(cfg.ServiceName))
-	r.Use(MetricsMiddleware())
-	r.Use(ErrorHandlerMiddleware(logger))
 
 	portal.AddRoutes(r, cfg.PortalConfig)
 
