@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 )
 
 //go:embed providers/*
@@ -61,20 +63,41 @@ func (l *FSMetadataLoader) loadFilesystemMetadata(providerType string) (*Provide
 }
 
 func (l *FSMetadataLoader) mergeMetadata(base, override *ProviderMetadata) {
-	// Only override non-empty values
-	if override.Label != "" {
-		base.Label = override.Label
+	// Define core fields that should not be overridden
+	coreFields := map[string]bool{
+		"type":              true,
+		"config_fields":     true,
+		"credential_fields": true,
 	}
-	if override.Description != "" {
-		base.Description = override.Description
+
+	// Use reflection to merge all non-core fields
+	baseVal := reflect.ValueOf(base).Elem()
+	overrideVal := reflect.ValueOf(override).Elem()
+	baseType := baseVal.Type()
+
+	for i := 0; i < baseVal.NumField(); i++ {
+		field := baseType.Field(i)
+		jsonTag := field.Tag.Get("json")
+		if jsonTag == "" {
+			continue
+		}
+
+		// Split the json tag to handle cases like `json:"name,omitempty"`
+		jsonName := strings.Split(jsonTag, ",")[0]
+
+		// Skip core fields
+		if coreFields[jsonName] {
+			continue
+		}
+
+		// Get the override value
+		overrideField := overrideVal.Field(i)
+
+		// Only override if the field has a non-zero value
+		if !overrideField.IsZero() {
+			baseVal.Field(i).Set(overrideField)
+		}
 	}
-	if override.Icon != "" {
-		base.Icon = override.Icon
-	}
-	if override.RemoteSetupURL != "" {
-		base.RemoteSetupURL = override.RemoteSetupURL
-	}
-	// Don't override Type, ConfigFields, or CredentialFields as those are core functionality
 }
 
 func (l *FSMetadataLoader) loadInstructions(providerType string, metadata *ProviderMetadata) error {
