@@ -12,7 +12,78 @@ import (
 	"go.uber.org/zap"
 )
 
-// getErrorFields extracts error information and returns zap fields
+func LoggerMiddleware(logger *otelzap.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		logger := logger.Ctx(c.Request.Context()).WithOptions(zap.AddStacktrace(zap.FatalLevel))
+		c.Next()
+
+		fields := []zap.Field{}
+		fields = append(fields, basicFields(c)...)
+		fields = append(fields, pathFields(c)...)
+		fields = append(fields, queryFields(c)...)
+		fields = append(fields, errorFields(c)...)
+
+		if c.Writer.Status() >= 500 {
+			logger.Error("request completed", fields...)
+		} else {
+			logger.Info("request completed", fields...)
+		}
+	}
+}
+
+func basicFields(c *gin.Context) []zap.Field {
+	return []zap.Field{
+		zap.String("method", c.Request.Method),
+		zap.Int("status", c.Writer.Status()),
+		zap.Float64("latency_ms", math.Round(float64(GetRequestLatency(c))/float64(time.Millisecond)*100)/100),
+		zap.String("client_ip", c.ClientIP()),
+	}
+}
+
+func pathFields(c *gin.Context) []zap.Field {
+	rawPath := c.Request.URL.Path
+	normalizedPath := rawPath
+	params := make(map[string]string)
+	for _, p := range c.Params {
+		normalizedPath = strings.Replace(normalizedPath, p.Value, ":"+p.Key, 1)
+		params[p.Key] = p.Value
+	}
+
+	fields := []zap.Field{
+		zap.String("path", normalizedPath),
+		zap.String("raw_path", rawPath),
+	}
+
+	if len(params) > 0 {
+		fields = append(fields, zap.Any("params", params))
+	}
+
+	return fields
+}
+
+func queryFields(c *gin.Context) []zap.Field {
+	if c.Request.URL.RawQuery == "" {
+		return nil
+	}
+	return []zap.Field{
+		zap.String("query", c.Request.URL.RawQuery),
+	}
+}
+
+func errorFields(c *gin.Context) []zap.Field {
+	if len(c.Errors) == 0 {
+		return nil
+	}
+
+	err := c.Errors.Last().Err
+	if c.Writer.Status() >= 500 {
+		return getErrorFields(err)
+	}
+	return []zap.Field{
+		zap.String("error", err.Error()),
+	}
+}
+
 func getErrorFields(err error) []zap.Field {
 	var originalErr error
 
@@ -65,54 +136,4 @@ func getErrorFields(err error) []zap.Field {
 	}
 
 	return fields
-}
-
-func LoggerMiddleware(logger *otelzap.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		logger := logger.Ctx(c.Request.Context()).WithOptions(zap.AddStacktrace(zap.FatalLevel))
-		c.Next()
-
-		// Basic request fields
-		fields := []zap.Field{
-			zap.String("method", c.Request.Method),
-			zap.Int("status", c.Writer.Status()),
-			zap.Float64("latency_ms", math.Round(float64(GetRequestLatency(c))/float64(time.Millisecond)*100)/100),
-			zap.String("client_ip", c.ClientIP()),
-		}
-
-		// Path fields
-		rawPath := c.Request.URL.Path
-		normalizedPath := rawPath
-		params := make(map[string]string)
-		for _, p := range c.Params {
-			normalizedPath = strings.Replace(normalizedPath, p.Value, ":"+p.Key, 1)
-			params[p.Key] = p.Value
-		}
-		fields = append(fields,
-			zap.String("path", normalizedPath),
-			zap.String("raw_path", rawPath),
-		)
-		if c.Request.URL.RawQuery != "" {
-			fields = append(fields, zap.String("query", c.Request.URL.RawQuery))
-		}
-		if len(params) > 0 {
-			fields = append(fields, zap.Any("params", params))
-		}
-
-		// Error fields if any
-		if len(c.Errors) > 0 {
-			err := c.Errors.Last().Err
-			if c.Writer.Status() >= 500 {
-				fields = append(fields, getErrorFields(err)...)
-			} else {
-				fields = append(fields, zap.String("error", err.Error()))
-			}
-		}
-
-		if c.Writer.Status() >= 500 {
-			logger.Error("request completed", fields...)
-		} else {
-			logger.Info("request completed", fields...)
-		}
-	}
 }
