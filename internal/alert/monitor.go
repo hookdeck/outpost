@@ -9,6 +9,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// DestinationDisabler handles disabling destinations
+type DestinationDisabler interface {
+	DisableDestination(ctx context.Context, tenantID, destinationID string) error
+}
+
 // AlertMonitor is the main interface for handling delivery attempt alerts
 type AlertMonitor interface {
 	HandleAttempt(ctx context.Context, attempt DeliveryAttempt) error
@@ -46,11 +51,12 @@ type alertMonitor struct {
 	store                   AlertStore
 	evaluator               AlertEvaluator
 	notifier                AlertNotifier
+	disabler                DestinationDisabler
 	autoDisableFailureCount int
 }
 
 // NewAlertMonitor creates a new alert monitor with default implementations
-func NewAlertMonitor(redisClient *redis.Client, config AlertConfig) AlertMonitor {
+func NewAlertMonitor(redisClient *redis.Client, disabler DestinationDisabler, config AlertConfig) AlertMonitor {
 	store := NewRedisAlertStore(redisClient)
 	evaluator := NewAlertEvaluator(config)
 	notifier := NewHTTPAlertNotifier(config.CallbackURL)
@@ -59,16 +65,18 @@ func NewAlertMonitor(redisClient *redis.Client, config AlertConfig) AlertMonitor
 		store:                   store,
 		evaluator:               evaluator,
 		notifier:                notifier,
+		disabler:                disabler,
 		autoDisableFailureCount: config.AutoDisableFailureCount,
 	}
 }
 
 // NewAlertMonitorWithDeps creates a monitor with the provided dependencies
-func NewAlertMonitorWithDeps(store AlertStore, evaluator AlertEvaluator, notifier AlertNotifier, config AlertConfig) AlertMonitor {
+func NewAlertMonitorWithDeps(store AlertStore, evaluator AlertEvaluator, notifier AlertNotifier, disabler DestinationDisabler, config AlertConfig) AlertMonitor {
 	return &alertMonitor{
 		store:                   store,
 		evaluator:               evaluator,
 		notifier:                notifier,
+		disabler:                disabler,
 		autoDisableFailureCount: config.AutoDisableFailureCount,
 	}
 }
@@ -110,7 +118,9 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 
 	// If we've hit 100%, we should disable the destination
 	if level == 100 {
-		// TODO: Call destination service to disable the destination
+		if err := m.disabler.DisableDestination(ctx, attempt.Destination.TenantID, attempt.Destination.ID); err != nil {
+			return fmt.Errorf("failed to disable destination: %w", err)
+		}
 	}
 
 	return nil

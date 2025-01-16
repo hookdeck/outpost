@@ -65,10 +65,20 @@ func (m *mockAlertNotifier) Notify(ctx context.Context, alert alert.Alert) error
 	return args.Error(0)
 }
 
+type mockDestinationDisabler struct {
+	mock.Mock
+}
+
+func (m *mockDestinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) error {
+	args := m.Called(ctx, tenantID, destinationID)
+	return args.Error(0)
+}
+
 type testMonitor struct {
 	store     *mockAlertStore
 	evaluator *mockAlertEvaluator
 	notifier  *mockAlertNotifier
+	disabler  *mockDestinationDisabler
 	monitor   alert.AlertMonitor
 }
 
@@ -76,13 +86,15 @@ func newTestMonitor(config alert.AlertConfig) *testMonitor {
 	store := &mockAlertStore{}
 	evaluator := &mockAlertEvaluator{}
 	notifier := &mockAlertNotifier{}
+	disabler := &mockDestinationDisabler{}
 
-	monitor := alert.NewAlertMonitorWithDeps(store, evaluator, notifier, config)
+	monitor := alert.NewAlertMonitorWithDeps(store, evaluator, notifier, disabler, config)
 
 	return &testMonitor{
 		store:     store,
 		evaluator: evaluator,
 		notifier:  notifier,
+		disabler:  disabler,
 		monitor:   monitor,
 	}
 }
@@ -239,6 +251,7 @@ func TestAlertMonitor(t *testing.T) {
 		redisClient := testutil.CreateTestRedisClient(t)
 		store := alert.NewRedisAlertStore(redisClient)
 		notifier := &mockAlertNotifier{}
+		disabler := &mockDestinationDisabler{}
 
 		config := alert.AlertConfig{
 			DebouncingIntervalMS:    1000, // 1 second
@@ -247,7 +260,7 @@ func TestAlertMonitor(t *testing.T) {
 			AlertThresholds:         []int{1, 2, 100},
 		}
 
-		monitor := alert.NewAlertMonitorWithDeps(store, alert.NewAlertEvaluator(config), notifier, config)
+		monitor := alert.NewAlertMonitorWithDeps(store, alert.NewAlertEvaluator(config), notifier, disabler, config)
 
 		dest := &models.Destination{ID: "dest_debounce", TenantID: "tenant_debounce"}
 		event := &models.Event{Topic: "test.event"}
@@ -311,6 +324,7 @@ func TestAlertMonitor(t *testing.T) {
 		redisClient := testutil.CreateTestRedisClient(t)
 		store := alert.NewRedisAlertStore(redisClient)
 		notifier := &mockAlertNotifier{}
+		disabler := &mockDestinationDisabler{}
 
 		config := alert.AlertConfig{
 			DebouncingIntervalMS:    1000, // 1 second
@@ -319,7 +333,7 @@ func TestAlertMonitor(t *testing.T) {
 			AlertThresholds:         []int{1, 100}, // Alert at first failure and at disable threshold
 		}
 
-		monitor := alert.NewAlertMonitorWithDeps(store, alert.NewAlertEvaluator(config), notifier, config)
+		monitor := alert.NewAlertMonitorWithDeps(store, alert.NewAlertEvaluator(config), notifier, disabler, config)
 
 		dest := &models.Destination{ID: "dest_reset", TenantID: "tenant_reset"}
 		event := &models.Event{Topic: "test.event"}
@@ -371,5 +385,97 @@ func TestAlertMonitor(t *testing.T) {
 		// Both alerts should be at count=1 since success reset the counter
 		assert.Equal(t, int64(1), alert1.ConsecutiveFailures)
 		assert.Equal(t, int64(1), alert2.ConsecutiveFailures)
+	})
+}
+
+func TestAlertMonitor_AutoDisable(t *testing.T) {
+	t.Parallel()
+
+	t.Run("disables destination at 100%", func(t *testing.T) {
+		t.Parallel()
+		tm := newTestMonitor(defaultConfig())
+
+		dest := &models.Destination{ID: "dest_auto_disable", TenantID: "tenant_auto_disable"}
+		event := &models.Event{Topic: "test.event"}
+		deliveryEvent := &models.DeliveryEvent{Event: *event}
+		now := time.Now()
+		attempt := alert.DeliveryAttempt{
+			Success:       false,
+			DeliveryEvent: deliveryEvent,
+			Destination:   dest,
+			Response: &alert.Response{
+				Status: "500",
+				Data:   map[string]any{"error": "test error"},
+			},
+			Timestamp: now,
+		}
+
+		alertState := alert.AlertState{
+			FailureCount:   20, // At auto-disable threshold
+			LastAlertTime:  now.Add(-time.Hour),
+			LastAlertLevel: 90,
+		}
+
+		tm.store.On("IncrementAndGetAlertState", mock.Anything, dest.TenantID, dest.ID).Return(alertState, nil)
+		tm.evaluator.On("ShouldAlert", alertState.FailureCount, alertState.LastAlertTime, alertState.LastAlertLevel).Return(100, true)
+		tm.notifier.On("Notify", mock.Anything, mock.MatchedBy(func(alert alert.Alert) bool {
+			return alert.ConsecutiveFailures == alertState.FailureCount
+		})).Return(nil)
+		tm.store.On("UpdateLastAlert", mock.Anything, dest.TenantID, dest.ID, mock.Anything, 100).Return(nil)
+		tm.disabler.On("DisableDestination", mock.Anything, dest.TenantID, dest.ID).Return(nil)
+
+		err := tm.monitor.HandleAttempt(context.Background(), attempt)
+		require.NoError(t, err)
+
+		tm.store.AssertExpectations(t)
+		tm.evaluator.AssertExpectations(t)
+		tm.notifier.AssertExpectations(t)
+		tm.disabler.AssertExpectations(t)
+	})
+
+	t.Run("handles disable error", func(t *testing.T) {
+		t.Parallel()
+		tm := newTestMonitor(defaultConfig())
+
+		dest := &models.Destination{ID: "dest_disable_error", TenantID: "tenant_disable_error"}
+		event := &models.Event{Topic: "test.event"}
+		deliveryEvent := &models.DeliveryEvent{Event: *event}
+		attempt := alert.DeliveryAttempt{
+			Success:       false,
+			DeliveryEvent: deliveryEvent,
+			Destination:   dest,
+			Response: &alert.Response{
+				Status: "500",
+				Data:   map[string]any{"error": "test error"},
+			},
+			Timestamp: time.Now(),
+		}
+
+		alertState := alert.AlertState{
+			FailureCount:   20, // At auto-disable threshold
+			LastAlertTime:  time.Now().Add(-time.Hour),
+			LastAlertLevel: 90,
+		}
+
+		expectedErr := assert.AnError
+		tm.store.On("IncrementAndGetAlertState", mock.Anything, dest.TenantID, dest.ID).Return(alertState, nil)
+		tm.evaluator.On("ShouldAlert", alertState.FailureCount, alertState.LastAlertTime, alertState.LastAlertLevel).Return(100, true)
+		tm.notifier.On("Notify", mock.Anything, mock.MatchedBy(func(alert alert.Alert) bool {
+			return alert.Topic == event.Topic &&
+				alert.ConsecutiveFailures == alertState.FailureCount &&
+				alert.Destination == dest &&
+				alert.Response == attempt.Response
+		})).Return(nil)
+		tm.store.On("UpdateLastAlert", mock.Anything, dest.TenantID, dest.ID, mock.Anything, 100).Return(nil)
+		tm.disabler.On("DisableDestination", mock.Anything, dest.TenantID, dest.ID).Return(expectedErr)
+
+		err := tm.monitor.HandleAttempt(context.Background(), attempt)
+		assert.ErrorIs(t, err, expectedErr)
+		assert.ErrorContains(t, err, "failed to disable destination")
+
+		tm.store.AssertExpectations(t)
+		tm.evaluator.AssertExpectations(t)
+		tm.notifier.AssertExpectations(t)
+		tm.disabler.AssertExpectations(t)
 	})
 }
