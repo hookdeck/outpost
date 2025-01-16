@@ -27,17 +27,38 @@ type alertEvaluator struct {
 // NewAlertEvaluator creates a new alert evaluator
 func NewAlertEvaluator(config AlertConfig) AlertEvaluator {
 	// Create pairs of percentage thresholds and their corresponding failure counts
-	thresholds := make([]thresholdPair, len(config.AlertThresholds))
-	for i, percentage := range config.AlertThresholds {
+	thresholds := make([]thresholdPair, 0, len(config.AlertThresholds))
+
+	// Convert percentages to failure counts
+	for _, percentage := range config.AlertThresholds {
+		// Skip invalid percentages
+		if percentage <= 0 || percentage > 100 {
+			continue
+		}
 		// Ceiling division: (a + b - 1) / b
 		failures := (int64(config.AutoDisableFailureCount)*int64(percentage) + 99) / 100
-		thresholds[i] = thresholdPair{
+		thresholds = append(thresholds, thresholdPair{
 			percentage: percentage,
 			failures:   failures,
-		}
+		})
 	}
+
 	// Sort by failure count
 	sort.Slice(thresholds, func(i, j int) bool { return thresholds[i].failures < thresholds[j].failures })
+
+	// Check if we need to add 100
+	needsAutoDisable := true
+	if len(thresholds) > 0 && thresholds[len(thresholds)-1].percentage == 100 {
+		needsAutoDisable = false
+	}
+
+	// Auto-include 100% threshold if not present
+	if needsAutoDisable {
+		thresholds = append(thresholds, thresholdPair{
+			percentage: 100,
+			failures:   int64(config.AutoDisableFailureCount),
+		})
+	}
 
 	return &alertEvaluator{
 		thresholds:              thresholds,
