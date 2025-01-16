@@ -41,13 +41,13 @@ func NewAlertMonitorWithDeps(store AlertStore, evaluator AlertEvaluator, notifie
 
 func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttempt) error {
 	if attempt.Success {
-		return m.store.ResetFailures(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
+		return m.store.ResetAlertState(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
 	}
 
-	// Get failure state
-	state, err := m.store.IncrementAndGetFailureState(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
+	// Get alert state
+	state, err := m.store.IncrementAndGetAlertState(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
 	if err != nil {
-		return fmt.Errorf("failed to get failure state: %w", err)
+		return fmt.Errorf("failed to get alert state: %w", err)
 	}
 
 	// Check if we should send an alert

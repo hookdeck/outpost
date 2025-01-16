@@ -9,22 +9,23 @@ import (
 )
 
 const (
-	keyPrefixFailures  = "alert:failures"
-	keyPrefixLastAlert = "alert:last_alert" // Will store both time and level in a hash
+	keyPrefixAlert = "alert"      // Base prefix for all alert keys
+	keyFailures    = "failures"   // Counter for consecutive failures
+	keyLastAlert   = "last_alert" // Hash containing last alert's time and level
 
-	// Hash fields
+	// Last alert hash fields
 	fieldLastAlertTime  = "time"
 	fieldLastAlertLevel = "level"
 )
 
 // AlertStore manages alert-related data persistence
 type AlertStore interface {
-	IncrementAndGetFailureState(ctx context.Context, tenantID, destinationID string) (FailureState, error)
-	ResetFailures(ctx context.Context, tenantID, destinationID string) error
+	IncrementAndGetAlertState(ctx context.Context, tenantID, destinationID string) (AlertState, error)
+	ResetAlertState(ctx context.Context, tenantID, destinationID string) error
 	UpdateLastAlert(ctx context.Context, tenantID, destinationID string, t time.Time, level int) error
 }
 
-type FailureState struct {
+type AlertState struct {
 	FailureCount   int64
 	LastAlertTime  time.Time
 	LastAlertLevel int
@@ -39,7 +40,7 @@ func NewRedisAlertStore(client *redis.Client) AlertStore {
 	return &redisAlertStore{client: client}
 }
 
-func (s *redisAlertStore) IncrementAndGetFailureState(ctx context.Context, tenantID, destinationID string) (FailureState, error) {
+func (s *redisAlertStore) IncrementAndGetAlertState(ctx context.Context, tenantID, destinationID string) (AlertState, error) {
 	pipe := s.client.Pipeline()
 	defer pipe.Discard()
 
@@ -53,13 +54,13 @@ func (s *redisAlertStore) IncrementAndGetFailureState(ctx context.Context, tenan
 	// Execute all commands
 	_, err := pipe.Exec(ctx)
 	if err != nil && err != redis.Nil {
-		return FailureState{}, fmt.Errorf("failed to execute pipeline: %w", err)
+		return AlertState{}, fmt.Errorf("failed to execute pipeline: %w", err)
 	}
 
 	// Get results
 	count, err := incrCmd.Result()
 	if err != nil {
-		return FailureState{}, fmt.Errorf("failed to increment failures: %w", err)
+		return AlertState{}, fmt.Errorf("failed to increment failures: %w", err)
 	}
 
 	// Parse last alert time
@@ -71,7 +72,7 @@ func (s *redisAlertStore) IncrementAndGetFailureState(ctx context.Context, tenan
 		lastAlertLevel = level
 	}
 
-	return FailureState{
+	return AlertState{
 		FailureCount:   count,
 		LastAlertTime:  lastAlertTime,
 		LastAlertLevel: lastAlertLevel,
@@ -86,14 +87,25 @@ func (s *redisAlertStore) UpdateLastAlert(ctx context.Context, tenantID, destina
 	}).Err()
 }
 
-func (s *redisAlertStore) ResetFailures(ctx context.Context, tenantID, destinationID string) error {
-	return s.client.Del(ctx, s.getFailuresKey(destinationID)).Err()
+func (s *redisAlertStore) ResetAlertState(ctx context.Context, tenantID, destinationID string) error {
+	// Delete both failure count and last alert state
+	pipe := s.client.Pipeline()
+	defer pipe.Discard()
+
+	pipe.Del(ctx, s.getFailuresKey(destinationID))
+	pipe.Del(ctx, s.getLastAlertKey(destinationID))
+
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to reset alert state: %w", err)
+	}
+	return nil
 }
 
 func (s *redisAlertStore) getFailuresKey(destinationID string) string {
-	return fmt.Sprintf("%s:%s", keyPrefixFailures, destinationID)
+	return fmt.Sprintf("%s:%s:%s", keyPrefixAlert, destinationID, keyFailures)
 }
 
 func (s *redisAlertStore) getLastAlertKey(destinationID string) string {
-	return fmt.Sprintf("%s:%s", keyPrefixLastAlert, destinationID)
+	return fmt.Sprintf("%s:%s:%s", keyPrefixAlert, destinationID, keyLastAlert)
 }

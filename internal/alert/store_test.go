@@ -14,12 +14,12 @@ import (
 func TestRedisAlertStore(t *testing.T) {
 	t.Parallel()
 
-	t.Run("increment and get failure state - no previous state", func(t *testing.T) {
+	t.Run("increment and get alert state - no previous state", func(t *testing.T) {
 		t.Parallel()
 		redisClient := testutil.CreateTestRedisClient(t)
 		store := alert.NewRedisAlertStore(redisClient)
 
-		state, err := store.IncrementAndGetFailureState(context.Background(), "tenant_1", "dest_1")
+		state, err := store.IncrementAndGetAlertState(context.Background(), "tenant_1", "dest_1")
 		require.NoError(t, err)
 
 		assert.Equal(t, int64(1), state.FailureCount)
@@ -27,7 +27,7 @@ func TestRedisAlertStore(t *testing.T) {
 		assert.Equal(t, 0, state.LastAlertLevel)
 	})
 
-	t.Run("increment and get failure state - with previous state", func(t *testing.T) {
+	t.Run("increment and get alert state - with previous state", func(t *testing.T) {
 		t.Parallel()
 		redisClient := testutil.CreateTestRedisClient(t)
 		store := alert.NewRedisAlertStore(redisClient)
@@ -38,35 +38,35 @@ func TestRedisAlertStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// First increment
-		state, err := store.IncrementAndGetFailureState(context.Background(), "tenant_2", "dest_2")
+		state, err := store.IncrementAndGetAlertState(context.Background(), "tenant_2", "dest_2")
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), state.FailureCount)
 		assert.Equal(t, now.Unix(), state.LastAlertTime.Unix())
 		assert.Equal(t, 50, state.LastAlertLevel)
 
 		// Second increment
-		state, err = store.IncrementAndGetFailureState(context.Background(), "tenant_2", "dest_2")
+		state, err = store.IncrementAndGetAlertState(context.Background(), "tenant_2", "dest_2")
 		require.NoError(t, err)
 		assert.Equal(t, int64(2), state.FailureCount)
 		assert.Equal(t, now.Unix(), state.LastAlertTime.Unix())
 		assert.Equal(t, 50, state.LastAlertLevel)
 	})
 
-	t.Run("reset failures", func(t *testing.T) {
+	t.Run("reset alert state", func(t *testing.T) {
 		t.Parallel()
 		redisClient := testutil.CreateTestRedisClient(t)
 		store := alert.NewRedisAlertStore(redisClient)
 
 		// Set up initial state with failures
-		_, err := store.IncrementAndGetFailureState(context.Background(), "tenant_3", "dest_3")
+		_, err := store.IncrementAndGetAlertState(context.Background(), "tenant_3", "dest_3")
 		require.NoError(t, err)
 
-		// Reset failures
-		err = store.ResetFailures(context.Background(), "tenant_3", "dest_3")
+		// Reset state
+		err = store.ResetAlertState(context.Background(), "tenant_3", "dest_3")
 		require.NoError(t, err)
 
 		// Verify state is reset
-		state, err := store.IncrementAndGetFailureState(context.Background(), "tenant_3", "dest_3")
+		state, err := store.IncrementAndGetAlertState(context.Background(), "tenant_3", "dest_3")
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), state.FailureCount) // First increment after reset
 	})
@@ -82,7 +82,7 @@ func TestRedisAlertStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify state was updated
-		state, err := store.IncrementAndGetFailureState(context.Background(), "tenant_4", "dest_4")
+		state, err := store.IncrementAndGetAlertState(context.Background(), "tenant_4", "dest_4")
 		require.NoError(t, err)
 		assert.Equal(t, now.Unix(), state.LastAlertTime.Unix())
 		assert.Equal(t, 66, state.LastAlertLevel)

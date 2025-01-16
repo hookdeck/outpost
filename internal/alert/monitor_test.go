@@ -17,13 +17,18 @@ type mockAlertStore struct {
 	mock.Mock
 }
 
-func (m *mockAlertStore) IncrementAndGetFailureState(ctx context.Context, tenantID, destinationID string) (alert.FailureState, error) {
+func (m *mockAlertStore) IncrementAndGetAlertState(ctx context.Context, tenantID, destinationID string) (alert.AlertState, error) {
 	args := m.Called(ctx, tenantID, destinationID)
-	return args.Get(0).(alert.FailureState), args.Error(1)
+	return args.Get(0).(alert.AlertState), args.Error(1)
 }
 
-func (m *mockAlertStore) ResetFailures(ctx context.Context, tenantID, destinationID string) error {
+func (m *mockAlertStore) ResetAlertState(ctx context.Context, tenantID, destinationID string) error {
 	args := m.Called(ctx, tenantID, destinationID)
+	return args.Error(0)
+}
+
+func (m *mockAlertStore) UpdateLastAlert(ctx context.Context, tenantID, destinationID string, t time.Time, level int) error {
+	args := m.Called(ctx, tenantID, destinationID, t, level)
 	return args.Error(0)
 }
 
@@ -34,11 +39,6 @@ func (m *mockAlertStore) UpdateLastAlertTime(ctx context.Context, tenantID, dest
 
 func (m *mockAlertStore) UpdateLastAlertLevel(ctx context.Context, tenantID, destinationID string, level int) error {
 	args := m.Called(ctx, tenantID, destinationID, level)
-	return args.Error(0)
-}
-
-func (m *mockAlertStore) UpdateLastAlert(ctx context.Context, tenantID, destinationID string, t time.Time, level int) error {
-	args := m.Called(ctx, tenantID, destinationID, t, level)
 	return args.Error(0)
 }
 
@@ -109,7 +109,7 @@ func TestAlertMonitor(t *testing.T) {
 			Destination: dest,
 		}
 
-		tm.store.On("ResetFailures", mock.Anything, dest.TenantID, dest.ID).Return(nil)
+		tm.store.On("ResetAlertState", mock.Anything, dest.TenantID, dest.ID).Return(nil)
 
 		err := tm.monitor.HandleAttempt(context.Background(), attempt)
 		require.NoError(t, err)
@@ -135,17 +135,17 @@ func TestAlertMonitor(t *testing.T) {
 			Timestamp: now,
 		}
 
-		failureState := alert.FailureState{
+		alertState := alert.AlertState{
 			FailureCount:   5,
 			LastAlertTime:  now.Add(-time.Hour), // Last alert was an hour ago
 			LastAlertLevel: 0,                   // No previous alert level
 		}
 
-		tm.store.On("IncrementAndGetFailureState", mock.Anything, dest.TenantID, dest.ID).Return(failureState, nil)
-		tm.evaluator.On("ShouldAlert", failureState.FailureCount, failureState.LastAlertTime, failureState.LastAlertLevel).Return(50, true)
+		tm.store.On("IncrementAndGetAlertState", mock.Anything, dest.TenantID, dest.ID).Return(alertState, nil)
+		tm.evaluator.On("ShouldAlert", alertState.FailureCount, alertState.LastAlertTime, alertState.LastAlertLevel).Return(50, true)
 		tm.notifier.On("Notify", mock.Anything, mock.MatchedBy(func(alert alert.Alert) bool {
 			return alert.Topic == event.Topic &&
-				alert.ConsecutiveFailures == failureState.FailureCount &&
+				alert.ConsecutiveFailures == alertState.FailureCount &&
 				alert.Destination == dest &&
 				alert.Response == attempt.Response
 		})).Return(nil)
@@ -168,14 +168,14 @@ func TestAlertMonitor(t *testing.T) {
 			Destination: dest,
 		}
 
-		failureState := alert.FailureState{
+		alertState := alert.AlertState{
 			FailureCount:   2,
 			LastAlertTime:  time.Now(),
 			LastAlertLevel: 0,
 		}
 
-		tm.store.On("IncrementAndGetFailureState", mock.Anything, dest.TenantID, dest.ID).Return(failureState, nil)
-		tm.evaluator.On("ShouldAlert", failureState.FailureCount, failureState.LastAlertTime, failureState.LastAlertLevel).Return(0, false)
+		tm.store.On("IncrementAndGetAlertState", mock.Anything, dest.TenantID, dest.ID).Return(alertState, nil)
+		tm.evaluator.On("ShouldAlert", alertState.FailureCount, alertState.LastAlertTime, alertState.LastAlertLevel).Return(0, false)
 
 		err := tm.monitor.HandleAttempt(context.Background(), attempt)
 		require.NoError(t, err)
@@ -194,7 +194,7 @@ func TestAlertMonitor(t *testing.T) {
 		}
 
 		expectedErr := assert.AnError
-		tm.store.On("IncrementAndGetFailureState", mock.Anything, dest.TenantID, dest.ID).Return(alert.FailureState{}, expectedErr)
+		tm.store.On("IncrementAndGetAlertState", mock.Anything, dest.TenantID, dest.ID).Return(alert.AlertState{}, expectedErr)
 
 		err := tm.monitor.HandleAttempt(context.Background(), attempt)
 		assert.ErrorIs(t, err, expectedErr)
@@ -214,15 +214,15 @@ func TestAlertMonitor(t *testing.T) {
 			Destination:   dest,
 		}
 
-		failureState := alert.FailureState{
+		alertState := alert.AlertState{
 			FailureCount:   5,
 			LastAlertTime:  time.Now().Add(-time.Hour),
 			LastAlertLevel: 0,
 		}
 
 		expectedErr := assert.AnError
-		tm.store.On("IncrementAndGetFailureState", mock.Anything, dest.TenantID, dest.ID).Return(failureState, nil)
-		tm.evaluator.On("ShouldAlert", failureState.FailureCount, failureState.LastAlertTime, failureState.LastAlertLevel).Return(50, true)
+		tm.store.On("IncrementAndGetAlertState", mock.Anything, dest.TenantID, dest.ID).Return(alertState, nil)
+		tm.evaluator.On("ShouldAlert", alertState.FailureCount, alertState.LastAlertTime, alertState.LastAlertLevel).Return(50, true)
 		tm.notifier.On("Notify", mock.Anything, mock.Anything).Return(expectedErr)
 
 		err := tm.monitor.HandleAttempt(context.Background(), attempt)
@@ -302,5 +302,74 @@ func TestAlertMonitor(t *testing.T) {
 
 		assert.Equal(t, int64(1), alert1.ConsecutiveFailures)
 		assert.Equal(t, int64(4), alert2.ConsecutiveFailures)
+	})
+
+	t.Run("alert reset on success", func(t *testing.T) {
+		t.Parallel()
+
+		// Use real Redis and evaluator, only mock notifier
+		redisClient := testutil.CreateTestRedisClient(t)
+		store := alert.NewRedisAlertStore(redisClient)
+		notifier := &mockAlertNotifier{}
+
+		config := alert.AlertConfig{
+			DebouncingIntervalMS:    1000, // 1 second
+			AutoDisableFailureCount: 100,  // This means 1% = 1 failure
+			CallbackURL:             "http://test",
+			AlertThresholds:         []int{1, 100}, // Alert at first failure and at disable threshold
+		}
+
+		monitor := alert.NewAlertMonitorWithDeps(store, alert.NewAlertEvaluator(config), notifier, config)
+
+		dest := &models.Destination{ID: "dest_reset", TenantID: "tenant_reset"}
+		event := &models.Event{Topic: "test.event"}
+		deliveryEvent := &models.DeliveryEvent{Event: *event}
+
+		failureAttempt := alert.DeliveryAttempt{
+			Success:       false,
+			DeliveryEvent: deliveryEvent,
+			Destination:   dest,
+			Response: &alert.Response{
+				Status: "500",
+				Data:   map[string]any{"error": "test error"},
+			},
+		}
+
+		successAttempt := alert.DeliveryAttempt{
+			Success:     true,
+			Destination: dest,
+		}
+
+		// Set up mock expectations
+		notifier.On("Notify", mock.Anything, mock.Anything).Return(nil)
+
+		// First failure should trigger alert
+		err := monitor.HandleAttempt(context.Background(), failureAttempt)
+		require.NoError(t, err)
+
+		// Verify first alert
+		notifier.AssertCalled(t, "Notify", mock.Anything, mock.MatchedBy(func(alert alert.Alert) bool {
+			return alert.ConsecutiveFailures == 1
+		}))
+
+		// Success should reset failure count
+		err = monitor.HandleAttempt(context.Background(), successAttempt)
+		require.NoError(t, err)
+
+		// Next failure should trigger another alert since count was reset
+		err = monitor.HandleAttempt(context.Background(), failureAttempt)
+		require.NoError(t, err)
+
+		// Verify exactly two alerts were sent
+		require.Equal(t, 2, len(notifier.Calls))
+		firstCall := notifier.Calls[0]
+		secondCall := notifier.Calls[1]
+
+		alert1 := firstCall.Arguments.Get(1).(alert.Alert)
+		alert2 := secondCall.Arguments.Get(1).(alert.Alert)
+
+		// Both alerts should be at count=1 since success reset the counter
+		assert.Equal(t, int64(1), alert1.ConsecutiveFailures)
+		assert.Equal(t, int64(1), alert2.ConsecutiveFailures)
 	})
 }
