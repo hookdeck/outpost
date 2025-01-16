@@ -28,6 +28,16 @@ func NewAlertMonitor(redisClient *redis.Client, config AlertConfig) AlertMonitor
 	}
 }
 
+// NewAlertMonitorWithDeps creates a monitor with the provided dependencies
+func NewAlertMonitorWithDeps(store AlertStore, evaluator AlertEvaluator, notifier AlertNotifier, config AlertConfig) AlertMonitor {
+	return &alertMonitor{
+		store:                   store,
+		evaluator:               evaluator,
+		notifier:                notifier,
+		autoDisableFailureCount: config.AutoDisableFailureCount,
+	}
+}
+
 func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttempt) error {
 	if attempt.Success {
 		return m.store.ResetFailures(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
@@ -52,7 +62,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 
 	// Send alert
 	alert := Alert{
-		Topic:               attempt.Destination.Topics[0], // TODO: Handle multiple topics
+		Topic:               attempt.DeliveryEvent.Event.Topic,
 		DisableThreshold:    m.autoDisableFailureCount,
 		ConsecutiveFailures: state.FailureCount,
 		Destination:         attempt.Destination,

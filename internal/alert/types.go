@@ -43,10 +43,11 @@ type AlertConfig struct {
 
 // DeliveryAttempt represents a single delivery attempt
 type DeliveryAttempt struct {
-	Success     bool
-	Destination *models.Destination
-	Response    *Response
-	Timestamp   time.Time
+	Success       bool
+	DeliveryEvent *models.DeliveryEvent
+	Destination   *models.Destination
+	Response      *Response
+	Timestamp     time.Time
 }
 
 // Response contains details about a failed delivery attempt
