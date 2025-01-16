@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+// AlertEvaluator determines when alerts should be triggered
+type AlertEvaluator interface {
+	// GetAlertLevel returns the highest threshold level that has been reached for the given number of failures
+	GetAlertLevel(failures int64) int
+	// ShouldAlert determines if an alert should be sent and returns the alert level
+	ShouldAlert(failures int64, lastAlertTime time.Time, lastAlertLevel int) (level int, shouldAlert bool)
+}
+
 type thresholdPair struct {
 	percentage int
 	failures   int64

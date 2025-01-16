@@ -5,8 +5,42 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/redis/go-redis/v9"
 )
+
+// AlertMonitor is the main interface for handling delivery attempt alerts
+type AlertMonitor interface {
+	HandleAttempt(ctx context.Context, attempt DeliveryAttempt) error
+}
+
+// AlertConfig holds configuration for the alert system
+type AlertConfig struct {
+	// DebouncingIntervalMS is the time in milliseconds between alerts for the same destination
+	DebouncingIntervalMS int64
+	// AutoDisableFailureCount is the number of consecutive failures before auto-disabling
+	AutoDisableFailureCount int
+	// CallbackURL is where alerts will be sent
+	CallbackURL string
+	// AlertThresholds defines the percentage thresholds at which to send alerts
+	// e.g., []int{50, 70, 90, 100} means send alerts at 50%, 70%, 90%, and 100% of AutoDisableFailureCount
+	AlertThresholds []int
+}
+
+// DeliveryAttempt represents a single delivery attempt
+type DeliveryAttempt struct {
+	Success       bool
+	DeliveryEvent *models.DeliveryEvent
+	Destination   *models.Destination
+	Response      *Response
+	Timestamp     time.Time
+}
+
+// Response contains details about a failed delivery attempt
+type Response struct {
+	Status string         `json:"status"`
+	Data   map[string]any `json:"data"`
+}
 
 type alertMonitor struct {
 	store                   AlertStore

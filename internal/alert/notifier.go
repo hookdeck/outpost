@@ -6,7 +6,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/hookdeck/outpost/internal/models"
 )
+
+// AlertNotifier sends alerts to configured destinations
+type AlertNotifier interface {
+	// Notify sends an alert to the configured callback URL
+	Notify(ctx context.Context, alert Alert) error
+}
+
+// Alert represents an alert that will be sent to the callback URL
+type Alert struct {
+	Topic               string              `json:"topic"`
+	DisableThreshold    int                 `json:"disable_threshold"`
+	ConsecutiveFailures int64               `json:"consecutive_failures"`
+	Destination         *models.Destination `json:"destination"`
+	Response            *Response           `json:"response,omitempty"`
+}
 
 type httpAlertNotifier struct {
 	client      *http.Client
