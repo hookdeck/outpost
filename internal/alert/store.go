@@ -10,19 +10,24 @@ import (
 
 const (
 	keyPrefixFailures  = "alert:failures"
-	keyPrefixLastAlert = "alert:last_alert"
+	keyPrefixLastAlert = "alert:last_alert" // Will store both time and level in a hash
+
+	// Hash fields
+	fieldLastAlertTime  = "time"
+	fieldLastAlertLevel = "level"
 )
 
 // AlertStore manages alert-related data persistence
 type AlertStore interface {
 	IncrementAndGetFailureState(ctx context.Context, tenantID, destinationID string) (FailureState, error)
 	ResetFailures(ctx context.Context, tenantID, destinationID string) error
-	UpdateLastAlertTime(ctx context.Context, tenantID, destinationID string, t time.Time) error
+	UpdateLastAlert(ctx context.Context, tenantID, destinationID string, t time.Time, level int) error
 }
 
 type FailureState struct {
-	FailureCount  int64
-	LastAlertTime time.Time
+	FailureCount   int64
+	LastAlertTime  time.Time
+	LastAlertLevel int
 }
 
 type redisAlertStore struct {
@@ -41,10 +46,11 @@ func (s *redisAlertStore) IncrementAndGetFailureState(ctx context.Context, tenan
 	// Queue increment command
 	incrCmd := pipe.Incr(ctx, s.getFailuresKey(destinationID))
 
-	// Queue get last alert time command
-	timeCmd := pipe.Get(ctx, s.getLastAlertKey(destinationID))
+	// Queue get last alert hash fields
+	timeCmd := pipe.HGet(ctx, s.getLastAlertKey(destinationID), fieldLastAlertTime)
+	levelCmd := pipe.HGet(ctx, s.getLastAlertKey(destinationID), fieldLastAlertLevel)
 
-	// Execute both commands
+	// Execute all commands
 	_, err := pipe.Exec(ctx)
 	if err != nil && err != redis.Nil {
 		return FailureState{}, fmt.Errorf("failed to execute pipeline: %w", err)
@@ -56,20 +62,32 @@ func (s *redisAlertStore) IncrementAndGetFailureState(ctx context.Context, tenan
 		return FailureState{}, fmt.Errorf("failed to increment failures: %w", err)
 	}
 
+	// Parse last alert time
 	lastAlertTime, _ := timeCmd.Time() // Zero time if not found
 
+	// Parse last alert level
+	lastAlertLevel := 0
+	if level, err := levelCmd.Int(); err == nil {
+		lastAlertLevel = level
+	}
+
 	return FailureState{
-		FailureCount:  count,
-		LastAlertTime: lastAlertTime,
+		FailureCount:   count,
+		LastAlertTime:  lastAlertTime,
+		LastAlertLevel: lastAlertLevel,
 	}, nil
+}
+
+func (s *redisAlertStore) UpdateLastAlert(ctx context.Context, tenantID, destinationID string, t time.Time, level int) error {
+	// Use HSet to update both fields atomically
+	return s.client.HSet(ctx, s.getLastAlertKey(destinationID), map[string]interface{}{
+		fieldLastAlertTime:  t.Format(time.RFC3339Nano),
+		fieldLastAlertLevel: level,
+	}).Err()
 }
 
 func (s *redisAlertStore) ResetFailures(ctx context.Context, tenantID, destinationID string) error {
 	return s.client.Del(ctx, s.getFailuresKey(destinationID)).Err()
-}
-
-func (s *redisAlertStore) UpdateLastAlertTime(ctx context.Context, tenantID, destinationID string, t time.Time) error {
-	return s.client.Set(ctx, s.getLastAlertKey(destinationID), t.Format(time.RFC3339Nano), 0).Err()
 }
 
 func (s *redisAlertStore) getFailuresKey(destinationID string) string {

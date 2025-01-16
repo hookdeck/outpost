@@ -15,11 +15,10 @@ type AlertMonitor interface {
 
 // AlertEvaluator determines when alerts should be triggered
 type AlertEvaluator interface {
-	// ShouldAlert determines if an alert should be sent based on failures and debouncing
-	ShouldAlert(failures int64, lastAlertTime time.Time) bool
-
-	// GetAlertLevel returns the threshold level reached (e.g., 50%, 70%, 90%, 100%)
-	GetAlertLevel(failures int64) (int, bool)
+	// GetAlertLevel returns the highest threshold level that has been reached for the given number of failures
+	GetAlertLevel(failures int64) int
+	// ShouldAlert determines if an alert should be sent and returns the alert level
+	ShouldAlert(failures int64, lastAlertTime time.Time, lastAlertLevel int) (level int, shouldAlert bool)
 }
 
 // AlertNotifier sends alerts to configured destinations

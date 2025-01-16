@@ -32,18 +32,28 @@ func (m *mockAlertStore) UpdateLastAlertTime(ctx context.Context, tenantID, dest
 	return args.Error(0)
 }
 
+func (m *mockAlertStore) UpdateLastAlertLevel(ctx context.Context, tenantID, destinationID string, level int) error {
+	args := m.Called(ctx, tenantID, destinationID, level)
+	return args.Error(0)
+}
+
+func (m *mockAlertStore) UpdateLastAlert(ctx context.Context, tenantID, destinationID string, t time.Time, level int) error {
+	args := m.Called(ctx, tenantID, destinationID, t, level)
+	return args.Error(0)
+}
+
 type mockAlertEvaluator struct {
 	mock.Mock
 }
 
-func (m *mockAlertEvaluator) ShouldAlert(failures int64, lastAlertTime time.Time) bool {
-	args := m.Called(failures, lastAlertTime)
-	return args.Bool(0)
+func (m *mockAlertEvaluator) ShouldAlert(failures int64, lastAlertTime time.Time, lastAlertLevel int) (int, bool) {
+	args := m.Called(failures, lastAlertTime, lastAlertLevel)
+	return args.Int(0), args.Bool(1)
 }
 
-func (m *mockAlertEvaluator) GetAlertLevel(failures int64) (int, bool) {
+func (m *mockAlertEvaluator) GetAlertLevel(failures int64) int {
 	args := m.Called(failures)
-	return args.Int(0), args.Bool(1)
+	return args.Int(0)
 }
 
 type mockAlertNotifier struct {
@@ -126,20 +136,20 @@ func TestAlertMonitor(t *testing.T) {
 		}
 
 		failureState := alert.FailureState{
-			FailureCount:  5,
-			LastAlertTime: now.Add(-time.Hour), // Last alert was an hour ago
+			FailureCount:   5,
+			LastAlertTime:  now.Add(-time.Hour), // Last alert was an hour ago
+			LastAlertLevel: 0,                   // No previous alert level
 		}
 
 		tm.store.On("IncrementAndGetFailureState", mock.Anything, dest.TenantID, dest.ID).Return(failureState, nil)
-		tm.evaluator.On("ShouldAlert", failureState.FailureCount, failureState.LastAlertTime).Return(true)
-		tm.evaluator.On("GetAlertLevel", failureState.FailureCount).Return(50, true)
+		tm.evaluator.On("ShouldAlert", failureState.FailureCount, failureState.LastAlertTime, failureState.LastAlertLevel).Return(50, true)
 		tm.notifier.On("Notify", mock.Anything, mock.MatchedBy(func(alert alert.Alert) bool {
 			return alert.Topic == event.Topic &&
 				alert.ConsecutiveFailures == failureState.FailureCount &&
 				alert.Destination == dest &&
 				alert.Response == attempt.Response
 		})).Return(nil)
-		tm.store.On("UpdateLastAlertTime", mock.Anything, dest.TenantID, dest.ID, attempt.Timestamp).Return(nil)
+		tm.store.On("UpdateLastAlert", mock.Anything, dest.TenantID, dest.ID, mock.Anything, 50).Return(nil)
 
 		err := tm.monitor.HandleAttempt(context.Background(), attempt)
 		require.NoError(t, err)
@@ -159,12 +169,13 @@ func TestAlertMonitor(t *testing.T) {
 		}
 
 		failureState := alert.FailureState{
-			FailureCount:  2,
-			LastAlertTime: time.Now(),
+			FailureCount:   2,
+			LastAlertTime:  time.Now(),
+			LastAlertLevel: 0,
 		}
 
 		tm.store.On("IncrementAndGetFailureState", mock.Anything, dest.TenantID, dest.ID).Return(failureState, nil)
-		tm.evaluator.On("ShouldAlert", failureState.FailureCount, failureState.LastAlertTime).Return(false)
+		tm.evaluator.On("ShouldAlert", failureState.FailureCount, failureState.LastAlertTime, failureState.LastAlertLevel).Return(0, false)
 
 		err := tm.monitor.HandleAttempt(context.Background(), attempt)
 		require.NoError(t, err)
@@ -204,14 +215,14 @@ func TestAlertMonitor(t *testing.T) {
 		}
 
 		failureState := alert.FailureState{
-			FailureCount:  5,
-			LastAlertTime: time.Now().Add(-time.Hour),
+			FailureCount:   5,
+			LastAlertTime:  time.Now().Add(-time.Hour),
+			LastAlertLevel: 0,
 		}
 
 		expectedErr := assert.AnError
 		tm.store.On("IncrementAndGetFailureState", mock.Anything, dest.TenantID, dest.ID).Return(failureState, nil)
-		tm.evaluator.On("ShouldAlert", failureState.FailureCount, failureState.LastAlertTime).Return(true)
-		tm.evaluator.On("GetAlertLevel", failureState.FailureCount).Return(50, true)
+		tm.evaluator.On("ShouldAlert", failureState.FailureCount, failureState.LastAlertTime, failureState.LastAlertLevel).Return(50, true)
 		tm.notifier.On("Notify", mock.Anything, mock.Anything).Return(expectedErr)
 
 		err := tm.monitor.HandleAttempt(context.Background(), attempt)
@@ -231,7 +242,7 @@ func TestAlertMonitor(t *testing.T) {
 
 		config := alert.AlertConfig{
 			DebouncingIntervalMS:    1000, // 1 second
-			AutoDisableFailureCount: 10,
+			AutoDisableFailureCount: 100,  // This means 1% = 1 failure
 			CallbackURL:             "http://test",
 			AlertThresholds:         []int{1, 2, 100},
 		}

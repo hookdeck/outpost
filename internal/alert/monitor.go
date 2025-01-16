@@ -3,6 +3,7 @@ package alert
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -50,12 +51,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 	}
 
 	// Check if we should send an alert
-	if !m.evaluator.ShouldAlert(state.FailureCount, state.LastAlertTime) {
-		return nil
-	}
-
-	// Get alert level
-	level, shouldAlert := m.evaluator.GetAlertLevel(state.FailureCount)
+	level, shouldAlert := m.evaluator.ShouldAlert(state.FailureCount, state.LastAlertTime, state.LastAlertLevel)
 	if !shouldAlert {
 		return nil
 	}
@@ -73,9 +69,9 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		return fmt.Errorf("failed to send alert: %w", err)
 	}
 
-	// Update last alert time
-	if err := m.store.UpdateLastAlertTime(ctx, attempt.Destination.TenantID, attempt.Destination.ID, attempt.Timestamp); err != nil {
-		return fmt.Errorf("failed to update last alert time: %w", err)
+	// Update last alert time and level atomically
+	if err := m.store.UpdateLastAlert(ctx, attempt.Destination.TenantID, attempt.Destination.ID, time.Now(), level); err != nil {
+		return fmt.Errorf("failed to update last alert state: %w", err)
 	}
 
 	// If we've hit 100%, we should disable the destination

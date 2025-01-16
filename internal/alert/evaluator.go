@@ -38,39 +38,51 @@ func NewAlertEvaluator(config AlertConfig) AlertEvaluator {
 	}
 }
 
-func (e *alertEvaluator) ShouldAlert(failures int64, lastAlertTime time.Time) bool {
-	// If no thresholds configured, never alert
-	if len(e.thresholds) == 0 {
-		return false
-	}
-
-	// Check if we've hit a threshold percentage
-	level, hit := e.GetAlertLevel(failures)
-	if !hit || level == 0 {
-		return false
-	}
-
-	// If no previous alert, we can alert immediately
-	if lastAlertTime.IsZero() {
-		return true
-	}
-
-	// Check debouncing interval
-	return time.Since(lastAlertTime).Milliseconds() >= e.debouncingIntervalMS
-}
-
-func (e *alertEvaluator) GetAlertLevel(failures int64) (int, bool) {
+func (e *alertEvaluator) ShouldAlert(failures int64, lastAlertTime time.Time, lastAlertLevel int) (int, bool) {
 	// If no thresholds configured, never alert
 	if len(e.thresholds) == 0 {
 		return 0, false
 	}
 
-	// Check each threshold in reverse order to get the highest threshold we've hit
+	// Get current alert level
+	level := e.GetAlertLevel(failures)
+	if level == 0 {
+		return 0, false
+	}
+
+	// If no previous alert, we can alert immediately
+	if lastAlertTime.IsZero() {
+		return level, true
+	}
+
+	// If within debounce window, never alert
+	if time.Since(lastAlertTime).Milliseconds() < e.debouncingIntervalMS {
+		return level, false
+	}
+
+	// After debounce window:
+	// - If at same level as last alert, don't alert
+	// - If at lower level, don't alert (impossible in normal operation)
+	// - Only alert for higher levels
+	if level <= lastAlertLevel {
+		return level, false
+	}
+
+	return level, true
+}
+
+func (e *alertEvaluator) GetAlertLevel(failures int64) int {
+	// If no thresholds configured, return 0
+	if len(e.thresholds) == 0 {
+		return 0
+	}
+
+	// Check each threshold in reverse order to get the highest threshold we've exceeded
 	for i := len(e.thresholds) - 1; i >= 0; i-- {
-		if failures == e.thresholds[i].failures {
-			return e.thresholds[i].percentage, true
+		if failures >= e.thresholds[i].failures {
+			return e.thresholds[i].percentage
 		}
 	}
 
-	return 0, false
+	return 0
 }

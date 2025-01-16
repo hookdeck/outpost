@@ -8,194 +8,185 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type alertResult struct {
+	level       int
+	shouldAlert bool
+}
+
 func TestAlertEvaluator_GetAlertLevel(t *testing.T) {
+	t.Parallel()
+
+	config := alert.AlertConfig{
+		AutoDisableFailureCount: 10,
+		AlertThresholds:         []int{50, 66, 90, 100},
+	}
+	evaluator := alert.NewAlertEvaluator(config)
+
+	tests := []struct {
+		failures int64
+		want     int
+	}{
+		{failures: 4, want: 0},    // Below first threshold
+		{failures: 5, want: 50},   // At first threshold (50%)
+		{failures: 6, want: 50},   // Past first threshold
+		{failures: 7, want: 66},   // At second threshold (66%)
+		{failures: 8, want: 66},   // Past second threshold
+		{failures: 9, want: 90},   // At third threshold (90%)
+		{failures: 10, want: 100}, // At final threshold (100%)
+		{failures: 11, want: 100}, // Past final threshold
+	}
+
+	for _, tt := range tests {
+		level := evaluator.GetAlertLevel(tt.failures)
+		assert.Equal(t, tt.want, level)
+	}
+}
+
+func TestAlertEvaluator_ShouldAlert_ZeroDebounce(t *testing.T) {
+	t.Parallel()
+
+	config := alert.AlertConfig{
+		DebouncingIntervalMS:    0, // No debouncing
+		AutoDisableFailureCount: 10,
+		AlertThresholds:         []int{50, 66, 90, 100},
+	}
+	evaluator := alert.NewAlertEvaluator(config)
+
 	tests := []struct {
 		name          string
-		config        alert.AlertConfig
 		failures      int64
-		expectedLevel int
-		expectedHit   bool
+		lastAlertTime time.Time
+		lastLevel     int
+		want          alertResult
 	}{
 		{
-			name: "no failures",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				AlertThresholds:         []int{50, 66, 90, 100},
-			},
-			failures:      0,
-			expectedLevel: 0,
-			expectedHit:   false,
+			name:      "no failures",
+			failures:  0,
+			lastLevel: 0,
+			want:      alertResult{level: 0, shouldAlert: false},
 		},
 		{
-			name: "empty thresholds",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-			},
-			failures:      5,
-			expectedLevel: 0,
-			expectedHit:   false,
+			name:      "below first threshold",
+			failures:  4,
+			lastLevel: 0,
+			want:      alertResult{level: 0, shouldAlert: false},
 		},
 		{
-			name: "just hit 50% threshold (5 failures)",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				AlertThresholds:         []int{50, 66, 90, 100},
-			},
-			failures:      5,
-			expectedLevel: 50,
-			expectedHit:   true,
+			name:      "at first threshold",
+			failures:  5,
+			lastLevel: 0,
+			want:      alertResult{level: 50, shouldAlert: true},
 		},
 		{
-			name: "between 50% and 66% threshold (6 failures = 60%)",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				AlertThresholds:         []int{50, 66, 90, 100},
-			},
+			name:          "at same threshold again",
 			failures:      6,
-			expectedLevel: 0,
-			expectedHit:   false,
+			lastAlertTime: time.Now(),
+			lastLevel:     50,
+			want:          alertResult{level: 50, shouldAlert: false}, // Same level, within debounce
 		},
 		{
-			name: "just hit 66% threshold (7 failures = 70%)",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				AlertThresholds:         []int{50, 66, 90, 100},
-			},
+			name:          "at higher threshold",
 			failures:      7,
-			expectedLevel: 66,
-			expectedHit:   true,
+			lastAlertTime: time.Now(),
+			lastLevel:     50,
+			want:          alertResult{level: 66, shouldAlert: true}, // Higher level, ignore debounce
 		},
 		{
-			name: "between 66% and 90% threshold (8 failures = 80%)",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				AlertThresholds:         []int{50, 66, 90, 100},
-			},
+			name:          "at same threshold after higher",
 			failures:      8,
-			expectedLevel: 0,
-			expectedHit:   false,
-		},
-		{
-			name: "just hit 90% threshold (9 failures)",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				AlertThresholds:         []int{50, 66, 90, 100},
-			},
-			failures:      9,
-			expectedLevel: 90,
-			expectedHit:   true,
-		},
-		{
-			name: "just hit 100% threshold (10 failures)",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				AlertThresholds:         []int{50, 66, 90, 100},
-			},
-			failures:      10,
-			expectedLevel: 100,
-			expectedHit:   true,
-		},
-		{
-			name: "over 100% threshold (11 failures)",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				AlertThresholds:         []int{50, 66, 90, 100},
-			},
-			failures:      11,
-			expectedLevel: 0,
-			expectedHit:   false,
-		},
-		{
-			name: "unsorted thresholds",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				AlertThresholds:         []int{90, 50, 100, 66},
-			},
-			failures:      7,
-			expectedLevel: 66,
-			expectedHit:   true,
+			lastAlertTime: time.Now(),
+			lastLevel:     66,
+			want:          alertResult{level: 66, shouldAlert: false}, // Same level as 7, within debounce
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			evaluator := alert.NewAlertEvaluator(tt.config)
-			level, hit := evaluator.GetAlertLevel(tt.failures)
-			assert.Equal(t, tt.expectedLevel, level)
-			assert.Equal(t, tt.expectedHit, hit)
+			level, shouldAlert := evaluator.ShouldAlert(tt.failures, tt.lastAlertTime, tt.lastLevel)
+			assert.Equal(t, tt.want, alertResult{level: level, shouldAlert: shouldAlert})
 		})
 	}
 }
 
-func TestAlertEvaluator_ShouldAlert(t *testing.T) {
+func TestAlertEvaluator_ShouldAlert_Debounce(t *testing.T) {
+	t.Parallel()
+
+	config := alert.AlertConfig{
+		AutoDisableFailureCount: 10,
+		DebouncingIntervalMS:    1000, // 1 second
+		AlertThresholds:         []int{50, 66, 90, 100},
+	}
+	evaluator := alert.NewAlertEvaluator(config)
+
+	now := time.Now()
+	withinDebounce := now.Add(-500 * time.Millisecond)   // Within 1s window
+	outsideDebounce := now.Add(-2000 * time.Millisecond) // Past 1s window
+
 	tests := []struct {
 		name          string
-		config        alert.AlertConfig
 		failures      int64
 		lastAlertTime time.Time
-		expected      bool
+		lastLevel     int
+		wantLevel     int
+		wantAlert     bool
 	}{
 		{
-			name: "empty thresholds",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				DebouncingIntervalMS:    1000,
-			},
-			failures:      5,
-			lastAlertTime: time.Time{},
-			expected:      false,
+			name:          "same level - within debounce - should not alert",
+			failures:      7,  // Level 66
+			lastLevel:     66, // Last alert was also level 66
+			lastAlertTime: withinDebounce,
+			wantLevel:     66,
+			wantAlert:     false,
 		},
 		{
-			name: "first alert at threshold",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				DebouncingIntervalMS:    1000,
-				AlertThresholds:         []int{50, 66, 90, 100},
-			},
-			failures:      5,
-			lastAlertTime: time.Time{},
-			expected:      true,
+			name:          "same level - outside debounce - should still not alert",
+			failures:      7,  // Level 66
+			lastLevel:     66, // Last alert was also level 66
+			lastAlertTime: outsideDebounce,
+			wantLevel:     66,
+			wantAlert:     false,
 		},
 		{
-			name: "within debouncing interval",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				DebouncingIntervalMS:    1000,
-				AlertThresholds:         []int{50, 66, 90, 100},
-			},
-			failures:      7,
-			lastAlertTime: time.Now().Add(-500 * time.Millisecond),
-			expected:      false,
+			name:          "higher level - within debounce - should not alert",
+			failures:      9,  // Level 90
+			lastLevel:     66, // Last alert was level 66
+			lastAlertTime: withinDebounce,
+			wantLevel:     90,
+			wantAlert:     false,
 		},
 		{
-			name: "after debouncing interval at new threshold",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				DebouncingIntervalMS:    1000,
-				AlertThresholds:         []int{50, 66, 90, 100},
-			},
-			failures:      7,
-			lastAlertTime: time.Now().Add(-2000 * time.Millisecond),
-			expected:      true,
+			name:          "higher level - outside debounce - should alert",
+			failures:      9,  // Level 90
+			lastLevel:     66, // Last alert was level 66
+			lastAlertTime: outsideDebounce,
+			wantLevel:     90,
+			wantAlert:     true,
 		},
 		{
-			name: "after debouncing interval but not at new threshold",
-			config: alert.AlertConfig{
-				AutoDisableFailureCount: 10,
-				DebouncingIntervalMS:    1000,
-				AlertThresholds:         []int{50, 66, 90, 100},
-			},
-			failures:      8,
-			lastAlertTime: time.Now().Add(-2000 * time.Millisecond),
-			expected:      false,
+			name:          "lower level - within debounce - should not alert",
+			failures:      5,  // Level 50
+			lastLevel:     66, // Last alert was level 66
+			lastAlertTime: withinDebounce,
+			wantLevel:     50,
+			wantAlert:     false,
+		},
+		{
+			name:          "lower level - outside debounce - should not alert (impossible in normal operation)",
+			failures:      5,  // Level 50
+			lastLevel:     66, // Last alert was level 66
+			lastAlertTime: outsideDebounce,
+			wantLevel:     50,
+			wantAlert:     false, // Lower levels should never alert as they're impossible in normal operation
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			evaluator := alert.NewAlertEvaluator(tt.config)
-			result := evaluator.ShouldAlert(tt.failures, tt.lastAlertTime)
-			assert.Equal(t, tt.expected, result)
+			t.Parallel()
+			gotLevel, gotAlert := evaluator.ShouldAlert(tt.failures, tt.lastAlertTime, tt.lastLevel)
+			assert.Equal(t, tt.wantLevel, gotLevel)
+			assert.Equal(t, tt.wantAlert, gotAlert)
 		})
 	}
 }
