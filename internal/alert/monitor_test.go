@@ -7,6 +7,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -218,5 +219,77 @@ func TestAlertMonitor(t *testing.T) {
 		tm.store.AssertExpectations(t)
 		tm.evaluator.AssertExpectations(t)
 		tm.notifier.AssertExpectations(t)
+	})
+
+	t.Run("alert debouncing - suppress alerts within window and trigger after", func(t *testing.T) {
+		t.Parallel()
+
+		// Use real Redis and evaluator, only mock notifier
+		redisClient := testutil.CreateTestRedisClient(t)
+		store := alert.NewRedisAlertStore(redisClient)
+		notifier := &mockAlertNotifier{}
+
+		config := alert.AlertConfig{
+			DebouncingIntervalMS:    1000, // 1 second
+			AutoDisableFailureCount: 10,
+			CallbackURL:             "http://test",
+			AlertThresholds:         []int{1, 2, 100},
+		}
+
+		monitor := alert.NewAlertMonitorWithDeps(store, alert.NewAlertEvaluator(config), notifier, config)
+
+		dest := &models.Destination{ID: "dest_debounce", TenantID: "tenant_debounce"}
+		event := &models.Event{Topic: "test.event"}
+		deliveryEvent := &models.DeliveryEvent{Event: *event}
+		now := time.Now()
+
+		attempt := alert.DeliveryAttempt{
+			Success:       false,
+			DeliveryEvent: deliveryEvent,
+			Destination:   dest,
+			Response: &alert.Response{
+				Status: "500",
+				Data:   map[string]any{"error": "test error"},
+			},
+			Timestamp: now,
+		}
+
+		// Set up mock expectations
+		notifier.On("Notify", mock.Anything, mock.Anything).Return(nil)
+
+		err := monitor.HandleAttempt(context.Background(), attempt)
+		require.NoError(t, err)
+
+		// Assert first alert was sent
+		notifier.AssertCalled(t, "Notify", mock.Anything, mock.MatchedBy(func(alert alert.Alert) bool {
+			return alert.ConsecutiveFailures == 1
+		}))
+
+		// Second failure within debounce window should not trigger alert
+		err = monitor.HandleAttempt(context.Background(), attempt)
+		require.NoError(t, err)
+
+		// Third failure within debounce window should not trigger alert
+		err = monitor.HandleAttempt(context.Background(), attempt)
+		require.NoError(t, err)
+
+		// Wait for debounce window to pass
+		time.Sleep(1100 * time.Millisecond)
+
+		// Next failure should trigger alert
+		attempt.Timestamp = time.Now()
+		err = monitor.HandleAttempt(context.Background(), attempt)
+		require.NoError(t, err)
+
+		// Verify exactly two alerts were sent with correct failure counts
+		require.Equal(t, 2, len(notifier.Calls))
+		firstCall := notifier.Calls[0]
+		secondCall := notifier.Calls[1]
+
+		alert1 := firstCall.Arguments.Get(1).(alert.Alert)
+		alert2 := secondCall.Arguments.Get(1).(alert.Alert)
+
+		assert.Equal(t, int64(1), alert1.ConsecutiveFailures)
+		assert.Equal(t, int64(4), alert2.ConsecutiveFailures)
 	})
 }
