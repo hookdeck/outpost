@@ -6,9 +6,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/models"
 	mqs "github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/scheduler"
+	"github.com/stretchr/testify/mock"
 )
 
 // scheduleOptions mirrors the private type in scheduler package
@@ -186,3 +188,16 @@ func (m *mockMessage) Data() []byte {
 }
 
 func (m *mockMessage) SetData([]byte) {}
+
+type mockAlertMonitor struct {
+	mock.Mock
+}
+
+func (m *mockAlertMonitor) HandleAttempt(ctx context.Context, attempt alert.DeliveryAttempt) error {
+	args := m.Called(ctx, attempt)
+	return args.Error(0)
+}
+
+func newMockAlertMonitor() *mockAlertMonitor {
+	return &mockAlertMonitor{}
+}

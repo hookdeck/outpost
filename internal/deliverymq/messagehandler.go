@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -76,6 +77,7 @@ type messageHandler struct {
 	retryMaxLimit  int
 	idempotence    idempotence.Idempotence
 	publisher      Publisher
+	alertMonitor   AlertMonitor
 }
 
 type Publisher interface {
@@ -103,6 +105,10 @@ type DeliveryTracer interface {
 	Deliver(ctx context.Context, deliveryEvent *models.DeliveryEvent, destination *models.Destination) (context.Context, trace.Span)
 }
 
+type AlertMonitor interface {
+	HandleAttempt(ctx context.Context, attempt alert.DeliveryAttempt) error
+}
+
 func NewMessageHandler(
 	logger *otelzap.Logger,
 	redisClient *redis.Client,
@@ -114,6 +120,7 @@ func NewMessageHandler(
 	retryScheduler RetryScheduler,
 	retryBackoff backoff.Backoff,
 	retryMaxLimit int,
+	alertMonitor AlertMonitor,
 ) consumer.MessageHandler {
 	return &messageHandler{
 		eventTracer:    eventTracer,
@@ -129,6 +136,7 @@ func NewMessageHandler(
 			idempotence.WithTimeout(5*time.Second),
 			idempotence.WithSuccessfulTTL(24*time.Hour),
 		),
+		alertMonitor: alertMonitor,
 	}
 }
 

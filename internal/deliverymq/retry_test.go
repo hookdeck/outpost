@@ -25,6 +25,7 @@ type RetryDeliveryMQSuite struct {
 	eventGetter   deliverymq.EventGetter
 	logPublisher  deliverymq.LogPublisher
 	destGetter    deliverymq.DestinationGetter
+	alertMonitor  deliverymq.AlertMonitor
 	deliveryMQ    *deliverymq.DeliveryMQ
 	teardown      func()
 }
@@ -36,6 +37,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 	require.NotNil(t, s.eventGetter, "RetryDeliveryMQSuite.eventGetter is not set")
 	require.NotNil(t, s.logPublisher, "RetryDeliveryMQSuite.logPublisher is not set")
 	require.NotNil(t, s.destGetter, "RetryDeliveryMQSuite.destGetter is not set")
+	require.NotNil(t, s.alertMonitor, "RetryDeliveryMQSuite.alertMonitor is not set")
 
 	// Setup delivery MQ and handler
 	s.deliveryMQ = deliverymq.New(deliverymq.WithQueue(s.mqConfig))
@@ -59,6 +61,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		s.retryMaxCount,
+		s.alertMonitor,
 	)
 
 	// Setup message consumer
@@ -126,6 +129,7 @@ func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
 		eventGetter:   eventGetter,
 		logPublisher:  newMockLogPublisher(nil),
 		destGetter:    &mockDestinationGetter{dest: &destination},
+		alertMonitor:  newMockAlertMonitor(),
 		retryMaxCount: 10,
 	}
 	suite.SetupTest(t)
@@ -187,6 +191,7 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 		eventGetter:   eventGetter,
 		logPublisher:  newMockLogPublisher(nil),
 		destGetter:    &mockDestinationGetter{dest: &destination},
+		alertMonitor:  newMockAlertMonitor(),
 		retryMaxCount: 10,
 	}
 	suite.SetupTest(t)
@@ -238,6 +243,7 @@ func TestDeliveryMQRetry_SystemError(t *testing.T) {
 		eventGetter:   eventGetter,
 		logPublisher:  newMockLogPublisher(nil),
 		destGetter:    destGetter,
+		alertMonitor:  newMockAlertMonitor(),
 		retryMaxCount: 10,
 	}
 	suite.SetupTest(t)
@@ -306,6 +312,7 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 		eventGetter:   eventGetter,
 		logPublisher:  newMockLogPublisher(nil),
 		destGetter:    &mockDestinationGetter{dest: &destination},
+		alertMonitor:  newMockAlertMonitor(),
 		retryMaxCount: 2, // 1 initial + 2 retries = 3 total attempts
 	}
 	suite.SetupTest(t)

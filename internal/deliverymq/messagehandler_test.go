@@ -53,6 +53,7 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message
@@ -110,6 +111,7 @@ func TestMessageHandler_DestinationNotFound(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message
@@ -167,6 +169,7 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message
@@ -232,6 +235,7 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message
@@ -300,6 +304,7 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message
@@ -361,6 +366,7 @@ func TestMessageHandler_EventGetterError(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message simulating a retry
@@ -426,6 +432,7 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message simulating a retry
@@ -494,6 +501,7 @@ func TestMessageHandler_Idempotency(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create message with fixed ID for idempotency check
@@ -561,6 +569,7 @@ func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create retry message
@@ -636,6 +645,7 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message
@@ -697,6 +707,7 @@ func TestMessageHandler_LogPublisherError(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message
@@ -758,6 +769,7 @@ func TestMessageHandler_PublishAndLogError(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message
@@ -819,6 +831,7 @@ func TestManualDelivery_Success(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message
@@ -887,6 +900,7 @@ func TestManualDelivery_PublishError(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message
@@ -950,6 +964,7 @@ func TestManualDelivery_CancelError(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message
@@ -1015,6 +1030,7 @@ func TestManualDelivery_DestinationDisabled(t *testing.T) {
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
+		newMockAlertMonitor(),
 	)
 
 	// Create and handle message
