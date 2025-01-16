@@ -33,50 +33,45 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		return m.store.ResetFailures(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
 	}
 
-	return m.store.WithTx(ctx, func(tx AlertStore) error {
-		// Increment failures
-		failures, err := tx.IncrementFailures(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
-		if err != nil {
-			return fmt.Errorf("failed to increment failures: %w", err)
-		}
+	// Get failure state
+	state, err := m.store.IncrementAndGetFailureState(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get failure state: %w", err)
+	}
 
-		// Get last alert time
-		lastAlertTime, err := tx.GetLastAlertTime(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
-		if err != nil && err != ErrNotFound {
-			return fmt.Errorf("failed to get last alert time: %w", err)
-		}
-
-		// Check if we should send an alert
-		if !m.evaluator.ShouldAlert(failures, lastAlertTime) {
-			return nil
-		}
-
-		// Get alert level
-		level, _ := m.evaluator.GetAlertLevel(failures)
-
-		// Create and send alert
-		alert := Alert{
-			Topic:               "event.failed",
-			DisableThreshold:    m.autoDisableFailureCount,
-			ConsecutiveFailures: failures,
-			Destination:         attempt.Destination,
-			Response:            attempt.Response,
-		}
-
-		if err := m.notifier.Notify(ctx, alert); err != nil {
-			return fmt.Errorf("failed to send alert: %w", err)
-		}
-
-		// Update last alert time
-		if err := tx.UpdateLastAlertTime(ctx, attempt.Destination.TenantID, attempt.Destination.ID, attempt.Timestamp); err != nil {
-			return fmt.Errorf("failed to update last alert time: %w", err)
-		}
-
-		// If we've hit 100%, we should disable the destination
-		if level == 100 {
-			// TODO: Call destination service to disable the destination
-		}
-
+	// Check if we should send an alert
+	if !m.evaluator.ShouldAlert(state.FailureCount, state.LastAlertTime) {
 		return nil
-	})
+	}
+
+	// Get alert level
+	level, shouldAlert := m.evaluator.GetAlertLevel(state.FailureCount)
+	if !shouldAlert {
+		return nil
+	}
+
+	// Send alert
+	alert := Alert{
+		Topic:               attempt.Destination.Topics[0], // TODO: Handle multiple topics
+		DisableThreshold:    m.autoDisableFailureCount,
+		ConsecutiveFailures: state.FailureCount,
+		Destination:         attempt.Destination,
+		Response:            attempt.Response,
+	}
+
+	if err := m.notifier.Notify(ctx, alert); err != nil {
+		return fmt.Errorf("failed to send alert: %w", err)
+	}
+
+	// Update last alert time
+	if err := m.store.UpdateLastAlertTime(ctx, attempt.Destination.TenantID, attempt.Destination.ID, attempt.Timestamp); err != nil {
+		return fmt.Errorf("failed to update last alert time: %w", err)
+	}
+
+	// If we've hit 100%, we should disable the destination
+	if level == 100 {
+		// TODO: Call destination service to disable the destination
+	}
+
+	return nil
 }

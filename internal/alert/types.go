@@ -13,24 +13,6 @@ type AlertMonitor interface {
 	HandleAttempt(ctx context.Context, attempt DeliveryAttempt) error
 }
 
-// AlertStore handles persistence of alert-related data
-type AlertStore interface {
-	// IncrementFailures increments and returns the new failure count
-	IncrementFailures(ctx context.Context, tenantID, destinationID string) (int64, error)
-
-	// ResetFailures resets the failure counter
-	ResetFailures(ctx context.Context, tenantID, destinationID string) error
-
-	// GetLastAlertTime gets the timestamp of the last alert
-	GetLastAlertTime(ctx context.Context, tenantID, destinationID string) (time.Time, error)
-
-	// UpdateLastAlertTime updates the last alert timestamp
-	UpdateLastAlertTime(ctx context.Context, tenantID, destinationID string, t time.Time) error
-
-	// WithTx executes operations in a transaction
-	WithTx(ctx context.Context, fn func(tx AlertStore) error) error
-}
-
 // AlertEvaluator determines when alerts should be triggered
 type AlertEvaluator interface {
 	// ShouldAlert determines if an alert should be sent based on failures and debouncing
