@@ -25,45 +25,45 @@ type alertEvaluator struct {
 }
 
 // NewAlertEvaluator creates a new alert evaluator
-func NewAlertEvaluator(config AlertConfig) AlertEvaluator {
+func NewAlertEvaluator(thresholds []int, autoDisableFailureCount int, debouncingIntervalMS int64) AlertEvaluator {
 	// Create pairs of percentage thresholds and their corresponding failure counts
-	thresholds := make([]thresholdPair, 0, len(config.AlertThresholds))
+	finalThresholds := make([]thresholdPair, 0, len(thresholds))
 
 	// Convert percentages to failure counts
-	for _, percentage := range config.AlertThresholds {
+	for _, percentage := range thresholds {
 		// Skip invalid percentages
 		if percentage <= 0 || percentage > 100 {
 			continue
 		}
 		// Ceiling division: (a + b - 1) / b
-		failures := (int64(config.AutoDisableFailureCount)*int64(percentage) + 99) / 100
-		thresholds = append(thresholds, thresholdPair{
+		failures := (int64(autoDisableFailureCount)*int64(percentage) + 99) / 100
+		finalThresholds = append(finalThresholds, thresholdPair{
 			percentage: percentage,
 			failures:   failures,
 		})
 	}
 
 	// Sort by failure count
-	sort.Slice(thresholds, func(i, j int) bool { return thresholds[i].failures < thresholds[j].failures })
+	sort.Slice(finalThresholds, func(i, j int) bool { return finalThresholds[i].failures < finalThresholds[j].failures })
 
 	// Check if we need to add 100
 	needsAutoDisable := true
-	if len(thresholds) > 0 && thresholds[len(thresholds)-1].percentage == 100 {
+	if len(finalThresholds) > 0 && finalThresholds[len(finalThresholds)-1].percentage == 100 {
 		needsAutoDisable = false
 	}
 
 	// Auto-include 100% threshold if not present
 	if needsAutoDisable {
-		thresholds = append(thresholds, thresholdPair{
+		finalThresholds = append(finalThresholds, thresholdPair{
 			percentage: 100,
-			failures:   int64(config.AutoDisableFailureCount),
+			failures:   int64(autoDisableFailureCount),
 		})
 	}
 
 	return &alertEvaluator{
-		thresholds:              thresholds,
-		autoDisableFailureCount: config.AutoDisableFailureCount,
-		debouncingIntervalMS:    config.DebouncingIntervalMS,
+		thresholds:              finalThresholds,
+		autoDisableFailureCount: autoDisableFailureCount,
+		debouncingIntervalMS:    debouncingIntervalMS,
 	}
 }
 

@@ -18,11 +18,11 @@ func TestAlertEvaluator_GetAlertLevel(t *testing.T) {
 
 	t.Run("with 100 threshold", func(t *testing.T) {
 		t.Parallel()
-		config := alert.AlertConfig{
-			AutoDisableFailureCount: 10,
-			AlertThresholds:         []int{50, 66, 90, 100},
-		}
-		evaluator := alert.NewAlertEvaluator(config)
+		evaluator := alert.NewAlertEvaluator(
+			[]int{50, 66, 90, 100},
+			10, // autoDisableFailureCount
+			0,  // debouncingIntervalMS
+		)
 
 		tests := []struct {
 			failures int64
@@ -46,11 +46,11 @@ func TestAlertEvaluator_GetAlertLevel(t *testing.T) {
 
 	t.Run("auto-includes 100 threshold", func(t *testing.T) {
 		t.Parallel()
-		config := alert.AlertConfig{
-			AutoDisableFailureCount: 10,
-			AlertThresholds:         []int{50, 66, 90}, // No 100% threshold
-		}
-		evaluator := alert.NewAlertEvaluator(config)
+		evaluator := alert.NewAlertEvaluator(
+			[]int{50, 66, 90}, // No 100% threshold
+			10,                // autoDisableFailureCount
+			0,                 // debouncingIntervalMS
+		)
 
 		// At auto-disable threshold should give 100% alert
 		level := evaluator.GetAlertLevel(10)
@@ -59,11 +59,11 @@ func TestAlertEvaluator_GetAlertLevel(t *testing.T) {
 
 	t.Run("prunes invalid thresholds", func(t *testing.T) {
 		t.Parallel()
-		config := alert.AlertConfig{
-			AutoDisableFailureCount: 100,                    // Makes percentages match failure counts
-			AlertThresholds:         []int{-5, 0, 101, 150}, // Only invalid thresholds
-		}
-		evaluator := alert.NewAlertEvaluator(config)
+		evaluator := alert.NewAlertEvaluator(
+			[]int{-5, 0, 101, 150}, // Only invalid thresholds
+			100,                    // Makes percentages match failure counts
+			0,                      // debouncingIntervalMS
+		)
 
 		// Test that invalid thresholds are pruned and 100 is added
 		tests := []struct {
@@ -88,12 +88,11 @@ func TestAlertEvaluator_ShouldAlert_ZeroDebounce(t *testing.T) {
 
 	t.Run("with valid thresholds", func(t *testing.T) {
 		t.Parallel()
-		config := alert.AlertConfig{
-			DebouncingIntervalMS:    0, // No debouncing
-			AutoDisableFailureCount: 10,
-			AlertThresholds:         []int{50, 66, 90, 100},
-		}
-		evaluator := alert.NewAlertEvaluator(config)
+		evaluator := alert.NewAlertEvaluator(
+			[]int{50, 66, 90, 100},
+			10, // autoDisableFailureCount
+			0,  // No debouncing
+		)
 
 		tests := []struct {
 			name          string
@@ -153,12 +152,11 @@ func TestAlertEvaluator_ShouldAlert_ZeroDebounce(t *testing.T) {
 
 	t.Run("with invalid thresholds", func(t *testing.T) {
 		t.Parallel()
-		config := alert.AlertConfig{
-			DebouncingIntervalMS:    0, // No debouncing
-			AutoDisableFailureCount: 100,
-			AlertThresholds:         []int{-5, 0, 101, 150}, // Only invalid thresholds
-		}
-		evaluator := alert.NewAlertEvaluator(config)
+		evaluator := alert.NewAlertEvaluator(
+			[]int{-5, 0, 101, 150}, // Only invalid thresholds
+			100,                    // Makes percentages match failure counts
+			0,                      // No debouncing
+		)
 
 		tests := []struct {
 			name          string
@@ -200,12 +198,11 @@ func TestAlertEvaluator_ShouldAlert_ZeroDebounce(t *testing.T) {
 func TestAlertEvaluator_ShouldAlert_Debounce(t *testing.T) {
 	t.Parallel()
 
-	config := alert.AlertConfig{
-		AutoDisableFailureCount: 10,
-		DebouncingIntervalMS:    1000, // 1 second
-		AlertThresholds:         []int{50, 66, 90, 100},
-	}
-	evaluator := alert.NewAlertEvaluator(config)
+	evaluator := alert.NewAlertEvaluator(
+		[]int{50, 66, 90, 100},
+		10,   // autoDisableFailureCount
+		1000, // 1 second debouncing
+	)
 
 	now := time.Now()
 	withinDebounce := now.Add(-500 * time.Millisecond)   // Within 1s window
