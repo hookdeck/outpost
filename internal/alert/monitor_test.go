@@ -82,12 +82,26 @@ type testMonitor struct {
 	monitor   alert.AlertMonitor
 }
 
-func newTestMonitor(config alert.AlertConfig) *testMonitor {
+func newTestMonitor(opts ...alert.AlertOption) *testMonitor {
 	store := &mockAlertStore{}
 	evaluator := &mockAlertEvaluator{}
 	notifier := &mockAlertNotifier{}
 	disabler := &mockDestinationDisabler{}
 
+	// Create default config
+	config := alert.AlertConfig{
+		DebouncingIntervalMS:    1000,
+		AutoDisableFailureCount: 20,
+		CallbackURL:             "http://test",
+		AlertThresholds:         []int{50, 66, 90, 100},
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(&config)
+	}
+
+	// Create monitor with mocked dependencies
 	monitor := alert.NewAlertMonitorWithDeps(store, evaluator, notifier, disabler, config)
 
 	return &testMonitor{
@@ -99,12 +113,12 @@ func newTestMonitor(config alert.AlertConfig) *testMonitor {
 	}
 }
 
-func defaultConfig() alert.AlertConfig {
-	return alert.AlertConfig{
-		DebouncingIntervalMS:    1000,
-		AutoDisableFailureCount: 20,
-		CallbackURL:             "http://test",
-		AlertThresholds:         []int{50, 66, 90, 100},
+func defaultTestOptions() []alert.AlertOption {
+	return []alert.AlertOption{
+		alert.WithDebouncingInterval(1000),
+		alert.WithAutoDisableFailureCount(20),
+		alert.WithCallbackURL("http://test"),
+		alert.WithAlertThresholds([]int{50, 66, 90, 100}),
 	}
 }
 
@@ -113,7 +127,7 @@ func TestAlertMonitor(t *testing.T) {
 
 	t.Run("success resets failures", func(t *testing.T) {
 		t.Parallel()
-		tm := newTestMonitor(defaultConfig())
+		tm := newTestMonitor(defaultTestOptions()...)
 
 		dest := &models.Destination{ID: "dest_1", TenantID: "tenant_1"}
 		attempt := alert.DeliveryAttempt{
@@ -130,7 +144,7 @@ func TestAlertMonitor(t *testing.T) {
 
 	t.Run("failure triggers alert", func(t *testing.T) {
 		t.Parallel()
-		tm := newTestMonitor(defaultConfig())
+		tm := newTestMonitor(defaultTestOptions()...)
 
 		dest := &models.Destination{ID: "dest_2", TenantID: "tenant_2"}
 		event := &models.Event{Topic: "test.event"}
@@ -172,7 +186,7 @@ func TestAlertMonitor(t *testing.T) {
 
 	t.Run("failure below threshold", func(t *testing.T) {
 		t.Parallel()
-		tm := newTestMonitor(defaultConfig())
+		tm := newTestMonitor(defaultTestOptions()...)
 
 		dest := &models.Destination{ID: "dest_3", TenantID: "tenant_3"}
 		attempt := alert.DeliveryAttempt{
@@ -197,7 +211,7 @@ func TestAlertMonitor(t *testing.T) {
 
 	t.Run("store error", func(t *testing.T) {
 		t.Parallel()
-		tm := newTestMonitor(defaultConfig())
+		tm := newTestMonitor(defaultTestOptions()...)
 
 		dest := &models.Destination{ID: "dest_4", TenantID: "tenant_4"}
 		attempt := alert.DeliveryAttempt{
@@ -215,7 +229,7 @@ func TestAlertMonitor(t *testing.T) {
 
 	t.Run("notifier error", func(t *testing.T) {
 		t.Parallel()
-		tm := newTestMonitor(defaultConfig())
+		tm := newTestMonitor(defaultTestOptions()...)
 
 		dest := &models.Destination{ID: "dest_5", TenantID: "tenant_5"}
 		event := &models.Event{Topic: "test.event"}
@@ -386,6 +400,51 @@ func TestAlertMonitor(t *testing.T) {
 		assert.Equal(t, int64(1), alert1.ConsecutiveFailures)
 		assert.Equal(t, int64(1), alert2.ConsecutiveFailures)
 	})
+
+	t.Run("uses default thresholds when none provided", func(t *testing.T) {
+		t.Parallel()
+		tm := newTestMonitor() // Use no options to test defaults
+
+		dest := &models.Destination{ID: "dest_default", TenantID: "tenant_default"}
+		event := &models.Event{Topic: "test.event"}
+		deliveryEvent := &models.DeliveryEvent{Event: *event}
+		attempt := alert.DeliveryAttempt{
+			Success:       false,
+			DeliveryEvent: deliveryEvent,
+			Destination:   dest,
+		}
+
+		// Set up expectations for 6 attempts
+		for i := 1; i <= 6; i++ {
+			alertState := alert.AlertState{
+				FailureCount:   int64(i),
+				LastAlertTime:  time.Time{},
+				LastAlertLevel: 0,
+			}
+			tm.store.On("IncrementAndGetAlertState", mock.Anything, dest.TenantID, dest.ID).Return(alertState, nil).Once()
+
+			if i == 5 { // At 50% threshold (5 failures with default AutoDisableFailureCount=10)
+				tm.evaluator.On("ShouldAlert", alertState.FailureCount, alertState.LastAlertTime, alertState.LastAlertLevel).Return(50, true).Once()
+				tm.notifier.On("Notify", mock.Anything, mock.MatchedBy(func(alert alert.Alert) bool {
+					return alert.ConsecutiveFailures == alertState.FailureCount
+				})).Return(nil).Once()
+				tm.store.On("UpdateLastAlert", mock.Anything, dest.TenantID, dest.ID, mock.Anything, 50).Return(nil).Once()
+			} else {
+				tm.evaluator.On("ShouldAlert", alertState.FailureCount, alertState.LastAlertTime, alertState.LastAlertLevel).Return(0, false).Once()
+			}
+		}
+
+		// Trigger 6 failures
+		for i := 0; i < 6; i++ {
+			err := tm.monitor.HandleAttempt(context.Background(), attempt)
+			require.NoError(t, err)
+		}
+
+		tm.store.AssertExpectations(t)
+		tm.evaluator.AssertExpectations(t)
+		tm.notifier.AssertExpectations(t)
+		tm.disabler.AssertExpectations(t)
+	})
 }
 
 func TestAlertMonitor_AutoDisable(t *testing.T) {
@@ -393,7 +452,7 @@ func TestAlertMonitor_AutoDisable(t *testing.T) {
 
 	t.Run("disables destination at 100%", func(t *testing.T) {
 		t.Parallel()
-		tm := newTestMonitor(defaultConfig())
+		tm := newTestMonitor(defaultTestOptions()...)
 
 		dest := &models.Destination{ID: "dest_auto_disable", TenantID: "tenant_auto_disable"}
 		event := &models.Event{Topic: "test.event"}
@@ -435,7 +494,7 @@ func TestAlertMonitor_AutoDisable(t *testing.T) {
 
 	t.Run("handles disable error", func(t *testing.T) {
 		t.Parallel()
-		tm := newTestMonitor(defaultConfig())
+		tm := newTestMonitor(defaultTestOptions()...)
 
 		dest := &models.Destination{ID: "dest_disable_error", TenantID: "tenant_disable_error"}
 		event := &models.Event{Topic: "test.event"}
@@ -472,6 +531,51 @@ func TestAlertMonitor_AutoDisable(t *testing.T) {
 		err := tm.monitor.HandleAttempt(context.Background(), attempt)
 		assert.ErrorIs(t, err, expectedErr)
 		assert.ErrorContains(t, err, "failed to disable destination")
+
+		tm.store.AssertExpectations(t)
+		tm.evaluator.AssertExpectations(t)
+		tm.notifier.AssertExpectations(t)
+		tm.disabler.AssertExpectations(t)
+	})
+
+	t.Run("uses default thresholds when none provided", func(t *testing.T) {
+		t.Parallel()
+		tm := newTestMonitor() // Use no options to test defaults
+
+		dest := &models.Destination{ID: "dest_default", TenantID: "tenant_default"}
+		event := &models.Event{Topic: "test.event"}
+		deliveryEvent := &models.DeliveryEvent{Event: *event}
+		attempt := alert.DeliveryAttempt{
+			Success:       false,
+			DeliveryEvent: deliveryEvent,
+			Destination:   dest,
+		}
+
+		// Set up expectations for 6 attempts
+		for i := 1; i <= 6; i++ {
+			alertState := alert.AlertState{
+				FailureCount:   int64(i),
+				LastAlertTime:  time.Time{},
+				LastAlertLevel: 0,
+			}
+			tm.store.On("IncrementAndGetAlertState", mock.Anything, dest.TenantID, dest.ID).Return(alertState, nil).Once()
+
+			if i == 5 { // At 50% threshold (5 failures with default AutoDisableFailureCount=10)
+				tm.evaluator.On("ShouldAlert", alertState.FailureCount, alertState.LastAlertTime, alertState.LastAlertLevel).Return(50, true).Once()
+				tm.notifier.On("Notify", mock.Anything, mock.MatchedBy(func(alert alert.Alert) bool {
+					return alert.ConsecutiveFailures == alertState.FailureCount
+				})).Return(nil).Once()
+				tm.store.On("UpdateLastAlert", mock.Anything, dest.TenantID, dest.ID, mock.Anything, 50).Return(nil).Once()
+			} else {
+				tm.evaluator.On("ShouldAlert", alertState.FailureCount, alertState.LastAlertTime, alertState.LastAlertLevel).Return(0, false).Once()
+			}
+		}
+
+		// Trigger 6 failures
+		for i := 0; i < 6; i++ {
+			err := tm.monitor.HandleAttempt(context.Background(), attempt)
+			require.NoError(t, err)
+		}
 
 		tm.store.AssertExpectations(t)
 		tm.evaluator.AssertExpectations(t)

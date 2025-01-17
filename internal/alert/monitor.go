@@ -19,6 +19,37 @@ type AlertMonitor interface {
 	HandleAttempt(ctx context.Context, attempt DeliveryAttempt) error
 }
 
+// AlertOption is a function that configures an alertMonitor
+type AlertOption func(*AlertConfig)
+
+// WithDebouncingInterval sets the debouncing interval in milliseconds
+func WithDebouncingInterval(ms int64) AlertOption {
+	return func(c *AlertConfig) {
+		c.DebouncingIntervalMS = ms
+	}
+}
+
+// WithAutoDisableFailureCount sets the number of consecutive failures before auto-disabling
+func WithAutoDisableFailureCount(count int) AlertOption {
+	return func(c *AlertConfig) {
+		c.AutoDisableFailureCount = count
+	}
+}
+
+// WithCallbackURL sets the URL where alerts will be sent
+func WithCallbackURL(url string) AlertOption {
+	return func(c *AlertConfig) {
+		c.CallbackURL = url
+	}
+}
+
+// WithAlertThresholds sets the percentage thresholds at which to send alerts
+func WithAlertThresholds(thresholds []int) AlertOption {
+	return func(c *AlertConfig) {
+		c.AlertThresholds = thresholds
+	}
+}
+
 // AlertConfig holds configuration for the alert system
 type AlertConfig struct {
 	// DebouncingIntervalMS is the time in milliseconds between alerts for the same destination
@@ -48,36 +79,42 @@ type Response struct {
 }
 
 type alertMonitor struct {
-	store                   AlertStore
-	evaluator               AlertEvaluator
-	notifier                AlertNotifier
-	disabler                DestinationDisabler
-	autoDisableFailureCount int
+	store     AlertStore
+	evaluator AlertEvaluator
+	notifier  AlertNotifier
+	disabler  DestinationDisabler
+	config    AlertConfig
 }
 
 // NewAlertMonitor creates a new alert monitor with default implementations
-func NewAlertMonitor(redisClient *redis.Client, disabler DestinationDisabler, config AlertConfig) AlertMonitor {
-	store := NewRedisAlertStore(redisClient)
-	evaluator := NewAlertEvaluator(config)
-	notifier := NewHTTPAlertNotifier(config.CallbackURL)
-
-	return &alertMonitor{
-		store:                   store,
-		evaluator:               evaluator,
-		notifier:                notifier,
-		disabler:                disabler,
-		autoDisableFailureCount: config.AutoDisableFailureCount,
+func NewAlertMonitor(redisClient *redis.Client, disabler DestinationDisabler, opts ...AlertOption) AlertMonitor {
+	config := AlertConfig{
+		DebouncingIntervalMS:    0,                      // Default 0 debounce
+		AutoDisableFailureCount: 20,                     // Default 20 failures
+		AlertThresholds:         []int{50, 70, 90, 100}, // Default thresholds
 	}
+
+	for _, opt := range opts {
+		opt(&config)
+	}
+
+	return NewAlertMonitorWithDeps(
+		NewRedisAlertStore(redisClient),
+		NewAlertEvaluator(config),
+		NewHTTPAlertNotifier(config.CallbackURL),
+		disabler,
+		config,
+	)
 }
 
 // NewAlertMonitorWithDeps creates a monitor with the provided dependencies
 func NewAlertMonitorWithDeps(store AlertStore, evaluator AlertEvaluator, notifier AlertNotifier, disabler DestinationDisabler, config AlertConfig) AlertMonitor {
 	return &alertMonitor{
-		store:                   store,
-		evaluator:               evaluator,
-		notifier:                notifier,
-		disabler:                disabler,
-		autoDisableFailureCount: config.AutoDisableFailureCount,
+		store:     store,
+		evaluator: evaluator,
+		notifier:  notifier,
+		disabler:  disabler,
+		config:    config,
 	}
 }
 
@@ -101,7 +138,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 	// Send alert
 	alert := Alert{
 		Topic:               attempt.DeliveryEvent.Event.Topic,
-		DisableThreshold:    m.autoDisableFailureCount,
+		DisableThreshold:    m.config.AutoDisableFailureCount,
 		ConsecutiveFailures: state.FailureCount,
 		Destination:         attempt.Destination,
 		Response:            attempt.Response,
