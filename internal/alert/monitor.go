@@ -153,8 +153,8 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		return fmt.Errorf("failed to update last alert state: %w", err)
 	}
 
-	// If we've hit 100%, we should disable the destination
-	if level == 100 {
+	// If we've hit 100% and have a disabler configured, disable the destination
+	if level == 100 && m.disabler != nil {
 		if err := m.disabler.DisableDestination(ctx, attempt.Destination.TenantID, attempt.Destination.ID); err != nil {
 			return fmt.Errorf("failed to disable destination: %w", err)
 		}
