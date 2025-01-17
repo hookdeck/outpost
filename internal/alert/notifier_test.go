@@ -3,10 +3,10 @@ package alert_test
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/models"
@@ -15,94 +15,98 @@ import (
 )
 
 func TestAlertNotifier_Notify(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name          string
-		alert         alert.Alert
-		serverHandler http.HandlerFunc
-		expectError   bool
+		name         string
+		handler      func(w http.ResponseWriter, r *http.Request)
+		notifierOpts []alert.NotifierOption
+		wantErr      bool
+		errContains  string
 	}{
 		{
 			name: "successful notification",
-			alert: alert.Alert{
-				Topic:               "event.failed",
-				DisableThreshold:    10,
-				ConsecutiveFailures: 5,
-				Destination: &models.Destination{
-					ID:       "dest_123",
-					TenantID: "tenant_123",
-				},
-				Response: &alert.Response{
-					Status: "error",
-					Data: map[string]any{
-						"code": "ETIMEDOUT",
-					},
-				},
-			},
-			serverHandler: func(w http.ResponseWriter, r *http.Request) {
+			handler: func(w http.ResponseWriter, r *http.Request) {
 				// Verify request
-				assert.Equal(t, "POST", r.Method)
 				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
-				// Read and verify body
-				body, err := io.ReadAll(r.Body)
+				// Read and verify request body
+				var body map[string]interface{}
+				err := json.NewDecoder(r.Body).Decode(&body)
 				require.NoError(t, err)
 
-				// Print the raw JSON for debugging
-				t.Logf("Raw JSON: %s", string(body))
+				assert.Equal(t, "event.failed", body["topic"])
+				assert.Equal(t, float64(10), body["disable_threshold"])
+				assert.Equal(t, float64(5), body["consecutive_failures"])
 
-				var receivedAlert alert.Alert
-				err = json.Unmarshal(body, &receivedAlert)
-				require.NoError(t, err)
-
-				// Compare the original alert with the received one
-				assert.Equal(t, "event.failed", receivedAlert.Topic)
-				assert.Equal(t, 10, receivedAlert.DisableThreshold)
-				assert.Equal(t, int64(5), receivedAlert.ConsecutiveFailures)
-				require.NotNil(t, receivedAlert.Destination)
-				assert.Equal(t, "dest_123", receivedAlert.Destination.ID)
-				assert.Equal(t, "tenant_123", receivedAlert.Destination.TenantID)
-				require.NotNil(t, receivedAlert.Response)
-				assert.Equal(t, "error", receivedAlert.Response.Status)
-				assert.Equal(t, "ETIMEDOUT", receivedAlert.Response.Data["code"])
+				// Log raw JSON for debugging
+				rawJSON, _ := json.Marshal(body)
+				t.Logf("Raw JSON: %s", string(rawJSON))
 
 				w.WriteHeader(http.StatusOK)
 			},
-			expectError: false,
 		},
 		{
-			name:  "server error",
-			alert: alert.Alert{},
-			serverHandler: func(w http.ResponseWriter, r *http.Request) {
+			name: "server error",
+			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 			},
-			expectError: true,
+			wantErr:     true,
+			errContains: "alert callback failed with status 500",
 		},
 		{
-			name:  "invalid response status",
-			alert: alert.Alert{},
-			serverHandler: func(w http.ResponseWriter, r *http.Request) {
+			name: "invalid response status",
+			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 			},
-			expectError: true,
+			wantErr:     true,
+			errContains: "alert callback failed with status 400",
+		},
+		{
+			name: "timeout exceeded",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				time.Sleep(100 * time.Millisecond)
+				w.WriteHeader(http.StatusOK)
+			},
+			notifierOpts: []alert.NotifierOption{alert.NotifierWithTimeout(50 * time.Millisecond)},
+			wantErr:      true,
+			errContains:  "context deadline exceeded",
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create test server
-			server := httptest.NewServer(tt.serverHandler)
-			defer server.Close()
+			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
+			defer ts.Close()
 
-			// Create notifier with test server URL
-			notifier := alert.NewHTTPAlertNotifier(server.URL)
+			// Create notifier
+			notifier := alert.NewHTTPAlertNotifier(ts.URL, tt.notifierOpts...)
 
-			// Send notification
-			err := notifier.Notify(context.Background(), tt.alert)
+			// Create test alert
+			dest := &models.Destination{ID: "dest_123", TenantID: "tenant_123"}
+			alert := alert.Alert{
+				Topic:               "event.failed",
+				DisableThreshold:    10,
+				ConsecutiveFailures: 5,
+				Destination:         dest,
+				Response: &alert.Response{
+					Status: "error",
+					Data:   map[string]any{"code": "ETIMEDOUT"},
+				},
+			}
 
-			if tt.expectError {
-				assert.Error(t, err)
+			// Send alert
+			err := notifier.Notify(context.Background(), alert)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.errContains)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

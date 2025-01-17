@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/models"
 )
@@ -14,6 +15,20 @@ import (
 type AlertNotifier interface {
 	// Notify sends an alert to the configured callback URL
 	Notify(ctx context.Context, alert Alert) error
+}
+
+// NotifierOption configures an AlertNotifier
+type NotifierOption func(n *httpAlertNotifier)
+
+// NotifierWithTimeout sets the timeout for alert notifications.
+// If timeout is 0, it defaults to 30 seconds.
+func NotifierWithTimeout(timeout time.Duration) NotifierOption {
+	return func(n *httpAlertNotifier) {
+		if timeout == 0 {
+			timeout = 30 * time.Second
+		}
+		n.client.Timeout = timeout
+	}
 }
 
 // Alert represents an alert that will be sent to the callback URL
@@ -31,11 +46,15 @@ type httpAlertNotifier struct {
 }
 
 // NewHTTPAlertNotifier creates a new HTTP-based alert notifier
-func NewHTTPAlertNotifier(callbackURL string) AlertNotifier {
-	return &httpAlertNotifier{
-		client:      http.DefaultClient,
+func NewHTTPAlertNotifier(callbackURL string, opts ...NotifierOption) AlertNotifier {
+	n := &httpAlertNotifier{
+		client:      &http.Client{},
 		callbackURL: callbackURL,
 	}
+	for _, opt := range opts {
+		opt(n)
+	}
+	return n
 }
 
 func (n *httpAlertNotifier) Notify(ctx context.Context, alert Alert) error {
