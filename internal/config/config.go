@@ -84,6 +84,9 @@ type Config struct {
 
 	// Portal
 	Portal PortalConfig `yaml:"portal"`
+
+	// Alert
+	Alert AlertConfig `yaml:"alert"`
 }
 
 var (
@@ -137,6 +140,12 @@ func (c *Config) InitDefaults() {
 		Webhook: DestinationWebhookConfig{
 			HeaderPrefix: "x-outpost-",
 		},
+	}
+
+	c.Alert = AlertConfig{
+		CallbackURL:             "",
+		ConsecutiveFailureCount: 20,
+		AutoDisableDestination:  true,
 	}
 }
 
@@ -294,4 +303,10 @@ func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
 		Password: c.Password,
 		Database: c.Database,
 	}
+}
+
+type AlertConfig struct {
+	CallbackURL             string `yaml:"callback_url" env:"ALERT_CALLBACK_URL"`
+	ConsecutiveFailureCount int    `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT"`
+	AutoDisableDestination  bool   `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION"`
 }

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
@@ -95,6 +96,21 @@ func NewService(ctx context.Context,
 			retryScheduler.Shutdown()
 		})
 
+		var alertNotifier alert.AlertNotifier
+		var destinationDisabler alert.DestinationDisabler
+		if cfg.Alert.CallbackURL != "" {
+			alertNotifier = alert.NewHTTPAlertNotifier(cfg.Alert.CallbackURL)
+		}
+		if cfg.Alert.AutoDisableDestination {
+			destinationDisabler = newDestinationDisabler(entityStore)
+		}
+		alertMonitor := alert.NewAlertMonitor(
+			redisClient,
+			alert.WithNotifier(alertNotifier),
+			alert.WithDisabler(destinationDisabler),
+			alert.WithAutoDisableFailureCount(cfg.Alert.ConsecutiveFailureCount),
+		)
+
 		handler = deliverymq.NewMessageHandler(
 			logger,
 			redisClient,
@@ -109,6 +125,7 @@ func NewService(ctx context.Context,
 				Base:     2,
 			},
 			cfg.RetryMaxLimit,
+			alertMonitor,
 		)
 	}
 
@@ -151,4 +168,27 @@ func (s *DeliveryService) Run(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+type destinationDisabler struct {
+	entityStore models.EntityStore
+}
+
+func newDestinationDisabler(entityStore models.EntityStore) alert.DestinationDisabler {
+	return &destinationDisabler{
+		entityStore: entityStore,
+	}
+}
+
+func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) error {
+	destination, err := d.entityStore.RetrieveDestination(ctx, tenantID, destinationID)
+	if err != nil {
+		return err
+	}
+	if destination == nil {
+		return nil
+	}
+	now := time.Now()
+	destination.DisabledAt = &now
+	return d.entityStore.UpsertDestination(ctx, *destination)
 }
