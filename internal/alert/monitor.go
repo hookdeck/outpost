@@ -22,13 +22,6 @@ type AlertMonitor interface {
 // AlertOption is a function that configures an AlertConfig
 type AlertOption func(*alertMonitor)
 
-// WithDebouncingInterval sets the debouncing interval in milliseconds
-func WithDebouncingInterval(ms int64) AlertOption {
-	return func(c *alertMonitor) {
-		c.debouncingIntervalMS = ms
-	}
-}
-
 // WithAutoDisableFailureCount sets the number of consecutive failures before auto-disabling
 func WithAutoDisableFailureCount(count int) AlertOption {
 	return func(c *alertMonitor) {
@@ -92,8 +85,6 @@ type alertMonitor struct {
 	notifier  AlertNotifier
 	disabler  DestinationDisabler
 
-	// debouncingIntervalMS is the time in milliseconds between alerts for the same destination
-	debouncingIntervalMS int64
 	// autoDisableFailureCount is the number of consecutive failures before auto-disabling
 	autoDisableFailureCount int
 	// alertThresholds defines the percentage thresholds at which to send alerts
@@ -125,7 +116,7 @@ func NewAlertMonitor(redisClient *redis.Client, opts ...AlertOption) AlertMonito
 	}
 
 	if alertMonitor.evaluator == nil {
-		alertMonitor.evaluator = NewAlertEvaluator(alertMonitor.alertThresholds, alertMonitor.autoDisableFailureCount, alertMonitor.debouncingIntervalMS)
+		alertMonitor.evaluator = NewAlertEvaluator(alertMonitor.alertThresholds, alertMonitor.autoDisableFailureCount)
 	}
 
 	return alertMonitor
@@ -133,19 +124,26 @@ func NewAlertMonitor(redisClient *redis.Client, opts ...AlertOption) AlertMonito
 
 func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttempt) error {
 	if attempt.Success {
-		return m.store.ResetAlertState(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
+		return m.store.ResetConsecutiveFailureCount(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
 	}
 
 	// Get alert state
-	state, err := m.store.IncrementAndGetAlertState(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
+	count, err := m.store.IncrementConsecutiveFailureCount(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get alert state: %w", err)
 	}
 
 	// Check if we should send an alert
-	level, shouldAlert := m.evaluator.ShouldAlert(state.FailureCount, state.LastAlertTime, state.LastAlertLevel)
+	level, shouldAlert := m.evaluator.ShouldAlert(count)
 	if !shouldAlert {
 		return nil
+	}
+
+	// If we've hit 100% and have a disabler configured, disable the destination
+	if level == 100 && m.disabler != nil {
+		if err := m.disabler.DisableDestination(ctx, attempt.Destination.TenantID, attempt.Destination.ID); err != nil {
+			return fmt.Errorf("failed to disable destination: %w", err)
+		}
 	}
 
 	// Send alert if notifier is configured
@@ -153,25 +151,13 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		alert := Alert{
 			Topic:               attempt.DeliveryEvent.Event.Topic,
 			DisableThreshold:    m.autoDisableFailureCount,
-			ConsecutiveFailures: state.FailureCount,
+			ConsecutiveFailures: count,
 			Destination:         attempt.Destination,
 			Response:            attempt.Response,
 		}
 
 		if err := m.notifier.Notify(ctx, alert); err != nil {
 			return fmt.Errorf("failed to send alert: %w", err)
-		}
-
-		// Update last alert time and level atomically
-		if err := m.store.UpdateLastAlert(ctx, attempt.Destination.TenantID, attempt.Destination.ID, time.Now(), level); err != nil {
-			return fmt.Errorf("failed to update last alert state: %w", err)
-		}
-	}
-
-	// If we've hit 100% and have a disabler configured, disable the destination
-	if level == 100 && m.disabler != nil {
-		if err := m.disabler.DisableDestination(ctx, attempt.Destination.TenantID, attempt.Destination.ID); err != nil {
-			return fmt.Errorf("failed to disable destination: %w", err)
 		}
 	}
 

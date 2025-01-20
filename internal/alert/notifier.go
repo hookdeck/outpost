@@ -35,7 +35,7 @@ func NotifierWithTimeout(timeout time.Duration) NotifierOption {
 type Alert struct {
 	Topic               string              `json:"topic"`
 	DisableThreshold    int                 `json:"disable_threshold"`
-	ConsecutiveFailures int64               `json:"consecutive_failures"`
+	ConsecutiveFailures int                 `json:"consecutive_failures"`
 	Destination         *models.Destination `json:"destination"`
 	Response            *Response           `json:"response,omitempty"`
 }
