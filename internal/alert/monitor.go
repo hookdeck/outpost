@@ -69,14 +69,8 @@ type DeliveryAttempt struct {
 	Success       bool
 	DeliveryEvent *models.DeliveryEvent
 	Destination   *models.Destination
-	Response      *Response
 	Timestamp     time.Time
-}
-
-// Response contains details about a failed delivery attempt
-type Response struct {
-	Status string         `json:"status"`
-	Data   map[string]any `json:"data"`
+	Data          map[string]interface{}
 }
 
 type alertMonitor struct {
@@ -153,7 +147,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 			DisableThreshold:    m.autoDisableFailureCount,
 			ConsecutiveFailures: count,
 			Destination:         attempt.Destination,
-			Response:            attempt.Response,
+			Data:                attempt.Data,
 		}
 
 		if err := m.notifier.Notify(ctx, alert); err != nil {

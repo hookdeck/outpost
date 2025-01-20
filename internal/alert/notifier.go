@@ -33,11 +33,11 @@ func NotifierWithTimeout(timeout time.Duration) NotifierOption {
 
 // Alert represents an alert that will be sent to the callback URL
 type Alert struct {
-	Topic               string              `json:"topic"`
-	DisableThreshold    int                 `json:"disable_threshold"`
-	ConsecutiveFailures int                 `json:"consecutive_failures"`
-	Destination         *models.Destination `json:"destination"`
-	Response            *Response           `json:"response,omitempty"`
+	Topic               string                 `json:"topic"`
+	DisableThreshold    int                    `json:"disable_threshold"`
+	ConsecutiveFailures int                    `json:"consecutive_failures"`
+	Destination         *models.Destination    `json:"destination"`
+	Data                map[string]interface{} `json:"data"`
 }
 
 type httpAlertNotifier struct {

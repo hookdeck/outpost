@@ -93,9 +93,9 @@ func TestAlertNotifier_Notify(t *testing.T) {
 				DisableThreshold:    10,
 				ConsecutiveFailures: 5,
 				Destination:         dest,
-				Response: &alert.Response{
-					Status: "error",
-					Data:   map[string]any{"code": "ETIMEDOUT"},
+				Data: map[string]interface{}{
+					"status": "error",
+					"data":   map[string]any{"code": "ETIMEDOUT"},
 				},
 			}
 

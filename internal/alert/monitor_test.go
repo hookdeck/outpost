@@ -56,9 +56,9 @@ func TestAlertMonitor_ConsecutiveFailures_MaxFailures(t *testing.T) {
 		Success:       false,
 		DeliveryEvent: deliveryEvent,
 		Destination:   dest,
-		Response: &alert.Response{
-			Status: "500",
-			Data:   map[string]any{"error": "test error"},
+		Data: map[string]interface{}{
+			"status": "500",
+			"data":   map[string]any{"error": "test error"},
 		},
 		Timestamp: time.Now(),
 	}
@@ -78,7 +78,7 @@ func TestAlertMonitor_ConsecutiveFailures_MaxFailures(t *testing.T) {
 			require.Contains(t, []int{10, 14, 18, 20}, failures, "Alert should be sent at 50%, 66%, 90%, and 100% thresholds")
 			require.Equal(t, dest, alert.Destination)
 			require.Equal(t, event.Topic, alert.Topic)
-			require.Equal(t, attempt.Response, alert.Response)
+			require.Equal(t, attempt.Data, alert.Data)
 			require.Equal(t, 20, alert.DisableThreshold)
 		}
 	}
@@ -120,9 +120,9 @@ func TestAlertMonitor_ConsecutiveFailures_Reset(t *testing.T) {
 		Success:       false,
 		DeliveryEvent: deliveryEvent,
 		Destination:   dest,
-		Response: &alert.Response{
-			Status: "500",
-			Data:   map[string]any{"error": "test error"},
+		Data: map[string]interface{}{
+			"status": "500",
+			"data":   map[string]any{"error": "test error"},
 		},
 		Timestamp: time.Now(),
 	}
