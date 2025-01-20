@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hookdeck/outpost/cmd/e2e/alert"
 	"github.com/hookdeck/outpost/cmd/e2e/configs"
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
 	"github.com/hookdeck/outpost/internal/app"
@@ -115,6 +116,7 @@ func (test *APITest) Run(t *testing.T, client httpclient.Client) {
 type basicSuite struct {
 	suite.Suite
 	e2eSuite
+	alertServer *alert.AlertMockServer
 }
 
 func (suite *basicSuite) SetupSuite() {
@@ -123,7 +125,15 @@ func (suite *basicSuite) SetupSuite() {
 	gin.SetMode(gin.TestMode)
 	mockServerBaseURL := testinfra.GetMockServer(t)
 
+	// Setup alert mock server
+	alertServer := alert.NewAlertMockServer()
+	require.NoError(t, alertServer.Start())
+	suite.alertServer = alertServer
+
 	cfg := configs.Basic(t)
+	// Configure alert callback URL
+	cfg.Alert.CallbackURL = alertServer.GetCallbackURL()
+
 	require.NoError(t, cfg.Validate(config.Flags{}))
 
 	suite.e2eSuite = e2eSuite{
@@ -131,7 +141,11 @@ func (suite *basicSuite) SetupSuite() {
 		config:            cfg,
 		mockServerBaseURL: mockServerBaseURL,
 		mockServerInfra:   testinfra.NewMockServerInfra(mockServerBaseURL),
-		cleanup:           func() {},
+		cleanup: func() {
+			if err := alertServer.Stop(); err != nil {
+				t.Logf("failed to stop alert server: %v", err)
+			}
+		},
 	}
 	suite.e2eSuite.SetupSuite()
 

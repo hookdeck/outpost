@@ -3,6 +3,7 @@ package configs
 import (
 	"context"
 	"log"
+	"os"
 	"testing"
 
 	"github.com/google/uuid"
@@ -18,11 +19,17 @@ func Basic(t *testing.T) config.Config {
 	clickHouseConfig := testinfra.NewClickHouseConfig(t)
 	rabbitmqServerURL := testinfra.EnsureRabbitMQ()
 
+	logLevel := "fatal"
+	if os.Getenv("LOG_LEVEL") != "" {
+		logLevel = os.Getenv("LOG_LEVEL")
+	}
+
 	// Start with defaults
 	c := &config.Config{}
 	c.InitDefaults()
 
 	// Override only what's needed for e2e tests
+	c.LogLevel = logLevel
 	c.Service = config.ServiceTypeSingular.String()
 	c.APIPort = testutil.RandomPortNumber()
 	c.APIKey = "apikey"
