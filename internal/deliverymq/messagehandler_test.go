@@ -1163,6 +1163,72 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 	assertAlertMonitor(t, alertMonitor, true, &destination, nil)
 }
 
+func TestMessageHandler_AlertMonitorError(t *testing.T) {
+	// Test scenario:
+	// - Publish succeeds
+	// - Alert monitor fails
+	// - Should still succeed overall (alert errors don't affect main flow)
+	t.Parallel()
+
+	// Setup test data
+	tenant := models.Tenant{ID: uuid.New().String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+	)
+
+	// Setup mocks
+	destGetter := &mockDestinationGetter{dest: &destination}
+	eventGetter := newMockEventGetter()
+	eventGetter.registerEvent(&event)
+	retryScheduler := newMockRetryScheduler()
+	publisher := newMockPublisher([]error{nil}) // Successful publish
+	logPublisher := newMockLogPublisher(nil)
+	alertMonitor := newMockAlertMonitor()
+	alertMonitor.On("HandleAttempt", mock.Anything, mock.Anything).Return(errors.New("alert monitor failed"))
+
+	// Setup message handler
+	handler := deliverymq.NewMessageHandler(
+		testutil.CreateTestLogger(t),
+		testutil.CreateTestRedisClient(t),
+		logPublisher,
+		destGetter,
+		eventGetter,
+		publisher,
+		testutil.NewMockEventTracer(nil),
+		retryScheduler,
+		&backoff.ConstantBackoff{Interval: 1 * time.Second},
+		10,
+		alertMonitor,
+	)
+
+	// Create and handle message
+	deliveryEvent := models.DeliveryEvent{
+		ID:            uuid.New().String(),
+		Event:         event,
+		DestinationID: destination.ID,
+	}
+	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+
+	// Handle message
+	err := handler.Handle(context.Background(), msg)
+	require.NoError(t, err)
+
+	// Assert behavior
+	assert.True(t, mockMsg.acked, "message should be acked despite alert monitor error")
+	assert.False(t, mockMsg.nacked, "message should not be nacked despite alert monitor error")
+	assert.Equal(t, 1, publisher.current, "should publish once")
+	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
+	assert.Equal(t, models.DeliveryStatusOK, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK")
+
+	// Verify alert monitor was called but error was ignored
+	alertMonitor.AssertCalled(t, "HandleAttempt", mock.Anything, mock.Anything)
+}
+
 // Helper function to assert alert monitor calls
 func assertAlertMonitor(t *testing.T, m *mockAlertMonitor, success bool, destination *models.Destination, expectedData map[string]interface{}) {
 	t.Helper()
