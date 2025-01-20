@@ -196,20 +196,20 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 
 		if h.shouldScheduleRetry(deliveryEvent, err) {
 			if retryErr := h.scheduleRetry(ctx, deliveryEvent); retryErr != nil {
-				return h.logDeliveryResult(ctx, &deliveryEvent, errors.Join(err, retryErr))
+				return h.logDeliveryResult(ctx, &deliveryEvent, destination, errors.Join(err, retryErr))
 			}
 		}
-		return h.logDeliveryResult(ctx, &deliveryEvent, deliveryErr)
+		return h.logDeliveryResult(ctx, &deliveryEvent, destination, deliveryErr)
 	}
 
 	// Handle successful delivery
 	if deliveryEvent.Manual {
 		if err := h.retryScheduler.Cancel(ctx, deliveryEvent.GetRetryID()); err != nil {
 			h.logger.Ctx(ctx).Error("failed to cancel scheduled retry", zap.Error(err))
-			return h.logDeliveryResult(ctx, &deliveryEvent, err)
+			return h.logDeliveryResult(ctx, &deliveryEvent, destination, err)
 		}
 	}
-	return h.logDeliveryResult(ctx, &deliveryEvent, nil)
+	return h.logDeliveryResult(ctx, &deliveryEvent, destination, nil)
 }
 
 func (h *messageHandler) hasDeliveryError(err error) bool {
@@ -217,7 +217,7 @@ func (h *messageHandler) hasDeliveryError(err error) bool {
 	return errors.As(err, &delErr)
 }
 
-func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent *models.DeliveryEvent, err error) error {
+func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent *models.DeliveryEvent, destination *models.Destination, err error) error {
 	// Set up delivery record
 	deliveryEvent.Delivery = &models.Delivery{
 		ID:              uuid.New().String(),
@@ -243,6 +243,9 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent *m
 		return &PostDeliveryError{err: logErr}
 	}
 
+	// Call alert monitor in goroutine
+	go h.handleAlertAttempt(deliveryEvent, destination, err)
+
 	// If we have a DeliveryError, return it as is
 	var delErr *DeliveryError
 	if errors.As(err, &delErr) {
@@ -261,6 +264,32 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent *m
 	}
 
 	return nil
+}
+
+func (h *messageHandler) handleAlertAttempt(deliveryEvent *models.DeliveryEvent, destination *models.Destination, err error) {
+	attempt := alert.DeliveryAttempt{
+		Success:       deliveryEvent.Delivery.Status == models.DeliveryStatusOK,
+		DeliveryEvent: deliveryEvent,
+		Destination:   destination,
+		Timestamp:     deliveryEvent.Delivery.Time,
+	}
+
+	// Extract attempt data if available
+	var delErr *DeliveryError
+	if errors.As(err, &delErr) {
+		var pubErr *destregistry.ErrDestinationPublishAttempt
+		if errors.As(delErr.err, &pubErr) {
+			attempt.Data = map[string]interface{}{
+				"error":    pubErr.Err.Error(),
+				"provider": pubErr.Provider,
+				"data":     pubErr.Data,
+			}
+		}
+	}
+
+	if monitorErr := h.alertMonitor.HandleAttempt(context.Background(), attempt); monitorErr != nil {
+		h.logger.Warn("failed to handle alert attempt", zap.Error(monitorErr))
+	}
 }
 
 func (h *messageHandler) shouldScheduleRetry(deliveryEvent models.DeliveryEvent, err error) bool {

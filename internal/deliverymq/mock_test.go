@@ -199,5 +199,10 @@ func (m *mockAlertMonitor) HandleAttempt(ctx context.Context, attempt alert.Deli
 }
 
 func newMockAlertMonitor() *mockAlertMonitor {
-	return &mockAlertMonitor{}
+	monitor := &mockAlertMonitor{}
+	// Set up default expectation to handle any attempt
+	monitor.On("HandleAttempt", mock.Anything, mock.MatchedBy(func(attempt alert.DeliveryAttempt) bool {
+		return true // Accept any attempt
+	})).Return(nil)
+	return monitor
 }
