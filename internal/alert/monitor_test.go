@@ -19,8 +19,8 @@ type mockAlertNotifier struct {
 }
 
 func (m *mockAlertNotifier) Notify(ctx context.Context, alert alert.Alert) error {
-	m.Called(ctx, alert)
-	return nil
+	args := m.Called(ctx, alert)
+	return args.Error(0)
 }
 
 type mockDestinationDisabler struct {
@@ -73,13 +73,14 @@ func TestAlertMonitor_ConsecutiveFailures_MaxFailures(t *testing.T) {
 	for _, call := range notifier.Calls {
 		if call.Method == "Notify" {
 			notifyCallCount++
-			alert := call.Arguments.Get(1).(alert.Alert)
-			failures := alert.ConsecutiveFailures
+			alert := call.Arguments.Get(1).(alert.ConsecutiveFailureAlert)
+			failures := alert.Data.ConsecutiveFailures
 			require.Contains(t, []int{10, 14, 18, 20}, failures, "Alert should be sent at 50%, 66%, 90%, and 100% thresholds")
-			require.Equal(t, dest, alert.Destination)
-			require.Equal(t, event.Topic, alert.Topic)
-			require.Equal(t, attempt.Data, alert.Data)
-			require.Equal(t, 20, alert.DisableThreshold)
+			require.Equal(t, dest, alert.Data.Destination)
+			require.Equal(t, "alert.consecutive-failure", alert.Topic)
+			require.Equal(t, attempt.Data, alert.Data.Data)
+			require.Equal(t, 20, alert.Data.MaxConsecutiveFailures)
+			require.Equal(t, failures == 20, alert.Data.WillDisable, "WillDisable should only be true at 100% (20 failures)")
 		}
 	}
 	require.Equal(t, 4, notifyCallCount, "Should have sent exactly 4 notifications")
@@ -154,8 +155,8 @@ func TestAlertMonitor_ConsecutiveFailures_Reset(t *testing.T) {
 	// Verify the notifications were at the right thresholds
 	var seenCounts []int
 	for _, call := range notifier.Calls {
-		alert := call.Arguments.Get(1).(alert.Alert)
-		seenCounts = append(seenCounts, alert.ConsecutiveFailures)
+		alert := call.Arguments.Get(1).(alert.ConsecutiveFailureAlert)
+		seenCounts = append(seenCounts, alert.Data.ConsecutiveFailures)
 	}
 	assert.Contains(t, seenCounts, 10, "Should have alerted at 50% (10 failures)")
 	assert.Contains(t, seenCounts, 14, "Should have alerted at 66% (14 failures)")

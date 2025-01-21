@@ -11,6 +11,11 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
+// Alert represents any alert that can be sent
+type Alert interface {
+	json.Marshaler
+}
+
 // AlertNotifier sends alerts to configured destinations
 type AlertNotifier interface {
 	// Notify sends an alert to the configured callback URL
@@ -37,13 +42,35 @@ func NotifierWithBearerToken(token string) NotifierOption {
 	}
 }
 
-// Alert represents an alert that will be sent to the callback URL
-type Alert struct {
-	Topic               string                 `json:"topic"`
-	DisableThreshold    int                    `json:"disable_threshold"`
-	ConsecutiveFailures int                    `json:"consecutive_failures"`
-	Destination         *models.Destination    `json:"destination"`
-	Data                map[string]interface{} `json:"data"`
+// ConsecutiveFailureData represents the data needed for a consecutive failure alert
+type ConsecutiveFailureData struct {
+	MaxConsecutiveFailures int                    `json:"max_consecutive_failures"`
+	ConsecutiveFailures    int                    `json:"consecutive_failures"`
+	WillDisable            bool                   `json:"will_disable"`
+	Destination            *models.Destination    `json:"destination"`
+	Data                   map[string]interface{} `json:"data"`
+}
+
+// ConsecutiveFailureAlert represents an alert for consecutive failures
+type ConsecutiveFailureAlert struct {
+	Topic     string                 `json:"topic"`
+	Timestamp time.Time              `json:"timestamp"`
+	Data      ConsecutiveFailureData `json:"data"`
+}
+
+// MarshalJSON implements json.Marshaler
+func (a ConsecutiveFailureAlert) MarshalJSON() ([]byte, error) {
+	type Alias ConsecutiveFailureAlert
+	return json.Marshal(Alias(a))
+}
+
+// NewConsecutiveFailureAlert creates a new consecutive failure alert with defaults
+func NewConsecutiveFailureAlert(data ConsecutiveFailureData) ConsecutiveFailureAlert {
+	return ConsecutiveFailureAlert{
+		Topic:     "alert.consecutive-failure",
+		Timestamp: time.Now(),
+		Data:      data,
+	}
 }
 
 type httpAlertNotifier struct {
@@ -66,7 +93,7 @@ func NewHTTPAlertNotifier(callbackURL string, opts ...NotifierOption) AlertNotif
 
 func (n *httpAlertNotifier) Notify(ctx context.Context, alert Alert) error {
 	// Marshal alert to JSON
-	body, err := json.Marshal(alert)
+	body, err := alert.MarshalJSON()
 	if err != nil {
 		return fmt.Errorf("failed to marshal alert: %w", err)
 	}

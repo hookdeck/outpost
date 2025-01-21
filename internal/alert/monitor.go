@@ -144,13 +144,13 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 
 	// Send alert if notifier is configured
 	if m.notifier != nil {
-		alert := Alert{
-			Topic:               attempt.DeliveryEvent.Event.Topic,
-			DisableThreshold:    m.autoDisableFailureCount,
-			ConsecutiveFailures: count,
-			Destination:         attempt.Destination,
-			Data:                attempt.Data,
-		}
+		alert := NewConsecutiveFailureAlert(ConsecutiveFailureData{
+			MaxConsecutiveFailures: m.autoDisableFailureCount,
+			ConsecutiveFailures:    count,
+			WillDisable:            m.disabler != nil && level == 100,
+			Destination:            attempt.Destination,
+			Data:                   attempt.Data,
+		})
 
 		if err := m.notifier.Notify(ctx, alert); err != nil {
 			return fmt.Errorf("failed to send alert: %w", err)

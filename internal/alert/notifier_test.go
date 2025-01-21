@@ -35,9 +35,11 @@ func TestAlertNotifier_Notify(t *testing.T) {
 				err := json.NewDecoder(r.Body).Decode(&body)
 				require.NoError(t, err)
 
-				assert.Equal(t, "event.failed", body["topic"])
-				assert.Equal(t, float64(10), body["disable_threshold"])
-				assert.Equal(t, float64(5), body["consecutive_failures"])
+				assert.Equal(t, "alert.consecutive-failure", body["topic"])
+				data := body["data"].(map[string]interface{})
+				assert.Equal(t, float64(10), data["max_consecutive_failures"])
+				assert.Equal(t, float64(5), data["consecutive_failures"])
+				assert.Equal(t, true, data["will_disable"])
 
 				// Log raw JSON for debugging
 				rawJSON, _ := json.Marshal(body)
@@ -108,19 +110,19 @@ func TestAlertNotifier_Notify(t *testing.T) {
 
 			// Create test alert
 			dest := &models.Destination{ID: "dest_123", TenantID: "tenant_123"}
-			alert := alert.Alert{
-				Topic:               "event.failed",
-				DisableThreshold:    10,
-				ConsecutiveFailures: 5,
-				Destination:         dest,
+			testAlert := alert.NewConsecutiveFailureAlert(alert.ConsecutiveFailureData{
+				MaxConsecutiveFailures: 10,
+				ConsecutiveFailures:    5,
+				WillDisable:            true,
+				Destination:            dest,
 				Data: map[string]interface{}{
 					"status": "error",
 					"data":   map[string]any{"code": "ETIMEDOUT"},
 				},
-			}
+			})
 
 			// Send alert
-			err := notifier.Notify(context.Background(), alert)
+			err := notifier.Notify(context.Background(), testAlert)
 
 			if tt.wantErr {
 				require.Error(t, err)

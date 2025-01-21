@@ -7,16 +7,23 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/models"
 )
 
 type AlertPayload struct {
-	Topic               string                 `json:"topic"`
-	DisableThreshold    int                    `json:"disable_threshold"`
-	ConsecutiveFailures int                    `json:"consecutive_failures"`
-	Destination         *models.Destination    `json:"destination"`
-	Data                map[string]interface{} `json:"data"`
+	Topic     string                 `json:"topic"`
+	Timestamp time.Time              `json:"timestamp"`
+	Data      ConsecutiveFailureData `json:"data"`
+}
+
+type ConsecutiveFailureData struct {
+	MaxConsecutiveFailures int                    `json:"max_consecutive_failures"`
+	ConsecutiveFailures    int                    `json:"consecutive_failures"`
+	WillDisable            bool                   `json:"will_disable"`
+	Destination            *models.Destination    `json:"destination"`
+	Data                   map[string]interface{} `json:"data"`
 }
 
 type AlertMockServer struct {
@@ -108,7 +115,7 @@ func (s *AlertMockServer) GetAlertsForDestination(destinationID string) []AlertP
 
 	var filtered []AlertPayload
 	for _, alert := range s.alerts {
-		if alert.Destination != nil && alert.Destination.ID == destinationID {
+		if alert.Data.Destination != nil && alert.Data.Destination.ID == destinationID {
 			filtered = append(filtered, alert)
 		}
 	}
