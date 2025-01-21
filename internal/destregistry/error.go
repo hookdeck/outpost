@@ -25,7 +25,7 @@ func NewErrDestinationValidation(errors []ValidationErrorDetail) error {
 type ErrDestinationPublishAttempt struct {
 	Err      error
 	Provider string
-	Data     interface{}
+	Data     map[string]interface{}
 }
 
 var _ error = &ErrDestinationPublishAttempt{}
@@ -34,18 +34,8 @@ func (e *ErrDestinationPublishAttempt) Error() string {
 	return fmt.Sprintf("failed to publish to %s: %v", e.Provider, e.Err)
 }
 
-func NewErrDestinationPublishAttempt(err error, provider string, data interface{}) error {
+func NewErrDestinationPublishAttempt(err error, provider string, data map[string]interface{}) error {
 	return &ErrDestinationPublishAttempt{Err: err, Provider: provider, Data: data}
 }
 
 var ErrPublisherClosed = errors.New("publisher is closed")
-
-type ErrUnexpectedPublishError struct {
-	Err error
-}
-
-var _ error = &ErrUnexpectedPublishError{}
-
-func (e *ErrUnexpectedPublishError) Error() string {
-	return fmt.Sprintf("unexpected publish error: %v", e.Err)
-}

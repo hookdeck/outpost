@@ -233,7 +233,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
 
 	// One successful delivery
 	tests = append(tests, APITest{
-		Delay: time.Second / 2,
+		Delay: time.Second,
 		Name:  "POST /publish - Publish successful event",
 		Request: suite.AuthRequest(httpclient.Request{
 			Method: httpclient.MethodPOST,

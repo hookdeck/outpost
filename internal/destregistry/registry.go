@@ -162,7 +162,14 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 				},
 			}
 		}
-		return &ErrUnexpectedPublishError{Err: err}
+		return &ErrDestinationPublishAttempt{
+			Err:      err,
+			Provider: destination.Type,
+			Data: map[string]interface{}{
+				"error":   "unexpected",
+				"message": err.Error(),
+			},
+		}
 	}
 	return nil
 }

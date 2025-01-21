@@ -121,7 +121,10 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) er
 
 	// Ensure we have a valid connection
 	if err := p.ensureConnection(ctx); err != nil {
-		return err
+		return destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
+			"error":   "connection_failed",
+			"message": err.Error(),
+		})
 	}
 
 	dataBytes, err := json.Marshal(event.Data)
@@ -145,7 +148,10 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) er
 			Body:        []byte(dataBytes),
 		},
 	); err != nil {
-		return destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", err)
+		return destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
+			"error":   "publish_failed",
+			"message": err.Error(),
+		})
 	}
 
 	return nil

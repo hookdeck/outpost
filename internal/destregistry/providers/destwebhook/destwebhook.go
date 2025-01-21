@@ -493,15 +493,21 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) err
 
 	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
-		return destregistry.NewErrDestinationPublishAttempt(err, "webhook", err)
+		return destregistry.NewErrDestinationPublishAttempt(err, "webhook", map[string]interface{}{
+			"error":   "request_failed",
+			"message": err.Error(),
+		})
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return destregistry.NewErrDestinationPublishAttempt(fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(bodyBytes)), "webhook", map[string]interface{}{
-			"status": resp.StatusCode,
-			"body":   string(bodyBytes),
+			"error": "request_failed",
+			"response": map[string]interface{}{
+				"status": resp.StatusCode,
+				"body":   string(bodyBytes),
+			},
 		})
 	}
 

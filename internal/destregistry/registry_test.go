@@ -654,11 +654,8 @@ func TestPublishEventTimeout(t *testing.T) {
 		var publishErr *destregistry.ErrDestinationPublishAttempt
 		assert.ErrorAs(t, err, &publishErr)
 		assert.Equal(t, "test", publishErr.Provider)
-
-		data, ok := publishErr.Data.(map[string]interface{})
-		assert.True(t, ok, "Expected Data to be map[string]interface{}")
-		assert.Equal(t, "timeout", data["error"])
-		assert.Equal(t, timeout.String(), data["timeout"])
+		assert.Equal(t, "timeout", publishErr.Data["error"])
+		assert.Equal(t, timeout.String(), publishErr.Data["timeout"])
 	})
 
 	t.Run("should handle wrapped timeout error from provider", func(t *testing.T) {
@@ -669,7 +666,7 @@ func TestPublishEventTimeout(t *testing.T) {
 		provider, err := newMockProvider()
 		require.NoError(t, err)
 		provider.publishDelay = timeout * 2
-		provider.mockError = destregistry.NewErrDestinationPublishAttempt(context.DeadlineExceeded, "test", context.DeadlineExceeded)
+		provider.mockError = destregistry.NewErrDestinationPublishAttempt(context.DeadlineExceeded, "test", map[string]interface{}{"error": context.DeadlineExceeded})
 		err = registry.RegisterProvider("test", provider)
 		require.NoError(t, err)
 
@@ -684,11 +681,8 @@ func TestPublishEventTimeout(t *testing.T) {
 		var publishErr *destregistry.ErrDestinationPublishAttempt
 		assert.ErrorAs(t, err, &publishErr)
 		assert.Equal(t, "test", publishErr.Provider)
-
-		data, ok := publishErr.Data.(map[string]interface{})
-		assert.True(t, ok, "Expected Data to be map[string]interface{}")
-		assert.Equal(t, "timeout", data["error"])
-		assert.Equal(t, timeout.String(), data["timeout"])
+		assert.Equal(t, "timeout", publishErr.Data["error"])
+		assert.Equal(t, timeout.String(), publishErr.Data["timeout"])
 	})
 }
 

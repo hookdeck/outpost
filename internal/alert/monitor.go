@@ -3,6 +3,7 @@ package alert
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/models"
@@ -131,6 +132,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 
 	// Check if we should send an alert
 	level, shouldAlert := m.evaluator.ShouldAlert(count)
+	log.Println(count, level, shouldAlert)
 	if !shouldAlert {
 		return nil
 	}

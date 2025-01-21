@@ -232,6 +232,10 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	publishErr := &destregistry.ErrDestinationPublishAttempt{
 		Err:      errors.New("webhook returned 429"),
 		Provider: "webhook",
+		Data: map[string]interface{}{
+			"error":   "publish_failed",
+			"message": "webhook returned 429",
+		},
 	}
 	publisher := newMockPublisher([]error{publishErr})
 	logPublisher := newMockLogPublisher(nil)
@@ -272,11 +276,7 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 		"should use GetRetryID for task ID")
 	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
 	assert.Equal(t, models.DeliveryStatusFailed, logPublisher.deliveries[0].Delivery.Status, "delivery status should be Failed")
-	assertAlertMonitor(t, alertMonitor, false, &destination, map[string]interface{}{
-		"error":    "webhook returned 429",
-		"provider": "webhook",
-		"data":     nil,
-	})
+	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
 }
 
 func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
@@ -303,12 +303,15 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 	eventGetter := newMockEventGetter()
 	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
-	publisher := newMockPublisher([]error{
-		&destregistry.ErrDestinationPublishAttempt{
-			Err:      errors.New("webhook returned 400"),
-			Provider: "webhook",
+	publishErr := &destregistry.ErrDestinationPublishAttempt{
+		Err:      errors.New("webhook returned 400"),
+		Provider: "webhook",
+		Data: map[string]interface{}{
+			"error":   "publish_failed",
+			"message": "webhook returned 429",
 		},
-	})
+	}
+	publisher := newMockPublisher([]error{publishErr})
 	logPublisher := newMockLogPublisher(nil)
 	alertMonitor := newMockAlertMonitor()
 
@@ -346,11 +349,7 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 	assert.Equal(t, 1, publisher.current, "should only attempt once")
 	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
 	assert.Equal(t, models.DeliveryStatusFailed, logPublisher.deliveries[0].Delivery.Status, "delivery status should be Failed")
-	assertAlertMonitor(t, alertMonitor, false, &destination, map[string]interface{}{
-		"error":    "webhook returned 400",
-		"provider": "webhook",
-		"data":     nil,
-	})
+	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
 }
 
 func TestMessageHandler_EventGetterError(t *testing.T) {
@@ -910,12 +909,15 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	eventGetter := newMockEventGetter()
 	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
-	publisher := newMockPublisher([]error{
-		&destregistry.ErrDestinationPublishAttempt{
-			Err:      errors.New("webhook returned 429"),
-			Provider: "webhook",
+	publishErr := &destregistry.ErrDestinationPublishAttempt{
+		Err:      errors.New("webhook returned 429"),
+		Provider: "webhook",
+		Data: map[string]interface{}{
+			"error":   "publish_failed",
+			"message": "webhook returned 429",
 		},
-	})
+	}
+	publisher := newMockPublisher([]error{publishErr})
 	logPublisher := newMockLogPublisher(nil)
 	alertMonitor := newMockAlertMonitor()
 
@@ -954,11 +956,7 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	assert.Empty(t, retryScheduler.schedules, "should not schedule retry for manual delivery")
 	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
 	assert.Equal(t, models.DeliveryStatusFailed, logPublisher.deliveries[0].Delivery.Status, "delivery status should be Failed")
-	assertAlertMonitor(t, alertMonitor, false, &destination, map[string]interface{}{
-		"error":    "webhook returned 429",
-		"provider": "webhook",
-		"data":     nil,
-	})
+	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
 }
 
 func TestManualDelivery_CancelError(t *testing.T) {

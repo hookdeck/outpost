@@ -274,15 +274,22 @@ func (h *messageHandler) handleAlertAttempt(deliveryEvent *models.DeliveryEvent,
 		Timestamp:     deliveryEvent.Delivery.Time,
 	}
 
-	// Extract attempt data if available
-	var delErr *DeliveryError
-	if errors.As(err, &delErr) {
-		var pubErr *destregistry.ErrDestinationPublishAttempt
-		if errors.As(delErr.err, &pubErr) {
+	if !attempt.Success && err != nil {
+		// Extract attempt data if available
+		var delErr *DeliveryError
+		if errors.As(err, &delErr) {
+			var pubErr *destregistry.ErrDestinationPublishAttempt
+			if errors.As(delErr.err, &pubErr) {
+				attempt.Data = pubErr.Data
+			} else {
+				attempt.Data = map[string]interface{}{
+					"error": delErr.err.Error(),
+				}
+			}
+		} else {
 			attempt.Data = map[string]interface{}{
-				"error":    pubErr.Err.Error(),
-				"provider": pubErr.Provider,
-				"data":     pubErr.Data,
+				"error":   "unexpected",
+				"message": err.Error(),
 			}
 		}
 	}
