@@ -3,6 +3,7 @@ package alert
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -28,11 +29,17 @@ func NewRedisAlertStore(client *redis.Client) AlertStore {
 }
 
 func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) (int, error) {
-	count, err := s.client.Incr(ctx, s.getFailuresKey(destinationID)).Result()
+	key := s.getFailuresKey(destinationID)
+	pipe := s.client.TxPipeline()
+	incr := pipe.Incr(ctx, key)
+	pipe.Expire(ctx, key, 24*time.Hour)
+
+	_, err := pipe.Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to increment failures: %w", err)
 	}
-	return int(count), nil
+
+	return int(incr.Val()), nil
 }
 
 func (s *redisAlertStore) ResetConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) error {
