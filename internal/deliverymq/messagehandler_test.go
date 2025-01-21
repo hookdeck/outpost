@@ -1232,7 +1232,7 @@ func assertAlertMonitor(t *testing.T, m *mockAlertMonitor, success bool, destina
 	t.Helper()
 
 	// Wait a bit for goroutines
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	calls := m.Calls
 	require.NotEmpty(t, calls, "alert monitor should be called")
