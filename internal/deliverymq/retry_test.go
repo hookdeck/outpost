@@ -143,7 +143,7 @@ func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
 	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
 
 	<-ctx.Done()
-	assert.Equal(t, 1, publisher.current, "should only attempt once when retry is not eligible")
+	assert.Equal(t, 1, publisher.Current(), "should only attempt once when retry is not eligible")
 }
 
 func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
@@ -204,8 +204,26 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 	}
 	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
 
-	<-ctx.Done()
-	assert.Equal(t, 3, publisher.current, "should retry until success (2 failures + 1 success)")
+	// Wait for all attempts to complete
+	done := make(chan struct{})
+	go func() {
+		for {
+			if publisher.Current() >= 3 {
+				close(done)
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		t.Fatal("test timed out waiting for attempts to complete")
+	case <-done:
+		// Continue with assertions
+	}
+
+	assert.Equal(t, 3, publisher.Current(), "should retry until success (2 failures + 1 success)")
 }
 
 func TestDeliveryMQRetry_SystemError(t *testing.T) {
@@ -326,5 +344,5 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
 
 	<-ctx.Done()
-	assert.Equal(t, 3, publisher.current, "should stop after max retries (1 initial + 2 retries = 3 total attempts)")
+	assert.Equal(t, 3, publisher.Current(), "should stop after max retries (1 initial + 2 retries = 3 total attempts)")
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/alert"
@@ -21,6 +22,7 @@ type scheduleOptions struct {
 type mockPublisher struct {
 	responses []error
 	current   int
+	mu        sync.Mutex
 }
 
 func newMockPublisher(responses []error) *mockPublisher {
@@ -28,11 +30,23 @@ func newMockPublisher(responses []error) *mockPublisher {
 }
 
 func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error {
-	defer func() { m.current++ }()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.current >= len(m.responses) {
+		m.current++
 		return nil
 	}
-	return m.responses[m.current]
+
+	resp := m.responses[m.current]
+	m.current++
+	return resp
+}
+
+func (m *mockPublisher) Current() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.current
 }
 
 type mockDestinationGetter struct {
