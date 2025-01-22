@@ -129,7 +129,8 @@ func (suite *basicSuite) TestConsecutiveFailuresAlert() {
 
 	expectedCounts := []int{10, 14, 18, 20}
 	for i, alert := range alerts {
-		assert.Equal(suite.T(), expectedCounts[i], alert.Data.ConsecutiveFailures,
+		assert.Equal(suite.T(), fmt.Sprintf("Bearer %s", suite.config.APIKey), alert.AuthHeader, "auth header should match")
+		assert.Equal(suite.T(), expectedCounts[i], alert.Alert.Data.ConsecutiveFailures,
 			"alert %d should have %d consecutive failures", i, expectedCounts[i])
 	}
 }
@@ -310,7 +311,8 @@ func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
 	// Second batch should have alerts at 10, 14 (after reset)
 	expectedCounts := []int{10, 14, 10, 14}
 	for i, alert := range alerts {
-		assert.Equal(suite.T(), expectedCounts[i], alert.Data.ConsecutiveFailures,
+		assert.Equal(suite.T(), fmt.Sprintf("Bearer %s", suite.config.APIKey), alert.AuthHeader, "auth header should match")
+		assert.Equal(suite.T(), expectedCounts[i], alert.Alert.Data.ConsecutiveFailures,
 			"alert %d should have %d consecutive failures", i, expectedCounts[i])
 	}
 }

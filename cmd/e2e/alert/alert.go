@@ -12,6 +12,11 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
+type AlertRequest struct {
+	Alert      AlertPayload
+	AuthHeader string
+}
+
 type AlertPayload struct {
 	Topic     string                 `json:"topic"`
 	Timestamp time.Time              `json:"timestamp"`
@@ -28,7 +33,7 @@ type ConsecutiveFailureData struct {
 
 type AlertMockServer struct {
 	server *http.Server
-	alerts []AlertPayload
+	alerts []AlertRequest
 	mu     sync.RWMutex
 	port   int
 }
@@ -77,10 +82,10 @@ func (s *AlertMockServer) Reset() {
 	s.alerts = nil
 }
 
-func (s *AlertMockServer) GetAlerts() []AlertPayload {
+func (s *AlertMockServer) GetAlerts() []AlertRequest {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	alerts := make([]AlertPayload, len(s.alerts))
+	alerts := make([]AlertRequest, len(s.alerts))
 	copy(alerts, s.alerts)
 	return alerts
 }
@@ -100,29 +105,33 @@ func (s *AlertMockServer) handleAlert(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	request := AlertRequest{
+		Alert:      payload,
+		AuthHeader: r.Header.Get("Authorization"),
+	}
 
 	s.mu.Lock()
-	s.alerts = append(s.alerts, payload)
+	s.alerts = append(s.alerts, request)
 	s.mu.Unlock()
 
 	w.WriteHeader(http.StatusOK)
 }
 
 // Helper methods for assertions
-func (s *AlertMockServer) GetAlertsForDestination(destinationID string) []AlertPayload {
+func (s *AlertMockServer) GetAlertsForDestination(destinationID string) []AlertRequest {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var filtered []AlertPayload
+	var filtered []AlertRequest
 	for _, alert := range s.alerts {
-		if alert.Data.Destination != nil && alert.Data.Destination.ID == destinationID {
+		if alert.Alert.Data.Destination != nil && alert.Alert.Data.Destination.ID == destinationID {
 			filtered = append(filtered, alert)
 		}
 	}
 	return filtered
 }
 
-func (s *AlertMockServer) GetLastAlert() *AlertPayload {
+func (s *AlertMockServer) GetLastAlert() *AlertRequest {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

@@ -99,7 +99,7 @@ func NewService(ctx context.Context,
 		var alertNotifier alert.AlertNotifier
 		var destinationDisabler alert.DestinationDisabler
 		if cfg.Alert.CallbackURL != "" {
-			alertNotifier = alert.NewHTTPAlertNotifier(cfg.Alert.CallbackURL)
+			alertNotifier = alert.NewHTTPAlertNotifier(cfg.Alert.CallbackURL, alert.NotifierWithBearerToken(cfg.APIKey))
 		}
 		if cfg.Alert.AutoDisableDestination {
 			destinationDisabler = newDestinationDisabler(entityStore)
