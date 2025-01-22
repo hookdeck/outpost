@@ -15,10 +15,10 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/eventtracer"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/redis"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 	_ "gocloud.dev/pubsub/mempubsub"
 )
@@ -29,7 +29,7 @@ type consumerOptions struct {
 
 type DeliveryService struct {
 	consumerOptions *consumerOptions
-	Logger          *otelzap.Logger
+	Logger          *logging.Logger
 	RedisClient     *redis.Client
 	DeliveryMQ      *deliverymq.DeliveryMQ
 	Handler         consumer.MessageHandler
@@ -38,7 +38,7 @@ type DeliveryService struct {
 func NewService(ctx context.Context,
 	wg *sync.WaitGroup,
 	cfg *config.Config,
-	logger *otelzap.Logger,
+	logger *logging.Logger,
 	handler consumer.MessageHandler,
 ) (*DeliveryService, error) {
 	wg.Add(1)

@@ -10,11 +10,11 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
@@ -107,7 +107,7 @@ func buildMiddlewareChain(cfg RouterConfig, def RouteDefinition) []gin.HandlerFu
 
 func NewRouter(
 	cfg RouterConfig,
-	logger *otelzap.Logger,
+	logger *logging.Logger,
 	redisClient *redis.Client,
 	deliveryMQ *deliverymq.DeliveryMQ,
 	entityStore models.EntityStore,

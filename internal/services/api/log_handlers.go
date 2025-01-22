@@ -5,17 +5,17 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
 type LogHandlers struct {
-	logger   *otelzap.Logger
+	logger   *logging.Logger
 	logStore models.LogStore
 }
 
 func NewLogHandlers(
-	logger *otelzap.Logger,
+	logger *logging.Logger,
 	logStore models.LogStore,
 ) *LogHandlers {
 	return &LogHandlers{

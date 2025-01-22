@@ -12,11 +12,11 @@ import (
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/idempotence"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -68,7 +68,7 @@ func (e *PostDeliveryError) Unwrap() error {
 
 type messageHandler struct {
 	eventTracer    DeliveryTracer
-	logger         *otelzap.Logger
+	logger         *logging.Logger
 	logMQ          LogPublisher
 	entityStore    DestinationGetter
 	logStore       EventGetter
@@ -110,7 +110,7 @@ type AlertMonitor interface {
 }
 
 func NewMessageHandler(
-	logger *otelzap.Logger,
+	logger *logging.Logger,
 	redisClient *redis.Client,
 	logMQ LogPublisher,
 	entityStore DestinationGetter,

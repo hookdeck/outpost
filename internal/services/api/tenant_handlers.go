@@ -5,18 +5,18 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
 type TenantHandlers struct {
-	logger      *otelzap.Logger
+	logger      *logging.Logger
 	jwtSecret   string
 	entityStore models.EntityStore
 }
 
 func NewTenantHandlers(
-	logger *otelzap.Logger,
+	logger *logging.Logger,
 	jwtSecret string,
 	entityStore models.EntityStore,
 ) *TenantHandlers {

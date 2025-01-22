@@ -10,12 +10,12 @@ import (
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/consumer"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/mikestefanello/batcher"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
@@ -25,7 +25,7 @@ type consumerOptions struct {
 
 type LogService struct {
 	consumerOptions *consumerOptions
-	logger          *otelzap.Logger
+	logger          *logging.Logger
 	redisClient     *redis.Client
 	logMQ           *logmq.LogMQ
 	handler         consumer.MessageHandler
@@ -34,7 +34,7 @@ type LogService struct {
 func NewService(ctx context.Context,
 	wg *sync.WaitGroup,
 	cfg *config.Config,
-	logger *otelzap.Logger,
+	logger *logging.Logger,
 	handler consumer.MessageHandler,
 ) (*LogService, error) {
 	wg.Add(1)
@@ -113,7 +113,7 @@ type batcherConfig struct {
 	DelayThreshold     time.Duration
 }
 
-func makeBatcher(ctx context.Context, logger *otelzap.Logger, logStore models.LogStore, batcherCfg batcherConfig) (*batcher.Batcher[*mqs.Message], error) {
+func makeBatcher(ctx context.Context, logger *logging.Logger, logStore models.LogStore, batcherCfg batcherConfig) (*batcher.Batcher[*mqs.Message], error) {
 	b, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
 		GroupCountThreshold: 2,
 		ItemCountThreshold:  batcherCfg.ItemCountThreshold,

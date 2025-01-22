@@ -6,11 +6,11 @@ import (
 	"errors"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
-func RequireTenantMiddleware(logger *otelzap.Logger, entityStore models.EntityStore) gin.HandlerFunc {
+func RequireTenantMiddleware(logger *logging.Logger, entityStore models.EntityStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantID, exists := c.Get("tenantID")
 		if !exists {

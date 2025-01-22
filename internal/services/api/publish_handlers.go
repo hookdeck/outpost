@@ -8,18 +8,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/idempotence"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
 type PublishHandlers struct {
-	logger       *otelzap.Logger
+	logger       *logging.Logger
 	eventHandler publishmq.EventHandler
 }
 
 func NewPublishHandlers(
-	logger *otelzap.Logger,
+	logger *logging.Logger,
 	eventHandler publishmq.EventHandler,
 ) *PublishHandlers {
 	return &PublishHandlers{

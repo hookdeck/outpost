@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/hookdeck/outpost/internal/logging"
 	internalredis "github.com/hookdeck/outpost/internal/redis"
 	"github.com/redis/go-redis/v9"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
@@ -71,12 +72,12 @@ func CreateTestRedisClient(t *testing.T) *redis.Client {
 	})
 }
 
-func CreateTestLogger(t *testing.T) *otelzap.Logger {
+func CreateTestLogger(t *testing.T) *logging.Logger {
 	zapLogger := zaptest.NewLogger(t)
 	logger := otelzap.New(zapLogger,
 		otelzap.WithMinLevel(zap.InfoLevel),
 	)
-	return logger
+	return &logging.Logger{Logger: logger}
 }
 
 func RandomString(length int) string {

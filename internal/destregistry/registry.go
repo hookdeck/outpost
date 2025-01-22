@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/lru"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
@@ -75,7 +75,7 @@ type Config struct {
 	DeliveryTimeout         time.Duration
 }
 
-func NewRegistry(cfg *Config, logger *otelzap.Logger) Registry {
+func NewRegistry(cfg *Config, logger *logging.Logger) Registry {
 	if cfg.PublisherCacheSize == 0 {
 		cfg.PublisherCacheSize = defaultPublisherCacheSize
 	}

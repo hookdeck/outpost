@@ -9,19 +9,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/maputil"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
 type DestinationHandlers struct {
-	logger      *otelzap.Logger
+	logger      *logging.Logger
 	entityStore models.EntityStore
 	topics      []string
 	registry    destregistry.Registry
 }
 
-func NewDestinationHandlers(logger *otelzap.Logger, entityStore models.EntityStore, topics []string, registry destregistry.Registry) *DestinationHandlers {
+func NewDestinationHandlers(logger *logging.Logger, entityStore models.EntityStore, topics []string, registry destregistry.Registry) *DestinationHandlers {
 	return &DestinationHandlers{
 		logger:      logger,
 		entityStore: entityStore,

@@ -14,11 +14,11 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/eventtracer"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
@@ -30,7 +30,7 @@ type APIService struct {
 	registry                 destregistry.Registry
 	redisClient              *redis.Client
 	server                   *http.Server
-	logger                   *otelzap.Logger
+	logger                   *logging.Logger
 	publishMQ                *publishmq.PublishMQ
 	deliveryMQ               *deliverymq.DeliveryMQ
 	entityStore              models.EntityStore
@@ -39,7 +39,7 @@ type APIService struct {
 	consumerOptions          *consumerOptions
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *otelzap.Logger) (*APIService, error) {
+func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *logging.Logger) (*APIService, error) {
 	wg.Add(1)
 
 	registry := destregistry.NewRegistry(&destregistry.Config{

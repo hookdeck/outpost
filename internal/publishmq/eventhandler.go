@@ -10,9 +10,9 @@ import (
 	"github.com/hookdeck/outpost/internal/emetrics"
 	"github.com/hookdeck/outpost/internal/eventtracer"
 	"github.com/hookdeck/outpost/internal/idempotence"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/redis"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -28,7 +28,7 @@ type EventHandler interface {
 type eventHandler struct {
 	emeter      emetrics.OutpostMetrics
 	eventTracer eventtracer.EventTracer
-	logger      *otelzap.Logger
+	logger      *logging.Logger
 	idempotence idempotence.Idempotence
 	deliveryMQ  *deliverymq.DeliveryMQ
 	entityStore models.EntityStore
@@ -36,7 +36,7 @@ type eventHandler struct {
 }
 
 func NewEventHandler(
-	logger *otelzap.Logger,
+	logger *logging.Logger,
 	redisClient *redis.Client,
 	deliveryMQ *deliverymq.DeliveryMQ,
 	entityStore models.EntityStore,

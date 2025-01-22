@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/hookdeck/outpost/internal/consumer"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/mqs"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
 type batcher interface {
@@ -13,13 +13,13 @@ type batcher interface {
 }
 
 type messageHandler struct {
-	logger  *otelzap.Logger
+	logger  *logging.Logger
 	batcher batcher
 }
 
 var _ consumer.MessageHandler = (*messageHandler)(nil)
 
-func NewMessageHandler(logger *otelzap.Logger, batcher batcher) consumer.MessageHandler {
+func NewMessageHandler(logger *logging.Logger, batcher batcher) consumer.MessageHandler {
 	return &messageHandler{
 		logger:  logger,
 		batcher: batcher,

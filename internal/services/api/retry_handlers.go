@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/deliverymq"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
 var (
@@ -17,13 +17,13 @@ var (
 )
 
 type RetryHandlers struct {
-	logger      *otelzap.Logger
+	logger      *logging.Logger
 	entityStore models.EntityStore
 	logStore    models.LogStore
 	deliveryMQ  *deliverymq.DeliveryMQ
 }
 
-func NewRetryHandlers(logger *otelzap.Logger, entityStore models.EntityStore, logStore models.LogStore, deliveryMQ *deliverymq.DeliveryMQ) *RetryHandlers {
+func NewRetryHandlers(logger *logging.Logger, entityStore models.EntityStore, logStore models.LogStore, deliveryMQ *deliverymq.DeliveryMQ) *RetryHandlers {
 	return &RetryHandlers{
 		logger:      logger,
 		entityStore: entityStore,

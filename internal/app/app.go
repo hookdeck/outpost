@@ -5,19 +5,17 @@ import (
 	"errors"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/infra"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/otel"
 	"github.com/hookdeck/outpost/internal/services/api"
 	"github.com/hookdeck/outpost/internal/services/delivery"
 	"github.com/hookdeck/outpost/internal/services/log"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
-	"go.uber.org/zap"
 )
 
 type App struct {
@@ -35,7 +33,7 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 func run(mainContext context.Context, cfg *config.Config) error {
-	logger, err := makeLogger(cfg.LogLevel)
+	logger, err := logging.NewLogger(logging.WithLogLevel(cfg.LogLevel))
 	if err != nil {
 		return err
 	}
@@ -117,7 +115,7 @@ func constructServices(
 	ctx context.Context,
 	cfg *config.Config,
 	wg *sync.WaitGroup,
-	logger *otelzap.Logger,
+	logger *logging.Logger,
 ) ([]Service, error) {
 	serviceType := cfg.MustGetService()
 	services := []Service{}
@@ -145,33 +143,4 @@ func constructServices(
 	}
 
 	return services, nil
-}
-
-func makeLogger(logLevel string) (*otelzap.Logger, error) {
-	level := zap.InfoLevel
-	switch strings.ToLower(logLevel) {
-	case "debug":
-		level = zap.DebugLevel
-	case "info":
-		level = zap.InfoLevel
-	case "warn":
-		level = zap.WarnLevel
-	case "error":
-		level = zap.ErrorLevel
-	case "fatal":
-		level = zap.FatalLevel
-	default:
-		level = zap.InfoLevel
-	}
-
-	zapConfig := zap.NewProductionConfig()
-	zapConfig.Level = zap.NewAtomicLevelAt(level)
-	zapLogger, err := zapConfig.Build()
-	if err != nil {
-		return nil, err
-	}
-
-	return otelzap.New(zapLogger,
-		otelzap.WithMinLevel(level),
-	), nil
 }

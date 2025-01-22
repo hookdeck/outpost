@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/pkg/errors"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
-func LoggerMiddleware(logger *otelzap.Logger) gin.HandlerFunc {
+func LoggerMiddleware(logger *logging.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := logger.Ctx(c.Request.Context()).WithOptions(zap.AddStacktrace(zap.FatalLevel))
 		c.Next()
