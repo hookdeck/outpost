@@ -72,6 +72,26 @@ func TestAlertNotifier_Notify(t *testing.T) {
 			wantErr:      true,
 			errContains:  "context deadline exceeded",
 		},
+		{
+			name: "successful notification with bearer token",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				// Verify request headers
+				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+				assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+
+				// Read and verify request body
+				var body map[string]interface{}
+				err := json.NewDecoder(r.Body).Decode(&body)
+				require.NoError(t, err)
+
+				assert.Equal(t, "event.failed", body["topic"])
+				assert.Equal(t, float64(10), body["disable_threshold"])
+				assert.Equal(t, float64(5), body["consecutive_failures"])
+
+				w.WriteHeader(http.StatusOK)
+			},
+			notifierOpts: []alert.NotifierOption{alert.NotifierWithBearerToken("test-token")},
+		},
 	}
 
 	for _, tt := range tests {

@@ -31,6 +31,12 @@ func NotifierWithTimeout(timeout time.Duration) NotifierOption {
 	}
 }
 
+func NotifierWithBearerToken(token string) NotifierOption {
+	return func(n *httpAlertNotifier) {
+		n.bearerToken = token
+	}
+}
+
 // Alert represents an alert that will be sent to the callback URL
 type Alert struct {
 	Topic               string                 `json:"topic"`
@@ -43,6 +49,7 @@ type Alert struct {
 type httpAlertNotifier struct {
 	client      *http.Client
 	callbackURL string
+	bearerToken string
 }
 
 // NewHTTPAlertNotifier creates a new HTTP-based alert notifier
@@ -72,6 +79,9 @@ func (n *httpAlertNotifier) Notify(ctx context.Context, alert Alert) error {
 
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
+	if n.bearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+n.bearerToken)
+	}
 
 	// Send request
 	resp, err := n.client.Do(req)
