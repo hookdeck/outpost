@@ -12,7 +12,14 @@ type Config struct {
 	LogMQ      *mqs.QueueConfig
 }
 
+func (cfg *Config) SetSensiblePolicyDefaults() {
+	cfg.DeliveryMQ.Policy.RetryLimit = 5
+	cfg.LogMQ.Policy.RetryLimit = 5
+}
+
 func Declare(ctx context.Context, cfg Config) error {
+	cfg.SetSensiblePolicyDefaults()
+
 	if cfg.DeliveryMQ != nil {
 		if err := mqinfra.New(cfg.DeliveryMQ).Declare(ctx); err != nil {
 			return err

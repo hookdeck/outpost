@@ -121,8 +121,6 @@ func (c *Config) InitDefaults() {
 			DeliveryQueue: "outpost-delivery",
 			LogQueue:      "outpost-log",
 		},
-		DeliveryRetryLimit: 5,
-		LogRetryLimit:      5,
 	}
 	c.PublishMaxConcurrency = 1
 	c.DeliveryMaxConcurrency = 1

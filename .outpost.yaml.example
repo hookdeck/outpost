@@ -24,11 +24,6 @@ clickhouse:
 
 ## Message Queue
 mqs:
-  # Retry Configuration for Message Processing
-  # After exceeding these limits, messages will be moved to the dead-letter queue
-  delivery_retry_limit: 5 # Number of failed delivery message processing attempts before moving to DLQ
-  log_retry_limit: 5 # Number of failed log message processing attempts before moving to DLQ
-
   # Choose either RabbitMQ or AWS SQS configuration
 
   # RabbitMQ Configuration Example

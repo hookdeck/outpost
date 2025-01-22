@@ -60,8 +60,6 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, "outpost", cfg.MQs.RabbitMQ.Exchange)
 	assert.Equal(t, "outpost-delivery", cfg.MQs.RabbitMQ.DeliveryQueue)
 	assert.Equal(t, "outpost-log", cfg.MQs.RabbitMQ.LogQueue)
-	assert.Equal(t, 5, cfg.MQs.DeliveryRetryLimit)
-	assert.Equal(t, 5, cfg.MQs.LogRetryLimit)
 	assert.Equal(t, 1, cfg.PublishMaxConcurrency)
 	assert.Equal(t, 1, cfg.DeliveryMaxConcurrency)
 	assert.Equal(t, 1, cfg.LogMaxConcurrency)
@@ -97,8 +95,6 @@ mqs:
     exchange: custom-outpost
     delivery_queue: custom-delivery
     log_queue: custom-log
-  delivery_retry_limit: 3
-  log_retry_limit: 3
 publish_max_concurrency: 5
 delivery_max_concurrency: 5
 log_max_concurrency: 5
@@ -124,8 +120,6 @@ aes_encryption_secret: test-secret
 	assert.Equal(t, "custom-outpost", cfg.MQs.RabbitMQ.Exchange)
 	assert.Equal(t, "custom-delivery", cfg.MQs.RabbitMQ.DeliveryQueue)
 	assert.Equal(t, "custom-log", cfg.MQs.RabbitMQ.LogQueue)
-	assert.Equal(t, 3, cfg.MQs.DeliveryRetryLimit)
-	assert.Equal(t, 3, cfg.MQs.LogRetryLimit)
 	assert.Equal(t, 5, cfg.PublishMaxConcurrency)
 	assert.Equal(t, 5, cfg.DeliveryMaxConcurrency)
 	assert.Equal(t, 5, cfg.LogMaxConcurrency)
@@ -293,10 +287,9 @@ func TestConfigPrecedence(t *testing.T) {
 func TestMixedYAMLAndEnvConfig(t *testing.T) {
 	yamlConfig := `
 mqs:
-  delivery_retry_limit: 10
-  log_retry_limit: 15
   rabbitmq:
-    exchange: custom-exchange
+    delivery_queue: yaml-delivery-queue
+    log_queue: yaml-log-queue
 `
 	mockOS := &mockOS{
 		files: map[string][]byte{
@@ -306,7 +299,6 @@ mqs:
 			"CONFIG":                  "config.yaml",
 			"RABBITMQ_SERVER_URL":     "amqp://user:pass@host:5672",
 			"RABBITMQ_DELIVERY_QUEUE": "env-delivery-queue",
-			"RABBITMQ_EXCHANGE":       "env-exchange",
 		},
 	}
 
@@ -314,16 +306,14 @@ mqs:
 	assert.NoError(t, err)
 
 	// Values from YAML
-	assert.Equal(t, 10, cfg.MQs.DeliveryRetryLimit)
-	assert.Equal(t, 15, cfg.MQs.LogRetryLimit)
+	assert.Equal(t, "yaml-log-queue", cfg.MQs.RabbitMQ.LogQueue)
 
 	// Values from env should override YAML
-	assert.Equal(t, "env-exchange", cfg.MQs.RabbitMQ.Exchange)
 	assert.Equal(t, "amqp://user:pass@host:5672", cfg.MQs.RabbitMQ.ServerURL)
 	assert.Equal(t, "env-delivery-queue", cfg.MQs.RabbitMQ.DeliveryQueue)
 
 	// Default values should still be present for unset fields
-	assert.Equal(t, "outpost-log", cfg.MQs.RabbitMQ.LogQueue) // from InitDefaults
+	assert.Equal(t, "outpost", cfg.MQs.RabbitMQ.Exchange) // from InitDefaults
 }
 
 func TestDestinationConfig(t *testing.T) {

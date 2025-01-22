@@ -24,10 +24,8 @@ type RabbitMQConfig struct {
 }
 
 type MQsConfig struct {
-	AWSSQS             AWSSQSConfig   `yaml:"aws_sqs"`
-	RabbitMQ           RabbitMQConfig `yaml:"rabbitmq"`
-	DeliveryRetryLimit int            `yaml:"delivery_retry_limit" env:"DELIVERY_RETRY_LIMIT"`
-	LogRetryLimit      int            `yaml:"log_retry_limit" env:"LOG_RETRY_LIMIT"`
+	AWSSQS   AWSSQSConfig   `yaml:"aws_sqs"`
+	RabbitMQ RabbitMQConfig `yaml:"rabbitmq"`
 }
 
 func (c MQsConfig) GetInfraType() string {
