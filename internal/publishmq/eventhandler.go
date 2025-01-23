@@ -71,16 +71,27 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) error {
 }
 
 func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error {
-	h.logger.Info("received event", zap.Any("event", event))
+	logger := h.logger.Ctx(ctx)
+	logger.Audit("processing event",
+		zap.String("event_id", event.ID),
+		zap.String("tenant_id", event.TenantID),
+		zap.String("topic", event.Topic))
 
 	_, span := h.eventTracer.Receive(ctx, event)
 	defer span.End()
 
 	matchedDestinations, err := h.entityStore.MatchEvent(ctx, *event)
 	if err != nil {
+		logger.Error("failed to match event destinations",
+			zap.Error(err),
+			zap.String("event_id", event.ID),
+			zap.String("tenant_id", event.TenantID))
 		return err
 	}
 	if len(matchedDestinations) == 0 {
+		logger.Info("no matching destinations",
+			zap.String("event_id", event.ID),
+			zap.String("tenant_id", event.TenantID))
 		return nil
 	}
 
@@ -102,12 +113,21 @@ func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error 
 
 func (h *eventHandler) enqueueDeliveryEvent(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
 	_, deliverySpan := h.eventTracer.StartDelivery(ctx, &deliveryEvent)
-	err := h.deliveryMQ.Publish(ctx, deliveryEvent)
-	if err != nil {
+	if err := h.deliveryMQ.Publish(ctx, deliveryEvent); err != nil {
+		h.logger.Ctx(ctx).Error("failed to enqueue delivery event",
+			zap.Error(err),
+			zap.String("delivery_event_id", deliveryEvent.ID),
+			zap.String("event_id", deliveryEvent.Event.ID),
+			zap.String("destination_id", deliveryEvent.DestinationID))
 		deliverySpan.RecordError(err)
 		deliverySpan.End()
 		return err
 	}
+
+	h.logger.Ctx(ctx).Audit("delivery event enqueued",
+		zap.String("delivery_event_id", deliveryEvent.ID),
+		zap.String("event_id", deliveryEvent.Event.ID),
+		zap.String("destination_id", deliveryEvent.DestinationID))
 	deliverySpan.End()
 	return nil
 }

@@ -103,7 +103,7 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	<-termChan // Blocks here until interrupted
 
 	// Handle shutdown
-	logger.Ctx(ctx).Info("*********************************\nShutdown signal received\n*********************************")
+	logger.Ctx(ctx).Info("shutdown signal received")
 	cancel()  // Signal cancellation to context.Context
 	wg.Wait() // Block here until all workers are done
 

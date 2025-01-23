@@ -2,14 +2,15 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
@@ -27,6 +28,8 @@ type consumerOptions struct {
 }
 
 type APIService struct {
+	cleanupFuncs []func(context.Context, *logging.LoggerWithCtx)
+
 	registry                 destregistry.Registry
 	redisClient              *redis.Client
 	server                   *http.Server
@@ -42,6 +45,8 @@ type APIService struct {
 func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *logging.Logger) (*APIService, error) {
 	wg.Add(1)
 
+	var cleanupFuncs []func(context.Context, *logging.LoggerWithCtx)
+
 	registry := destregistry.NewRegistry(&destregistry.Config{
 		DestinationMetadataPath: cfg.Destinations.MetadataPath,
 		DeliveryTimeout:         time.Duration(cfg.DeliveryTimeoutSeconds) * time.Second,
@@ -55,6 +60,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	if err != nil {
 		return nil, err
 	}
+	cleanupFuncs = append(cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) { cleanupDeliveryMQ() })
 
 	redisClient, err := redis.New(ctx, cfg.Redis.ToConfig())
 	if err != nil {
@@ -102,14 +108,23 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	if err := deliverymqRetryScheduler.Init(ctx); err != nil {
 		return nil, err
 	}
+	cleanupFuncs = append(cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) { deliverymqRetryScheduler.Shutdown() })
+
+	httpServer := &http.Server{
+		Addr:    fmt.Sprintf(":%d", cfg.APIPort),
+		Handler: router,
+	}
+	cleanupFuncs = append(cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+		if err := httpServer.Shutdown(ctx); err != nil {
+			logger.Error("error shutting down http server", zap.Error(err))
+		}
+		logger.Info("http server shutted down")
+	})
 
 	service := &APIService{}
 	service.logger = logger
 	service.redisClient = redisClient
-	service.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.APIPort),
-		Handler: router,
-	}
+	service.server = httpServer
 	service.deliveryMQ = deliveryMQ
 	service.entityStore = entityStore
 	service.eventHandler = eventHandler
@@ -117,6 +132,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	service.consumerOptions = &consumerOptions{
 		concurreny: cfg.PublishMaxConcurrency,
 	}
+	service.cleanupFuncs = cleanupFuncs
 	if cfg.PublishMQ.GetQueueConfig() != nil {
 		service.publishMQ = publishmq.New(publishmq.WithQueue(cfg.PublishMQ.GetQueueConfig()))
 	}
@@ -124,47 +140,68 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		logger.Ctx(ctx).Info("shutting down", zap.String("service", "api"))
-		cleanupDeliveryMQ()
-		deliverymqRetryScheduler.Shutdown()
-		// make a new context for Shutdown
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if err := service.server.Shutdown(shutdownCtx); err != nil {
-			fmt.Fprintf(os.Stderr, "error shutting down http server: %s\n", err)
-		}
-		logger.Ctx(ctx).Info("http server shutted down")
-		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "api"))
+		service.Shutdown(shutdownCtx)
 	}()
 
 	return service, nil
 }
 
 func (s *APIService) Run(ctx context.Context) error {
-	s.logger.Ctx(ctx).Info("start service", zap.String("service", "api"))
+	logger := s.logger.Ctx(ctx)
+	logger.Info("service running", zap.String("service", "api"))
 
-	// Start HTTP server
-	go func() {
-		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			s.logger.Ctx(ctx).Error(fmt.Sprintf("error listening and serving: %s\n", err), zap.Error(err))
-		}
-	}()
-
-	// Monitor deliverymq retry scheduler
-	go s.deliverymqRetryScheduler.Monitor(ctx)
-
-	// Subscribe to PublishMQ
+	go s.startHTTPServer(ctx)
+	go s.startRetrySchedulerMonitor(ctx)
 	if s.publishMQ != nil {
-		subscription, err := s.publishMQ.Subscribe(ctx)
-		if err != nil {
-			// TODO: handle error
-			s.logger.Ctx(ctx).Error("failed to subscribe to publishmq", zap.Error(err))
-			return err
-		}
-		go func() {
-			s.SubscribePublishMQ(ctx, subscription, s.eventHandler, s.consumerOptions.concurreny)
-		}()
+		go s.startPublishMQConsumer(ctx)
 	}
 
 	return nil
+}
+
+func (s *APIService) Shutdown(ctx context.Context) {
+	logger := s.logger.Ctx(ctx)
+	logger.Info("service shutting down", zap.String("service", "api"))
+	for _, cleanupFunc := range s.cleanupFuncs {
+		cleanupFunc(ctx, &logger)
+	}
+	logger.Info("service shutdown", zap.String("service", "api"))
+}
+
+func (s *APIService) startHTTPServer(ctx context.Context) {
+	logger := s.logger.Ctx(ctx)
+	logger.Info("http server listening", zap.String("addr", s.server.Addr))
+	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		logger.Error("error listening and serving", zap.Error(err))
+	}
+}
+
+func (s *APIService) startRetrySchedulerMonitor(ctx context.Context) {
+	logger := s.logger.Ctx(ctx)
+	logger.Info("retry scheduler monitor running")
+	if err := s.deliverymqRetryScheduler.Monitor(ctx); err != nil {
+		logger.Error("error starting retry scheduler monitor", zap.Error(err))
+		return
+	}
+}
+
+func (s *APIService) startPublishMQConsumer(ctx context.Context) {
+	logger := s.logger.Ctx(ctx)
+	logger.Info("publishmq consumer running")
+	subscription, err := s.publishMQ.Subscribe(ctx)
+	if err != nil {
+		logger.Error("error subscribing to publishmq", zap.Error(err))
+		return
+	}
+	messageHandler := publishmq.NewMessageHandler(s.eventHandler)
+	csm := consumer.New(subscription, messageHandler,
+		consumer.WithName("publishmq"),
+		consumer.WithConcurrency(s.consumerOptions.concurreny),
+	)
+	if err := csm.Run(ctx); !errors.Is(err, ctx.Err()) {
+		logger.Error("error running publishmq consumer", zap.Error(err))
+		return
+	}
 }

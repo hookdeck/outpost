@@ -28,6 +28,8 @@ type consumerOptions struct {
 }
 
 type DeliveryService struct {
+	cleanupFuncs []func()
+
 	consumerOptions *consumerOptions
 	Logger          *logging.Logger
 	RedisClient     *redis.Client
@@ -137,22 +139,22 @@ func NewService(ctx context.Context,
 		consumerOptions: &consumerOptions{
 			concurreny: cfg.DeliveryMaxConcurrency,
 		},
+		cleanupFuncs: cleanupFuncs,
 	}
 
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		for _, cleanup := range cleanupFuncs {
-			cleanup()
-		}
-		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "delivery"))
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		service.Shutdown(shutdownCtx)
 	}()
 
 	return service, nil
 }
 
 func (s *DeliveryService) Run(ctx context.Context) error {
-	s.Logger.Ctx(ctx).Info("start service", zap.String("service", "delivery"))
+	s.Logger.Ctx(ctx).Info("service running", zap.String("service", "delivery"))
 
 	subscription, err := s.DeliveryMQ.Subscribe(ctx)
 	if err != nil {
@@ -168,6 +170,15 @@ func (s *DeliveryService) Run(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func (s *DeliveryService) Shutdown(ctx context.Context) {
+	logger := s.Logger.Ctx(ctx)
+	logger.Info("service shutting down", zap.String("service", "delivery"))
+	for _, cleanup := range s.cleanupFuncs {
+		cleanup()
+	}
+	logger.Info("service shutdown", zap.String("service", "delivery"))
 }
 
 type destinationDisabler struct {

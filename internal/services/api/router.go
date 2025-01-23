@@ -186,7 +186,7 @@ func NewRouter(
 			Mode:               RouteModePortal,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 		{
@@ -197,7 +197,7 @@ func NewRouter(
 			Mode:               RouteModePortal,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 	}
@@ -241,7 +241,7 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 		{
@@ -252,7 +252,7 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 
@@ -265,7 +265,7 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 		{
@@ -276,7 +276,7 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 		{
@@ -287,7 +287,7 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 		{
@@ -298,7 +298,7 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 		{
@@ -309,7 +309,7 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 		{
@@ -320,7 +320,7 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 		{
@@ -331,7 +331,7 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 
@@ -344,7 +344,7 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 		{
@@ -355,7 +355,7 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 		{
@@ -366,7 +366,7 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(logger, entityStore),
+				RequireTenantMiddleware(entityStore),
 			},
 		},
 

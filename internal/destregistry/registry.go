@@ -88,6 +88,7 @@ func NewRegistry(cfg *Config, logger *logging.Logger) Registry {
 
 	onEvict := func(key string, p Publisher) {
 		if err := p.Close(); err != nil {
+			// TODO: consider how to get context for OTEL logging
 			logger.Error("failed to close publisher on eviction",
 				zap.String("key", key),
 				zap.Error(err),

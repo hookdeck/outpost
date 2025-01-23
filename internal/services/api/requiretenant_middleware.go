@@ -6,11 +6,10 @@ import (
 	"errors"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 )
 
-func RequireTenantMiddleware(logger *logging.Logger, entityStore models.EntityStore) gin.HandlerFunc {
+func RequireTenantMiddleware(entityStore models.EntityStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantID, exists := c.Get("tenantID")
 		if !exists {

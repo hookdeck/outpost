@@ -8,6 +8,7 @@ import (
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
+	"go.uber.org/zap"
 )
 
 var (
@@ -105,6 +106,10 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
+
+	h.logger.Ctx(c).Audit("manual retry initiated",
+		zap.String("event_id", event.ID),
+		zap.String("destination_id", destination.ID))
 
 	c.Status(http.StatusAccepted)
 }

@@ -24,6 +24,7 @@ type consumerOptions struct {
 }
 
 type LogService struct {
+	cleanupFuncs    []func(context.Context, *logging.LoggerWithCtx)
 	consumerOptions *consumerOptions
 	logger          *logging.Logger
 	redisClient     *redis.Client
@@ -38,6 +39,7 @@ func NewService(ctx context.Context,
 	handler consumer.MessageHandler,
 ) (*LogService, error) {
 	wg.Add(1)
+	var cleanupFuncs []func(context.Context, *logging.LoggerWithCtx)
 
 	redisClient, err := redis.New(ctx, cfg.Redis.ToConfig())
 	if err != nil {
@@ -63,6 +65,14 @@ func NewService(ctx context.Context,
 
 		handler = logmq.NewMessageHandler(logger, &handlerBatcherImpl{batcher: batcher})
 	}
+	cleanupFuncs = append(cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+		if eventBatcher != nil {
+			eventBatcher.Shutdown()
+		}
+		if deliveryBatcher != nil {
+			deliveryBatcher.Shutdown()
+		}
+	})
 
 	service := &LogService{}
 	service.logger = logger
@@ -76,13 +86,9 @@ func NewService(ctx context.Context,
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		if eventBatcher != nil {
-			eventBatcher.Shutdown()
-		}
-		if deliveryBatcher != nil {
-			deliveryBatcher.Shutdown()
-		}
-		logger.Ctx(ctx).Info("service shutdown", zap.String("service", "log"))
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		service.Shutdown(shutdownCtx)
 	}()
 
 	return service, nil
@@ -106,6 +112,15 @@ func (s *LogService) Run(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func (s *LogService) Shutdown(ctx context.Context) {
+	logger := s.logger.Ctx(ctx)
+	logger.Info("service shutdown", zap.String("service", "log"))
+	for _, cleanupFunc := range s.cleanupFuncs {
+		cleanupFunc(ctx, &logger)
+	}
+	logger.Info("service shutdown", zap.String("service", "log"))
 }
 
 type batcherConfig struct {
