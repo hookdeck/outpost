@@ -33,7 +33,10 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 func run(mainContext context.Context, cfg *config.Config) error {
-	logger, err := logging.NewLogger(logging.WithLogLevel(cfg.LogLevel))
+	logger, err := logging.NewLogger(
+		logging.WithLogLevel(cfg.LogLevel),
+		logging.WithAuditLog(cfg.AuditLog),
+	)
 	if err != nil {
 		return err
 	}

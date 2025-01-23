@@ -37,6 +37,7 @@ type Config struct {
 
 	Service       string              `yaml:"service" env:"SERVICE"`
 	LogLevel      string              `yaml:"log_level" env:"LOG_LEVEL"`
+	AuditLog      bool                `yaml:"audit_log" env:"AUDIT_LOG"`
 	OpenTelemetry OpenTelemetryConfig `yaml:"otel"`
 
 	// API
@@ -102,6 +103,7 @@ var (
 func (c *Config) InitDefaults() {
 	c.APIPort = 3333
 	c.LogLevel = "info"
+	c.AuditLog = true
 	c.OpenTelemetry = OpenTelemetryConfig{}
 	c.GinMode = "release"
 	c.Redis = RedisConfig{
