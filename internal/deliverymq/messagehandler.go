@@ -325,6 +325,7 @@ func (h *messageHandler) handleAlertAttempt(ctx context.Context, deliveryEvent *
 			zap.Error(monitorErr),
 			zap.String("delivery_event_id", deliveryEvent.ID),
 			zap.String("destination_id", destination.ID))
+		return
 	}
 
 	h.logger.Ctx(ctx).Info("alert attempt handled",
