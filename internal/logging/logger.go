@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"context"
 	"strings"
 
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
@@ -9,6 +10,10 @@ import (
 
 type Logger struct {
 	*otelzap.Logger
+}
+
+type LoggerWithCtx struct {
+	*otelzap.LoggerWithCtx
 }
 
 type LoggerOption struct {
@@ -63,4 +68,17 @@ func makeLogger(logLevel string) (*otelzap.Logger, error) {
 	return otelzap.New(zapLogger,
 		otelzap.WithMinLevel(level),
 	), nil
+}
+
+func (l *Logger) Ctx(ctx context.Context) LoggerWithCtx {
+	loggerWithCtx := l.Logger.Ctx(ctx)
+	return LoggerWithCtx{LoggerWithCtx: &loggerWithCtx}
+}
+
+func (l *Logger) Audit(msg string, fields ...zap.Field) {
+	l.Logger.Info(msg, append(fields, zap.Bool("audit", true))...)
+}
+
+func (l *LoggerWithCtx) Audit(msg string, fields ...zap.Field) {
+	l.LoggerWithCtx.Info(msg, append(fields, zap.Bool("audit", true))...)
 }

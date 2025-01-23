@@ -218,6 +218,8 @@ func (h *messageHandler) hasDeliveryError(err error) bool {
 }
 
 func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent *models.DeliveryEvent, destination *models.Destination, err error) error {
+	logger := h.logger.Ctx(ctx)
+
 	// Set up delivery record
 	deliveryEvent.Delivery = &models.Delivery{
 		ID:              uuid.New().String(),
@@ -234,9 +236,16 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent *m
 		deliveryEvent.Delivery.Status = models.DeliveryStatusOK
 	}
 
+	logger.Audit("event delivered",
+		zap.String("delivery_event", deliveryEvent.ID),
+		zap.String("destination_id", deliveryEvent.DestinationID),
+		zap.String("event_id", deliveryEvent.Event.ID),
+		zap.String("status", deliveryEvent.Delivery.Status),
+	)
+
 	// Publish delivery log
 	if logErr := h.logMQ.Publish(ctx, *deliveryEvent); logErr != nil {
-		h.logger.Ctx(ctx).Error("failed to publish delivery log", zap.Error(logErr))
+		logger.Error("failed to publish delivery log", zap.Error(logErr))
 		if err != nil {
 			return &PostDeliveryError{err: errors.Join(err, logErr)}
 		}
