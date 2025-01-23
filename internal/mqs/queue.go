@@ -34,7 +34,8 @@ type IncomingMessage interface {
 
 type Message struct {
 	QueueMessage
-	Body []byte
+	LoggableID string
+	Body       []byte
 }
 
 func NewQueue(config *QueueConfig) Queue {
@@ -129,6 +130,7 @@ func (s *WrappedSubscription) Receive(ctx context.Context) (*Message, error) {
 	}
 	return &Message{
 		QueueMessage: msg,
+		LoggableID:   msg.LoggableID,
 		Body:         msg.Body,
 	}, nil
 }
