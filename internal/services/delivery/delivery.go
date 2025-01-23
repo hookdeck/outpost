@@ -107,6 +107,7 @@ func NewService(ctx context.Context,
 			destinationDisabler = newDestinationDisabler(entityStore)
 		}
 		alertMonitor := alert.NewAlertMonitor(
+			logger,
 			redisClient,
 			alert.WithNotifier(alertNotifier),
 			alert.WithDisabler(destinationDisabler),

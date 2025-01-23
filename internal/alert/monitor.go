@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
 // DestinationDisabler handles disabling destinations
@@ -64,6 +66,13 @@ func WithDisabler(disabler DestinationDisabler) AlertOption {
 	}
 }
 
+// WithLogger sets the logger for the monitor
+func WithLogger(logger *logging.Logger) AlertOption {
+	return func(m *alertMonitor) {
+		m.logger = logger
+	}
+}
+
 // DeliveryAttempt represents a single delivery attempt
 type DeliveryAttempt struct {
 	Success       bool
@@ -74,6 +83,7 @@ type DeliveryAttempt struct {
 }
 
 type alertMonitor struct {
+	logger    *logging.Logger
 	store     AlertStore
 	evaluator AlertEvaluator
 	notifier  AlertNotifier
@@ -94,8 +104,9 @@ func (m *noopAlertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAt
 }
 
 // NewAlertMonitor creates a new alert monitor with default implementations
-func NewAlertMonitor(redisClient *redis.Client, opts ...AlertOption) AlertMonitor {
+func NewAlertMonitor(logger *logging.Logger, redisClient *redis.Client, opts ...AlertOption) AlertMonitor {
 	alertMonitor := &alertMonitor{
+		logger:          logger,
 		alertThresholds: []int{50, 70, 90, 100}, // default thresholds
 	}
 
@@ -135,26 +146,44 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		return nil
 	}
 
+	alert := NewConsecutiveFailureAlert(ConsecutiveFailureData{
+		MaxConsecutiveFailures: m.autoDisableFailureCount,
+		ConsecutiveFailures:    count,
+		WillDisable:            m.disabler != nil && level == 100,
+		Destination:            attempt.Destination,
+		Data:                   attempt.Data,
+	})
+
 	// If we've hit 100% and have a disabler configured, disable the destination
 	if level == 100 && m.disabler != nil {
 		if err := m.disabler.DisableDestination(ctx, attempt.Destination.TenantID, attempt.Destination.ID); err != nil {
 			return fmt.Errorf("failed to disable destination: %w", err)
 		}
+
+		m.logger.Ctx(ctx).Audit("destination disabled",
+			zap.String("destination_id", attempt.Destination.ID),
+			zap.String("tenant_id", attempt.Destination.TenantID),
+			zap.String("topic", alert.Topic),
+		)
 	}
 
 	// Send alert if notifier is configured
 	if m.notifier != nil {
-		alert := NewConsecutiveFailureAlert(ConsecutiveFailureData{
-			MaxConsecutiveFailures: m.autoDisableFailureCount,
-			ConsecutiveFailures:    count,
-			WillDisable:            m.disabler != nil && level == 100,
-			Destination:            attempt.Destination,
-			Data:                   attempt.Data,
-		})
-
 		if err := m.notifier.Notify(ctx, alert); err != nil {
+			m.logger.Ctx(ctx).Error("failed to send alert",
+				zap.String("destination_id", attempt.Destination.ID),
+				zap.String("tenant_id", attempt.Destination.TenantID),
+				zap.String("topic", alert.Topic),
+				zap.Error(err),
+			)
 			return fmt.Errorf("failed to send alert: %w", err)
 		}
+
+		m.logger.Ctx(ctx).Audit("alert sent",
+			zap.String("destination_id", attempt.Destination.ID),
+			zap.String("tenant_id", attempt.Destination.TenantID),
+			zap.String("topic", alert.Topic),
+		)
 	}
 
 	return nil

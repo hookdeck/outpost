@@ -35,6 +35,7 @@ func (m *mockDestinationDisabler) DisableDestination(ctx context.Context, tenant
 func TestAlertMonitor_ConsecutiveFailures_MaxFailures(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
 	notifier := &mockAlertNotifier{}
 	notifier.On("Notify", mock.Anything, mock.Anything).Return(nil)
@@ -42,6 +43,7 @@ func TestAlertMonitor_ConsecutiveFailures_MaxFailures(t *testing.T) {
 	disabler.On("DisableDestination", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	monitor := alert.NewAlertMonitor(
+		logger,
 		redisClient,
 		alert.WithNotifier(notifier),
 		alert.WithDisabler(disabler),
@@ -100,6 +102,7 @@ func TestAlertMonitor_ConsecutiveFailures_MaxFailures(t *testing.T) {
 func TestAlertMonitor_ConsecutiveFailures_Reset(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
 	notifier := &mockAlertNotifier{}
 	notifier.On("Notify", mock.Anything, mock.Anything).Return(nil)
@@ -107,6 +110,7 @@ func TestAlertMonitor_ConsecutiveFailures_Reset(t *testing.T) {
 	disabler.On("DisableDestination", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	monitor := alert.NewAlertMonitor(
+		logger,
 		redisClient,
 		alert.WithNotifier(notifier),
 		alert.WithDisabler(disabler),
