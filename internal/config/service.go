@@ -3,7 +3,7 @@ package config
 type ServiceType int
 
 const (
-	ServiceTypeSingular ServiceType = iota
+	ServiceTypeAll ServiceType = iota
 	ServiceTypeAPI
 	ServiceTypeLog
 	ServiceTypeDelivery
@@ -11,14 +11,14 @@ const (
 
 func (s ServiceType) String() string {
 	switch s {
-	case ServiceTypeSingular:
-		return ""
+	case ServiceTypeAll:
+		return "all"
 	case ServiceTypeAPI:
 		return "api"
 	case ServiceTypeLog:
 		return "log"
 	case ServiceTypeDelivery:
-		return "delievery"
+		return "delivery"
 	}
 	return "unknown"
 }
@@ -26,7 +26,9 @@ func (s ServiceType) String() string {
 func ServiceTypeFromString(s string) (ServiceType, error) {
 	switch s {
 	case "":
-		return ServiceTypeSingular, nil
+		return ServiceTypeAll, nil
+	case "all":
+		return ServiceTypeAll, nil
 	case "api":
 		return ServiceTypeAPI, nil
 	case "log":

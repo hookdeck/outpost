@@ -16,6 +16,7 @@ import (
 	"github.com/hookdeck/outpost/internal/services/api"
 	"github.com/hookdeck/outpost/internal/services/delivery"
 	"github.com/hookdeck/outpost/internal/services/log"
+	"go.uber.org/zap"
 )
 
 type App struct {
@@ -41,6 +42,11 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		return err
 	}
 	defer logger.Sync()
+
+	logger.Info("starting outpost",
+		zap.String("config_path", cfg.ConfigFilePath()),
+		zap.String("service", cfg.MustGetService().String()),
+	)
 
 	chDB, err := clickhouse.New(cfg.ClickHouse.ToConfig())
 	if err != nil {
@@ -107,6 +113,8 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	cancel()  // Signal cancellation to context.Context
 	wg.Wait() // Block here until all workers are done
 
+	logger.Ctx(ctx).Info("outpost shutdown complete")
+
 	return nil
 }
 
@@ -123,21 +131,21 @@ func constructServices(
 	serviceType := cfg.MustGetService()
 	services := []Service{}
 
-	if serviceType == config.ServiceTypeAPI || serviceType == config.ServiceTypeSingular {
+	if serviceType == config.ServiceTypeAPI || serviceType == config.ServiceTypeAll {
 		service, err := api.NewService(ctx, wg, cfg, logger)
 		if err != nil {
 			return nil, err
 		}
 		services = append(services, service)
 	}
-	if serviceType == config.ServiceTypeDelivery || serviceType == config.ServiceTypeSingular {
+	if serviceType == config.ServiceTypeDelivery || serviceType == config.ServiceTypeAll {
 		service, err := delivery.NewService(ctx, wg, cfg, logger, nil)
 		if err != nil {
 			return nil, err
 		}
 		services = append(services, service)
 	}
-	if serviceType == config.ServiceTypeLog || serviceType == config.ServiceTypeSingular {
+	if serviceType == config.ServiceTypeLog || serviceType == config.ServiceTypeAll {
 		service, err := log.NewService(ctx, wg, cfg, logger, nil)
 		if err != nil {
 			return nil, err

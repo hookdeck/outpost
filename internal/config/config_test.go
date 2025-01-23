@@ -373,3 +373,73 @@ destinations:
 		})
 	}
 }
+
+func TestConfigFilePath(t *testing.T) {
+	tests := []struct {
+		name         string
+		files        map[string][]byte
+		envVars      map[string]string
+		flagPath     string
+		expectedPath string
+		description  string
+	}{
+		{
+			name: "config from flag",
+			files: map[string][]byte{
+				"config.yaml": []byte(`service: api`),
+			},
+			flagPath:     "config.yaml",
+			expectedPath: "config.yaml",
+			description:  "should return flag path when config is loaded from flag",
+		},
+		{
+			name: "config from env",
+			files: map[string][]byte{
+				"env_config.yaml": []byte(`service: api`),
+			},
+			envVars: map[string]string{
+				"CONFIG": "env_config.yaml",
+			},
+			expectedPath: "env_config.yaml",
+			description:  "should return env path when config is loaded from env",
+		},
+		{
+			name: "config from default location",
+			files: map[string][]byte{
+				".outpost.yaml": []byte(`service: api`),
+			},
+			expectedPath: ".outpost.yaml",
+			description:  "should return default location path when config is found in default location",
+		},
+		{
+			name: "no config file",
+			envVars: map[string]string{
+				"SERVICE": "api",
+			},
+			expectedPath: "",
+			description:  "should return empty string when no config file is used",
+		},
+		{
+			name: "empty config file",
+			files: map[string][]byte{
+				"empty.yaml": []byte(``),
+			},
+			flagPath:     "empty.yaml",
+			expectedPath: "",
+			description:  "should return empty string when config file is empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{
+				files:   tt.files,
+				envVars: tt.envVars,
+			}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{Config: tt.flagPath}, mockOS)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedPath, cfg.ConfigFilePath(), tt.description)
+		})
+	}
+}

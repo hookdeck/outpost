@@ -30,7 +30,7 @@ func Basic(t *testing.T) config.Config {
 
 	// Override only what's needed for e2e tests
 	c.LogLevel = logLevel
-	c.Service = config.ServiceTypeSingular.String()
+	c.Service = config.ServiceTypeAll.String()
 	c.APIPort = testutil.RandomPortNumber()
 	c.APIKey = "apikey"
 	c.APIJWTSecret = "jwtsecret"

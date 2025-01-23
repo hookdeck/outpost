@@ -33,7 +33,8 @@ func getConfigLocations() []string {
 }
 
 type Config struct {
-	validated bool // tracks whether Validate() has been called successfully
+	validated  bool   // tracks whether Validate() has been called successfully
+	configPath string // stores the path of the config file used
 
 	Service       string              `yaml:"service" env:"SERVICE"`
 	LogLevel      string              `yaml:"log_level" env:"LOG_LEVEL"`
@@ -183,6 +184,9 @@ func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error
 		return nil
 	}
 
+	// Store the config path
+	c.configPath = configPath
+
 	// Parse based on file extension
 	if strings.HasSuffix(strings.ToLower(configPath), ".env") {
 		envMap, err := godotenv.Read(configPath)
@@ -309,4 +313,9 @@ type AlertConfig struct {
 	CallbackURL             string `yaml:"callback_url" env:"ALERT_CALLBACK_URL"`
 	ConsecutiveFailureCount int    `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT"`
 	AutoDisableDestination  bool   `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION"`
+}
+
+// ConfigFilePath returns the path of the config file that was used
+func (c *Config) ConfigFilePath() string {
+	return c.configPath
 }
