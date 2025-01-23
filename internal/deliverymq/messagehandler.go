@@ -218,7 +218,7 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 				zap.String("retry_id", deliveryEvent.GetRetryID()))
 			return h.logDeliveryResult(ctx, &deliveryEvent, destination, err)
 		}
-		logger.Info("scheduled retry canceled",
+		logger.Audit("scheduled retry canceled",
 			zap.String("delivery_event_id", deliveryEvent.ID),
 			zap.String("retry_id", deliveryEvent.GetRetryID()))
 	}
@@ -408,7 +408,7 @@ func (h *messageHandler) scheduleRetry(ctx context.Context, deliveryEvent models
 		return err
 	}
 
-	h.logger.Ctx(ctx).Info("retry scheduled",
+	h.logger.Ctx(ctx).Audit("retry scheduled",
 		zap.String("delivery_event_id", deliveryEvent.ID),
 		zap.Int("attempt", deliveryEvent.Attempt),
 		zap.Duration("backoff", backoffDuration))
