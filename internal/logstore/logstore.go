@@ -65,7 +65,7 @@ func MakeDriverOpts(cfg Config) (DriverOpts, error) {
 		driverOpts.CH = chDB
 	}
 
-	if cfg.Postgres != nil {
+	if cfg.Postgres != nil || *cfg.Postgres != "" {
 		pgDB, err := pgxpool.New(context.Background(), *cfg.Postgres)
 		if err != nil {
 			return DriverOpts{}, err

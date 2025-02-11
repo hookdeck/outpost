@@ -160,22 +160,14 @@ func TestClickHouse(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "missing clickhouse config",
+			name: "missing storage config",
 			config: func() *config.Config {
 				c := validConfig()
 				c.ClickHouse = config.ClickHouseConfig{}
+				c.PostgresURL = ""
 				return c
 			}(),
-			wantErr: config.ErrMissingClickHouse,
-		},
-		{
-			name: "missing clickhouse addr",
-			config: func() *config.Config {
-				c := validConfig()
-				c.ClickHouse.Addr = ""
-				return c
-			}(),
-			wantErr: config.ErrMissingClickHouse,
+			wantErr: config.ErrMissingLogStorage,
 		},
 	}
 

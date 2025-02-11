@@ -52,9 +52,10 @@ type Config struct {
 	Topics              []string `yaml:"topics" env:"TOPICS" envSeparator:","`
 
 	// Infrastructure
-	Redis      RedisConfig      `yaml:"redis"`
-	ClickHouse ClickHouseConfig `yaml:"clickhouse"`
-	MQs        MQsConfig        `yaml:"mqs"`
+	Redis       RedisConfig      `yaml:"redis"`
+	ClickHouse  ClickHouseConfig `yaml:"clickhouse"`
+	PostgresURL string           `yaml:"postgres" env:"POSTGRES_URL"`
+	MQs         MQsConfig        `yaml:"mqs"`
 
 	// PublishMQ
 	PublishMQ PublishMQConfig `yaml:"publishmq"`
@@ -95,7 +96,7 @@ var (
 	ErrMismatchedServiceType = errors.New("config validation error: service type mismatch")
 	ErrInvalidServiceType    = errors.New("config validation error: invalid service type")
 	ErrMissingRedis          = errors.New("config validation error: redis configuration is required")
-	ErrMissingClickHouse     = errors.New("config validation error: clickhouse configuration is required")
+	ErrMissingLogStorage     = errors.New("config validation error: log storage must be provided")
 	ErrMissingMQs            = errors.New("config validation error: message queue configuration is required")
 	ErrMissingAESSecret      = errors.New("config validation error: AES encryption secret is required")
 	ErrInvalidPortalProxyURL = errors.New("config validation error: invalid portal proxy url")
@@ -301,6 +302,9 @@ type ClickHouseConfig struct {
 }
 
 func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
+	if c.Addr == "" {
+		return nil
+	}
 	return &clickhouse.ClickHouseConfig{
 		Addr:     c.Addr,
 		Username: c.Username,

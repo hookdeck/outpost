@@ -12,6 +12,7 @@ import (
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/logging"
+	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/otel"
 	"github.com/hookdeck/outpost/internal/services/api"
 	"github.com/hookdeck/outpost/internal/services/delivery"
@@ -48,14 +49,7 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		zap.String("service", cfg.MustGetService().String()),
 	)
 
-	chDB, err := clickhouse.New(cfg.ClickHouse.ToConfig())
-	if err != nil {
-		return err
-	}
-	defer chDB.Close()
-	if err := clickhouse.RunMigration_Temporary(mainContext, chDB); err != nil {
-		return err
-	}
+	runMigration_Temporary(mainContext, cfg)
 
 	if err := infra.Declare(mainContext, infra.Config{
 		DeliveryMQ: cfg.MQs.GetDeliveryQueueConfig(),
@@ -154,4 +148,56 @@ func constructServices(
 	}
 
 	return services, nil
+}
+
+func runMigration_Temporary(ctx context.Context, cfg *config.Config) error {
+	logstoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
+		ClickHouse: cfg.ClickHouse.ToConfig(),
+		Postgres:   &cfg.PostgresURL,
+	})
+	if err != nil {
+		return err
+	}
+	defer logstoreDriverOpts.Close()
+
+	if logstoreDriverOpts.CH != nil {
+		if err := clickhouse.RunMigration_Temporary(ctx, logstoreDriverOpts.CH); err != nil {
+			return err
+		}
+	}
+
+	if logstoreDriverOpts.PG != nil {
+		_, err := logstoreDriverOpts.PG.Exec(ctx, `
+			CREATE TABLE IF NOT EXISTS events (
+				id TEXT NOT NULL,
+				tenant_id TEXT NOT NULL,
+				destination_id TEXT NOT NULL,
+				topic TEXT NOT NULL,
+				eligible_for_retry BOOLEAN NOT NULL,
+				time TIMESTAMPTZ NOT NULL,
+				metadata JSONB NOT NULL,
+				data JSONB NOT NULL,
+				PRIMARY KEY (id)
+			);
+
+			CREATE INDEX IF NOT EXISTS events_tenant_time_idx ON events (tenant_id, time DESC);
+
+			CREATE TABLE IF NOT EXISTS deliveries (
+				id TEXT NOT NULL,
+				event_id TEXT NOT NULL,
+				destination_id TEXT NOT NULL,
+				status TEXT NOT NULL,
+				time TIMESTAMPTZ NOT NULL,
+				PRIMARY KEY (id),
+				FOREIGN KEY (event_id) REFERENCES events (id)
+			);
+
+			CREATE INDEX IF NOT EXISTS deliveries_event_time_idx ON deliveries (event_id, time DESC);
+		`)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

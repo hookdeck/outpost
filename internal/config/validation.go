@@ -18,7 +18,7 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
-	if err := c.validateClickHouse(); err != nil {
+	if err := c.validateLogStorage(); err != nil {
 		return err
 	}
 
@@ -77,10 +77,10 @@ func (c *Config) validateRedis() error {
 	return nil
 }
 
-// validateClickHouse validates the ClickHouse configuration
-func (c *Config) validateClickHouse() error {
-	if c.ClickHouse.Addr == "" {
-		return ErrMissingClickHouse
+// validateLogStorage validates the ClickHouse / PG configuration
+func (c *Config) validateLogStorage() error {
+	if c.ClickHouse.Addr == "" && c.PostgresURL == "" {
+		return ErrMissingLogStorage
 	}
 	return nil
 }

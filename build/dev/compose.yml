@@ -110,10 +110,23 @@ services:
       timeout: 1s
       retries: 30
 
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=outpost
+      - POSTGRES_PASSWORD=outpost
+      - POSTGRES_DB=outpost
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres:/var/lib/postgresql/
+
 volumes:
   redis:
     driver: local
   clickhouse:
+    driver: local
+  postgres:
     driver: local
   portal_node_modules:
     driver: local

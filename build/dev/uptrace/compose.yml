@@ -25,7 +25,7 @@ services:
       - ch_data2:/var/lib/clickhouse
     ports:
       # - "8123:8123"
-      - "9001:9000"
+      - "49000:9000"
 
   uptrace_postgres:
     image: postgres:15-alpine
@@ -43,7 +43,7 @@ services:
     volumes:
       - "pg_data3:/var/lib/postgresql/data/pgdata"
     ports:
-      - "5432:5432"
+      - "45432:5432"
 
   uptrace:
     image: "uptrace/uptrace:1.7.6"
