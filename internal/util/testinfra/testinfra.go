@@ -20,6 +20,7 @@ var (
 type Config struct {
 	TestInfra     bool
 	ClickHouseURL string
+	PostgresURL   string
 	LocalStackURL string
 	RabbitMQURL   string
 	MockServerURL string
@@ -56,6 +57,7 @@ func initConfig() {
 		cfg = &Config{
 			TestInfra:     v.GetBool("TESTINFRA"),
 			ClickHouseURL: v.GetString("TEST_CLICKHOUSE_URL"),
+			PostgresURL:   v.GetString("TEST_POSTGRES_URL"),
 			LocalStackURL: localstackURL,
 			RabbitMQURL:   rabbitmqURL,
 			MockServerURL: mockServerURL,

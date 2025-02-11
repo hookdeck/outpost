@@ -7,7 +7,9 @@ import (
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/logstore/chlogstore"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
+	"github.com/hookdeck/outpost/internal/logstore/pglogstore"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ListEventRequest = driver.ListEventRequest
@@ -23,11 +25,15 @@ type LogStore interface {
 
 type DriverOpts struct {
 	CH clickhouse.DB
+	PG *pgxpool.Pool
 }
 
 func (d *DriverOpts) Close() error {
 	if d.CH != nil {
 		return d.CH.Close()
+	}
+	if d.PG != nil {
+		d.PG.Close()
 	}
 	return nil
 }
@@ -36,12 +42,16 @@ func NewLogStore(ctx context.Context, driverOpts DriverOpts) (LogStore, error) {
 	if driverOpts.CH != nil {
 		return chlogstore.NewLogStore(driverOpts.CH), nil
 	}
+	if driverOpts.PG != nil {
+		return pglogstore.NewLogStore(driverOpts.PG), nil
+	}
 
 	return nil, errors.New("no driver provided")
 }
 
 type Config struct {
 	ClickHouse *clickhouse.ClickHouseConfig
+	Postgres   *string
 }
 
 func MakeDriverOpts(cfg Config) (DriverOpts, error) {
@@ -52,8 +62,15 @@ func MakeDriverOpts(cfg Config) (DriverOpts, error) {
 		if err != nil {
 			return DriverOpts{}, err
 		}
-
 		driverOpts.CH = chDB
+	}
+
+	if cfg.Postgres != nil {
+		pgDB, err := pgxpool.New(context.Background(), *cfg.Postgres)
+		if err != nil {
+			return DriverOpts{}, err
+		}
+		driverOpts.PG = pgDB
 	}
 
 	return driverOpts, nil

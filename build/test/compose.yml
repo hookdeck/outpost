@@ -12,6 +12,14 @@ services:
     image: clickhouse/clickhouse-server:24-alpine
     ports:
       - 39000:9000
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=outpost
+      - POSTGRES_PASSWORD=outpost
+      - POSTGRES_DB=default
+    ports:
+      - 35432:5432
   rabbitmq:
     image: rabbitmq:3-management
     ports:
