@@ -6,11 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logmq"
+	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/redis"
@@ -45,19 +45,29 @@ func NewService(ctx context.Context,
 		return nil, err
 	}
 
-	chDB, err := clickhouse.New(cfg.ClickHouse.ToConfig())
-	if err != nil {
-		return nil, err
-	}
-
 	var eventBatcher *batcher.Batcher[*models.Event]
 	var deliveryBatcher *batcher.Batcher[*models.Delivery]
 	if handler == nil {
+		logstoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
+			ClickHouse: cfg.ClickHouse.ToConfig(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		cleanupFuncs = append(cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+			logstoreDriverOpts.Close()
+		})
+
+		logStore, err := logstore.NewLogStore(ctx, logstoreDriverOpts)
+		if err != nil {
+			return nil, err
+		}
+
 		batcherCfg := batcherConfig{
 			ItemCountThreshold: cfg.LogBatchSize,
 			DelayThreshold:     time.Duration(cfg.LogBatchThresholdSeconds) * time.Second,
 		}
-		batcher, err := makeBatcher(ctx, logger, models.NewLogStore(chDB), batcherCfg)
+		batcher, err := makeBatcher(ctx, logger, logStore, batcherCfg)
 		if err != nil {
 			return nil, err
 		}
@@ -128,7 +138,7 @@ type batcherConfig struct {
 	DelayThreshold     time.Duration
 }
 
-func makeBatcher(ctx context.Context, logger *logging.Logger, logStore models.LogStore, batcherCfg batcherConfig) (*batcher.Batcher[*mqs.Message], error) {
+func makeBatcher(ctx context.Context, logger *logging.Logger, logStore logstore.LogStore, batcherCfg batcherConfig) (*batcher.Batcher[*mqs.Message], error) {
 	b, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
 		GroupCountThreshold: 2,
 		ItemCountThreshold:  batcherCfg.ItemCountThreshold,

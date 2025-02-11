@@ -8,7 +8,6 @@ import (
 
 	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/backoff"
-	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/deliverymq"
@@ -17,6 +16,7 @@ import (
 	"github.com/hookdeck/outpost/internal/eventtracer"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logmq"
+	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/redis"
 	"go.uber.org/zap"
@@ -52,11 +52,6 @@ func NewService(ctx context.Context,
 		return nil, err
 	}
 
-	chDB, err := clickhouse.New(cfg.ClickHouse.ToConfig())
-	if err != nil {
-		return nil, err
-	}
-
 	logMQ := logmq.New(logmq.WithQueue(cfg.MQs.GetLogQueueConfig()))
 	cleanupLogMQ, err := logMQ.Init(ctx)
 	if err != nil {
@@ -83,7 +78,21 @@ func NewService(ctx context.Context,
 			models.WithAvailableTopics(cfg.Topics),
 			models.WithMaxDestinationsPerTenant(cfg.MaxDestinationsPerTenant),
 		)
-		logStore := models.NewLogStore(chDB)
+
+		logstoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
+			ClickHouse: cfg.ClickHouse.ToConfig(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		cleanupFuncs = append(cleanupFuncs, func() {
+			logstoreDriverOpts.Close()
+		})
+		logStore, err := logstore.NewLogStore(ctx, logstoreDriverOpts)
+		if err != nil {
+			return nil, err
+		}
+
 		deliveryMQ := deliverymq.New(deliverymq.WithQueue(cfg.MQs.GetDeliveryQueueConfig()))
 		cleanupDeliveryMQ, err := deliveryMQ.Init(ctx)
 		if err != nil {

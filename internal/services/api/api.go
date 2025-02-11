@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/deliverymq"
@@ -16,6 +15,7 @@ import (
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/eventtracer"
 	"github.com/hookdeck/outpost/internal/logging"
+	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
@@ -67,11 +67,19 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		return nil, err
 	}
 
-	chDB, err := clickhouse.New(cfg.ClickHouse.ToConfig())
+	logStoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
+		ClickHouse: cfg.ClickHouse.ToConfig(),
+	})
 	if err != nil {
 		return nil, err
 	}
-	logStore := models.NewLogStore(chDB)
+	cleanupFuncs = append(cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+		logStoreDriverOpts.Close()
+	})
+	logStore, err := logstore.NewLogStore(ctx, logStoreDriverOpts)
+	if err != nil {
+		return nil, err
+	}
 
 	var eventTracer eventtracer.EventTracer
 	if cfg.OpenTelemetry.ToConfig() == nil {

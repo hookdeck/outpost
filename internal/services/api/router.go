@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
+	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/publishmq"
@@ -111,7 +112,7 @@ func NewRouter(
 	redisClient *redis.Client,
 	deliveryMQ *deliverymq.DeliveryMQ,
 	entityStore models.EntityStore,
-	logStore models.LogStore,
+	logStore logstore.LogStore,
 	publishmqEventHandler publishmq.EventHandler,
 ) http.Handler {
 	// Only set mode from config if we're not in test mode
