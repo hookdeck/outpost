@@ -92,6 +92,7 @@ func NewService(ctx context.Context,
 		concurreny: cfg.DeliveryMaxConcurrency,
 	}
 	service.handler = handler
+	service.cleanupFuncs = cleanupFuncs
 
 	go func() {
 		defer wg.Done()
