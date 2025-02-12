@@ -35,6 +35,7 @@ func (pgDB *PGDB) init(url, database string) {
 	if err != nil {
 		panic(err)
 	}
+	defer db.Close()
 	if _, err := db.Exec(context.Background(), "CREATE DATABASE "+database); err != nil {
 		log.Println("cmd", "CREATE DATABASE "+database)
 		panic(err)
@@ -46,6 +47,7 @@ func (pgDB *PGDB) clear(url, database string) {
 	if err != nil {
 		panic(err)
 	}
+	defer db.Close()
 	if _, err := db.Exec(context.Background(), "DROP DATABASE "+database); err != nil {
 		panic(err)
 	}
@@ -66,9 +68,7 @@ func (pgDB *PGDB) getPGPort(pgURL string) int {
 			log.Println("err", err)
 			return 5432
 		}
-		log.Println("u", u)
 		port, _ := strconv.Atoi(u.Port())
-		log.Println("port", port)
 		if port == 0 {
 			return 5432
 		}

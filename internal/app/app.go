@@ -100,10 +100,15 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 
-	<-termChan // Blocks here until interrupted
+	// Wait for either context cancellation or termination signal
+	select {
+	case <-termChan:
+		logger.Ctx(ctx).Info("shutdown signal received")
+	case <-ctx.Done():
+		logger.Ctx(ctx).Info("context cancelled")
+	}
 
 	// Handle shutdown
-	logger.Ctx(ctx).Info("shutdown signal received")
 	cancel()  // Signal cancellation to context.Context
 	wg.Wait() // Block here until all workers are done
 
