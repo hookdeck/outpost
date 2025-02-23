@@ -8,6 +8,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
@@ -32,6 +33,7 @@ type EntityStore interface {
 }
 
 type entityStore struct {
+	mu           sync.RWMutex
 	destinations map[string]models.Destination
 	events       map[string][]Event
 }
@@ -44,6 +46,8 @@ func NewEntityStore() EntityStore {
 }
 
 func (s *entityStore) ListDestination(ctx context.Context) ([]models.Destination, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	destinationList := make([]models.Destination, len(s.destinations))
 	index := 0
 	for _, destination := range s.destinations {
@@ -54,6 +58,8 @@ func (s *entityStore) ListDestination(ctx context.Context) ([]models.Destination
 }
 
 func (s *entityStore) RetrieveDestination(ctx context.Context, id string) (*models.Destination, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	destination, ok := s.destinations[id]
 	if !ok {
 		return nil, errors.New("destination not found")
@@ -62,11 +68,15 @@ func (s *entityStore) RetrieveDestination(ctx context.Context, id string) (*mode
 }
 
 func (s *entityStore) UpsertDestination(ctx context.Context, destination models.Destination) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.destinations[destination.ID] = destination
 	return nil
 }
 
 func (s *entityStore) DeleteDestination(ctx context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if _, ok := s.destinations[id]; !ok {
 		return errors.New("destination not found")
 	}
@@ -76,6 +86,8 @@ func (s *entityStore) DeleteDestination(ctx context.Context, id string) error {
 }
 
 func (s *entityStore) ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}, metadata map[string]string) (*Event, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	destination, ok := s.destinations[destinationID]
 	if !ok {
 		return nil, errors.New("destination not found")
@@ -211,6 +223,8 @@ func verifySignature(secret string, payload []byte, signature string, algorithm 
 }
 
 func (s *entityStore) ListEvent(ctx context.Context, destinationID string) ([]Event, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	events, ok := s.events[destinationID]
 	if !ok {
 		return nil, errors.New("no events found for destination")
@@ -219,6 +233,8 @@ func (s *entityStore) ListEvent(ctx context.Context, destinationID string) ([]Ev
 }
 
 func (s *entityStore) ClearEvents(ctx context.Context, destinationID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if _, ok := s.destinations[destinationID]; !ok {
 		return errors.New("destination not found")
 	}
