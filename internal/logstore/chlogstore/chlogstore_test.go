@@ -7,6 +7,7 @@ import (
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/logstore/drivertest"
+	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/require"
@@ -34,32 +35,23 @@ func setupClickHouseConnection(t *testing.T) clickhouse.DB {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	require.NoError(t, chDB.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS events (
-			id String,
-			tenant_id String,
-			destination_id String,
-			topic String,
-			eligible_for_retry Bool,
-			time DateTime,
-			metadata String,
-			data String
-		)
-		ENGINE = MergeTree
-		ORDER BY (id, time);
-	`))
-	require.NoError(t, chDB.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS deliveries (
-			id String,
-			delivery_event_id String,
-			event_id String,
-			destination_id String,
-			status String,
-			time DateTime
-		)
-		ENGINE = ReplacingMergeTree
-		ORDER BY (id, time);
-	`))
+	m, err := migrator.New(migrator.MigrationOpts{
+		CH: migrator.MigrationOptsCH{
+			Addr:     chConfig.Addr,
+			Username: chConfig.Username,
+			Password: chConfig.Password,
+			Database: chConfig.Database,
+		},
+	})
+	require.NoError(t, err)
+	_, _, err = m.Up(ctx, -1)
+	require.NoError(t, err)
+
+	defer func() {
+		sourceErr, dbErr := m.Close(ctx)
+		require.NoError(t, sourceErr)
+		require.NoError(t, dbErr)
+	}()
 
 	return chDB
 }

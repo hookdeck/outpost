@@ -8,11 +8,10 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/logging"
-	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/otel"
 	"github.com/hookdeck/outpost/internal/services/api"
 	"github.com/hookdeck/outpost/internal/services/delivery"
@@ -49,7 +48,9 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		zap.String("service", cfg.MustGetService().String()),
 	)
 
-	runMigration_Temporary(mainContext, cfg)
+	if err := runMigration(mainContext, cfg, logger); err != nil {
+		return err
+	}
 
 	if err := infra.Declare(mainContext, infra.Config{
 		DeliveryMQ: cfg.MQs.GetDeliveryQueueConfig(),
@@ -155,53 +156,32 @@ func constructServices(
 	return services, nil
 }
 
-func runMigration_Temporary(ctx context.Context, cfg *config.Config) error {
-	logstoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
-		ClickHouse: cfg.ClickHouse.ToConfig(),
-		Postgres:   &cfg.PostgresURL,
-	})
+func runMigration(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
+	migrator, err := migrator.New(cfg.ToMigratorOpts())
 	if err != nil {
 		return err
 	}
-	defer logstoreDriverOpts.Close()
 
-	if logstoreDriverOpts.CH != nil {
-		if err := clickhouse.RunMigration_Temporary(ctx, logstoreDriverOpts.CH); err != nil {
-			return err
+	defer func() {
+		sourceErr, dbErr := migrator.Close(ctx)
+		if sourceErr != nil {
+			logger.Error("failed to close migrator", zap.Error(sourceErr))
 		}
+		if dbErr != nil {
+			logger.Error("failed to close migrator", zap.Error(dbErr))
+		}
+	}()
+
+	version, versionJumped, err := migrator.Up(ctx, -1)
+	if err != nil {
+		return err
 	}
-
-	if logstoreDriverOpts.PG != nil {
-		_, err := logstoreDriverOpts.PG.Exec(ctx, `
-			CREATE TABLE IF NOT EXISTS events (
-				id TEXT NOT NULL,
-				tenant_id TEXT NOT NULL,
-				destination_id TEXT NOT NULL,
-				topic TEXT NOT NULL,
-				eligible_for_retry BOOLEAN NOT NULL,
-				time TIMESTAMPTZ NOT NULL,
-				metadata JSONB NOT NULL,
-				data JSONB NOT NULL,
-				PRIMARY KEY (id)
-			);
-
-			CREATE INDEX IF NOT EXISTS events_tenant_time_idx ON events (tenant_id, time DESC);
-
-			CREATE TABLE IF NOT EXISTS deliveries (
-				id TEXT NOT NULL,
-				event_id TEXT NOT NULL,
-				destination_id TEXT NOT NULL,
-				status TEXT NOT NULL,
-				time TIMESTAMPTZ NOT NULL,
-				PRIMARY KEY (id),
-				FOREIGN KEY (event_id) REFERENCES events (id)
-			);
-
-			CREATE INDEX IF NOT EXISTS deliveries_event_time_idx ON deliveries (event_id, time DESC);
-		`)
-		if err != nil {
-			return err
-		}
+	if versionJumped > 0 {
+		logger.Info("migrations applied",
+			zap.Int("version", version),
+			zap.Int("version_applied", versionJumped))
+	} else {
+		logger.Info("no migrations applied", zap.Int("version", version))
 	}
 
 	return nil

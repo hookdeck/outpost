@@ -7,6 +7,7 @@ import (
 
 	"github.com/caarlos0/env/v9"
 	"github.com/hookdeck/outpost/internal/clickhouse"
+	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
@@ -322,4 +323,18 @@ type AlertConfig struct {
 // ConfigFilePath returns the path of the config file that was used
 func (c *Config) ConfigFilePath() string {
 	return c.configPath
+}
+
+func (c *Config) ToMigratorOpts() migrator.MigrationOpts {
+	return migrator.MigrationOpts{
+		PG: migrator.MigrationOptsPG{
+			URL: c.PostgresURL,
+		},
+		CH: migrator.MigrationOptsCH{
+			Addr:     c.ClickHouse.Addr,
+			Username: c.ClickHouse.Username,
+			Password: c.ClickHouse.Password,
+			Database: c.ClickHouse.Database,
+		},
+	}
 }

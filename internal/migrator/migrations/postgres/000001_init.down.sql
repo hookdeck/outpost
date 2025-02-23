@@ -1,0 +1,7 @@
+BEGIN;
+
+DROP TABLE IF EXISTS deliveries;
+
+DROP TABLE IF EXISTS events;
+
+COMMIT;
