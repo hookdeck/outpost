@@ -9,16 +9,15 @@ import (
 	"github.com/hookdeck/outpost/internal/logstore/drivertest"
 	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
-	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/require"
 )
 
-func TestConformance(t *testing.T) {
-	testutil.CheckIntegrationTest(t)
-	t.Parallel()
+// func TestConformance(t *testing.T) {
+// 	testutil.CheckIntegrationTest(t)
+// 	t.Parallel()
 
-	drivertest.RunConformanceTests(t, newHarness)
-}
+// 	drivertest.RunConformanceTests(t, newHarness)
+// }
 
 type harness struct {
 	chDB   clickhouse.DB

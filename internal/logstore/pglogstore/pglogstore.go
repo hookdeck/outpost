@@ -20,15 +20,41 @@ func NewLogStore(db *pgxpool.Pool) driver.LogStore {
 
 func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) ([]*models.Event, string, error) {
 	query := `
-		SELECT id, tenant_id, destination_id, time, topic, eligible_for_retry, data, metadata
-		FROM events 
-		WHERE tenant_id = $1 
+		WITH event_status AS (
+			SELECT 
+				e.id,
+				e.tenant_id,
+				e.destination_id,
+				e.time,
+				e.topic,
+				e.eligible_for_retry,
+				e.data,
+				e.metadata,
+				CASE
+					WHEN EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id AND d.status = 'success') THEN 'success'
+					WHEN EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id) THEN 'failed'
+					ELSE 'pending'
+				END as status
+			FROM events e
+		)
+		SELECT 
+			id,
+			tenant_id,
+			destination_id,
+			time,
+			topic,
+			eligible_for_retry,
+			data,
+			metadata
+		FROM event_status
+		WHERE tenant_id = $1
 		AND ($2 = '' OR time < $2::timestamptz)
 		AND (array_length($3::text[], 1) IS NULL OR destination_id = ANY($3))
+		AND ($4 = '' OR status = $4)
 		ORDER BY time DESC
-		LIMIT $4`
+		LIMIT CASE WHEN $5 = 0 THEN NULL ELSE $5 END`
 
-	rows, err := s.db.Query(ctx, query, req.TenantID, req.Cursor, req.DestinationIDs, req.Limit)
+	rows, err := s.db.Query(ctx, query, req.TenantID, req.Cursor, req.DestinationIDs, req.Status, req.Limit)
 	if err != nil {
 		return nil, "", err
 	}
