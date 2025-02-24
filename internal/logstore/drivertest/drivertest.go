@@ -148,7 +148,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 		})
 
 		t.Run("list event with cursor", func(t *testing.T) {
-			queriedEvents, nextCursor, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			queriedEvents, _, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID: tenantID,
 				Limit:    5,
 				Cursor:   cursor,
@@ -158,7 +158,6 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			for i := 0; i < 5; i++ {
 				require.Equal(t, events[5+i].ID, queriedEvents[i].ID)
 			}
-			assert.Equal(t, events[9].Time.UTC().Format(time.RFC3339), nextCursor)
 		})
 	})
 

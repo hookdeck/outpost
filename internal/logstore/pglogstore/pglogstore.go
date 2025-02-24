@@ -2,7 +2,7 @@ package pglogstore
 
 import (
 	"context"
-	"time"
+	"fmt"
 
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
@@ -11,11 +11,15 @@ import (
 )
 
 type logStore struct {
-	db *pgxpool.Pool
+	db           *pgxpool.Pool
+	cursorParser eventCursorParser
 }
 
 func NewLogStore(db *pgxpool.Pool) driver.LogStore {
-	return &logStore{db: db}
+	return &logStore{
+		db:           db,
+		cursorParser: newEventCursorParser(),
+	}
 }
 
 func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) ([]*models.Event, string, error) {
@@ -30,6 +34,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 				e.eligible_for_retry,
 				e.data,
 				e.metadata,
+				e.time_id,
 				CASE
 					WHEN EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id AND d.status = 'success') THEN 'success'
 					WHEN EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id) THEN 'failed'
@@ -45,22 +50,33 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 			topic,
 			eligible_for_retry,
 			data,
-			metadata
+			metadata,
+			time_id
 		FROM event_status
 		WHERE tenant_id = $1
-		AND ($2 = '' OR time < $2::timestamptz)
+		AND ($2 = '' OR time_id < $2)
 		AND (array_length($3::text[], 1) IS NULL OR destination_id = ANY($3))
 		AND ($4 = '' OR status = $4)
-		ORDER BY time DESC
+		ORDER BY time_id DESC
 		LIMIT CASE WHEN $5 = 0 THEN NULL ELSE $5 END`
 
-	rows, err := s.db.Query(ctx, query, req.TenantID, req.Cursor, req.DestinationIDs, req.Status, req.Limit)
+	var cursor string
+	if req.Cursor != "" {
+		decodedCursor, err := s.cursorParser.Parse(req.Cursor)
+		if err != nil {
+			return nil, "", fmt.Errorf("invalid cursor: %v", err)
+		}
+		cursor = decodedCursor
+	}
+
+	rows, err := s.db.Query(ctx, query, req.TenantID, cursor, req.DestinationIDs, req.Status, req.Limit)
 	if err != nil {
 		return nil, "", err
 	}
 	defer rows.Close()
 
 	var events []*models.Event
+	var lastTimeID string
 	for rows.Next() {
 		event := &models.Event{}
 		err := rows.Scan(
@@ -72,6 +88,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 			&event.EligibleForRetry,
 			&event.Data,
 			&event.Metadata,
+			&lastTimeID,
 		)
 		if err != nil {
 			return nil, "", err
@@ -81,7 +98,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 
 	var nextCursor string
 	if len(events) > 0 {
-		nextCursor = events[len(events)-1].Time.UTC().Format(time.RFC3339)
+		nextCursor = s.cursorParser.Format(lastTimeID)
 	}
 
 	return events, nextCursor, nil
