@@ -15,9 +15,11 @@ type LogStore interface {
 }
 
 type ListEventRequest struct {
-	TenantID string
-	Cursor   string
-	Limit    int
+	TenantID       string   // required
+	DestinationIDs []string // optional
+	Status         string   // optional, "success", "failed"
+	Cursor         string
+	Limit          int
 }
 
 type ListDeliveryRequest struct {

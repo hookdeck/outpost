@@ -89,3 +89,68 @@ func (f *mockEventFactory) WithData(data map[string]interface{}) func(*models.Ev
 		event.Data = data
 	}
 }
+
+// ============================== Mock Delivery ==============================
+
+var DeliveryFactory = &mockDeliveryFactory{}
+
+type mockDeliveryFactory struct {
+}
+
+func (f *mockDeliveryFactory) Any(opts ...func(*models.Delivery)) models.Delivery {
+	delivery := models.Delivery{
+		ID:              uuid.New().String(),
+		DeliveryEventID: uuid.New().String(),
+		EventID:         uuid.New().String(),
+		DestinationID:   uuid.New().String(),
+		Status:          "success",
+		Time:            time.Now(),
+	}
+
+	for _, opt := range opts {
+		opt(&delivery)
+	}
+
+	return delivery
+}
+
+func (f *mockDeliveryFactory) AnyPointer(opts ...func(*models.Delivery)) *models.Delivery {
+	delivery := f.Any(opts...)
+	return &delivery
+}
+
+func (f *mockDeliveryFactory) WithID(id string) func(*models.Delivery) {
+	return func(delivery *models.Delivery) {
+		delivery.ID = id
+	}
+}
+
+func (f *mockDeliveryFactory) WithDeliveryEventID(deliveryEventID string) func(*models.Delivery) {
+	return func(delivery *models.Delivery) {
+		delivery.DeliveryEventID = deliveryEventID
+	}
+}
+
+func (f *mockDeliveryFactory) WithEventID(eventID string) func(*models.Delivery) {
+	return func(delivery *models.Delivery) {
+		delivery.EventID = eventID
+	}
+}
+
+func (f *mockDeliveryFactory) WithDestinationID(destinationID string) func(*models.Delivery) {
+	return func(delivery *models.Delivery) {
+		delivery.DestinationID = destinationID
+	}
+}
+
+func (f *mockDeliveryFactory) WithStatus(status string) func(*models.Delivery) {
+	return func(delivery *models.Delivery) {
+		delivery.Status = status
+	}
+}
+
+func (f *mockDeliveryFactory) WithTime(time time.Time) func(*models.Delivery) {
+	return func(delivery *models.Delivery) {
+		delivery.Time = time
+	}
+}
