@@ -24,10 +24,11 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		FROM events 
 		WHERE tenant_id = $1 
 		AND ($2 = '' OR time < $2::timestamptz)
+		AND (array_length($3::text[], 1) IS NULL OR destination_id = ANY($3))
 		ORDER BY time DESC
-		LIMIT $3`
+		LIMIT $4`
 
-	rows, err := s.db.Query(ctx, query, req.TenantID, req.Cursor, req.Limit)
+	rows, err := s.db.Query(ctx, query, req.TenantID, req.Cursor, req.DestinationIDs, req.Limit)
 	if err != nil {
 		return nil, "", err
 	}

@@ -110,45 +110,112 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 	})
 
 	// Queries
-	t.Run("list event empty", func(t *testing.T) {
-		queriedEvents, nextCursor, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-			TenantID: "unknown",
-			Limit:    5,
-			Cursor:   "",
+	t.Run("base queries", func(t *testing.T) {
+		t.Run("list event empty", func(t *testing.T) {
+			queriedEvents, nextCursor, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+				TenantID: "unknown",
+				Limit:    5,
+				Cursor:   "",
+			})
+			require.NoError(t, err)
+			assert.Empty(t, queriedEvents)
+			assert.Empty(t, nextCursor)
 		})
-		require.NoError(t, err)
-		assert.Empty(t, queriedEvents)
-		assert.Empty(t, nextCursor)
+
+		var cursor string
+		t.Run("list event", func(t *testing.T) {
+			queriedEvents, nextCursor, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+				TenantID: tenantID,
+				Limit:    5,
+				Cursor:   "",
+			})
+			require.NoError(t, err)
+			require.Len(t, queriedEvents, 5)
+			for i := 0; i < 5; i++ {
+				require.Equal(t, events[i].ID, queriedEvents[i].ID)
+			}
+			cursor = nextCursor
+		})
+
+		t.Run("list event with cursor", func(t *testing.T) {
+			queriedEvents, nextCursor, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+				TenantID: tenantID,
+				Limit:    5,
+				Cursor:   cursor,
+			})
+			require.NoError(t, err)
+			require.Len(t, queriedEvents, 5)
+			for i := 0; i < 5; i++ {
+				require.Equal(t, events[5+i].ID, queriedEvents[i].ID)
+			}
+			assert.Equal(t, events[9].Time.UTC().Format(time.RFC3339), nextCursor)
+		})
 	})
 
-	var cursor string
-	t.Run("list event", func(t *testing.T) {
-		queriedEvents, nextCursor, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-			TenantID: tenantID,
-			Limit:    5,
-			Cursor:   "",
+	t.Run("query by destinations", func(t *testing.T) {
+		var cursor string
+		t.Run("list event with destination filter", func(t *testing.T) {
+			queriedEvents, nextCursor, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+				TenantID:       tenantID,
+				DestinationIDs: []string{destinationIDs[0]},
+				Limit:          3,
+				Cursor:         "",
+			})
+			require.NoError(t, err)
+			require.Len(t, queriedEvents, 3)
+			for i := 0; i < 3; i++ {
+				require.Equal(t, destinationEvents[destinationIDs[0]][i].ID, queriedEvents[i].ID)
+			}
+			cursor = nextCursor
 		})
-		require.NoError(t, err)
-		require.Len(t, queriedEvents, 5)
-		for i := 0; i < 5; i++ {
-			require.Equal(t, events[i].ID, queriedEvents[i].ID)
-		}
-		assert.Equal(t, events[4].Time.UTC().Format(time.RFC3339), nextCursor)
-		cursor = nextCursor
-	})
 
-	t.Run("list event with cursor", func(t *testing.T) {
-		queriedEvents, nextCursor, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-			TenantID: tenantID,
-			Limit:    5,
-			Cursor:   cursor,
+		t.Run("list event with destination filter and cursor", func(t *testing.T) {
+			queriedEvents, _, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+				TenantID:       tenantID,
+				DestinationIDs: []string{destinationIDs[0]},
+				Limit:          3,
+				Cursor:         cursor,
+			})
+			require.NoError(t, err)
+			require.Len(t, queriedEvents, 3)
+			for i := 0; i < 3; i++ {
+				require.Equal(t, destinationEvents[destinationIDs[0]][3+i].ID, queriedEvents[i].ID)
+			}
 		})
-		require.NoError(t, err)
-		require.Len(t, queriedEvents, 5)
-		for i := 0; i < 5; i++ {
-			require.Equal(t, events[5+i].ID, queriedEvents[i].ID)
-		}
-		assert.Equal(t, events[9].Time.UTC().Format(time.RFC3339), nextCursor)
+
+		t.Run("list event with destination array filter", func(t *testing.T) {
+			queriedEvents, nextCursor, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+				TenantID:       tenantID,
+				DestinationIDs: []string{destinationIDs[0], destinationIDs[1]},
+				Limit:          3,
+				Cursor:         "",
+			})
+			require.NoError(t, err)
+			require.Len(t, queriedEvents, 3)
+
+			// should equal events index 0, 1, 3
+			require.Equal(t, events[0].ID, queriedEvents[0].ID)
+			require.Equal(t, events[1].ID, queriedEvents[1].ID)
+			require.Equal(t, events[3].ID, queriedEvents[2].ID)
+
+			cursor = nextCursor
+		})
+
+		t.Run("list event with destination array filter and cursor", func(t *testing.T) {
+			queriedEvents, _, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+				TenantID:       tenantID,
+				DestinationIDs: []string{destinationIDs[0], destinationIDs[1]},
+				Limit:          3,
+				Cursor:         cursor,
+			})
+			require.NoError(t, err)
+			require.Len(t, queriedEvents, 3)
+
+			// should equal events index 4, 6, 7
+			require.Equal(t, events[4].ID, queriedEvents[0].ID)
+			require.Equal(t, events[6].ID, queriedEvents[1].ID)
+			require.Equal(t, events[7].ID, queriedEvents[2].ID)
+		})
 	})
 }
 

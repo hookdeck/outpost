@@ -43,10 +43,11 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRe
 				metadata
 			FROM events
 			WHERE tenant_id = ?
+			AND (? = 0 OR destination_id IN ?)
 			ORDER BY time DESC
 			LIMIT ?
 		`
-		queryOpts = []any{request.TenantID, request.Limit}
+		queryOpts = []any{request.TenantID, len(request.DestinationIDs), request.DestinationIDs, request.Limit}
 	} else {
 		query = `
 			SELECT
@@ -60,10 +61,11 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRe
 				metadata
 			FROM events
 			WHERE tenant_id = ? AND time < ?
+			AND (? = 0 OR destination_id IN ?)
 			ORDER BY time DESC
 			LIMIT ?
 		`
-		queryOpts = []any{request.TenantID, cursor, request.Limit}
+		queryOpts = []any{request.TenantID, cursor, len(request.DestinationIDs), request.DestinationIDs, request.Limit}
 	}
 	rows, err := s.chDB.Query(ctx, query, queryOpts...)
 	if err != nil {
