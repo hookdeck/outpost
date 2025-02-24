@@ -78,6 +78,23 @@ func run(ctx context.Context, cfg *config.Config) error {
 		} else {
 			fmt.Println("no migrations rolled back")
 		}
+	case "force":
+		// $ outpost migration force <version>
+
+		if len(os.Args) < 3 {
+			return fmt.Errorf("version is required")
+		}
+
+		version, err := strconv.Atoi(os.Args[2])
+		if err != nil {
+			return err
+		}
+
+		if err := migrator.Force(ctx, version); err != nil {
+			return err
+		}
+		fmt.Println("migrations forced")
+
 	default:
 		return fmt.Errorf("invalid command: %s", command)
 	}

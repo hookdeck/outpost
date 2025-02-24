@@ -173,6 +173,10 @@ func (opts *MigrationOpts) getDriver() (source.Driver, error) {
 	return nil, fmt.Errorf("no migration source available")
 }
 
+func (m *Migrator) Force(ctx context.Context, version int) error {
+	return m.migrate.Force(version)
+}
+
 func (opts *MigrationOpts) databaseURL() string {
 	if opts.PG.URL != "" {
 		return opts.PG.URL
