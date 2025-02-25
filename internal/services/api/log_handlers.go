@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/logging"
@@ -76,6 +77,13 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 	c.JSON(http.StatusOK, event)
 }
 
+type DeliveryResponse struct {
+	DeliveredAt  string                 `json:"delivered_at"`
+	Status       string                 `json:"status"`
+	Code         string                 `json:"code"`
+	ResponseData map[string]interface{} `json:"response_data"`
+}
+
 // TODO: consider authz where eventID doesn't belong to tenantID?
 func (h *LogHandlers) ListDeliveryByEvent(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
@@ -93,11 +101,18 @@ func (h *LogHandlers) ListDeliveryByEvent(c *gin.Context) {
 	if len(deliveries) == 0 {
 		// Return an empty array instead of null
 		c.JSON(http.StatusOK, gin.H{
-			"data": []models.Delivery{},
+			"data": []DeliveryResponse{},
 		})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"data": deliveries,
-	})
+	deliveryData := make([]DeliveryResponse, len(deliveries))
+	for i, delivery := range deliveries {
+		deliveryData[i] = DeliveryResponse{
+			DeliveredAt:  delivery.Time.UTC().Format(time.RFC3339),
+			Status:       delivery.Status,
+			Code:         delivery.Code,
+			ResponseData: delivery.ResponseData,
+		}
+	}
+	c.JSON(http.StatusOK, deliveryData)
 }
