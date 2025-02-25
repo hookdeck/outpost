@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/models"
 	mqs "github.com/hookdeck/outpost/internal/mqs"
@@ -29,18 +30,48 @@ func newMockPublisher(responses []error) *mockPublisher {
 	return &mockPublisher{responses: responses}
 }
 
-func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error {
+func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Delivery, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.current >= len(m.responses) {
 		m.current++
-		return nil
+		return &models.Delivery{
+			ID:              uuid.New().String(),
+			DeliveryEventID: uuid.New().String(),
+			EventID:         event.ID,
+			DestinationID:   destination.ID,
+			Status:          models.DeliveryStatusSuccess,
+			Code:            "OK",
+			ResponseData:    map[string]interface{}{},
+			Time:            time.Now(),
+		}, nil
 	}
 
 	resp := m.responses[m.current]
 	m.current++
-	return resp
+	if resp == nil {
+		return &models.Delivery{
+			ID:              uuid.New().String(),
+			DeliveryEventID: uuid.New().String(),
+			EventID:         event.ID,
+			DestinationID:   destination.ID,
+			Status:          models.DeliveryStatusSuccess,
+			Code:            "OK",
+			ResponseData:    map[string]interface{}{},
+			Time:            time.Now(),
+		}, nil
+	}
+	return &models.Delivery{
+		ID:              uuid.New().String(),
+		DeliveryEventID: uuid.New().String(),
+		EventID:         event.ID,
+		DestinationID:   destination.ID,
+		Status:          models.DeliveryStatusFailed,
+		Code:            "ERR",
+		ResponseData:    map[string]interface{}{},
+		Time:            time.Now(),
+	}, resp
 }
 
 func (m *mockPublisher) Current() int {

@@ -480,20 +480,20 @@ func (p *WebhookPublisher) Close() error {
 	return nil
 }
 
-func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) error {
+func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
 	if err := p.BasePublisher.StartPublish(); err != nil {
-		return err
+		return nil, err
 	}
 	defer p.BasePublisher.FinishPublish()
 
 	httpReq, err := p.Format(ctx, event)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
-		return destregistry.NewErrDestinationPublishAttempt(err, "webhook", map[string]interface{}{
+		return nil, destregistry.NewErrDestinationPublishAttempt(err, "webhook", map[string]interface{}{
 			"error":   "request_failed",
 			"message": err.Error(),
 		})
@@ -502,16 +502,27 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) err
 
 	if resp.StatusCode >= 400 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return destregistry.NewErrDestinationPublishAttempt(fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(bodyBytes)), "webhook", map[string]interface{}{
-			"error": "request_failed",
-			"response": map[string]interface{}{
+		delivery := &destregistry.Delivery{
+			Status: "failed",
+			Code:   fmt.Sprintf("%d", resp.StatusCode),
+		}
+		parseResponse(delivery, resp)
+		return delivery, destregistry.NewErrDestinationPublishAttempt(
+			fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(bodyBytes)),
+			"webhook",
+			map[string]interface{}{
 				"status": resp.StatusCode,
 				"body":   string(bodyBytes),
-			},
-		})
+			})
 	}
 
-	return nil
+	delivery := &destregistry.Delivery{
+		Status: "success",
+		Code:   fmt.Sprintf("%d", resp.StatusCode),
+	}
+	parseResponse(delivery, resp)
+
+	return delivery, nil
 }
 
 // Format is a helper function to format the event data into an HTTP request.
@@ -601,5 +612,28 @@ func isTruthy(value string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func parseResponse(delivery *destregistry.Delivery, resp *http.Response) {
+	if strings.Contains(resp.Header.Get("Content-Type"), "application/json") {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		var response map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &response); err != nil {
+			delivery.Response = map[string]interface{}{
+				"status": resp.StatusCode,
+				"body":   string(bodyBytes),
+			}
+		}
+		delivery.Response = map[string]interface{}{
+			"status": resp.StatusCode,
+			"body":   response,
+		}
+	} else {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		delivery.Response = map[string]interface{}{
+			"status": resp.StatusCode,
+			"body":   string(bodyBytes),
+		}
 	}
 }

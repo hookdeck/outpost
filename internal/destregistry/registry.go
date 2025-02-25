@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/lru"
@@ -24,7 +25,7 @@ type PreprocessDestinationOpts struct {
 type Registry interface {
 	// Operations
 	ValidateDestination(ctx context.Context, destination *models.Destination) error
-	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error
+	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Delivery, error)
 	DisplayDestination(destination *models.Destination) (*DestinationDisplay, error)
 	PreprocessDestination(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error
 
@@ -55,8 +56,14 @@ type Provider interface {
 	Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error
 }
 
+type Delivery struct {
+	Status   string
+	Code     string
+	Response map[string]interface{}
+}
+
 type Publisher interface {
-	Publish(ctx context.Context, event *models.Event) error
+	Publish(ctx context.Context, event *models.Event) (*Delivery, error)
 	Close() error
 }
 
@@ -127,22 +134,37 @@ func (r *registry) ValidateDestination(ctx context.Context, destination *models.
 	return nil
 }
 
-func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error {
+func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Delivery, error) {
 	publisher, err := r.ResolvePublisher(ctx, destination)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	delivery := &models.Delivery{
+		ID:            uuid.New().String(),
+		DestinationID: destination.ID,
+		EventID:       event.ID,
 	}
 
 	// Create a new context with timeout
 	timeoutCtx, cancel := context.WithTimeout(ctx, r.config.DeliveryTimeout)
 	defer cancel()
 
-	if err := publisher.Publish(timeoutCtx, event); err != nil {
+	deliveryData, err := publisher.Publish(timeoutCtx, event)
+	if err != nil {
+		if deliveryData != nil {
+			delivery.Time = time.Now()
+			delivery.Status = deliveryData.Status
+			delivery.Code = deliveryData.Code
+			delivery.ResponseData = deliveryData.Response
+		} else {
+			delivery = nil
+		}
 		var publishErr *ErrDestinationPublishAttempt
 		if errors.As(err, &publishErr) {
 			// Check if the wrapped error is a timeout
 			if errors.Is(publishErr.Err, context.DeadlineExceeded) {
-				return &ErrDestinationPublishAttempt{
+				return delivery, &ErrDestinationPublishAttempt{
 					Err:      publishErr.Err,
 					Provider: destination.Type,
 					Data: map[string]interface{}{
@@ -151,10 +173,11 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 					},
 				}
 			}
-			return publishErr
+			return delivery, publishErr
 		}
+
 		if errors.Is(err, context.DeadlineExceeded) {
-			return &ErrDestinationPublishAttempt{
+			return delivery, &ErrDestinationPublishAttempt{
 				Err:      err,
 				Provider: destination.Type,
 				Data: map[string]interface{}{
@@ -163,7 +186,8 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 				},
 			}
 		}
-		return &ErrDestinationPublishAttempt{
+
+		return delivery, &ErrDestinationPublishAttempt{
 			Err:      err,
 			Provider: destination.Type,
 			Data: map[string]interface{}{
@@ -172,7 +196,25 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 			},
 		}
 	}
-	return nil
+
+	if deliveryData == nil {
+		err := errors.New("invalid delivery data")
+		return nil, &ErrDestinationPublishAttempt{
+			Err:      err,
+			Provider: destination.Type,
+			Data: map[string]interface{}{
+				"error":   "unexpected",
+				"message": err.Error(),
+			},
+		}
+	}
+
+	delivery.Time = time.Now()
+	delivery.Status = deliveryData.Status
+	delivery.Code = deliveryData.Code
+	delivery.ResponseData = deliveryData.Response
+
+	return delivery, nil
 }
 
 func (r *registry) RegisterProvider(destinationType string, provider Provider) error {

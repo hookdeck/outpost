@@ -154,24 +154,34 @@ func (p *AWSSQSPublisher) Format(ctx context.Context, event *models.Event) (*sqs
 	}, nil
 }
 
-func (p *AWSSQSPublisher) Publish(ctx context.Context, event *models.Event) error {
+func (p *AWSSQSPublisher) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
 	if err := p.BasePublisher.StartPublish(); err != nil {
-		return err
+		return nil, err
 	}
 	defer p.BasePublisher.FinishPublish()
 
 	msg, err := p.Format(ctx, event)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if _, err = p.client.SendMessage(ctx, msg); err != nil {
-		return destregistry.NewErrDestinationPublishAttempt(err, "aws_sqs", map[string]interface{}{
-			"error": err.Error(),
-		})
+		return &destregistry.Delivery{
+				Status: "failed",
+				Code:   "ERR",
+				Response: map[string]interface{}{
+					"error": err.Error(),
+				},
+			}, destregistry.NewErrDestinationPublishAttempt(err, "aws_sqs", map[string]interface{}{
+				"error": err.Error(),
+			})
 	}
 
-	return nil
+	return &destregistry.Delivery{
+		Status:   "success",
+		Code:     "OK",
+		Response: map[string]interface{}{},
+	}, nil
 }
 
 // ParseQueueURL extracts the full URL into baseURL & region

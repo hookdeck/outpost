@@ -131,7 +131,7 @@ func (s *PublisherSuite) TestBasicPublish() {
 		}),
 	)
 
-	err := s.pub.Publish(context.Background(), &event)
+	_, err := s.pub.Publish(context.Background(), &event)
 	s.Require().NoError(err)
 
 	select {
@@ -161,7 +161,8 @@ func (s *PublisherSuite) TestConcurrentPublish() {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			if err := s.pub.Publish(context.Background(), &events[i]); err != nil {
+			_, err := s.pub.Publish(context.Background(), &events[i])
+			if err != nil {
 				errChan <- err
 			}
 		}(i)
@@ -246,7 +247,7 @@ func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
 
 				messageID++
 
-				err := s.pub.Publish(ctx, &event)
+				_, err := s.pub.Publish(ctx, &event)
 				if err == nil {
 					successCount.Add(1)
 				} else if errors.Is(err, destregistry.ErrPublisherClosed) {

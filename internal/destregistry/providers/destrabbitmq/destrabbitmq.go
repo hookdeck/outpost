@@ -113,15 +113,15 @@ func (p *RabbitMQPublisher) Close() error {
 	return nil
 }
 
-func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) error {
+func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
 	if err := p.BasePublisher.StartPublish(); err != nil {
-		return err
+		return nil, err
 	}
 	defer p.BasePublisher.FinishPublish()
 
 	// Ensure we have a valid connection
 	if err := p.ensureConnection(ctx); err != nil {
-		return destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
+		return nil, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
 			"error":   "connection_failed",
 			"message": err.Error(),
 		})
@@ -129,7 +129,7 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) er
 
 	dataBytes, err := json.Marshal(event.Data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	headers := make(amqp091.Table)
@@ -148,13 +148,23 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) er
 			Body:        []byte(dataBytes),
 		},
 	); err != nil {
-		return destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
-			"error":   "publish_failed",
-			"message": err.Error(),
-		})
+		return &destregistry.Delivery{
+				Status: "failed",
+				Code:   "ERR",
+				Response: map[string]interface{}{
+					"error": err.Error(),
+				},
+			}, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
+				"error":   "publish_failed",
+				"message": err.Error(),
+			})
 	}
 
-	return nil
+	return &destregistry.Delivery{
+		Status:   "success",
+		Code:     "OK",
+		Response: map[string]interface{}{},
+	}, nil
 }
 
 func (p *RabbitMQPublisher) ensureConnection(_ context.Context) error {

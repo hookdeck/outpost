@@ -137,15 +137,17 @@ func NewManualDeliveryEvent(event Event, destinationID string) DeliveryEvent {
 }
 
 const (
-	DeliveryStatusOK     = "ok"
-	DeliveryStatusFailed = "failed"
+	DeliveryStatusSuccess = "success"
+	DeliveryStatusFailed  = "failed"
 )
 
 type Delivery struct {
-	ID              string    `json:"id"`
-	DeliveryEventID string    `json:"delivery_event_id"`
-	EventID         string    `json:"event_id"`
-	DestinationID   string    `json:"destination_id"`
-	Status          string    `json:"status"`
-	Time            time.Time `json:"time"`
+	ID              string                 `json:"id"`
+	DeliveryEventID string                 `json:"delivery_event_id"`
+	EventID         string                 `json:"event_id"`
+	DestinationID   string                 `json:"destination_id"`
+	Status          string                 `json:"status"`
+	Time            time.Time              `json:"time"`
+	Code            string                 `json:"code"`
+	ResponseData    map[string]interface{} `json:"response_data"`
 }

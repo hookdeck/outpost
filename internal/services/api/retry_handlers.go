@@ -45,7 +45,7 @@ func isEligibleForManualRetry(destination *models.Destination, deliveries []*mod
 	var hasFailedDelivery bool
 	for _, delivery := range deliveries {
 		if delivery.DestinationID == destination.ID {
-			if delivery.Status == models.DeliveryStatusOK {
+			if delivery.Status == models.DeliveryStatusSuccess {
 				return ErrAlreadyDelivered
 			}
 			if delivery.Status == models.DeliveryStatusFailed {

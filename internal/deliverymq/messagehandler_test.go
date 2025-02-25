@@ -484,7 +484,7 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 	assert.Equal(t, 1, publisher.current, "publish should succeed once")
 	assert.Equal(t, event.ID, eventGetter.lastRetrievedID, "event getter should be called with correct ID")
 	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusOK, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK")
+	assert.Equal(t, models.DeliveryStatusSuccess, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK")
 }
 
 func TestMessageHandler_Idempotency(t *testing.T) {
@@ -882,7 +882,7 @@ func TestManualDelivery_Success(t *testing.T) {
 	assert.Len(t, retryScheduler.canceled, 1, "should cancel pending retries")
 	assert.Equal(t, deliveryEvent.GetRetryID(), retryScheduler.canceled[0], "should cancel with correct retry ID")
 	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusOK, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK")
+	assert.Equal(t, models.DeliveryStatusSuccess, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK")
 	assertAlertMonitor(t, alertMonitor, true, &destination, nil)
 }
 
@@ -1023,7 +1023,7 @@ func TestManualDelivery_CancelError(t *testing.T) {
 	assert.Len(t, retryScheduler.canceled, 1, "should attempt to cancel retry")
 	assert.Equal(t, deliveryEvent.GetRetryID(), retryScheduler.canceled[0], "should cancel with correct retry ID")
 	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusOK, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK despite cancel error")
+	assert.Equal(t, models.DeliveryStatusSuccess, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK despite cancel error")
 	assertAlertMonitor(t, alertMonitor, true, &destination, nil)
 }
 
@@ -1221,7 +1221,7 @@ func TestMessageHandler_AlertMonitorError(t *testing.T) {
 	assert.False(t, mockMsg.nacked, "message should not be nacked despite alert monitor error")
 	assert.Equal(t, 1, publisher.current, "should publish once")
 	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusOK, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK")
+	assert.Equal(t, models.DeliveryStatusSuccess, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK")
 
 	// Verify alert monitor was called but error was ignored
 	alertMonitor.AssertCalled(t, "HandleAttempt", mock.Anything, mock.Anything)

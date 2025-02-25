@@ -81,7 +81,7 @@ func (d *DeliverSpan) End(options ...trace.SpanEndOption) {
 		return
 	}
 
-	ok := d.deliveryEvent.Delivery.Status == models.DeliveryStatusOK
+	ok := d.deliveryEvent.Delivery.Status == models.DeliveryStatusSuccess
 	startTime, err := time.Parse(time.RFC3339Nano, d.deliveryEvent.Event.Telemetry.ReceivedTime)
 	if err != nil {
 		// TODO: handle error?

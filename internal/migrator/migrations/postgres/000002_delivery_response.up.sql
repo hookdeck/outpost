@@ -1,0 +1,7 @@
+BEGIN;
+
+ALTER TABLE deliveries
+ADD COLUMN code TEXT,
+  ADD COLUMN response_data JSONB;
+
+COMMIT;

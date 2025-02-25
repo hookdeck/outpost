@@ -105,18 +105,22 @@ func (p *mockProvider) ComputeTarget(dest *models.Destination) string {
 	return "mock-target"
 }
 
-func (p *mockPublisher) Publish(ctx context.Context, event *models.Event) error {
+func (p *mockPublisher) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
 	select {
 	case <-time.After(p.publishDelay):
 		if p.mockError != nil {
-			return p.mockError
+			return nil, p.mockError
 		}
-		return nil
+		return &destregistry.Delivery{
+			Status:   "success",
+			Code:     "OK",
+			Response: map[string]interface{}{"msg": "published"},
+		}, nil
 	case <-ctx.Done():
 		if p.mockError != nil {
-			return p.mockError
+			return nil, p.mockError
 		}
-		return ctx.Err()
+		return nil, ctx.Err()
 	}
 }
 
@@ -166,13 +170,17 @@ type mockPublisherWithConfig struct {
 	config       string
 }
 
-func (p *mockPublisherWithConfig) Publish(ctx context.Context, event *models.Event) error {
+func (p *mockPublisherWithConfig) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
 	target := publishTarget{
 		providerType: p.providerType,
 		config:       p.config,
 	}
 	publishedEvents[target] = append(publishedEvents[target], *event)
-	return nil
+	return &destregistry.Delivery{
+		Status:   "success",
+		Code:     "OK",
+		Response: map[string]interface{}{"msg": "published"},
+	}, nil
 }
 
 func (p *mockPublisherWithConfig) Close() error { return nil }
@@ -232,7 +240,7 @@ func TestDestinationChanges(t *testing.T) {
 
 		// Publish first event
 		event1 := &models.Event{Data: map[string]interface{}{"msg": "first"}}
-		err = registry.PublishEvent(context.Background(), dest, event1)
+		_, err = registry.PublishEvent(context.Background(), dest, event1)
 		require.NoError(t, err)
 
 		// Update destination with new config
@@ -246,7 +254,7 @@ func TestDestinationChanges(t *testing.T) {
 
 		// Publish second event - should go to new config
 		event2 := &models.Event{Data: map[string]interface{}{"msg": "second"}}
-		err = registry.PublishEvent(context.Background(), destUpdated, event2)
+		_, err = registry.PublishEvent(context.Background(), destUpdated, event2)
 		require.NoError(t, err)
 
 		firstTarget := publishTarget{providerType: "mock1", config: "config1"}
@@ -287,7 +295,7 @@ func TestDestinationChanges(t *testing.T) {
 
 		// Publish first event
 		event1 := &models.Event{Data: map[string]interface{}{"msg": "first"}}
-		err = registry.PublishEvent(context.Background(), dest, event1)
+		_, err = registry.PublishEvent(context.Background(), dest, event1)
 		require.NoError(t, err)
 
 		// Update destination type
@@ -301,7 +309,7 @@ func TestDestinationChanges(t *testing.T) {
 
 		// Publish second event - should use different provider
 		event2 := &models.Event{Data: map[string]interface{}{"msg": "second"}}
-		err = registry.PublishEvent(context.Background(), destUpdated, event2)
+		_, err = registry.PublishEvent(context.Background(), destUpdated, event2)
 		require.NoError(t, err)
 
 		firstTarget := publishTarget{providerType: "mock1", config: "config1"}
@@ -628,7 +636,7 @@ func TestPublishEventTimeout(t *testing.T) {
 		}
 		event := &models.Event{}
 
-		err = registry.PublishEvent(context.Background(), destination, event)
+		_, err = registry.PublishEvent(context.Background(), destination, event)
 		assert.NoError(t, err)
 	})
 
@@ -648,7 +656,7 @@ func TestPublishEventTimeout(t *testing.T) {
 		}
 		event := &models.Event{}
 
-		err = registry.PublishEvent(context.Background(), destination, event)
+		_, err = registry.PublishEvent(context.Background(), destination, event)
 		assert.Error(t, err)
 
 		var publishErr *destregistry.ErrDestinationPublishAttempt
@@ -675,7 +683,7 @@ func TestPublishEventTimeout(t *testing.T) {
 		}
 		event := &models.Event{}
 
-		err = registry.PublishEvent(context.Background(), destination, event)
+		_, err = registry.PublishEvent(context.Background(), destination, event)
 		assert.Error(t, err)
 
 		var publishErr *destregistry.ErrDestinationPublishAttempt

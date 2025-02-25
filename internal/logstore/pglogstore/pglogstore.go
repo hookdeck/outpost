@@ -139,7 +139,7 @@ func (s *logStore) RetrieveEvent(ctx context.Context, tenantID, eventID string) 
 
 func (s *logStore) ListDelivery(ctx context.Context, req driver.ListDeliveryRequest) ([]*models.Delivery, error) {
 	query := `
-		SELECT id, event_id, destination_id, status, time
+		SELECT id, event_id, destination_id, status, time, code, response_data
 		FROM deliveries
 		WHERE event_id = $1
 		ORDER BY time DESC`
@@ -159,6 +159,8 @@ func (s *logStore) ListDelivery(ctx context.Context, req driver.ListDeliveryRequ
 			&delivery.DestinationID,
 			&delivery.Status,
 			&delivery.Time,
+			&delivery.Code,
+			&delivery.ResponseData,
 		)
 		if err != nil {
 			return nil, err
@@ -194,7 +196,7 @@ func (s *logStore) InsertManyDelivery(ctx context.Context, deliveries []*models.
 	_, err := s.db.CopyFrom(
 		ctx,
 		pgx.Identifier{"deliveries"},
-		[]string{"id", "event_id", "destination_id", "status", "time"},
+		[]string{"id", "event_id", "destination_id", "status", "time", "code", "response_data"},
 		pgx.CopyFromSlice(len(deliveries), func(i int) ([]interface{}, error) {
 			return []interface{}{
 				deliveries[i].ID,
@@ -202,6 +204,8 @@ func (s *logStore) InsertManyDelivery(ctx context.Context, deliveries []*models.
 				deliveries[i].DestinationID,
 				deliveries[i].Status,
 				deliveries[i].Time,
+				deliveries[i].Code,
+				deliveries[i].ResponseData,
 			}, nil
 		}),
 	)

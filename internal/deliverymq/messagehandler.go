@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/consumer"
@@ -81,7 +80,7 @@ type messageHandler struct {
 }
 
 type Publisher interface {
-	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) error
+	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Delivery, error)
 }
 
 type LogPublisher interface {
@@ -193,7 +192,14 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 	_, span := h.eventTracer.Deliver(ctx, &deliveryEvent, destination)
 	defer span.End()
 
-	if err := h.publisher.PublishEvent(ctx, destination, &deliveryEvent.Event); err != nil {
+	delivery, err := h.publisher.PublishEvent(ctx, destination, &deliveryEvent.Event)
+	if err != nil {
+		// If delivery is nil, it means no delivery was made.
+		// This is an unexpected error and considered a pre-delivery error.
+		if delivery == nil {
+			return &PreDeliveryError{err: err}
+		}
+
 		h.logger.Ctx(ctx).Error("failed to publish event",
 			zap.Error(err),
 			zap.String("delivery_event_id", deliveryEvent.ID),
@@ -202,10 +208,10 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 
 		if h.shouldScheduleRetry(deliveryEvent, err) {
 			if retryErr := h.scheduleRetry(ctx, deliveryEvent); retryErr != nil {
-				return h.logDeliveryResult(ctx, &deliveryEvent, destination, errors.Join(err, retryErr))
+				return h.logDeliveryResult(ctx, &deliveryEvent, destination, delivery, errors.Join(err, retryErr))
 			}
 		}
-		return h.logDeliveryResult(ctx, &deliveryEvent, destination, deliveryErr)
+		return h.logDeliveryResult(ctx, &deliveryEvent, destination, delivery, deliveryErr)
 	}
 
 	// Handle successful delivery
@@ -216,38 +222,20 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 				zap.Error(err),
 				zap.String("delivery_event_id", deliveryEvent.ID),
 				zap.String("retry_id", deliveryEvent.GetRetryID()))
-			return h.logDeliveryResult(ctx, &deliveryEvent, destination, err)
+			return h.logDeliveryResult(ctx, &deliveryEvent, destination, delivery, err)
 		}
 		logger.Audit("scheduled retry canceled",
 			zap.String("delivery_event_id", deliveryEvent.ID),
 			zap.String("retry_id", deliveryEvent.GetRetryID()))
 	}
-	return h.logDeliveryResult(ctx, &deliveryEvent, destination, nil)
+	return h.logDeliveryResult(ctx, &deliveryEvent, destination, delivery, nil)
 }
 
-func (h *messageHandler) hasDeliveryError(err error) bool {
-	var delErr *DeliveryError
-	return errors.As(err, &delErr)
-}
-
-func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent *models.DeliveryEvent, destination *models.Destination, err error) error {
+func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent *models.DeliveryEvent, destination *models.Destination, delivery *models.Delivery, err error) error {
 	logger := h.logger.Ctx(ctx)
 
 	// Set up delivery record
-	deliveryEvent.Delivery = &models.Delivery{
-		ID:              uuid.New().String(),
-		DeliveryEventID: deliveryEvent.ID,
-		EventID:         deliveryEvent.Event.ID,
-		DestinationID:   deliveryEvent.DestinationID,
-		Time:            time.Now(),
-	}
-
-	// Check for delivery failures in the error chain
-	if h.hasDeliveryError(err) {
-		deliveryEvent.Delivery.Status = models.DeliveryStatusFailed
-	} else {
-		deliveryEvent.Delivery.Status = models.DeliveryStatusOK
-	}
+	deliveryEvent.Delivery = delivery
 
 	logger.Audit("event delivered",
 		zap.String("delivery_event_id", deliveryEvent.ID),
@@ -294,7 +282,7 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent *m
 
 func (h *messageHandler) handleAlertAttempt(ctx context.Context, deliveryEvent *models.DeliveryEvent, destination *models.Destination, err error) {
 	attempt := alert.DeliveryAttempt{
-		Success:       deliveryEvent.Delivery.Status == models.DeliveryStatusOK,
+		Success:       deliveryEvent.Delivery.Status == models.DeliveryStatusSuccess,
 		DeliveryEvent: deliveryEvent,
 		Destination:   destination,
 		Timestamp:     deliveryEvent.Delivery.Time,
