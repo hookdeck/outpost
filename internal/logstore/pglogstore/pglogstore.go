@@ -24,24 +24,6 @@ func NewLogStore(db *pgxpool.Pool) driver.LogStore {
 
 func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) ([]*models.Event, string, error) {
 	query := `
-		WITH event_status AS (
-			SELECT 
-				e.id,
-				e.tenant_id,
-				e.destination_id,
-				e.time,
-				e.topic,
-				e.eligible_for_retry,
-				e.data,
-				e.metadata,
-				e.time_id,
-				CASE
-					WHEN EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id AND d.status = 'success') THEN 'success'
-					WHEN EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id) THEN 'failed'
-					ELSE 'pending'
-				END as status
-			FROM events e
-		)
 		SELECT 
 			id,
 			tenant_id,
@@ -51,12 +33,26 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 			eligible_for_retry,
 			data,
 			metadata,
-			time_id
-		FROM event_status
+			time_id,
+			COALESCE(
+				NULLIF($3, ''),
+				CASE 
+					WHEN EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id AND d.status = 'success') THEN 'success'
+					WHEN EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id) THEN 'failed'
+					ELSE 'pending'
+				END
+			) as status
+		FROM events e
 		WHERE tenant_id = $1
-		AND ($2 = '' OR time_id < $2)
-		AND (array_length($3::text[], 1) IS NULL OR destination_id = ANY($3))
-		AND ($4 = '' OR status = $4)
+		AND (array_length($2::text[], 1) IS NULL OR destination_id = ANY($2))
+		AND ($4 = '' OR time_id < $4)
+		AND ($3 = '' OR 
+			CASE $3
+				WHEN 'success' THEN EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id AND d.status = 'success')
+				WHEN 'failed' THEN EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id) AND NOT EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id AND d.status = 'success')
+				WHEN 'pending' THEN NOT EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id)
+			END
+		)
 		ORDER BY time_id DESC
 		LIMIT CASE WHEN $5 = 0 THEN NULL ELSE $5 END`
 
@@ -69,7 +65,13 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		cursor = decodedCursor
 	}
 
-	rows, err := s.db.Query(ctx, query, req.TenantID, cursor, req.DestinationIDs, req.Status, req.Limit)
+	rows, err := s.db.Query(ctx, query,
+		req.TenantID,
+		req.DestinationIDs,
+		req.Status,
+		cursor,
+		req.Limit,
+	)
 	if err != nil {
 		return nil, "", err
 	}
@@ -79,6 +81,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 	var lastTimeID string
 	for rows.Next() {
 		event := &models.Event{}
+		var status string
 		err := rows.Scan(
 			&event.ID,
 			&event.TenantID,
@@ -89,6 +92,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 			&event.Data,
 			&event.Metadata,
 			&lastTimeID,
+			&status,
 		)
 		if err != nil {
 			return nil, "", err
