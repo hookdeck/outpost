@@ -60,7 +60,7 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	telemetry := telemetry.New(cfg.Telemetry.Disabled)
+	telemetry := telemetry.New(logger, !cfg.Telemetry.Disabled)
 	telemetry.Init(mainContext)
 	telemetry.ApplicationStarted(mainContext, cfg.ToTelemetryApplicationInfo())
 
