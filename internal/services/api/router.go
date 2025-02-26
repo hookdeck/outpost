@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"reflect"
 	"strings"
@@ -125,6 +126,7 @@ func NewRouter(
 	r := gin.New()
 	// Core middlewares
 	r.Use(gin.Recovery())
+	r.Use(telemetry.MakeSentryHandler())
 	r.Use(otelgin.Middleware(cfg.ServiceName))
 	r.Use(MetricsMiddleware())
 	r.Use(LoggerMiddleware(logger))
@@ -150,6 +152,14 @@ func NewRouter(
 
 	apiRouter.GET("/healthz", func(c *gin.Context) {
 		c.String(http.StatusOK, "OK")
+	})
+
+	apiRouter.GET("/dev/err/panic", func(c *gin.Context) {
+		panic("test panic error")
+	})
+
+	apiRouter.GET("/dev/err/internal", func(c *gin.Context) {
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(errors.New("test internal error")))
 	})
 
 	tenantHandlers := NewTenantHandlers(logger, telemetry, cfg.JWTSecret, entityStore)

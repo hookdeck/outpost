@@ -158,6 +158,7 @@ func (c *Config) InitDefaults() {
 		BatchSize:         100,
 		BatchInterval:     5,
 		HookdeckSourceURL: "https://hkdk.events/ih7t3hukydzlge",
+		SentryDSN:         "https://examplePublicKey@o0.ingest.sentry.io/0",
 	}
 }
 
@@ -339,6 +340,7 @@ type TelemetryConfig struct {
 	BatchSize         int    `yaml:"batch_size" env:"TELEMETRY_BATCH_SIZE"`
 	BatchInterval     int    `yaml:"batch_interval" env:"TELEMETRY_BATCH_INTERVAL"`
 	HookdeckSourceURL string `yaml:"hookdeck_source_url" env:"TELEMETRY_HOOKDECK_SOURCE_URL"`
+	SentryDSN         string `yaml:"sentry_dsn" env:"TELEMETRY_SENTRY_DSN"`
 }
 
 func (c *TelemetryConfig) ToTelemetryConfig() telemetry.TelemetryConfig {
@@ -347,6 +349,7 @@ func (c *TelemetryConfig) ToTelemetryConfig() telemetry.TelemetryConfig {
 		BatchSize:         c.BatchSize,
 		BatchInterval:     c.BatchInterval,
 		HookdeckSourceURL: c.HookdeckSourceURL,
+		SentryDSN:         c.SentryDSN,
 	}
 }
 func (c *Config) ToTelemetryApplicationInfo() telemetry.ApplicationInfo {

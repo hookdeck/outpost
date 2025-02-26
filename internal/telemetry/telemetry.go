@@ -8,6 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/getsentry/sentry-go"
+	sentrygin "github.com/getsentry/sentry-go/gin"
+	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/logging"
 	"go.uber.org/zap"
 )
@@ -15,6 +18,7 @@ import (
 type Telemetry interface {
 	Init(ctx context.Context)
 	Flush()
+	MakeSentryHandler() gin.HandlerFunc
 
 	// Events
 	ApplicationStarted(ctx context.Context, application ApplicationInfo)
@@ -27,6 +31,7 @@ type TelemetryConfig struct {
 	BatchSize         int
 	BatchInterval     int
 	HookdeckSourceURL string
+	SentryDSN         string
 }
 
 func New(logger *logging.Logger, config TelemetryConfig) Telemetry {
@@ -143,6 +148,15 @@ func (t *telemetryImpl) sendBatch(batch []telemetryEvent) {
 }
 
 func (t *telemetryImpl) Init(ctx context.Context) {
+	if err := sentry.Init(sentry.ClientOptions{
+		Dsn:              t.config.SentryDSN,
+		EnableTracing:    true,
+		TracesSampleRate: 1, // FIXME
+		AttachStacktrace: true,
+	}); err != nil {
+		t.logger.Error("sentry initialization failed", zap.Error(err))
+	}
+
 	t.eventChan = make(chan telemetryEvent, t.config.BatchSize*10)
 	t.done = make(chan struct{})
 	t.client = &http.Client{
@@ -158,6 +172,13 @@ func (t *telemetryImpl) Init(ctx context.Context) {
 
 func (t *telemetryImpl) Flush() {
 	close(t.done)
+	sentry.Flush(2 * time.Second)
+}
+
+func (t *telemetryImpl) MakeSentryHandler() gin.HandlerFunc {
+	return sentrygin.New(sentrygin.Options{
+		Repanic: true,
+	})
 }
 
 func (t *telemetryImpl) ApplicationStarted(ctx context.Context, application ApplicationInfo) {
