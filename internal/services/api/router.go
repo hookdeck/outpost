@@ -16,6 +16,7 @@ import (
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/telemetry"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
@@ -114,6 +115,7 @@ func NewRouter(
 	entityStore models.EntityStore,
 	logStore logstore.LogStore,
 	publishmqEventHandler publishmq.EventHandler,
+	telemetry telemetry.Telemetry,
 ) http.Handler {
 	// Only set mode from config if we're not in test mode
 	if gin.Mode() != gin.TestMode {
@@ -150,8 +152,8 @@ func NewRouter(
 		c.String(http.StatusOK, "OK")
 	})
 
-	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, entityStore)
-	destinationHandlers := NewDestinationHandlers(logger, entityStore, cfg.Topics, cfg.Registry)
+	tenantHandlers := NewTenantHandlers(logger, telemetry, cfg.JWTSecret, entityStore)
+	destinationHandlers := NewDestinationHandlers(logger, telemetry, entityStore, cfg.Topics, cfg.Registry)
 	publishHandlers := NewPublishHandlers(logger, publishmqEventHandler)
 	retryHandlers := NewRetryHandlers(logger, entityStore, logStore, deliveryMQ)
 	logHandlers := NewLogHandlers(logger, logStore)

@@ -9,6 +9,7 @@ import (
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
@@ -41,6 +42,7 @@ type Config struct {
 	LogLevel      string              `yaml:"log_level" env:"LOG_LEVEL"`
 	AuditLog      bool                `yaml:"audit_log" env:"AUDIT_LOG"`
 	OpenTelemetry OpenTelemetryConfig `yaml:"otel"`
+	Telemetry     TelemetryConfig     `yaml:"telemetry"`
 
 	// API
 	APIPort      int    `yaml:"api_port" env:"API_PORT"`
@@ -324,6 +326,20 @@ type AlertConfig struct {
 func (c *Config) ConfigFilePath() string {
 	return c.configPath
 }
+
+type TelemetryConfig struct {
+	Disabled bool `yaml:"disabled" env:"DISABLE_TELEMETRY"`
+}
+
+func (c *Config) ToTelemetryApplicationInfo() telemetry.ApplicationInfo {
+	return telemetry.ApplicationInfo{
+		Version:       "TODO",
+		MQ:            "TODO",
+		PortalEnabled: "TODO",
+	}
+}
+
+// ===== Misc =====
 
 func (c *Config) ToMigratorOpts() migrator.MigrationOpts {
 	return migrator.MigrationOpts{
