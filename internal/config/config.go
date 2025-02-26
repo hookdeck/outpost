@@ -152,6 +152,13 @@ func (c *Config) InitDefaults() {
 		ConsecutiveFailureCount: 20,
 		AutoDisableDestination:  true,
 	}
+
+	c.Telemetry = TelemetryConfig{
+		Disabled:          false,
+		BatchSize:         1000,
+		BatchInterval:     5,
+		HookdeckSourceURL: "https://hkdk.events/ih7t3hukydzlge",
+	}
 }
 
 func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error {
@@ -328,9 +335,20 @@ func (c *Config) ConfigFilePath() string {
 }
 
 type TelemetryConfig struct {
-	Disabled bool `yaml:"disabled" env:"DISABLE_TELEMETRY"`
+	Disabled          bool   `yaml:"disabled" env:"DISABLE_TELEMETRY"`
+	BatchSize         int    `yaml:"batch_size" env:"TELEMETRY_BATCH_SIZE"`
+	BatchInterval     int    `yaml:"batch_interval" env:"TELEMETRY_BATCH_INTERVAL"`
+	HookdeckSourceURL string `yaml:"hookdeck_source_url" env:"TELEMETRY_HOOKDECK_SOURCE_URL"`
 }
 
+func (c *TelemetryConfig) ToTelemetryConfig() telemetry.TelemetryConfig {
+	return telemetry.TelemetryConfig{
+		Disabled:          c.Disabled,
+		BatchSize:         c.BatchSize,
+		BatchInterval:     c.BatchInterval,
+		HookdeckSourceURL: c.HookdeckSourceURL,
+	}
+}
 func (c *Config) ToTelemetryApplicationInfo() telemetry.ApplicationInfo {
 	return telemetry.ApplicationInfo{
 		Version:       "TODO",

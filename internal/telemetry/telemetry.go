@@ -8,11 +8,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	batchSize     = 1000
-	batchInterval = 5 * time.Second
-)
-
 type Telemetry interface {
 	Init(ctx context.Context)
 	Flush()
@@ -23,17 +18,26 @@ type Telemetry interface {
 	TenantCreated(ctx context.Context)
 }
 
-func New(logger *logging.Logger, enabled bool) Telemetry {
-	if !enabled {
+type TelemetryConfig struct {
+	Disabled          bool
+	BatchSize         int
+	BatchInterval     int
+	HookdeckSourceURL string
+}
+
+func New(logger *logging.Logger, config TelemetryConfig) Telemetry {
+	if config.Disabled {
 		return &NoopTelemetry{}
 	}
 	return &telemetryImpl{
 		logger: logger,
+		config: config,
 	}
 }
 
 type telemetryImpl struct {
 	logger    *logging.Logger
+	config    TelemetryConfig
 	eventChan chan telemetryEvent
 	done      chan struct{}
 }
@@ -47,7 +51,7 @@ func (t *telemetryImpl) sendEvent(event telemetryEvent) {
 }
 
 func (t *telemetryImpl) processEvents() {
-	ticker := time.NewTicker(batchInterval)
+	ticker := time.NewTicker(time.Duration(t.config.BatchInterval) * time.Second)
 	defer ticker.Stop()
 
 	batch := make([]telemetryEvent, 0)
@@ -56,7 +60,7 @@ func (t *telemetryImpl) processEvents() {
 		select {
 		case event := <-t.eventChan:
 			batch = append(batch, event)
-			if len(batch) >= batchSize {
+			if len(batch) >= t.config.BatchSize {
 				t.sendBatch(batch)
 				batch = batch[:0]
 			}
@@ -83,7 +87,7 @@ func (t *telemetryImpl) sendBatch(batch []telemetryEvent) {
 }
 
 func (t *telemetryImpl) Init(ctx context.Context) {
-	t.eventChan = make(chan telemetryEvent, batchSize)
+	t.eventChan = make(chan telemetryEvent, t.config.BatchSize)
 	t.done = make(chan struct{})
 	go t.processEvents()
 }
