@@ -1,7 +1,11 @@
 package telemetry
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
+	"sync"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/logging"
@@ -40,6 +44,7 @@ type telemetryImpl struct {
 	config    TelemetryConfig
 	eventChan chan telemetryEvent
 	done      chan struct{}
+	client    *http.Client
 }
 
 func (t *telemetryImpl) sendEvent(event telemetryEvent) {
@@ -84,11 +89,70 @@ func (t *telemetryImpl) processEvents() {
 
 func (t *telemetryImpl) sendBatch(batch []telemetryEvent) {
 	t.logger.Debug("sending telemetry batch", zap.Int("size", len(batch)))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create worker pool
+	maxWorkers := min(len(batch), 10)
+	jobs := make(chan telemetryEvent, len(batch))
+	var wg sync.WaitGroup
+
+	// Start workers
+	for i := 0; i < maxWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for event := range jobs {
+				body, err := json.Marshal(event)
+				if err != nil {
+					t.logger.Debug("failed to marshal event", zap.Error(err))
+					continue
+				}
+
+				req, err := http.NewRequestWithContext(ctx, "POST", t.config.HookdeckSourceURL, bytes.NewBuffer(body))
+				if err != nil {
+					t.logger.Debug("failed to create request", zap.Error(err))
+					continue
+				}
+				req.Header.Set("Content-Type", "application/json")
+
+				resp, err := t.client.Do(req)
+				if err != nil {
+					t.logger.Debug("failed to send event", zap.Error(err))
+					continue
+				}
+				if resp.StatusCode >= 400 {
+					t.logger.Debug("failed to send event",
+						zap.Int("status", resp.StatusCode),
+						zap.Any("event", event))
+				}
+				resp.Body.Close()
+			}
+		}()
+	}
+
+	// Send jobs to workers
+	for _, event := range batch {
+		jobs <- event
+	}
+	close(jobs)
+
+	// Wait for all workers
+	wg.Wait()
 }
 
 func (t *telemetryImpl) Init(ctx context.Context) {
-	t.eventChan = make(chan telemetryEvent, t.config.BatchSize)
+	t.eventChan = make(chan telemetryEvent, t.config.BatchSize*10)
 	t.done = make(chan struct{})
+	t.client = &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
 	go t.processEvents()
 }
 

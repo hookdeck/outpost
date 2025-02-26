@@ -155,7 +155,7 @@ func (c *Config) InitDefaults() {
 
 	c.Telemetry = TelemetryConfig{
 		Disabled:          false,
-		BatchSize:         1000,
+		BatchSize:         100,
 		BatchInterval:     5,
 		HookdeckSourceURL: "https://hkdk.events/ih7t3hukydzlge",
 	}
