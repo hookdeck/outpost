@@ -9,6 +9,8 @@ import (
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/version"
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
@@ -41,6 +43,7 @@ type Config struct {
 	LogLevel      string              `yaml:"log_level" env:"LOG_LEVEL"`
 	AuditLog      bool                `yaml:"audit_log" env:"AUDIT_LOG"`
 	OpenTelemetry OpenTelemetryConfig `yaml:"otel"`
+	Telemetry     TelemetryConfig     `yaml:"telemetry"`
 
 	// API
 	APIPort      int    `yaml:"api_port" env:"API_PORT"`
@@ -149,6 +152,14 @@ func (c *Config) InitDefaults() {
 		CallbackURL:             "",
 		ConsecutiveFailureCount: 20,
 		AutoDisableDestination:  true,
+	}
+
+	c.Telemetry = TelemetryConfig{
+		Disabled:          false,
+		BatchSize:         100,
+		BatchInterval:     5,
+		HookdeckSourceURL: "https://hkdk.events/ih7t3hukydzlge",
+		SentryDSN:         "https://examplePublicKey@o0.ingest.sentry.io/0",
 	}
 }
 
@@ -324,6 +335,47 @@ type AlertConfig struct {
 func (c *Config) ConfigFilePath() string {
 	return c.configPath
 }
+
+type TelemetryConfig struct {
+	Disabled          bool   `yaml:"disabled" env:"DISABLE_TELEMETRY"`
+	BatchSize         int    `yaml:"batch_size" env:"TELEMETRY_BATCH_SIZE"`
+	BatchInterval     int    `yaml:"batch_interval" env:"TELEMETRY_BATCH_INTERVAL"`
+	HookdeckSourceURL string `yaml:"hookdeck_source_url" env:"TELEMETRY_HOOKDECK_SOURCE_URL"`
+	SentryDSN         string `yaml:"sentry_dsn" env:"TELEMETRY_SENTRY_DSN"`
+}
+
+func (c *TelemetryConfig) ToTelemetryConfig() telemetry.TelemetryConfig {
+	return telemetry.TelemetryConfig{
+		Disabled:          c.Disabled,
+		BatchSize:         c.BatchSize,
+		BatchInterval:     c.BatchInterval,
+		HookdeckSourceURL: c.HookdeckSourceURL,
+		SentryDSN:         c.SentryDSN,
+	}
+}
+
+func (c *Config) ToTelemetryApplicationInfo() telemetry.ApplicationInfo {
+	portalEnabled := c.APIKey != "" && c.APIJWTSecret != ""
+
+	entityStore := "redis"
+	logStore := "TODO"
+	if c.ClickHouse.Addr != "" {
+		logStore = "clickhouse"
+	}
+	if c.PostgresURL != "" {
+		logStore = "postgres"
+	}
+
+	return telemetry.ApplicationInfo{
+		Version:       version.Version(),
+		MQ:            c.MQs.GetInfraType(),
+		PortalEnabled: portalEnabled,
+		EntityStore:   entityStore,
+		LogStore:      logStore,
+	}
+}
+
+// ===== Misc =====
 
 func (c *Config) ToMigratorOpts() migrator.MigrationOpts {
 	return migrator.MigrationOpts{

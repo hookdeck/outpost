@@ -16,6 +16,7 @@ import (
 	"github.com/hookdeck/outpost/internal/services/api"
 	"github.com/hookdeck/outpost/internal/services/delivery"
 	"github.com/hookdeck/outpost/internal/services/log"
+	"github.com/hookdeck/outpost/internal/telemetry"
 	"go.uber.org/zap"
 )
 
@@ -59,6 +60,14 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		return err
 	}
 
+	installationID, err := getInstallation(mainContext, cfg.Redis.ToConfig(), cfg.Telemetry.ToTelemetryConfig())
+	if err != nil {
+		return err
+	}
+	telemetry := telemetry.New(logger, cfg.Telemetry.ToTelemetryConfig(), installationID)
+	telemetry.Init(mainContext)
+	telemetry.ApplicationStarted(mainContext, cfg.ToTelemetryApplicationInfo())
+
 	// Set up cancellation context and waitgroup
 	ctx, cancel := context.WithCancel(mainContext)
 
@@ -86,6 +95,7 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		cfg,
 		wg,
 		logger,
+		telemetry,
 	)
 	if err != nil {
 		cancel()
@@ -109,6 +119,8 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		logger.Ctx(ctx).Info("context cancelled")
 	}
 
+	telemetry.Flush()
+
 	// Handle shutdown
 	cancel()  // Signal cancellation to context.Context
 	wg.Wait() // Block here until all workers are done
@@ -127,12 +139,13 @@ func constructServices(
 	cfg *config.Config,
 	wg *sync.WaitGroup,
 	logger *logging.Logger,
+	telemetry telemetry.Telemetry,
 ) ([]Service, error) {
 	serviceType := cfg.MustGetService()
 	services := []Service{}
 
 	if serviceType == config.ServiceTypeAPI || serviceType == config.ServiceTypeAll {
-		service, err := api.NewService(ctx, wg, cfg, logger)
+		service, err := api.NewService(ctx, wg, cfg, logger, telemetry)
 		if err != nil {
 			return nil, err
 		}

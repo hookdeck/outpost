@@ -11,6 +11,8 @@ builds:
   - id: outpost
     ldflags:
       - -s -w
+      - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
+      - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
     binary: outpost
     env:
       - CGO_ENABLED=0
@@ -22,6 +24,8 @@ builds:
   - id: outpost-arm64
     ldflags:
       - -s -w
+      - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
+      - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
     binary: outpost
     env:
       - CGO_ENABLED=0

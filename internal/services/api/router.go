@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"reflect"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/telemetry"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
@@ -114,6 +116,7 @@ func NewRouter(
 	entityStore models.EntityStore,
 	logStore logstore.LogStore,
 	publishmqEventHandler publishmq.EventHandler,
+	telemetry telemetry.Telemetry,
 ) http.Handler {
 	// Only set mode from config if we're not in test mode
 	if gin.Mode() != gin.TestMode {
@@ -123,6 +126,7 @@ func NewRouter(
 	r := gin.New()
 	// Core middlewares
 	r.Use(gin.Recovery())
+	r.Use(telemetry.MakeSentryHandler())
 	r.Use(otelgin.Middleware(cfg.ServiceName))
 	r.Use(MetricsMiddleware())
 	r.Use(LoggerMiddleware(logger))
@@ -150,8 +154,8 @@ func NewRouter(
 		c.String(http.StatusOK, "OK")
 	})
 
-	tenantHandlers := NewTenantHandlers(logger, cfg.JWTSecret, entityStore)
-	destinationHandlers := NewDestinationHandlers(logger, entityStore, cfg.Topics, cfg.Registry)
+	tenantHandlers := NewTenantHandlers(logger, telemetry, cfg.JWTSecret, entityStore)
+	destinationHandlers := NewDestinationHandlers(logger, telemetry, entityStore, cfg.Topics, cfg.Registry)
 	publishHandlers := NewPublishHandlers(logger, publishmqEventHandler)
 	retryHandlers := NewRetryHandlers(logger, entityStore, logStore, deliveryMQ)
 	logHandlers := NewLogHandlers(logger, logStore)
@@ -391,5 +395,20 @@ func NewRouter(
 
 	registerRoutes(apiRouter, cfg, apiRoutes)
 
+	// Register dev routes
+	if gin.Mode() == gin.DebugMode {
+		registerDevRoutes(apiRouter)
+	}
+
 	return r
+}
+
+func registerDevRoutes(apiRouter *gin.RouterGroup) {
+	apiRouter.GET("/dev/err/panic", func(c *gin.Context) {
+		panic("test panic error")
+	})
+
+	apiRouter.GET("/dev/err/internal", func(c *gin.Context) {
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(errors.New("test internal error")))
+	})
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/pkg/errors"
@@ -25,6 +26,10 @@ func LoggerMiddleware(logger *logging.Logger) gin.HandlerFunc {
 
 		if c.Writer.Status() >= 500 {
 			logger.Error("request completed", fields...)
+
+			if hub := sentrygin.GetHubFromContext(c); hub != nil {
+				hub.CaptureException(getErrorWithStackTrace(c.Errors.Last().Err))
+			}
 		} else {
 			logger.Info("request completed", fields...)
 		}
@@ -136,4 +141,11 @@ func getErrorFields(err error) []zap.Field {
 	}
 
 	return fields
+}
+
+func getErrorWithStackTrace(err error) error {
+	if errResp, ok := err.(ErrorResponse); ok {
+		return errResp.Err
+	}
+	return err
 }
