@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: outpost
+      POSTGRES_PASSWORD: outpost
+      POSTGRES_DB: outpost
+    ports:
+      - 5432:5432
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "outpost", "-d", "outpost"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+
+  api:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - POSTGRES_URL=postgres://outpost:outpost@postgres:5432/outpost?sslmode=disable
+  delivery:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - POSTGRES_URL=postgres://outpost:outpost@postgres:5432/outpost?sslmode=disable
+  log:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - POSTGRES_URL=postgres://outpost:outpost@postgres:5432/outpost?sslmode=disable
