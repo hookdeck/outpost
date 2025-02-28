@@ -5,6 +5,6 @@ tmp_dir = "tmp"
   cmd = "go build -o tmp/main cmd/outpost/main.go"
   bin = "tmp/main"
   delay = 100
-  exclude_dir = ["examples", "dist", "website", "internal/portal/node_modules", "internal/portal/src"]
+  exclude_dir = ["examples", "dist", "docs", "website", "internal/portal/node_modules", "internal/portal/src"]
   include_ext = ["go"]
   include_file = ["go.mod", "go.sum", ".env"]
