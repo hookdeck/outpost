@@ -190,7 +190,7 @@ func (t *telemetryImpl) MakeSentryHandler() gin.HandlerFunc {
 }
 
 func (t *telemetryImpl) ApplicationStarted(ctx context.Context, application ApplicationInfo) {
-	t.sendEvent(t.makeEvent("application_started", application.ToPayload()))
+	t.sendEvent(t.makeEvent("application_started", application.ToData()))
 }
 
 func (t *telemetryImpl) DestinationCreated(ctx context.Context, destinationType string) {
@@ -201,12 +201,12 @@ func (t *telemetryImpl) TenantCreated(ctx context.Context) {
 	t.sendEvent(t.makeEvent("tenant_created", map[string]interface{}{}))
 }
 
-func (t *telemetryImpl) makeEvent(eventType string, payload map[string]interface{}) telemetryEvent {
+func (t *telemetryImpl) makeEvent(eventType string, data map[string]interface{}) telemetryEvent {
 	return telemetryEvent{
 		InstallationID: t.installationID,
-		EventType:      eventType,
-		Payload:        payload,
-		Time:           time.Now(),
+		Type:           eventType,
+		Data:           data,
+		Timestamp:      time.Now(),
 	}
 }
 
@@ -216,7 +216,7 @@ type ApplicationInfo struct {
 	PortalEnabled string
 }
 
-func (a *ApplicationInfo) ToPayload() map[string]interface{} {
+func (a *ApplicationInfo) ToData() map[string]interface{} {
 	return map[string]interface{}{
 		"version":        a.Version,
 		"mq":             a.MQ,
@@ -226,7 +226,7 @@ func (a *ApplicationInfo) ToPayload() map[string]interface{} {
 
 type telemetryEvent struct {
 	InstallationID string                 `json:"installation_id"`
-	EventType      string                 `json:"type"`
-	Payload        map[string]interface{} `json:"payload"`
-	Time           time.Time              `json:"time"`
+	Type           string                 `json:"type"`
+	Data           map[string]interface{} `json:"data"`
+	Timestamp      time.Time              `json:"timestamp"`
 }
