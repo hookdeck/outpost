@@ -60,7 +60,11 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	telemetry := telemetry.New(logger, cfg.Telemetry.ToTelemetryConfig())
+	installationID, err := getInstallation(mainContext, cfg.Redis.ToConfig(), cfg.Telemetry.ToTelemetryConfig())
+	if err != nil {
+		return err
+	}
+	telemetry := telemetry.New(logger, cfg.Telemetry.ToTelemetryConfig(), installationID)
 	telemetry.Init(mainContext)
 	telemetry.ApplicationStarted(mainContext, cfg.ToTelemetryApplicationInfo())
 

@@ -34,22 +34,24 @@ type TelemetryConfig struct {
 	SentryDSN         string
 }
 
-func New(logger *logging.Logger, config TelemetryConfig) Telemetry {
+func New(logger *logging.Logger, config TelemetryConfig, installationID string) Telemetry {
 	if config.Disabled {
 		return &NoopTelemetry{}
 	}
 	return &telemetryImpl{
-		logger: logger,
-		config: config,
+		logger:         logger,
+		config:         config,
+		installationID: installationID,
 	}
 }
 
 type telemetryImpl struct {
-	logger    *logging.Logger
-	config    TelemetryConfig
-	eventChan chan telemetryEvent
-	done      chan struct{}
-	client    *http.Client
+	logger         *logging.Logger
+	config         TelemetryConfig
+	eventChan      chan telemetryEvent
+	done           chan struct{}
+	client         *http.Client
+	installationID string
 }
 
 func (t *telemetryImpl) sendEvent(event telemetryEvent) {
@@ -157,6 +159,12 @@ func (t *telemetryImpl) Init(ctx context.Context) {
 		t.logger.Error("sentry initialization failed", zap.Error(err))
 	}
 
+	sentry.ConfigureScope(func(scope *sentry.Scope) {
+		scope.SetContext("app", map[string]interface{}{
+			"installation_id": t.installationID,
+		})
+	})
+
 	t.eventChan = make(chan telemetryEvent, t.config.BatchSize*10)
 	t.done = make(chan struct{})
 	t.client = &http.Client{
@@ -182,30 +190,24 @@ func (t *telemetryImpl) MakeSentryHandler() gin.HandlerFunc {
 }
 
 func (t *telemetryImpl) ApplicationStarted(ctx context.Context, application ApplicationInfo) {
-	event := telemetryEvent{
-		EventType: "application_started",
-		Payload:   application.ToPayload(),
-		Time:      time.Now(),
-	}
-	t.sendEvent(event)
+	t.sendEvent(t.makeEvent("application_started", application.ToPayload()))
 }
 
 func (t *telemetryImpl) DestinationCreated(ctx context.Context, destinationType string) {
-	event := telemetryEvent{
-		EventType: "destination_created",
-		Payload:   map[string]interface{}{"type": destinationType},
-		Time:      time.Now(),
-	}
-	t.sendEvent(event)
+	t.sendEvent(t.makeEvent("destination_created", map[string]interface{}{"type": destinationType}))
 }
 
 func (t *telemetryImpl) TenantCreated(ctx context.Context) {
-	event := telemetryEvent{
-		EventType: "tenant_created",
-		Payload:   map[string]interface{}{},
-		Time:      time.Now(),
+	t.sendEvent(t.makeEvent("tenant_created", map[string]interface{}{}))
+}
+
+func (t *telemetryImpl) makeEvent(eventType string, payload map[string]interface{}) telemetryEvent {
+	return telemetryEvent{
+		InstallationID: t.installationID,
+		EventType:      eventType,
+		Payload:        payload,
+		Time:           time.Now(),
 	}
-	t.sendEvent(event)
 }
 
 type ApplicationInfo struct {
@@ -223,7 +225,8 @@ func (a *ApplicationInfo) ToPayload() map[string]interface{} {
 }
 
 type telemetryEvent struct {
-	EventType string                 `json:"type"`
-	Payload   map[string]interface{} `json:"payload"`
-	Time      time.Time              `json:"time"`
+	InstallationID string                 `json:"installation_id"`
+	EventType      string                 `json:"type"`
+	Payload        map[string]interface{} `json:"payload"`
+	Time           time.Time              `json:"time"`
 }
