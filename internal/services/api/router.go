@@ -154,14 +154,6 @@ func NewRouter(
 		c.String(http.StatusOK, "OK")
 	})
 
-	apiRouter.GET("/dev/err/panic", func(c *gin.Context) {
-		panic("test panic error")
-	})
-
-	apiRouter.GET("/dev/err/internal", func(c *gin.Context) {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(errors.New("test internal error")))
-	})
-
 	tenantHandlers := NewTenantHandlers(logger, telemetry, cfg.JWTSecret, entityStore)
 	destinationHandlers := NewDestinationHandlers(logger, telemetry, entityStore, cfg.Topics, cfg.Registry)
 	publishHandlers := NewPublishHandlers(logger, publishmqEventHandler)
@@ -403,5 +395,20 @@ func NewRouter(
 
 	registerRoutes(apiRouter, cfg, apiRoutes)
 
+	// Register dev routes
+	if gin.Mode() == gin.DebugMode {
+		registerDevRoutes(apiRouter)
+	}
+
 	return r
+}
+
+func registerDevRoutes(apiRouter *gin.RouterGroup) {
+	apiRouter.GET("/dev/err/panic", func(c *gin.Context) {
+		panic("test panic error")
+	})
+
+	apiRouter.GET("/dev/err/internal", func(c *gin.Context) {
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(errors.New("test internal error")))
+	})
 }
