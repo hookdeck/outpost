@@ -352,11 +352,25 @@ func (c *TelemetryConfig) ToTelemetryConfig() telemetry.TelemetryConfig {
 		SentryDSN:         c.SentryDSN,
 	}
 }
+
 func (c *Config) ToTelemetryApplicationInfo() telemetry.ApplicationInfo {
+	portalEnabled := c.APIKey != "" && c.APIJWTSecret != ""
+
+	entityStore := "redis"
+	logStore := "TODO"
+	if c.ClickHouse.Addr != "" {
+		logStore = "clickhouse"
+	}
+	if c.PostgresURL != "" {
+		logStore = "postgres"
+	}
+
 	return telemetry.ApplicationInfo{
 		Version:       "TODO",
-		MQ:            "TODO",
-		PortalEnabled: "TODO",
+		MQ:            c.MQs.GetInfraType(),
+		PortalEnabled: portalEnabled,
+		EntityStore:   entityStore,
+		LogStore:      logStore,
 	}
 }
 
