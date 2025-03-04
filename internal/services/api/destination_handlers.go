@@ -11,19 +11,22 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/util/maputil"
 )
 
 type DestinationHandlers struct {
 	logger      *logging.Logger
+	telemetry   telemetry.Telemetry
 	entityStore models.EntityStore
 	topics      []string
 	registry    destregistry.Registry
 }
 
-func NewDestinationHandlers(logger *logging.Logger, entityStore models.EntityStore, topics []string, registry destregistry.Registry) *DestinationHandlers {
+func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, entityStore models.EntityStore, topics []string, registry destregistry.Registry) *DestinationHandlers {
 	return &DestinationHandlers{
 		logger:      logger,
+		telemetry:   telemetry,
 		entityStore: entityStore,
 		topics:      topics,
 		registry:    registry,
@@ -97,6 +100,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		h.handleUpsertDestinationError(c, err)
 		return
 	}
+	h.telemetry.DestinationCreated(c.Request.Context(), destination.Type)
 
 	display, err := h.registry.DisplayDestination(&destination)
 	if err != nil {

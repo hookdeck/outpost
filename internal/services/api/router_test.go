@@ -17,6 +17,7 @@ import (
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/services/api"
+	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,6 +54,7 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *te
 		entityStore,
 		logStore,
 		eventHandler,
+		&telemetry.NoopTelemetry{},
 	)
 	return router, logger, redisClient
 }

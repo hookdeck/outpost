@@ -7,21 +7,25 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/telemetry"
 )
 
 type TenantHandlers struct {
 	logger      *logging.Logger
+	telemetry   telemetry.Telemetry
 	jwtSecret   string
 	entityStore models.EntityStore
 }
 
 func NewTenantHandlers(
 	logger *logging.Logger,
+	telemetry telemetry.Telemetry,
 	jwtSecret string,
 	entityStore models.EntityStore,
 ) *TenantHandlers {
 	return &TenantHandlers{
 		logger:      logger,
+		telemetry:   telemetry,
 		jwtSecret:   jwtSecret,
 		entityStore: entityStore,
 	}
@@ -56,6 +60,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
+	h.telemetry.TenantCreated(c.Request.Context())
 	c.JSON(http.StatusCreated, tenant)
 }
 

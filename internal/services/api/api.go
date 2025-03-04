@@ -20,6 +20,7 @@ import (
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
+	"github.com/hookdeck/outpost/internal/telemetry"
 	"go.uber.org/zap"
 )
 
@@ -42,7 +43,7 @@ type APIService struct {
 	consumerOptions          *consumerOptions
 }
 
-func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *logging.Logger) (*APIService, error) {
+func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, logger *logging.Logger, telemetry telemetry.Telemetry) (*APIService, error) {
 	wg.Add(1)
 
 	var cleanupFuncs []func(context.Context, *logging.LoggerWithCtx)
@@ -110,6 +111,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		entityStore,
 		logStore,
 		eventHandler,
+		telemetry,
 	)
 
 	// deliverymqRetryScheduler

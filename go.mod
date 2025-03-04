@@ -13,6 +13,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.3
 	github.com/aws/smithy-go v1.20.3
 	github.com/caarlos0/env/v9 v9.0.0
+	github.com/getsentry/sentry-go v0.31.1
+	github.com/getsentry/sentry-go/gin v0.31.1
 	github.com/gin-contrib/static v1.1.2
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-playground/validator/v10 v10.22.0
