@@ -10,6 +10,7 @@ import (
 	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/version"
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
@@ -366,7 +367,7 @@ func (c *Config) ToTelemetryApplicationInfo() telemetry.ApplicationInfo {
 	}
 
 	return telemetry.ApplicationInfo{
-		Version:       "TODO",
+		Version:       version.Version(),
 		MQ:            c.MQs.GetInfraType(),
 		PortalEnabled: portalEnabled,
 		EntityStore:   entityStore,

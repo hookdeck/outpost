@@ -7,10 +7,17 @@ import (
 
 	"github.com/hookdeck/outpost/internal/app"
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/version"
 )
 
 func main() {
 	flags := config.ParseFlags()
+
+	if flags.Version {
+		fmt.Println(version.Version())
+		return
+	}
+
 	cfg, err := config.Parse(flags)
 	if err != nil {
 		handleErr(err)
