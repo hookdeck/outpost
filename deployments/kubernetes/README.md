@@ -1,217 +1,91 @@
-# Development Kubernetes setup for Outpost
+# Development Kubernetes Setup
 
-This is the documentation guide to set up a Kubernetes (K8s) cluster running Outpost with Redis. We'll use [Bitnami Redis Helm chart](https://artifacthub.io/packages/helm/bitnami/redis) to get a master-replica Redis cluster.
+Local Kubernetes setup for Outpost using Minikube. This setup includes:
+- Outpost services (API, delivery, and log processors)
+- Redis as KV & entity storage
+- PostgreSQL as log storage
+- RabbitMQ for message queuing
 
-## Installations
+## Prerequisites
 
 - [Docker](https://docs.docker.com/engine/install/)
 - [Minikube](https://minikube.sigs.k8s.io/docs/start)
 - [Kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [Helm](https://helm.sh/docs/intro/install/)
 
-After installing Helm, you need to add Bitnami's Helm chart repositories to use one of Bitnami's charts.
+## Setup
+
+1. Start Minikube and create namespace:
+```sh
+minikube start
+kubectl create namespace outpost
+kubectl config set-context --current --namespace=outpost
+```
+
+2. Install dependencies:
+```sh
+cd deployments/kubernetes
+./setup-dependencies.sh
+```
+
+3. Install Outpost:
+```sh
+helm install outpost charts/outpost -f values.yaml
+```
+
+## Verify Installation
+
+1. Start Minikube tunnel (keep this terminal open):
+```sh
+sudo minikube tunnel
+```
+
+2. Add local domain to `/etc/hosts`:
+```sh
+echo "127.0.0.1 outpost.acme.local" | sudo tee -a /etc/hosts
+```
+
+3. Get your API key:
+```sh
+kubectl get secret outpost-secrets -o jsonpath='{.data.API_KEY}' | base64 -d
+```
+
+4. Test the API:
+```sh
+# Create tenant
+curl -X PUT http://outpost.acme.local/api/v1/123 \
+  -H "Authorization: YOUR_API_KEY"
+
+# Query tenant
+curl http://outpost.acme.local/api/v1/123 \
+  -H "Authorization: YOUR_API_KEY"
+```
+
+## Explore Further
+
+- Publish events to test delivery/log services
+- Access infrastructure:
+  ```sh
+  # Redis CLI
+  kubectl exec -it outpost-redis-master-0 -- redis-cli
+  
+  # PostgreSQL
+  kubectl exec -it outpost-postgresql-0 -- psql -U outpost
+  
+  # RabbitMQ Management: http://localhost:15672
+  kubectl port-forward outpost-rabbitmq-0 15672:15672
+  ```
+
+## Cleanup
 
 ```sh
-$ helm repo add bitnami https://charts.bitnami.com/bitnami
-
-# Verify the successul installation
-$ helm search repo bitnami
+kubectl delete namespace outpost
+kubectl config set-context --current --namespace=default
 ```
 
-## Steps
+## TODO
 
-### Local K8s cluster setup
-
-**Step 1:** Start a local Kubernetes cluster with Minikube
-
-- Start Kubernetes cluster with Minikube:
-
-```sh
-$ minikube start
-```
-
-- Verify that your cluster is running by proxying to the dashboard. You can use this dashboard to visually verify that things are working as we progress through this setup guide.
-
-```sh
-$ minikube dashboard --url
-```
-
-**Step 2:** (Optional) Create new namespace for easy cleanup later
-
-By default, everything you install on your Kubernetes cluster is within the `default` namespace. You can create a new namespace for this project to separate its environment with other projects or for easy cleanup later.
-
-```sh
-$ kubectl create namespace myoutpost
-
-# Configure Minikube to use this namespace by default for future commands
-$ kubectl config set-context --current --namespace=myoutpost
-```
-
-### Redis installation
-
-**Step 3:** Install Bitnami's Redis Helm chart
-
-We'll use `outpost-redis` as the name of the Redis installation. You can use whichever name makes sense to you. Please make sure to substitue `outpost-redis` with your Redis's installation name later on when applicable.
-
-```sh
-$ helm install outpost-redis bitnami/redis
-```
-
-Upon a successul installation, Helm will print some steps to connect to your Redis cluster. Please verify that Redis is working correctly. Here's a simplified version, if you'd like to follow along with these steps instead.
-
-```sh
-# Get your Redis password
-$ kubectl get secret --namespace another outpost-redis -o jsonpath="{.data.redis-password}" | base64 -d
-<the_password>%
-
-# Exec `$ redis-cli` at the master node
-$ kubectl exec --tty -i outpost-redis-master-0 -- redis-cli
-127.0.0.1:6379> PING
-(error) NOAUTH Authentication required.
-127.0.0.1:6379> AUTH <the_password>
-OK
-127.0.0.1:6379> PING
-PONG
-127.0.0.1:6379> exit
-```
-
-### Outpost installation
-
-**Step 4**: Build & load Outpost image
-
-Because there's no Outpost image in DockerHub yet, we need to build the image locally and load it in Minikube's registry.
-
-Build Outpost:
-
-```
-# at .../hookdeck/outpost directory
-$ docker build -t hookdeck/outpost -f build/Dockerfile .
-
-# verify that the built image exists
-$ docker image ls | grep -w hookdeck/outpost
-```
-
-Load image to Minikube
-
-```sh
-# load
-$ minikube load image hookdeck/outpost
-
-# verify
-$ minikube image ls | grep -w hookdeck/outpost
-```
-
-**Step 5**: Install Outpost using Helm chart
-
-This installation assumes you have followed the steps above to set up Redis cluster with Bitnami. We're using the Redis's password secret by providing the custom `values.yaml` file. If you use a different Redis setup, please feel free to provide your own values when installing the chart.
-
-```sh
-# Navigate to the right directory
-# at .../hookdeck/outpost
-$ cd deployments/kubernetes
-
-# at .../hookdeck/outpost/deployments/kubernetes
-
-$ helm install outpost charts/outpost -f values.yaml
-NAME: outpost
-LAST DEPLOYED: ...
-NAMESPACE: myoutpost
-STATUS: deployed
-REVISION: 1
-TEST SUITE: None
-```
-
-Congrats, you've successfully deployed Outpost to your local Kubernetes cluster.
-
-### Interact with the cluster
-
-Let's verify and interact with your Outpost service.
-
-Get the URL of the Outpost service:
-
-```sh
-$ minikube service outpost --url -n myoutpost
-http://127.0.0.1:50454
-```
-
-You should get a URL that looks something like `http://127.0.0.1:50454`. The exact port may change every time you run this command. Let's keep this terminal opened and interace with your Outpost service:
-
-```sh
-$ curl -v http://127.0.0.1:50454
-*   Trying 127.0.0.1:50454...
-* Connected to 127.0.0.1 (127.0.0.1) port 50454
-> GET /healthz HTTP/1.1
-> Host: 127.0.0.1:50454
-> User-Agent: curl/8.6.0
-> Accept: */*
->
-< HTTP/1.1 200 OK
-< Date: Thu, 05 Sep 2024 12:58:33 GMT
-< Content-Length: 0
-<
-* Connection #0 to host 127.0.0.1 left intact
-```
-
-To tail the log of the API service:
-
-```sh
-$ kubectl get pod | grep -w outpost-api
-outpost-api-5dfd69c689-h8698        1/1     Running   0          10m
-
-# getting the pod name above
-$ kubectl logs outpost-api-5dfd69c689-h8698 -f
-```
-
-You should see your previous request along with any future requests you make. You can try some more:
-
-```sh
-# create a new tenant
-$ curl -v -X PUT http://127.0.0.1:50454/123
-
-# retrieve said tenant
-$ curl -v http://127.0.0.1:50454/123
-
-# ...
-```
-
-You can verify that the data exists in Redis:
-
-```sh
-$ kubectl exec --tty -i outpost-redis-master-0 -- redis-cli
-127.0.0.1:6379> AUTH TpxpTpiTpS
-OK
-127.0.0.1:6379> HGETALL tenant:123
-1) "id"
-2) "123"
-3) "created_at"
-4) "2024-09-05T13:03:37.966761586Z"
-```
-
-### Clean up
-
-If you put everything under a namespace, cleaning up is as simple as deleting the namespace.
-
-```sh
-$ kubectl delete namespaces myoutpost
-
-# (optional) reset kubectl config to use default or another namespace
-$ kubectl config set-context --current --namespace=default
-```
-
-And that's about it, you should be good to go.
-
-In the unfortunate event that you didn't use namespace earlier:
-
-```sh
-$ kubectl delete all --all
-```
-
-However, this command doesn't include some resources like `configmaps` or `secrets`, so you may need to use other tools (Minikube dashboard) to manually delete them.
-
-## TODO for production Helm chart
-
-- [] Support [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/)
-- [] Consider supporting Redis (and ClickHouse) directly
-- [] Full Chart.yaml (see [Bitnami's Redis chart](https://github.com/bitnami/charts/blob/main/bitnami/redis/Chart.yaml) for reference)
-- [] NOTES.txt
-- [] values.schema.json
+- [ ] Complete Chart.yaml
+- [ ] Add NOTES.txt
+- [ ] Add values.schema.json
+- [ ] Evaluate further configuration options

@@ -3,19 +3,37 @@
 outpost:
   imagePullSecrets: []
   image:
-    repository: outpost
+    repository: hookdeck/outpost
     tag: latest
-    ## Should be 'Always' for 'latest' image tag, otherwise 'IfNotPresent'
-    ## Currently set to local image during development process
-    pullPolicy: Never
+    pullPolicy: IfNotPresent
+
+  # Number of replicas for each service
+  replicas:
+    api: 1 # Default to 1, scale based on load
+    delivery: 1 # Default to 1, scale based on queue size
+    log: 1 # Default to 1, scale based on log volume
 
   service:
-    type: NodePort
-    port: "3333"
+    type: ClusterIP
+    port: 3333
+    annotations: {}
+    loadBalancerSourceRanges: []
 
-  config:
-    redis:
-      host: "redis"
-      port: "6379"
-      password: ""
-      database: "0"
+  # Outpost YAML config
+  config: {}
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    []
+    # - host: outpost.local
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  tls:
+    []
+    # - secretName: outpost-tls
+    #   hosts:
+    #     - outpost.example.com
