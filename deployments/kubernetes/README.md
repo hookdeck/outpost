@@ -79,8 +79,12 @@ curl http://outpost.acme.local/api/v1/123 \
 ## Cleanup
 
 ```sh
+# Remove Kubernetes resources
 kubectl delete namespace outpost
 kubectl config set-context --current --namespace=default
+
+# Remove local domain
+sudo sed -i '' '/outpost.acme.local/d' /etc/hosts
 ```
 
 ## TODO
