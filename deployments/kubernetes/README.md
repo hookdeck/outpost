@@ -35,8 +35,13 @@ helm install outpost charts/outpost -f values.yaml
 
 ## Verify Installation
 
-1. Start Minikube tunnel (keep this terminal open):
+1. Setup ingress and tunnel (keep this terminal open):
 ```sh
+minikube addons enable ingress
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=90s
 sudo minikube tunnel
 ```
 
