@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "outpost.fullname" . }}
+  labels:
+    {{- include "outpost.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+{{ .Values.outpost.config | toYaml | indent 4 }}
