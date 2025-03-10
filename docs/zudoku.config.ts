@@ -57,9 +57,22 @@ const config: ZudokuConfig = {
         id: "overview",
       },
       {
-        type: "doc",
-        label: "Quickstart",
-        id: "quickstart",
+        type: "category",
+        label: "Quickstarts",
+        collapsed: false,
+        collapsible: false,
+        items: [
+          {
+            type: "doc",
+            label: "Docker",
+            id: "quickstarts/docker",
+          },
+          {
+            type: "doc",
+            label: "Kubernetes",
+            id: "quickstarts/kubernetes",
+          },
+        ],
       },
       {
         type: "doc",
