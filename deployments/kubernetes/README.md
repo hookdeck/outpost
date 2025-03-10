@@ -15,20 +15,25 @@ Local Kubernetes setup for Outpost using Minikube. This setup includes:
 
 ## Setup
 
-1. Start Minikube and create namespace:
+1. Clone Outpost:
+```sh
+git clone https://github.com/hookdeck/outpost.git
+```
+
+2. Start Minikube and create namespace:
 ```sh
 minikube start
 kubectl create namespace outpost
 kubectl config set-context --current --namespace=outpost
 ```
 
-2. Install dependencies:
+3. Install dependencies:
 ```sh
-cd deployments/kubernetes
+cd outpost/deployments/kubernetes
 ./setup-dependencies.sh
 ```
 
-3. Install Outpost:
+4. Install Outpost:
 ```sh
 helm install outpost charts/outpost -f values.yaml
 ```
@@ -45,25 +50,26 @@ kubectl wait --namespace ingress-nginx \
 sudo minikube tunnel
 ```
 
-2. Add local domain to `/etc/hosts`:
+2. In a new terminal, add local domain to `/etc/hosts`:
 ```sh
 echo "127.0.0.1 outpost.acme.local" | sudo tee -a /etc/hosts
 ```
 
-3. Get your API key:
+3. Get your Outpost API key:
 ```sh
-kubectl get secret outpost-secrets -o jsonpath='{.data.API_KEY}' | base64 -d
+export OUTPOST_API_KEY=$(kubectl get secret outpost-secrets -o jsonpath='{.data.API_KEY}' | base64 -d)
+echo $OUTPOST_API_KEY
 ```
 
-4. Test the API:
+4. Test the Outpost API:
 ```sh
 # Create tenant
-curl -X PUT http://outpost.acme.local/api/v1/123 \
-  -H "Authorization: YOUR_API_KEY"
+curl --location --request PUT 'http://outpost.acme.local/api/v1/hookdeck' \
+  --header "Authorization: Bearer $OUTPOST_API_KEY"
 
 # Query tenant
-curl http://outpost.acme.local/api/v1/123 \
-  -H "Authorization: YOUR_API_KEY"
+curl http://outpost.acme.local/api/v1/hookdeck \
+  --header "Authorization: Bearer $OUTPOST_API_KEY"
 ```
 
 ## Explore Further
