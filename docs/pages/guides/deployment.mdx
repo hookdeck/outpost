@@ -2,10 +2,36 @@
 title: "Outpost Deployment"
 ---
 
-The service will be distributed as a Binary and Docker image. The executable will have 3 entry points `delivery`, `api`, and `log`. You can omit the entry point to start all 3 services within the same process. 
+## Outpost Distribution
 
-Since each service has a very different usage and performance profile, it's recommended that each service be operated and scaled independently.
+Outpost is distributed as a binary and as a Docker image.
 
-We will provide a helm chart deployable on Kubernetes; since the services need to pull from your message bus, you need to execute it on a running process.
+The binaries are available via [GitHub releases](https://github.com/hookdeck/outpost/releases).
 
-Resource (CPU & RAM) allocation recommendations will also be provided for each service.
+The Docker image can be found on [Docker Hub](https://hub.docker.com/r/hookdeck/outpost/tags).
+
+The Outpost repository provides an [example helm chart](https://github.com/hookdeck/outpost/tree/main/examples/kubernetes) for deployment via Kubernetes.
+
+## Outpost Services
+
+The `outpost` executable has three entry points:
+
+- `delivery`
+- `api`
+- `log`
+
+Services are and other configuration are set via a YAML file. See the [example Outpost configuration file](https://github.com/hookdeck/outpost/tree/main/.outpost.yaml.example).
+
+You can omit the `service` entry point to start all 3 services within the same process.
+
+## Service Resource Allocation
+
+Since each service has different usage and performance profile, it's recommended that each service be operated and scaled independently.
+
+Resource (CPU & RAM) allocation recommendations for each service are as follows:
+
+| Service      | CPU  | RAM   |
+| ------------ | ---- | ----- |
+| **Delivery** | 200m | 256Mi |
+| **API**      | 100m | 128Mi |
+| **Log**      | 100m | 128Mi |
