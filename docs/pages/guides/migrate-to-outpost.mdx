@@ -1,0 +1,129 @@
+---
+title: "Migrate Existing Webhooks to Outpost"
+---
+
+This guide will help you migrate your existing webhook infrastructure to Outpost. It assumes that you are migrating from notification infrastructure that only supports webhook event destination types.
+
+## Why Migrate to Outpost?
+
+Outpost is a self-hosted and open-source infrastructure that enables event producers to add Event Destinations to their platform with support for destination types such as Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS SNS, GCP Pub/Sub, RabbitMQ, and Kafka.
+
+The benefits of migrating to Outpost include:
+
+### For Event Producers:
+
+- **Efficiency gains**
+
+  Reduced failure rates and retried deliveries compared to public HTTP endpoints. Unlock improved performance for high-throughput scenarios.
+
+- **Protocol flexibility**
+
+  Leverage more performant protocols and encodings.
+
+- **Cost & resource efficient**
+
+  Smart retry logic, improved deliverability and scalable infrastructure minimize resource consumption, reducing operational costs while ensuring seamless event delivery at any scale.
+
+### For Event Consumers:
+
+- **Streamlined infrastructure & operations**
+
+  Eliminate the need for API gateways, load balancers, HTTP consumers, and other infrastructure components, reducing maintenance overhead.
+
+- **Reduced developer burden**
+
+  Receive events directly to existing or preferred infrastructure and make use of existing and familiar ecosystem tooling.
+
+- **Predictable behavior**
+
+  Standardize event expectations—the message bus handles timeouts, retries, and security.
+
+## How to Migrate to Outpost
+
+Outpost has the following concepts that you need to map to your existing webhook infrastructure provider:
+
+- **Tenants**: A tenant represents a organization in your product.
+- **Destination Types**: The type of destination where events will be delivered. For example, webhook, Hookdeck, or AWS SQS.
+- **Destinations**: A subscription to a topic configured to deliver the event to a destination type. For example, a webhook destination with a specific URL.
+- **Events**: An event is a piece of data that represents an action that occurred in your system. For example, a user signed up or a payment was processed.
+- **Topics**: A topic is a way to categorize events and is a common concept found in Pub/Sub messaging. For example, a `user.created` event might be categorized under the user topic.
+
+The process of migration is as follows:
+
+1. Perform a lookup of all the topics that are being used in your webhook infrastructure. Define them within your Outpost configuration.
+
+2. For each organization within your webhook infrastructure, create a tenant in Outpost.
+
+3. Each webhook subscription should map to a destination in Outpost. If webhook subscriptions include topic or event type information then that should be included within the destination resource that is created. Also migrate the webhook secret.
+
+## Example Migration Script
+
+A migration script may look something like this:
+
+```ts
+// Outpost API wrapper
+import outpost from "./outpost";
+
+// Database wrapper
+import { default as db } from "./db";
+
+const listTopics = async () => {
+  const subscriptions = db.getSubscriptions();
+  const allTopics = new Set<string>();
+
+  for (const subscription of subscriptions) {
+    for (const topic of subscription.topics) {
+      allTopics.add(topic);
+    }
+  }
+
+  return Array.from(allTopics);
+};
+
+const migrateOrganizations = async () => {
+  const migratedOrgIds: string[] = [];
+  const organizations = db.getOrganizations();
+  for (const organization of organizations) {
+    await outpost.registerTenant(organization.id);
+    migratedOrgIds.push(organization.id);
+  }
+  return migratedOrgIds;
+};
+
+const migrateSubscriptions = async (organizationId: string) => {
+  const subscriptions = db.getSubscriptions(organizationId);
+  for (const subscription of subscriptions) {
+    await outpost.createDestination({
+      tenant_id: organizationId,
+      type: "webhook",
+      url: subscription.url,
+      topics: subscription.topics,
+      signing_secret: subscription.signing_secret,
+    });
+  }
+};
+
+const main = async () => {
+  // 1. List topics
+  const topics = await listTopics();
+  console.log("Subscription topics:", topics);
+
+  // 2. Get list of organizations and migrate them
+  const migratedOrgIds = await migrateOrganizations();
+
+  for (const organizationId of migratedOrgIds) {
+    // 3. Migrate subscriptions
+    await migrateSubscriptions(organizationId);
+  }
+};
+
+main()
+  .then(() => {
+    console.log("Migration complete");
+
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error(error);
+  });
+```
