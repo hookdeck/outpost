@@ -92,6 +92,11 @@ const config: ZudokuConfig = {
         items: [
           {
             type: "doc",
+            label: "Migrate to Outpost",
+            id: "guides/migrate-to-outpost",
+          },
+          {
+            type: "doc",
             label: "Deployment",
             id: "guides/deployment",
           },
