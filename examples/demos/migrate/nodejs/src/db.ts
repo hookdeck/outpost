@@ -1,9 +1,12 @@
+import * as dotenv from "dotenv";
+dotenv.config();
+
 const organizations = [{ id: "org1" }, { id: "org2" }, { id: "org3" }];
 
 const subscriptions = [
   {
     organizationId: "org1",
-    url: "https://org1.test/users",
+    url: process.env.REAL_TEST_ENDPOINT || "https://org1.test/users",
     topics: ["user.created", "user.updated"],
     signing_secret: "some_secret_value",
   },

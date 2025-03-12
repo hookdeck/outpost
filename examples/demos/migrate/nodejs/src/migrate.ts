@@ -1,35 +1,8 @@
 import * as process from "process";
-import readline from "readline";
-
-import * as dotenv from "dotenv";
-dotenv.config();
-
-if (!process.env.OUTPOST_API_BASE_URL || !process.env.OUTPOST_API_KEY) {
-  console.error("OUTPOST_API_BASE_URL and OUTPOST_API_KEY are required");
-  process.exit(1);
-}
-
-const askQuestion = (query: string): Promise<string> => {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    rl.question(query, (answer) => {
-      rl.close();
-      resolve(answer);
-    });
-  });
-};
+import { askQuestion } from "./utils";
 
 // Outpost API wrapper
-import OutpostClient from "./outpost";
-
-const outpost = new OutpostClient(
-  process.env.OUTPOST_API_BASE_URL,
-  process.env.OUTPOST_API_KEY
-);
+import outpost from "./outpost";
 
 // Database wrapper
 import { default as db } from "./db";
