@@ -33,15 +33,18 @@ class OutpostClient {
     tenant_id,
     topic,
     data,
+    meta_data,
   }: {
     tenant_id: string;
     topic: string;
     data: any;
+    meta_data: any;
   }): Promise<boolean> {
     const response = await this.request("/publish", "POST", {
       tenant_id,
       topic,
       data,
+      meta_data,
     });
     return !!response;
   }
@@ -70,13 +73,13 @@ class OutpostClient {
     type,
     url,
     topics,
-    signing_secret,
+    secret,
   }: {
     tenant_id: any;
     type: string;
     url: string;
     topics: string[];
-    signing_secret: string;
+    secret: string;
   }) {
     const response = await this.request<Destination>(
       `/${tenant_id}/destinations`,
@@ -88,7 +91,7 @@ class OutpostClient {
         },
         topics,
         credentials: {
-          signing_secret,
+          secret,
         },
       }
     );

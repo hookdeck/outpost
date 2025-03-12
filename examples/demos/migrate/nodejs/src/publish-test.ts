@@ -9,12 +9,21 @@ const main = async () => {
     (subscription) => subscription.url === process.env.REAL_TEST_ENDPOINT
   );
 
+  const destinations = await outpost.getDestinations(
+    subscriptions[0].organizationId
+  );
+
+  console.log("Destinations:", destinations);
+
   if (testSubscription) {
     console.log("Found test subscription:", testSubscription);
     await outpost.publishEvent({
       tenant_id: testSubscription.organizationId,
       topic: testSubscription.topics[0],
       data: { test: "data" },
+      meta_data: {
+        some: "metadata",
+      },
     });
   } else {
     console.log("Test subscription not found.");

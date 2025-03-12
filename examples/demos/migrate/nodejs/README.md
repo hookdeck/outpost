@@ -30,7 +30,7 @@ npm run migrate
 
 ## Example publish test script
 
-Following the migration you may want to test publishing an event and it being recieved by a destination.
+Following the migration you may want to test publishing an event and it being received by a destination.
 
 Uses the `REAL_TEST_ENDPOINT` value to identify what to publish.
 
@@ -40,4 +40,18 @@ Run with:
 
 ```
 npm run publish-test
+```
+
+## Example verification script
+
+As part of ensuring events are delivered as expected you should also ensure that webhook signatures are in the expected formation.
+
+This script provides two examples of webhook verification.
+
+`src/verify-signature.ts`
+
+Run with:
+
+```
+npm run verify
 ```

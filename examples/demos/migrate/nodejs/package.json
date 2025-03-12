@@ -7,7 +7,9 @@
   "type": "module",
   "main": "src/migrate.ts",
   "scripts": {
-    "dev": "esrun src/migrate.ts"
+    "migrate": "esrun src/migrate.ts",
+    "publish-test": "esrun src/publish-test.ts",
+    "verify": "esrun src/verify-signature.ts"
   },
   "engines": {
     "node": ">=20.6.0"

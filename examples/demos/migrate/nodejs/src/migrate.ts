@@ -58,7 +58,7 @@ const migrateSubscriptions = async (organizationId: string) => {
       type: "webhook",
       url: subscription.url,
       topics: subscription.topics,
-      signing_secret: subscription.signing_secret,
+      secret: subscription.secret,
     });
   }
 };
