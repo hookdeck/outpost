@@ -59,7 +59,9 @@ Outpost is a self-hosted and open-source infrastructure that enables event produ
 
 ## Quickstart
 
-Clone the repo:
+Ensure you have [Docker](https://docs.docker.com/engine/install/) installed.
+
+Clone the Outpost repo:
 
 ```sh
 git clone https://github.com/hookdeck/outpost.git
@@ -102,7 +104,6 @@ Create a tenant with the following command, replacing `<TENANT_ID>` with a uniqu
 
 ```sh
 curl --location --request PUT 'localhost:3333/api/v1/<TENANT_ID>' \
---header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>'
 ```
 
@@ -146,7 +147,7 @@ Check the logs on your server or your webhook capture tool for the delivered eve
 
 ## Documentation
 
-- [Get Started](https://outpost.hookdeck.com/docs/quickstart)
+- [Get Started](https://outpost.hookdeck.com/docs/quickstarts)
 - [Overview](https://outpost.hookdeck.com/docs/overview)
 - [Features](https://outpost.hookdeck.com/docs/features)
 - [Guides](https://outpost.hookdeck.com/docs/guides/deployment)

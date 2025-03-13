@@ -1,0 +1,91 @@
+outpost:
+  image:
+    repository: hookdeck/outpost
+    tag: latest
+
+  config:
+    mqs:
+      delivery_retry_limit: 10
+      log_retry_limit: 10
+
+    portal:
+      referer_url: "https://example.com"
+      favicon_url: "https://example.com/favicon.svg"
+      logo: "https://example.com"
+      organization_name: "Acme"
+
+    destinations:
+      webhook:
+        header_prefix: "x-acme-"
+
+  env:
+    - name: POSTGRES_URL
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: POSTGRES_URL
+    - name: REDIS_HOST
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: REDIS_HOST
+    - name: REDIS_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: REDIS_PASSWORD
+    - name: RABBITMQ_SERVER_URL
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: RABBITMQ_SERVER_URL
+    - name: API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: API_KEY
+    - name: API_JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: API_JWT_SECRET
+    - name: AES_ENCRYPTION_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: AES_ENCRYPTION_SECRET
+
+  replicas:
+    api: 4
+    delivery: 4
+    log: 2
+
+  resources:
+    api:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    delivery:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 400m
+        memory: 512Mi
+    log:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+
+ingress:
+  hosts:
+    - host: outpost.acme.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []

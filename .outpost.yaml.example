@@ -85,6 +85,14 @@ destinations:
   metadata_path: "config/outpost/destinations" # Path to destination metadata
   webhook:
     header_prefix: "x-custom-" # Prefix for webhook headers
+    # disable_default_event_id_header
+    # disable_default_signature_header
+    # disable_default_timestamp_header
+    # disable_default_topic_header
+    # signature_content_template: {{.Timestamp.Unix}}.{{.Body}}
+    # signature_header_template: t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}
+    # signature_encoding: hex
+    # signature_algorithm: hmac-sha256
 
 # Note: OpenTelemetry Configuration
 # It is recommended to configure OpenTelemetry using environment variables as they are better supported by the SDK.

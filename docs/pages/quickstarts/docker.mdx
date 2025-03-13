@@ -1,0 +1,105 @@
+---
+title: "Outpost Quickstart: Docker with RabbitMQ or AWS SQS via LocalStack"
+---
+
+Local Docker setup for Outpost using Docker Compose. This setup includes:
+
+- Outpost services (API, delivery, and log processors). See the [architecture](/docs/concepts#architecture) for more details.
+- Redis as KV & entity storage
+- PostgreSQL as log storage
+- RabbitMQ or AWS SQS via LocalStack for message queuing
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/engine/install/)
+
+## Setup
+
+1. Clone the Outpost repo:
+
+   ```sh
+   git clone https://github.com/hookdeck/outpost.git
+   ```
+
+2. Navigate to `outpost/examples/docker-compose/`:
+
+   ```sh
+   cd outpost/examples/docker-compose/
+   ```
+
+3. Create a `.env` file from the top-level example file:
+
+```sh
+cp ../../.env.example .env
+```
+
+4. Update the `API_KEY` value within the new `.env` file.
+
+5. There are two options to run Outpost locally for this quickstart. Choose one of the following:
+
+   1. With RabbitMQ:
+
+   ```sh
+   docker-compose -f compose.yml -f compose-rabbitmq.yml up
+   ```
+
+   2. With SQS via LocalStack:
+
+   ```sh
+   docker-compose -f compose.yml -f compose-awssqs.yml up
+   ```
+
+## Verify Installation
+
+1. Check the services are running:
+
+   ```sh
+   curl localhost:3333/api/v1/healthz
+   ```
+
+   Wait until you get a `OK%` response.
+
+2. Create a tenant with the following command, replacing `<TENANT_ID>` with a unique identifier such as "your_org_name", and the `<API_KEY>` with the value you set in your `.env`:
+
+   ```sh
+   curl --location --request PUT 'localhost:3333/api/v1/<TENANT_ID>' \
+   --header 'Authorization: Bearer <API_KEY>'
+   ```
+
+3. Run a local server exposed via a localtunnel or use a hosted service such as the [Hookdeck Console](https://console.hookdeck.com?ref=github-outpost) to capture webhook events.
+
+4. Create a webhook destination where events will be delivered to with the following command. Again, replace `<TENANT_ID>` and `<API_KEY>`. Also, replace `<URL>` with the webhook destinations URL:
+
+   ```sh
+   curl --location 'localhost:3333/api/v1/<TENANT_ID>/destinations' \
+   --header 'Content-Type: application/json' \
+   --header 'Authorization: Bearer <API_KEY>' \
+   --data '{
+       "type": "webhook",
+       "topics": ["*"],
+       "config": {
+           "url": "<URL>"
+       }
+   }'
+   ```
+
+5. Publish an event, remembering to replace `<API_KEY>` and `<TENANT_ID>`:
+
+   ```sh
+   curl --location 'localhost:3333/api/v1/publish' \
+   --header 'Content-Type: application/json' \
+   --header 'Authorization: Bearer <API_KEY>' \
+   --data '{
+       "tenant_id": "<TENANT_ID>",
+       "topic": "user.created",
+       "eligible_for_retry": true,
+       "metadata": {
+           "meta": "data"
+       },
+       "data": {
+           "user_id": "userid"
+       }
+   }'
+   ```
+
+6. Check the logs on your server or your webhook capture tool for the delivered event.

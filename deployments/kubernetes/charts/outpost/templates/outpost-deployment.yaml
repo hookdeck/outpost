@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "outpost.name" . }}-api
+  labels:
+    app: outpost
+    {{- include "outpost.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.outpost.replicas.api }}
+  selector:
+    matchLabels:
+      app: outpost-api
+  template:
+    metadata:
+      labels:
+        app: outpost-api
+        {{- include "outpost.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ include "outpost.name" . }}-api
+          image: {{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}
+          imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.outpost.resources.api | nindent 12 }}
+          ports:
+          - name: http
+            containerPort: 3333
+            protocol: TCP
+          volumeMounts:
+          - name: config
+            mountPath: /config/outpost
+          env:
+            - name: SERVICE
+              value: api
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            {{- include "outpost.env" . | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: "{{ include "outpost.fullname" . }}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "outpost.name" . }}-delivery
+  labels:
+    app: outpost
+    {{- include "outpost.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.outpost.replicas.delivery }}
+  selector:
+    matchLabels:
+      app: outpost-delivery
+  template:
+    metadata:
+      labels:
+        app: outpost-delivery
+        {{- include "outpost.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ include "outpost.name" . }}-delivery
+          image: {{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}
+          imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.outpost.resources.delivery | nindent 12 }}
+          volumeMounts:
+          - name: config
+            mountPath: /config/outpost
+          env:
+            - name: SERVICE
+              value: delivery
+            {{- include "outpost.env" . | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: "{{ include "outpost.fullname" . }}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "outpost.name" . }}-log
+  labels:
+    app: outpost
+    {{- include "outpost.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.outpost.replicas.log }}
+  selector:
+    matchLabels:
+      app: outpost-log
+  template:
+    metadata:
+      labels:
+        app: outpost-log
+        {{- include "outpost.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ include "outpost.name" . }}-log
+          image: {{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}
+          imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.outpost.resources.log | nindent 12 }}
+          volumeMounts:
+          - name: config
+            mountPath: /config/outpost
+          env:
+            - name: SERVICE
+              value: log
+            {{- include "outpost.env" . | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: "{{ include "outpost.fullname" . }}"

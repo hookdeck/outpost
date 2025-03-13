@@ -1,6 +1,0 @@
-outpost:
-  config:
-    redis:
-      host: "outpost-redis-master"
-      passwordSecretName: "outpost-redis"
-      passwordSecretKey: "redis-password"

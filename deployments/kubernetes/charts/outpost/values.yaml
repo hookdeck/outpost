@@ -1,0 +1,39 @@
+# Default values for Outpost.
+
+outpost:
+  imagePullSecrets: []
+  image:
+    repository: hookdeck/outpost
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  # Number of replicas for each service
+  replicas:
+    api: 1 # Default to 1, scale based on load
+    delivery: 1 # Default to 1, scale based on queue size
+    log: 1 # Default to 1, scale based on log volume
+
+  service:
+    type: ClusterIP
+    port: 3333
+    annotations: {}
+    loadBalancerSourceRanges: []
+
+  # Outpost YAML config
+  config: {}
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    []
+    # - host: outpost.local
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  tls:
+    []
+    # - secretName: outpost-tls
+    #   hosts:
+    #     - outpost.example.com

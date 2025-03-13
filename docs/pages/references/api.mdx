@@ -33,14 +33,14 @@ If your system is not multi-tenant, create a single tenant with a hard-code tena
 
 ### `PUT` `/:tenant_id`
 
-Idempotently creates the tenant. A tenant is required to associate a destination. 
+Idempotently creates the tenant. A tenant is required to associate a destination.
 
 #### Request
-    
+
 Empty body
-    
+
 #### Response
-    
+
 ```json
 {
   "id": "123",
@@ -55,7 +55,7 @@ Empty body
 Get a tenant.
 
 #### Response
-    
+
 ```json
 {
   "id": "123",
@@ -72,11 +72,11 @@ Return a redirect URL for a user portal URL. The redirect URL contains a JWT tha
 #### Request
 
 Supported parameters:
-    
-- `?theme=(light|dark)`  Optional query param to force a specific theme to display the portal in to match the current theme of your own dashboard
-    
+
+- `?theme=(light|dark)` Optional query param to force a specific theme to display the portal in to match the current theme of your own dashboard
+
 #### Response
-    
+
 ```json
 {
   "redirect_url": "https://webhooks.acme.com?token=JWT_TOKEN" // Redirect URL with authentication token
@@ -88,7 +88,7 @@ Supported parameters:
 Return a JTW token to authenticate the user with the API scoped to their specific tenant in order to call the API from the browser safely.
 
 #### Response
-    
+
 ```json
 {
   "token": "SOME_JWT_TOKEN"
@@ -100,11 +100,11 @@ Return a JTW token to authenticate the user with the API scoped to their specifi
 Delete the tenant and all associated destinations
 
 #### Request
-    
+
 Empty body
-    
+
 #### Response
-    
+
 ```json
 {
   "success": true
@@ -120,11 +120,13 @@ Empty body
   "id": "des_12345", // Control plane generated ID or user provided ID
   "type": "webhooks", // Type of the destination
   "topics": ["user.created", "user.updated"], // Topics of events this destination is eligible for
-  "config": { // Destination type specific configuration. Schema of depends on type
+  "config": {
+    // Destination type specific configuration. Schema of depends on type
     "url": "https://example.com/webhooks/user"
   },
-  "credentials": { // Destination type specific credentials. AES encrypted. Schema depends on type
-    "signing_secret": "some***********"
+  "credentials": {
+    // Destination type specific credentials. AES encrypted. Schema depends on type
+    "secret": "some***********"
   },
   "disabled_at": null, // null or ISO date if disabled
   "created_at": "2024-01-01T00:00:00Z" // Date the destination was created
@@ -142,25 +144,29 @@ Return a list of the destinations. The endpoint is not paged, and the maximum nu
 #### Request
 
 Supported Parameters:
-    
+
 - `type` `string | string[]` The type of destinations to return
-- `topics` `string | string[]` Return destinations for a specific event type 
-    
+- `topics` `string | string[]` Return destinations for a specific event type
+
 #### Response
-    
+
 ```json
-[{
-  "id": "dest_123456", // Control plane generated ID or user provided ID
-  "type": "webhooks", // Type of the destination
-  "topics": ["user.created", "user.updated"], // Type of events this destination is eligible for
-  "config": { // Destination type specific configuration. Schema of depends on type
-    "url": "https://example.com/webhooks/user"
-  },
-  "credentials": { // Destination type specific credentials. AES encrypted. Schema depends on type
-    "secret": "something-super-secret"
-  },
-  "created_at": "2024-01-01T00:00:00Z" // Date the destination was created
-}]
+[
+  {
+    "id": "dest_123456", // Control plane generated ID or user provided ID
+    "type": "webhooks", // Type of the destination
+    "topics": ["user.created", "user.updated"], // Type of events this destination is eligible for
+    "config": {
+      // Destination type specific configuration. Schema of depends on type
+      "url": "https://example.com/webhooks/user"
+    },
+    "credentials": {
+      // Destination type specific credentials. AES encrypted. Schema depends on type
+      "secret": "something-super-secret"
+    },
+    "created_at": "2024-01-01T00:00:00Z" // Date the destination was created
+  }
+]
 ```
 
 ### `POST` `/:tenant_id/destinations`
@@ -168,37 +174,40 @@ Supported Parameters:
 Create a new destination type with the provided configuration.
 
 #### Request
-    
+
 ```json
 {
   "id": "123", // Optional, UUID will be generated if empty
   "type": "webhooks", // String of valid destination type
   "topics": "*", // '*' or String[] of enabled topics, "*" for all
-  "config": { // Config object for the given type
+  "config": {
+    // Config object for the given type
     "url": "https://example.com/webhooks"
   },
   "credentials": null // Credentials for the given type. It can be empty or null.
 }
 ```
-    
+
 #### Response
-    
+
 ```json
 {
   "id": "des_12345", // ID of the destination
   "type": "webhooks", // Type of the destination
   "topics": ["*"], // Topics of events this destination is eligible for
-  "config": { // Destination type specific configuration. Schema of depends on type
+  "config": {
+    // Destination type specific configuration. Schema of depends on type
     "url": "https://example.com/webhooks"
   },
-  "credentials": { // Destination type specific credentials. AES encrypted. Schema depends on type
-    "signing_secret": "some************"
+  "credentials": {
+    // Destination type specific credentials. AES encrypted. Schema depends on type
+    "secret": "some************"
   },
   "disabled_at": null, // null or ISO date if disabled
   "created_at": "2024-01-01T00:00:00Z" // Date the destination was created
 }
 ```
-    
+
 #### Webhook secret & rotation
 
 Webhook secrets and rotations are a special case for the `webhook` destination type. The destination type `credentials.secret` is only a valid input when using the Admin API and can be omited when omited a secret is generated automatically.
@@ -212,38 +221,41 @@ Additionally, `credentials.previous_secret` can be used to set a rotated secret 
 Update the destination configuration.
 
 #### Request
-    
+
 ```json
 {
   "type": "webhooks", // Optional. String of valid destination type
   "topics": "*", // Optional. String[] of enabled topics, "*" for all
-  "config": { // Optional. Config object for the given type
+  "config": {
+    // Optional. Config object for the given type
     "url": "https://example.com/webhooks"
   },
   "credentials": null // Optional. Credentials for the given type. It can be empty or null.
 }
 ```
-    
+
 #### Response
-    
+
 ```json
 {
   "id": "des_12345", // Control plane generated ID
   "type": "webhooks", // Type of the destination
   "topics": "*", // Topics of events this destination is eligible for
-  "config": { // Destination type specific configuration. Schema of depends on type
+  "config": {
+    // Destination type specific configuration. Schema of depends on type
     "url": "https://example.com/webhooks"
   },
-  "credentials": { // Destination type specific credentials. AES encrypted. Schema depends on type
-    "signing_secret": "some********"
+  "credentials": {
+    // Destination type specific credentials. AES encrypted. Schema depends on type
+    "secret": "some********"
   },
   "disabled_at": null, // null or ISO date if disabled
   "created_at": "2024-01-01T00:00:00Z" // Date the destination was created
 }
 ```
-    
+
 If the destination uses OAuth:
-    
+
 ```json
 {
   "redirect_url": "https://dashboard.hookdeck.com/authorize?token=12313123"
@@ -255,64 +267,67 @@ If the destination uses OAuth:
 Enable a previously disabled destination.
 
 #### Request
-    
+
 Empty body
-    
+
 #### Response
-    
+
 ```json
 {
   "id": "des_12345", // Control plane generated ID
   "type": "webhooks", // Type of the destination
   "topics": "*", // Topics of events this destination is eligible for
-  "config": { // Destination type specific configuration. Schema of depends on type
+  "config": {
+    // Destination type specific configuration. Schema of depends on type
     "url": "https://example.com/webhooks"
   },
-  "credentials": { // Destination type specific credentials. AES encrypted. Schema depends on type
-    "signing_secret": "some************"
+  "credentials": {
+    // Destination type specific credentials. AES encrypted. Schema depends on type
+    "secret": "some************"
   },
   "disabled_at": null, // null or ISO date if disabled
   "created_at": "2024-01-01T00:00:00Z" // Date the destination was created
 }
 ```
-    
 
 ### `PUT` `/:tenant_id/destinations/:destination_id/disable`
 
 Disable a previously enabled destination.
 
 #### Request
-    
+
 Empty body
-    
+
 #### Response
-    
+
 ```json
 {
   "id": "des_12345", // Control plane generated ID
   "type": "webhooks", // Type of the destination
   "topics": "*", // Topics of events this destination is eligible for
-  "config": { // Destination type specific configuration. Schema of depends on type
+  "config": {
+    // Destination type specific configuration. Schema of depends on type
     "url": "https://example.com/webhooks"
   },
-  "credentials": { // Destination type specific credentials. AES encrypted. Schema depends on type
-    "signing_secret": "some***********"
+  "credentials": {
+    // Destination type specific credentials. AES encrypted. Schema depends on type
+    "secret": "some***********"
   },
   "disabled_at": "2024-01-01T00:00:00Z", // null or ISO date if disabled
   "created_at": "2024-01-01T00:00:00Z" // Date the destination was created
 }
 ```
 
-### `DELETE` `/:tenant_id/destinations/:destination_id` 
+### `DELETE` `/:tenant_id/destinations/:destination_id`
 
 Delete the destination.
 
 #### Request
-    
+
 Empty body
-    
+
 #### Response
-    
+
 ```json
 {
   "success": true
@@ -364,7 +379,7 @@ curl --location 'localhost:3333/api/v1/publish' \
 
 ## Schemas
 
-### `GET` `/destination-types` 
+### `GET` `/destination-types`
 
 Runs a list of JSON-based input schemas for each destination type.
 
@@ -373,7 +388,7 @@ Runs a list of JSON-based input schemas for each destination type.
 No parameters.
 
 #### Response
-    
+
 ```json
 [
   {
@@ -413,12 +428,12 @@ No parameters.
 ]
 ```
 
-### `GET` `/destination-types/:type` 
+### `GET` `/destination-types/:type`
 
 Runs the input schemas for the specified destination type.
 
 #### Response
-    
+
 ```json
 {
   "type": "webhook",
@@ -438,27 +453,27 @@ Runs the input schemas for the specified destination type.
   "credential_fields": []
 }
 ```
-    
+
 ## Events API
 
-### `GET` `/:tenant_id/destination/:destination_id/events` 
+### `GET` `/:tenant_id/destination/:destination_id/events`
 
 Retrieve a list of events using a cursor navigation.
 
 #### Supported parameters
-    
+
 - `destination_id` `string | string[]` Return events for a specific destination
 - `status` `success | failed` Return events with a specific failed or success status
-    
+
 #### Response
-    
+
 ```json
 [{
   "id": "123",
   "destination_id": "456",
   "topic": "something.created",
   "time": "2024-01-01T00:00:00Z",
-  "succesful_at": "2024-01-01T00:00:00Z" 
+  "succesful_at": "2024-01-01T00:00:00Z"
   "metadata": {
     "key": "value" // String, number or boolean
   },
@@ -468,19 +483,19 @@ Retrieve a list of events using a cursor navigation.
 }]
 ```
 
-### `GET` `/:tenant_id/destination/:destination_id/events/:event_id` 
+### `GET` `/:tenant_id/destination/:destination_id/events/:event_id`
 
 Retrieve a specific event and its associated data.
 
 #### Response
-    
+
 ```json
 [{
   "id": "123",
   "destination_id": "456",
   "topic": "something.created",
   "time": "2024-01-01T00:00:00Z",
-  "succesful_at": "2024-01-01T00:00:00Z" 
+  "succesful_at": "2024-01-01T00:00:00Z"
   "metadata": {
     "key": "value" // String, number or boolean
   },
@@ -495,27 +510,28 @@ Retrieve a specific event and its associated data.
 Retrieve a list of the delivery attempts with the associated responses.
 
 #### Response
-    
+
 ```json
-[{
-  "delivered_at": "2024-01-01T00:00:00Z",
-  "status": "success",
-  "code": "200", // "OK", "ERR" or a valid HTTP status code
-  "response_data": {
-    "hello": "world"
+[
+  {
+    "delivered_at": "2024-01-01T00:00:00Z",
+    "status": "success",
+    "code": "200", // "OK", "ERR" or a valid HTTP status code
+    "response_data": {
+      "hello": "world"
+    }
   }
-}]
+]
 ```
-    
 
 ---
 
-`POST` `/:tenant_id/destination/:destination_id/events/:event_id/retry` 
+`POST` `/:tenant_id/destination/:destination_id/events/:event_id/retry`
 
 Submit an event for retry
 
 #### Response
-    
+
 ```json
 { "success": true }
 ```

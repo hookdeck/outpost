@@ -1,0 +1,216 @@
+---
+title: "Migrate Existing Webhooks to Outpost"
+---
+
+This guide will help you migrate your existing webhook infrastructure to Outpost. It assumes that you are migrating from notification infrastructure that only supports webhook event destination types.
+
+## Why Migrate to Outpost?
+
+Outpost is a self-hosted and open-source infrastructure that enables event producers to add Event Destinations to their platform with support for destination types such as Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS SNS, GCP Pub/Sub, RabbitMQ, and Kafka.
+
+The benefits of migrating to Outpost include:
+
+### For Event Producers:
+
+- **Efficiency gains**
+
+  Reduced failure rates and retried deliveries compared to public HTTP endpoints. Unlock improved performance for high-throughput scenarios.
+
+- **Protocol flexibility**
+
+  Leverage more performant protocols and encodings.
+
+- **Cost & resource efficient**
+
+  Smart retry logic, improved deliverability and scalable infrastructure minimize resource consumption, reducing operational costs while ensuring seamless event delivery at any scale.
+
+### For Event Consumers:
+
+- **Streamlined infrastructure & operations**
+
+  Eliminate the need for API gateways, load balancers, HTTP consumers, and other infrastructure components, reducing maintenance overhead.
+
+- **Reduced developer burden**
+
+  Receive events directly to existing or preferred infrastructure and make use of existing and familiar ecosystem tooling.
+
+- **Predictable behavior**
+
+  Standardize event expectations—the message bus handles timeouts, retries, and security.
+
+## How to Migrate to Outpost
+
+The following sections outline the key considerations when migrating webhook infrastructure to Outpost.
+
+### Terminology
+
+Outpost has the following concepts that you need to map to your existing webhook infrastructure provider:
+
+- **Tenants**: A tenant represents a customer organization.
+- **Destination Types**: The type of destination where events will be delivered. For example, webhook, Hookdeck Event Gateway, or AWS SQS.
+- **Destinations**: A subscription configured to deliver the event to a destination type. For example, a webhook destination with a specific URL.
+- **Events**: An event is a piece of data that represents an action that occurred in your system. For example, a user signed up or a payment was processed.
+- **Topics**: A topic is a way to categorize events and is a common concept found in Pub/Sub messaging. For example, a `user.created`.
+
+### Webhook Event Delivery Method
+
+Webhooks are delivered via HTTP `POST` requests.
+
+### Webhook Event HTTP Headers
+
+- `x-outpost-event-id`: A unique identifier for the event within the Outpost installation
+- `x-outpost-signature`: The signature generated using the webhook "t=1741787378,v0=86245a49c99fac7f30c616a29530c49cee6291293b38453488b3feb99618ee22",
+- `x-outpost-timestamp`: A Unix timestep representing the time the event was generated
+- `x-outpost-topic`: The topic of the event. For example, `user.created`.
+
+The `x-outpost` prefix can be customized. See [Webhook Customization](#webhook-customization).
+
+### Webhook Event Payload Format
+
+Outpost events are JSON payloads.
+
+### Webhook Event Payload Structure
+
+Outpost does not enforce a specific event payload structure. You can define the structure of the event payload as needed. However, the content must be JSON.
+
+### Authentication
+
+By default, Outpost uses a secret key to sign the webhook payload. The secret key is used to generate a signature that is included in the `x-outpost-signature` header. The signature is generated using the HMAC-SHA256 algorithm with Hex encoding.
+
+The `x-outpost` prefix can be customized. See [Webhook Customization](#webhook-customization).
+
+### Webhook Customization
+
+You can customize the following webhook features and behaviors. The full path to the YAML configuration is prefixed with `destinations.webhook`.
+
+Templates use the [Go template syntax](https://pkg.go.dev/text/template).
+
+| YAML                               | Environment Variable                                    | Default Value                                          |
+| ---------------------------------- | ------------------------------------------------------- | ------------------------------------------------------ |
+| `header_prefix`                    | `DESTINATIONS_WEBHOOK_HEADER_PREFIX`                    | `x-outpost`                                            |
+| `disable_default_event_id_header`  | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`  | `false`                                                |
+| `disable_default_signature_header` | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | `false`                                                |
+| `disable_default_timestamp_header` | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | `false`                                                |
+| `disable_default_topic_header`     | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER`     | `false`                                                |
+| `signature_content_template`       | `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`       | `{{.Timestamp.Unix}}.{{.Body}}`                        |
+| `signature_header_template`        | `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`        | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` |
+| `signature_encoding`               | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`               | `hex`                                                  |
+| `signature_algorithm`              | `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`              | `hmac-sha256`                                          |
+
+### Migration Process
+
+It's recommended to have a test organization within Outpost to test the migration process. This will allow you to test the migration process without delivering events to a customer.
+
+First, perform a test migration:
+
+1. Perform a lookup of all the topics that are being used in your webhook infrastructure. Define them within your Outpost configuration.
+
+2. For each organization within your webhook infrastructure, create a tenant in Outpost.
+
+3. Each webhook subscription should map to a destination in Outpost. If webhook subscriptions include topic or event type information then that should be included within the destination resource that is created. Also migrate the webhook secret.
+
+4. Migrate your historical event data to Outpost.
+
+5. Test the migration with your test organization. Ensure the events are being delivered to the correct destinations, check the payload and header contents, and ensure the webhook signature format and that they can be verified.
+
+For the full migration, you may need to:
+
+1. Notify your customers of scheduled maintainance ahead of time and again notify them when the maintenance begins and ends.
+2. Stop webhook subscriptions being created.
+3. Ensure any in-flight events complete (either as delivered or a failed delivery) before the migration begins.
+4. Queue the publishing of any events. This works well if you are using a publish message queue with Outpost. If you are using the Outpost API to publish events, you will need to store the events to be triggered once the migration has completed.
+5. Follow the steps 1 - 4 in the test migration process.
+6. Begin delivering the paused events via Outpost.
+
+#### Migrating Historic Event Database
+
+To migrate your historical data to Outpost, you need to map your existing data structure to the Outpost schema.
+
+The Outpost schema contains two tables related to events:
+
+1. **events** - The events that Outpost has received to publish.
+2. **deliveries** - The delivery attempts of events to destinations.
+
+The following diagram shows the Outpost schema. You can connect to the database instance within your Outpost installation to inspect the schema further.
+
+![Event Destination Request List](/images/outpost-schema.png)
+
+#### Example Migration Script
+
+A migration script may look something like this:
+
+```ts
+// Outpost API wrapper
+import outpost from "./outpost";
+
+// Database wrapper
+import { default as db } from "./db";
+
+const listTopics = async () => {
+  const subscriptions = db.getSubscriptions();
+  const allTopics = new Set<string>();
+
+  for (const subscription of subscriptions) {
+    for (const topic of subscription.topics) {
+      allTopics.add(topic);
+    }
+  }
+
+  return Array.from(allTopics);
+};
+
+const migrateOrganizations = async () => {
+  const migratedOrgIds: string[] = [];
+  const organizations = db.getOrganizations();
+  for (const organization of organizations) {
+    await outpost.registerTenant(organization.id);
+    migratedOrgIds.push(organization.id);
+  }
+  return migratedOrgIds;
+};
+
+const migrateSubscriptions = async (organizationId: string) => {
+  const subscriptions = db.getSubscriptions(organizationId);
+  for (const subscription of subscriptions) {
+    await outpost.createDestination({
+      tenant_id: organizationId,
+      type: "webhook",
+      url: subscription.url,
+      topics: subscription.topics,
+      secret: subscription.secret,
+    });
+  }
+};
+
+const main = async () => {
+  // 1. List topics
+  const topics = await listTopics();
+  console.log("Subscription topics:", topics);
+
+  // 2. Get list of organizations and migrate them
+  const migratedOrgIds = await migrateOrganizations();
+
+  for (const organizationId of migratedOrgIds) {
+    // 3. Migrate subscriptions
+    await migrateSubscriptions(organizationId);
+  }
+};
+
+main()
+  .then(() => {
+    console.log("Migration complete");
+
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error(error);
+  });
+```
+
+You can find a runnable version of this example script in the [Outpost examples directory](https://github.com/hookdeck/outpost/tree/main/examples).
+
+### Troubleshooting
+
+- [Ask a question](https://github.com/hookdeck/outpost/discussions/new?category=q-a)
+- [Report a bug](https://github.com/hookdeck/outpost/issues/new?assignees=&labels=bug&projects=&template=bug_report.md&title=%F0%9F%90%9B+Bug+Report%3A+)
+- [Request a feature](https://github.com/hookdeck/outpost/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=%F0%9F%9A%80+Feature%3A+)

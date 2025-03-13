@@ -1,0 +1,117 @@
+---
+title: "Outpost Quickstart: Kubernetes with RabbitMQ"
+---
+
+Local Kubernetes setup for Outpost using Minikube. This setup includes:
+
+- Outpost services (API, delivery, and log processors). See the [architecture](/docs/concepts#architecture) for more details.
+- Redis as KV & entity storage
+- PostgreSQL as log storage
+- RabbitMQ for message queuing
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/engine/install/)
+- [Minikube](https://minikube.sigs.k8s.io/docs/start)
+- [Kubectl](https://kubernetes.io/docs/tasks/tools/)
+- [Helm](https://helm.sh/docs/intro/install/)
+
+## Setup
+
+1. Clone Outpost:
+
+   ```sh
+   git clone https://github.com/hookdeck/outpost.git
+   ```
+
+2. Start Minikube and create namespace:
+
+   ```sh
+   minikube start
+   kubectl create namespace outpost
+   kubectl config set-context --current --namespace=outpost
+   ```
+
+3. Install dependencies:
+
+   ```sh
+   cd outpost/deployments/kubernetes
+   ./setup-dependencies.sh
+   ```
+
+4. Install Outpost:
+
+   :::note
+
+   Helm charts will have [versioned releases](https://github.com/hookdeck/outpost/issues/257) in the future.
+
+   :::
+
+   ```sh
+   helm install outpost ../../deployments/kubernetes/charts/outpost -f values.yaml
+   ```
+
+## Verify Installation
+
+1. Setup ingress and tunnel (keep this terminal open):
+
+   ```sh
+   minikube addons enable ingress
+   kubectl wait --namespace ingress-nginx \
+     --for=condition=ready pod \
+     --selector=app.kubernetes.io/component=controller \
+     --timeout=90s
+   sudo minikube tunnel
+   ```
+
+2. In a new terminal, add local domain to `/etc/hosts`:
+
+   ```sh
+   echo "127.0.0.1 outpost.acme.local" | sudo tee -a /etc/hosts
+   ```
+
+3. Get your Outpost API key:
+
+   ```sh
+   export OUTPOST_API_KEY=$(kubectl get secret outpost-secrets -o jsonpath='{.data.API_KEY}' | base64 -d)
+   echo $OUTPOST_API_KEY
+   ```
+
+4. Test the Outpost API:
+
+   ```sh
+   # Create tenant
+   curl --location --request PUT 'http://outpost.acme.local/api/v1/hookdeck' \
+     --header "Authorization: Bearer $OUTPOST_API_KEY"
+
+   # Query tenant
+   curl http://outpost.acme.local/api/v1/hookdeck \
+     --header "Authorization: Bearer $OUTPOST_API_KEY"
+   ```
+
+## Cleanup
+
+```sh
+# Remove Kubernetes resources
+kubectl delete namespace outpost
+kubectl config set-context --current --namespace=default
+
+# Remove local domain
+sudo sed -i '' '/outpost.acme.local/d' /etc/hosts
+```
+
+## Explore Further
+
+- Publish events to test delivery/log services
+- Access infrastructure:
+
+  ```sh
+  # Redis CLI
+  kubectl exec -it outpost-redis-master-0 -- redis-cli
+
+  # PostgreSQL
+  kubectl exec -it outpost-postgresql-0 -- psql -U outpost
+
+  # RabbitMQ Management: http://localhost:15672
+  kubectl port-forward outpost-rabbitmq-0 15672:15672
+  ```

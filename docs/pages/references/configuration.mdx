@@ -4,81 +4,185 @@ title: "Outpost Configuration"
 
 Global configurations are provided through env variables or a YAML file. ConfigMap can be used if deploying with Kubernetes.
 
-| Variable                                        | Default                         | Required                |
-| ----------------------------------------------- | ------------------------------- | ----------------------- |
-| `SERVICE`                                       | `nil`                           | No                      |
-| `CONFIG`                                        | `nil`                           | No                      |
-| `ORGANIZATION_NAME`                             | `default`                       | Yes                     |
-| `API_KEY`                                       | `nil`                           | Yes                     |
-| `API_PORT`                                      | `3333`                          | Yes                     |
-| `API_JWT_SECRET`                                | `nil`                           | Only for using JWT Auth |
-| `AES_ENCRYPTION_SECRET`                         | `nil`                           | Yes                     |
-| `TOPICS`                                        | `''`                            | No                      |
-| `REDIS_PORT`                                    | `6379`                          | Yes                     |
-| `REDIS_HOST`                                    | `127.0.0.1`                     | Yes                     |
-| `REDIS_PASSWORD`                                | `nil`                           | Yes                     |
-| `REDIS_DATABASE`                                | `0`                             | Yes                     |
-| `CLICKHOUSE_USER`                               | `nil`                           | Yes                     |
-| `CLICKHOUSE_DATABASE`                           | `outpost`                       | Yes                     |
-| `CLICKHOUSE_HOST`                               | `nil`                           | Yes                     |
-| `CLICKHOUSE_PASSWORD`                           | `nil`                           | Yes                     |
-| `RABBITMQ_SERVER_URL`                           | `nil`                           | No                      |
-| `RABBITMQ_EXCHANGE`                             | `outpost`                       | No                      |
-| `RABBITMQ_DELIVERY_QUEUE`                       | `outpost-delivery`              | No                      |
-| `RABBITMQ_LOG_QUEUE`                            | `outpost-log`                   | No                      |
-| `AWS_SQS_REGION`                                | `nil`                           | No                      |
-| `AWS_SQS_ACCESS_KEY_ID`                         | `nil`                           | No                      |
-| `AWS_SQS_SECRET_ACCESS_KEY`                     | `nil`                           | No                      |
-| `AWS_SQS_DELIVERY_QUEUE`                        | `outpost-delivery`              | No                      |
-| `AWS_SQS_LOG_QUEUE`                             | `outpost-log`                   | No                      |
-| `GCP_PUBSUB_SERVICE_ACCOUNT_CREDS`              | `nil`                           | No                      |
-| `GCP_PUBSUB_DELIVERY_TOPIC`                     | `outpost-delivery`              | No                      |
-| `GCP_PUBSUB_LOG_TOPIC`                          | `outpost-log`                   | No                      |
-| `PUBLISH_RABBITMQ_SERVER_URL`                   | `nil`                           | No                      |
-| `PUBLISH_RABBITMQ_QUEUE`                        | `nil`                           | No                      |
-| `PUBLISH_AWS_REGION`                            | `nil`                           | No                      |
-| `PUBLISH_AWS_SQS_ACCESS_KEY_ID`                 | `nil`                           | No                      |
-| `PUBLISH_AWS_SQS_SECRET_ACCESS_KEY`             | `nil`                           | No                      |
-| `PUBLISH_AWS_SQS_QUEUE`                         | `nil`                           | No                      |
-| `PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDS`      | `nil`                           | No                      |
-| `PUBLISH_GCP_PUBSUB_SUBSCRIPTION`               | `nil`                           | No                      |
-| `PUBLISH_MAX_CONCURRENCY`                       | `10`                            | No                      |
-| `DELIVERY_MAX_CONCURRENCY`                      | `10`                            | Yes                     |
-| `LOG_MAX_CONCURRENCY`                           | `10`                            | Yes                     |
-| `LOG_RETRY_LIMIT`                               | `5`                             | Yes                     |
-| `RETRY_INTERVAL_SECONDS`                        | `30`                            | Yes                     |
-| `MAX_RETRY_LIMIT`                               | `10`                            | Yes                     |
-| `DELIVERY_TIMEOUT_SECONDS`                      | `5`                             | Yes                     |
-| `HTTP_USER_AGENT`                               | `Outpost 1.0`                   | Yes                     |
-| `MAX_EVENT_SIZE_KB`                             | `256`                           | Yes                     |
-| `MAX_DESTINATIONS_PER_TENANT`                   | `20`                            | Yes                     |
-| `LOG_BATCH_SIZE`                                | `1000`                          | Yes                     |
-| `LOG_BATCH_THRESHOLD_SECONDS`                   | `10`                            | Yes                     |
-| `DESTINATIONS_WEBHOOK_HEADER_PREFIX`            | `x-`                            | No                      |
-| `DESTINATIONS_WEBHOOK_DISABLE_EVENT_ID_HEADER`  | `false`                         | No                      |
-| `DESTINATIONS_WEBHOOK_DISABLE_SIGNATURE_HEADER` | `false`                         | No                      |
-| `DESTINATIONS_WEBHOOK_DISABLE_TIMESTAMP_HEADER` | `false`                         | No                      |
-| `DESTINATIONS_WEBHOOK_DISABLE_TOPIC_HEADER`     | `false`                         | No                      |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_VALUE_TEMPLATE` | `{{.Timestamp.Unix}}.{{.Body}}` | No                      |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `t=\{\{.Timestamp.Unix}},v0={{.Signatures \| join ","\}\}`                                                        | No |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`        | `hex`                                   | No                                                                 |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`       | `hmac-sha256`                           | No                                                                 |
-| `ALERT_CALLBACK_URL`                             | `nil`                                   | No                                                                 |
-| `ALERT_DEBOUNCING_INTERVAL_SECOND`               | `3600`                                  | No                                                                 |
-| `ALERT_CONSECUTIVE_FAILURE_COUNT`                | `20`                                    | No                                                                 |
-| `ALERT_FAILURE_WINDOW_SECOND`                    | `60`                                    | No                                                                 |
-| `ALERT_FAILURE_RATE`                             | `0.1`                                   | No                                                                 |
-| `ALERT_AUTO_DISABLE_DESTINATION`                 | `true`                                  | No                                                                 |
-| `PORTAL_REFERER_URL`                             | `nil`                                   | Yes                                                                |
-| `PORTAL_FAVICON_URL`                             | `nil`                                   | No                                                                 |
-| `PORTAL_LOGO`                                    | `nil`                                   | No                                                                 |
-| `PORTAL_FORCE_THEME`                             | `nil`                                   | No                                                                 |
-| `PORTAL_ACCENT_COLOR`                            | `nil`                                   | No                                                                 |
-| `PORTAL_BRAND_COLOR`                             | `nil`                                   | No                                                                 |
-| `PORTAL_OUTPOST_BRANDING`                        | `true`                                  | No                                                                 |
-| `DISABLE_TELEMETRY`                              | `false`                                 | Yes                                                                |
-| `LOG_LEVEL`                                      | `info`                                  | Yes                                                                |
-| `AUDIT_LOG`                                      | `true`                                  | Yes                                                                |
-| `OTEL_SERVICE_NAME`                              | `nil`                                   | No                                                                 |
-| `OTEL_*`                                         | `nil`                                   | https://opentelemetry.io/docs/languages/sdk-configuration/general/ |
-| `DESTINATIONS_METADATA_PATH`                     | `config/outpost/destinations`           | No                                                                 |
+## Environment Variables
+
+| Variable                                         | Default                                                    | Required                                                           |
+| ------------------------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------ |
+| `SERVICE`                                        | `nil`                                                      | No                                                                 |
+| `CONFIG`                                         | `nil`                                                      | No                                                                 |
+| `ORGANIZATION_NAME`                              | `default`                                                  | Yes                                                                |
+| `API_KEY`                                        | `nil`                                                      | Yes                                                                |
+| `API_PORT`                                       | `3333`                                                     | Yes                                                                |
+| `API_JWT_SECRET`                                 | `nil`                                                      | Only for using JWT Auth                                            |
+| `AES_ENCRYPTION_SECRET`                          | `nil`                                                      | Yes                                                                |
+| `TOPICS`                                         | `''`                                                       | No                                                                 |
+| `REDIS_PORT`                                     | `6379`                                                     | Yes                                                                |
+| `REDIS_HOST`                                     | `127.0.0.1`                                                | Yes                                                                |
+| `REDIS_PASSWORD`                                 | `nil`                                                      | Yes                                                                |
+| `REDIS_DATABASE`                                 | `0`                                                        | Yes                                                                |
+| `RABBITMQ_SERVER_URL`                            | `nil`                                                      | No                                                                 |
+| `RABBITMQ_EXCHANGE`                              | `outpost`                                                  | No                                                                 |
+| `RABBITMQ_DELIVERY_QUEUE`                        | `outpost-delivery`                                         | No                                                                 |
+| `RABBITMQ_LOG_QUEUE`                             | `outpost-log`                                              | No                                                                 |
+| `AWS_SQS_REGION`                                 | `nil`                                                      | No                                                                 |
+| `AWS_SQS_ACCESS_KEY_ID`                          | `nil`                                                      | No                                                                 |
+| `AWS_SQS_SECRET_ACCESS_KEY`                      | `nil`                                                      | No                                                                 |
+| `AWS_SQS_DELIVERY_QUEUE`                         | `outpost-delivery`                                         | No                                                                 |
+| `AWS_SQS_LOG_QUEUE`                              | `outpost-log`                                              | No                                                                 |
+| `GCP_PUBSUB_SERVICE_ACCOUNT_CREDS`               | `nil`                                                      | No                                                                 |
+| `GCP_PUBSUB_DELIVERY_TOPIC`                      | `outpost-delivery`                                         | No                                                                 |
+| `GCP_PUBSUB_LOG_TOPIC`                           | `outpost-log`                                              | No                                                                 |
+| `PUBLISH_RABBITMQ_SERVER_URL`                    | `nil`                                                      | No                                                                 |
+| `PUBLISH_RABBITMQ_QUEUE`                         | `nil`                                                      | No                                                                 |
+| `PUBLISH_AWS_REGION`                             | `nil`                                                      | No                                                                 |
+| `PUBLISH_AWS_SQS_ACCESS_KEY_ID`                  | `nil`                                                      | No                                                                 |
+| `PUBLISH_AWS_SQS_SECRET_ACCESS_KEY`              | `nil`                                                      | No                                                                 |
+| `PUBLISH_AWS_SQS_QUEUE`                          | `nil`                                                      | No                                                                 |
+| `PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDS`       | `nil`                                                      | No                                                                 |
+| `PUBLISH_GCP_PUBSUB_SUBSCRIPTION`                | `nil`                                                      | No                                                                 |
+| `PUBLISH_MAX_CONCURRENCY`                        | `10`                                                       | No                                                                 |
+| `DELIVERY_MAX_CONCURRENCY`                       | `10`                                                       | Yes                                                                |
+| `LOG_MAX_CONCURRENCY`                            | `10`                                                       | Yes                                                                |
+| `LOG_RETRY_LIMIT`                                | `5`                                                        | Yes                                                                |
+| `RETRY_INTERVAL_SECONDS`                         | `30`                                                       | Yes                                                                |
+| `MAX_RETRY_LIMIT`                                | `10`                                                       | Yes                                                                |
+| `DELIVERY_TIMEOUT_SECONDS`                       | `5`                                                        | Yes                                                                |
+| `HTTP_USER_AGENT`                                | `Outpost 1.0`                                              | Yes                                                                |
+| `MAX_EVENT_SIZE_KB`                              | `256`                                                      | Yes                                                                |
+| `MAX_DESTINATIONS_PER_TENANT`                    | `20`                                                       | Yes                                                                |
+| `LOG_BATCH_SIZE`                                 | `1000`                                                     | Yes                                                                |
+| `LOG_BATCH_THRESHOLD_SECONDS`                    | `10`                                                       | Yes                                                                |
+| `DESTINATIONS_WEBHOOK_HEADER_PREFIX`             | `x-`                                                       | No                                                                 |
+| `DESTINATIONS_WEBHOOK_DISABLE_EVENT_ID_HEADER`   | `false`                                                    | No                                                                 |
+| `DESTINATIONS_WEBHOOK_DISABLE_SIGNATURE_HEADER`  | `false`                                                    | No                                                                 |
+| `DESTINATIONS_WEBHOOK_DISABLE_TIMESTAMP_HEADER`  | `false`                                                    | No                                                                 |
+| `DESTINATIONS_WEBHOOK_DISABLE_TOPIC_HEADER`      | `false`                                                    | No                                                                 |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_VALUE_TEMPLATE`  | `{{.Timestamp.Unix}}.{{.Body}}`                            | No                                                                 |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `t=\{\{.Timestamp.Unix}},v0={{.Signatures \| join ","\}\}` | No                                                                 |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`        | `hex`                                                      | No                                                                 |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`       | `hmac-sha256`                                              | No                                                                 |
+| `ALERT_CALLBACK_URL`                             | `nil`                                                      | No                                                                 |
+| `ALERT_DEBOUNCING_INTERVAL_SECOND`               | `3600`                                                     | No                                                                 |
+| `ALERT_CONSECUTIVE_FAILURE_COUNT`                | `20`                                                       | No                                                                 |
+| `ALERT_FAILURE_WINDOW_SECOND`                    | `60`                                                       | No                                                                 |
+| `ALERT_FAILURE_RATE`                             | `0.1`                                                      | No                                                                 |
+| `ALERT_AUTO_DISABLE_DESTINATION`                 | `true`                                                     | No                                                                 |
+| `PORTAL_REFERER_URL`                             | `nil`                                                      | Yes                                                                |
+| `PORTAL_FAVICON_URL`                             | `nil`                                                      | No                                                                 |
+| `PORTAL_LOGO`                                    | `nil`                                                      | No                                                                 |
+| `PORTAL_FORCE_THEME`                             | `nil`                                                      | No                                                                 |
+| `PORTAL_ACCENT_COLOR`                            | `nil`                                                      | No                                                                 |
+| `PORTAL_BRAND_COLOR`                             | `nil`                                                      | No                                                                 |
+| `PORTAL_OUTPOST_BRANDING`                        | `true`                                                     | No                                                                 |
+| `DISABLE_TELEMETRY`                              | `false`                                                    | Yes                                                                |
+| `LOG_LEVEL`                                      | `info`                                                     | Yes                                                                |
+| `AUDIT_LOG`                                      | `true`                                                     | Yes                                                                |
+| `OTEL_SERVICE_NAME`                              | `nil`                                                      | No                                                                 |
+| `OTEL_*`                                         | `nil`                                                      | https://opentelemetry.io/docs/languages/sdk-configuration/general/ |
+| `DESTINATIONS_METADATA_PATH`                     | `config/outpost/destinations`                              | No                                                                 |
+
+## YAML
+
+```yaml
+# Outpost Configuration Example
+# This is a comprehensive list of available configuration options.
+# While all options can be configured here, it is recommended to use environment variables
+# for sensitive values (secrets, credentials, API keys, etc.) instead of storing them in this file.
+# Each configuration option can be overridden by its corresponding environment variable.
+
+# Service
+service: "" # Service type: "", "api", "log", "delivery" (empty string for singular mode that runs all services)
+
+# Infrastructure Configuration
+## Redis
+redis:
+  host: "127.0.0.1" # Default Redis host
+  port: 6379 # Default Redis port
+  password: "" # Redis password
+  database: 0 # Redis database number
+
+## ClickHouse
+clickhouse:
+  addr: "" # ClickHouse address (e.g., localhost:9000)
+  username: "" # ClickHouse username
+  password: "" # ClickHouse password
+  database: "outpost" # Default database name
+
+## Message Queue
+mqs:
+  # Choose either RabbitMQ or AWS SQS configuration
+
+  # RabbitMQ Configuration Example
+  rabbitmq:
+    server_url: "amqp://user:pass@localhost:5672" # RabbitMQ server URL with credentials
+    exchange: "outpost" # Exchange name for message routing
+    delivery_queue: "outpost-delivery" # Queue for delivery events
+    log_queue: "outpost-log" # Queue for log events
+
+  # AWS SQS Configuration Example
+  awssqs:
+    access_key_id: "YOUR_AWS_ACCESS_KEY" # AWS access key ID
+    secret_access_key: "YOUR_AWS_SECRET_KEY" # AWS secret access key
+    region: "us-west-2" # AWS region
+    endpoint: "https://sqs.us-west-2.amazonaws.com" # SQS endpoint (optional, for custom endpoints)
+    delivery_queue: "outpost-delivery" # SQS queue name for delivery events
+    log_queue: "outpost-log" # SQS queue name for log events
+
+# Application Configuration
+aes_encryption_secret: "" # Secret for AES encryption
+topics: # List of topics to subscribe to
+  - user.created
+  - user.updated
+  - user.deleted
+
+## API
+api_port: 3333 # Default port for the API server
+api_key: "" # API key for authentication
+api_jwt_secret: "" # JWT secret for authentication
+
+## Delivery
+max_destinations_per_tenant: 20 # Maximum destinations per tenant
+delivery_timeout_seconds: 5 # Timeout for delivery operations
+
+## Event Delivery Retry
+retry_interval_seconds: 30 # Interval between event delivery retries
+retry_max_limit: 10 # Maximum number of event delivery retries
+
+## Consumer Settings
+publish_max_concurrency: 1 # Max number of publish messages to process concurrently
+delivery_max_concurrency: 1 # Max number of delivery messages to process concurrently
+log_max_concurrency: 1 # Max number of log messages to process concurrently
+
+## Log Batcher
+log_batch_threshold_seconds: 10 # Time to wait before sending a batch of logs (env: LOG_BATCH_THRESHOLD_SECONDS)
+log_batch_size: 1000 # Maximum number of logs to include in a batch (env: LOG_BATCH_SIZE)
+
+## Portal
+portal:
+  organization_name: "Acme" # Organization name
+  referer_url: "https://example.com" # Portal referer URL
+  favicon_url: "https://example.com/favicon.svg" # Portal favicon URL
+  brand_color: "#6122E7" # Portal brand color
+  # logo: "https://example.com" # Portal logo URL
+  #logo_dark: "https://example.com" # Portal logo URL for dark mode
+
+# Destinations Configuration
+destinations:
+  metadata_path: "config/outpost/destinations" # Path to destination metadata
+  webhook:
+    header_prefix: "x-custom-" # Prefix for webhook headers
+    # disable_default_event_id_header
+    # disable_default_signature_header
+    # disable_default_timestamp_header
+    # disable_default_topic_header
+    # signature_content_template: {{.Timestamp.Unix}}.{{.Body}}
+    # signature_header_template: t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}
+    # signature_encoding: hex
+    # signature_algorithm: hmac-sha256
+# Note: OpenTelemetry Configuration
+# It is recommended to configure OpenTelemetry using environment variables as they are better supported by the SDK.
+# Example environment variables:
+# - OTEL_SERVICE_NAME: Service name (if provided, OpenTelemetry will be enabled)
+# - OTEL_EXPORTER_OTLP_ENDPOINT: OpenTelemetry collector endpoint
+# - OTEL_EXPORTER_OTLP_PROTOCOL: Protocol (grpc or http)
+```
