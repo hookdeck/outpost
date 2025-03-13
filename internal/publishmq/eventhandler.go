@@ -18,7 +18,8 @@ import (
 )
 
 var (
-	ErrInvalidTopic = errors.New("invalid topic")
+	ErrInvalidTopic  = errors.New("invalid topic")
+	ErrRequiredTopic = errors.New("topic is required")
 )
 
 type EventHandler interface {
@@ -62,6 +63,9 @@ func NewEventHandler(
 var _ EventHandler = (*eventHandler)(nil)
 
 func (h *eventHandler) Handle(ctx context.Context, event *models.Event) error {
+	if len(h.topics) > 0 && event.Topic == "" {
+		return ErrRequiredTopic
+	}
 	if len(h.topics) > 0 && event.Topic != "*" && !slices.Contains(h.topics, event.Topic) {
 		return ErrInvalidTopic
 	}

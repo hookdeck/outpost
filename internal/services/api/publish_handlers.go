@@ -38,8 +38,24 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 	if err := h.eventHandler.Handle(c.Request.Context(), &event); err != nil {
 		if errors.Is(err, idempotence.ErrConflict) {
 			c.Status(http.StatusConflict)
+		} else if errors.Is(err, publishmq.ErrRequiredTopic) {
+			AbortWithValidationError(c, ErrorResponse{
+				Code:    http.StatusUnprocessableEntity,
+				Message: "validation error",
+				Err:     err,
+				Data: map[string]string{
+					"topic": "required",
+				},
+			})
 		} else if errors.Is(err, publishmq.ErrInvalidTopic) {
-			AbortWithValidationError(c, err)
+			AbortWithValidationError(c, ErrorResponse{
+				Code:    http.StatusUnprocessableEntity,
+				Message: "validation error",
+				Err:     err,
+				Data: map[string]string{
+					"topic": "invalid",
+				},
+			})
 		} else {
 			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		}
