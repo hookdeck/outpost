@@ -1,0 +1,26 @@
+{
+  "name": "migrate-to-outpost-example",
+  "version": "0.0.1",
+  "description": "Example of migrating an existing webhook infrastructure to Outpost",
+  "license": "MIT",
+  "author": "",
+  "type": "module",
+  "main": "src/migrate.ts",
+  "scripts": {
+    "migrate": "esrun src/migrate.ts",
+    "publish-test": "esrun src/publish-test.ts",
+    "verify": "esrun src/verify-signature.ts"
+  },
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "esrun": "^3.2.26",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.8.2",
+    "dotenv": "^16.4.7"
+  }
+}

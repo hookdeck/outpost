@@ -24,6 +24,11 @@ const config: ZudokuConfig = {
     ],
     publisher: "Hookdeck Technologies Inc.",
   },
+  // theme: {
+  //   code: {
+  //     additionalLanguages: ["yaml"],
+  //   },
+  // },
   redirects: [
     { from: "/", to: "/overview" },
     { from: "/guides", to: "/guides/deployment" },
@@ -48,6 +53,11 @@ const config: ZudokuConfig = {
       width: "110px",
     },
   },
+  // mdx: {
+  //   components: {
+  //     YamlConfig,
+  //   },
+  // },
   topNavigation: [{ id: "docs", label: "Documentation", default: "overview" }],
   sidebar: {
     docs: [
@@ -90,6 +100,11 @@ const config: ZudokuConfig = {
         collapsed: false,
         collapsible: false,
         items: [
+          {
+            type: "doc",
+            label: "Migrate to Outpost",
+            id: "guides/migrate-to-outpost",
+          },
           {
             type: "doc",
             label: "Deployment",
