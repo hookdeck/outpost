@@ -44,9 +44,6 @@ func instrumentOpenTelemetry() error {
 	if err := redisotel.InstrumentTracing(client); err != nil {
 		return err
 	}
-	if err := redisotel.InstrumentMetrics(client); err != nil {
-		return err
-	}
 	return nil
 }
 
