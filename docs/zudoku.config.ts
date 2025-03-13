@@ -1,5 +1,6 @@
 import type { ZudokuConfig } from "zudoku";
 import { HeadNavigation } from "./src/components/HeadNavigation";
+import { YamlConfig } from "./src/components/YamlConfig";
 import { htmlPlugin } from "./src/plugins/htmlPlugin";
 import process from "node:process";
 
@@ -24,6 +25,11 @@ const config: ZudokuConfig = {
     ],
     publisher: "Hookdeck Technologies Inc.",
   },
+  // theme: {
+  //   code: {
+  //     additionalLanguages: ["yaml"],
+  //   },
+  // },
   redirects: [
     { from: "/", to: "/overview" },
     { from: "/guides", to: "/guides/deployment" },
@@ -46,6 +52,11 @@ const config: ZudokuConfig = {
         dark: "https://outpost-docs.vercel.app/docs/logo/outpost-logo-white.svg",
       },
       width: "110px",
+    },
+  },
+  mdx: {
+    components: {
+      YamlConfig,
     },
   },
   topNavigation: [{ id: "docs", label: "Documentation", default: "overview" }],
