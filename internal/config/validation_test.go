@@ -13,7 +13,8 @@ func validConfig() *config.Config {
 	c.InitDefaults()
 
 	// Override only what's needed for validation
-	c.ClickHouse.Addr = "localhost:9000"
+	// c.ClickHouse.Addr = "localhost:9000"
+	c.PostgresURL = "postgres://postgres:postgres@localhost:5432/postgres"
 	c.MQs.RabbitMQ.ServerURL = "amqp://localhost:5672"
 	c.AESEncryptionSecret = "secret"
 

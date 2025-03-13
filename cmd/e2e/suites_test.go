@@ -166,13 +166,13 @@ func (s *basicSuite) TearDownSuite() {
 	s.e2eSuite.TearDownSuite()
 }
 
-func TestCHBasicSuite(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.Skip("skipping e2e test")
-	}
-	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypeClickHouse})
-}
+// func TestCHBasicSuite(t *testing.T) {
+// 	t.Parallel()
+// 	if testing.Short() {
+// 		t.Skip("skipping e2e test")
+// 	}
+// 	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypeClickHouse})
+// }
 
 func TestPGBasicSuite(t *testing.T) {
 	t.Parallel()

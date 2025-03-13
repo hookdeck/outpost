@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/logging"
 	"go.uber.org/zap"
@@ -150,20 +149,20 @@ func (t *telemetryImpl) sendBatch(batch []telemetryEvent) {
 }
 
 func (t *telemetryImpl) Init(ctx context.Context) {
-	if err := sentry.Init(sentry.ClientOptions{
-		Dsn:              t.config.SentryDSN,
-		EnableTracing:    true,
-		TracesSampleRate: 1, // FIXME
-		AttachStacktrace: true,
-	}); err != nil {
-		t.logger.Error("sentry initialization failed", zap.Error(err))
-	}
+	// if err := sentry.Init(sentry.ClientOptions{
+	// 	Dsn:              t.config.SentryDSN,
+	// 	EnableTracing:    true,
+	// 	TracesSampleRate: 1, // FIXME
+	// 	AttachStacktrace: true,
+	// }); err != nil {
+	// 	t.logger.Error("sentry initialization failed", zap.Error(err))
+	// }
 
-	sentry.ConfigureScope(func(scope *sentry.Scope) {
-		scope.SetContext("app", map[string]interface{}{
-			"installation_id": t.installationID,
-		})
-	})
+	// sentry.ConfigureScope(func(scope *sentry.Scope) {
+	// 	scope.SetContext("app", map[string]interface{}{
+	// 		"installation_id": t.installationID,
+	// 	})
+	// })
 
 	t.eventChan = make(chan telemetryEvent, t.config.BatchSize*10)
 	t.done = make(chan struct{})
@@ -184,9 +183,12 @@ func (t *telemetryImpl) Flush() {
 }
 
 func (t *telemetryImpl) MakeSentryHandler() gin.HandlerFunc {
-	return sentrygin.New(sentrygin.Options{
-		Repanic: true,
-	})
+	return func(c *gin.Context) {
+		c.Next()
+	}
+	// return sentrygin.New(sentrygin.Options{
+	// 	Repanic: true,
+	// })
 }
 
 func (t *telemetryImpl) ApplicationStarted(ctx context.Context, application ApplicationInfo) {
