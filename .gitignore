@@ -12,3 +12,6 @@
 
 # Misc
 .DS_Store
+
+# Scripted test runs
+test/runs
