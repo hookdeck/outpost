@@ -1,18 +1,24 @@
 TEST?=$$(go list ./...)
 
 up:
+	make up/deps
 	make up/outpost
-	make up/mqs
 
 down:
 	make down/outpost
-	make down/mqs
+	make down/deps
 
 up/outpost:
 	docker-compose -f build/dev/compose.yml --env-file .env up -d
 
 down/outpost:
 	docker-compose -f build/dev/compose.yml --env-file .env down
+
+up/deps:
+	docker-compose -f build/dev/deps/compose.yml up -d
+
+down/deps:
+	docker-compose -f build/dev/deps/compose.yml down
 
 up/mqs:
 	docker-compose -f build/dev/mqs/compose.yml up -d
