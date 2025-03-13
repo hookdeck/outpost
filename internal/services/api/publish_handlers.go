@@ -48,10 +48,9 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-// TODO: validation
 type PublishedEvent struct {
 	ID               string                 `json:"id"`
-	TenantID         string                 `json:"tenant_id"`
+	TenantID         string                 `json:"tenant_id" binding:"required"`
 	DestinationID    string                 `json:"destination_id"`
 	Topic            string                 `json:"topic"`
 	EligibleForRetry bool                   `json:"eligible_for_retry"`
