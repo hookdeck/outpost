@@ -1,6 +1,5 @@
 import type { ZudokuConfig } from "zudoku";
 import { HeadNavigation } from "./src/components/HeadNavigation";
-import { YamlConfig } from "./src/components/YamlConfig";
 import { htmlPlugin } from "./src/plugins/htmlPlugin";
 import process from "node:process";
 
@@ -54,11 +53,11 @@ const config: ZudokuConfig = {
       width: "110px",
     },
   },
-  mdx: {
-    components: {
-      YamlConfig,
-    },
-  },
+  // mdx: {
+  //   components: {
+  //     YamlConfig,
+  //   },
+  // },
   topNavigation: [{ id: "docs", label: "Documentation", default: "overview" }],
   sidebar: {
     docs: [
