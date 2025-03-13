@@ -45,7 +45,7 @@ up/test:
 	docker-compose -f build/test/compose.yml up -d
 
 down/test:
-	docker-compose -f build/test/compose.yml down
+	docker-compose -f build/test/compose.yml down --volumes
 
 test:
 	go test $(TEST) $(TESTARGS)
