@@ -92,7 +92,7 @@ Templates use the [Go template syntax](https://pkg.go.dev/text/template).
 | `disable_default_signature_header` | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | `false`                                                |
 | `disable_default_timestamp_header` | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | `false`                                                |
 | `disable_default_topic_header`     | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER`     | `false`                                                |
-| `signature_content_template`       | `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`       | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` |
+| `signature_content_template`       | `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`       | `{{.Timestamp.Unix}}.{{.Body}}`                        |
 | `signature_header_template`        | `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`        | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` |
 | `signature_encoding`               | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`               | `hex`                                                  |
 | `signature_algorithm`              | `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`              | `hmac-sha256`                                          |
@@ -117,10 +117,23 @@ For the full migration, you may need to:
 
 1. Notify your customers of scheduled maintainance ahead of time and again notify them when the maintenance begins and ends.
 2. Stop webhook subscriptions being created.
-3. Ensure any in-flight events are delivered before the migration begins.
+3. Ensure any in-flight events complete (either as delivered or a failed delivery) before the migration begins.
 4. Queue the publishing of any events. This works well if you are using a publish message queue with Outpost. If you are using the Outpost API to publish events, you will need to store the events to be triggered once the migration has completed.
 5. Follow the steps 1 - 4 in the test migration process.
 6. Begin delivering the paused events via Outpost.
+
+#### Migrating Historic Event Database
+
+To migrate your historical data to Outpost, you need to map your existing data structure to the Outpost schema.
+
+The Outpost schema contains two tables related to events:
+
+1. **events** - The events that Outpost has received to publish.
+2. **deliveries** - The delivery attempts of events to destinations.
+
+The following diagram shows the Outpost schema. You can connect to the database instance within your Outpost installation to inspect the schema further.
+
+![Event Destination Request List](/images/outpost-schema.png)
 
 #### Example Migration Script
 
