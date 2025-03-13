@@ -1,6 +1,10 @@
-## Outpost Documenation
+# Outpost Documentation
 
 Built with [Zudoku](https://zudoku.dev).
+
+## Architecture Diagram
+
+Source: https://drive.google.com/drive/folders/1o3ta0iW5XenRb65SPF0Gy9ShrSV4akn6?usp=drive_link
 
 ## Getting Started
 

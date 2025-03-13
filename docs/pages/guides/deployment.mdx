@@ -28,10 +28,22 @@ You can omit the `service` entry point to start all 3 services within the same p
 
 Since each service has different usage and performance profile, it's recommended that each service be operated and scaled independently.
 
-Resource (CPU & RAM) allocation recommendations for each service are as follows:
+![Outpost Architecture](/images/architecture.png)
 
-| Service      | CPU  | RAM   |
-| ------------ | ---- | ----- |
-| **Delivery** | 200m | 256Mi |
-| **API**      | 100m | 128Mi |
-| **Log**      | 100m | 128Mi |
+:::info
+
+Once we have completed [initial benchmarking](https://github.com/hookdeck/outpost/issues/207), we'll provide guidance on resource allocation based on expected usage and load.
+
+:::
+
+## Dependencies
+
+Outpost requires the following dependencies:
+
+- Redis
+- PostgreSQL
+- A log queue such as RabbitMQ or AWS SQS
+- A delivery queue such as RabbitMQ or AWS SQS
+- Optionally, a publish queue such as RabbitMQ or AWS SQS
+
+Each of these will need to be provisioned and allocated sufficient resources based on expected usage and load.
