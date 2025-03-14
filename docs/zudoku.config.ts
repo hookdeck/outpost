@@ -9,6 +9,7 @@ const ZUDOKU_PUBLIC_CUSTOM_HEAD_SCRIPT =
 const config: ZudokuConfig = {
   basePath: "/docs",
   metadata: {
+    favicon: "https://outpost.hookdeck.com/docs/icon.svg",
     title: "%s | Outpost",
     description:
       "Outpost is an open source, self-hostable implementation of Event Destinations, enabling event delivery to user-preferred destinations like Webhooks, Hookdeck, AWS SQS, RabbitMQ, Kafka, and more.",
