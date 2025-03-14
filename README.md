@@ -79,17 +79,12 @@ Create a `.env` file from the example:
 cp .env.example .env
 ```
 
-Update the `<API_KEY>` value within the new `.env` file.
-
-The `TOPICS` defined in the `.env` determine:
-
-- Which topics that destinations can subscribe to
-- The topics that can be published to
+Update the `$API_KEY` value within the new `.env` file.
 
 Start the Outpost dependencies and services:
 
 ```sh
-docker-compose -f compose.yml -f compose-rabbitmq.yml up
+docker-compose -f compose.yml -f compose-rabbitmq.yml -f compose-postgres.yml up
 ```
 
 Check the services are running:
@@ -100,38 +95,47 @@ curl localhost:3333/api/v1/healthz
 
 Wait until you get a `OK%` response.
 
-Create a tenant with the following command, replacing `<TENANT_ID>` with a unique identifier such as "your_org_name", and the `<API_KEY>` with the value you set in your `.env`:
+Create a tenant with the following command, replacing `$TENANT_ID` with a unique identifier such as "your_org_name", and the `$API_KEY` with the value you set in your `.env`:
+
+> [!TIP]  
+> You can use shell variables to store the tenant ID and API key for easier use in the following commands:
+> 
+> ```sh
+> TENANT_ID=your_org_name
+> API_KEY=your_api_key
+> URL=your_webhook_url
+> ```
 
 ```sh
-curl --location --request PUT 'localhost:3333/api/v1/<TENANT_ID>' \
---header 'Authorization: Bearer <API_KEY>'
+curl --location --request PUT "localhost:3333/api/v1/$TENANT_ID \
+--header 'Authorization: Bearer $API_KEY'
 ```
 
 Run a local server exposed via a localtunnel or use a hosted service such as the [Hookdeck Console](https://console.hookdeck.com?ref=github-outpost) to capture webhook events.
 
-Create a webhook destination where events will be delivered to with the following command. Again, replace `<TENANT_ID>` and `<API_KEY>`. Also, replace `<URL>` with the webhook destinations URL:
+Create a webhook destination where events will be delivered to with the following command. Again, replace `$TENANT_ID` and `$API_KEY`. Also, replace `$URL` with the webhook destinations URL:
 
 ```sh
-curl --location 'localhost:3333/api/v1/<TENANT_ID>/destinations' \
---header 'Content-Type: application/json' \
---header 'Authorization: Bearer <API_KEY>' \
+curl --location "localhost:3333/api/v1/$TENANT_ID/destinations" \
+--header "Content-Type: application/json" \
+--header "Authorization: Bearer $API_KEY" \
 --data '{
     "type": "webhook",
     "topics": ["*"],
     "config": {
-        "url": "<URL>"
+        "url": "'"$URL"'"
     }
 }'
 ```
 
-Publish an event, remembering to replace `<API_KEY>` and `<TENANT_ID>`:
+Publish an event, remembering to replace `$API_KEY` and `$TENANT_ID`:
 
 ```sh
-curl --location 'localhost:3333/api/v1/publish' \
---header 'Content-Type: application/json' \
---header 'Authorization: Bearer <API_KEY>' \
+curl --location "localhost:3333/api/v1/publish" \
+--header "Content-Type: application/json" \
+--header "Authorization: Bearer $API_KEY" \
 --data '{
-    "tenant_id": "<TENANT_ID>",
+    "tenant_id": "'"$TENANT_ID"'",
     "topic": "user.created",
     "eligible_for_retry": true,
     "metadata": {
@@ -144,6 +148,27 @@ curl --location 'localhost:3333/api/v1/publish' \
 ```
 
 Check the logs on your server or your webhook capture tool for the delivered event.
+
+Get an Outpost portal link for the tenant:
+
+```sh
+curl "localhost:3333/api/v1/$TENANT_ID/portal" \
+--header "Authorization: Bearer $API_KEY"
+```
+
+The response will look something like the following:
+
+```json
+{ "redirect_url": "http://localhost:3333?token=$TOKEN" }
+```
+
+The `token` value is an API-generated JWT.
+
+Open the `redirect_url` link to view the Outpost portal.
+
+![Dashboard homepage](docs/public/images/dashboard-homepage.png)
+
+Continue to use the [Outpost API](https://outpost.hookdeck.com/docs/references/api) or the Outpost portal to add and test more destinations.
 
 ## Documentation
 
