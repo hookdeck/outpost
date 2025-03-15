@@ -10,7 +10,8 @@
     "migrate": "esrun src/migrate.ts",
     "publish-test": "esrun src/publish-test.ts",
     "verify": "esrun src/verify-signature.ts",
-    "portal-urls": "esrun src/portal-urls.ts"
+    "portal-urls": "esrun src/portal-urls.ts",
+    "create-tenant": "esrun src/create-tenant.ts"
   },
   "engines": {
     "node": ">=20.6.0"

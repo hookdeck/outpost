@@ -42,8 +42,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
 
-      a,
-      button {
+      > * {
         text-decoration: none;
         color: var(--colors-foreground-neutral);
         font-size: var(--font-size-m);
