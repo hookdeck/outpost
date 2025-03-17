@@ -2,7 +2,6 @@ package api
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -73,7 +72,6 @@ func (h *DestinationHandlers) List(c *gin.Context) {
 func (h *DestinationHandlers) Create(c *gin.Context) {
 	var input CreateDestinationRequest
 	if err := c.ShouldBindJSON(&input); err != nil {
-		log.Println(err)
 		AbortWithValidationError(c, err)
 		return
 	}
