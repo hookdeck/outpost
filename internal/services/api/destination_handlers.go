@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -72,6 +73,7 @@ func (h *DestinationHandlers) List(c *gin.Context) {
 func (h *DestinationHandlers) Create(c *gin.Context) {
 	var input CreateDestinationRequest
 	if err := c.ShouldBindJSON(&input); err != nil {
+		log.Println(err)
 		AbortWithValidationError(c, err)
 		return
 	}
@@ -313,7 +315,7 @@ type CreateDestinationRequest struct {
 	ID          string             `json:"id" binding:"-"`
 	Type        string             `json:"type" binding:"required"`
 	Topics      models.Topics      `json:"topics" binding:"required"`
-	Config      map[string]string  `json:"config" binding:"required"`
+	Config      models.Config      `json:"config" binding:"required"`
 	Credentials models.Credentials `json:"credentials" binding:"-"`
 }
 
@@ -340,7 +342,7 @@ func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destina
 type UpdateDestinationRequest struct {
 	Type        string             `json:"type" binding:"-"`
 	Topics      models.Topics      `json:"topics" binding:"-"`
-	Config      map[string]string  `json:"config" binding:"-"`
+	Config      models.Config      `json:"config" binding:"-"`
 	Credentials models.Credentials `json:"credentials" binding:"-"`
 }
 

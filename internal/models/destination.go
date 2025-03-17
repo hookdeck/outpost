@@ -164,38 +164,27 @@ func TopicsFromString(s string) Topics {
 	return Topics(strings.Split(s, ","))
 }
 
-type Config map[string]string
+type Config = MapStringString
+type Credentials = MapStringString
+type MapStringString map[string]string
 
-var _ encoding.BinaryMarshaler = &Config{}
-var _ encoding.BinaryUnmarshaler = &Config{}
+var _ encoding.BinaryMarshaler = &MapStringString{}
+var _ encoding.BinaryUnmarshaler = &MapStringString{}
+var _ json.Unmarshaler = &MapStringString{}
 
-func (c *Config) MarshalBinary() ([]byte, error) {
-	return json.Marshal(c)
+func (m *MapStringString) MarshalBinary() ([]byte, error) {
+	return json.Marshal(m)
 }
 
-func (c *Config) UnmarshalBinary(data []byte) error {
-	return json.Unmarshal(data, c)
+func (m *MapStringString) UnmarshalBinary(data []byte) error {
+	return json.Unmarshal(data, m)
 }
 
-type Credentials map[string]string
-
-var _ encoding.BinaryMarshaler = &Credentials{}
-var _ encoding.BinaryUnmarshaler = &Credentials{}
-var _ json.Unmarshaler = &Credentials{}
-
-func (c *Credentials) MarshalBinary() ([]byte, error) {
-	return json.Marshal(c)
-}
-
-func (c *Credentials) UnmarshalBinary(data []byte) error {
-	return json.Unmarshal(data, c)
-}
-
-func (c *Credentials) UnmarshalJSON(data []byte) error {
+func (m *MapStringString) UnmarshalJSON(data []byte) error {
 	// First try to unmarshal as map[string]string
 	var stringMap map[string]string
 	if err := json.Unmarshal(data, &stringMap); err == nil {
-		*c = stringMap
+		*m = stringMap
 		return nil
 	}
 
@@ -227,6 +216,6 @@ func (c *Credentials) UnmarshalJSON(data []byte) error {
 		}
 	}
 
-	*c = result
+	*m = result
 	return nil
 }
