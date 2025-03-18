@@ -1,0 +1,14 @@
+name: outpost-publish-queues
+services:
+  publish_rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - 5673:5673
+      - 15673:15673
+    volumes:
+      - ./data/publish-rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics check_port_connectivity
+      interval: 1s
+      timeout: 1s
+      retries: 30

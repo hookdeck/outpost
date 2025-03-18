@@ -1,6 +1,6 @@
 # AWS SQS Configuration Instructions
 
-Basic setup instructions for aws sqs destination.
+Basic setup instructions for AWS SQS destination.
 
 ## Using AWS CLI
 

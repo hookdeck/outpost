@@ -1,3 +1,3 @@
-# RABBITMQ Configuration Instructions
+# RabbitMQ Configuration Instructions
 
 Basic setup instructions for rabbitmq destination.
