@@ -44,6 +44,10 @@ const DestinationConfigFields = ({
     }
   }, [lastUnlockedField]);
 
+  console.log(type);
+  console.log(destination);
+  console.log(unlockedFields);
+
   return (
     <>
       {type.instructions && (
@@ -78,7 +82,7 @@ const DestinationConfigFields = ({
                     ? unlockedFields[field.key]
                       ? ""
                       : destination?.credentials[field.key] || ""
-                    : destination?.config[field.key] || ""
+                    : destination?.config[field.key] || destination?.credentials[field.key] || ""
                 }
                 disabled={
                   "sensitive" in field && field.sensitive
