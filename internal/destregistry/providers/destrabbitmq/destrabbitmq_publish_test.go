@@ -142,6 +142,7 @@ func (s *RabbitMQPublishSuite) SetupSuite() {
 			"server_url":  testutil.ExtractRabbitURL(mqConfig.RabbitMQ.ServerURL),
 			"exchange":    mqConfig.RabbitMQ.Exchange,
 			"routing_key": mqConfig.RabbitMQ.Queue,
+			// "tls":         "false", // should default to false if omitted
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
 			"username": testutil.ExtractRabbitUsername(mqConfig.RabbitMQ.ServerURL),

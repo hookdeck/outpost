@@ -4,6 +4,7 @@ interface ConfigField {
   description: string;
   key: string;
   required: boolean;
+  default?: string;
   disabled?: boolean;
   min?: number;
   max?: number;

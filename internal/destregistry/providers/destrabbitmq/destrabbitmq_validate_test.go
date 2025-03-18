@@ -1,6 +1,8 @@
 package destrabbitmq_test
 
 import (
+	"context"
+	"maps"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -31,14 +33,16 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 
 	t.Run("should validate valid destination", func(t *testing.T) {
 		t.Parallel()
-		assert.NoError(t, rabbitmqDestination.Validate(nil, &validDestination))
+		assert.NoError(t, rabbitmqDestination.Validate(context.Background(), &validDestination))
 	})
 
 	t.Run("should validate invalid type", func(t *testing.T) {
 		t.Parallel()
-		invalidDestination := validDestination
-		invalidDestination.Type = "invalid"
-		err := rabbitmqDestination.Validate(nil, &invalidDestination)
+		dest := validDestination
+		dest.Config = maps.Clone(validDestination.Config)
+		dest.Credentials = maps.Clone(validDestination.Credentials)
+		dest.Type = "invalid"
+		err := rabbitmqDestination.Validate(context.Background(), &dest)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "type", validationErr.Errors[0].Field)
@@ -47,23 +51,24 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 
 	t.Run("should validate missing credentials", func(t *testing.T) {
 		t.Parallel()
-		invalidDestination := validDestination
-		invalidDestination.Credentials = map[string]string{}
-		err := rabbitmqDestination.Validate(nil, &invalidDestination)
+		dest := validDestination
+		dest.Config = maps.Clone(validDestination.Config)
+		dest.Credentials = map[string]string{}
+		err := rabbitmqDestination.Validate(context.Background(), &dest)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
-		// Could be either username or password that's reported first
 		assert.Contains(t, []string{"credentials.username", "credentials.password"}, validationErr.Errors[0].Field)
 		assert.Equal(t, "required", validationErr.Errors[0].Type)
 	})
 
 	t.Run("should validate missing server_url", func(t *testing.T) {
 		t.Parallel()
-		invalidDestination := validDestination
-		invalidDestination.Config = map[string]string{
+		dest := validDestination
+		dest.Config = map[string]string{
 			"exchange": "test-exchange",
 		}
-		err := rabbitmqDestination.Validate(nil, &invalidDestination)
+		dest.Credentials = maps.Clone(validDestination.Credentials)
+		err := rabbitmqDestination.Validate(context.Background(), &dest)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.server_url", validationErr.Errors[0].Field)
@@ -72,12 +77,13 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 
 	t.Run("should validate malformed server_url", func(t *testing.T) {
 		t.Parallel()
-		invalidDestination := validDestination
-		invalidDestination.Config = map[string]string{
+		dest := validDestination
+		dest.Config = map[string]string{
 			"server_url": "not-a-valid-url",
 			"exchange":   "test-exchange",
 		}
-		err := rabbitmqDestination.Validate(nil, &invalidDestination)
+		dest.Credentials = maps.Clone(validDestination.Credentials)
+		err := rabbitmqDestination.Validate(context.Background(), &dest)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.server_url", validationErr.Errors[0].Field)
@@ -86,45 +92,49 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 
 	t.Run("should validate valid destination without exchange", func(t *testing.T) {
 		t.Parallel()
-		validDestWithoutExchange := validDestination
-		validDestWithoutExchange.Config = map[string]string{
+		dest := validDestination
+		dest.Config = map[string]string{
 			"server_url":  "localhost:5672",
 			"routing_key": "test.key",
 		}
-		assert.NoError(t, rabbitmqDestination.Validate(nil, &validDestWithoutExchange))
+		dest.Credentials = maps.Clone(validDestination.Credentials)
+		assert.NoError(t, rabbitmqDestination.Validate(context.Background(), &dest))
 	})
 
 	t.Run("should validate empty routing_key as valid", func(t *testing.T) {
 		t.Parallel()
-		validDestWithEmptyRoutingKey := validDestination
-		validDestWithEmptyRoutingKey.Config = map[string]string{
+		dest := validDestination
+		dest.Config = map[string]string{
 			"server_url":  "localhost:5672",
 			"exchange":    "test-exchange",
 			"routing_key": "",
 		}
-		assert.NoError(t, rabbitmqDestination.Validate(nil, &validDestWithEmptyRoutingKey))
+		dest.Credentials = maps.Clone(validDestination.Credentials)
+		assert.NoError(t, rabbitmqDestination.Validate(context.Background(), &dest))
 	})
 
 	t.Run("should validate empty exchange as valid", func(t *testing.T) {
 		t.Parallel()
-		validDestWithEmptyExchange := validDestination
-		validDestWithEmptyExchange.Config = map[string]string{
+		dest := validDestination
+		dest.Config = map[string]string{
 			"server_url":  "localhost:5672",
 			"exchange":    "",
 			"routing_key": "test.key",
 		}
-		assert.NoError(t, rabbitmqDestination.Validate(nil, &validDestWithEmptyExchange))
+		dest.Credentials = maps.Clone(validDestination.Credentials)
+		assert.NoError(t, rabbitmqDestination.Validate(context.Background(), &dest))
 	})
 
 	t.Run("should validate empty exchange and routing_key as invalid", func(t *testing.T) {
 		t.Parallel()
-		invalidDest := validDestination
-		invalidDest.Config = map[string]string{
+		dest := validDestination
+		dest.Config = map[string]string{
 			"server_url":  "localhost:5672",
 			"exchange":    "",
 			"routing_key": "",
 		}
-		err := rabbitmqDestination.Validate(nil, &invalidDest)
+		dest.Credentials = maps.Clone(validDestination.Credentials)
+		err := rabbitmqDestination.Validate(context.Background(), &dest)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Len(t, validationErr.Errors, 2)
@@ -132,6 +142,77 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		assert.Equal(t, "either_required", validationErr.Errors[0].Type)
 		assert.Equal(t, "config.routing_key", validationErr.Errors[1].Field)
 		assert.Equal(t, "either_required", validationErr.Errors[1].Type)
+	})
+
+	t.Run("should validate tls config values", func(t *testing.T) {
+		t.Parallel()
+		testCases := []struct {
+			name        string
+			tlsValue    string
+			shouldError bool
+		}{
+			{
+				name:        "valid true value ('true')",
+				tlsValue:    "true",
+				shouldError: false,
+			},
+			{
+				name:        "valid true value ('on')",
+				tlsValue:    "on",
+				shouldError: false,
+			},
+			{
+				name:        "valid false value",
+				tlsValue:    "false",
+				shouldError: false,
+			},
+			{
+				name:        "invalid value",
+				tlsValue:    "yes",
+				shouldError: true,
+			},
+			{
+				name:        "empty value",
+				tlsValue:    "",
+				shouldError: true,
+			},
+			{
+				name:        "case sensitive True",
+				tlsValue:    "True",
+				shouldError: true,
+			},
+		}
+
+		for _, tc := range testCases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				dest := validDestination
+				dest.Config = maps.Clone(validDestination.Config)
+				dest.Credentials = maps.Clone(validDestination.Credentials)
+				dest.Config["tls"] = tc.tlsValue
+				err := rabbitmqDestination.Validate(context.Background(), &dest)
+				if tc.shouldError {
+					var validationErr *destregistry.ErrDestinationValidation
+					if !assert.ErrorAs(t, err, &validationErr) {
+						return
+					}
+					assert.Equal(t, "config.tls", validationErr.Errors[0].Field)
+					assert.Equal(t, "invalid", validationErr.Errors[0].Type)
+				} else {
+					assert.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("should allow tls to be omitted", func(t *testing.T) {
+		t.Parallel()
+		dest := validDestination
+		dest.Config = maps.Clone(validDestination.Config)
+		dest.Credentials = maps.Clone(validDestination.Credentials)
+		delete(dest.Config, "tls")
+		assert.NoError(t, rabbitmqDestination.Validate(context.Background(), &dest))
 	})
 }
 

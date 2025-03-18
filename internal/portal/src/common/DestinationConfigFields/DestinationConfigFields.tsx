@@ -81,8 +81,8 @@ const DestinationConfigFields = ({
                   "sensitive" in field && field.sensitive
                     ? unlockedFields[field.key]
                       ? ""
-                      : destination?.credentials[field.key] || ""
-                    : destination?.config[field.key] || destination?.credentials[field.key] || ""
+                      : destination?.credentials[field.key] || field.default
+                    : destination?.config[field.key] || destination?.credentials[field.key] || field.default
                 }
                 disabled={
                   "sensitive" in field && field.sensitive
@@ -115,6 +115,7 @@ const DestinationConfigFields = ({
               defaultChecked={
                 destination?.config[field.key] ??
                 destination?.credentials[field.key] ??
+                field.default == "on" ??
                 false
               }
               disabled={field.disabled}

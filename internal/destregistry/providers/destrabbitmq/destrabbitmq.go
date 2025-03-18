@@ -20,6 +20,7 @@ type RabbitMQDestinationConfig struct {
 	ServerURL  string // TODO: consider renaming
 	Exchange   string
 	RoutingKey string
+	UseTLS     bool
 }
 
 type RabbitMQDestinationCredentials struct {
@@ -38,13 +39,24 @@ func New(loader metadata.MetadataLoader) (*RabbitMQDestination, error) {
 }
 
 func (d *RabbitMQDestination) Validate(ctx context.Context, destination *models.Destination) error {
-	config, _, err := d.resolveMetadata(ctx, destination)
-	if err != nil {
+	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
 		return err
 	}
 
+	// Validate TLS config if provided
+	if tlsStr, ok := destination.Config["tls"]; ok {
+		if tlsStr != "on" && tlsStr != "true" && tlsStr != "false" {
+			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "config.tls",
+					Type:  "invalid",
+				},
+			})
+		}
+	}
+
 	// At least one of exchange or routing_key must be non-empty
-	if config.Exchange == "" && config.RoutingKey == "" {
+	if destination.Config["exchange"] == "" && destination.Config["routing_key"] == "" {
 		return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
 			{
 				Field: "config.exchange",
@@ -74,18 +86,40 @@ func (d *RabbitMQDestination) CreatePublisher(ctx context.Context, destination *
 }
 
 func (d *RabbitMQDestination) resolveMetadata(ctx context.Context, destination *models.Destination) (*RabbitMQDestinationConfig, *RabbitMQDestinationCredentials, error) {
-	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
+	if err := d.Validate(ctx, destination); err != nil {
 		return nil, nil, err
+	}
+
+	useTLS := false // default to false if omitted
+	if tlsStr, ok := destination.Config["tls"]; ok {
+		useTLS = tlsStr == "true" || tlsStr == "on"
 	}
 
 	return &RabbitMQDestinationConfig{
 			ServerURL:  destination.Config["server_url"],
 			Exchange:   destination.Config["exchange"],
 			RoutingKey: destination.Config["routing_key"],
+			UseTLS:     useTLS,
 		}, &RabbitMQDestinationCredentials{
 			Username: destination.Credentials["username"],
 			Password: destination.Credentials["password"],
 		}, nil
+}
+
+// Preprocess sets the default TLS value to "true" if not provided
+func (d *RabbitMQDestination) Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {
+	if newDestination.Config == nil {
+		return nil
+	}
+	if newDestination.Config["tls"] == "on" {
+		newDestination.Config["tls"] = "true"
+	} else if newDestination.Config["tls"] == "" {
+		newDestination.Config["tls"] = "false" // default to false if omitted
+	}
+	if _, _, err := d.resolveMetadata(context.Background(), newDestination); err != nil {
+		return err
+	}
+	return nil
 }
 
 type RabbitMQPublisher struct {
@@ -202,42 +236,11 @@ func (p *RabbitMQPublisher) ensureConnection(_ context.Context) error {
 }
 
 func rabbitURL(config *RabbitMQDestinationConfig, credentials *RabbitMQDestinationCredentials) string {
-	return "amqp://" + credentials.Username + ":" + credentials.Password + "@" + config.ServerURL
-}
-
-func publishEvent(ctx context.Context, url string, exchange string, event *models.Event) error {
-	dataBytes, err := json.Marshal(event.Data)
-	if err != nil {
-		return err
+	scheme := "amqp"
+	if config.UseTLS {
+		scheme = "amqps"
 	}
-
-	conn, err := amqp091.Dial(url)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	ch, err := conn.Channel()
-	if err != nil {
-		return err
-	}
-	defer ch.Close()
-
-	headers := make(amqp091.Table)
-	for k, v := range event.Metadata {
-		headers[k] = v
-	}
-
-	return ch.PublishWithContext(ctx,
-		exchange, // exchange
-		"",       // routing key
-		false,    // mandatory
-		false,    // immediate
-		amqp091.Publishing{
-			ContentType: "application/json",
-			Headers:     headers,
-			Body:        []byte(dataBytes),
-		},
-	)
+	return fmt.Sprintf("%s://%s:%s@%s", scheme, credentials.Username, credentials.Password, config.ServerURL)
 }
 
 // ===== TEST HELPERS =====

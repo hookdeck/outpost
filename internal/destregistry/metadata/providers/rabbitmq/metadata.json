@@ -22,6 +22,13 @@
       "label": "Routing Key",
       "description": "The routing key for message routing",
       "required": false
+    },
+    {
+      "key": "tls",
+      "type": "checkbox",
+      "label": "TLS",
+      "description": "Enable TLS for the connection",
+      "default": "on"
     }
   ],
   "credential_fields": [
