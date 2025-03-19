@@ -232,3 +232,13 @@ func (s *logStoreImpl) InsertManyDelivery(ctx context.Context, deliveries []*mod
 
 	return nil
 }
+
+func (s *logStoreImpl) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents []*models.DeliveryEvent) error {
+	// TODO: implement
+	return nil
+}
+
+func (s *logStoreImpl) RetrieveEventByDestination(ctx context.Context, tenantID, destinationID, eventID string) (*models.Event, error) {
+	// TODO: implement
+	return nil, nil
+}

@@ -374,6 +374,28 @@ func NewRouter(
 				RequireTenantMiddleware(entityStore),
 			},
 		},
+		{
+			Method:             http.MethodGet,
+			Path:               "/:tenantID/destinations/:destinationID/events",
+			Handler:            logHandlers.ListEventByDestination,
+			AuthScope:          AuthScopeAdminOrTenant,
+			Mode:               RouteModeAlways,
+			AllowTenantFromJWT: true,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+		{
+			Method:             http.MethodGet,
+			Path:               "/:tenantID/destinations/:destinationID/events/:eventID",
+			Handler:            logHandlers.RetrieveEventByDestination,
+			AuthScope:          AuthScopeAdminOrTenant,
+			Mode:               RouteModeAlways,
+			AllowTenantFromJWT: true,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
 
 		// Retry routes
 		{

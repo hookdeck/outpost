@@ -2,6 +2,7 @@ package drivertest
 
 import (
 	"context"
+	"log"
 	"strconv"
 	"testing"
 	"time"
@@ -53,7 +54,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 	destinationEvents := map[string][]*models.Event{}
 	statusEvents := map[string][]*models.Event{}
 	destinationStatusEvents := map[string]map[string][]*models.Event{}
-	deliveries := []*models.Delivery{}
+	deliveryEvents := []*models.DeliveryEvent{}
 	events := []*models.Event{}
 	baseTime := time.Now()
 	for i := 0; i < 20; i++ {
@@ -61,63 +62,64 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 		shouldSucceed := i%2 == 0
 		shouldRetry := i%3 == 0
 
-		events = append(events,
-			testutil.EventFactory.AnyPointer(
-				testutil.EventFactory.WithTenantID(tenantID),
-				testutil.EventFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Second)),
-				testutil.EventFactory.WithDestinationID(destinationID),
-				testutil.EventFactory.WithEligibleForRetry(shouldRetry),
-				testutil.EventFactory.WithMetadata(map[string]string{
-					"index": strconv.Itoa(i),
-				}),
-			),
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Second)),
+			testutil.EventFactory.WithDestinationID(destinationID),
+			testutil.EventFactory.WithEligibleForRetry(shouldRetry),
+			testutil.EventFactory.WithMetadata(map[string]string{
+				"index": strconv.Itoa(i),
+			}),
 		)
-		destinationEvents[destinationID] = append(destinationEvents[destinationID], events[i])
+		events = append(events, event)
+		destinationEvents[destinationID] = append(destinationEvents[destinationID], event)
 		if _, ok := destinationStatusEvents[destinationID]; !ok {
 			destinationStatusEvents[destinationID] = map[string][]*models.Event{}
 		}
 
-		eventDeliveries := []*models.Delivery{}
+		var delivery *models.Delivery
 		if shouldRetry {
-			eventDeliveries = append(eventDeliveries,
-				testutil.DeliveryFactory.AnyPointer(
-					testutil.DeliveryFactory.WithEventID(events[i].ID),
-					testutil.DeliveryFactory.WithDestinationID(destinationID),
-					testutil.DeliveryFactory.WithStatus("failed"),
-				),
+			delivery = testutil.DeliveryFactory.AnyPointer(
+				testutil.DeliveryFactory.WithEventID(event.ID),
+				testutil.DeliveryFactory.WithDestinationID(destinationID),
+				testutil.DeliveryFactory.WithStatus("failed"),
 			)
-		}
-		if shouldSucceed {
-			statusEvents["success"] = append(statusEvents["success"], events[i])
-			destinationStatusEvents[destinationID]["success"] = append(destinationStatusEvents[destinationID]["success"], events[i])
-			eventDeliveries = append(eventDeliveries,
-				testutil.DeliveryFactory.AnyPointer(
-					testutil.DeliveryFactory.WithEventID(events[i].ID),
-					testutil.DeliveryFactory.WithDestinationID(destinationID),
-					testutil.DeliveryFactory.WithStatus("success"),
-				))
-		} else {
-			statusEvents["failed"] = append(statusEvents["failed"], events[i])
-			destinationStatusEvents[destinationID]["failed"] = append(destinationStatusEvents[destinationID]["failed"], events[i])
-			eventDeliveries = append(eventDeliveries,
-				testutil.DeliveryFactory.AnyPointer(
-					testutil.DeliveryFactory.WithEventID(events[i].ID),
-					testutil.DeliveryFactory.WithDestinationID(destinationID),
-					testutil.DeliveryFactory.WithStatus("failed"),
-				))
+			deliveryEvents = append(deliveryEvents, &models.DeliveryEvent{
+				ID:            uuid.New().String(),
+				DestinationID: destinationID,
+				Event:         *event,
+				Delivery:      delivery,
+			})
 		}
 
-		deliveries = append(deliveries, eventDeliveries...)
+		if shouldSucceed {
+			statusEvents["success"] = append(statusEvents["success"], event)
+			destinationStatusEvents[destinationID]["success"] = append(destinationStatusEvents[destinationID]["success"], event)
+			delivery = testutil.DeliveryFactory.AnyPointer(
+				testutil.DeliveryFactory.WithEventID(event.ID),
+				testutil.DeliveryFactory.WithDestinationID(destinationID),
+				testutil.DeliveryFactory.WithStatus("success"),
+			)
+		} else {
+			statusEvents["failed"] = append(statusEvents["failed"], event)
+			destinationStatusEvents[destinationID]["failed"] = append(destinationStatusEvents[destinationID]["failed"], event)
+			delivery = testutil.DeliveryFactory.AnyPointer(
+				testutil.DeliveryFactory.WithEventID(event.ID),
+				testutil.DeliveryFactory.WithDestinationID(destinationID),
+				testutil.DeliveryFactory.WithStatus("failed"),
+			)
+		}
+
+		deliveryEvents = append(deliveryEvents, &models.DeliveryEvent{
+			ID:            uuid.New().String(),
+			DestinationID: destinationID,
+			Event:         *event,
+			Delivery:      delivery,
+		})
 	}
 
 	// Setup | Insert
-	t.Run("insert many event", func(t *testing.T) {
-		assert.NoError(t, logStore.InsertManyEvent(ctx, events))
-	})
-
-	t.Run("insert many delivery", func(t *testing.T) {
-		assert.NoError(t, logStore.InsertManyDelivery(ctx, deliveries))
-	})
+	require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, deliveryEvents))
 
 	// Queries
 	t.Run("base queries", func(t *testing.T) {
@@ -164,6 +166,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 	t.Run("query by destinations", func(t *testing.T) {
 		var cursor string
 		t.Run("list event with destination filter", func(t *testing.T) {
+			log.Println("list event destination", "nextCursor")
 			queriedEvents, nextCursor, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID:       tenantID,
 				DestinationIDs: []string{destinationIDs[0]},
@@ -175,6 +178,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			for i := 0; i < 3; i++ {
 				require.Equal(t, destinationEvents[destinationIDs[0]][i].ID, queriedEvents[i].ID)
 			}
+			t.Logf("cursor: %s", nextCursor)
 			cursor = nextCursor
 		})
 
@@ -239,11 +243,13 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.Len(t, queriedEvents, 5)
 			for i := 0; i < 5; i++ {
 				require.Equal(t, statusEvents["success"][i].ID, queriedEvents[i].ID)
+				require.Equal(t, "success", queriedEvents[i].Status)
 			}
 			cursor = nextCursor
 		})
 
 		t.Run("list event with status filter and cursor", func(t *testing.T) {
+			log.Println("list event success")
 			queriedEvents, _, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID: tenantID,
 				Status:   "success",
@@ -254,7 +260,9 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.Len(t, queriedEvents, 5)
 			for i := 0; i < 5; i++ {
 				require.Equal(t, statusEvents["success"][5+i].ID, queriedEvents[i].ID)
+				require.Equal(t, "success", queriedEvents[i].Status)
 			}
+			log.Println("list event success works")
 		})
 
 		t.Run("list event with status filter (failed)", func(t *testing.T) {
@@ -266,7 +274,20 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.Len(t, queriedEvents, len(statusEvents["failed"]))
 			for i := 0; i < len(statusEvents["failed"]); i++ {
 				require.Equal(t, statusEvents["failed"][i].ID, queriedEvents[i].ID)
+				require.Equal(t, "failed", queriedEvents[i].Status)
 			}
+		})
+
+		t.Run("retrieve event status", func(t *testing.T) {
+			// Test success case
+			event, err := logStore.RetrieveEvent(ctx, tenantID, statusEvents["success"][0].ID)
+			require.NoError(t, err)
+			require.Equal(t, "success", event.Status)
+
+			// Test failed case
+			event, err = logStore.RetrieveEvent(ctx, tenantID, statusEvents["failed"][0].ID)
+			require.NoError(t, err)
+			require.Equal(t, "failed", event.Status)
 		})
 	})
 
@@ -316,23 +337,27 @@ func testIntegrationLogStore_DeliveryCRUD(t *testing.T, newHarness HarnessMaker)
 	require.NoError(t, err)
 
 	event := testutil.EventFactory.Any()
-	require.NoError(t, logStore.InsertManyEvent(ctx, []*models.Event{&event}))
-
-	deliveries := []*models.Delivery{}
+	deliveryEvents := []*models.DeliveryEvent{}
 	baseTime := time.Now()
 	for i := 0; i < 20; i++ {
-		deliveries = append(deliveries, &models.Delivery{
+		delivery := &models.Delivery{
 			ID:              uuid.New().String(),
 			EventID:         event.ID,
 			DeliveryEventID: uuid.New().String(),
 			DestinationID:   uuid.New().String(),
 			Status:          "success",
 			Time:            baseTime.Add(-time.Duration(i) * time.Second),
+		}
+		deliveryEvents = append(deliveryEvents, &models.DeliveryEvent{
+			ID:            delivery.ID,
+			DestinationID: delivery.DestinationID,
+			Event:         event,
+			Delivery:      delivery,
 		})
 	}
 
 	t.Run("insert many delivery", func(t *testing.T) {
-		require.NoError(t, logStore.InsertManyDelivery(ctx, deliveries))
+		require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, deliveryEvents))
 	})
 
 	t.Run("list delivery empty", func(t *testing.T) {
@@ -348,9 +373,9 @@ func testIntegrationLogStore_DeliveryCRUD(t *testing.T, newHarness HarnessMaker)
 			EventID: event.ID,
 		})
 		require.NoError(t, err)
-		assert.Len(t, queriedDeliveries, len(deliveries))
-		for i := 0; i < len(deliveries); i++ {
-			assert.Equal(t, deliveries[i].ID, queriedDeliveries[i].ID)
+		assert.Len(t, queriedDeliveries, len(deliveryEvents))
+		for i := 0; i < len(deliveryEvents); i++ {
+			assert.Equal(t, deliveryEvents[i].Delivery.ID, queriedDeliveries[i].ID)
 		}
 	})
 }

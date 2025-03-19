@@ -78,6 +78,12 @@ func (f *mockEventFactory) WithTime(time time.Time) func(*models.Event) {
 	}
 }
 
+func (f *mockEventFactory) WithStatus(status string) func(*models.Event) {
+	return func(event *models.Event) {
+		event.Status = status
+	}
+}
+
 func (f *mockEventFactory) WithMetadata(metadata map[string]string) func(*models.Event) {
 	return func(event *models.Event) {
 		event.Metadata = metadata

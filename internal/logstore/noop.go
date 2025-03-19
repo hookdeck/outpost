@@ -20,14 +20,14 @@ func (l *noopLogStore) RetrieveEvent(ctx context.Context, tenantID, eventID stri
 	return nil, nil
 }
 
+func (l *noopLogStore) RetrieveEventByDestination(ctx context.Context, tenantID, destinationID, eventID string) (*models.Event, error) {
+	return nil, nil
+}
+
 func (l *noopLogStore) ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*models.Delivery, error) {
 	return nil, nil
 }
 
-func (l *noopLogStore) InsertManyEvent(ctx context.Context, events []*models.Event) error {
-	return nil
-}
-
-func (l *noopLogStore) InsertManyDelivery(ctx context.Context, deliveries []*models.Delivery) error {
+func (l *noopLogStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents []*models.DeliveryEvent) error {
 	return nil
 }

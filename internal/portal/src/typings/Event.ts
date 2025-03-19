@@ -1,9 +1,10 @@
 interface Event {
   id: string;
+  tenant_id: string;
   destination_id: string;
   topic: string;
   time: Date;
-  successful_at: Date;
+  status: "success" | "failed" | "pending";
   metadata: any;
   data: any;
 }
@@ -14,7 +15,4 @@ interface EventListResponse {
   previous?: string;
 }
 
-export type {
-  Event,
-  EventListResponse
-};
+export type { Event, EventListResponse };

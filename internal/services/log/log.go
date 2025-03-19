@@ -170,50 +170,15 @@ func makeBatcher(ctx context.Context, logger *logging.Logger, logStore logstore.
 				deliveryEvents = append(deliveryEvents, &deliveryEvent)
 			}
 
-			// Deduplicate events by event.ID
-			uniqueEvents := make([]*models.Event, 0, len(deliveryEvents))
-			seenEvents := make(map[string]struct{})
-			for _, deliveryEvent := range deliveryEvents {
-				event := deliveryEvent.Event
-				if _, exists := seenEvents[event.ID]; !exists {
-					seenEvents[event.ID] = struct{}{}
-					uniqueEvents = append(uniqueEvents, &event)
-				}
-			}
-
-			err := logStore.InsertManyEvent(ctx, uniqueEvents)
-			if err != nil {
-				logger.Error("failed to insert events",
+			if err := logStore.InsertManyDeliveryEvent(ctx, deliveryEvents); err != nil {
+				logger.Error("failed to insert delivery events",
 					zap.Error(err),
-					zap.Int("event_count", len(uniqueEvents)))
+					zap.Int("count", len(deliveryEvents)))
 				nackAll()
 				return
 			}
 
-			// Deduplicate deliveries by delivery.ID
-			uniqueDeliveries := make([]*models.Delivery, 0, len(deliveryEvents))
-			seenDeliveries := make(map[string]struct{})
-			for _, deliveryEvent := range deliveryEvents {
-				delivery := deliveryEvent.Delivery
-				if _, exists := seenDeliveries[delivery.ID]; !exists {
-					seenDeliveries[delivery.ID] = struct{}{}
-					uniqueDeliveries = append(uniqueDeliveries, delivery)
-				}
-			}
-
-			err = logStore.InsertManyDelivery(ctx, uniqueDeliveries)
-			if err != nil {
-				logger.Error("failed to insert deliveries",
-					zap.Error(err),
-					zap.Int("delivery_count", len(uniqueDeliveries)))
-				nackAll()
-				return
-			}
-
-			logger.Info("batch processed successfully",
-				zap.Int("message_count", len(msgs)),
-				zap.Int("unique_events", len(uniqueEvents)),
-				zap.Int("unique_deliveries", len(uniqueDeliveries)))
+			logger.Info("batch processed successfully", zap.Int("count", len(msgs)))
 
 			for _, msg := range msgs {
 				msg.Ack()

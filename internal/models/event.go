@@ -65,6 +65,7 @@ type Event struct {
 	Time             time.Time `json:"time"`
 	Metadata         Metadata  `json:"metadata"`
 	Data             Data      `json:"data"`
+	Status           string    `json:"status,omitempty"`
 
 	// Telemetry data, must exist to properly trace events between publish receiver & delivery handler
 	Telemetry *EventTelemetry `json:"telemetry,omitempty"`

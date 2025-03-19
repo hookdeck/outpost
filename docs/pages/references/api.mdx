@@ -454,7 +454,7 @@ Runs the input schemas for the specified destination type.
 }
 ```
 
-## Events API
+## Events
 
 ### `GET` `/:tenant_id/events`
 
@@ -463,6 +463,54 @@ Retrieve a list of events using a cursor navigation.
 #### Supported parameters
 
 - `destination_id` `string | string[]` Return events for a specific destination
+- `status` `success | failed` Return events with a specific failed or success status
+
+#### Response
+
+```json
+[
+  {
+    "id": "123",
+    "destination_id": "456",
+    "topic": "something.created",
+    "time": "2024-01-01T00:00:00Z",
+    "successful_at": "2024-01-01T00:00:00Z",
+    "metadata": {
+      "key": "value" // String, number or boolean
+    },
+    "data": {
+      // Freeform JSON data
+      "hello": "world"
+    }
+  }
+]
+```
+
+### `GET` `/:tenant_id/events/:event_id/deliveries`
+
+Retrieve a list of the delivery attempts with the associated responses.
+
+#### Response
+
+```json
+[
+  {
+    "delivered_at": "2024-01-01T00:00:00Z",
+    "status": "success",
+    "code": "200", // "OK", "ERR" or a valid HTTP status code
+    "response_data": {
+      "hello": "world"
+    }
+  }
+]
+```
+
+### `GET` `/:tenant_id/destination/:destination_id/events`
+
+Retrieve a list of events using a cursor navigation.
+
+#### Supported parameters
+
 - `status` `success | failed` Return events with a specific failed or success status
 
 #### Response
@@ -483,7 +531,7 @@ Retrieve a list of events using a cursor navigation.
 }]
 ```
 
-### `GET` `/:tenant_id/events/:event_id`
+### `GET` `/:tenant_id/destination/:destination_id/events/:event_id`
 
 Retrieve a specific event and its associated data.
 
@@ -505,28 +553,7 @@ Retrieve a specific event and its associated data.
 }]
 ```
 
-### `GET` `/:tenant_id/destination/:destination_id/events/:event_id/deliveries`
-
-Retrieve a list of the delivery attempts with the associated responses.
-
-#### Response
-
-```json
-[
-  {
-    "delivered_at": "2024-01-01T00:00:00Z",
-    "status": "success",
-    "code": "200", // "OK", "ERR" or a valid HTTP status code
-    "response_data": {
-      "hello": "world"
-    }
-  }
-]
-```
-
----
-
-`POST` `/:tenant_id/destination/:destination_id/events/:event_id/retry`
+### `POST` `/:tenant_id/destination/:destination_id/events/:event_id/retry`
 
 Submit an event for retry
 
