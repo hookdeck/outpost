@@ -17,13 +17,6 @@
       "required": false
     },
     {
-      "key": "routing_key",
-      "type": "text",
-      "label": "Routing Key",
-      "description": "The routing key for message routing",
-      "required": false
-    },
-    {
       "key": "tls",
       "type": "checkbox",
       "label": "TLS",
