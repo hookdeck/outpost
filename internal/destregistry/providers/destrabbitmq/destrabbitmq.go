@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -17,10 +18,9 @@ type RabbitMQDestination struct {
 }
 
 type RabbitMQDestinationConfig struct {
-	ServerURL  string // TODO: consider renaming
-	Exchange   string
-	RoutingKey string
-	UseTLS     bool
+	ServerURL string // TODO: consider renaming
+	Exchange  string
+	UseTLS    bool
 }
 
 type RabbitMQDestinationCredentials struct {
@@ -55,20 +55,6 @@ func (d *RabbitMQDestination) Validate(ctx context.Context, destination *models.
 		}
 	}
 
-	// At least one of exchange or routing_key must be non-empty
-	if destination.Config["exchange"] == "" && destination.Config["routing_key"] == "" {
-		return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-			{
-				Field: "config.exchange",
-				Type:  "either_required",
-			},
-			{
-				Field: "config.routing_key",
-				Type:  "either_required",
-			},
-		})
-	}
-
 	return nil
 }
 
@@ -81,7 +67,6 @@ func (d *RabbitMQDestination) CreatePublisher(ctx context.Context, destination *
 		BasePublisher: &destregistry.BasePublisher{},
 		url:           rabbitURL(config, credentials),
 		exchange:      config.Exchange,
-		routingKey:    config.RoutingKey,
 	}, nil
 }
 
@@ -96,10 +81,9 @@ func (d *RabbitMQDestination) resolveMetadata(ctx context.Context, destination *
 	}
 
 	return &RabbitMQDestinationConfig{
-			ServerURL:  destination.Config["server_url"],
-			Exchange:   destination.Config["exchange"],
-			RoutingKey: destination.Config["routing_key"],
-			UseTLS:     useTLS,
+			ServerURL: destination.Config["server_url"],
+			Exchange:  destination.Config["exchange"],
+			UseTLS:    useTLS,
 		}, &RabbitMQDestinationCredentials{
 			Username: destination.Credentials["username"],
 			Password: destination.Credentials["password"],
@@ -122,14 +106,27 @@ func (d *RabbitMQDestination) Preprocess(newDestination *models.Destination, ori
 	return nil
 }
 
+// AMQPChannel is an interface that defines the methods we need from amqp091.Channel
+// This is exported so that tests can implement this interface
+type AMQPChannel interface {
+	PublishWithContext(ctx context.Context, exchange, key string, mandatory, immediate bool, msg amqp091.Publishing) error
+	Close() error
+	IsClosed() bool
+}
+
+// AMQPConnection is an interface that defines the methods we need from amqp091.Connection for testing
+type AMQPConnection interface {
+	Close() error
+	IsClosed() bool
+}
+
 type RabbitMQPublisher struct {
 	*destregistry.BasePublisher
-	url        string
-	exchange   string
-	routingKey string
-	conn       *amqp091.Connection
-	channel    *amqp091.Channel
-	mu         sync.Mutex
+	url      string
+	exchange string
+	conn     AMQPConnection
+	channel  AMQPChannel
+	mu       sync.Mutex
 }
 
 func (p *RabbitMQPublisher) Close() error {
@@ -172,10 +169,10 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 	}
 
 	if err := p.channel.PublishWithContext(ctx,
-		p.exchange,   // exchange
-		p.routingKey, // routing key
-		false,        // mandatory
-		false,        // immediate
+		p.exchange,  // exchange
+		event.Topic, // routing key
+		false,       // mandatory
+		false,       // immediate
 		amqp091.Publishing{
 			ContentType: "application/json",
 			Headers:     headers,
@@ -245,7 +242,7 @@ func rabbitURL(config *RabbitMQDestinationConfig, credentials *RabbitMQDestinati
 
 // ===== TEST HELPERS =====
 
-func (p *RabbitMQPublisher) GetConnection() *amqp091.Connection {
+func (p *RabbitMQPublisher) GetConnection() AMQPConnection {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.conn
@@ -259,14 +256,15 @@ func (p *RabbitMQPublisher) ForceConnectionClose() {
 	}
 }
 
+// SetupForTesting sets both the connection and channel for testing purposes
+func (p *RabbitMQPublisher) SetupForTesting(conn AMQPConnection, channel AMQPChannel) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.conn = conn
+	p.channel = channel
+}
+
 func (d *RabbitMQDestination) ComputeTarget(destination *models.Destination) string {
 	exchange := destination.Config["exchange"]
-	routingKey := destination.Config["routing_key"]
-	if exchange == "" {
-		return routingKey
-	}
-	if routingKey == "" {
-		return exchange
-	}
-	return exchange + " -> " + routingKey
+	return exchange + " -> " + strings.Join(destination.Topics, ", ")
 }

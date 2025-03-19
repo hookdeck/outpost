@@ -3,6 +3,7 @@ package destrabbitmq_test
 import (
 	"context"
 	"maps"
+	"strings"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -18,9 +19,8 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 	validDestination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("rabbitmq"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"server_url":  "localhost:5672",
-			"exchange":    "test-exchange",
-			"routing_key": "test.key",
+			"server_url": "localhost:5672",
+			"exchange":   "test-exchange",
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
 			"username": "guest",
@@ -94,20 +94,7 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		t.Parallel()
 		dest := validDestination
 		dest.Config = map[string]string{
-			"server_url":  "localhost:5672",
-			"routing_key": "test.key",
-		}
-		dest.Credentials = maps.Clone(validDestination.Credentials)
-		assert.NoError(t, rabbitmqDestination.Validate(context.Background(), &dest))
-	})
-
-	t.Run("should validate empty routing_key as valid", func(t *testing.T) {
-		t.Parallel()
-		dest := validDestination
-		dest.Config = map[string]string{
-			"server_url":  "localhost:5672",
-			"exchange":    "test-exchange",
-			"routing_key": "",
+			"server_url": "localhost:5672",
 		}
 		dest.Credentials = maps.Clone(validDestination.Credentials)
 		assert.NoError(t, rabbitmqDestination.Validate(context.Background(), &dest))
@@ -117,31 +104,11 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		t.Parallel()
 		dest := validDestination
 		dest.Config = map[string]string{
-			"server_url":  "localhost:5672",
-			"exchange":    "",
-			"routing_key": "test.key",
+			"server_url": "localhost:5672",
+			"exchange":   "",
 		}
 		dest.Credentials = maps.Clone(validDestination.Credentials)
 		assert.NoError(t, rabbitmqDestination.Validate(context.Background(), &dest))
-	})
-
-	t.Run("should validate empty exchange and routing_key as invalid", func(t *testing.T) {
-		t.Parallel()
-		dest := validDestination
-		dest.Config = map[string]string{
-			"server_url":  "localhost:5672",
-			"exchange":    "",
-			"routing_key": "",
-		}
-		dest.Credentials = maps.Clone(validDestination.Credentials)
-		err := rabbitmqDestination.Validate(context.Background(), &dest)
-		var validationErr *destregistry.ErrDestinationValidation
-		assert.ErrorAs(t, err, &validationErr)
-		assert.Len(t, validationErr.Errors, 2)
-		assert.Equal(t, "config.exchange", validationErr.Errors[0].Field)
-		assert.Equal(t, "either_required", validationErr.Errors[0].Type)
-		assert.Equal(t, "config.routing_key", validationErr.Errors[1].Field)
-		assert.Equal(t, "either_required", validationErr.Errors[1].Type)
 	})
 
 	t.Run("should validate tls config values", func(t *testing.T) {
@@ -222,21 +189,7 @@ func TestRabbitMQDestination_ComputeTarget(t *testing.T) {
 	rabbitmqDestination, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
 
-	t.Run("should return exchange -> routing_key as target when both are present", func(t *testing.T) {
-		t.Parallel()
-		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("rabbitmq"),
-			testutil.DestinationFactory.WithConfig(map[string]string{
-				"server_url":  "localhost:5672",
-				"exchange":    "my-exchange",
-				"routing_key": "my-key",
-			}),
-		)
-		target := rabbitmqDestination.ComputeTarget(&destination)
-		assert.Equal(t, "my-exchange -> my-key", target)
-	})
-
-	t.Run("should return only exchange when routing_key is empty", func(t *testing.T) {
+	t.Run("should return 'exchange -> *' as target for destination with all topics", func(t *testing.T) {
 		t.Parallel()
 		destination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("rabbitmq"),
@@ -246,19 +199,22 @@ func TestRabbitMQDestination_ComputeTarget(t *testing.T) {
 			}),
 		)
 		target := rabbitmqDestination.ComputeTarget(&destination)
-		assert.Equal(t, "my-exchange", target)
+		assert.Equal(t, "my-exchange -> *", target)
 	})
 
-	t.Run("should return only routing_key when exchange is empty", func(t *testing.T) {
+	t.Run("should return 'exchange -> topic1, topic2, topic3' as target", func(t *testing.T) {
 		t.Parallel()
 		destination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("rabbitmq"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
-				"server_url":  "localhost:5672",
-				"routing_key": "my-key",
+				"server_url": "localhost:5672",
+				"exchange":   "my-exchange",
 			}),
 		)
+		topics := []string{"topic1", "topic2", "topic3"}
+		destination.Topics = topics
 		target := rabbitmqDestination.ComputeTarget(&destination)
-		assert.Equal(t, "my-key", target)
+		assert.Equal(t, "my-exchange -> "+strings.Join(topics, ", "), target)
 	})
+
 }
