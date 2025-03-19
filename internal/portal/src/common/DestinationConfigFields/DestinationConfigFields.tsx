@@ -8,6 +8,7 @@ import { EditIcon, HelpIcon } from "../Icons";
 import Tooltip from "../Tooltip/Tooltip";
 import Button from "../Button/Button";
 import ConfigurationModal from "../ConfigurationModal/ConfigurationModal";
+import { Checkbox } from "../Checkbox/Checkbox";
 
 const DestinationConfigFields = ({
   destination,
@@ -108,8 +109,8 @@ const DestinationConfigFields = ({
             </div>
           )}
           {field.type === "checkbox" && (
-            <input
-              type="checkbox"
+            <Checkbox
+              label=""
               id={field.key}
               name={field.key}
               defaultChecked={
@@ -121,6 +122,7 @@ const DestinationConfigFields = ({
               disabled={field.disabled}
               required={field.required}
             />
+
           )}
           {field.description && (
             <p className="description">{field.description}</p>
