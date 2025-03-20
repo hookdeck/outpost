@@ -14,8 +14,9 @@ const main = async () => {
         topic: destination.topics[0],
         data: {
           test: "data",
-          organization_id: organization.id,
-          destination_id: destination.id,
+          from_organization_id: organization.id,
+          from_destination_id: destination.id,
+          timestamp: new Date().toISOString(),
         },
         meta_data: {
           some: "metadata",
