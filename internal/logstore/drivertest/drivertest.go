@@ -185,6 +185,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.NoError(t, err)
 			assert.Empty(t, response.Data)
 			assert.Empty(t, response.Next)
+			assert.Equal(t, int64(0), response.Count, "count should be 0 for unknown tenant")
 		})
 
 		var cursor string
@@ -200,6 +201,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			for i := 0; i < 5; i++ {
 				require.Equal(t, events[i].ID, response.Data[i].ID)
 			}
+			assert.Equal(t, int64(20), response.Count, "total count should match total number of events")
 			cursor = response.Next
 		})
 
@@ -215,6 +217,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			for i := 0; i < 5; i++ {
 				require.Equal(t, events[5+i].ID, response.Data[i].ID)
 			}
+			assert.Equal(t, int64(20), response.Count, "count should remain same with cursor")
 		})
 	})
 
@@ -233,6 +236,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			for i := 0; i < 3; i++ {
 				require.Equal(t, destinationEvents[destinationIDs[0]][i].ID, response.Data[i].ID)
 			}
+			assert.Equal(t, int64(len(destinationEvents[destinationIDs[0]])), response.Count, "count should match events for destination")
 			cursor = response.Next
 		})
 
@@ -303,6 +307,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 				require.Equal(t, statusEvents["success"][i].ID, response.Data[i].ID)
 				require.Equal(t, "success", response.Data[i].Status)
 			}
+			assert.Equal(t, int64(len(statusEvents["success"])), response.Count, "count should match successful events")
 			cursor = response.Next
 		})
 
@@ -465,6 +470,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			for i, e := range response.Data {
 				require.Equal(t, timeEvents["1h"][i].ID, e.ID)
 			}
+			assert.Equal(t, int64(len(timeEvents["1h"])), response.Count, "count should match events in last hour")
 			cursor = response.Next
 
 			// Second page

@@ -35,6 +35,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 
 	// Step 1: Query the index to get relevant event IDs and their status
 	indexQuery := `
+		-- Step 1: Apply some filters & dedup index table to get event with status
 		WITH latest_status AS (
 			SELECT DISTINCT ON (event_id, destination_id) 
 				event_id,
@@ -51,12 +52,24 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 			AND (array_length($7::text[], 1) IS NULL OR topic = ANY($7))  -- topics
 			ORDER BY event_id, destination_id, delivery_time DESC
 		),
-		filtered AS (
-			-- Step 2: Apply remaining filters
+		-- Step 2: Apply status filter
+		filtered_before_cursor AS (
 			SELECT *
 			FROM latest_status
 			WHERE ($8 = '' OR status = $8)  -- status filter
-			AND ($1 = '' OR time_event_id < $1)  -- cursor pagination
+		),
+		-- Step 3: Apply pagination (cursor & limit)
+		filtered AS (
+			SELECT 
+				event_id,
+				destination_id,
+				delivery_time,
+				event_time,
+				time_event_id,
+				status,
+				(SELECT COUNT(*) FROM filtered_before_cursor) as total_count
+			FROM filtered_before_cursor
+			WHERE ($1 = '' OR time_event_id < $1)  -- cursor pagination
 			ORDER BY time_event_id DESC
 			LIMIT CASE WHEN $2 = 0 THEN NULL ELSE $2 END
 		)
@@ -87,9 +100,10 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		status        string
 	}
 	eventInfos := []eventInfo{}
+	var totalCount int64
 	for indexRows.Next() {
 		var info eventInfo
-		err := indexRows.Scan(&info.eventID, &info.destinationID, &info.deliveryTime, &info.eventTime, &info.timeEventID, &info.status)
+		err := indexRows.Scan(&info.eventID, &info.destinationID, &info.deliveryTime, &info.eventTime, &info.timeEventID, &info.status, &totalCount)
 		if err != nil {
 			return driver.ListEventResponse{}, err
 		}
@@ -167,7 +181,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 	return driver.ListEventResponse{
 		Data:  events,
 		Next:  nextCursor,
-		Count: int64(len(events)),
+		Count: totalCount,
 	}, nil
 }
 

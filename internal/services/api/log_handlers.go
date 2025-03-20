@@ -92,13 +92,16 @@ func (h *LogHandlers) listEvent(c *gin.Context, destinationIDs []string) {
 	if len(response.Data) == 0 {
 		// Return an empty array instead of null
 		c.JSON(http.StatusOK, gin.H{
-			"data": []models.Event{},
+			"data":  []models.Event{},
+			"next":  "",
+			"count": 0,
 		})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"data": response.Data,
-		"next": response.Next,
+		"data":  response.Data,
+		"next":  response.Next,
+		"count": response.Count,
 	})
 }
 
