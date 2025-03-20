@@ -13,10 +13,11 @@ import (
 )
 
 type ListEventRequest = driver.ListEventRequest
+type ListEventResponse = driver.ListEventResponse
 type ListDeliveryRequest = driver.ListDeliveryRequest
 
 type LogStore interface {
-	ListEvent(context.Context, ListEventRequest) ([]*models.Event, string, error)
+	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
 	RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error)
 	RetrieveEventByDestination(ctx context.Context, tenantID, destinationID, eventID string) (*models.Event, error)
 	ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*models.Delivery, error)

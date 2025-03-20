@@ -8,7 +8,7 @@ import (
 )
 
 type LogStore interface {
-	ListEvent(context.Context, ListEventRequest) ([]*models.Event, string, error)
+	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
 	RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error)
 	RetrieveEventByDestination(ctx context.Context, tenantID, destinationID, eventID string) (*models.Event, error)
 	ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*models.Delivery, error)
@@ -36,4 +36,10 @@ type ListEventByDestinationRequest struct {
 
 type ListDeliveryRequest struct {
 	EventID string
+}
+
+type ListEventResponse struct {
+	Data  []*models.Event
+	Next  string
+	Count int64
 }

@@ -12,8 +12,8 @@ func NewNoopLogStore() LogStore {
 
 type noopLogStore struct{}
 
-func (l *noopLogStore) ListEvent(ctx context.Context, request ListEventRequest) ([]*models.Event, string, error) {
-	return nil, "", nil
+func (l *noopLogStore) ListEvent(ctx context.Context, request ListEventRequest) (ListEventResponse, error) {
+	return ListEventResponse{}, nil
 }
 
 func (l *noopLogStore) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {

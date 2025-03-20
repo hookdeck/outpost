@@ -19,7 +19,7 @@ func NewLogStore(chDB clickhouse.DB) driver.LogStore {
 	return &logStoreImpl{chDB: chDB}
 }
 
-func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRequest) ([]*models.Event, string, error) {
+func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRequest) (driver.ListEventResponse, error) {
 	var (
 		query     string
 		queryOpts []any
@@ -69,7 +69,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRe
 	}
 	rows, err := s.chDB.Query(ctx, query, queryOpts...)
 	if err != nil {
-		return nil, "", err
+		return driver.ListEventResponse{}, err
 	}
 	defer rows.Close()
 
@@ -86,7 +86,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRe
 			&event.Data,
 			&event.Metadata,
 		); err != nil {
-			return nil, "", err
+			return driver.ListEventResponse{}, err
 		}
 		events = append(events, event)
 	}
@@ -95,7 +95,11 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRe
 		nextCursor = events[len(events)-1].Time.Format(time.RFC3339)
 	}
 
-	return events, nextCursor, nil
+	return driver.ListEventResponse{
+		Data:  events,
+		Next:  nextCursor,
+		Count: int64(len(events)),
+	}, nil
 }
 
 func (s *logStoreImpl) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {

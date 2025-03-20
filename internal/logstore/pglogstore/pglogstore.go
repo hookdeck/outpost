@@ -23,13 +23,13 @@ func NewLogStore(db *pgxpool.Pool) driver.LogStore {
 	}
 }
 
-func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) ([]*models.Event, string, error) {
+func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
 	var decodedCursor string
 	if req.Cursor != "" {
 		var err error
 		decodedCursor, err = s.cursorParser.Parse(req.Cursor)
 		if err != nil {
-			return nil, "", fmt.Errorf("invalid cursor: %v", err)
+			return driver.ListEventResponse{}, fmt.Errorf("invalid cursor: %v", err)
 		}
 	}
 
@@ -73,7 +73,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		req.Status,
 	)
 	if err != nil {
-		return nil, "", err
+		return driver.ListEventResponse{}, err
 	}
 	defer indexRows.Close()
 
@@ -91,13 +91,17 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		var info eventInfo
 		err := indexRows.Scan(&info.eventID, &info.destinationID, &info.deliveryTime, &info.eventTime, &info.timeEventID, &info.status)
 		if err != nil {
-			return nil, "", err
+			return driver.ListEventResponse{}, err
 		}
 		eventInfos = append(eventInfos, info)
 	}
 
 	if len(eventInfos) == 0 {
-		return []*models.Event{}, "", nil
+		return driver.ListEventResponse{
+			Data:  []*models.Event{},
+			Next:  "",
+			Count: 0,
+		}, nil
 	}
 
 	// Step 2: Get full event data
@@ -120,7 +124,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 
 	eventRows, err := s.db.Query(ctx, eventQuery, eventIDs)
 	if err != nil {
-		return nil, "", err
+		return driver.ListEventResponse{}, err
 	}
 	defer eventRows.Close()
 
@@ -138,7 +142,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 			&event.Metadata,
 		)
 		if err != nil {
-			return nil, "", err
+			return driver.ListEventResponse{}, err
 		}
 		eventMap[event.ID] = event
 	}
@@ -160,7 +164,11 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		nextCursor = s.cursorParser.Format(eventInfos[len(eventInfos)-1].timeEventID)
 	}
 
-	return events, nextCursor, nil
+	return driver.ListEventResponse{
+		Data:  events,
+		Next:  nextCursor,
+		Count: int64(len(events)),
+	}, nil
 }
 
 func (s *logStore) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {
