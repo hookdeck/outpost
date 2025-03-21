@@ -3,10 +3,10 @@ package destrabbitmq_test
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/rabbitmq/amqp091-go"
@@ -22,13 +22,13 @@ type RabbitMQConsumer struct {
 	messages chan testsuite.Message
 }
 
-func NewRabbitMQConsumer(config mqs.QueueConfig) (*RabbitMQConsumer, error) {
+func NewRabbitMQConsumer(serverURL, exchange string) (*RabbitMQConsumer, error) {
 	consumer := &RabbitMQConsumer{
 		messages: make(chan testsuite.Message, 100),
 	}
 
 	// Connect to RabbitMQ
-	conn, err := amqp091.Dial(config.RabbitMQ.ServerURL)
+	conn, err := amqp091.Dial(serverURL)
 	if err != nil {
 		return nil, err
 	}
@@ -40,12 +40,28 @@ func NewRabbitMQConsumer(config mqs.QueueConfig) (*RabbitMQConsumer, error) {
 		return nil, err
 	}
 
-	// Ensure queue exists
-	_, err = ch.QueueDeclare(
-		config.RabbitMQ.Queue,
-		true,  // durable
-		false, // delete when unused
-		false, // exclusive
+	// Ensure exchange exists
+	err = ch.ExchangeDeclare(
+		exchange, // name
+		"topic",  // type
+		true,     // durable
+		false,    // auto-deleted
+		false,    // internal
+		false,    // no-wait
+		nil,      // arguments
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, err
+	}
+
+	// Create a temporary queue
+	queue, err := ch.QueueDeclare(
+		"",    // name (empty = auto-generated name)
+		false, // durable
+		true,  // delete when unused
+		true,  // exclusive
 		false, // no-wait
 		nil,   // arguments
 	)
@@ -55,15 +71,29 @@ func NewRabbitMQConsumer(config mqs.QueueConfig) (*RabbitMQConsumer, error) {
 		return nil, err
 	}
 
+	// Bind queue to exchange with wildcard routing key
+	err = ch.QueueBind(
+		queue.Name, // queue name
+		"#",        // routing key (# = match all)
+		exchange,   // exchange
+		false,
+		nil,
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, err
+	}
+
 	// Start consuming
 	deliveries, err := ch.Consume(
-		config.RabbitMQ.Queue,
-		"",    // consumer
-		true,  // auto-ack
-		false, // exclusive
-		false, // no-local
-		false, // no-wait
-		nil,   // args
+		queue.Name, // queue
+		"",         // consumer
+		true,       // auto-ack
+		false,      // exclusive
+		false,      // no-local
+		false,      // no-wait
+		nil,        // args
 	)
 	if err != nil {
 		ch.Close()
@@ -80,7 +110,7 @@ func NewRabbitMQConsumer(config mqs.QueueConfig) (*RabbitMQConsumer, error) {
 			consumer.messages <- testsuite.Message{
 				Data:     d.Body,
 				Metadata: toStringMap(d.Headers),
-				Raw:      d, // Include the raw amqp.Delivery
+				Raw:      d,
 			}
 		}
 	}()
@@ -112,6 +142,7 @@ func (a *RabbitMQAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mes
 
 	// Assert RabbitMQ-specific properties
 	assert.Equal(t, "application/json", delivery.ContentType)
+	assert.Equal(t, event.Topic, delivery.RoutingKey, "routing key should match event topic")
 	// assert.NotEmpty(t, delivery.MessageId)
 	// assert.NotEmpty(t, delivery.Timestamp)
 
@@ -131,7 +162,8 @@ type RabbitMQPublishSuite struct {
 func (s *RabbitMQPublishSuite) SetupSuite() {
 	t := s.T()
 	t.Cleanup(testinfra.Start(t))
-	mqConfig := testinfra.NewMQRabbitMQConfig(t)
+	rabbitURL := testinfra.EnsureRabbitMQ()
+	exchange := uuid.New().String()
 
 	provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
@@ -139,17 +171,17 @@ func (s *RabbitMQPublishSuite) SetupSuite() {
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("rabbitmq"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"server_url": testutil.ExtractRabbitURL(mqConfig.RabbitMQ.ServerURL),
-			"exchange":   mqConfig.RabbitMQ.Exchange,
+			"server_url": testutil.ExtractRabbitURL(rabbitURL),
+			"exchange":   exchange,
 			// "tls":         "false", // should default to false if omitted
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
-			"username": testutil.ExtractRabbitUsername(mqConfig.RabbitMQ.ServerURL),
-			"password": testutil.ExtractRabbitPassword(mqConfig.RabbitMQ.ServerURL),
+			"username": testutil.ExtractRabbitUsername(rabbitURL),
+			"password": testutil.ExtractRabbitPassword(rabbitURL),
 		}),
 	)
 
-	consumer, err := NewRabbitMQConsumer(mqConfig)
+	consumer, err := NewRabbitMQConsumer(rabbitURL, exchange)
 	require.NoError(t, err)
 	s.consumer = consumer
 
