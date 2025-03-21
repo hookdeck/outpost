@@ -76,7 +76,8 @@ func (h *LogHandlers) listEvent(c *gin.Context, destinationIDs []string) {
 		limit = 100
 	}
 	response, err := h.logStore.ListEvent(c.Request.Context(), logstore.ListEventRequest{
-		Cursor:         c.Query("cursor"),
+		Next:           c.Query("next"),
+		Prev:           c.Query("prev"),
 		Limit:          limit,
 		Start:          start,
 		End:            end,
@@ -94,6 +95,7 @@ func (h *LogHandlers) listEvent(c *gin.Context, destinationIDs []string) {
 		c.JSON(http.StatusOK, gin.H{
 			"data":  []models.Event{},
 			"next":  "",
+			"prev":  "",
 			"count": 0,
 		})
 		return
@@ -101,6 +103,7 @@ func (h *LogHandlers) listEvent(c *gin.Context, destinationIDs []string) {
 	c.JSON(http.StatusOK, gin.H{
 		"data":  response.Data,
 		"next":  response.Next,
+		"prev":  response.Prev,
 		"count": response.Count,
 	})
 }

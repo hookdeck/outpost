@@ -20,7 +20,8 @@ interface Delivery {
 interface EventListResponse {
   data: Event[];
   next?: string;
-  previous?: string;
+  prev?: string;
+  count: number;
 }
 
 export type { Event, EventListResponse, Delivery };

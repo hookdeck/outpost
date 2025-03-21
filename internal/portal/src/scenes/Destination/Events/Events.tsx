@@ -7,7 +7,13 @@ import Table from "../../../common/Table/Table";
 import { EventListResponse } from "../../../typings/Event";
 import useSWR from "swr";
 import Dropdown from "../../../common/Dropdown/Dropdown";
-import { CalendarIcon, FilterIcon, RefreshIcon } from "../../../common/Icons";
+import {
+  CalendarIcon,
+  FilterIcon,
+  PreviousIcon,
+  RefreshIcon,
+  NextIcon,
+} from "../../../common/Icons";
 import { Checkbox } from "../../../common/Checkbox/Checkbox";
 import {
   Route,
@@ -28,26 +34,39 @@ const Events = ({
   destination: any;
   navigateEvent: (path: string, state?: any) => void;
 }) => {
-  const { status, topics, urlSearchParams } = useEventFilter();
+  const { status, topics, pagination, urlSearchParams } = useEventFilter();
   const [timeRange, setTimeRange] = useState("24h");
   const { event_id: eventId } = useParams();
 
   const queryUrl = useMemo(() => {
+    const searchParams = new URLSearchParams(urlSearchParams);
+
     const now = new Date();
-    let start;
     switch (timeRange) {
       case "7d":
-        start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        searchParams.set(
+          "start",
+          new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        );
         break;
       case "30d":
-        start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        searchParams.set(
+          "start",
+          new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+        );
         break;
       default: // 24h
-        start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        searchParams.set(
+          "start",
+          new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+        );
     }
-    return `destinations/${
-      destination.id
-    }/events?start=${start.toISOString()}&${urlSearchParams}`;
+
+    if (!searchParams.has("limit")) {
+      searchParams.set("limit", "10");
+    }
+
+    return `destinations/${destination.id}/events?${searchParams.toString()}`;
   }, [destination.id, timeRange, urlSearchParams]);
 
   const {
@@ -92,7 +111,7 @@ const Events = ({
     <div className="destination-events">
       <div className="destination-events__header">
         <h2 className="title-l">
-          Events <Badge text={eventsList ? eventsList.data.length + "" : "0"} />
+          Events <Badge text={eventsList?.count ?? 0} />
         </h2>
         <div className="destination-events__header-filters">
           {/* <SearchInput
@@ -108,21 +127,30 @@ const Events = ({
               <Checkbox
                 label="Last 24h"
                 checked={timeRange === "24h"}
-                onChange={() => setTimeRange("24h")}
+                onChange={() => {
+                  setTimeRange("24h");
+                  pagination.clear();
+                }}
               />
             </div>
             <div className="dropdown-item">
               <Checkbox
                 label="Last 7d"
                 checked={timeRange === "7d"}
-                onChange={() => setTimeRange("7d")}
+                onChange={() => {
+                  setTimeRange("7d");
+                  pagination.clear();
+                }}
               />
             </div>
             <div className="dropdown-item">
               <Checkbox
                 label="Last 30d"
                 checked={timeRange === "30d"}
-                onChange={() => setTimeRange("30d")}
+                onChange={() => {
+                  setTimeRange("30d");
+                  pagination.clear();
+                }}
               />
             </div>
           </Dropdown>
@@ -196,7 +224,38 @@ const Events = ({
             },
           ]}
           rows={table_rows}
-          footer_label="events"
+          footer={
+            <div className="table__footer">
+              <div>
+                <span className="subtitle-s">
+                  {eventsList?.data.length ?? 0}
+                </span>
+                <span className="body-s">
+                  {" "}
+                  of {eventsList?.count ?? 0} events
+                </span>
+              </div>
+
+              <nav>
+                <Button
+                  minimal
+                  disabled={!eventsList?.prev}
+                  onClick={() => pagination.prev(eventsList?.prev || "")}
+                >
+                  <PreviousIcon />
+                  <span className="visually-hidden">Previous</span>
+                </Button>
+                <Button
+                  minimal
+                  disabled={!eventsList?.next}
+                  onClick={() => pagination.next(eventsList?.next || "")}
+                >
+                  <NextIcon />
+                  <span className="visually-hidden">Next</span>
+                </Button>
+              </nav>
+            </div>
+          }
         />
 
         <Outlet />
@@ -213,6 +272,10 @@ const useEventFilter = () => {
   const handleFilterChange = (key: string, value: string | null) => {
     setSearchParams((prev) => {
       const params = new URLSearchParams(prev);
+      // Clear pagination
+      params.delete("next");
+      params.delete("prev");
+      // Set new filter
       if (value) {
         params.set(key, value);
       } else {
@@ -232,6 +295,10 @@ const useEventFilter = () => {
     set: (value: string[]) => {
       setSearchParams((prev) => {
         const params = new URLSearchParams(prev);
+        // Clear pagination
+        params.delete("next");
+        params.delete("prev");
+        // Set new filter
         params.delete("topic");
         value.forEach((v) => params.append("topic", v));
         return params;
@@ -244,8 +311,39 @@ const useEventFilter = () => {
         : [...currentTopics, topic];
       setSearchParams((prev) => {
         const params = new URLSearchParams(prev);
+        // Clear pagination
+        params.delete("next");
+        params.delete("prev");
+        // Set new filter
         params.delete("topic");
         newTopics.forEach((t) => params.append("topic", t));
+        return params;
+      });
+    },
+  };
+
+  const pagination = {
+    next: (cursor: string) => {
+      setSearchParams((prev) => {
+        const params = new URLSearchParams(prev);
+        params.delete("prev");
+        params.set("next", cursor);
+        return params;
+      });
+    },
+    prev: (cursor: string) => {
+      setSearchParams((prev) => {
+        const params = new URLSearchParams(prev);
+        params.delete("next");
+        params.set("prev", cursor);
+        return params;
+      });
+    },
+    clear: () => {
+      setSearchParams((prev) => {
+        const params = new URLSearchParams(prev);
+        params.delete("next");
+        params.delete("prev");
         return params;
       });
     },
@@ -258,6 +356,7 @@ const useEventFilter = () => {
   return {
     status,
     topics,
+    pagination,
     urlSearchParams,
   };
 };

@@ -39,6 +39,13 @@
         box-shadow: inset 0 0 0 2px var(--colors-outline-primary-focus);
         background-color: var(--colors-background-container-primary);
       }
+
+      &__footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--spacing-2);
+      }
     }
 
     &--active {
