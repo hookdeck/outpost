@@ -155,7 +155,11 @@ const Events = ({
             </div>
           </Dropdown>
 
-          <Dropdown trigger_icon={<FilterIcon />} trigger="Status">
+          <Dropdown
+            trigger_icon={<FilterIcon />}
+            trigger="Status"
+            badge_count={status.value ? 1 : 0}
+          >
             <div className="dropdown-item">
               <Checkbox
                 label="Success"
@@ -180,7 +184,11 @@ const Events = ({
             </div>
           </Dropdown>
 
-          <Dropdown trigger_icon={<FilterIcon />} trigger="Topics">
+          <Dropdown
+            trigger_icon={<FilterIcon />}
+            trigger="Topics"
+            badge_count={topics.value.length}
+          >
             {topicsList.map((topic) => (
               <div key={topic} className="dropdown-item">
                 <Checkbox
