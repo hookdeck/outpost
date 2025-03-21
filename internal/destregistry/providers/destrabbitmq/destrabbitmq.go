@@ -106,26 +106,12 @@ func (d *RabbitMQDestination) Preprocess(newDestination *models.Destination, ori
 	return nil
 }
 
-// AMQPChannel is an interface that defines the methods we need from amqp091.Channel
-// This is exported so that tests can implement this interface
-type AMQPChannel interface {
-	PublishWithContext(ctx context.Context, exchange, key string, mandatory, immediate bool, msg amqp091.Publishing) error
-	Close() error
-	IsClosed() bool
-}
-
-// AMQPConnection is an interface that defines the methods we need from amqp091.Connection for testing
-type AMQPConnection interface {
-	Close() error
-	IsClosed() bool
-}
-
 type RabbitMQPublisher struct {
 	*destregistry.BasePublisher
 	url      string
 	exchange string
-	conn     AMQPConnection
-	channel  AMQPChannel
+	conn     *amqp091.Connection
+	channel  *amqp091.Channel
 	mu       sync.Mutex
 }
 
@@ -242,7 +228,7 @@ func rabbitURL(config *RabbitMQDestinationConfig, credentials *RabbitMQDestinati
 
 // ===== TEST HELPERS =====
 
-func (p *RabbitMQPublisher) GetConnection() AMQPConnection {
+func (p *RabbitMQPublisher) GetConnection() *amqp091.Connection {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.conn
@@ -254,14 +240,6 @@ func (p *RabbitMQPublisher) ForceConnectionClose() {
 	if p.conn != nil {
 		p.conn.Close()
 	}
-}
-
-// SetupForTesting sets both the connection and channel for testing purposes
-func (p *RabbitMQPublisher) SetupForTesting(conn AMQPConnection, channel AMQPChannel) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.conn = conn
-	p.channel = channel
 }
 
 func (d *RabbitMQDestination) ComputeTarget(destination *models.Destination) string {
