@@ -2,6 +2,7 @@ package drivertest
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -103,6 +104,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 		}
 
 		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID(fmt.Sprintf("evt_%02d", i)),
 			testutil.EventFactory.WithTenantID(tenantID),
 			testutil.EventFactory.WithTime(eventTime),
 			testutil.EventFactory.WithDestinationID(destinationID),
@@ -112,6 +114,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 				"index": strconv.Itoa(i),
 			}),
 		)
+		fmt.Printf("Creating event %d: id=%s, time=%s, index=%d\n", i, event.ID, event.Time.Format(time.RFC3339), i)
 		events = append(events, event)
 		destinationEvents[destinationID] = append(destinationEvents[destinationID], event)
 		if _, ok := destinationStatusEvents[destinationID]; !ok {
@@ -132,12 +135,13 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 		var delivery *models.Delivery
 		if shouldRetry {
 			delivery = testutil.DeliveryFactory.AnyPointer(
+				testutil.DeliveryFactory.WithID(fmt.Sprintf("del_%02d_init", i)),
 				testutil.DeliveryFactory.WithEventID(event.ID),
 				testutil.DeliveryFactory.WithDestinationID(destinationID),
 				testutil.DeliveryFactory.WithStatus("failed"),
 			)
 			deliveryEvents = append(deliveryEvents, &models.DeliveryEvent{
-				ID:            uuid.New().String(),
+				ID:            fmt.Sprintf("de_%02d_init", i),
 				DestinationID: destinationID,
 				Event:         *event,
 				Delivery:      delivery,
@@ -151,6 +155,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			statusEvents["success"] = append(statusEvents["success"], event)
 			destinationStatusEvents[destinationID]["success"] = append(destinationStatusEvents[destinationID]["success"], event)
 			delivery = testutil.DeliveryFactory.AnyPointer(
+				testutil.DeliveryFactory.WithID(fmt.Sprintf("del_%02d_final", i)),
 				testutil.DeliveryFactory.WithEventID(event.ID),
 				testutil.DeliveryFactory.WithDestinationID(destinationID),
 				testutil.DeliveryFactory.WithStatus("success"),
@@ -159,6 +164,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			statusEvents["failed"] = append(statusEvents["failed"], event)
 			destinationStatusEvents[destinationID]["failed"] = append(destinationStatusEvents[destinationID]["failed"], event)
 			delivery = testutil.DeliveryFactory.AnyPointer(
+				testutil.DeliveryFactory.WithID(fmt.Sprintf("del_%02d_final", i)),
 				testutil.DeliveryFactory.WithEventID(event.ID),
 				testutil.DeliveryFactory.WithDestinationID(destinationID),
 				testutil.DeliveryFactory.WithStatus("failed"),
@@ -166,7 +172,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 		}
 
 		deliveryEvents = append(deliveryEvents, &models.DeliveryEvent{
-			ID:            uuid.New().String(),
+			ID:            fmt.Sprintf("de_%02d_final", i),
 			DestinationID: destinationID,
 			Event:         *event,
 			Delivery:      delivery,
@@ -191,52 +197,70 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 		assert.Equal(t, int64(0), response.Count, "count should be 0 for unknown tenant")
 	})
 
-	t.Run("simple list with pagination", func(t *testing.T) {
-		// Step 1: list event with no cursor
+	t.Run("comprehensive list & pagination test", func(t *testing.T) {
+		// First page (0-6)
 		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 			TenantID: tenantID,
-			Limit:    5,
+			Limit:    7,
 			Start:    start,
 		})
 		require.NoError(t, err)
-		require.Len(t, response.Data, 5)
-		for i := 0; i < 5; i++ {
-			require.Equal(t, events[i].ID, response.Data[i].ID)
-		}
-		assert.Equal(t, int64(20), response.Count, "total count should match total number of events")
-		assert.Empty(t, response.Prev, "prev cursor should be empty on first page")
-		assert.NotEmpty(t, response.Next, "next cursor should be present when more data available")
+		require.Len(t, response.Data, 7, "first page should have 7 items")
+		firstPageNext := response.Next
 
-		// Step 2: list event with next cursor
+		// Second page (7-13)
 		response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
 			TenantID: tenantID,
-			Limit:    5,
+			Limit:    7,
 			Next:     response.Next,
 			Start:    start,
 		})
 		require.NoError(t, err)
-		require.Len(t, response.Data, 5)
-		for i := 0; i < 5; i++ {
-			require.Equal(t, events[5+i].ID, response.Data[i].ID)
-		}
-		assert.Equal(t, int64(20), response.Count, "count should remain same with cursor")
-		assert.NotEmpty(t, response.Prev, "prev cursor should be present for middle page")
-		assert.NotEmpty(t, response.Next, "next cursor should be present when more data available")
+		require.Len(t, response.Data, 7, "second page should have 7 items")
+		secondPageNext := response.Next
+		secondPagePrev := response.Prev
 
-		// Test 3: list event with prev cursor
+		// Last page (14-19, partial)
 		response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
 			TenantID: tenantID,
-			Limit:    5,
+			Limit:    7,
+			Next:     response.Next,
+			Start:    start,
+		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, 6, "last page should have 6 items")
+
+		// Go back to second page (7-13)
+		response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID: tenantID,
+			Limit:    7,
 			Prev:     response.Prev,
 			Start:    start,
 		})
 		require.NoError(t, err)
-		require.Len(t, response.Data, 5)
-		for i := 0; i < 5; i++ {
-			require.Equal(t, events[i].ID, response.Data[i].ID, "should get first page data when using prev cursor")
+		require.Len(t, response.Data, 7, "going back to second page should have 7 items")
+		require.Equal(t, int64(20), response.Count)
+		require.NotEmpty(t, response.Prev, "prev cursor should be present")
+		require.NotEmpty(t, response.Next, "next cursor should be present")
+		require.Equal(t, secondPageNext, response.Next, "next cursor should match original second page next")
+		require.Equal(t, secondPagePrev, response.Prev, "prev cursor should match original second page prev")
+
+		// Back to first page (0-6)
+		response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID: tenantID,
+			Limit:    7,
+			Prev:     response.Prev,
+			Start:    start,
+		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, 7, "back to first page should have 7 items")
+		for i := 0; i < 7; i++ {
+			require.Equal(t, events[i].ID, response.Data[i].ID)
 		}
-		assert.Empty(t, response.Prev, "prev cursor should be empty on first page")
-		assert.NotEmpty(t, response.Next, "next cursor should be present when more data available")
+		require.Equal(t, int64(20), response.Count)
+		require.Empty(t, response.Prev, "prev cursor should be empty on first page")
+		require.NotEmpty(t, response.Next, "next cursor should be present")
+		require.Equal(t, firstPageNext, response.Next, "next cursor should match original first page next")
 	})
 
 	t.Run("query by destinations", func(t *testing.T) {

@@ -79,10 +79,18 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 				(SELECT COUNT(*) FROM filtered_before_cursor) as total_count
 			FROM filtered_before_cursor
 			WHERE ($1 = '' OR time_event_id < $1) AND ($2 = '' OR time_event_id > $2)  -- cursor pagination
+			ORDER BY 
+				CASE WHEN $2 != '' THEN time_event_id END ASC, -- prev cursor: sort ascending to get right window
+				time_event_id DESC -- default sort and next cursor sort
+			LIMIT CASE WHEN $3 = 0 THEN NULL ELSE $3 + 1 END
+		),
+		-- Step 4: Re-sort for consistent response
+		final AS (
+			SELECT *
+			FROM filtered
 			ORDER BY time_event_id DESC
-			LIMIT CASE WHEN $3 = 0 THEN NULL ELSE $3 END
 		)
-		SELECT * FROM filtered`
+		SELECT * FROM final`
 
 	indexRows, err := s.db.Query(ctx, indexQuery,
 		decodedNext,
@@ -130,11 +138,27 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 	}
 
 	// Handle pagination
-	hasMore := true
-	// hasMore := len(eventInfos) > req.Limit
-	// if hasMore {
-	// 	eventInfos = eventInfos[:req.Limit] // Remove the extra item we fetched
-	// }
+	var hasNext, hasPrev bool
+	if req.Prev != "" {
+		hasNext = true                                          // We came backwards, so definitely more ahead
+		hasPrev = len(eventInfos) > req.Limit || req.Limit == 0 // Check if more behind
+		if len(eventInfos) > req.Limit && req.Limit > 0 {
+			eventInfos = eventInfos[1:] // Trim first item (newest) when going backward
+		}
+	} else if req.Next != "" {
+		hasPrev = true                                          // We came forwards, so definitely more behind
+		hasNext = len(eventInfos) > req.Limit || req.Limit == 0 // Check if more ahead
+		if len(eventInfos) > req.Limit && req.Limit > 0 {
+			eventInfos = eventInfos[:len(eventInfos)-1] // Trim last item when going forward
+		}
+	} else {
+		// First page
+		hasPrev = false
+		hasNext = len(eventInfos) > req.Limit || req.Limit == 0
+		if len(eventInfos) > req.Limit && req.Limit > 0 {
+			eventInfos = eventInfos[:len(eventInfos)-1] // Trim last item on first page
+		}
+	}
 
 	// Step 2: Get full event data
 	eventIDs := make([]string, len(eventInfos))
@@ -196,10 +220,10 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		lastItem := eventInfos[len(eventInfos)-1].timeEventID
 		firstItem := eventInfos[0].timeEventID
 
-		if hasMore {
+		if hasNext {
 			nextCursor = s.cursorParser.Format(lastItem)
 		}
-		if decodedNext != "" {
+		if hasPrev {
 			prevCursor = s.cursorParser.Format(firstItem)
 		}
 	}
