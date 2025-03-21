@@ -24,10 +24,19 @@ func NewLogStore(db *pgxpool.Pool) driver.LogStore {
 }
 
 func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
-	var decodedCursor string
-	if req.Cursor != "" {
+	// TODO: validate only one of next or prev is set
+
+	var decodedNext, decodedPrev string
+	if req.Next != "" {
 		var err error
-		decodedCursor, err = s.cursorParser.Parse(req.Cursor)
+		decodedNext, err = s.cursorParser.Parse(req.Next)
+		if err != nil {
+			return driver.ListEventResponse{}, fmt.Errorf("invalid cursor: %v", err)
+		}
+	}
+	if req.Prev != "" {
+		var err error
+		decodedPrev, err = s.cursorParser.Parse(req.Prev)
 		if err != nil {
 			return driver.ListEventResponse{}, fmt.Errorf("invalid cursor: %v", err)
 		}
@@ -45,18 +54,18 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 				time_event_id,
 				status
 			FROM event_delivery_index
-			WHERE tenant_id = $5  -- tenant_id
-			AND event_time >= COALESCE($3, COALESCE($4, NOW()) - INTERVAL '1 hour')
-			AND event_time <= COALESCE($4, NOW())
-			AND (array_length($6::text[], 1) IS NULL OR destination_id = ANY($6))  -- destination_ids
-			AND (array_length($7::text[], 1) IS NULL OR topic = ANY($7))  -- topics
+			WHERE tenant_id = $6  -- tenant_id
+			AND event_time >= COALESCE($4, COALESCE($5, NOW()) - INTERVAL '1 hour')
+			AND event_time <= COALESCE($5, NOW())
+			AND (array_length($7::text[], 1) IS NULL OR destination_id = ANY($7))  -- destination_ids
+			AND (array_length($8::text[], 1) IS NULL OR topic = ANY($8))  -- topics
 			ORDER BY event_id, destination_id, delivery_time DESC
 		),
 		-- Step 2: Apply status filter
 		filtered_before_cursor AS (
 			SELECT *
 			FROM latest_status
-			WHERE ($8 = '' OR status = $8)  -- status filter
+			WHERE ($9 = '' OR status = $9)  -- status filter
 		),
 		-- Step 3: Apply pagination (cursor & limit)
 		filtered AS (
@@ -69,14 +78,15 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 				status,
 				(SELECT COUNT(*) FROM filtered_before_cursor) as total_count
 			FROM filtered_before_cursor
-			WHERE ($1 = '' OR time_event_id < $1)  -- cursor pagination
+			WHERE ($1 = '' OR time_event_id < $1) AND ($2 = '' OR time_event_id > $2)  -- cursor pagination
 			ORDER BY time_event_id DESC
-			LIMIT CASE WHEN $2 = 0 THEN NULL ELSE $2 END
+			LIMIT CASE WHEN $3 = 0 THEN NULL ELSE $3 END
 		)
 		SELECT * FROM filtered`
 
 	indexRows, err := s.db.Query(ctx, indexQuery,
-		decodedCursor,
+		decodedNext,
+		decodedPrev,
 		req.Limit,
 		req.Start,
 		req.End,
@@ -114,9 +124,17 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		return driver.ListEventResponse{
 			Data:  []*models.Event{},
 			Next:  "",
+			Prev:  "",
 			Count: 0,
 		}, nil
 	}
+
+	// Handle pagination
+	hasMore := true
+	// hasMore := len(eventInfos) > req.Limit
+	// if hasMore {
+	// 	eventInfos = eventInfos[:req.Limit] // Remove the extra item we fetched
+	// }
 
 	// Step 2: Get full event data
 	eventIDs := make([]string, len(eventInfos))
@@ -173,14 +191,23 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		}
 	}
 
-	var nextCursor string
+	var nextCursor, prevCursor string
 	if len(events) > 0 {
-		nextCursor = s.cursorParser.Format(eventInfos[len(eventInfos)-1].timeEventID)
+		lastItem := eventInfos[len(eventInfos)-1].timeEventID
+		firstItem := eventInfos[0].timeEventID
+
+		if hasMore {
+			nextCursor = s.cursorParser.Format(lastItem)
+		}
+		if decodedNext != "" {
+			prevCursor = s.cursorParser.Format(firstItem)
+		}
 	}
 
 	return driver.ListEventResponse{
 		Data:  events,
 		Next:  nextCursor,
+		Prev:  prevCursor,
 		Count: totalCount,
 	}, nil
 }

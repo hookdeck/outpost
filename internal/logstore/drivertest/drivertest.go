@@ -143,6 +143,9 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 				Delivery:      delivery,
 			})
 		}
+		// NOTE: Do NOT else if here; if shouldRetry is true,
+		// we need to append the failed delivery first.
+		// Then, we'll append a 2nd delivery after.
 
 		if shouldSucceed {
 			statusEvents["success"] = append(statusEvents["success"], event)
@@ -174,61 +177,75 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 	require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, deliveryEvents))
 
 	// Queries
-	t.Run("base queries", func(t *testing.T) {
-		t.Run("list event empty", func(t *testing.T) {
-			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantID: "unknown",
-				Limit:    5,
-				Cursor:   "",
-				Start:    start,
-			})
-			require.NoError(t, err)
-			assert.Empty(t, response.Data)
-			assert.Empty(t, response.Next)
-			assert.Equal(t, int64(0), response.Count, "count should be 0 for unknown tenant")
+	t.Run("list event empty", func(t *testing.T) {
+		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID: "unknown",
+			Limit:    5,
+			Next:     "",
+			Start:    start,
 		})
+		require.NoError(t, err)
+		assert.Empty(t, response.Data)
+		assert.Empty(t, response.Next)
+		assert.Empty(t, response.Prev, "prev cursor should be empty when no data")
+		assert.Equal(t, int64(0), response.Count, "count should be 0 for unknown tenant")
+	})
 
-		var cursor string
-		t.Run("list event", func(t *testing.T) {
-			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantID: tenantID,
-				Limit:    5,
-				Cursor:   "",
-				Start:    start,
-			})
-			require.NoError(t, err)
-			require.Len(t, response.Data, 5)
-			for i := 0; i < 5; i++ {
-				require.Equal(t, events[i].ID, response.Data[i].ID)
-			}
-			assert.Equal(t, int64(20), response.Count, "total count should match total number of events")
-			cursor = response.Next
+	t.Run("simple list with pagination", func(t *testing.T) {
+		// Step 1: list event with no cursor
+		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID: tenantID,
+			Limit:    5,
+			Start:    start,
 		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, 5)
+		for i := 0; i < 5; i++ {
+			require.Equal(t, events[i].ID, response.Data[i].ID)
+		}
+		assert.Equal(t, int64(20), response.Count, "total count should match total number of events")
+		assert.Empty(t, response.Prev, "prev cursor should be empty on first page")
+		assert.NotEmpty(t, response.Next, "next cursor should be present when more data available")
 
-		t.Run("list event with cursor", func(t *testing.T) {
-			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantID: tenantID,
-				Limit:    5,
-				Cursor:   cursor,
-				Start:    start,
-			})
-			require.NoError(t, err)
-			require.Len(t, response.Data, 5)
-			for i := 0; i < 5; i++ {
-				require.Equal(t, events[5+i].ID, response.Data[i].ID)
-			}
-			assert.Equal(t, int64(20), response.Count, "count should remain same with cursor")
+		// Step 2: list event with next cursor
+		response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID: tenantID,
+			Limit:    5,
+			Next:     response.Next,
+			Start:    start,
 		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, 5)
+		for i := 0; i < 5; i++ {
+			require.Equal(t, events[5+i].ID, response.Data[i].ID)
+		}
+		assert.Equal(t, int64(20), response.Count, "count should remain same with cursor")
+		assert.NotEmpty(t, response.Prev, "prev cursor should be present for middle page")
+		assert.NotEmpty(t, response.Next, "next cursor should be present when more data available")
+
+		// Test 3: list event with prev cursor
+		response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID: tenantID,
+			Limit:    5,
+			Prev:     response.Prev,
+			Start:    start,
+		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, 5)
+		for i := 0; i < 5; i++ {
+			require.Equal(t, events[i].ID, response.Data[i].ID, "should get first page data when using prev cursor")
+		}
+		assert.Empty(t, response.Prev, "prev cursor should be empty on first page")
+		assert.NotEmpty(t, response.Next, "next cursor should be present when more data available")
 	})
 
 	t.Run("query by destinations", func(t *testing.T) {
-		var cursor string
 		t.Run("list event with destination filter", func(t *testing.T) {
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID:       tenantID,
 				DestinationIDs: []string{destinationIDs[0]},
 				Limit:          3,
-				Cursor:         "",
+				Next:           "",
 				Start:          start,
 			})
 			require.NoError(t, err)
@@ -237,15 +254,13 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 				require.Equal(t, destinationEvents[destinationIDs[0]][i].ID, response.Data[i].ID)
 			}
 			assert.Equal(t, int64(len(destinationEvents[destinationIDs[0]])), response.Count, "count should match events for destination")
-			cursor = response.Next
-		})
 
-		t.Run("list event with destination filter and cursor", func(t *testing.T) {
-			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			// Step 2: list with cursor
+			response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID:       tenantID,
 				DestinationIDs: []string{destinationIDs[0]},
 				Limit:          3,
-				Cursor:         cursor,
+				Next:           response.Next,
 				Start:          start,
 			})
 			require.NoError(t, err)
@@ -260,7 +275,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 				TenantID:       tenantID,
 				DestinationIDs: []string{destinationIDs[0], destinationIDs[1]},
 				Limit:          3,
-				Cursor:         "",
+				Next:           "",
 				Start:          start,
 			})
 			require.NoError(t, err)
@@ -271,15 +286,12 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.Equal(t, events[1].ID, response.Data[1].ID)
 			require.Equal(t, events[3].ID, response.Data[2].ID)
 
-			cursor = response.Next
-		})
-
-		t.Run("list event with destination array filter and cursor", func(t *testing.T) {
-			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			// Step 2: list with cursor
+			response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID:       tenantID,
 				DestinationIDs: []string{destinationIDs[0], destinationIDs[1]},
 				Limit:          3,
-				Cursor:         cursor,
+				Next:           response.Next,
 				Start:          start,
 			})
 			require.NoError(t, err)
@@ -293,7 +305,6 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 	})
 
 	t.Run("query by status", func(t *testing.T) {
-		var cursor string
 		t.Run("list event with status filter (success)", func(t *testing.T) {
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID: tenantID,
@@ -308,15 +319,13 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 				require.Equal(t, "success", response.Data[i].Status)
 			}
 			assert.Equal(t, int64(len(statusEvents["success"])), response.Count, "count should match successful events")
-			cursor = response.Next
-		})
 
-		t.Run("list event with status filter and cursor", func(t *testing.T) {
-			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			// Step 2: list with cursor
+			response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID: tenantID,
 				Status:   "success",
 				Limit:    5,
-				Cursor:   cursor,
+				Next:     response.Next,
 				Start:    start,
 			})
 			require.NoError(t, err)
@@ -355,7 +364,6 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 	})
 
 	t.Run("query by status and destination", func(t *testing.T) {
-		var cursor string
 		t.Run("list event with status and destination filter (success)", func(t *testing.T) {
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID:       tenantID,
@@ -369,16 +377,14 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			for i := 0; i < 2; i++ {
 				require.Equal(t, destinationStatusEvents[destinationIDs[0]]["success"][i].ID, response.Data[i].ID)
 			}
-			cursor = response.Next
-		})
 
-		t.Run("list event with status and destination filter and cursor", func(t *testing.T) {
-			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			// Step 2: list with cursor
+			response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID:       tenantID,
 				DestinationIDs: []string{destinationIDs[0]},
 				Status:         "success",
 				Limit:          2,
-				Cursor:         cursor,
+				Next:           response.Next,
 				Start:          start,
 			})
 			require.NoError(t, err)
@@ -390,7 +396,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 	})
 
 	t.Run("query by topic", func(t *testing.T) {
-		var cursor string
+
 		t.Run("list events with single topic", func(t *testing.T) {
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID: tenantID,
@@ -404,15 +410,13 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 				require.Equal(t, testutil.TestTopics[0], e.Topic)
 				require.Equal(t, topicEvents[e.Topic][index].ID, e.ID)
 			}
-			cursor = response.Next
-		})
 
-		t.Run("list events with single topic and cursor", func(t *testing.T) {
-			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			// Step 2: list with cursor
+			response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID: tenantID,
 				Topics:   []string{testutil.TestTopics[0]},
 				Limit:    2,
-				Cursor:   cursor,
+				Next:     response.Next,
 				Start:    start,
 			})
 			require.NoError(t, err)
@@ -436,15 +440,13 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 				require.Contains(t, testutil.TestTopics[:2], e.Topic)
 				require.Equal(t, topicEvents[e.Topic][0].ID, e.ID) // first event of each topic
 			}
-			cursor = response.Next
-		})
 
-		t.Run("list events with multiple topics and cursor", func(t *testing.T) {
-			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			// Step 2: list with cursor
+			response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID: tenantID,
 				Topics:   testutil.TestTopics[:2],
 				Limit:    2,
-				Cursor:   cursor,
+				Next:     response.Next,
 				Start:    start,
 			})
 			require.NoError(t, err)
@@ -458,7 +460,6 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 
 	t.Run("query by time", func(t *testing.T) {
 		t.Run("list events with no time params (defaults to last hour)", func(t *testing.T) {
-			var cursor string
 
 			// First page
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
@@ -471,13 +472,12 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 				require.Equal(t, timeEvents["1h"][i].ID, e.ID)
 			}
 			assert.Equal(t, int64(len(timeEvents["1h"])), response.Count, "count should match events in last hour")
-			cursor = response.Next
 
-			// Second page
+			// second window
 			response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID: tenantID,
 				Limit:    2,
-				Cursor:   cursor,
+				Next:     response.Next,
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 2)
@@ -485,18 +485,17 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 				require.Equal(t, timeEvents["1h"][i+2].ID, e.ID)
 			}
 			// Should still have one more event in the 1h bucket
-			cursor = response.Next
 
 			// Final page
 			response, err = logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID: tenantID,
 				Limit:    2,
-				Cursor:   cursor,
+				Next:     response.Next,
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 1) // Last event in the 1h bucket
 			require.Equal(t, timeEvents["1h"][4].ID, response.Data[0].ID)
-			// require.Empty(t, nextCursor) // No more events
+			// require.Empty(t, response.Next) // No more events
 		})
 
 		t.Run("list events from 3 hours ago", func(t *testing.T) {
@@ -504,7 +503,6 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID: tenantID,
 				Start:    &threeHoursAgo,
-				// Limit:    5,
 			})
 			require.NoError(t, err)
 			// Should include events from 1h and 3h buckets
