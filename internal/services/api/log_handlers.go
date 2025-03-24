@@ -39,32 +39,72 @@ func (h *LogHandlers) listEvent(c *gin.Context, destinationIDs []string) {
 	if tenant == nil {
 		return
 	}
+
+	var start, end *time.Time
+	if startStr := c.Query("start"); startStr != "" {
+		t, err := time.Parse(time.RFC3339, startStr)
+		if err != nil {
+			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
+				Code:    http.StatusUnprocessableEntity,
+				Message: "validation error",
+				Data: map[string]string{
+					"query.start": "invalid format, expected RFC3339",
+				},
+			})
+			return
+		}
+		start = &t
+	}
+	if endStr := c.Query("end"); endStr != "" {
+		t, err := time.Parse(time.RFC3339, endStr)
+		if err != nil {
+			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
+				Code:    http.StatusUnprocessableEntity,
+				Message: "validation error",
+				Data: map[string]string{
+					"query.end": "invalid format, expected RFC3339",
+				},
+			})
+			return
+		}
+		end = &t
+	}
+
 	limitStr := c.Query("limit")
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil {
 		limit = 100
 	}
-	events, nextCursor, err := h.logStore.ListEvent(c.Request.Context(), logstore.ListEventRequest{
-		TenantID:       tenant.ID,
-		Cursor:         c.Query("cursor"),
+	response, err := h.logStore.ListEvent(c.Request.Context(), logstore.ListEventRequest{
+		Next:           c.Query("next"),
+		Prev:           c.Query("prev"),
 		Limit:          limit,
+		Start:          start,
+		End:            end,
+		TenantID:       tenant.ID,
 		DestinationIDs: destinationIDs,
+		Topics:         c.QueryArray("topic"),
 		Status:         c.Query("status"),
 	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if len(events) == 0 {
+	if len(response.Data) == 0 {
 		// Return an empty array instead of null
 		c.JSON(http.StatusOK, gin.H{
-			"data": []models.Event{},
+			"data":  []models.Event{},
+			"next":  "",
+			"prev":  "",
+			"count": 0,
 		})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"data": events,
-		"next": nextCursor,
+		"data":  response.Data,
+		"next":  response.Next,
+		"prev":  response.Prev,
+		"count": response.Count,
 	})
 }
 
@@ -106,6 +146,7 @@ func (h *LogHandlers) RetrieveEventByDestination(c *gin.Context) {
 }
 
 type DeliveryResponse struct {
+	ID           string                 `json:"id"`
 	DeliveredAt  string                 `json:"delivered_at"`
 	Status       string                 `json:"status"`
 	Code         string                 `json:"code"`
@@ -118,7 +159,8 @@ func (h *LogHandlers) ListDeliveryByEvent(c *gin.Context) {
 		return
 	}
 	deliveries, err := h.logStore.ListDelivery(c.Request.Context(), logstore.ListDeliveryRequest{
-		EventID: event.ID,
+		EventID:       event.ID,
+		DestinationID: c.Query("destination_id"),
 	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
@@ -132,6 +174,7 @@ func (h *LogHandlers) ListDeliveryByEvent(c *gin.Context) {
 	deliveryData := make([]DeliveryResponse, len(deliveries))
 	for i, delivery := range deliveries {
 		deliveryData[i] = DeliveryResponse{
+			ID:           delivery.ID,
 			DeliveredAt:  delivery.Time.UTC().Format(time.RFC3339),
 			Status:       delivery.Status,
 			Code:         delivery.Code,

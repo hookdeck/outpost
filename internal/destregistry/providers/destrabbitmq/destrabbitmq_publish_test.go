@@ -1,138 +1,219 @@
 package destrabbitmq_test
 
 import (
-	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
+	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 )
 
-// MockChannel mocks the Channel interface for testing
-type MockChannel struct {
-	mock.Mock
+// RabbitMQConsumer implements testsuite.MessageConsumer
+type RabbitMQConsumer struct {
+	conn     *amqp091.Connection
+	channel  *amqp091.Channel
+	messages chan testsuite.Message
 }
 
-func (m *MockChannel) PublishWithContext(ctx context.Context, exchange, key string, mandatory, immediate bool, msg amqp091.Publishing) error {
-	args := m.Called(ctx, exchange, key, mandatory, immediate, msg)
-	return args.Error(0)
-}
+func NewRabbitMQConsumer(serverURL, exchange string) (*RabbitMQConsumer, error) {
+	consumer := &RabbitMQConsumer{
+		messages: make(chan testsuite.Message, 100),
+	}
 
-// Make sure MockChannel implements the needed methods
-func (m *MockChannel) Close() error {
-	return nil // Simple implementation for testing
-}
+	// Connect to RabbitMQ
+	conn, err := amqp091.Dial(serverURL)
+	if err != nil {
+		return nil, err
+	}
 
-func (m *MockChannel) IsClosed() bool {
-	return false // Simple implementation for testing
-}
+	// Create channel
+	ch, err := conn.Channel()
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
 
-// MockConnection mocks the Connection interface for testing
-type MockConnection struct {
-	mock.Mock
-}
+	// Ensure exchange exists
+	err = ch.ExchangeDeclare(
+		exchange, // name
+		"topic",  // type
+		true,     // durable
+		false,    // auto-deleted
+		false,    // internal
+		false,    // no-wait
+		nil,      // arguments
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, err
+	}
 
-func (m *MockConnection) Close() error {
-	args := m.Called()
-	return args.Error(0)
-}
+	// Create a temporary queue
+	queue, err := ch.QueueDeclare(
+		"",    // name (empty = auto-generated name)
+		false, // durable
+		true,  // delete when unused
+		true,  // exclusive
+		false, // no-wait
+		nil,   // arguments
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, err
+	}
 
-func (m *MockConnection) IsClosed() bool {
-	args := m.Called()
-	return args.Bool(0)
-}
+	// Bind queue to exchange with wildcard routing key
+	err = ch.QueueBind(
+		queue.Name, // queue name
+		"#",        // routing key (# = match all)
+		exchange,   // exchange
+		false,
+		nil,
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, err
+	}
 
-// Ensure MockConnection implements destrabbitmq.AMQPConnection
-var _ destrabbitmq.AMQPConnection = (*MockConnection)(nil)
+	// Start consuming
+	deliveries, err := ch.Consume(
+		queue.Name, // queue
+		"",         // consumer
+		true,       // auto-ack
+		false,      // exclusive
+		false,      // no-local
+		false,      // no-wait
+		nil,        // args
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, err
+	}
 
-func TestRabbitMQPublisher_Publish(t *testing.T) {
+	consumer.conn = conn
+	consumer.channel = ch
 
-	t.Run("should use topic as routing_key", func(t *testing.T) {
-
-		// Set up specific test topic and data
-		topic := "test.topic"
-		eventData := map[string]interface{}{"key": "value"}
-
-		// Set up RabbitMQ configuration
-		mqConfig := testinfra.NewMQRabbitMQConfig(t)
-		exchangeName := "test-exchange"
-
-		// Create destination with the test topic
-		dest := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("rabbitmq"),
-			testutil.DestinationFactory.WithConfig(map[string]string{
-				"server_url": testutil.ExtractRabbitURL(mqConfig.RabbitMQ.ServerURL),
-				"exchange":   exchangeName,
-			}),
-			testutil.DestinationFactory.WithCredentials(map[string]string{
-				"username": testutil.ExtractRabbitUsername(mqConfig.RabbitMQ.ServerURL),
-				"password": testutil.ExtractRabbitPassword(mqConfig.RabbitMQ.ServerURL),
-			}),
-			testutil.DestinationFactory.WithTopics([]string{topic}),
-		)
-
-		// Create a mock channel to verify the call parameters
-		mockChannel := new(MockChannel)
-
-		// Create a mock connection
-		mockConnection := new(MockConnection)
-		mockConnection.On("IsClosed").Return(false)
-
-		// Set up expectations for the mock
-		mockChannel.On("PublishWithContext",
-			mock.Anything, // context
-			mock.Anything, // exchange name
-			topic,         // routing key (event topic)
-			mock.Anything, // mandatory
-			mock.Anything, // immediate
-			mock.Anything, // message
-		).Return(nil)
-
-		// Create the RabbitMQ provider
-		provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
-		assert.NoError(t, err)
-
-		// Create the publisher
-		pub, err := provider.CreatePublisher(context.Background(), &dest)
-		assert.NoError(t, err)
-
-		// Cast to RabbitMQPublisher to access internal fields
-		rabbitMQPub, ok := pub.(*destrabbitmq.RabbitMQPublisher)
-		assert.True(t, ok, "publisher should be a RabbitMQPublisher")
-
-		// Set up both the connection and channel for testing
-		rabbitMQPub.SetupForTesting(mockConnection, mockChannel)
-
-		// Create and publish the event
-		event := &models.Event{
-			Topic: topic,
-			Data:  eventData,
+	// Forward messages with raw delivery
+	go func() {
+		for d := range deliveries {
+			consumer.messages <- testsuite.Message{
+				Data:     d.Body,
+				Metadata: toStringMap(d.Headers),
+				Raw:      d,
+			}
 		}
+	}()
 
-		ctx := context.Background()
-		delivery, err := pub.Publish(ctx, event)
+	return consumer, nil
+}
 
-		// Verify the result
-		assert.NoError(t, err)
-		assert.Equal(t, "success", delivery.Status)
+func (c *RabbitMQConsumer) Consume() <-chan testsuite.Message {
+	return c.messages
+}
 
-		// Verify the mock was called with expected parameters
-		mockChannel.AssertCalled(t, "PublishWithContext",
-			mock.Anything, // We don't need to check the exact context
-			exchangeName,
-			topic, // Important: verify the topic is used as routing key
-			false,
-			false,
-			mock.Anything,
-		)
+func (c *RabbitMQConsumer) Close() error {
+	if c.channel != nil {
+		c.channel.Close()
+	}
+	if c.conn != nil {
+		c.conn.Close()
+	}
+	close(c.messages)
+	return nil
+}
 
-		// Verify that all expectations were met
-		mockChannel.AssertExpectations(t)
-		mockConnection.AssertExpectations(t)
+// RabbitMQAsserter implements provider-specific message assertions
+type RabbitMQAsserter struct{}
+
+func (a *RabbitMQAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Message, event models.Event) {
+	delivery, ok := msg.Raw.(amqp091.Delivery)
+	assert.True(t, ok, "raw message should be amqp.Delivery")
+
+	// Assert RabbitMQ-specific properties
+	assert.Equal(t, "application/json", delivery.ContentType)
+	assert.Equal(t, event.Topic, delivery.RoutingKey, "routing key should match event topic")
+	// assert.NotEmpty(t, delivery.MessageId)
+	// assert.NotEmpty(t, delivery.Timestamp)
+
+	// Could add more RabbitMQ-specific assertions:
+	// - Exchange routing
+	// - Message persistence
+	// - Priority
+	// - etc.
+}
+
+// RabbitMQPublishSuite reimplements the publish tests using the shared test suite
+type RabbitMQPublishSuite struct {
+	testsuite.PublisherSuite
+	consumer *RabbitMQConsumer
+}
+
+func (s *RabbitMQPublishSuite) SetupSuite() {
+	t := s.T()
+	t.Cleanup(testinfra.Start(t))
+	rabbitURL := testinfra.EnsureRabbitMQ()
+	exchange := uuid.New().String()
+
+	provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
+	require.NoError(t, err)
+
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("rabbitmq"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"server_url": testutil.ExtractRabbitURL(rabbitURL),
+			"exchange":   exchange,
+			// "tls":         "false", // should default to false if omitted
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"username": testutil.ExtractRabbitUsername(rabbitURL),
+			"password": testutil.ExtractRabbitPassword(rabbitURL),
+		}),
+	)
+
+	consumer, err := NewRabbitMQConsumer(rabbitURL, exchange)
+	require.NoError(t, err)
+	s.consumer = consumer
+
+	s.InitSuite(testsuite.Config{
+		Provider: provider,
+		Dest:     &dest,
+		Consumer: consumer,
+		Asserter: &RabbitMQAsserter{}, // Add RabbitMQ-specific assertions
 	})
+}
+
+func (s *RabbitMQPublishSuite) TearDownSuite() {
+	if s.consumer != nil {
+		s.consumer.Close()
+	}
+}
+
+func TestRabbitMQPublishIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+	suite.Run(t, new(RabbitMQPublishSuite))
+}
+
+// Helper functions
+
+func toStringMap(table amqp091.Table) map[string]string {
+	result := make(map[string]string)
+	for k, v := range table {
+		if str, ok := v.(string); ok {
+			result[k] = str
+		}
+	}
+	return result
 }

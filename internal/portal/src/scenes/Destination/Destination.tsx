@@ -14,7 +14,7 @@ import {
 } from "../../typings/Destination";
 import getLogo from "../../utils/logo";
 import DestinationSettings from "./DestinationSettings/DestinationSettings";
-import Events from "./Events/Events";
+import Events, { EventRoutes } from "./Events/Events";
 
 // Define the tab interface
 interface Tab {
@@ -87,9 +87,16 @@ const Destination = () => {
           <div className="tabs-container">
             <nav className="tabs">
               {tabs.map((tab) => {
-                const isActive =
-                  location.pathname ===
-                  `/destinations/${destination_id}${tab.path}`;
+                let isActive = false;
+                if (tab.path === "") {
+                  isActive =
+                    location.pathname === `/destinations/${destination_id}`;
+                } else {
+                  isActive = location.pathname.includes(
+                    `/destinations/${destination_id}${tab.path}`
+                  );
+                }
+
                 return (
                   <Link
                     key={tab.path}
@@ -110,8 +117,8 @@ const Destination = () => {
               }
             />
             <Route
-              path="/events"
-              element={<Events destination={destination} />}
+              path="/events/*"
+              element={<EventRoutes destination={destination} />}
             />
             <Route
               path="/"

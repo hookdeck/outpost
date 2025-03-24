@@ -2,7 +2,6 @@ package chlogstore
 
 import (
 	"context"
-	"time"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
@@ -19,83 +18,90 @@ func NewLogStore(chDB clickhouse.DB) driver.LogStore {
 	return &logStoreImpl{chDB: chDB}
 }
 
-func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRequest) ([]*models.Event, string, error) {
-	var (
-		query     string
-		queryOpts []any
-	)
+func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRequest) (driver.ListEventResponse, error) {
+	// TODO: implement
+	return driver.ListEventResponse{}, nil
 
-	var cursor string
-	if cursorTime, err := time.Parse(time.RFC3339, request.Cursor); err == nil {
-		cursor = cursorTime.Format("2006-01-02T15:04:05") // RFC3339 without timezone
-	}
+	// var (
+	// 	query     string
+	// 	queryOpts []any
+	// )
 
-	if cursor == "" {
-		query = `
-			SELECT
-				id,
-				tenant_id,
-				destination_id,
-				time,
-				topic,
-				eligible_for_retry,
-				data,
-				metadata
-			FROM events
-			WHERE tenant_id = ?
-			AND (? = 0 OR destination_id IN ?)
-			ORDER BY time DESC
-			LIMIT ?
-		`
-		queryOpts = []any{request.TenantID, len(request.DestinationIDs), request.DestinationIDs, request.Limit}
-	} else {
-		query = `
-			SELECT
-				id,
-				tenant_id,
-				destination_id,
-				time,
-				topic,
-				eligible_for_retry,
-				data,
-				metadata
-			FROM events
-			WHERE tenant_id = ? AND time < ?
-			AND (? = 0 OR destination_id IN ?)
-			ORDER BY time DESC
-			LIMIT ?
-		`
-		queryOpts = []any{request.TenantID, cursor, len(request.DestinationIDs), request.DestinationIDs, request.Limit}
-	}
-	rows, err := s.chDB.Query(ctx, query, queryOpts...)
-	if err != nil {
-		return nil, "", err
-	}
-	defer rows.Close()
+	// var cursor string
+	// if cursorTime, err := time.Parse(time.RFC3339, request.Cursor); err == nil {
+	// 	cursor = cursorTime.Format("2006-01-02T15:04:05") // RFC3339 without timezone
+	// }
 
-	var events []*models.Event
-	for rows.Next() {
-		event := &models.Event{}
-		if err := rows.Scan(
-			&event.ID,
-			&event.TenantID,
-			&event.DestinationID,
-			&event.Time,
-			&event.Topic,
-			&event.EligibleForRetry,
-			&event.Data,
-			&event.Metadata,
-		); err != nil {
-			return nil, "", err
-		}
-		events = append(events, event)
-	}
-	var nextCursor string
-	if len(events) > 0 {
-		nextCursor = events[len(events)-1].Time.Format(time.RFC3339)
-	}
+	// if cursor == "" {
+	// 	query = `
+	// 		SELECT
+	// 			id,
+	// 			tenant_id,
+	// 			destination_id,
+	// 			time,
+	// 			topic,
+	// 			eligible_for_retry,
+	// 			data,
+	// 			metadata
+	// 		FROM events
+	// 		WHERE tenant_id = ?
+	// 		AND (? = 0 OR destination_id IN ?)
+	// 		ORDER BY time DESC
+	// 		LIMIT ?
+	// 	`
+	// 	queryOpts = []any{request.TenantID, len(request.DestinationIDs), request.DestinationIDs, request.Limit}
+	// } else {
+	// 	query = `
+	// 		SELECT
+	// 			id,
+	// 			tenant_id,
+	// 			destination_id,
+	// 			time,
+	// 			topic,
+	// 			eligible_for_retry,
+	// 			data,
+	// 			metadata
+	// 		FROM events
+	// 		WHERE tenant_id = ? AND time < ?
+	// 		AND (? = 0 OR destination_id IN ?)
+	// 		ORDER BY time DESC
+	// 		LIMIT ?
+	// 	`
+	// 	queryOpts = []any{request.TenantID, cursor, len(request.DestinationIDs), request.DestinationIDs, request.Limit}
+	// }
+	// rows, err := s.chDB.Query(ctx, query, queryOpts...)
+	// if err != nil {
+	// 	return driver.ListEventResponse{}, err
+	// }
+	// defer rows.Close()
 
-	return events, nextCursor, nil
+	// var events []*models.Event
+	// for rows.Next() {
+	// 	event := &models.Event{}
+	// 	if err := rows.Scan(
+	// 		&event.ID,
+	// 		&event.TenantID,
+	// 		&event.DestinationID,
+	// 		&event.Time,
+	// 		&event.Topic,
+	// 		&event.EligibleForRetry,
+	// 		&event.Data,
+	// 		&event.Metadata,
+	// 	); err != nil {
+	// 		return driver.ListEventResponse{}, err
+	// 	}
+	// 	events = append(events, event)
+	// }
+	// var nextCursor string
+	// if len(events) > 0 {
+	// 	nextCursor = events[len(events)-1].Time.Format(time.RFC3339)
+	// }
+
+	// return driver.ListEventResponse{
+	// 	Data:  events,
+	// 	Next:  nextCursor,
+	// 	Count: int64(len(events)),
+	// }, nil
 }
 
 func (s *logStoreImpl) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {

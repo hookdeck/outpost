@@ -11,15 +11,22 @@ interface TableRow {
   entries: (string | React.ReactNode)[];
   link?: string;
   onClick?: () => void;
+  active?: boolean;
 }
 
 interface TableProps {
   columns: Column[];
   rows: TableRow[];
-  footer_label: string;
+  footer_label?: string;
+  footer?: React.ReactNode;
 }
 
-const Table: React.FC<TableProps> = ({ columns, rows, footer_label }) => {
+const Table: React.FC<TableProps> = ({
+  columns,
+  rows,
+  footer,
+  footer_label,
+}) => {
   const handle_row_click = (row: TableRow) => {
     if (row.onClick) {
       row.onClick();
@@ -60,6 +67,7 @@ const Table: React.FC<TableProps> = ({ columns, rows, footer_label }) => {
               gridTemplateColumns: columns_widths,
             }}
             onClick={() => handle_row_click(row)}
+            data-active={row.active}
           >
             {row.entries.map((entry, index) => (
               <div
@@ -82,12 +90,14 @@ const Table: React.FC<TableProps> = ({ columns, rows, footer_label }) => {
           </div>
         ))}
       </div>
-      <div className="table__footer">
-        <div>
-          <span className="subtitle-s">{rows.length}</span>
-          <span className="body-s"> {footer_label}</span>
+      {footer ?? (
+        <div className="table__footer">
+          <div>
+            <span className="subtitle-s">{rows.length}</span>
+            <span className="body-s"> {footer_label}</span>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
