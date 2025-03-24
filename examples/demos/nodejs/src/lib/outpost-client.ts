@@ -34,18 +34,18 @@ class OutpostClient {
     tenant_id,
     topic,
     data,
-    meta_data,
+    metadata,
   }: {
     tenant_id: string;
     topic: string;
     data: any;
-    meta_data: any;
+    metadata: any;
   }): Promise<boolean> {
     const response = await this.request("/publish", "POST", {
       tenant_id,
       topic,
       data,
-      meta_data,
+      metadata,
     });
     return !!response;
   }

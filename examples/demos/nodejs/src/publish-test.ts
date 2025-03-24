@@ -9,7 +9,7 @@ const main = async () => {
   for (const organization of organizations) {
     const destinations = await outpost.getDestinations(organization.id);
     for (const destination of destinations) {
-      await outpost.publishEvent({
+      const event = {
         tenant_id: organization.id,
         topic: destination.topics[0],
         data: {
@@ -18,10 +18,13 @@ const main = async () => {
           from_destination_id: destination.id,
           timestamp: new Date().toISOString(),
         },
-        meta_data: {
+        metadata: {
           some: "metadata",
         },
-      });
+      };
+      console.log("Publishing event");
+      console.log(event);
+      await outpost.publishEvent(event);
     }
   }
 };
