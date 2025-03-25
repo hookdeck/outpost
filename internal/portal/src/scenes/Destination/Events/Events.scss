@@ -84,11 +84,15 @@
             align-items: center;
             gap: var(--spacing-2);
 
-            button.button__minimal.active {
-              background-color: var(--colors-background-neutral-2);
+            button.button__minimal {
+              padding: var(--spacing-1) var(--spacing-2);
 
-              > span {
-                color: var(--colors-foreground-neutral);
+              &.active {
+                background-color: var(--colors-background-neutral-2);
+
+                > span {
+                  color: var(--colors-foreground-neutral);
+                }
               }
             }
           }
@@ -168,7 +172,7 @@
     margin: 0;
 
     &-item {
-      padding: var(--spacing-3) var(--spacing-6);
+      padding: var(--spacing-2) var(--spacing-6);
       border-bottom: 1px solid var(--colors-outline-neutral);
       position: relative;
 
@@ -213,6 +217,20 @@
           display: flex;
           align-items: center;
           gap: var(--spacing-2);
+
+          .icon-container {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            svg {
+              fill: var(--colors-foreground-neutral-2);
+              width: 16px;
+              height: 16px;
+            }
+          }
         }
 
         svg {

@@ -1,6 +1,10 @@
 import { Route, Routes, useLocation, useParams } from "react-router-dom";
 import Button from "../../../common/Button/Button";
-import { CloseIcon, NextIcon, PreviousIcon } from "../../../common/Icons";
+import {
+  ArrowForwardIcon,
+  CloseIcon,
+  ArrowBackIcon,
+} from "../../../common/Icons";
 import useSWR from "swr";
 import { Event, Delivery } from "../../../typings/Event";
 import Badge from "../../../common/Badge/Badge";
@@ -74,7 +78,12 @@ const EventData = ({
             danger={event.status === "failed"}
           />
 
-          <Button minimal onClick={() => navigateEvent("/")}>
+          <Button
+            icon
+            iconLabel="Close"
+            minimal
+            onClick={() => navigateEvent("/")}
+          >
             <CloseIcon />
           </Button>
         </div>
@@ -83,7 +92,7 @@ const EventData = ({
       <div className="drawer__body">
         <div className="event-data">
           <div className="event-data__overview">
-            <h3 className="title-m">Overview</h3>
+            <h3 className="subtitle-m">Overview</h3>
             <dl className="body-m description-list">
               <div>
                 <dt>ID</dt>
@@ -127,7 +136,9 @@ const EventData = ({
 
           <div className="event-data__metadata">
             <h3 className="subtitle-m">Metadata</h3>
-            <pre className="mono-s">{JSON.stringify(event.metadata, null, 2)}</pre>
+            <pre className="mono-s">
+              {JSON.stringify(event.metadata, null, 2)}
+            </pre>
           </div>
         </div>
       </div>
@@ -163,7 +174,12 @@ const EventAttempts = ({
         </div>
 
         <div>
-          <Button minimal onClick={() => navigateEvent("/")}>
+          <Button
+            icon
+            iconLabel="Close"
+            minimal
+            onClick={() => navigateEvent("/")}
+          >
             <CloseIcon />
           </Button>
         </div>
@@ -217,8 +233,9 @@ const EventAttempts = ({
                         success={delivery.status === "success"}
                         danger={delivery.status === "failed"}
                       />
-                      {/* TODO: use RightArrowIcon */}
-                      <NextIcon />
+                      <span className="icon-container">
+                        <ArrowForwardIcon />
+                      </span>
                     </span>
                   </span>
                 </li>
@@ -251,7 +268,7 @@ const EventAttemptDetails = ({
             minimal
             onClick={() => navigateEvent(`/${event.id}/attempts`)}
           >
-            <PreviousIcon />
+            <ArrowBackIcon />
             Attempts {deliveryIndex}
           </Button>
         </div>
@@ -263,7 +280,12 @@ const EventAttemptDetails = ({
             danger={delivery.status === "failed"}
           />
 
-          <Button minimal onClick={() => navigateEvent("/")}>
+          <Button
+            icon
+            iconLabel="Close"
+            minimal
+            onClick={() => navigateEvent("/")}
+          >
             <CloseIcon />
           </Button>
         </div>
@@ -272,7 +294,7 @@ const EventAttemptDetails = ({
       <div className="drawer__body">
         <div className="event-attempt-details">
           <div className="event-attempt-details__overview">
-            <h3 className="title-m">Overview</h3>
+            <h3 className="subtitle-m">Overview</h3>
 
             <dl className="body-m description-list">
               <div>
@@ -325,7 +347,9 @@ const EventAttemptDetails = ({
 
           <div className="event-attempt-details__result">
             <h3 className="subtitle-m">Response</h3>
-            <pre className="mono-s">{JSON.stringify(delivery.response_data, null, 2)}</pre>
+            <pre className="mono-s">
+              {JSON.stringify(delivery.response_data, null, 2)}
+            </pre>
           </div>
         </div>
       </div>
