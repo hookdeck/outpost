@@ -21,7 +21,7 @@
       gap: var(--spacing-3);
     }
 
-    .badge {
+    &-title .badge {
       color: currentColor;
     }
   }

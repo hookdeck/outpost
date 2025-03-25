@@ -9,6 +9,7 @@ interface DropdownProps {
   trigger: React.ReactNode;
   disabled?: boolean;
   badge_count?: number;
+  badge_variant?: "primary" | "success" | "danger";
 }
 
 const Dropdown: FC<PropsWithChildren<DropdownProps>> = ({
@@ -16,6 +17,7 @@ const Dropdown: FC<PropsWithChildren<DropdownProps>> = ({
   trigger,
   children,
   badge_count,
+  badge_variant,
   disabled = false,
 }) => {
   return (
@@ -26,7 +28,12 @@ const Dropdown: FC<PropsWithChildren<DropdownProps>> = ({
             {trigger_icon}
             {trigger}
             {badge_count && badge_count > 0 ? (
-              <Badge text={String(badge_count)} />
+              <Badge
+                text={String(badge_count)}
+                primary={badge_variant === "primary"}
+                success={badge_variant === "success"}
+                danger={badge_variant === "danger"}
+              />
             ) : null}
           </Button>
         </div>

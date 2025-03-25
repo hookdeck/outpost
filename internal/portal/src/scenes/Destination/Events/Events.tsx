@@ -110,7 +110,7 @@ const Events = ({
   return (
     <div className="destination-events">
       <div className="destination-events__header">
-        <h2 className="title-l">
+        <h2 className="destination-events__header-title title-l">
           Events <Badge text={eventsList?.count ?? 0} size="s" />
         </h2>
         <div className="destination-events__header-filters">
@@ -159,6 +159,7 @@ const Events = ({
             trigger_icon={<FilterIcon />}
             trigger="Status"
             badge_count={status.value ? 1 : 0}
+            badge_variant="primary"
           >
             <div className="dropdown-item">
               <Checkbox
@@ -188,6 +189,7 @@ const Events = ({
             trigger_icon={<FilterIcon />}
             trigger="Topics"
             badge_count={topics.value.length}
+            badge_variant="primary"
           >
             {topicsList.map((topic) => (
               <div key={topic} className="dropdown-item">
