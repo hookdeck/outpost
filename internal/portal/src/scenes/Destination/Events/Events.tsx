@@ -111,7 +111,7 @@ const Events = ({
     <div className="destination-events">
       <div className="destination-events__header">
         <h2 className="title-l">
-          Events <Badge text={eventsList?.count ?? 0} />
+          Events <Badge text={eventsList?.count ?? 0} size="s" />
         </h2>
         <div className="destination-events__header-filters">
           {/* <SearchInput

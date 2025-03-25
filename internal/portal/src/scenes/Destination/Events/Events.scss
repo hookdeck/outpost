@@ -20,6 +20,10 @@
       align-items: center;
       gap: var(--spacing-3);
     }
+
+    .badge {
+      color: currentColor;
+    }
   }
 
   &__table {

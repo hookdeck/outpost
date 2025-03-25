@@ -34,4 +34,10 @@
     color: var(--colors-foreground-danger);
     border-color: var(--colors-outline-danger);
   }
+
+  &__s {
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-xs);
+    padding: 0 var(--spacing-1);
+  }
 }
