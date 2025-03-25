@@ -220,9 +220,11 @@ const Events = ({
           columns={[
             {
               header: "Timestamp",
+              width: 160,
             },
             {
               header: "Status",
+              width: 160,
             },
             {
               header: "Topic",
