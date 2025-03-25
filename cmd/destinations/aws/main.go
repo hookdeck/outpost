@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
 	"os/signal"
@@ -65,7 +66,8 @@ func run() error {
 				continue
 			}
 			for _, m := range out.Messages {
-				log.Printf("[x] %s - %s\n", string(*m.Body), *m.MessageId)
+				attrs, _ := json.Marshal(m.MessageAttributes)
+				log.Printf("[x] ID: %s | Body: %s | Attributes: %s\n", *m.MessageId, string(*m.Body), string(attrs))
 
 				// Delete message (to ack)
 				_, err = sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
