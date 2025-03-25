@@ -1,0 +1,67 @@
+---
+title: "Publish from RabbitMQ"
+---
+
+This guide provides information on using RabbitMQ to publish events to Outpost.
+
+## Message Structure
+
+RabbitMQ messages should have the same payload structure as the [Publish API endpoint](/docs/references/api#publish).
+
+```json
+{
+  "tenant_id": "<TENANT_ID>",
+  "destination_id": "<DESTINATION_ID>", // Optional. Provide a way of routing events to a specific destination
+  "topic": "topic.name", // Topic defined in TOPICS environment variable
+  "eligible_for_retry": true | false, // Should event delivery be retried
+  "metadata": Payload, // can by any JSON payload,
+  "data": Payload // can by any JSON payload
+}
+```
+
+## Configuration
+
+Provide Outpost with connection and routing information for your RabbitMQ instance used for publishing events.
+
+### Environment Variables
+
+```
+PUBLISH_RABBITMQ_SERVER_URL="<SERVER_URL>"
+PUBLISH_RABBITMQ_EXCHANGE="<EXCHANGE_NAME>"
+PUBLISH_RABBITMQ_QUEUE="<QUEUE_NAME>"
+```
+
+#### Example
+
+```
+PUBLISH_RABBITMQ_SERVER_URL="amqp://guest:guest@localhost:5673"
+PUBLISH_RABBITMQ_EXCHANGE="outpost"
+PUBLISH_RABBITMQ_QUEUE="publish"
+```
+
+### YAML
+
+```yaml
+mqs:
+  publishmq:
+    rabbitmq:
+      server_url: <SERVER_URL>
+      exchange: <EXCHANGE_NAME>
+      queue: <QUEUE_NAME>
+```
+
+#### Example
+
+```yaml
+publishmq:
+  rabbitmq:
+    server_url: amqp://guest:guest@localhost:5673
+    exchange: outpost
+    queue: publish
+```
+
+### Troubleshooting
+
+- [Ask a question](https://github.com/hookdeck/outpost/discussions/new?category=q-a)
+- [Report a bug](https://github.com/hookdeck/outpost/issues/new?assignees=&labels=bug&projects=&template=bug_report.md&title=%F0%9F%90%9B+Bug+Report%3A+)
+- [Request a feature](https://github.com/hookdeck/outpost/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=%F0%9F%9A%80+Feature%3A+)

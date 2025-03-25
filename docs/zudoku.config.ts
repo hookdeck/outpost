@@ -108,6 +108,11 @@ const config: ZudokuConfig = {
           },
           {
             type: "doc",
+            label: "Publish from RabbitMQ",
+            id: "guides/publish-from-rabbitmq",
+          },
+          {
+            type: "doc",
             label: "Deployment",
             id: "guides/deployment",
           },
