@@ -8,7 +8,8 @@
   "main": "src/migrate.ts",
   "scripts": {
     "migrate": "esrun src/migrate.ts",
-    "publish-test": "esrun src/publish-test.ts",
+    "publish-api": "esrun src/publish-api.ts",
+    "publish-rabbitmq": "esrun src/publish-rabbitmq.ts",
     "verify": "esrun src/verify-signature.ts",
     "portal-urls": "esrun src/portal-urls.ts",
     "create-tenant": "esrun src/create-tenant.ts"
@@ -17,11 +18,13 @@
     "node": ">=20.6.0"
   },
   "devDependencies": {
+    "@types/amqplib": "^0.10.7",
     "@types/node": "^22.13.10",
     "esrun": "^3.2.26",
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "amqplib": "^0.10.3",
     "axios": "^1.8.2",
     "dotenv": "^16.4.7"
   }

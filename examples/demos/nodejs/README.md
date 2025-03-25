@@ -26,22 +26,36 @@ Demonstrates how a migration script could work.
 
 Run with:
 
-```
+```sh
 npm run migrate
 ```
 
-## Publish test script
+## Publish via API script
 
 Following the migration you may want to test publishing an event and it being received by a destination.
 
 Uses the `REAL_TEST_ENDPOINT` value to identify what to publish.
 
-`src/publish-test.ts`
+`src/publish-api.ts`
 
 Run with:
 
+```sh
+npm run publish-api
 ```
-npm run publish-test
+
+## Publish via RabbitMQ script
+
+Following the migration you may want to test publishing an event and it being received by a destination.
+
+RabbitMQ is assumed to be accessible via `amqp://guest:guest@localhost:5673`. This can be overridden with the `RABBITMQ_URL` environment variable.
+
+`src/publish-rabbitmq.ts`
+
+Run with:
+
+```sh
+npm run publish-rabbitmq
 ```
 
 ## Verification script
@@ -54,7 +68,7 @@ This script provides two examples of webhook verification.
 
 Run with:
 
-```
+```sh
 npm run verify
 ```
 
@@ -66,6 +80,6 @@ List the signed portal URLs
 
 Run with:
 
-```
+```sh
 npm run portal-urls
 ```

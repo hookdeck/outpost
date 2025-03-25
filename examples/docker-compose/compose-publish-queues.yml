@@ -1,14 +1,23 @@
 name: outpost-publish-queues
 services:
   publish_rabbitmq:
+    container_name: publish_rabbitmq
     image: rabbitmq:3-management
     ports:
-      - 5673:5673
-      - 15673:15673
+      - 5673:5672
+      - 15673:15672
     volumes:
       - ./data/publish-rabbitmq:/var/lib/rabbitmq
+      - ./publish-config/:/etc/rabbitmq/
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_MANAGEMENT_PORT=15672
+    command: >
+      bash -c "rabbitmq-plugins enable rabbitmq_management &&
+              rabbitmq-server"
     healthcheck:
-      test: rabbitmq-diagnostics check_port_connectivity
-      interval: 1s
-      timeout: 1s
-      retries: 30
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
