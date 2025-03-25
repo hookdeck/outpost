@@ -1,0 +1,86 @@
+---
+title: "Publish from SQS"
+---
+
+This guide provides information on using SQS to publish events to Outpost.
+
+## Message Structure
+
+SQS messages should have the same payload structure as the [Publish API endpoint](/docs/references/api#publish).
+
+```json
+{
+  "tenant_id": "<TENANT_ID>",
+  "destination_id": "<DESTINATION_ID>", // Optional. Provide a way of routing events to a specific destination
+  "topic": "topic.name", // Topic defined in TOPICS environment variable
+  "eligible_for_retry": true | false, // Should event delivery be retried
+  "metadata": Payload, // can by any JSON payload,
+  "data": Payload // can by any JSON payload
+}
+```
+
+## Configuration
+
+Provide Outpost with connection and routing information for your RabbitMQ instance used for publishing events.
+
+### Environment Variables
+
+```
+PUBLISH_AWS_SQS_REGION="<REGION>"
+PUBLISH_AWS_SQS_QUEUE="<QUEUE_NAME>"
+PUBLISH_AWS_SQS_ACCESS_KEY_ID="<KEY_ID>"
+PUBLISH_AWS_SQS_SECRET_ACCESS_KEY="<SECRET>"
+```
+
+Optionally, you can provide the `PUBLISH_AWS_SQS_ENDPOINT` environment variable to specify the endpoint URL for the SQS service. This can be useful for local development or when using a non-standard SQS endpoint.
+
+#### Example
+
+```
+PUBLISH_AWS_SQS_REGION="eu-north-1"
+PUBLISH_AWS_SQS_QUEUE="outpost-pub-queue"
+PUBLISH_AWS_SQS_ACCESS_KEY_ID="REDACTED"
+PUBLISH_AWS_SQS_SECRET_ACCESS_KEY="REDACTED"
+```
+
+### YAML
+
+```yaml
+mqs:
+  publishmq:
+    aws_sqs:
+      region: <AWS_REGION>
+      queue: <QUEUE_NAME>
+      access_key_id: <KEY_ID>
+      secret_access_key: <SECRET>
+
+      # Optional.
+      # Useful for local development or when using a non-standard SQS endpoint.
+      endpoint: <URL>
+```
+
+#### Example
+
+```yaml
+mqs:
+  publishmq:
+    aws_sqs:
+      region: eu-north-1
+      queue: outpost-pub-queue
+      access_key_id: REDACTED
+      secret_access_key: REDACTED
+```
+
+### Required Permissions
+
+The following permissions are required for the provided access key:
+
+- `sqs:DeleteMessage`
+- `sqs:GetQueueUrl`
+- `sqs:ReceiveMessage`
+
+### Troubleshooting
+
+- [Ask a question](https://github.com/hookdeck/outpost/discussions/new?category=q-a)
+- [Report a bug](https://github.com/hookdeck/outpost/issues/new?assignees=&labels=bug&projects=&template=bug_report.md&title=%F0%9F%90%9B+Bug+Report%3A+)
+- [Request a feature](https://github.com/hookdeck/outpost/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=%F0%9F%9A%80+Feature%3A+)

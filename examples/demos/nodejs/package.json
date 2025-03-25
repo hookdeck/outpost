@@ -10,6 +10,7 @@
     "migrate": "esrun src/migrate.ts",
     "publish-api": "esrun src/publish-api.ts",
     "publish-rabbitmq": "esrun src/publish-rabbitmq.ts",
+    "publish-sqs": "esrun src/publish-sqs.ts",
     "verify": "esrun src/verify-signature.ts",
     "portal-urls": "esrun src/portal-urls.ts",
     "create-tenant": "esrun src/create-tenant.ts"
@@ -24,6 +25,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.774.0",
     "amqplib": "^0.10.3",
     "axios": "^1.8.2",
     "dotenv": "^16.4.7"

@@ -113,6 +113,11 @@ const config: ZudokuConfig = {
           },
           {
             type: "doc",
+            label: "Publish from SQS",
+            id: "guides/publish-from-sqs",
+          },
+          {
+            type: "doc",
             label: "Deployment",
             id: "guides/deployment",
           },
