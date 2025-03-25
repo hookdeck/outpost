@@ -347,6 +347,7 @@ Publish an event.
 ```json
 {
   "tenant_id": "<TENANT_ID>",
+  "destination_id": "<DESTINATION_ID>", // Optional. Provide a way of routing events to a specific destination
   "topic": "topic.name", // Topic defined in TOPICS environment variable
   "eligible_for_retry": true | false, // Should event delivery be retried
   "metadata": Payload, // can by any JSON payload,
