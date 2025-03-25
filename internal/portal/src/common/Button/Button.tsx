@@ -13,6 +13,8 @@ interface ButtonProps {
   primary?: boolean;
   danger?: boolean;
   minimal?: boolean;
+  icon?: boolean;
+  iconLabel?: string;
 }
 
 const Button: FC<PropsWithChildren<ButtonProps>> = ({
@@ -26,12 +28,14 @@ const Button: FC<PropsWithChildren<ButtonProps>> = ({
   loading = false,
   danger = false,
   minimal = false,
+  icon,
+  iconLabel,
 }) => {
   className = `button${primary ? " button__primary" : ""}${
     disabled || loading ? " button__disabled" : ""
   } ${loading ? " button__loading" : ""} ${danger ? " button__danger" : ""} ${
     minimal ? " button__minimal" : ""
-  } ${className || ""}`;
+  } ${icon ? " button__icon" : ""}${className || ""}`;
 
   if (to) {
     return (
@@ -53,6 +57,9 @@ const Button: FC<PropsWithChildren<ButtonProps>> = ({
       type={type}
     >
       <span>{children}</span>
+      {icon && iconLabel && (
+        <span className="visually-hidden">{iconLabel}</span>
+      )}
       {loading && (
         <div className="button__loading-container">
           <Loading />

@@ -12,6 +12,11 @@
   box-shadow: var(--colors-shadow-button);
   position: relative;
 
+  &.button__icon {
+    line-height: 0;
+    padding: var(--spacing-1--5) var(--spacing-1--5);
+  }
+
   > span {
     display: flex;
     align-items: center;

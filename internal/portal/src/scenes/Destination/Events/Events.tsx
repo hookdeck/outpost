@@ -246,20 +246,20 @@ const Events = ({
 
               <nav>
                 <Button
-                  minimal
+                  icon
+                  iconLabel="Previous"
                   disabled={!eventsList?.prev}
                   onClick={() => pagination.prev(eventsList?.prev || "")}
                 >
                   <PreviousIcon />
-                  <span className="visually-hidden">Previous</span>
                 </Button>
                 <Button
-                  minimal
+                  icon
+                  iconLabel="Next"
                   disabled={!eventsList?.next}
                   onClick={() => pagination.next(eventsList?.next || "")}
                 >
                   <NextIcon />
-                  <span className="visually-hidden">Next</span>
                 </Button>
               </nav>
             </div>
