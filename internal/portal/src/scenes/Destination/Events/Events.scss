@@ -128,8 +128,9 @@
     }
 
     pre {
-      margin: 0;
-      padding: 0;
+      white-space: break-spaces;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
   }
 
@@ -144,8 +145,9 @@
     }
 
     pre {
-      margin: 0;
-      padding: 0;
+      white-space: break-spaces;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
   }
 }
@@ -240,6 +242,12 @@
       margin-top: 0;
       margin-bottom: 0;
     }
+
+    > pre {
+      white-space: break-spaces;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
   }
 
   &__result {
@@ -251,9 +259,10 @@
       margin-bottom: 0;
     }
 
-    pre {
-      margin: 0;
-      padding: 0;
+    > pre {
+      white-space: break-spaces;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
   }
 }

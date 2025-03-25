@@ -121,13 +121,13 @@ const EventData = ({
           </div>
 
           <div className="event-data__data">
-            <h3 className="title-m">Data</h3>
-            <pre>{JSON.stringify(event.data, null, 2)}</pre>
+            <h3 className="subtitle-m">Data</h3>
+            <pre className="mono-s">{JSON.stringify(event.data, null, 2)}</pre>
           </div>
 
           <div className="event-data__metadata">
-            <h3 className="title-m">Metadata</h3>
-            <pre>{JSON.stringify(event.metadata, null, 2)}</pre>
+            <h3 className="subtitle-m">Metadata</h3>
+            <pre className="mono-s">{JSON.stringify(event.metadata, null, 2)}</pre>
           </div>
         </div>
       </div>
@@ -310,8 +310,8 @@ const EventAttemptDetails = ({
 
           {/* Currently, we're not storing the exact message data sent. */}
           <div className="event-attempt-details__message">
-            <h3 className="title-s">Message</h3>
-            <pre>
+            <h3 className="subtitle-m">Message</h3>
+            <pre className="mono-s">
               {JSON.stringify(
                 {
                   metadata: event.metadata,
@@ -324,8 +324,8 @@ const EventAttemptDetails = ({
           </div>
 
           <div className="event-attempt-details__result">
-            <h3 className="title-m">Response</h3>
-            <pre>{JSON.stringify(delivery.response_data, null, 2)}</pre>
+            <h3 className="subtitle-m">Response</h3>
+            <pre className="mono-s">{JSON.stringify(delivery.response_data, null, 2)}</pre>
           </div>
         </div>
       </div>
