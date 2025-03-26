@@ -1,8 +1,12 @@
 package destregistry
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
+
+	"github.com/hookdeck/outpost/internal/models"
 )
 
 // BasePublisher provides common publisher functionality
@@ -29,4 +33,20 @@ func (p *BasePublisher) FinishPublish() {
 func (p *BasePublisher) StartClose() {
 	p.closed.Store(true)
 	p.active.Wait()
+}
+
+func (p *BasePublisher) MakeMetadata(event *models.Event, timestamp time.Time) map[string]string {
+	systemMetadata := map[string]string{
+		"timestamp": fmt.Sprintf("%d", timestamp.Unix()),
+		"event-id":  event.ID,
+		"topic":     event.Topic,
+	}
+	metadata := make(map[string]string)
+	for k, v := range systemMetadata {
+		metadata[k] = v
+	}
+	for k, v := range event.Metadata {
+		metadata[k] = v
+	}
+	return metadata
 }

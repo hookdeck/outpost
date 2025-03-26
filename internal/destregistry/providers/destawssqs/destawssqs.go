@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -139,18 +140,21 @@ func (p *AWSSQSPublisher) Format(ctx context.Context, event *models.Event) (*sqs
 		return nil, err
 	}
 
-	attrs := make(map[string]types.MessageAttributeValue)
-	for k, v := range event.Metadata {
-		attrs[k] = types.MessageAttributeValue{
-			DataType:    aws.String("String"),
-			StringValue: aws.String(v),
-		}
+	metadata := p.BasePublisher.MakeMetadata(event, time.Now())
+	metadataBytes, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, err
 	}
 
 	return &sqs.SendMessageInput{
-		QueueUrl:          awssdk.String(p.queueURL),
-		MessageBody:       awssdk.String(string(dataBytes)),
-		MessageAttributes: attrs,
+		QueueUrl:    awssdk.String(p.queueURL),
+		MessageBody: awssdk.String(string(dataBytes)),
+		MessageAttributes: map[string]types.MessageAttributeValue{
+			"metadata": {
+				DataType:    aws.String("String"),
+				StringValue: aws.String(string(metadataBytes)),
+			},
+		},
 	}, nil
 }
 

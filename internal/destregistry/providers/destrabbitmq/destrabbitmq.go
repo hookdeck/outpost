@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
@@ -150,7 +151,8 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 	}
 
 	headers := make(amqp091.Table)
-	for k, v := range event.Metadata {
+	metadata := p.BasePublisher.MakeMetadata(event, time.Now())
+	for k, v := range metadata {
 		headers[k] = v
 	}
 

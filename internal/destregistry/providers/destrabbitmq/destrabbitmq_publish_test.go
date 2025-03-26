@@ -143,14 +143,17 @@ func (a *RabbitMQAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mes
 	// Assert RabbitMQ-specific properties
 	assert.Equal(t, "application/json", delivery.ContentType)
 	assert.Equal(t, event.Topic, delivery.RoutingKey, "routing key should match event topic")
-	// assert.NotEmpty(t, delivery.MessageId)
-	// assert.NotEmpty(t, delivery.Timestamp)
 
-	// Could add more RabbitMQ-specific assertions:
-	// - Exchange routing
-	// - Message persistence
-	// - Priority
-	// - etc.
+	// Verify system metadata
+	metadata := msg.Metadata
+	assert.NotEmpty(t, metadata["timestamp"], "timestamp should be present")
+	assert.Equal(t, event.ID, metadata["event-id"], "event-id should match")
+	assert.Equal(t, event.Topic, metadata["topic"], "topic should match")
+
+	// Verify custom metadata
+	for k, v := range event.Metadata {
+		assert.Equal(t, v, metadata[k], "metadata key %s should match expected value", k)
+	}
 }
 
 // RabbitMQPublishSuite reimplements the publish tests using the shared test suite

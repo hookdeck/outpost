@@ -2,15 +2,18 @@ package destawssqs_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawssqs"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/awsutil"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -52,8 +55,10 @@ func (c *SQSConsumer) consume() {
 
 			for _, msg := range result.Messages {
 				metadata := make(map[string]string)
-				for k, v := range msg.MessageAttributes {
-					metadata[k] = *v.StringValue
+				if metaAttr, ok := msg.MessageAttributes["metadata"]; ok {
+					if err := json.Unmarshal([]byte(*metaAttr.StringValue), &metadata); err != nil {
+						continue
+					}
 				}
 
 				c.msgChan <- testsuite.Message{
@@ -79,6 +84,23 @@ func (c *SQSConsumer) Consume() <-chan testsuite.Message {
 func (c *SQSConsumer) Close() error {
 	close(c.done)
 	return nil
+}
+
+type SQSAsserter struct{}
+
+func (a *SQSAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Message, event models.Event) {
+	// Metadata is already parsed in the consumer
+	metadata := msg.Metadata
+
+	// Verify system metadata
+	assert.NotEmpty(t, metadata["timestamp"], "timestamp should be present")
+	assert.Equal(t, event.ID, metadata["event-id"], "event-id should match")
+	assert.Equal(t, event.Topic, metadata["topic"], "topic should match")
+
+	// Verify custom metadata
+	for k, v := range event.Metadata {
+		assert.Equal(t, v, metadata[k], "metadata key %s should match expected value", k)
+	}
 }
 
 type AWSSQSSuite struct {
@@ -122,11 +144,12 @@ func (s *AWSSQSSuite) SetupSuite() {
 		}),
 	)
 
-	// Initialize publisher suite
+	// Initialize publisher suite with custom asserter
 	cfg := testsuite.Config{
 		Provider: provider,
 		Dest:     &destination,
 		Consumer: s.consumer,
+		Asserter: &SQSAsserter{},
 	}
 	s.InitSuite(cfg)
 }
