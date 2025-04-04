@@ -9,13 +9,6 @@
 
 <br>
 
-> [!WARNING]  
-> This project is currently in **ALPHA**. Features and documentation are subject to change.
-> 
-> [View the roadmap](https://outpost.hookdeck.com/docs/references/roadmap)
-
-<br>
-
 <div align="center">
 
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue)](#license)

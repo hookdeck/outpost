@@ -58,7 +58,10 @@ const config: ZudokuConfig = {
   //     YamlConfig,
   //   },
   // },
-  topNavigation: [{ id: "docs", label: "Documentation", default: "overview" }],
+  topNavigation: [
+    { id: "docs", label: "Documentation", default: "overview" },
+    { label: "API Reference", id: "docs/api" },
+  ],
   sidebar: {
     docs: [
       {
@@ -141,13 +144,13 @@ const config: ZudokuConfig = {
           },
           {
             type: "doc",
-            label: "API",
-            id: "references/api",
-          },
-          {
-            type: "doc",
             label: "Roadmap",
             id: "references/roadmap",
+          },
+          {
+            type: "link",
+            label: "API",
+            href: "/docs/api",
           },
         ],
       },
