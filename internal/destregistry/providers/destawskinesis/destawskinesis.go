@@ -111,6 +111,16 @@ func (p *AWSKinesisProvider) resolveConfig(ctx context.Context, destination *mod
 		}
 	}
 
+	// Validate metadata_in_payload is one of the allowed values
+	if val, ok := destination.Config["metadata_in_payload"]; ok && val != "" && val != "true" && val != "false" && val != "on" && val != "off" {
+		return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+			{
+				Field: "config.metadata_in_payload",
+				Type:  "allowed_values",
+			},
+		})
+	}
+
 	// Parse metadata_in_payload - default to false if not explicitly set to true or on
 	metadataInPayload := false
 	if val, ok := destination.Config["metadata_in_payload"]; ok && (val == "true" || val == "on") {
@@ -144,10 +154,16 @@ func (p *AWSKinesisProvider) Preprocess(newDestination *models.Destination, orig
 	}
 
 	// Handle metadata_in_payload checkbox value
-	if newDestination.Config["metadata_in_payload"] == "on" {
+	if val, ok := newDestination.Config["metadata_in_payload"]; ok {
+		switch val {
+		case "on", "true":
+			newDestination.Config["metadata_in_payload"] = "true"
+		case "off", "false", "":
+			newDestination.Config["metadata_in_payload"] = "false"
+		}
+	} else {
+		// Default to true if not specified
 		newDestination.Config["metadata_in_payload"] = "true"
-	} else if newDestination.Config["metadata_in_payload"] == "" {
-		newDestination.Config["metadata_in_payload"] = "false" // default to false if omitted
 	}
 
 	// Validate the config after preprocessing
