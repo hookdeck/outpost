@@ -216,6 +216,12 @@ func (p *AWSKinesisPublisher) Format(ctx context.Context, event *models.Event) (
 	var data []byte
 	var err error
 
+	// Convert data to a map[string]interface{} for JMESPath
+	dataMap := make(map[string]interface{})
+	for k, v := range event.Data {
+		dataMap[k] = v
+	}
+
 	if p.metadataInPayload {
 		// Prepare metadata
 		metadata := p.BasePublisher.MakeMetadata(event, time.Now())
@@ -228,11 +234,11 @@ func (p *AWSKinesisPublisher) Format(ctx context.Context, event *models.Event) (
 		// Create payload with metadata and data
 		payload = map[string]interface{}{
 			"metadata": metadataMap,
-			"data":     event.Data,
+			"data":     dataMap,
 		}
 	} else {
 		// Use only the event data as the payload
-		payload = event.Data
+		payload = dataMap
 	}
 
 	// Serialize payload to JSON
@@ -320,4 +326,15 @@ func formatAWSError(err error) string {
 		return "validation_error"
 	}
 	return "request_failed"
+}
+
+// NewAWSKinesisPublisher creates a new publisher for testing purposes
+func NewAWSKinesisPublisher(streamName, partitionKeyTemplate string, metadataInPayload bool) *AWSKinesisPublisher {
+	return &AWSKinesisPublisher{
+		BasePublisher:        &destregistry.BasePublisher{},
+		client:               nil, // Not needed for Format tests
+		streamName:           streamName,
+		partitionKeyTemplate: partitionKeyTemplate,
+		metadataInPayload:    metadataInPayload,
+	}
 }
