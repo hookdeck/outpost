@@ -15,13 +15,15 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/jmespath/go-jmespath"
 )
 
 // Configuration types
 type AWKKinesisConfig struct {
-	StreamName string
-	Region     string
-	Endpoint   string
+	StreamName           string
+	Region               string
+	Endpoint             string
+	PartitionKeyTemplate string
 }
 
 type AWSKinesisCredentials struct {
@@ -80,9 +82,10 @@ func (p *AWSKinesisProvider) CreatePublisher(ctx context.Context, destination *m
 	})
 
 	return &AWSKinesisPublisher{
-		BasePublisher: &destregistry.BasePublisher{},
-		client:        kinesisClient,
-		streamName:    config.StreamName,
+		BasePublisher:        &destregistry.BasePublisher{},
+		client:               kinesisClient,
+		streamName:           config.StreamName,
+		partitionKeyTemplate: config.PartitionKeyTemplate,
 	}, nil
 }
 
@@ -107,9 +110,10 @@ func (p *AWSKinesisProvider) resolveConfig(ctx context.Context, destination *mod
 	}
 
 	return &AWKKinesisConfig{
-			StreamName: destination.Config["stream_name"],
-			Region:     destination.Config["region"],
-			Endpoint:   destination.Config["endpoint"],
+			StreamName:           destination.Config["stream_name"],
+			Region:               destination.Config["region"],
+			Endpoint:             destination.Config["endpoint"],
+			PartitionKeyTemplate: destination.Config["partition_key_template"],
 		}, &AWSKinesisCredentials{
 			Key:     destination.Credentials["key"],
 			Secret:  destination.Credentials["secret"],
@@ -133,8 +137,9 @@ func (p *AWSKinesisProvider) Preprocess(newDestination *models.Destination, orig
 // Publisher implementation
 type AWSKinesisPublisher struct {
 	*destregistry.BasePublisher
-	client     *kinesis.Client
-	streamName string
+	client               *kinesis.Client
+	streamName           string
+	partitionKeyTemplate string
 }
 
 // Close handles resource cleanup
@@ -142,6 +147,42 @@ func (p *AWSKinesisPublisher) Close() error {
 	p.BasePublisher.StartClose()
 	// No specific resources to clean up as the AWS SDK handles its own cleanup
 	return nil
+}
+
+// evaluatePartitionKey extracts the partition key from the event using the JMESPath template
+func (p *AWSKinesisPublisher) evaluatePartitionKey(payload map[string]interface{}, eventID string) (string, error) {
+	// If no template is specified or empty, use event ID
+	if p.partitionKeyTemplate == "" {
+		return eventID, nil
+	}
+
+	// Evaluate the JMESPath template
+	result, err := jmespath.Search(p.partitionKeyTemplate, payload)
+	if err != nil {
+		return "", fmt.Errorf("error evaluating partition key template: %w", err)
+	}
+
+	// Handle nil result - fall back to event ID
+	if result == nil {
+		return eventID, nil
+	}
+
+	// Convert the result to string based on its type
+	switch v := result.(type) {
+	case string:
+		if v == "" {
+			return eventID, nil // Fall back to event ID if empty string
+		}
+		return v, nil
+	case float64:
+		return fmt.Sprintf("%g", v), nil
+	case int:
+		return fmt.Sprintf("%d", v), nil
+	case bool:
+		return fmt.Sprintf("%t", v), nil
+	default:
+		return fmt.Sprintf("%v", v), nil
+	}
 }
 
 // Publish sends an event to the Kinesis stream
@@ -153,10 +194,16 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 
 	// Prepare metadata
 	metadata := p.BasePublisher.MakeMetadata(event, time.Now())
+	// We must convert the metadata to a map[string]interface{} to properly evaluate the JMESPath template
+	// because JMESPath expects a map[string]interface{} instead of map[string]string
+	metadataMap := make(map[string]interface{})
+	for k, v := range metadata {
+		metadataMap[k] = v
+	}
 
 	// Create payload with metadata and data
 	payload := map[string]interface{}{
-		"metadata": metadata,
+		"metadata": metadataMap,
 		"data":     event.Data,
 	}
 
@@ -173,8 +220,12 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 		)
 	}
 
-	// For the initial implementation, use event ID as partition key
-	partitionKey := event.ID
+	// Get partition key from template or use event ID as default
+	partitionKey, err := p.evaluatePartitionKey(payload, event.ID)
+	if err != nil {
+		// If template evaluation fails, log the error and fall back to event ID
+		partitionKey = event.ID
+	}
 
 	// Create the PutRecord input
 	input := &kinesis.PutRecordInput{
@@ -196,19 +247,21 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 				err,
 				"aws_kinesis",
 				map[string]interface{}{
-					"error":       formatAWSError(err),
-					"stream_name": p.streamName,
+					"error":         formatAWSError(err),
+					"stream_name":   p.streamName,
+					"partition_key": partitionKey,
 				},
 			)
 	}
 
-	// Return success
+	// Return success with partition key info
 	return &destregistry.Delivery{
 		Status: "success",
 		Code:   "OK",
 		Response: map[string]interface{}{
 			"shard_id":        *result.ShardId,
 			"sequence_number": *result.SequenceNumber,
+			"partition_key":   partitionKey,
 		},
 	}, nil
 }
