@@ -337,6 +337,7 @@ func (s *AWSKinesisSuite) SetupSuite() {
 			"stream_name":            s.streamName,
 			"region":                 "us-east-1",
 			"partition_key_template": partitionKeyTemplate,
+			"metadata_in_payload":    "true",
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
 			"key":     "test",

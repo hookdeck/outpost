@@ -24,6 +24,7 @@ type AWKKinesisConfig struct {
 	Region               string
 	Endpoint             string
 	PartitionKeyTemplate string
+	MetadataInPayload    bool
 }
 
 type AWSKinesisCredentials struct {
@@ -86,6 +87,7 @@ func (p *AWSKinesisProvider) CreatePublisher(ctx context.Context, destination *m
 		client:               kinesisClient,
 		streamName:           config.StreamName,
 		partitionKeyTemplate: config.PartitionKeyTemplate,
+		metadataInPayload:    config.MetadataInPayload,
 	}, nil
 }
 
@@ -109,11 +111,18 @@ func (p *AWSKinesisProvider) resolveConfig(ctx context.Context, destination *mod
 		}
 	}
 
+	// Parse metadata_in_payload - default to false if not explicitly set to true or on
+	metadataInPayload := false
+	if val, ok := destination.Config["metadata_in_payload"]; ok && (val == "true" || val == "on") {
+		metadataInPayload = true
+	}
+
 	return &AWKKinesisConfig{
 			StreamName:           destination.Config["stream_name"],
 			Region:               destination.Config["region"],
 			Endpoint:             destination.Config["endpoint"],
 			PartitionKeyTemplate: destination.Config["partition_key_template"],
+			MetadataInPayload:    metadataInPayload,
 		}, &AWSKinesisCredentials{
 			Key:     destination.Credentials["key"],
 			Secret:  destination.Credentials["secret"],
@@ -130,7 +139,22 @@ func (p *AWSKinesisProvider) ComputeTarget(destination *models.Destination) stri
 
 // Preprocess sets defaults and standardizes values
 func (p *AWSKinesisProvider) Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {
-	// No preprocessing needed for current config fields
+	if newDestination.Config == nil {
+		return nil
+	}
+
+	// Handle metadata_in_payload checkbox value
+	if newDestination.Config["metadata_in_payload"] == "on" {
+		newDestination.Config["metadata_in_payload"] = "true"
+	} else if newDestination.Config["metadata_in_payload"] == "" {
+		newDestination.Config["metadata_in_payload"] = "false" // default to false if omitted
+	}
+
+	// Validate the config after preprocessing
+	if _, _, err := p.resolveConfig(context.Background(), newDestination); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -140,6 +164,7 @@ type AWSKinesisPublisher struct {
 	client               *kinesis.Client
 	streamName           string
 	partitionKeyTemplate string
+	metadataInPayload    bool
 }
 
 // Close handles resource cleanup
@@ -192,23 +217,35 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 	}
 	defer p.BasePublisher.FinishPublish()
 
-	// Prepare metadata
-	metadata := p.BasePublisher.MakeMetadata(event, time.Now())
-	// We must convert the metadata to a map[string]interface{} to properly evaluate the JMESPath template
-	// because JMESPath expects a map[string]interface{} instead of map[string]string
-	metadataMap := make(map[string]interface{})
-	for k, v := range metadata {
-		metadataMap[k] = v
+	var payload map[string]interface{}
+	var data []byte
+	var err error
+
+	if p.metadataInPayload {
+		// Prepare metadata
+		metadata := p.BasePublisher.MakeMetadata(event, time.Now())
+		// We must convert the metadata to a map[string]interface{} to properly evaluate the JMESPath template
+		// because JMESPath expects a map[string]interface{} instead of map[string]string
+		metadataMap := make(map[string]interface{})
+		for k, v := range metadata {
+			metadataMap[k] = v
+		}
+
+		// Create payload with metadata and data
+		payload = map[string]interface{}{
+			"metadata": metadataMap,
+			"data":     event.Data,
+		}
+
+		// Serialize payload to JSON
+		data, err = json.Marshal(payload)
+	} else {
+		// Use only the event data as the payload
+		payload = event.Data
+		// Serialize payload to JSON
+		data, err = json.Marshal(payload)
 	}
 
-	// Create payload with metadata and data
-	payload := map[string]interface{}{
-		"metadata": metadataMap,
-		"data":     event.Data,
-	}
-
-	// Serialize payload to JSON
-	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil, destregistry.NewErrDestinationPublishAttempt(
 			err,

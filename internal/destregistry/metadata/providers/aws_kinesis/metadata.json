@@ -35,6 +35,14 @@
       "description": "JMESPath template to extract the partition key from the event payload (e.g., metadata.\"event-id\"). Default is event ID, which is also used as fallback if template evaluation fails or returns empty.",
       "required": false,
       "default": "metadata.\"event-id\""
+    },
+    {
+      "key": "metadata_in_payload",
+      "type": "checkbox",
+      "label": "Include Metadata in Payload",
+      "description": "If checked, the payload will include both metadata and data in the structure {metadata: {...}, data: {...}}. If unchecked, the payload will only contain the event data.",
+      "required": false,
+      "default": "on"
     }
   ],
   "credential_fields": [
