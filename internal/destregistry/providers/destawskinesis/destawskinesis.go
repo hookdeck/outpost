@@ -210,13 +210,8 @@ func (p *AWSKinesisPublisher) evaluatePartitionKey(payload map[string]interface{
 	}
 }
 
-// Publish sends an event to the Kinesis stream
-func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
-	if err := p.BasePublisher.StartPublish(); err != nil {
-		return nil, err
-	}
-	defer p.BasePublisher.FinishPublish()
-
+// Format prepares the event for sending to Kinesis
+func (p *AWSKinesisPublisher) Format(ctx context.Context, event *models.Event) (*kinesis.PutRecordInput, error) {
 	var payload map[string]interface{}
 	var data []byte
 	var err error
@@ -224,8 +219,7 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 	if p.metadataInPayload {
 		// Prepare metadata
 		metadata := p.BasePublisher.MakeMetadata(event, time.Now())
-		// We must convert the metadata to a map[string]interface{} to properly evaluate the JMESPath template
-		// because JMESPath expects a map[string]interface{} instead of map[string]string
+		// Convert metadata to a map[string]interface{} for JMESPath
 		metadataMap := make(map[string]interface{})
 		for k, v := range metadata {
 			metadataMap[k] = v
@@ -236,25 +230,15 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 			"metadata": metadataMap,
 			"data":     event.Data,
 		}
-
-		// Serialize payload to JSON
-		data, err = json.Marshal(payload)
 	} else {
 		// Use only the event data as the payload
 		payload = event.Data
-		// Serialize payload to JSON
-		data, err = json.Marshal(payload)
 	}
 
+	// Serialize payload to JSON
+	data, err = json.Marshal(payload)
 	if err != nil {
-		return nil, destregistry.NewErrDestinationPublishAttempt(
-			err,
-			"aws_kinesis",
-			map[string]interface{}{
-				"error":   "json_marshal_failed",
-				"message": err.Error(),
-			},
-		)
+		return nil, fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
 	// Get partition key from template or use event ID as default
@@ -265,10 +249,31 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 	}
 
 	// Create the PutRecord input
-	input := &kinesis.PutRecordInput{
+	return &kinesis.PutRecordInput{
 		StreamName:   awssdk.String(p.streamName),
 		Data:         data,
 		PartitionKey: awssdk.String(partitionKey),
+	}, nil
+}
+
+// Publish sends an event to the Kinesis stream
+func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
+	if err := p.BasePublisher.StartPublish(); err != nil {
+		return nil, err
+	}
+	defer p.BasePublisher.FinishPublish()
+
+	// Format the event into a PutRecordInput
+	input, err := p.Format(ctx, event)
+	if err != nil {
+		return nil, destregistry.NewErrDestinationPublishAttempt(
+			err,
+			"aws_kinesis",
+			map[string]interface{}{
+				"error":   "format_failed",
+				"message": err.Error(),
+			},
+		)
 	}
 
 	// Send the record to Kinesis
@@ -286,7 +291,7 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 				map[string]interface{}{
 					"error":         formatAWSError(err),
 					"stream_name":   p.streamName,
-					"partition_key": partitionKey,
+					"partition_key": *input.PartitionKey,
 				},
 			)
 	}
@@ -298,7 +303,7 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 		Response: map[string]interface{}{
 			"shard_id":        *result.ShardId,
 			"sequence_number": *result.SequenceNumber,
-			"partition_key":   partitionKey,
+			"partition_key":   *input.PartitionKey,
 		},
 	}, nil
 }
