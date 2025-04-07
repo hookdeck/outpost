@@ -19,6 +19,7 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
+	"github.com/jmespath/go-jmespath"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -157,7 +158,45 @@ func (c *KinesisConsumer) Close() error {
 }
 
 // KinesisAsserter verifies Kinesis-specific aspects of the message
-type KinesisAsserter struct{}
+type KinesisAsserter struct {
+	partitionKeyTemplate string // Stores the template string being used
+}
+
+// evaluateTemplate is a test helper that evaluates a JMESPath template against payload data
+func (a *KinesisAsserter) evaluateTemplate(payload map[string]interface{}, eventID string) (string, error) {
+	// If no template is specified or empty, use event ID
+	if a.partitionKeyTemplate == "" {
+		return eventID, nil
+	}
+
+	// Evaluate the JMESPath template
+	result, err := jmespath.Search(a.partitionKeyTemplate, payload)
+	if err != nil {
+		return "", fmt.Errorf("error evaluating partition key template: %w", err)
+	}
+
+	// Handle nil result - fall back to event ID
+	if result == nil {
+		return eventID, nil
+	}
+
+	// Convert the result to string based on its type
+	switch v := result.(type) {
+	case string:
+		if v == "" {
+			return eventID, nil // Fall back to event ID if empty string
+		}
+		return v, nil
+	case float64:
+		return fmt.Sprintf("%g", v), nil
+	case int:
+		return fmt.Sprintf("%d", v), nil
+	case bool:
+		return fmt.Sprintf("%t", v), nil
+	default:
+		return fmt.Sprintf("%v", v), nil
+	}
+}
 
 func (a *KinesisAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Message, event models.Event) {
 	// Metadata is already parsed in the consumer
@@ -175,8 +214,28 @@ func (a *KinesisAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mess
 
 	// Verify Kinesis-specific properties if possible
 	if record, ok := msg.Raw.(types.Record); ok {
-		// Partition key should be the event ID in our basic implementation
-		assert.Equal(t, event.ID, *record.PartitionKey, "partition key should be event ID")
+		if a.partitionKeyTemplate != "" {
+			var payload map[string]interface{}
+			err := json.Unmarshal(record.Data, &payload)
+			if err != nil {
+				t.Errorf("Error unmarshaling record data: %v", err)
+				return
+			}
+
+			// Evaluate the template with our test helper
+			expectedPartitionKey, err := a.evaluateTemplate(payload, event.ID)
+			if err != nil {
+				// If template evaluation fails, we expect fallback to event ID
+				expectedPartitionKey = event.ID
+				t.Errorf("Template evaluation failed: %v, expecting fallback to event ID", err)
+			}
+
+			assert.Equal(t, expectedPartitionKey, *record.PartitionKey,
+				"partition key should match template evaluation result")
+		} else {
+			// Default behavior (no template) - partition key should be event ID
+			assert.Equal(t, event.ID, *record.PartitionKey, "partition key should be event ID (default)")
+		}
 	}
 }
 
@@ -247,18 +306,15 @@ func (s *AWSKinesisSuite) SetupSuite() {
 	localstackEndpoint := testinfra.EnsureLocalStack()
 	awsConfig, err := config.LoadDefaultConfig(context.Background(),
 		config.WithRegion("us-east-1"),
-		config.WithEndpointResolverWithOptions(
-			aws.EndpointResolverWithOptionsFunc(
-				func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-					return aws.Endpoint{URL: localstackEndpoint}, nil
-				})),
 		config.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider("test", "test", "")),
 	)
 	require.NoError(t, err)
 
-	// Create Kinesis client
-	s.client = kinesis.NewFromConfig(awsConfig)
+	// Create Kinesis client with custom endpoint
+	s.client = kinesis.NewFromConfig(awsConfig, func(o *kinesis.Options) {
+		o.BaseEndpoint = aws.String(localstackEndpoint)
+	})
 
 	// Create test stream
 	err = ensureKinesisStream(context.Background(), s.client, s.streamName)
@@ -272,13 +328,15 @@ func (s *AWSKinesisSuite) SetupSuite() {
 	provider, err := destawskinesis.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
 
-	// Create destination
+	// Create destination with partition key template
+	partitionKeyTemplate := "join('__', [metadata.topic, metadata.timestamp, metadata.\"event-id\"])"
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("aws_kinesis"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"endpoint":    localstackEndpoint,
-			"stream_name": s.streamName,
-			"region":      "us-east-1",
+			"endpoint":               localstackEndpoint,
+			"stream_name":            s.streamName,
+			"region":                 "us-east-1",
+			"partition_key_template": partitionKeyTemplate,
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
 			"key":     "test",
@@ -292,7 +350,9 @@ func (s *AWSKinesisSuite) SetupSuite() {
 		Provider: provider,
 		Dest:     &destination,
 		Consumer: s.consumer,
-		Asserter: &KinesisAsserter{},
+		Asserter: &KinesisAsserter{
+			partitionKeyTemplate: partitionKeyTemplate,
+		},
 	}
 	s.InitSuite(testConfig)
 }

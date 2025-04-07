@@ -27,6 +27,14 @@
       "description": "Custom endpoint URL for AWS Kinesis (optional, for testing or VPC endpoints)",
       "required": false,
       "pattern": "^https?:\\/\\/[\\w\\-]+(?:\\.[\\w\\-]+)*(?::\\d{1,5})?(?:\\/[\\w\\-\\/\\.~:?#\\[\\]@!$&'\\(\\)*+,;=]*)?$"
+    },
+    {
+      "key": "partition_key_template",
+      "type": "text",
+      "label": "Partition Key Template",
+      "description": "JMESPath template to extract the partition key from the event payload (e.g., metadata.\"event-id\"). Default is event ID, which is also used as fallback if template evaluation fails or returns empty.",
+      "required": false,
+      "default": "metadata.\"event-id\""
     }
   ],
   "credential_fields": [
