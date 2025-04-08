@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 	"time"
@@ -24,7 +25,6 @@ type AWKKinesisConfig struct {
 	Region               string
 	Endpoint             string
 	PartitionKeyTemplate string
-	MetadataInPayload    bool
 }
 
 type AWSKinesisCredentials struct {
@@ -36,17 +36,39 @@ type AWSKinesisCredentials struct {
 // Provider implementation
 type AWSKinesisProvider struct {
 	*destregistry.BaseProvider
+	metadataInPayload bool
 }
 
 var _ destregistry.Provider = (*AWSKinesisProvider)(nil) // Ensure interface compliance
 
+// Option is a functional option for configuring AWSKinesisProvider
+type Option func(*AWSKinesisProvider)
+
+// WithMetadataInPayload sets whether metadata should be included in the payload
+func WithMetadataInPayload(include bool) Option {
+	return func(p *AWSKinesisProvider) {
+		p.metadataInPayload = include
+	}
+}
+
 // Constructor
-func New(loader metadata.MetadataLoader) (*AWSKinesisProvider, error) {
+func New(loader metadata.MetadataLoader, opts ...Option) (*AWSKinesisProvider, error) {
 	base, err := destregistry.NewBaseProvider(loader, "aws_kinesis")
 	if err != nil {
 		return nil, err
 	}
-	return &AWSKinesisProvider{BaseProvider: base}, nil
+	provider := &AWSKinesisProvider{
+		BaseProvider:      base,
+		metadataInPayload: true,
+	}
+
+	for _, opt := range opts {
+		opt(provider)
+	}
+
+	log.Println("AWS Kinesis provider initialized", provider.metadataInPayload)
+
+	return provider, nil
 }
 
 // Validate performs destination-specific validation
@@ -87,7 +109,7 @@ func (p *AWSKinesisProvider) CreatePublisher(ctx context.Context, destination *m
 		client:               kinesisClient,
 		streamName:           config.StreamName,
 		partitionKeyTemplate: config.PartitionKeyTemplate,
-		metadataInPayload:    config.MetadataInPayload,
+		metadataInPayload:    p.metadataInPayload,
 	}, nil
 }
 
@@ -111,28 +133,11 @@ func (p *AWSKinesisProvider) resolveConfig(ctx context.Context, destination *mod
 		}
 	}
 
-	// Validate metadata_in_payload is one of the allowed values
-	if val, ok := destination.Config["metadata_in_payload"]; ok && val != "" && val != "true" && val != "false" && val != "on" && val != "off" {
-		return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-			{
-				Field: "config.metadata_in_payload",
-				Type:  "allowed_values",
-			},
-		})
-	}
-
-	// Parse metadata_in_payload - default to false if not explicitly set to true or on
-	metadataInPayload := false
-	if val, ok := destination.Config["metadata_in_payload"]; ok && (val == "true" || val == "on") {
-		metadataInPayload = true
-	}
-
 	return &AWKKinesisConfig{
 			StreamName:           destination.Config["stream_name"],
 			Region:               destination.Config["region"],
 			Endpoint:             destination.Config["endpoint"],
 			PartitionKeyTemplate: destination.Config["partition_key_template"],
-			MetadataInPayload:    metadataInPayload,
 		}, &AWSKinesisCredentials{
 			Key:     destination.Credentials["key"],
 			Secret:  destination.Credentials["secret"],
@@ -151,19 +156,6 @@ func (p *AWSKinesisProvider) ComputeTarget(destination *models.Destination) stri
 func (p *AWSKinesisProvider) Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {
 	if newDestination.Config == nil {
 		return nil
-	}
-
-	// Handle metadata_in_payload checkbox value
-	if val, ok := newDestination.Config["metadata_in_payload"]; ok {
-		switch val {
-		case "on", "true":
-			newDestination.Config["metadata_in_payload"] = "true"
-		case "off", "false", "":
-			newDestination.Config["metadata_in_payload"] = "false"
-		}
-	} else {
-		// Default to true if not specified
-		newDestination.Config["metadata_in_payload"] = "true"
 	}
 
 	// Validate the config after preprocessing
