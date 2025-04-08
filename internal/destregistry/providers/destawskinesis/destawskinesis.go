@@ -337,10 +337,10 @@ func formatAWSError(err error) string {
 }
 
 // NewAWSKinesisPublisher creates a new publisher for testing purposes
-func NewAWSKinesisPublisher(streamName, partitionKeyTemplate string, metadataInPayload bool) *AWSKinesisPublisher {
+func NewAWSKinesisPublisher(client *kinesis.Client, streamName, partitionKeyTemplate string, metadataInPayload bool) *AWSKinesisPublisher {
 	return &AWSKinesisPublisher{
 		BasePublisher:        &destregistry.BasePublisher{},
-		client:               nil, // Not needed for Format tests
+		client:               client,
 		streamName:           streamName,
 		partitionKeyTemplate: partitionKeyTemplate,
 		metadataInPayload:    metadataInPayload,

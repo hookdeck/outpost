@@ -208,6 +208,7 @@ func TestFormatWithPartitionKey(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create publisher using the helper function
 			publisher := destawskinesis.NewAWSKinesisPublisher(
+				nil,
 				"test-stream",
 				tc.partitionKeyTpl,
 				tc.metadataInPayload,
@@ -247,6 +248,7 @@ func TestMetadataInPayload(t *testing.T) {
 
 	t.Run("With metadata in payload", func(t *testing.T) {
 		publisher := destawskinesis.NewAWSKinesisPublisher(
+			nil,
 			"test-stream",
 			"metadata.topic",
 			true, // metadataInPayload = true
@@ -285,6 +287,7 @@ func TestMetadataInPayload(t *testing.T) {
 
 	t.Run("Without metadata in payload", func(t *testing.T) {
 		publisher := destawskinesis.NewAWSKinesisPublisher(
+			nil,
 			"test-stream",
 			"metadata.topic",
 			false, // metadataInPayload = false
