@@ -1,6 +1,7 @@
 package destawskinesis_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -33,14 +34,14 @@ func TestAWSKinesisDestination_Validate(t *testing.T) {
 
 	t.Run("should validate valid destination", func(t *testing.T) {
 		t.Parallel()
-		assert.NoError(t, awsKinesisDestination.Validate(nil, &validDestination))
+		assert.NoError(t, awsKinesisDestination.Validate(context.Background(), &validDestination))
 	})
 
 	t.Run("should validate invalid type", func(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
 		invalidDestination.Type = "invalid"
-		err := awsKinesisDestination.Validate(nil, &invalidDestination)
+		err := awsKinesisDestination.Validate(context.Background(), &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "type", validationErr.Errors[0].Field)
@@ -54,7 +55,7 @@ func TestAWSKinesisDestination_Validate(t *testing.T) {
 			"region":   "us-east-1",
 			"endpoint": "https://kinesis.us-east-1.amazonaws.com",
 		}
-		err := awsKinesisDestination.Validate(nil, &invalidDestination)
+		err := awsKinesisDestination.Validate(context.Background(), &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.stream_name", validationErr.Errors[0].Field)
@@ -68,7 +69,7 @@ func TestAWSKinesisDestination_Validate(t *testing.T) {
 			"stream_name": "my-stream",
 			"endpoint":    "https://kinesis.us-east-1.amazonaws.com",
 		}
-		err := awsKinesisDestination.Validate(nil, &invalidDestination)
+		err := awsKinesisDestination.Validate(context.Background(), &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.region", validationErr.Errors[0].Field)
@@ -83,7 +84,7 @@ func TestAWSKinesisDestination_Validate(t *testing.T) {
 			"region":      "us-east-1",
 			"endpoint":    "not-a-valid-url",
 		}
-		err := awsKinesisDestination.Validate(nil, &invalidDestination)
+		err := awsKinesisDestination.Validate(context.Background(), &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.endpoint", validationErr.Errors[0].Field)
@@ -98,7 +99,7 @@ func TestAWSKinesisDestination_Validate(t *testing.T) {
 			"region":      "invalid-region",
 			"endpoint":    "https://kinesis.us-east-1.amazonaws.com",
 		}
-		err := awsKinesisDestination.Validate(nil, &invalidDestination)
+		err := awsKinesisDestination.Validate(context.Background(), &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.region", validationErr.Errors[0].Field)
@@ -109,7 +110,7 @@ func TestAWSKinesisDestination_Validate(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
 		invalidDestination.Credentials = map[string]string{}
-		err := awsKinesisDestination.Validate(nil, &invalidDestination)
+		err := awsKinesisDestination.Validate(context.Background(), &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		// Could be either key or secret that's reported first
