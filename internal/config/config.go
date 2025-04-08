@@ -152,6 +152,9 @@ func (c *Config) InitDefaults() {
 		Webhook: DestinationWebhookConfig{
 			HeaderPrefix: "x-outpost-",
 		},
+		AWSKinesis: DestinationAWSKinesisConfig{
+			MetadataInPayload: true,
+		},
 	}
 
 	c.Alert = AlertConfig{

@@ -20,8 +20,13 @@ type DestWebhookConfig struct {
 	SignatureAlgorithm            string
 }
 
+type DestAWSKinesisConfig struct {
+	MetadataInPayload bool
+}
+
 type RegisterDefaultDestinationOptions struct {
-	Webhook *DestWebhookConfig
+	Webhook    *DestWebhookConfig
+	AWSKinesis *DestAWSKinesisConfig
 }
 
 func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestinationOptions) error {
@@ -40,7 +45,13 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	registry.RegisterProvider("rabbitmq", rabbitmq)
 
 	// Register AWS Kinesis destination
-	awsKinesis, err := destawskinesis.New(loader)
+	awsKinesisOpts := []destawskinesis.Option{}
+	if opts.AWSKinesis != nil {
+		awsKinesisOpts = append(awsKinesisOpts,
+			destawskinesis.WithMetadataInPayload(opts.AWSKinesis.MetadataInPayload),
+		)
+	}
+	awsKinesis, err := destawskinesis.New(loader, awsKinesisOpts...)
 	if err != nil {
 		return err
 	}
