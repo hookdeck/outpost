@@ -210,7 +210,7 @@ Create a new destination type with the provided configuration.
 
 #### Webhook secret & rotation
 
-Webhook secrets and rotations are a special case for the `webhook` destination type. The destination type `credentials.secret` is only a valid input when using the Admin API and can be omited when omited a secret is generated automatically.
+Webhook secrets and rotations are a special case for the `webhook` destination type. The destination type `credentials.secret` is only a valid input when using the Admin API and can be omited when a secret is generated automatically.
 
 Additionally, `credentials.previous_secret` can be used to set a rotated secret during a migration. `credentials.rotate_secret` can be used to automatically rotate the existing secret which results in a new `credentials.secret` and `credentials.previous_secret` value.
 
@@ -489,7 +489,7 @@ Retrieve a list of events using a cursor navigation.
 
 ### `GET` `/:tenant_id/events/:event_id/deliveries`
 
-Retrieve a list of the delivery attempts with the associated responses.
+Retrieve a list of the delivery **attempts** with the associated responses.
 
 #### Response
 
