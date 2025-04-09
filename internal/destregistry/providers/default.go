@@ -2,6 +2,7 @@ package destregistrydefault
 
 import (
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destawskinesis"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawssqs"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
@@ -19,8 +20,13 @@ type DestWebhookConfig struct {
 	SignatureAlgorithm            string
 }
 
+type DestAWSKinesisConfig struct {
+	MetadataInPayload bool
+}
+
 type RegisterDefaultDestinationOptions struct {
-	Webhook *DestWebhookConfig
+	Webhook    *DestWebhookConfig
+	AWSKinesis *DestAWSKinesisConfig
 }
 
 func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestinationOptions) error {
@@ -37,6 +43,19 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		return err
 	}
 	registry.RegisterProvider("rabbitmq", rabbitmq)
+
+	// Register AWS Kinesis destination
+	awsKinesisOpts := []destawskinesis.Option{}
+	if opts.AWSKinesis != nil {
+		awsKinesisOpts = append(awsKinesisOpts,
+			destawskinesis.WithMetadataInPayload(opts.AWSKinesis.MetadataInPayload),
+		)
+	}
+	awsKinesis, err := destawskinesis.New(loader, awsKinesisOpts...)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("aws_kinesis", awsKinesis)
 
 	webhookOpts := []destwebhook.Option{}
 	if opts.Webhook != nil {

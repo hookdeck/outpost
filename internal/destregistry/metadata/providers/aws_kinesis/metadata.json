@@ -1,0 +1,66 @@
+{
+  "type": "aws_kinesis",
+  "label": "AWS Kinesis",
+  "description": "Send events to Amazon Kinesis Data Streams for real-time processing",
+  "link": "https://aws.amazon.com/kinesis/data-streams/",
+  "config_fields": [
+    {
+      "key": "stream_name",
+      "type": "text",
+      "label": "Stream Name",
+      "description": "The name of your AWS Kinesis stream",
+      "required": true,
+      "pattern": "^[a-zA-Z0-9_.-]+$"
+    },
+    {
+      "key": "region",
+      "type": "text",
+      "label": "AWS Region",
+      "description": "The AWS region where your Kinesis stream is located",
+      "required": true,
+      "pattern": "^[a-z]{2}-[a-z]+-[0-9]+$"
+    },
+    {
+      "key": "endpoint",
+      "type": "text",
+      "label": "Endpoint",
+      "description": "Custom endpoint URL for AWS Kinesis (optional, for testing or VPC endpoints)",
+      "required": false,
+      "pattern": "^https?:\\/\\/[\\w\\-]+(?:\\.[\\w\\-]+)*(?::\\d{1,5})?(?:\\/[\\w\\-\\/\\.~:?#\\[\\]@!$&'\\(\\)*+,;=]*)?$"
+    },
+    {
+      "key": "partition_key_template",
+      "type": "text",
+      "label": "Partition Key Template",
+      "description": "JMESPath template to extract the partition key from the event payload (e.g., metadata.\"event-id\"). Default is event ID, which is also used as fallback if template evaluation fails or returns empty.",
+      "required": false
+    }
+  ],
+  "credential_fields": [
+    {
+      "key": "key",
+      "type": "text",
+      "label": "Access Key ID",
+      "description": "AWS Access Key ID",
+      "required": true,
+      "sensitive": true
+    },
+    {
+      "key": "secret",
+      "type": "text",
+      "label": "Secret Access Key",
+      "description": "AWS Secret Access Key",
+      "required": true,
+      "sensitive": true
+    },
+    {
+      "key": "session",
+      "type": "text",
+      "label": "Session Token",
+      "description": "AWS Session Token (optional, for temporary credentials)",
+      "required": false,
+      "sensitive": true
+    }
+  ],
+  "icon": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M4 0H12C14.2091 0 16 1.79086 16 4V12C16 14.2091 14.2091 16 12 16H4C1.79086 16 0 14.2091 0 12V4C0 1.79086 1.79086 0 4 0Z\" fill=\"#F37B44\"/><path d=\"M10.5933 7.05066L8.00101 5.30066L5.40868 7.05066L5.40868 10.6207L8.00101 12.3707L10.5933 10.6207L10.5933 7.05066Z\" fill=\"white\"/><path d=\"M4.81966 6.69797L3.20166 7.65264L3.20166 9.45264L4.81966 8.49797L4.81966 6.69797Z\" fill=\"white\"/><path d=\"M11.1851 6.69797L12.8031 7.65264L12.8031 9.45264L11.1851 8.49797L11.1851 6.69797Z\" fill=\"white\"/><path d=\"M8.00101 4.19731L6.38301 5.05197L8.00101 5.90662L9.61901 5.05197L8.00101 4.19731Z\" fill=\"white\"/><path d=\"M8.00101 12.7227L6.38301 11.868L8.00101 11.0133L9.61901 11.868L8.00101 12.7227Z\" fill=\"white\"/></svg>"
+}

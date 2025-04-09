@@ -4,17 +4,21 @@ import (
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 )
 
+// DestinationsConfig is the main configuration for all destination types
 type DestinationsConfig struct {
-	MetadataPath string                   `yaml:"metadata_path" env:"DESTINATIONS_METADATA_PATH"`
-	Webhook      DestinationWebhookConfig `yaml:"webhook"`
+	MetadataPath string                      `yaml:"metadata_path" env:"DESTINATIONS_METADATA_PATH"`
+	Webhook      DestinationWebhookConfig    `yaml:"webhook"`
+	AWSKinesis   DestinationAWSKinesisConfig `yaml:"aws_kinesis"`
 }
 
 func (c *DestinationsConfig) ToConfig() destregistrydefault.RegisterDefaultDestinationOptions {
 	return destregistrydefault.RegisterDefaultDestinationOptions{
-		Webhook: c.Webhook.toConfig(),
+		Webhook:    c.Webhook.toConfig(),
+		AWSKinesis: c.AWSKinesis.toConfig(),
 	}
 }
 
+// Webhook configuration
 type DestinationWebhookConfig struct {
 	HeaderPrefix                  string `yaml:"header_prefix" env:"DESTINATIONS_WEBHOOK_HEADER_PREFIX"`
 	DisableDefaultEventIDHeader   bool   `yaml:"disable_default_event_id_header" env:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER"`
@@ -27,7 +31,7 @@ type DestinationWebhookConfig struct {
 	SignatureAlgorithm            string `yaml:"signature_algorithm" env:"DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM"`
 }
 
-// toConfig is now private since it's only used internally by DestinationsConfig.ToConfig
+// toConfig converts WebhookConfig to the provider config - private since it's only used internally
 func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookConfig {
 	return &destregistrydefault.DestWebhookConfig{
 		HeaderPrefix:                  c.HeaderPrefix,
@@ -39,5 +43,17 @@ func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookCo
 		SignatureHeaderTemplate:       c.SignatureHeaderTemplate,
 		SignatureEncoding:             c.SignatureEncoding,
 		SignatureAlgorithm:            c.SignatureAlgorithm,
+	}
+}
+
+// AWS Kinesis configuration
+type DestinationAWSKinesisConfig struct {
+	MetadataInPayload bool `yaml:"metadata_in_payload" env:"DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD"`
+}
+
+// toConfig converts AWSKinesisConfig to the provider config
+func (c *DestinationAWSKinesisConfig) toConfig() *destregistrydefault.DestAWSKinesisConfig {
+	return &destregistrydefault.DestAWSKinesisConfig{
+		MetadataInPayload: c.MetadataInPayload,
 	}
 }
