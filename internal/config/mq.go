@@ -16,6 +16,15 @@ type AWSSQSConfig struct {
 	LogQueue        string `yaml:"log_queue" env:"AWS_SQS_LOG_QUEUE"`
 }
 
+type GCPPubSubConfig struct {
+	Project                   string `yaml:"project" env:"GCP_PUBSUB_PROJECT"`
+	ServiceAccountCredentials string `yaml:"service_account_credentials" env:"GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS"`
+	DeliveryTopic             string `yaml:"delivery_topic" env:"GCP_PUBSUB_DELIVERY_TOPIC"`
+	DeliverySubscription      string `yaml:"delivery_subscription" env:"GCP_PUBSUB_DELIVERY_SUBSCRIPTION"`
+	LogTopic                  string `yaml:"log_topic" env:"GCP_PUBSUB_LOG_TOPIC"`
+	LogSubscription           string `yaml:"log_subscription" env:"GCP_PUBSUB_LOG_SUBSCRIPTION"`
+}
+
 type RabbitMQConfig struct {
 	ServerURL     string `yaml:"server_url" env:"RABBITMQ_SERVER_URL"`
 	Exchange      string `yaml:"exchange" env:"RABBITMQ_EXCHANGE"`
@@ -24,13 +33,17 @@ type RabbitMQConfig struct {
 }
 
 type MQsConfig struct {
-	AWSSQS   AWSSQSConfig   `yaml:"aws_sqs"`
-	RabbitMQ RabbitMQConfig `yaml:"rabbitmq"`
+	AWSSQS    AWSSQSConfig    `yaml:"aws_sqs"`
+	GCPPubSub GCPPubSubConfig `yaml:"gcp_pubsub"`
+	RabbitMQ  RabbitMQConfig  `yaml:"rabbitmq"`
 }
 
 func (c MQsConfig) GetInfraType() string {
 	if hasAWSSQSConfig(c.AWSSQS) {
 		return "awssqs"
+	}
+	if hasGCPPubSubConfig(c.GCPPubSub) {
+		return "gcppubsub"
 	}
 	if hasRabbitMQConfig(c.RabbitMQ) {
 		return "rabbitmq"
@@ -38,7 +51,9 @@ func (c MQsConfig) GetInfraType() string {
 	return ""
 }
 
-func (c *MQsConfig) getQueueConfig(queueName string) *mqs.QueueConfig {
+// getQueueConfig returns a queue config for the given queue type
+// queueType can be "deliverymq" or "logmq"
+func (c *MQsConfig) getQueueConfig(queueType string) *mqs.QueueConfig {
 	if c == nil {
 		return nil
 	}
@@ -46,21 +61,52 @@ func (c *MQsConfig) getQueueConfig(queueName string) *mqs.QueueConfig {
 	infraType := c.GetInfraType()
 	switch infraType {
 	case "awssqs":
+		queue := ""
+		if queueType == "deliverymq" {
+			queue = c.AWSSQS.DeliveryQueue
+		} else if queueType == "logmq" {
+			queue = c.AWSSQS.LogQueue
+		}
+
 		creds := fmt.Sprintf("%s:%s:", c.AWSSQS.AccessKeyID, c.AWSSQS.SecretAccessKey)
 		return &mqs.QueueConfig{
 			AWSSQS: &mqs.AWSSQSConfig{
 				Endpoint:                  c.AWSSQS.Endpoint,
 				Region:                    c.AWSSQS.Region,
 				ServiceAccountCredentials: creds,
-				Topic:                     queueName,
+				Topic:                     queue,
+			},
+		}
+	case "gcppubsub":
+		topic := ""
+		subscription := ""
+		if queueType == "deliverymq" {
+			topic = c.GCPPubSub.DeliveryTopic
+			subscription = c.GCPPubSub.DeliverySubscription
+		} else if queueType == "logmq" {
+			topic = c.GCPPubSub.LogTopic
+			subscription = c.GCPPubSub.LogSubscription
+		}
+		return &mqs.QueueConfig{
+			GCPPubSub: &mqs.GCPPubSubConfig{
+				ProjectID:                 c.GCPPubSub.Project,
+				ServiceAccountCredentials: c.GCPPubSub.ServiceAccountCredentials,
+				TopicID:                   topic,
+				SubscriptionID:            subscription,
 			},
 		}
 	case "rabbitmq":
+		queue := ""
+		if queueType == "deliverymq" {
+			queue = c.RabbitMQ.DeliveryQueue
+		} else if queueType == "logmq" {
+			queue = c.RabbitMQ.LogQueue
+		}
 		return &mqs.QueueConfig{
 			RabbitMQ: &mqs.RabbitMQConfig{
 				ServerURL: c.RabbitMQ.ServerURL,
 				Exchange:  c.RabbitMQ.Exchange,
-				Queue:     queueName,
+				Queue:     queue,
 			},
 		}
 	default:
@@ -72,9 +118,11 @@ func (c MQsConfig) GetDeliveryQueueConfig() *mqs.QueueConfig {
 	infraType := c.GetInfraType()
 	switch infraType {
 	case "awssqs":
-		return c.getQueueConfig(c.AWSSQS.DeliveryQueue)
+		return c.getQueueConfig("deliverymq")
+	case "gcppubsub":
+		return c.getQueueConfig("deliverymq")
 	case "rabbitmq":
-		return c.getQueueConfig(c.RabbitMQ.DeliveryQueue)
+		return c.getQueueConfig("deliverymq")
 	default:
 		return nil
 	}
@@ -84,9 +132,11 @@ func (c MQsConfig) GetLogQueueConfig() *mqs.QueueConfig {
 	infraType := c.GetInfraType()
 	switch infraType {
 	case "awssqs":
-		return c.getQueueConfig(c.AWSSQS.LogQueue)
+		return c.getQueueConfig("logmq")
+	case "gcppubsub":
+		return c.getQueueConfig("logmq")
 	case "rabbitmq":
-		return c.getQueueConfig(c.RabbitMQ.LogQueue)
+		return c.getQueueConfig("logmq")
 	default:
 		return nil
 	}
@@ -96,6 +146,10 @@ func (c MQsConfig) GetLogQueueConfig() *mqs.QueueConfig {
 func hasAWSSQSConfig(config AWSSQSConfig) bool {
 	return config.AccessKeyID != "" &&
 		config.SecretAccessKey != "" && config.Region != ""
+}
+
+func hasGCPPubSubConfig(config GCPPubSubConfig) bool {
+	return config.Project != ""
 }
 
 func hasRabbitMQConfig(config RabbitMQConfig) bool {

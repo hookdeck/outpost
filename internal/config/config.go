@@ -129,6 +129,12 @@ func (c *Config) InitDefaults() {
 			DeliveryQueue: "outpost-delivery",
 			LogQueue:      "outpost-log",
 		},
+		GCPPubSub: GCPPubSubConfig{
+			DeliveryTopic:        "outpost-delivery",
+			DeliverySubscription: "outpost-delivery-sub",
+			LogTopic:             "outpost-log",
+			LogSubscription:      "outpost-log-sub",
+		},
 	}
 	c.PublishMaxConcurrency = 1
 	c.DeliveryMaxConcurrency = 1
