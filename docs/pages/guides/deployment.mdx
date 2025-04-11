@@ -42,8 +42,9 @@ Outpost requires the following dependencies:
 
 - Redis
 - PostgreSQL
-- A log queue such as RabbitMQ or AWS SQS
-- A delivery queue such as RabbitMQ or AWS SQS
-- Optionally, a publish queue such as RabbitMQ or AWS SQS
+- Using RabbitMQ, AWS SQS, or GCP Pub/Sub for the following queues:
+  - Log queue
+  - Delivery queue
+  - Publish queue (optional)
 
 Each of these will need to be provisioned and allocated sufficient resources based on expected usage and load.

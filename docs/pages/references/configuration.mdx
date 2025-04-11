@@ -29,16 +29,21 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `AWS_SQS_SECRET_ACCESS_KEY`                      | `nil`                                                      | No                                                                 |
 | `AWS_SQS_DELIVERY_QUEUE`                         | `outpost-delivery`                                         | No                                                                 |
 | `AWS_SQS_LOG_QUEUE`                              | `outpost-log`                                              | No                                                                 |
-| `GCP_PUBSUB_SERVICE_ACCOUNT_CREDS`               | `nil`                                                      | No                                                                 |
+| `GCP_PUBSUB_PROJECT`                             | `nil`                                                      | No                                                                 |
+| `GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS`         | `nil`                                                      | No                                                                 |
 | `GCP_PUBSUB_DELIVERY_TOPIC`                      | `outpost-delivery`                                         | No                                                                 |
+| `GCP_PUBSUB_DELIVERY_SUBSCRIPTION`               | `outpost-delivery-sub`                                     | No                                                                 |
 | `GCP_PUBSUB_LOG_TOPIC`                           | `outpost-log`                                              | No                                                                 |
+| `GCP_PUBSUB_LOG_SUBSCRIPTION`                    | `outpost-log-sub`                                          | No                                                                 |
 | `PUBLISH_RABBITMQ_SERVER_URL`                    | `nil`                                                      | No                                                                 |
 | `PUBLISH_RABBITMQ_QUEUE`                         | `nil`                                                      | No                                                                 |
 | `PUBLISH_AWS_REGION`                             | `nil`                                                      | No                                                                 |
 | `PUBLISH_AWS_SQS_ACCESS_KEY_ID`                  | `nil`                                                      | No                                                                 |
 | `PUBLISH_AWS_SQS_SECRET_ACCESS_KEY`              | `nil`                                                      | No                                                                 |
 | `PUBLISH_AWS_SQS_QUEUE`                          | `nil`                                                      | No                                                                 |
-| `PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDS`       | `nil`                                                      | No                                                                 |
+| `PUBLISH_GCP_PUBSUB_PROJECT`                     | `nil`                                                      | No                                                                 |
+| `PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS` | `nil`                                                      | No                                                                 |
+| `PUBLISH_GCP_PUBSUB_TOPIC`                       | `nil`                                                      | No                                                                 |
 | `PUBLISH_GCP_PUBSUB_SUBSCRIPTION`                | `nil`                                                      | No                                                                 |
 | `PUBLISH_MAX_CONCURRENCY`                        | `10`                                                       | No                                                                 |
 | `DELIVERY_MAX_CONCURRENCY`                       | `10`                                                       | Yes                                                                |
@@ -110,7 +115,7 @@ clickhouse:
 
 ## Message Queue
 mqs:
-  # Choose either RabbitMQ or AWS SQS configuration
+  # One of:
 
   # RabbitMQ Configuration Example
   rabbitmq:
@@ -127,6 +132,40 @@ mqs:
     endpoint: "https://sqs.us-west-2.amazonaws.com" # SQS endpoint (optional, for custom endpoints)
     delivery_queue: "outpost-delivery" # SQS queue name for delivery events
     log_queue: "outpost-log" # SQS queue name for log events
+
+  # GCP Pub/Sub Configuration Example
+  gcp_pubsub:
+    project: "GCP_PUBSUB_PROJECT" # GCP project ID
+    service_account_credentials: "GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS" # Contents of service account credentials JSON file
+    delivery_topic: "outpost-delivery" # Pub/Sub topic for delivery events
+    delivery_subscription: "outpost-delivery-sub" # Pub/Sub subscription for delivery events
+    log_topic: "outpost-log" # Pub/Sub topic for log events
+    log_subscription: "outpost-log-sub" # Pub/Sub subscription for log events
+
+# Publish Message Queue
+publishmq:
+  # One of:
+
+  # RabbitMQ Configuration Example
+  rabbitmq:
+    server_url: "amqp://user:pass@localhost:5672" # RabbitMQ server URL with credentials
+    exchange: "outpost" # Exchange name for message routing
+    queue: "publish" # Queue name for publishing events
+
+  # AWS SQS Configuration Example
+  aws_sqs:
+    access_key_id: "YOUR_AWS_ACCESS_KEY" # AWS access key ID
+    secret_access_key: "YOUR_AWS_SECRET_KEY" # AWS secret access key
+    region: "us-west-2" # AWS region
+    queue: "outpost-pub-queue" # SQS queue name for publishing events
+    endpoint: "https://sqs.us-west-2.amazonaws.com" # SQS endpoint (optional, for custom endpoints)
+
+  # GCP Pub/Sub Configuration Example
+  gcp_pubsub:
+    project: "GCP_PUBSUB_PROJECT" # GCP project ID
+    service_account_credentials: "GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS" # Contents of service account credentials JSON file
+    topic: "outpost-publish" # Pub/Sub to read for published events
+    subscription: "outpost-publish-sub" # Pub/Sub subscription for published events
 
 # Application Configuration
 aes_encryption_secret: "" # Secret for AES encryption
