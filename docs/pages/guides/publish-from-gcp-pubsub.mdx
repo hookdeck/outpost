@@ -19,6 +19,12 @@ GCP Pub/Sub messages should have the same payload structure as the [Publish API 
 }
 ```
 
+## GCP Pub/Sub Setup
+
+[Create a topic](https://cloud.google.com/pubsub/docs/create-topic) and [create a pull subscription](https://cloud.google.com/pubsub/docs/create-subscription) within GCP Pub/Sub.
+
+Once you have these in place, you can configure Outpost to subscribe to receive events and then publish them to subscribed Outpost Destinations.
+
 ## Configuration
 
 Provide Outpost with credentials, topic, and subscription for your GCP Pub/Sub instance used for publishing events.
