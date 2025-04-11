@@ -14,8 +14,8 @@ import (
 const (
 	GCPEndpoint         = "localhost:8085"
 	GCPProjectID        = "test"
-	GCPPublishTopicName = "outpost.publish"
-	GCPPublishSubName   = "outpost.publish.subscription"
+	GCPPublishTopicName = "outpost-publish"
+	GCPPublishSubName   = "outpost-publish-sub"
 )
 
 func publishGCP(body map[string]interface{}) error {
