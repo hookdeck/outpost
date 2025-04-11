@@ -17,15 +17,15 @@ func publishRabbitMQ(body map[string]interface{}) error {
 	log.Printf("[x] Publishing RabbitMQ")
 
 	conn, err := amqp091.Dial(RabbitMQServerURL)
+	if err != nil {
+		return err
+	}
 	defer conn.Close()
-	if err != nil {
-		return err
-	}
 	ch, err := conn.Channel()
-	defer ch.Close()
 	if err != nil {
 		return err
 	}
+	defer ch.Close()
 
 	messageBody, err := json.Marshal(body)
 	if err != nil {

@@ -24,7 +24,7 @@ type AWSSQSConfig struct {
 func (c *AWSSQSConfig) ToCredentials() (*credentials.StaticCredentialsProvider, error) {
 	creds := strings.Split(c.ServiceAccountCredentials, ":")
 	if len(creds) != 3 {
-		return nil, errors.New("Invalid AWS Service Account Credentials")
+		return nil, errors.New("invalid AWS Service Account Credentials")
 	}
 	awsCreds := credentials.NewStaticCredentialsProvider(creds[0], creds[1], creds[2])
 	return &awsCreds, nil

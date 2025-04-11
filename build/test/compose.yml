@@ -32,3 +32,17 @@ services:
     ports:
       - 34566:4566
       - 34571:4571
+  gcp:
+    image: google/cloud-sdk:latest
+    command:
+      [
+        "gcloud",
+        "beta",
+        "emulators",
+        "pubsub",
+        "start",
+        "--host-port=0.0.0.0:8085",
+        "--project=test",
+      ]
+    ports:
+      - "38085:8085"

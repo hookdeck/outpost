@@ -78,6 +78,24 @@ services:
     volumes:
       - aws:/var/lib/localstack
 
+  gcp:
+    image: google/cloud-sdk:latest
+    command:
+      [
+        "gcloud",
+        "beta",
+        "emulators",
+        "pubsub",
+        "start",
+        "--host-port=0.0.0.0:8085",
+        "--project=test",
+      ]
+    ports:
+      - "8085:8085"
+    volumes:
+      - gcp-config:/root/.config
+      - gcp-kube:/root/.kube
+
 volumes:
   redis:
     driver: local
@@ -88,6 +106,10 @@ volumes:
   rabbitmq:
     driver: local
   aws:
+    driver: local
+  gcp-config:
+    driver: local
+  gcp-kube:
     driver: local
 
 networks:

@@ -10,6 +10,8 @@ func handleDeclare(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Query().Get("method") {
 	case "aws_sqs":
 		err = declareAWS()
+	case "gcp_pubsub":
+		err = declareGCP()
 	case "rabbitmq":
 		err = declareRabbitMQ()
 	case "http":

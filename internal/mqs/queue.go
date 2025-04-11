@@ -47,7 +47,7 @@ func NewQueue(config *QueueConfig) Queue {
 	} else if config.AzureServiceBus != nil {
 		return &UnimplementedQueue{}
 	} else if config.GCPPubSub != nil {
-		return &UnimplementedQueue{}
+		return NewGCPPubSubQueue(config.GCPPubSub)
 	} else if config.RabbitMQ != nil {
 		return NewRabbitMQQueue(config.RabbitMQ)
 	} else {
