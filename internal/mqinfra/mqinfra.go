@@ -20,7 +20,7 @@ func New(cfg *mqs.QueueConfig) MQInfra {
 		return &infraUnimplemented{}
 	}
 	if cfg.GCPPubSub != nil {
-		return &infraUnimplemented{}
+		return &infraGCPPubSub{cfg: cfg}
 	}
 	if cfg.RabbitMQ != nil {
 		return &infraRabbitMQ{cfg: cfg}

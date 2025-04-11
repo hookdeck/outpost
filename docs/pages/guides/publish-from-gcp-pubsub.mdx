@@ -1,0 +1,76 @@
+---
+title: "Publish from GCP Pub/Sub"
+---
+
+This guide provides information on using GCP Pub/Sub to publish events to Outpost.
+
+## Message Structure
+
+GCP Pub/Sub messages should have the same payload structure as the [Publish API endpoint](/docs/references/api#publish).
+
+```json
+{
+  "tenant_id": "<TENANT_ID>",
+  "destination_id": "<DESTINATION_ID>", // Optional. Provide a way of routing events to a specific destination
+  "topic": "topic.name", // Topic defined in TOPICS environment variable
+  "eligible_for_retry": true | false, // Should event delivery be retried. Default is true.
+  "metadata": Payload, // can by any JSON payload,
+  "data": Payload // can by any JSON payload
+}
+```
+
+## GCP Pub/Sub Setup
+
+[Create a topic](https://cloud.google.com/pubsub/docs/create-topic) and [create a pull subscription](https://cloud.google.com/pubsub/docs/create-subscription) within GCP Pub/Sub.
+
+Once you have these in place, you can configure Outpost to subscribe to receive events and then publish them to subscribed Outpost Destinations.
+
+## Configuration
+
+Provide Outpost with credentials, topic, and subscription for your GCP Pub/Sub instance used for publishing events.
+
+### Environment Variables
+
+```
+PUBLISH_GCP_PUBSUB_PROJECT=""
+PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS=""
+PUBLISH_GCP_PUBSUB_TOPIC=""
+PUBLISH_GCP_PUBSUB_SUBSCRIPTION=""
+```
+
+#### Example
+
+```
+PUBLISH_GCP_PUBSUB_PROJECT="my-gcp-project"
+PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS="single_line_json_string"
+PUBLISH_GCP_PUBSUB_TOPIC="outpost-publish"
+PUBLISH_GCP_PUBSUB_SUBSCRIPTION="outpost-publish-sub"
+```
+
+### YAML
+
+```yaml
+publishmq:
+  gcp_pubsub:
+    project: <GCP_PROJECT>
+    service_account_credentials: <GCP_SERVICE_ACCOUNT_CREDENTIALS>
+    topic: <GCP_PUBSUB_TOPIC>
+    subscription: <GCP_PUBSUB_SUBSCRIPTION>
+```
+
+#### Example
+
+```yaml
+publishmq:
+  gcp_pubsub:
+    project: "GCP_PUBSUB_PROJECT" # GCP project ID
+    service_account_credentials: "GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS" # Contents of service account credentials JSON file
+    topic: "outpost-publish" # Pub/Sub to read for published events
+    subscription: "outpost-publish-sub" # Pub/Sub subscription for published events
+```
+
+### Troubleshooting
+
+- [Ask a question](https://github.com/hookdeck/outpost/discussions/new?category=q-a)
+- [Report a bug](https://github.com/hookdeck/outpost/issues/new?assignees=&labels=bug&projects=&template=bug_report.md&title=%F0%9F%90%9B+Bug+Report%3A+)
+- [Request a feature](https://github.com/hookdeck/outpost/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=%F0%9F%9A%80+Feature%3A+)

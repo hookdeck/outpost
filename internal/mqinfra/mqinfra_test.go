@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const retryLimit = 3
+const retryLimit = 5
 
 func testMQInfra(t *testing.T, mqConfig mqs.QueueConfig, dlqConfig mqs.QueueConfig) {
 	t.Parallel()
@@ -202,6 +202,37 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 				ServiceAccountCredentials: "test:test:",
 				Region:                    "us-east-1",
 				Topic:                     q + "-dlq",
+			},
+		},
+	)
+}
+
+func TestIntegrationMQInfra_GCPPubSub(t *testing.T) {
+	// Set PUBSUB_EMULATOR_HOST environment variable
+	testinfra.EnsureGCP()
+
+	topicID := "test-" + uuid.New().String()
+	subscriptionID := topicID + "-subscription"
+
+	testMQInfra(t,
+		mqs.QueueConfig{
+			GCPPubSub: &mqs.GCPPubSubConfig{
+				ProjectID:                 "test-project",
+				TopicID:                   topicID,
+				SubscriptionID:            subscriptionID,
+				ServiceAccountCredentials: "",
+			},
+			Policy: mqs.Policy{
+				RetryLimit:        retryLimit,
+				VisibilityTimeout: 10,
+			},
+		},
+		mqs.QueueConfig{
+			GCPPubSub: &mqs.GCPPubSubConfig{
+				ProjectID:                 "test-project",
+				TopicID:                   topicID + "-dlq",
+				SubscriptionID:            topicID + "-dlq-sub",
+				ServiceAccountCredentials: "",
 			},
 		},
 	)

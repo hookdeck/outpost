@@ -13,7 +13,7 @@ RabbitMQ messages should have the same payload structure as the [Publish API end
   "tenant_id": "<TENANT_ID>",
   "destination_id": "<DESTINATION_ID>", // Optional. Provide a way of routing events to a specific destination
   "topic": "topic.name", // Topic defined in TOPICS environment variable
-  "eligible_for_retry": false | true, // Should event delivery be retried. Default is false.
+  "eligible_for_retry": true | false, // Should event delivery be retried. Default is true.
   "metadata": Payload, // can by any JSON payload,
   "data": Payload // can by any JSON payload
 }
@@ -42,7 +42,7 @@ PUBLISH_RABBITMQ_QUEUE="publish"
 ### YAML
 
 ```yaml
-mqs:
+publishmq:
   publishmq:
     rabbitmq:
       server_url: <SERVER_URL>

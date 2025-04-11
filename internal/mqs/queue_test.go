@@ -41,6 +41,13 @@ func TestIntegrationMQ_AWS(t *testing.T) {
 	testMQ(t, func() mqs.QueueConfig { return config })
 }
 
+func TestIntegrationMQ_GCP(t *testing.T) {
+	t.Parallel()
+	t.Cleanup(testinfra.Start(t))
+	config := testinfra.NewMQGCPConfig(t, nil)
+	testMQ(t, func() mqs.QueueConfig { return config })
+}
+
 type Msg struct {
 	ID   string
 	Data map[string]string

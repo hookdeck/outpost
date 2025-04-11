@@ -17,6 +17,8 @@ func handlePublish(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Query().Get("method") {
 	case "aws_sqs":
 		err = publishAWS(body)
+	case "gcp_pubsub":
+		err = publishGCP(body)
 	case "rabbitmq":
 		err = publishRabbitMQ(body)
 	case "http":

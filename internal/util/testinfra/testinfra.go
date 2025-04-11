@@ -24,6 +24,7 @@ type Config struct {
 	LocalStackURL string
 	RabbitMQURL   string
 	MockServerURL string
+	GCPURL        string
 	cleanupFns    []func()
 }
 
@@ -59,6 +60,7 @@ func initConfig() {
 			ClickHouseURL: v.GetString("TEST_CLICKHOUSE_URL"),
 			PostgresURL:   v.GetString("TEST_POSTGRES_URL"),
 			LocalStackURL: localstackURL,
+			GCPURL:        v.GetString("TEST_GCP_URL"),
 			RabbitMQURL:   rabbitmqURL,
 			MockServerURL: mockServerURL,
 		}
@@ -71,6 +73,7 @@ func initConfig() {
 		LocalStackURL: "",
 		RabbitMQURL:   "",
 		MockServerURL: "",
+		GCPURL:        "",
 	}
 }
 

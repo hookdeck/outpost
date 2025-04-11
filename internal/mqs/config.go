@@ -19,6 +19,10 @@ type AzureServiceBusConfig struct {
 }
 
 type GCPPubSubConfig struct {
+	ProjectID                 string
+	TopicID                   string
+	SubscriptionID            string
+	ServiceAccountCredentials string // JSON key file content
 }
 
 type InMemoryConfig struct {

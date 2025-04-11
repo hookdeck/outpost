@@ -7,7 +7,6 @@ import (
 
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/awsutil"
-	"github.com/spf13/viper"
 )
 
 type infraAWSSQS struct {
@@ -79,34 +78,4 @@ func (infra *infraAWSSQS) TearDown(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-type awsSQSParser struct {
-	viper *viper.Viper
-}
-
-func (p *awsSQSParser) parseQueue(queueType string) (*mqs.QueueConfig, error) {
-	queue := p.viper.GetString(fmt.Sprintf("AWS_SQS_%s_QUEUE", queueType))
-	if queue == "" {
-		return nil, fmt.Errorf("AWS_SQS_%s_QUEUE is not set", queueType)
-	}
-
-	creds := fmt.Sprintf("%s:%s:",
-		p.viper.GetString("AWS_SQS_ACCESS_KEY_ID"),
-		p.viper.GetString("AWS_SQS_SECRET_ACCESS_KEY"),
-	)
-
-	region := p.viper.GetString("AWS_SQS_REGION")
-	if region == "" {
-		return nil, errors.New("AWS_SQS_REGION is not set")
-	}
-
-	return &mqs.QueueConfig{
-		AWSSQS: &mqs.AWSSQSConfig{
-			Endpoint:                  p.viper.GetString("AWS_SQS_ENDPOINT"),
-			Region:                    region,
-			ServiceAccountCredentials: creds,
-			Topic:                     queue,
-		},
-	}, nil
 }

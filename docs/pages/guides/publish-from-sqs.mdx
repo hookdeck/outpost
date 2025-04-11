@@ -13,7 +13,7 @@ SQS messages should have the same payload structure as the [Publish API endpoint
   "tenant_id": "<TENANT_ID>",
   "destination_id": "<DESTINATION_ID>", // Optional. Provide a way of routing events to a specific destination
   "topic": "topic.name", // Topic defined in TOPICS environment variable
-  "eligible_for_retry": false | true, // Should event delivery be retried. Default is false.
+  "eligible_for_retry": true | false, // Should event delivery be retried. Default is true.
   "metadata": Payload, // can by any JSON payload,
   "data": Payload // can by any JSON payload
 }
@@ -46,29 +46,27 @@ PUBLISH_AWS_SQS_SECRET_ACCESS_KEY="REDACTED"
 ### YAML
 
 ```yaml
-mqs:
-  publishmq:
-    aws_sqs:
-      region: <AWS_REGION>
-      queue: <QUEUE_NAME>
-      access_key_id: <KEY_ID>
-      secret_access_key: <SECRET>
+publishmq:
+  aws_sqs:
+    region: <AWS_REGION>
+    queue: <QUEUE_NAME>
+    access_key_id: <KEY_ID>
+    secret_access_key: <SECRET>
 
-      # Optional.
-      # Useful for local development or when using a non-standard SQS endpoint.
-      endpoint: <URL>
+    # Optional.
+    # Useful for local development or when using a non-standard SQS endpoint.
+    endpoint: <URL>
 ```
 
 #### Example
 
 ```yaml
-mqs:
-  publishmq:
-    aws_sqs:
-      region: eu-north-1
-      queue: outpost-pub-queue
-      access_key_id: REDACTED
-      secret_access_key: REDACTED
+publishmq:
+  aws_sqs:
+    region: eu-north-1
+    queue: outpost-pub-queue
+    access_key_id: REDACTED
+    secret_access_key: REDACTED
 ```
 
 ### Required Permissions

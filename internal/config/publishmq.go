@@ -14,6 +14,13 @@ type PublishAWSSQSConfig struct {
 	Queue           string `yaml:"queue" env:"PUBLISH_AWS_SQS_QUEUE"`
 }
 
+type PublishGCPPubSubConfig struct {
+	Project                   string `yaml:"project" env:"PUBLISH_GCP_PUBSUB_PROJECT"`
+	Topic                     string `yaml:"topic" env:"PUBLISH_GCP_PUBSUB_TOPIC"`
+	Subscription              string `yaml:"subscription" env:"PUBLISH_GCP_PUBSUB_SUBSCRIPTION"`
+	ServiceAccountCredentials string `yaml:"service_account_credentials" env:"PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS"`
+}
+
 type PublishRabbitMQConfig struct {
 	ServerURL string `yaml:"server_url" env:"PUBLISH_RABBITMQ_SERVER_URL"`
 	Exchange  string `yaml:"exchange" env:"PUBLISH_RABBITMQ_EXCHANGE"`
@@ -21,13 +28,17 @@ type PublishRabbitMQConfig struct {
 }
 
 type PublishMQConfig struct {
-	AWSSQS   PublishAWSSQSConfig   `yaml:"aws_sqs"`
-	RabbitMQ PublishRabbitMQConfig `yaml:"rabbitmq"`
+	AWSSQS    PublishAWSSQSConfig    `yaml:"aws_sqs"`
+	GCPPubSub PublishGCPPubSubConfig `yaml:"gcp_pubsub"`
+	RabbitMQ  PublishRabbitMQConfig  `yaml:"rabbitmq"`
 }
 
 func (c PublishMQConfig) GetInfraType() string {
 	if hasPublishAWSSQSConfig(c.AWSSQS) {
 		return "awssqs"
+	}
+	if hasPublishGCPPubSubConfig(c.GCPPubSub) {
+		return "gcppubsub"
 	}
 	if hasPublishRabbitMQConfig(c.RabbitMQ) {
 		return "rabbitmq"
@@ -48,6 +59,15 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 				Topic:                     c.AWSSQS.Queue,
 			},
 		}
+	case "gcppubsub":
+		return &mqs.QueueConfig{
+			GCPPubSub: &mqs.GCPPubSubConfig{
+				ProjectID:                 c.GCPPubSub.Project,
+				TopicID:                   c.GCPPubSub.Topic,
+				SubscriptionID:            c.GCPPubSub.Subscription,
+				ServiceAccountCredentials: c.GCPPubSub.ServiceAccountCredentials,
+			},
+		}
 	case "rabbitmq":
 		return &mqs.QueueConfig{
 			RabbitMQ: &mqs.RabbitMQConfig{
@@ -64,6 +84,10 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 func hasPublishAWSSQSConfig(config PublishAWSSQSConfig) bool {
 	return config.AccessKeyID != "" &&
 		config.SecretAccessKey != "" && config.Region != ""
+}
+
+func hasPublishGCPPubSubConfig(config PublishGCPPubSubConfig) bool {
+	return config.Project != ""
 }
 
 func hasPublishRabbitMQConfig(config PublishRabbitMQConfig) bool {
