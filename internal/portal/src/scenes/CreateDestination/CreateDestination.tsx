@@ -3,7 +3,7 @@ import Button from "../../common/Button/Button";
 import { CloseIcon, Loading } from "../../common/Icons";
 import Badge from "../../common/Badge/Badge";
 import { useNavigate } from "react-router-dom";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { ApiContext } from "../../app";
 import { showToast } from "../../common/Toast/Toast";
 import useSWR, { mutate } from "swr";

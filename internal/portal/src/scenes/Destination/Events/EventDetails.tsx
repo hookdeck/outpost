@@ -8,6 +8,7 @@ import {
 import useSWR from "swr";
 import { Event, Delivery } from "../../../typings/Event";
 import Badge from "../../../common/Badge/Badge";
+import RetryEventButton from "../../../common/RetryEventButton/RetryEventButton";
 
 const EventDetails = ({
   navigateEvent,
@@ -76,6 +77,16 @@ const EventData = ({
             text={event.status === "success" ? "Successful" : "Failed"}
             success={event.status === "success"}
             danger={event.status === "failed"}
+          />
+
+          <RetryEventButton
+            eventId={event.id}
+            destinationId={event.destination_id}
+            disabled={["success", "failed"].includes(event.status) === false}
+            loading={false}
+            completed={(success) => {
+              // TODO: completed should be optional
+            }}
           />
 
           <Button

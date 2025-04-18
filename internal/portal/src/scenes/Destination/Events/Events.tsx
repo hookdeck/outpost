@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import Badge from "../../../common/Badge/Badge";
-// import Button from "../../../common/Button/Button";
+import Button from "../../../common/Button/Button";
 // import SearchInput from "../../../common/SearchInput/SearchInput";
 import "./Events.scss";
 import Table from "../../../common/Table/Table";
@@ -14,6 +14,7 @@ import {
   RefreshIcon,
   NextIcon,
 } from "../../../common/Icons";
+import RetryEventButton from "../../../common/RetryEventButton/RetryEventButton";
 import { Checkbox } from "../../../common/Checkbox/Checkbox";
 import {
   Route,
@@ -23,20 +24,21 @@ import {
   Outlet,
   useParams,
 } from "react-router-dom";
-import Button from "../../../common/Button/Button";
 import CONFIGS from "../../../config";
 import EventDetails from "./EventDetails";
 
-const Events = ({
-  destination,
-  navigateEvent,
-}: {
+interface EventsProps {
   destination: any;
   navigateEvent: (path: string, state?: any) => void;
+}
+
+const Events: React.FC<EventsProps> = ({
+  destination,
+  navigateEvent,
 }) => {
-  const { status, topics, pagination, urlSearchParams } = useEventFilter();
   const [timeRange, setTimeRange] = useState("24h");
-  const { event_id: eventId } = useParams();
+  const { event_id: eventId } = useParams<{ event_id: string }>();
+  const { status, topics, pagination, urlSearchParams } = useEventFilter();
 
   const queryUrl = useMemo(() => {
     const searchParams = new URLSearchParams(urlSearchParams);
@@ -73,39 +75,52 @@ const Events = ({
     data: eventsList,
     mutate,
     isValidating,
-  } = useSWR<EventListResponse>(queryUrl);
+  } = useSWR<EventListResponse>(queryUrl, {
+    revalidateOnFocus: false,
+  });
 
   const topicsList = CONFIGS.TOPICS.split(",");
 
-  const table_rows = eventsList
-    ? eventsList.data.map((event) => ({
-        id: event.id,
-        active: event.id === eventId,
-        entries: [
-          <span className="mono-s event-time-cell">
-            {new Date(event.time).toLocaleString("en-US", {
-              month: "short",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-              hour12: true,
-            })}
-          </span>,
-          <span className="mono-s">
-            {event.status === "success" ? (
-              <Badge text="Successful" success />
-            ) : event.status === "failed" ? (
-              <Badge text="Failed" danger />
-            ) : (
-              <Badge text="Pending" />
-            )}
-          </span>,
-          <span className="mono-s">{event.topic}</span>,
-          <span className="mono-s">{event.id}</span>,
-        ],
-        onClick: () => navigateEvent(`/${event.id}`),
-      }))
-    : [];
+  const table_rows = eventsList?.data ? eventsList.data.map((event) => ({
+    id: event.id,
+    active: event.id === (eventId || ''),
+    entries: [
+      <span className="mono-s event-time-cell">
+        {new Date(event.time).toLocaleString("en-US", {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        })}
+      </span>,
+      <span className="mono-s">
+        {event.status === "success" ? (
+          <Badge text="Successful" success />
+        ) : event.status === "failed" ? (
+          <Badge text="Failed" danger />
+        ) : (
+          <Badge text="Pending" />
+        )}
+        {(event.status === "success" || event.status === "failed") && (
+          <RetryEventButton
+            eventId={event.id}
+            destinationId={destination.id}
+            disabled={isValidating}
+            loading={isValidating}
+            completed={(success) => {
+              if (success) {
+                mutate();
+              }
+            }}
+          />
+        )}
+      </span>,
+      <span className="mono-s">{event.topic}</span>,
+      <span className="mono-s">{event.id}</span>,
+    ],
+    onClick: () => navigateEvent(`/${event.id}`),
+  })) : [];
 
   return (
     <div className="destination-events">

@@ -5,7 +5,7 @@ import { Loading } from "../Icons";
 
 interface ButtonProps {
   to?: string;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   type?: "button" | "submit" | "reset";
   className?: string;

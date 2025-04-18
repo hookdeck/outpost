@@ -89,4 +89,4 @@ Verify your secrets:
    kubectl get secret outpost-secrets -o jsonpath='{.data.REDIS_PASSWORD}' | base64 -d  # Verify Redis password
 
 Install Outpost with:
-   helm install outpost ../../deployments/kubernetes/charts/outpost
+   helm install outpost ../../deployments/kubernetes/charts/outpost"
