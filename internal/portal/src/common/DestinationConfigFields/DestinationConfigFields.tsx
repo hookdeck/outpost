@@ -51,7 +51,18 @@ const DestinationConfigFields = ({
 
   return (
     <>
-      {type.instructions && (
+      {type.setup_link ? (
+        <div className="destination-setup-link config-guide-button">
+          <a
+            href={type.setup_link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="button"
+          >
+            {type.setup_link.cta}
+          </a>
+        </div>
+      ) : type.instructions ? (
         <Button
           onClick={() => setShowConfigModal(!showConfigModal)}
           className="config-guide-button"
@@ -59,7 +70,7 @@ const DestinationConfigFields = ({
           <HelpIcon />
           Configuration Guide
         </Button>
-      )}
+      ) : null}
       {[...type.config_fields, ...type.credential_fields].map((field) => (
         <div key={field.key} className="destination-config-field">
           <label htmlFor={field.key}>
@@ -83,7 +94,9 @@ const DestinationConfigFields = ({
                     ? unlockedFields[field.key]
                       ? ""
                       : destination?.credentials[field.key] || field.default
-                    : destination?.config[field.key] || destination?.credentials[field.key] || field.default
+                    : destination?.config[field.key] ||
+                      destination?.credentials[field.key] ||
+                      field.default
                 }
                 disabled={
                   "sensitive" in field && field.sensitive
@@ -122,7 +135,6 @@ const DestinationConfigFields = ({
               disabled={field.disabled}
               required={field.required}
             />
-
           )}
           {field.description && (
             <p className="description">{field.description}</p>
