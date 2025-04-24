@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/url"
 	"strings"
 	"time"
@@ -65,8 +64,6 @@ func New(loader metadata.MetadataLoader, opts ...Option) (*AWSKinesisProvider, e
 	for _, opt := range opts {
 		opt(provider)
 	}
-
-	log.Println("AWS Kinesis provider initialized", provider.metadataInPayload)
 
 	return provider, nil
 }

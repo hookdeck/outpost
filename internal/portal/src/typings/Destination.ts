@@ -25,6 +25,10 @@ interface DestinationTypeReference {
   instructions: string;
   label: string;
   description: string;
+  setup_link?: {
+    href: string;
+    cta: string;
+  };
   icon: string;
 }
 

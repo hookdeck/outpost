@@ -4,6 +4,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawskinesis"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawssqs"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/desthookdeck"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 )
@@ -38,13 +39,6 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("aws_sqs", awsSQS)
 
-	rabbitmq, err := destrabbitmq.New(loader)
-	if err != nil {
-		return err
-	}
-	registry.RegisterProvider("rabbitmq", rabbitmq)
-
-	// Register AWS Kinesis destination
 	awsKinesisOpts := []destawskinesis.Option{}
 	if opts.AWSKinesis != nil {
 		awsKinesisOpts = append(awsKinesisOpts,
@@ -56,6 +50,18 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		return err
 	}
 	registry.RegisterProvider("aws_kinesis", awsKinesis)
+
+	rabbitmq, err := destrabbitmq.New(loader)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("rabbitmq", rabbitmq)
+
+	hookdeck, err := desthookdeck.New(loader)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("hookdeck", hookdeck)
 
 	webhookOpts := []destwebhook.Option{}
 	if opts.Webhook != nil {

@@ -13,8 +13,13 @@ type ProviderMetadata struct {
 	Label            string        `json:"label"`
 	Description      string        `json:"description"`
 	Icon             string        `json:"icon"`
-	RemoteSetupURL   string        `json:"remote_setup_url,omitempty"`
+	SetupLink        *SetupLink    `json:"setup_link,omitempty"`
 	Instructions     string        `json:"instructions"`
+}
+
+type SetupLink struct {
+	Href string `json:"href"`
+	Cta  string `json:"cta"`
 }
 
 type FieldSchema struct {
