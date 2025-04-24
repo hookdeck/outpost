@@ -76,33 +76,33 @@ const steps = [
       defaultValue: Record<string, any>;
     }) => (
       <div className="destination-types">
-        {destinations?.sort((a, b) => a.label.localeCompare(b.label)).map((destination, i) => (
+        {destinations?.map((destination) => (
           <label key={destination.type} className="destination-type-card">
-          <input
-            type="radio"
-            name="type"
-            value={destination.type}
-            required
-            className="destination-type-radio"
-            defaultChecked={
-              defaultValue
-            ? defaultValue.type === destination.type
-            : undefined
-            }
-          />
-          <div className="destination-type-content">
-            <h3 className="subtitle-l">
-              <span
-            className="destination-type-content__icon"
-            dangerouslySetInnerHTML={{ __html: destination.icon }}
-              />{" "}
-              {destination.label}
-            </h3>
-            <p className="body-m muted">{destination.description}</p>
-          </div>
-            </label>
-          ))}
-        </div>
+            <input
+              type="radio"
+              name="type"
+              value={destination.type}
+              required
+              className="destination-type-radio"
+              defaultChecked={
+                defaultValue
+                  ? defaultValue.type === destination.type
+                  : undefined
+              }
+            />
+            <div className="destination-type-content">
+              <h3 className="subtitle-l">
+                <span
+                  className="destination-type-content__icon"
+                  dangerouslySetInnerHTML={{ __html: destination.icon }}
+                />{" "}
+                {destination.label}
+              </h3>
+              <p className="body-m muted">{destination.description}</p>
+            </div>
+          </label>
+        ))}
+      </div>
     ),
     action: "Next",
   },

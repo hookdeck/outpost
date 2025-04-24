@@ -30,8 +30,37 @@ type RegisterDefaultDestinationOptions struct {
 	AWSKinesis *DestAWSKinesisConfig
 }
 
+// RegisterDefault registers the default destination providers with the registry.
+// NOTE: The order of registration will determine the order of the provider array
+// returned when listing providers.
 func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestinationOptions) error {
 	loader := registry.MetadataLoader()
+
+	webhookOpts := []destwebhook.Option{}
+	if opts.Webhook != nil {
+		webhookOpts = []destwebhook.Option{
+			destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
+			destwebhook.WithDisableDefaultEventIDHeader(opts.Webhook.DisableDefaultEventIDHeader),
+			destwebhook.WithDisableDefaultSignatureHeader(opts.Webhook.DisableDefaultSignatureHeader),
+			destwebhook.WithDisableDefaultTimestampHeader(opts.Webhook.DisableDefaultTimestampHeader),
+			destwebhook.WithDisableDefaultTopicHeader(opts.Webhook.DisableDefaultTopicHeader),
+			destwebhook.WithSignatureContentTemplate(opts.Webhook.SignatureContentTemplate),
+			destwebhook.WithSignatureHeaderTemplate(opts.Webhook.SignatureHeaderTemplate),
+			destwebhook.WithSignatureEncoding(opts.Webhook.SignatureEncoding),
+			destwebhook.WithSignatureAlgorithm(opts.Webhook.SignatureAlgorithm),
+		}
+	}
+	webhook, err := destwebhook.New(loader, webhookOpts...)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("webhook", webhook)
+
+	hookdeck, err := desthookdeck.New(loader)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("hookdeck", hookdeck)
 
 	awsSQS, err := destawssqs.New(loader)
 	if err != nil {
@@ -57,30 +86,5 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("rabbitmq", rabbitmq)
 
-	hookdeck, err := desthookdeck.New(loader)
-	if err != nil {
-		return err
-	}
-	registry.RegisterProvider("hookdeck", hookdeck)
-
-	webhookOpts := []destwebhook.Option{}
-	if opts.Webhook != nil {
-		webhookOpts = []destwebhook.Option{
-			destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
-			destwebhook.WithDisableDefaultEventIDHeader(opts.Webhook.DisableDefaultEventIDHeader),
-			destwebhook.WithDisableDefaultSignatureHeader(opts.Webhook.DisableDefaultSignatureHeader),
-			destwebhook.WithDisableDefaultTimestampHeader(opts.Webhook.DisableDefaultTimestampHeader),
-			destwebhook.WithDisableDefaultTopicHeader(opts.Webhook.DisableDefaultTopicHeader),
-			destwebhook.WithSignatureContentTemplate(opts.Webhook.SignatureContentTemplate),
-			destwebhook.WithSignatureHeaderTemplate(opts.Webhook.SignatureHeaderTemplate),
-			destwebhook.WithSignatureEncoding(opts.Webhook.SignatureEncoding),
-			destwebhook.WithSignatureAlgorithm(opts.Webhook.SignatureAlgorithm),
-		}
-	}
-	webhook, err := destwebhook.New(loader, webhookOpts...)
-	if err != nil {
-		return err
-	}
-	registry.RegisterProvider("webhook", webhook)
 	return nil
 }
