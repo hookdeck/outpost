@@ -1005,8 +1005,8 @@ func (suite *basicSuite) TestDestinationTypesAPI() {
 						"body": map[string]interface{}{
 							"type":        "array",
 							"items":       providerSchema,
-							"minItems":    3,
-							"maxItems":    3,
+							"minItems":    5,
+							"maxItems":    5,
 							"uniqueItems": true,
 						},
 					},

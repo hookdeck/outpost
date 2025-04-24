@@ -49,45 +49,49 @@ func (t *CustomRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 func TestPreprocess(t *testing.T) {
 	// Create test cases
 	testCases := []struct {
-		name                 string
-		tokenID              string
-		sourceName           string
-		tokenValue           string
-		originalToken        string
-		expectVerification   bool
-		expectedError        bool
-		expectedErrorType    string
-		expectedNameInConfig string
+		name               string
+		tokenID            string
+		sourceName         string
+		tokenValue         string
+		originalToken      string
+		expectVerification bool
+		expectedError      bool
+		expectedErrorType  string
+		expectedSourceName string
+		expectedSourceID   string
 	}{
 		{
-			name:                 "Success_New_Destination",
-			tokenID:              "src_GcxGhypwnBIX",
-			sourceName:           "test-source",
-			tokenValue:           "src_GcxGhypwnBIX:random_string",
-			originalToken:        "",
-			expectVerification:   true,
-			expectedError:        false,
-			expectedNameInConfig: "test-source",
+			name:               "Success_New_Destination",
+			tokenID:            "src_GcxGhypwnBIX",
+			sourceName:         "test-source",
+			tokenValue:         "src_GcxGhypwnBIX:random_string",
+			originalToken:      "",
+			expectVerification: true,
+			expectedError:      false,
+			expectedSourceName: "test-source",
+			expectedSourceID:   "src_GcxGhypwnBIX",
 		},
 		{
-			name:                 "Success_Same_Token",
-			tokenID:              "src_GcxGhypwnBIX",
-			sourceName:           "test-source",
-			tokenValue:           "src_GcxGhypwnBIX:random_string",
-			originalToken:        "src_GcxGhypwnBIX:random_string",
-			expectVerification:   false, // Should not verify if token didn't change
-			expectedError:        false,
-			expectedNameInConfig: "",
+			name:               "Success_Same_Token",
+			tokenID:            "src_GcxGhypwnBIX",
+			sourceName:         "test-source",
+			tokenValue:         "src_GcxGhypwnBIX:random_string",
+			originalToken:      "src_GcxGhypwnBIX:random_string",
+			expectVerification: false, // Should not verify if token didn't change
+			expectedError:      false,
+			expectedSourceName: "",
+			expectedSourceID:   "",
 		},
 		{
-			name:                 "Success_Token_Change",
-			tokenID:              "src_NewToken123",
-			sourceName:           "new-source",
-			tokenValue:           "src_NewToken123:new_random",
-			originalToken:        "src_OldToken456:old_random",
-			expectVerification:   true,
-			expectedError:        false,
-			expectedNameInConfig: "new-source",
+			name:               "Success_Token_Change",
+			tokenID:            "src_NewToken123",
+			sourceName:         "new-source",
+			tokenValue:         "src_NewToken123:new_random",
+			originalToken:      "src_OldToken456:old_random",
+			expectVerification: true,
+			expectedError:      false,
+			expectedSourceName: "new-source",
+			expectedSourceID:   "src_NewToken123",
 		},
 		{
 			name:               "Error_Empty_Token",
@@ -98,6 +102,8 @@ func TestPreprocess(t *testing.T) {
 			expectVerification: false,
 			expectedError:      true,
 			expectedErrorType:  "token_required",
+			expectedSourceName: "",
+			expectedSourceID:   "",
 		},
 		{
 			name:               "Error_Invalid_Token_Format",
@@ -108,6 +114,8 @@ func TestPreprocess(t *testing.T) {
 			expectVerification: false,
 			expectedError:      true,
 			expectedErrorType:  "invalid_token_format",
+			expectedSourceName: "",
+			expectedSourceID:   "",
 		},
 	}
 
@@ -212,12 +220,19 @@ func TestPreprocess(t *testing.T) {
 			assert.Equal(t, tc.expectVerification, verificationCalled,
 				"Verification API call expectation mismatch")
 
-			// Check if the name was stored in config
-			if tc.expectedNameInConfig != "" {
+			// Check if source information was stored in config
+			if tc.expectedSourceName != "" {
 				require.NotNil(t, newDestination.Config)
-				name, exists := newDestination.Config["name"]
-				assert.True(t, exists, "Name should exist in config")
-				assert.Equal(t, tc.expectedNameInConfig, name)
+
+				// Check source name
+				sourceName, exists := newDestination.Config["source_name"]
+				assert.True(t, exists, "source_name should exist in config")
+				assert.Equal(t, tc.expectedSourceName, sourceName)
+
+				// Check source ID
+				sourceID, exists := newDestination.Config["source_id"]
+				assert.True(t, exists, "source_id should exist in config")
+				assert.Equal(t, tc.expectedSourceID, sourceID)
 			}
 		})
 	}
@@ -266,6 +281,15 @@ func TestPreprocess_ServerError(t *testing.T) {
 	var validationErr *destregistry.ErrDestinationValidation
 	require.ErrorAs(t, err, &validationErr)
 	assert.Equal(t, "token_verification_failed", validationErr.Errors[0].Type)
+
+	// Verify that no source information was added to the config
+	if newDestination.Config != nil {
+		_, hasSourceName := newDestination.Config["source_name"]
+		assert.False(t, hasSourceName, "source_name should not exist in config after failed verification")
+
+		_, hasSourceID := newDestination.Config["source_id"]
+		assert.False(t, hasSourceID, "source_id should not exist in config after failed verification")
+	}
 }
 
 // Test with timeout
@@ -312,4 +336,13 @@ func TestPreprocess_Timeout(t *testing.T) {
 	var validationErr *destregistry.ErrDestinationValidation
 	require.ErrorAs(t, err, &validationErr)
 	assert.Equal(t, "token_verification_failed", validationErr.Errors[0].Type)
+
+	// Verify that no source information was added to the config
+	if newDestination.Config != nil {
+		_, hasSourceName := newDestination.Config["source_name"]
+		assert.False(t, hasSourceName, "source_name should not exist in config after timeout")
+
+		_, hasSourceID := newDestination.Config["source_id"]
+		assert.False(t, hasSourceID, "source_id should not exist in config after timeout")
+	}
 }

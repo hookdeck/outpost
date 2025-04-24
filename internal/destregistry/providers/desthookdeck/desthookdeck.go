@@ -149,9 +149,37 @@ func (p *HookdeckProvider) CreatePublisher(ctx context.Context, destination *mod
 
 // ComputeTarget returns a human-readable target
 func (p *HookdeckProvider) ComputeTarget(destination *models.Destination) destregistry.DestinationTarget {
+	// Check if we have the source information in config
+	if destination.Config != nil {
+		sourceName, hasName := destination.Config["source_name"]
+		sourceID, hasID := destination.Config["source_id"]
+
+		if hasName && sourceName != "" && hasID && sourceID != "" {
+			return destregistry.DestinationTarget{
+				Target:    sourceName,
+				TargetURL: "https://dashboard.hookdeck.com/sources/" + sourceID,
+			}
+		}
+	}
+
+	// Use token information as fallback
+	token := destination.Credentials["token"]
+	if token == "" {
+		return destregistry.DestinationTarget{
+			Target: "Hookdeck (no token)",
+		}
+	}
+
+	hookdeckToken, err := ParseHookdeckToken(token)
+	if err != nil {
+		return destregistry.DestinationTarget{
+			Target: "Hookdeck (invalid token)",
+		}
+	}
+
 	return destregistry.DestinationTarget{
-		Target:    destination.Config["source_name"],
-		TargetURL: "https://dashboard.hookdeck.com/sources/" + destination.Config["source_id"],
+		Target:    "Hookdeck source ID: " + hookdeckToken.ID,
+		TargetURL: "https://dashboard.hookdeck.com/sources/" + hookdeckToken.ID,
 	}
 }
 
@@ -206,10 +234,10 @@ func (p *HookdeckProvider) Preprocess(newDestination *models.Destination, origin
 			newDestination.Config = make(models.MapStringString)
 		}
 
-		// Store the name in the destination config
-		// This is a hidden config that won't be shown in the form
-		newDestination.Config["source_id"] = parsedToken.ID
+		// Store source information in the destination config
+		// These are hidden configs that won't be shown in the form
 		newDestination.Config["source_name"] = sourceResponse.Name
+		newDestination.Config["source_id"] = parsedToken.ID
 	}
 
 	return nil

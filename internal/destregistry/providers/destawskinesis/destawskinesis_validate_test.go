@@ -135,6 +135,6 @@ func TestAWSKinesisDestination_ComputeTarget(t *testing.T) {
 			}),
 		)
 		target := awsKinesisDestination.ComputeTarget(&destination)
-		assert.Equal(t, "my-stream in us-east-1", target)
+		assert.Equal(t, "my-stream in us-east-1", target.Target)
 	})
 }

@@ -1,6 +1,7 @@
 package destwebhook_test
 
 import (
+	"context"
 	"encoding/hex"
 	"testing"
 	"time"
@@ -31,14 +32,14 @@ func TestWebhookDestination_Validate(t *testing.T) {
 
 	t.Run("should validate valid destination", func(t *testing.T) {
 		t.Parallel()
-		assert.NoError(t, webhookDestination.Validate(nil, &validDestination))
+		assert.NoError(t, webhookDestination.Validate(context.Background(), &validDestination))
 	})
 
 	t.Run("should validate invalid type", func(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
 		invalidDestination.Type = "invalid"
-		err := webhookDestination.Validate(nil, &invalidDestination)
+		err := webhookDestination.Validate(context.Background(), &invalidDestination)
 		assert.Error(t, err)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
@@ -50,7 +51,7 @@ func TestWebhookDestination_Validate(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
 		invalidDestination.Config = map[string]string{}
-		err := webhookDestination.Validate(nil, &invalidDestination)
+		err := webhookDestination.Validate(context.Background(), &invalidDestination)
 
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
@@ -64,7 +65,7 @@ func TestWebhookDestination_Validate(t *testing.T) {
 		invalidDestination.Config = map[string]string{
 			"url": "not-a-valid-url",
 		}
-		err := webhookDestination.Validate(nil, &invalidDestination)
+		err := webhookDestination.Validate(context.Background(), &invalidDestination)
 
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
@@ -91,7 +92,7 @@ func TestWebhookDestination_ValidateSecrets(t *testing.T) {
 
 	t.Run("should validate valid destination", func(t *testing.T) {
 		t.Parallel()
-		assert.NoError(t, webhookDestination.Validate(nil, &validDestination))
+		assert.NoError(t, webhookDestination.Validate(context.Background(), &validDestination))
 	})
 
 	t.Run("should validate previous secret without invalid_at", func(t *testing.T) {
@@ -101,7 +102,7 @@ func TestWebhookDestination_ValidateSecrets(t *testing.T) {
 			"secret":          "secret1",
 			"previous_secret": "secret2",
 		}
-		err := webhookDestination.Validate(nil, &invalidDestination)
+		err := webhookDestination.Validate(context.Background(), &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "credentials.previous_secret_invalid_at", validationErr.Errors[0].Field)
@@ -116,7 +117,7 @@ func TestWebhookDestination_ValidateSecrets(t *testing.T) {
 			"previous_secret":            "secret2",
 			"previous_secret_invalid_at": "not-a-timestamp",
 		}
-		err := webhookDestination.Validate(nil, &invalidDestination)
+		err := webhookDestination.Validate(context.Background(), &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "credentials.previous_secret_invalid_at", validationErr.Errors[0].Field)
@@ -131,7 +132,7 @@ func TestWebhookDestination_ValidateSecrets(t *testing.T) {
 			"previous_secret":            "secret2",
 			"previous_secret_invalid_at": "2024-01-02T00:00:00Z",
 		}
-		assert.NoError(t, webhookDestination.Validate(nil, &validDestWithPrevious))
+		assert.NoError(t, webhookDestination.Validate(context.Background(), &validDestWithPrevious))
 	})
 }
 
@@ -150,7 +151,7 @@ func TestWebhookDestination_ComputeTarget(t *testing.T) {
 			}),
 		)
 		target := webhookDestination.ComputeTarget(&destination)
-		assert.Equal(t, "https://example.com/webhook", target)
+		assert.Equal(t, "https://example.com/webhook", target.Target)
 	})
 }
 

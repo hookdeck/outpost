@@ -199,7 +199,7 @@ func TestRabbitMQDestination_ComputeTarget(t *testing.T) {
 			}),
 		)
 		target := rabbitmqDestination.ComputeTarget(&destination)
-		assert.Equal(t, "my-exchange -> *", target)
+		assert.Equal(t, "my-exchange -> *", target.Target)
 	})
 
 	t.Run("should return 'exchange -> topic1, topic2, topic3' as target", func(t *testing.T) {
@@ -214,7 +214,7 @@ func TestRabbitMQDestination_ComputeTarget(t *testing.T) {
 		topics := []string{"topic1", "topic2", "topic3"}
 		destination.Topics = topics
 		target := rabbitmqDestination.ComputeTarget(&destination)
-		assert.Equal(t, "my-exchange -> "+strings.Join(topics, ", "), target)
+		assert.Equal(t, "my-exchange -> "+strings.Join(topics, ", "), target.Target)
 	})
 
 }
