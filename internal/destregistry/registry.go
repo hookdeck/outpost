@@ -51,7 +51,7 @@ type Provider interface {
 	// ObfuscateDestination returns a copy of the destination with sensitive fields masked
 	ObfuscateDestination(destination *models.Destination) *models.Destination
 	// ComputeTarget returns a human-readable target string for the destination
-	ComputeTarget(destination *models.Destination) string
+	ComputeTarget(destination *models.Destination) DestinationTarget
 	// Preprocess modifies the destination before it is stored in the DB
 	Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error
 }
@@ -308,8 +308,8 @@ func (r *registry) DisplayDestination(destination *models.Destination) (*Destina
 	target := provider.ComputeTarget(destination)
 
 	return &DestinationDisplay{
-		Destination: obfuscated,
-		Target:      target,
+		Destination:       obfuscated,
+		DestinationTarget: target,
 	}, nil
 }
 

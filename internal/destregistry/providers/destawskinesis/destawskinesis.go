@@ -143,10 +143,13 @@ func (p *AWSKinesisProvider) resolveConfig(ctx context.Context, destination *mod
 }
 
 // ComputeTarget returns a human-readable target for display
-func (p *AWSKinesisProvider) ComputeTarget(destination *models.Destination) string {
+func (p *AWSKinesisProvider) ComputeTarget(destination *models.Destination) destregistry.DestinationTarget {
 	streamName := destination.Config["stream_name"]
 	region := destination.Config["region"]
-	return fmt.Sprintf("%s in %s", streamName, region)
+	return destregistry.DestinationTarget{
+		Target:    fmt.Sprintf("%s in %s", streamName, region),
+		TargetURL: "",
+	}
 }
 
 // Preprocess sets defaults and standardizes values

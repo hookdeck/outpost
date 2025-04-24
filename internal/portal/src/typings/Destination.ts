@@ -41,6 +41,7 @@ interface Destination {
   label: string;
   description: string;
   target: string;
+  target_url?: string;
   disabled_at: string;
   created_at: string;
 }

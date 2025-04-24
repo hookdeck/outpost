@@ -129,8 +129,11 @@ func New(loader metadata.MetadataLoader, opts ...Option) (*WebhookDestination, e
 	return destination, nil
 }
 
-func (d *WebhookDestination) ComputeTarget(destination *models.Destination) string {
-	return destination.Config["url"]
+func (d *WebhookDestination) ComputeTarget(destination *models.Destination) destregistry.DestinationTarget {
+	return destregistry.DestinationTarget{
+		Target:    destination.Config["url"],
+		TargetURL: "",
+	}
 }
 
 // ObfuscateDestination overrides the base implementation to handle webhook secrets

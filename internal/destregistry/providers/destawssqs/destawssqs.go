@@ -205,6 +205,9 @@ func ParseQueueURL(queueURL string) (baseURL string, region string, err error) {
 	return
 }
 
-func (d *AWSSQSDestination) ComputeTarget(destination *models.Destination) string {
-	return destination.Config["queue_url"]
+func (d *AWSSQSDestination) ComputeTarget(destination *models.Destination) destregistry.DestinationTarget {
+	return destregistry.DestinationTarget{
+		Target:    destination.Config["queue_url"],
+		TargetURL: "",
+	}
 }

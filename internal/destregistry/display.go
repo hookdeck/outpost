@@ -7,5 +7,10 @@ import (
 // DestinationDisplay represents a destination with display-specific fields
 type DestinationDisplay struct {
 	*models.Destination
-	Target string `json:"target"`
+	DestinationTarget
+}
+
+type DestinationTarget struct {
+	Target    string `json:"target"`
+	TargetURL string `json:"target_url,omitempty"`
 }

@@ -244,7 +244,10 @@ func (p *RabbitMQPublisher) ForceConnectionClose() {
 	}
 }
 
-func (d *RabbitMQDestination) ComputeTarget(destination *models.Destination) string {
+func (d *RabbitMQDestination) ComputeTarget(destination *models.Destination) destregistry.DestinationTarget {
 	exchange := destination.Config["exchange"]
-	return exchange + " -> " + strings.Join(destination.Topics, ", ")
+	return destregistry.DestinationTarget{
+		Target:    exchange + " -> " + strings.Join(destination.Topics, ", "),
+		TargetURL: "",
+	}
 }

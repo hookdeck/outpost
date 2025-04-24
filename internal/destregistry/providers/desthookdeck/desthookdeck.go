@@ -148,19 +148,11 @@ func (p *HookdeckProvider) CreatePublisher(ctx context.Context, destination *mod
 }
 
 // ComputeTarget returns a human-readable target
-func (p *HookdeckProvider) ComputeTarget(destination *models.Destination) string {
-	// Use token information to create a meaningful target
-	token := destination.Credentials["token"]
-	if token == "" {
-		return "Hookdeck (no token)"
+func (p *HookdeckProvider) ComputeTarget(destination *models.Destination) destregistry.DestinationTarget {
+	return destregistry.DestinationTarget{
+		Target:    destination.Config["source_name"],
+		TargetURL: "https://dashboard.hookdeck.com/sources/" + destination.Config["source_id"],
 	}
-
-	hookdeckToken, err := ParseHookdeckToken(token)
-	if err != nil {
-		return "Hookdeck (invalid token)"
-	}
-
-	return "Hookdeck source: " + hookdeckToken.ID
 }
 
 // Preprocess sets defaults and standardizes values
@@ -216,7 +208,8 @@ func (p *HookdeckProvider) Preprocess(newDestination *models.Destination, origin
 
 		// Store the name in the destination config
 		// This is a hidden config that won't be shown in the form
-		newDestination.Config["name"] = sourceResponse.Name
+		newDestination.Config["source_id"] = parsedToken.ID
+		newDestination.Config["source_name"] = sourceResponse.Name
 	}
 
 	return nil

@@ -101,8 +101,11 @@ func (p *mockProvider) CreatePublisher(ctx context.Context, dest *models.Destina
 	return pub, nil
 }
 
-func (p *mockProvider) ComputeTarget(dest *models.Destination) string {
-	return "mock-target"
+func (p *mockProvider) ComputeTarget(dest *models.Destination) destregistry.DestinationTarget {
+	return destregistry.DestinationTarget{
+		Target:    "mock-target",
+		TargetURL: "mock-target-url",
+	}
 }
 
 func (p *mockPublisher) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
@@ -209,8 +212,11 @@ func (p *mockProviderWithConfig) CreatePublisher(ctx context.Context, destinatio
 	}, nil
 }
 
-func (p *mockProviderWithConfig) ComputeTarget(destination *models.Destination) string {
-	return "mock-target"
+func (p *mockProviderWithConfig) ComputeTarget(destination *models.Destination) destregistry.DestinationTarget {
+	return destregistry.DestinationTarget{
+		Target:    "mock-target",
+		TargetURL: "mock-target-url",
+	}
 }
 
 func (p *mockProviderWithConfig) Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {

@@ -80,7 +80,23 @@ const Destination = () => {
             <div className="header-container__content">
               <h1 className="title-3xl">{type.label}</h1>
               <p className="body-m">
-                {destination.target} <CopyButton value={destination.target} />
+                {destination.target_url ? (
+                  <>
+                    <a
+                      href={destination.target_url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                    >
+                      {destination.target}{" "}
+                    </a>
+                    <CopyButton value={destination.target} />
+                  </>
+                ) : (
+                  <>
+                    {destination.target}{" "}
+                    <CopyButton value={destination.target} />
+                  </>
+                )}
               </p>
             </div>
           </div>
