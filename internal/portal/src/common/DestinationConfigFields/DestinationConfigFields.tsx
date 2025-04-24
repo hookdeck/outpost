@@ -45,13 +45,18 @@ const DestinationConfigFields = ({
     }
   }, [lastUnlockedField]);
 
-  console.log(type);
-  console.log(destination);
-  console.log(unlockedFields);
-
   return (
     <>
-      {type.setup_link ? (
+      {type.instructions && (
+        <Button
+          onClick={() => setShowConfigModal(!showConfigModal)}
+          className="config-guide-button"
+        >
+          <HelpIcon />
+          Configuration Guide
+        </Button>
+      )}
+      {type.setup_link && (
         <div className="destination-setup-link config-guide-button">
           <a
             href={type.setup_link.href}
@@ -62,15 +67,7 @@ const DestinationConfigFields = ({
             {type.setup_link.cta}
           </a>
         </div>
-      ) : type.instructions ? (
-        <Button
-          onClick={() => setShowConfigModal(!showConfigModal)}
-          className="config-guide-button"
-        >
-          <HelpIcon />
-          Configuration Guide
-        </Button>
-      ) : null}
+      )}
       {[...type.config_fields, ...type.credential_fields].map((field) => (
         <div key={field.key} className="destination-config-field">
           <label htmlFor={field.key}>
