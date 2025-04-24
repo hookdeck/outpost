@@ -19,6 +19,7 @@ import {
 } from "../../../typings/Destination";
 import DestinationConfigFields from "../../../common/DestinationConfigFields/DestinationConfigFields";
 import CONFIGS from "../../../config";
+import { getFormValues } from "../../../utils/formHelper";
 
 const DestinationSettings = ({
   destination,
@@ -101,8 +102,8 @@ const DestinationSettings = ({
   const handleConfigSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsConfigSaving(true);
-    const formData = new FormData(e.currentTarget);
-    const formValues = Object.fromEntries(formData);
+    const form = e.target as HTMLFormElement;
+    const formValues = getFormValues(form);
 
     // Split values into config and credentials
     const config: Record<string, string> = {};

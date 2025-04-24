@@ -4,11 +4,12 @@ import {
   DestinationTypeReference,
 } from "../../typings/Destination";
 import "./DestinationConfigFields.scss";
-import { EditIcon, HelpIcon } from "../Icons";
+import { EditIcon, HelpIcon, CloseIcon } from "../Icons";
 import Tooltip from "../Tooltip/Tooltip";
 import Button from "../Button/Button";
 import ConfigurationModal from "../ConfigurationModal/ConfigurationModal";
 import { Checkbox } from "../Checkbox/Checkbox";
+import { isCheckedValue } from "../../utils/formHelper";
 
 const DestinationConfigFields = ({
   destination,
@@ -17,33 +18,48 @@ const DestinationConfigFields = ({
   destination?: Destination;
   type: DestinationTypeReference;
 }) => {
-  const [unlockedFields, setUnlockedFields] = useState<Record<string, boolean>>(
-    {}
-  );
-  const [lastUnlockedField, setLastUnlockedField] = useState<string | null>(
-    null
-  );
+  const [unlockedSensitiveFields, setUnlockedSensitiveFields] = useState<
+    Record<string, boolean>
+  >({});
+  const [lastUnlockedSensitiveField, setLastUnlockedSensitiveField] = useState<
+    string | null
+  >(null);
   const [showConfigModal, setShowConfigModal] = useState(false);
 
   const inputRefs = useRef<Record<string, HTMLInputElement>>({});
 
-  const unlockField = (key: string) => {
-    setUnlockedFields((prev) => ({
+  const unlockSensitiveField = (key: string) => {
+    setUnlockedSensitiveFields((prev) => ({
       ...prev,
       [key]: !prev[key],
     }));
-    setLastUnlockedField(key);
+    setLastUnlockedSensitiveField(key);
 
     if (inputRefs.current[key]) {
       inputRefs.current[key].value = "";
     }
   };
 
-  useEffect(() => {
-    if (lastUnlockedField && inputRefs.current[lastUnlockedField]) {
-      inputRefs.current[lastUnlockedField].focus();
+  const lockSensitiveField = (key: string) => {
+    setUnlockedSensitiveFields((prev) => ({
+      ...prev,
+      [key]: false,
+    }));
+    setLastUnlockedSensitiveField(null);
+    // Restore the original value when locking/canceling
+    if (inputRefs.current[key]) {
+      inputRefs.current[key].value = destination?.credentials[key] || ""; // Restore original or empty
     }
-  }, [lastUnlockedField]);
+  };
+
+  useEffect(() => {
+    if (
+      lastUnlockedSensitiveField &&
+      inputRefs.current[lastUnlockedSensitiveField]
+    ) {
+      inputRefs.current[lastUnlockedSensitiveField].focus();
+    }
+  }, [lastUnlockedSensitiveField]);
 
   return (
     <>
@@ -88,7 +104,7 @@ const DestinationConfigFields = ({
                 name={field.key}
                 defaultValue={
                   "sensitive" in field && field.sensitive
-                    ? unlockedFields[field.key]
+                    ? unlockedSensitiveFields[field.key]
                       ? ""
                       : destination?.credentials[field.key] || field.default
                     : destination?.config[field.key] ||
@@ -98,7 +114,7 @@ const DestinationConfigFields = ({
                 disabled={
                   "sensitive" in field && field.sensitive
                     ? destination?.credentials[field.key] &&
-                      !unlockedFields[field.key]
+                      !unlockedSensitiveFields[field.key]
                     : field.disabled
                 }
                 required={field.required}
@@ -106,16 +122,28 @@ const DestinationConfigFields = ({
                 maxLength={field.maxlength}
                 pattern={field.pattern}
               />
+              {/* Show Edit button if sensitive and locked */}
               {"sensitive" in field &&
-              field.sensitive &&
-              destination?.credentials[field.key] &&
-              !unlockedFields[field.key] ? (
-                <button type="button" onClick={() => unlockField(field.key)}>
-                  <Tooltip content="Edit secret value" align="end">
-                    <EditIcon />
-                  </Tooltip>
-                </button>
-              ) : null}
+                field.sensitive &&
+                destination?.credentials[field.key] &&
+                !unlockedSensitiveFields[field.key] && (
+                  <button type="button" onClick={() => unlockSensitiveField(field.key)}>
+                    <Tooltip content="Edit secret value" align="end">
+                      <EditIcon />
+                    </Tooltip>
+                  </button>
+                )}
+
+              {/* Show Cancel button if sensitive and unlocked */}
+              {"sensitive" in field &&
+                field.sensitive &&
+                unlockedSensitiveFields[field.key] && (
+                  <button type="button" onClick={() => lockSensitiveField(field.key)}>
+                    <Tooltip content="Cancel editing" align="end">
+                      <CloseIcon />
+                    </Tooltip>
+                  </button>
+                )}
             </div>
           )}
           {field.type === "checkbox" && (
@@ -124,9 +152,15 @@ const DestinationConfigFields = ({
               id={field.key}
               name={field.key}
               defaultChecked={
-                destination?.config[field.key] ??
-                destination?.credentials[field.key] ??
-                field.default == "on" ??
+                (destination?.config[field.key] !== undefined
+                  ? isCheckedValue(destination?.config[field.key])
+                  : undefined) ??
+                (destination?.credentials[field.key] !== undefined
+                  ? isCheckedValue(destination?.credentials[field.key])
+                  : undefined) ??
+                (field.default !== undefined
+                  ? isCheckedValue(field.default)
+                  : undefined) ??
                 false
               }
               disabled={field.disabled}
