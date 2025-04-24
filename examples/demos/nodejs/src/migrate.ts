@@ -8,7 +8,9 @@ import outpost from "./lib/outpost";
 import { default as db } from "./lib/db";
 
 const cleanup = async () => {
-  const answer = await askQuestion("Press 'Y' and then 'Enter' to confirm: ");
+  const answer = await askQuestion(
+    "Do you wish to clean up existing data? Y/N and then 'Enter' to confirm: "
+  );
   if (answer !== "Y") {
     console.log("Skipping cleanup...");
     return;
