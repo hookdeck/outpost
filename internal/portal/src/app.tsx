@@ -25,7 +25,7 @@ export function App() {
   // Create API client with tenant and token
   const apiClient: ApiClient = {
     fetch: (path: string, init?: RequestInit) => {
-      return fetch(`http://localhost:3333/api/v1/${tenant?.id}/${path}`, {
+      return fetch(`/api/v1/${tenant?.id}/${path}`, {
         ...init,
         headers: {
           "Content-Type": "application/json",
