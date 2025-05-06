@@ -559,7 +559,7 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 
 	// Add default headers unless disabled
 	if !p.disableTimestampHeader {
-		req.Header.Set(p.headerPrefix+"timestamp", fmt.Sprintf("%d", now.Unix()))
+		req.Header.Set(p.headerPrefix+"timestamp", fmt.Sprintf("%d", now.UnixMilli()))
 	}
 	if !p.disableEventIDHeader {
 		req.Header.Set(p.headerPrefix+"event-id", event.ID)

@@ -37,7 +37,7 @@ func (p *BasePublisher) StartClose() {
 
 func (p *BasePublisher) MakeMetadata(event *models.Event, timestamp time.Time) map[string]string {
 	systemMetadata := map[string]string{
-		"timestamp": fmt.Sprintf("%d", timestamp.Unix()),
+		"timestamp": fmt.Sprintf("%d", timestamp.UnixMilli()),
 		"event-id":  event.ID,
 		"topic":     event.Topic,
 	}
