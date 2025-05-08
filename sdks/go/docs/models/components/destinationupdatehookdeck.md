@@ -1,0 +1,10 @@
+# DestinationUpdateHookdeck
+
+
+## Fields
+
+| Field                                                                             | Type                                                                              | Required                                                                          | Description                                                                       | Example                                                                           |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `Topics`                                                                          | [*components.Topics](../../models/components/topics.md)                           | :heavy_minus_sign:                                                                | "*" or an array of enabled topics.                                                | *                                                                                 |
+| `Config`                                                                          | *any*                                                                             | :heavy_minus_sign:                                                                | N/A                                                                               |                                                                                   |
+| `Credentials`                                                                     | [*components.HookdeckCredentials](../../models/components/hookdeckcredentials.md) | :heavy_minus_sign:                                                                | N/A                                                                               |                                                                                   |

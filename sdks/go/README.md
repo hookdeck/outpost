@@ -44,7 +44,7 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
 
 To add the SDK as a dependency to your project:
 ```bash
-go get openapi
+go get github.com/hookdeck/outpost/sdks/go
 ```
 <!-- End SDK Installation [installation] -->
 
@@ -65,9 +65,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	s := openapi.New(
-		openapi.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
-	)
+	s := openapi.New()
 
 	res, err := s.Health.Check(ctx)
 	if err != nil {
@@ -275,9 +273,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	s := openapi.New(
-		openapi.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
-	)
+	s := openapi.New()
 
 	res, err := s.Health.Check(ctx, operations.WithRetries(
 		retry.Config{
@@ -326,7 +322,6 @@ func main() {
 				},
 				RetryConnectionErrors: false,
 			}),
-		openapi.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
 	)
 
 	res, err := s.Health.Check(ctx)
@@ -380,9 +375,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	s := openapi.New(
-		openapi.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
-	)
+	s := openapi.New()
 
 	res, err := s.Health.Check(ctx)
 	if err != nil {
@@ -478,7 +471,6 @@ func main() {
 
 	s := openapi.New(
 		openapi.WithServerURL("http://localhost:3333/api/v1"),
-		openapi.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
 	)
 
 	res, err := s.Health.Check(ctx)

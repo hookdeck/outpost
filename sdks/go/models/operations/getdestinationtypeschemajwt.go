@@ -23,9 +23,11 @@ func (o *GetDestinationTypeSchemaJwtSecurity) GetTenantJwt() string {
 type GetDestinationTypeSchemaJwtType string
 
 const (
-	GetDestinationTypeSchemaJwtTypeWebhook  GetDestinationTypeSchemaJwtType = "webhook"
-	GetDestinationTypeSchemaJwtTypeAwsSqs   GetDestinationTypeSchemaJwtType = "aws_sqs"
-	GetDestinationTypeSchemaJwtTypeRabbitmq GetDestinationTypeSchemaJwtType = "rabbitmq"
+	GetDestinationTypeSchemaJwtTypeWebhook    GetDestinationTypeSchemaJwtType = "webhook"
+	GetDestinationTypeSchemaJwtTypeAwsSqs     GetDestinationTypeSchemaJwtType = "aws_sqs"
+	GetDestinationTypeSchemaJwtTypeRabbitmq   GetDestinationTypeSchemaJwtType = "rabbitmq"
+	GetDestinationTypeSchemaJwtTypeHookdeck   GetDestinationTypeSchemaJwtType = "hookdeck"
+	GetDestinationTypeSchemaJwtTypeAwsKinesis GetDestinationTypeSchemaJwtType = "aws_kinesis"
 )
 
 func (e GetDestinationTypeSchemaJwtType) ToPointer() *GetDestinationTypeSchemaJwtType {
@@ -42,6 +44,10 @@ func (e *GetDestinationTypeSchemaJwtType) UnmarshalJSON(data []byte) error {
 	case "aws_sqs":
 		fallthrough
 	case "rabbitmq":
+		fallthrough
+	case "hookdeck":
+		fallthrough
+	case "aws_kinesis":
 		*e = GetDestinationTypeSchemaJwtType(v)
 		return nil
 	default:

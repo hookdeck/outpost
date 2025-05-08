@@ -71,14 +71,12 @@ func (o *UpdateTenantDestinationRequest) GetDestinationUpdate() components.Desti
 type UpdateTenantDestinationResponseBodyType string
 
 const (
-	UpdateTenantDestinationResponseBodyTypeDestination              UpdateTenantDestinationResponseBodyType = "Destination"
-	UpdateTenantDestinationResponseBodyTypeDestinationOAuthRedirect UpdateTenantDestinationResponseBodyType = "DestinationOAuthRedirect"
+	UpdateTenantDestinationResponseBodyTypeDestination UpdateTenantDestinationResponseBodyType = "Destination"
 )
 
 // UpdateTenantDestinationResponseBody - Destination updated successfully or OAuth redirect needed.
 type UpdateTenantDestinationResponseBody struct {
-	Destination              *components.Destination              `queryParam:"inline"`
-	DestinationOAuthRedirect *components.DestinationOAuthRedirect `queryParam:"inline"`
+	Destination *components.Destination `queryParam:"inline"`
 
 	Type UpdateTenantDestinationResponseBodyType
 }
@@ -92,23 +90,7 @@ func CreateUpdateTenantDestinationResponseBodyDestination(destination components
 	}
 }
 
-func CreateUpdateTenantDestinationResponseBodyDestinationOAuthRedirect(destinationOAuthRedirect components.DestinationOAuthRedirect) UpdateTenantDestinationResponseBody {
-	typ := UpdateTenantDestinationResponseBodyTypeDestinationOAuthRedirect
-
-	return UpdateTenantDestinationResponseBody{
-		DestinationOAuthRedirect: &destinationOAuthRedirect,
-		Type:                     typ,
-	}
-}
-
 func (u *UpdateTenantDestinationResponseBody) UnmarshalJSON(data []byte) error {
-
-	var destinationOAuthRedirect components.DestinationOAuthRedirect = components.DestinationOAuthRedirect{}
-	if err := utils.UnmarshalJSON(data, &destinationOAuthRedirect, "", true, true); err == nil {
-		u.DestinationOAuthRedirect = &destinationOAuthRedirect
-		u.Type = UpdateTenantDestinationResponseBodyTypeDestinationOAuthRedirect
-		return nil
-	}
 
 	var destination components.Destination = components.Destination{}
 	if err := utils.UnmarshalJSON(data, &destination, "", true, true); err == nil {
@@ -123,10 +105,6 @@ func (u *UpdateTenantDestinationResponseBody) UnmarshalJSON(data []byte) error {
 func (u UpdateTenantDestinationResponseBody) MarshalJSON() ([]byte, error) {
 	if u.Destination != nil {
 		return utils.MarshalJSON(u.Destination, "", true)
-	}
-
-	if u.DestinationOAuthRedirect != nil {
-		return utils.MarshalJSON(u.DestinationOAuthRedirect, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type UpdateTenantDestinationResponseBody: all fields are null")

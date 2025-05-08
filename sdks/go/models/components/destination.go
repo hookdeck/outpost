@@ -12,15 +12,19 @@ import (
 type DestinationType string
 
 const (
-	DestinationTypeWebhook  DestinationType = "webhook"
-	DestinationTypeAwsSqs   DestinationType = "aws_sqs"
-	DestinationTypeRabbitmq DestinationType = "rabbitmq"
+	DestinationTypeWebhook    DestinationType = "webhook"
+	DestinationTypeAwsSqs     DestinationType = "aws_sqs"
+	DestinationTypeRabbitmq   DestinationType = "rabbitmq"
+	DestinationTypeHookdeck   DestinationType = "hookdeck"
+	DestinationTypeAwsKinesis DestinationType = "aws_kinesis"
 )
 
 type Destination struct {
-	DestinationWebhook  *DestinationWebhook  `queryParam:"inline"`
-	DestinationAWSSQS   *DestinationAWSSQS   `queryParam:"inline"`
-	DestinationRabbitMQ *DestinationRabbitMQ `queryParam:"inline"`
+	DestinationWebhook    *DestinationWebhook    `queryParam:"inline"`
+	DestinationAWSSQS     *DestinationAWSSQS     `queryParam:"inline"`
+	DestinationRabbitMQ   *DestinationRabbitMQ   `queryParam:"inline"`
+	DestinationHookdeck   *DestinationHookdeck   `queryParam:"inline"`
+	DestinationAWSKinesis *DestinationAWSKinesis `queryParam:"inline"`
 
 	Type DestinationType
 }
@@ -58,6 +62,30 @@ func CreateDestinationRabbitmq(rabbitmq DestinationRabbitMQ) Destination {
 	return Destination{
 		DestinationRabbitMQ: &rabbitmq,
 		Type:                typ,
+	}
+}
+
+func CreateDestinationHookdeck(hookdeck DestinationHookdeck) Destination {
+	typ := DestinationTypeHookdeck
+
+	typStr := DestinationHookdeckType(typ)
+	hookdeck.Type = typStr
+
+	return Destination{
+		DestinationHookdeck: &hookdeck,
+		Type:                typ,
+	}
+}
+
+func CreateDestinationAwsKinesis(awsKinesis DestinationAWSKinesis) Destination {
+	typ := DestinationTypeAwsKinesis
+
+	typStr := DestinationAWSKinesisType(typ)
+	awsKinesis.Type = typStr
+
+	return Destination{
+		DestinationAWSKinesis: &awsKinesis,
+		Type:                  typ,
 	}
 }
 
@@ -100,6 +128,24 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 		u.DestinationRabbitMQ = destinationRabbitMQ
 		u.Type = DestinationTypeRabbitmq
 		return nil
+	case "hookdeck":
+		destinationHookdeck := new(DestinationHookdeck)
+		if err := utils.UnmarshalJSON(data, &destinationHookdeck, "", true, false); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == hookdeck) type DestinationHookdeck within Destination: %w", string(data), err)
+		}
+
+		u.DestinationHookdeck = destinationHookdeck
+		u.Type = DestinationTypeHookdeck
+		return nil
+	case "aws_kinesis":
+		destinationAWSKinesis := new(DestinationAWSKinesis)
+		if err := utils.UnmarshalJSON(data, &destinationAWSKinesis, "", true, false); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == aws_kinesis) type DestinationAWSKinesis within Destination: %w", string(data), err)
+		}
+
+		u.DestinationAWSKinesis = destinationAWSKinesis
+		u.Type = DestinationTypeAwsKinesis
+		return nil
 	}
 
 	return fmt.Errorf("could not unmarshal `%s` into any supported union types for Destination", string(data))
@@ -116,6 +162,14 @@ func (u Destination) MarshalJSON() ([]byte, error) {
 
 	if u.DestinationRabbitMQ != nil {
 		return utils.MarshalJSON(u.DestinationRabbitMQ, "", true)
+	}
+
+	if u.DestinationHookdeck != nil {
+		return utils.MarshalJSON(u.DestinationHookdeck, "", true)
+	}
+
+	if u.DestinationAWSKinesis != nil {
+		return utils.MarshalJSON(u.DestinationAWSKinesis, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type Destination: all fields are null")
