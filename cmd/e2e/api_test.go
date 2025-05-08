@@ -344,7 +344,6 @@ func (suite *basicSuite) TestDestinationsAPI() {
 					Body: map[string]interface{}{
 						"message": "validation error",
 						"data": map[string]interface{}{
-							"config": "required",
 							"topics": "required",
 							"type":   "required",
 						},

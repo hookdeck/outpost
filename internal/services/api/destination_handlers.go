@@ -313,13 +313,16 @@ type CreateDestinationRequest struct {
 	ID          string             `json:"id" binding:"-"`
 	Type        string             `json:"type" binding:"required"`
 	Topics      models.Topics      `json:"topics" binding:"required"`
-	Config      models.Config      `json:"config" binding:"required"`
+	Config      models.Config      `json:"config" binding:"-"`
 	Credentials models.Credentials `json:"credentials" binding:"-"`
 }
 
 func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destination {
 	if r.ID == "" {
 		r.ID = uuid.New().String()
+	}
+	if r.Config == nil {
+		r.Config = make(map[string]string)
 	}
 	if r.Credentials == nil {
 		r.Credentials = make(map[string]string)
