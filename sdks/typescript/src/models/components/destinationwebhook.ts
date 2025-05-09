@@ -61,6 +61,14 @@ export type DestinationWebhook = {
   createdAt: Date;
   config: WebhookConfig;
   credentials: WebhookCredentials;
+  /**
+   * A human-readable representation of the destination target (e.g., URL host). Read-only.
+   */
+  target?: string | undefined;
+  /**
+   * A URL link to the destination target (the webhook URL). Read-only.
+   */
+  targetUrl?: string | null | undefined;
 };
 
 /** @internal */
@@ -99,10 +107,13 @@ export const DestinationWebhook$inboundSchema: z.ZodType<
   created_at: z.string().datetime({ offset: true }).transform(v => new Date(v)),
   config: WebhookConfig$inboundSchema,
   credentials: WebhookCredentials$inboundSchema,
+  target: z.string().optional(),
+  target_url: z.nullable(z.string()).optional(),
 }).transform((v) => {
   return remap$(v, {
     "disabled_at": "disabledAt",
     "created_at": "createdAt",
+    "target_url": "targetUrl",
   });
 });
 
@@ -115,6 +126,8 @@ export type DestinationWebhook$Outbound = {
   created_at: string;
   config: WebhookConfig$Outbound;
   credentials: WebhookCredentials$Outbound;
+  target?: string | undefined;
+  target_url?: string | null | undefined;
 };
 
 /** @internal */
@@ -130,10 +143,13 @@ export const DestinationWebhook$outboundSchema: z.ZodType<
   createdAt: z.date().transform(v => v.toISOString()),
   config: WebhookConfig$outboundSchema,
   credentials: WebhookCredentials$outboundSchema,
+  target: z.string().optional(),
+  targetUrl: z.nullable(z.string()).optional(),
 }).transform((v) => {
   return remap$(v, {
     disabledAt: "disabled_at",
     createdAt: "created_at",
+    targetUrl: "target_url",
   });
 });
 

@@ -1,6 +1,6 @@
 {
-  "name": "@hookdeck/outpost-sdk",
-  "version": "0.0.1",
+  "name": "openapi",
+  "version": "0.0.2",
   "author": "Speakeasy",
   "type": "module",
   "bin": {
@@ -8,7 +8,7 @@
   },
   "tshy": {
     "sourceDialects": [
-      "outpost-sdk/source"
+      "openapi/source"
     ],
     "exports": {
       ".": "./src/index.ts",
@@ -22,6 +22,11 @@
     }
   },
   "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hookdeck/outpost.git",
+    "directory": "sdks/typescript"
+  },
   "scripts": {
     "lint": "eslint --cache --max-warnings=0 src",
     "build:mcp": "bun src/mcp-server/build.mts",
@@ -56,7 +61,7 @@
   "exports": {
     ".": {
       "import": {
-        "outpost-sdk/source": "./src/index.ts",
+        "openapi/source": "./src/index.ts",
         "types": "./dist/esm/index.d.ts",
         "default": "./dist/esm/index.js"
       },
@@ -68,7 +73,7 @@
     "./package.json": "./package.json",
     "./types": {
       "import": {
-        "outpost-sdk/source": "./src/types/index.ts",
+        "openapi/source": "./src/types/index.ts",
         "types": "./dist/esm/types/index.d.ts",
         "default": "./dist/esm/types/index.js"
       },
@@ -79,7 +84,7 @@
     },
     "./models/errors": {
       "import": {
-        "outpost-sdk/source": "./src/models/errors/index.ts",
+        "openapi/source": "./src/models/errors/index.ts",
         "types": "./dist/esm/models/errors/index.d.ts",
         "default": "./dist/esm/models/errors/index.js"
       },
@@ -90,7 +95,7 @@
     },
     "./models/components": {
       "import": {
-        "outpost-sdk/source": "./src/models/components/index.ts",
+        "openapi/source": "./src/models/components/index.ts",
         "types": "./dist/esm/models/components/index.d.ts",
         "default": "./dist/esm/models/components/index.js"
       },
@@ -101,7 +106,7 @@
     },
     "./models/operations": {
       "import": {
-        "outpost-sdk/source": "./src/models/operations/index.ts",
+        "openapi/source": "./src/models/operations/index.ts",
         "types": "./dist/esm/models/operations/index.d.ts",
         "default": "./dist/esm/models/operations/index.js"
       },
@@ -112,7 +117,7 @@
     },
     "./*.js": {
       "import": {
-        "outpost-sdk/source": "./src/*.ts",
+        "openapi/source": "./src/*.ts",
         "types": "./dist/esm/*.d.ts",
         "default": "./dist/esm/*.js"
       },
@@ -123,7 +128,7 @@
     },
     "./*": {
       "import": {
-        "outpost-sdk/source": "./src/*.ts",
+        "openapi/source": "./src/*.ts",
         "types": "./dist/esm/*.d.ts",
         "default": "./dist/esm/*.js"
       },

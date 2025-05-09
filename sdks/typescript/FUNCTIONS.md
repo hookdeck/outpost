@@ -25,9 +25,7 @@ import { SDKValidationError } from "openapi/models/errors/sdkvalidationerror.js"
 
 // Use `SDKCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
-const sdk = new SDKCore({
-  adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-});
+const sdk = new SDKCore();
 
 async function run() {
   const res = await healthCheck(sdk);

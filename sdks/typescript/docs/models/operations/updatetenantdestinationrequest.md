@@ -11,7 +11,13 @@ let value: UpdateTenantDestinationRequest = {
   destinationUpdate: {
     topics: "*",
     config: {
-      url: "https://example.com/webhooks/user",
+      endpoint: "https://sqs.us-east-1.amazonaws.com",
+      queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue",
+    },
+    credentials: {
+      key: "AKIAIOSFODNN7EXAMPLE",
+      secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      session: "AQoDYXdzEPT//////////wEXAMPLE...",
     },
   },
 };

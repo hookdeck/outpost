@@ -18,9 +18,7 @@ Simple health check endpoint.
 ```typescript
 import { SDK } from "openapi";
 
-const sdk = new SDK({
-  adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-});
+const sdk = new SDK();
 
 async function run() {
   const result = await sdk.health.check();
@@ -42,9 +40,7 @@ import { healthCheck } from "openapi/funcs/healthCheck.js";
 
 // Use `SDKCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
-const sdk = new SDKCore({
-  adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-});
+const sdk = new SDKCore();
 
 async function run() {
   const res = await healthCheck(sdk);

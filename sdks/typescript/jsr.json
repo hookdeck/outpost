@@ -2,7 +2,7 @@
 
 {
   "name": "openapi",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "exports": {
     ".": "./src/index.ts",    
     "./models/errors": "./src/models/errors/index.ts",    

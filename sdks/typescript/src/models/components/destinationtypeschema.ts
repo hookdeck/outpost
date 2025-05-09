@@ -30,7 +30,7 @@ export type DestinationTypeSchema = {
    * Some destinations may have Oauth flow or other managed-setup flow that can be triggered with a link. If a `remote_setup_url` is set then the user should be prompted to follow the link to configure the destination.
    *
    * @remarks
-   * See the [dashboard design guide](https://outpost.hookdeck.com/guides/dashboard-design.mdx) for recommended UI patterns and wireframes for implementation in your own app.
+   * See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
    */
   remoteSetupUrl?: string | undefined;
   /**

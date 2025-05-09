@@ -7,11 +7,23 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
+  DestinationAWSKinesis,
+  DestinationAWSKinesis$inboundSchema,
+  DestinationAWSKinesis$Outbound,
+  DestinationAWSKinesis$outboundSchema,
+} from "./destinationawskinesis.js";
+import {
   DestinationAWSSQS,
   DestinationAWSSQS$inboundSchema,
   DestinationAWSSQS$Outbound,
   DestinationAWSSQS$outboundSchema,
 } from "./destinationawssqs.js";
+import {
+  DestinationHookdeck,
+  DestinationHookdeck$inboundSchema,
+  DestinationHookdeck$Outbound,
+  DestinationHookdeck$outboundSchema,
+} from "./destinationhookdeck.js";
 import {
   DestinationRabbitMQ,
   DestinationRabbitMQ$inboundSchema,
@@ -28,7 +40,9 @@ import {
 export type Destination =
   | (DestinationWebhook & { type: "webhook" })
   | (DestinationAWSSQS & { type: "aws_sqs" })
-  | (DestinationRabbitMQ & { type: "rabbitmq" });
+  | (DestinationRabbitMQ & { type: "rabbitmq" })
+  | (DestinationHookdeck & { type: "hookdeck" })
+  | (DestinationAWSKinesis & { type: "aws_kinesis" });
 
 /** @internal */
 export const Destination$inboundSchema: z.ZodType<
@@ -51,13 +65,25 @@ export const Destination$inboundSchema: z.ZodType<
       type: v.type,
     })),
   ),
+  DestinationHookdeck$inboundSchema.and(
+    z.object({ type: z.literal("hookdeck") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
+  DestinationAWSKinesis$inboundSchema.and(
+    z.object({ type: z.literal("aws_kinesis") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
 ]);
 
 /** @internal */
 export type Destination$Outbound =
   | (DestinationWebhook$Outbound & { type: "webhook" })
   | (DestinationAWSSQS$Outbound & { type: "aws_sqs" })
-  | (DestinationRabbitMQ$Outbound & { type: "rabbitmq" });
+  | (DestinationRabbitMQ$Outbound & { type: "rabbitmq" })
+  | (DestinationHookdeck$Outbound & { type: "hookdeck" })
+  | (DestinationAWSKinesis$Outbound & { type: "aws_kinesis" });
 
 /** @internal */
 export const Destination$outboundSchema: z.ZodType<
@@ -77,6 +103,16 @@ export const Destination$outboundSchema: z.ZodType<
   ),
   DestinationRabbitMQ$outboundSchema.and(
     z.object({ type: z.literal("rabbitmq") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
+  DestinationHookdeck$outboundSchema.and(
+    z.object({ type: z.literal("hookdeck") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
+  DestinationAWSKinesis$outboundSchema.and(
+    z.object({ type: z.literal("aws_kinesis") }).transform((v) => ({
       type: v.type,
     })),
   ),

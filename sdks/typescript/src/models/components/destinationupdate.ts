@@ -7,11 +7,23 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
+  DestinationUpdateAWSKinesis,
+  DestinationUpdateAWSKinesis$inboundSchema,
+  DestinationUpdateAWSKinesis$Outbound,
+  DestinationUpdateAWSKinesis$outboundSchema,
+} from "./destinationupdateawskinesis.js";
+import {
   DestinationUpdateAWSSQS,
   DestinationUpdateAWSSQS$inboundSchema,
   DestinationUpdateAWSSQS$Outbound,
   DestinationUpdateAWSSQS$outboundSchema,
 } from "./destinationupdateawssqs.js";
+import {
+  DestinationUpdateHookdeck,
+  DestinationUpdateHookdeck$inboundSchema,
+  DestinationUpdateHookdeck$Outbound,
+  DestinationUpdateHookdeck$outboundSchema,
+} from "./destinationupdatehookdeck.js";
 import {
   DestinationUpdateRabbitMQ,
   DestinationUpdateRabbitMQ$inboundSchema,
@@ -28,7 +40,9 @@ import {
 export type DestinationUpdate =
   | DestinationUpdateWebhook
   | DestinationUpdateAWSSQS
-  | DestinationUpdateRabbitMQ;
+  | DestinationUpdateRabbitMQ
+  | DestinationUpdateHookdeck
+  | DestinationUpdateAWSKinesis;
 
 /** @internal */
 export const DestinationUpdate$inboundSchema: z.ZodType<
@@ -39,13 +53,17 @@ export const DestinationUpdate$inboundSchema: z.ZodType<
   DestinationUpdateWebhook$inboundSchema,
   DestinationUpdateAWSSQS$inboundSchema,
   DestinationUpdateRabbitMQ$inboundSchema,
+  DestinationUpdateHookdeck$inboundSchema,
+  DestinationUpdateAWSKinesis$inboundSchema,
 ]);
 
 /** @internal */
 export type DestinationUpdate$Outbound =
   | DestinationUpdateWebhook$Outbound
   | DestinationUpdateAWSSQS$Outbound
-  | DestinationUpdateRabbitMQ$Outbound;
+  | DestinationUpdateRabbitMQ$Outbound
+  | DestinationUpdateHookdeck$Outbound
+  | DestinationUpdateAWSKinesis$Outbound;
 
 /** @internal */
 export const DestinationUpdate$outboundSchema: z.ZodType<
@@ -56,6 +74,8 @@ export const DestinationUpdate$outboundSchema: z.ZodType<
   DestinationUpdateWebhook$outboundSchema,
   DestinationUpdateAWSSQS$outboundSchema,
   DestinationUpdateRabbitMQ$outboundSchema,
+  DestinationUpdateHookdeck$outboundSchema,
+  DestinationUpdateAWSKinesis$outboundSchema,
 ]);
 
 /**

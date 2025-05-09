@@ -7,7 +7,7 @@ import { GetTenantDestinationTypeSchemaRequest } from "openapi/models/operations
 
 let value: GetTenantDestinationTypeSchemaRequest = {
   tenantId: "<id>",
-  type: "rabbitmq",
+  type: "hookdeck",
 };
 ```
 

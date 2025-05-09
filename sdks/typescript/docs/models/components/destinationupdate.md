@@ -48,3 +48,33 @@ const value: components.DestinationUpdateRabbitMQ = {
 };
 ```
 
+### `components.DestinationUpdateHookdeck`
+
+```typescript
+const value: components.DestinationUpdateHookdeck = {
+  topics: "*",
+  credentials: {
+    token: "hd_token_...",
+  },
+};
+```
+
+### `components.DestinationUpdateAWSKinesis`
+
+```typescript
+const value: components.DestinationUpdateAWSKinesis = {
+  topics: "*",
+  config: {
+    streamName: "my-data-stream",
+    region: "us-east-1",
+    endpoint: "https://kinesis.us-east-1.amazonaws.com",
+    partitionKeyTemplate: "data.\"user_id\"",
+  },
+  credentials: {
+    key: "AKIAIOSFODNN7EXAMPLE",
+    secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    session: "AQoDYXdzEPT//////////wEXAMPLE...",
+  },
+};
+```
+

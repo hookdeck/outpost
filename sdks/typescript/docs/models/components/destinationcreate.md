@@ -59,3 +59,37 @@ const value: components.DestinationCreateRabbitMQ = {
 };
 ```
 
+### `components.DestinationCreateHookdeck`
+
+```typescript
+const value: components.DestinationCreateHookdeck = {
+  id: "user-provided-id",
+  type: "hookdeck",
+  topics: "*",
+  credentials: {
+    token: "hd_token_...",
+  },
+};
+```
+
+### `components.DestinationCreateAWSKinesis`
+
+```typescript
+const value: components.DestinationCreateAWSKinesis = {
+  id: "user-provided-id",
+  type: "aws_kinesis",
+  topics: "*",
+  config: {
+    streamName: "my-data-stream",
+    region: "us-east-1",
+    endpoint: "https://kinesis.us-east-1.amazonaws.com",
+    partitionKeyTemplate: "data.\"user_id\"",
+  },
+  credentials: {
+    key: "AKIAIOSFODNN7EXAMPLE",
+    secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    session: "AQoDYXdzEPT//////////wEXAMPLE...",
+  },
+};
+```
+

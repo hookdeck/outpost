@@ -11,5 +11,5 @@ let value: DestinationSchemaFieldType = "text";
 ## Values
 
 ```typescript
-"text" | "number" | "boolean"
+"text" | "checkbox"
 ```

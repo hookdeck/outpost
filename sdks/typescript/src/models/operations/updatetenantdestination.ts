@@ -33,9 +33,7 @@ export type UpdateTenantDestinationRequest = {
 /**
  * Destination updated successfully or OAuth redirect needed.
  */
-export type UpdateTenantDestinationResponse =
-  | components.DestinationOAuthRedirect
-  | components.Destination;
+export type UpdateTenantDestinationResponse = components.Destination;
 
 /** @internal */
 export const UpdateTenantDestinationGlobals$inboundSchema: z.ZodType<
@@ -249,25 +247,18 @@ export const UpdateTenantDestinationResponse$inboundSchema: z.ZodType<
   UpdateTenantDestinationResponse,
   z.ZodTypeDef,
   unknown
-> = z.union([
-  components.DestinationOAuthRedirect$inboundSchema,
-  components.Destination$inboundSchema,
-]);
+> = components.Destination$inboundSchema;
 
 /** @internal */
 export type UpdateTenantDestinationResponse$Outbound =
-  | components.DestinationOAuthRedirect$Outbound
-  | components.Destination$Outbound;
+  components.Destination$Outbound;
 
 /** @internal */
 export const UpdateTenantDestinationResponse$outboundSchema: z.ZodType<
   UpdateTenantDestinationResponse$Outbound,
   z.ZodTypeDef,
   UpdateTenantDestinationResponse
-> = z.union([
-  components.DestinationOAuthRedirect$outboundSchema,
-  components.Destination$outboundSchema,
-]);
+> = components.Destination$outboundSchema;
 
 /**
  * @internal

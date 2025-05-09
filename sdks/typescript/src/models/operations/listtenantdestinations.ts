@@ -22,6 +22,8 @@ export const ListTenantDestinationsTypeEnum2 = {
   Webhook: "webhook",
   AwsSqs: "aws_sqs",
   Rabbitmq: "rabbitmq",
+  Hookdeck: "hookdeck",
+  AwsKinesis: "aws_kinesis",
 } as const;
 export type ListTenantDestinationsTypeEnum2 = ClosedEnum<
   typeof ListTenantDestinationsTypeEnum2
@@ -31,6 +33,8 @@ export const ListTenantDestinationsTypeEnum1 = {
   Webhook: "webhook",
   AwsSqs: "aws_sqs",
   Rabbitmq: "rabbitmq",
+  Hookdeck: "hookdeck",
+  AwsKinesis: "aws_kinesis",
 } as const;
 export type ListTenantDestinationsTypeEnum1 = ClosedEnum<
   typeof ListTenantDestinationsTypeEnum1

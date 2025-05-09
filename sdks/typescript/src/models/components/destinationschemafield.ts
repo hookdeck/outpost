@@ -10,22 +10,37 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 export const DestinationSchemaFieldType = {
   Text: "text",
-  Number: "number",
-  Boolean: "boolean",
+  Checkbox: "checkbox",
 } as const;
 export type DestinationSchemaFieldType = ClosedEnum<
   typeof DestinationSchemaFieldType
 >;
 
 export type DestinationSchemaField = {
-  type?: DestinationSchemaFieldType | undefined;
+  type: DestinationSchemaFieldType;
   label?: string | undefined;
   description?: string | undefined;
+  required: boolean;
   /**
-   * Regex string for validation.
+   * Indicates if the field contains sensitive information.
    */
-  validation?: string | undefined;
-  required?: boolean | undefined;
+  sensitive?: boolean | undefined;
+  /**
+   * Default value for the field.
+   */
+  default?: string | undefined;
+  /**
+   * Minimum length for a text input.
+   */
+  minlength?: number | undefined;
+  /**
+   * Maximum length for a text input.
+   */
+  maxlength?: number | undefined;
+  /**
+   * Regex pattern for validation (compatible with HTML5 pattern attribute).
+   */
+  pattern?: string | undefined;
 };
 
 /** @internal */
@@ -55,20 +70,28 @@ export const DestinationSchemaField$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  type: DestinationSchemaFieldType$inboundSchema.optional(),
+  type: DestinationSchemaFieldType$inboundSchema,
   label: z.string().optional(),
   description: z.string().optional(),
-  validation: z.string().optional(),
-  required: z.boolean().optional(),
+  required: z.boolean(),
+  sensitive: z.boolean().optional(),
+  default: z.string().optional(),
+  minlength: z.number().int().optional(),
+  maxlength: z.number().int().optional(),
+  pattern: z.string().optional(),
 });
 
 /** @internal */
 export type DestinationSchemaField$Outbound = {
-  type?: string | undefined;
+  type: string;
   label?: string | undefined;
   description?: string | undefined;
-  validation?: string | undefined;
-  required?: boolean | undefined;
+  required: boolean;
+  sensitive?: boolean | undefined;
+  default?: string | undefined;
+  minlength?: number | undefined;
+  maxlength?: number | undefined;
+  pattern?: string | undefined;
 };
 
 /** @internal */
@@ -77,11 +100,15 @@ export const DestinationSchemaField$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   DestinationSchemaField
 > = z.object({
-  type: DestinationSchemaFieldType$outboundSchema.optional(),
+  type: DestinationSchemaFieldType$outboundSchema,
   label: z.string().optional(),
   description: z.string().optional(),
-  validation: z.string().optional(),
-  required: z.boolean().optional(),
+  required: z.boolean(),
+  sensitive: z.boolean().optional(),
+  default: z.string().optional(),
+  minlength: z.number().int().optional(),
+  maxlength: z.number().int().optional(),
+  pattern: z.string().optional(),
 });
 
 /**

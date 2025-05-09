@@ -61,6 +61,14 @@ export type DestinationAWSSQS = {
   createdAt: Date;
   config: AWSSQSConfig;
   credentials: AWSSQSCredentials;
+  /**
+   * A human-readable representation of the destination target (SQS queue name). Read-only.
+   */
+  target?: string | undefined;
+  /**
+   * A URL link to the destination target (AWS Console link to the queue). Read-only.
+   */
+  targetUrl?: string | null | undefined;
 };
 
 /** @internal */
@@ -99,10 +107,13 @@ export const DestinationAWSSQS$inboundSchema: z.ZodType<
   created_at: z.string().datetime({ offset: true }).transform(v => new Date(v)),
   config: AWSSQSConfig$inboundSchema,
   credentials: AWSSQSCredentials$inboundSchema,
+  target: z.string().optional(),
+  target_url: z.nullable(z.string()).optional(),
 }).transform((v) => {
   return remap$(v, {
     "disabled_at": "disabledAt",
     "created_at": "createdAt",
+    "target_url": "targetUrl",
   });
 });
 
@@ -115,6 +126,8 @@ export type DestinationAWSSQS$Outbound = {
   created_at: string;
   config: AWSSQSConfig$Outbound;
   credentials: AWSSQSCredentials$Outbound;
+  target?: string | undefined;
+  target_url?: string | null | undefined;
 };
 
 /** @internal */
@@ -130,10 +143,13 @@ export const DestinationAWSSQS$outboundSchema: z.ZodType<
   createdAt: z.date().transform(v => v.toISOString()),
   config: AWSSQSConfig$outboundSchema,
   credentials: AWSSQSCredentials$outboundSchema,
+  target: z.string().optional(),
+  targetUrl: z.nullable(z.string()).optional(),
 }).transform((v) => {
   return remap$(v, {
     disabledAt: "disabled_at",
     createdAt: "created_at",
+    targetUrl: "target_url",
   });
 });
 

@@ -71,3 +71,44 @@ const value: components.DestinationRabbitMQ = {
 };
 ```
 
+### `components.DestinationHookdeck`
+
+```typescript
+const value: components.DestinationHookdeck = {
+  id: "des_hkd_abc",
+  type: "hookdeck",
+  topics: [
+    "*",
+  ],
+  disabledAt: null,
+  createdAt: new Date("2024-04-01T10:00:00Z"),
+  config: {},
+  credentials: {
+    token: "hd_token_...",
+  },
+};
+```
+
+### `components.DestinationAWSKinesis`
+
+```typescript
+const value: components.DestinationAWSKinesis = {
+  id: "des_kns_xyz",
+  type: "aws_kinesis",
+  topics: [
+    "user.created",
+    "user.updated",
+  ],
+  disabledAt: null,
+  createdAt: new Date("2024-03-10T15:30:00Z"),
+  config: {
+    streamName: "production-events",
+    region: "eu-west-1",
+  },
+  credentials: {
+    key: "AKIAIOSFODNN7EXAMPLE",
+    secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+  },
+};
+```
+

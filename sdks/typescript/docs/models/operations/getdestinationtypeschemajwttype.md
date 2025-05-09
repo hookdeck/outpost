@@ -7,11 +7,11 @@ The type of the destination.
 ```typescript
 import { GetDestinationTypeSchemaJwtType } from "openapi/models/operations";
 
-let value: GetDestinationTypeSchemaJwtType = "rabbitmq";
+let value: GetDestinationTypeSchemaJwtType = "aws_kinesis";
 ```
 
 ## Values
 
 ```typescript
-"webhook" | "aws_sqs" | "rabbitmq"
+"webhook" | "aws_sqs" | "rabbitmq" | "hookdeck" | "aws_kinesis"
 ```

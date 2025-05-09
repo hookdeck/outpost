@@ -7,11 +7,23 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
+  DestinationCreateAWSKinesis,
+  DestinationCreateAWSKinesis$inboundSchema,
+  DestinationCreateAWSKinesis$Outbound,
+  DestinationCreateAWSKinesis$outboundSchema,
+} from "./destinationcreateawskinesis.js";
+import {
   DestinationCreateAWSSQS,
   DestinationCreateAWSSQS$inboundSchema,
   DestinationCreateAWSSQS$Outbound,
   DestinationCreateAWSSQS$outboundSchema,
 } from "./destinationcreateawssqs.js";
+import {
+  DestinationCreateHookdeck,
+  DestinationCreateHookdeck$inboundSchema,
+  DestinationCreateHookdeck$Outbound,
+  DestinationCreateHookdeck$outboundSchema,
+} from "./destinationcreatehookdeck.js";
 import {
   DestinationCreateRabbitMQ,
   DestinationCreateRabbitMQ$inboundSchema,
@@ -26,9 +38,11 @@ import {
 } from "./destinationcreatewebhook.js";
 
 export type DestinationCreate =
-  | DestinationCreateWebhook
-  | DestinationCreateAWSSQS
-  | DestinationCreateRabbitMQ;
+  | (DestinationCreateWebhook & { type: "webhook" })
+  | (DestinationCreateAWSSQS & { type: "aws_sqs" })
+  | (DestinationCreateRabbitMQ & { type: "rabbitmq" })
+  | (DestinationCreateHookdeck & { type: "hookdeck" })
+  | (DestinationCreateAWSKinesis & { type: "aws_kinesis" });
 
 /** @internal */
 export const DestinationCreate$inboundSchema: z.ZodType<
@@ -36,16 +50,40 @@ export const DestinationCreate$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.union([
-  DestinationCreateWebhook$inboundSchema,
-  DestinationCreateAWSSQS$inboundSchema,
-  DestinationCreateRabbitMQ$inboundSchema,
+  DestinationCreateWebhook$inboundSchema.and(
+    z.object({ type: z.literal("webhook") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
+  DestinationCreateAWSSQS$inboundSchema.and(
+    z.object({ type: z.literal("aws_sqs") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
+  DestinationCreateRabbitMQ$inboundSchema.and(
+    z.object({ type: z.literal("rabbitmq") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
+  DestinationCreateHookdeck$inboundSchema.and(
+    z.object({ type: z.literal("hookdeck") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
+  DestinationCreateAWSKinesis$inboundSchema.and(
+    z.object({ type: z.literal("aws_kinesis") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
 ]);
 
 /** @internal */
 export type DestinationCreate$Outbound =
-  | DestinationCreateWebhook$Outbound
-  | DestinationCreateAWSSQS$Outbound
-  | DestinationCreateRabbitMQ$Outbound;
+  | (DestinationCreateWebhook$Outbound & { type: "webhook" })
+  | (DestinationCreateAWSSQS$Outbound & { type: "aws_sqs" })
+  | (DestinationCreateRabbitMQ$Outbound & { type: "rabbitmq" })
+  | (DestinationCreateHookdeck$Outbound & { type: "hookdeck" })
+  | (DestinationCreateAWSKinesis$Outbound & { type: "aws_kinesis" });
 
 /** @internal */
 export const DestinationCreate$outboundSchema: z.ZodType<
@@ -53,9 +91,31 @@ export const DestinationCreate$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   DestinationCreate
 > = z.union([
-  DestinationCreateWebhook$outboundSchema,
-  DestinationCreateAWSSQS$outboundSchema,
-  DestinationCreateRabbitMQ$outboundSchema,
+  DestinationCreateWebhook$outboundSchema.and(
+    z.object({ type: z.literal("webhook") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
+  DestinationCreateAWSSQS$outboundSchema.and(
+    z.object({ type: z.literal("aws_sqs") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
+  DestinationCreateRabbitMQ$outboundSchema.and(
+    z.object({ type: z.literal("rabbitmq") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
+  DestinationCreateHookdeck$outboundSchema.and(
+    z.object({ type: z.literal("hookdeck") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
+  DestinationCreateAWSKinesis$outboundSchema.and(
+    z.object({ type: z.literal("aws_kinesis") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
 ]);
 
 /**

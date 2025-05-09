@@ -9,30 +9,21 @@ Destination updated successfully or OAuth redirect needed.
 
 ```typescript
 const value: components.Destination = {
-  id: "des_webhook_123",
-  type: "webhook",
+  id: "des_sqs_456",
+  type: "aws_sqs",
   topics: [
-    "user.created",
-    "order.shipped",
+    "*",
   ],
-  disabledAt: null,
-  createdAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: new Date("2024-03-01T12:00:00Z"),
+  createdAt: new Date("2024-02-20T11:30:00Z"),
   config: {
-    url: "https://my-service.com/webhook/handler",
+    endpoint: "https://sqs.us-west-2.amazonaws.com",
+    queueUrl: "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue",
   },
   credentials: {
-    secret: "whsec_abc123def456",
-    previousSecret: "whsec_prev789xyz012",
-    previousSecretInvalidAt: new Date("2024-02-16T10:00:00Z"),
+    key: "AKIAIOSFODNN7EXAMPLE",
+    secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
   },
-};
-```
-
-### `components.DestinationOAuthRedirect`
-
-```typescript
-const value: components.DestinationOAuthRedirect = {
-  redirectUrl: "https://dashboard.hookdeck.com/authorize?token=12313123",
 };
 ```
 

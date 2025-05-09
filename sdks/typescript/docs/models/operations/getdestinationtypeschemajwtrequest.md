@@ -6,7 +6,7 @@
 import { GetDestinationTypeSchemaJwtRequest } from "openapi/models/operations";
 
 let value: GetDestinationTypeSchemaJwtRequest = {
-  type: "rabbitmq",
+  type: "hookdeck",
 };
 ```
 

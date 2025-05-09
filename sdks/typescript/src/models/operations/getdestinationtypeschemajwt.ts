@@ -20,6 +20,8 @@ export const GetDestinationTypeSchemaJwtType = {
   Webhook: "webhook",
   AwsSqs: "aws_sqs",
   Rabbitmq: "rabbitmq",
+  Hookdeck: "hookdeck",
+  AwsKinesis: "aws_kinesis",
 } as const;
 /**
  * The type of the destination.

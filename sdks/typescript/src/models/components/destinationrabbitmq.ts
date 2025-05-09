@@ -63,6 +63,14 @@ export type DestinationRabbitMQ = {
   createdAt: Date;
   config: RabbitMQConfig;
   credentials: RabbitMQCredentials;
+  /**
+   * A human-readable representation of the destination target (RabbitMQ exchange). Read-only.
+   */
+  target?: string | undefined;
+  /**
+   * A URL link to the destination target (not applicable for RabbitMQ exchange). Read-only.
+   */
+  targetUrl?: string | null | undefined;
 };
 
 /** @internal */
@@ -101,10 +109,13 @@ export const DestinationRabbitMQ$inboundSchema: z.ZodType<
   created_at: z.string().datetime({ offset: true }).transform(v => new Date(v)),
   config: RabbitMQConfig$inboundSchema,
   credentials: RabbitMQCredentials$inboundSchema,
+  target: z.string().optional(),
+  target_url: z.nullable(z.string()).optional(),
 }).transform((v) => {
   return remap$(v, {
     "disabled_at": "disabledAt",
     "created_at": "createdAt",
+    "target_url": "targetUrl",
   });
 });
 
@@ -117,6 +128,8 @@ export type DestinationRabbitMQ$Outbound = {
   created_at: string;
   config: RabbitMQConfig$Outbound;
   credentials: RabbitMQCredentials$Outbound;
+  target?: string | undefined;
+  target_url?: string | null | undefined;
 };
 
 /** @internal */
@@ -132,10 +145,13 @@ export const DestinationRabbitMQ$outboundSchema: z.ZodType<
   createdAt: z.date().transform(v => v.toISOString()),
   config: RabbitMQConfig$outboundSchema,
   credentials: RabbitMQCredentials$outboundSchema,
+  target: z.string().optional(),
+  targetUrl: z.nullable(z.string()).optional(),
 }).transform((v) => {
   return remap$(v, {
     disabledAt: "disabled_at",
     createdAt: "created_at",
+    targetUrl: "target_url",
   });
 });
 

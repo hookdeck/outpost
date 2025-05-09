@@ -9,16 +9,18 @@ let value: CreateTenantDestinationRequest = {
   tenantId: "<id>",
   destinationCreate: {
     id: "user-provided-id",
-    type: "rabbitmq",
+    type: "aws_kinesis",
     topics: "*",
     config: {
-      serverUrl: "localhost:5672",
-      exchange: "my-exchange",
-      tls: "false",
+      streamName: "my-data-stream",
+      region: "us-east-1",
+      endpoint: "https://kinesis.us-east-1.amazonaws.com",
+      partitionKeyTemplate: "data.\"user_id\"",
     },
     credentials: {
-      username: "guest",
-      password: "guest",
+      key: "AKIAIOSFODNN7EXAMPLE",
+      secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      session: "AQoDYXdzEPT//////////wEXAMPLE...",
     },
   },
 };

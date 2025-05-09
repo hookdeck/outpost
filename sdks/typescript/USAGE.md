@@ -2,9 +2,7 @@
 ```typescript
 import { SDK } from "openapi";
 
-const sdk = new SDK({
-  adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-});
+const sdk = new SDK();
 
 async function run() {
   const result = await sdk.health.check();

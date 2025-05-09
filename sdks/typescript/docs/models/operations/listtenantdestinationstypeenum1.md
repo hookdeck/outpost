@@ -5,11 +5,11 @@
 ```typescript
 import { ListTenantDestinationsTypeEnum1 } from "openapi/models/operations";
 
-let value: ListTenantDestinationsTypeEnum1 = "aws_sqs";
+let value: ListTenantDestinationsTypeEnum1 = "rabbitmq";
 ```
 
 ## Values
 
 ```typescript
-"webhook" | "aws_sqs" | "rabbitmq"
+"webhook" | "aws_sqs" | "rabbitmq" | "hookdeck" | "aws_kinesis"
 ```
