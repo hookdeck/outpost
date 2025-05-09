@@ -1,17 +1,21 @@
 lockVersion: 2.0.0
 id: 682bb334-1b61-4b95-9c36-375154179bd0
 management:
-  docChecksum: 35452b03a7656852880f92c8b3a255e9
+  docChecksum: 2812426098f2c65e9872bce91821617f
   docVersion: 0.0.1
-  speakeasyVersion: 1.541.2
-  generationVersion: 2.595.4
-  releaseVersion: 0.0.1
-  configChecksum: 68675d367a321799c6827f4532ba5e74
+  speakeasyVersion: 1.543.1
+  generationVersion: 2.598.21
+  releaseVersion: 0.1.0
+  configChecksum: 031217164cccf9aef46e0488445ba542
+  repoURL: https://github.com/hookdeck/outpost.git
+  repoSubDirectory: sdks/python
+  installationURL: https://github.com/hookdeck/outpost.git#subdirectory=sdks/python
+  published: true
 features:
   python:
     additionalDependencies: 1.0.0
     additionalProperties: 1.0.1
-    core: 5.16.0
+    core: 5.17.1
     defaultEnabledRetries: 0.2.0
     enumUnions: 0.1.0
     envVarSecurityUsage: 0.3.2
@@ -41,6 +45,8 @@ generatedFiles:
   - docs/errors/ratelimitederror.md
   - docs/errors/timeouterrort.md
   - docs/errors/unauthorizederror.md
+  - docs/models/awskinesisconfig.md
+  - docs/models/awskinesiscredentials.md
   - docs/models/awssqsconfig.md
   - docs/models/awssqscredentials.md
   - docs/models/createtenantdestinationglobals.md
@@ -54,24 +60,33 @@ generatedFiles:
   - docs/models/deletetenantsecurity.md
   - docs/models/deliveryattempt.md
   - docs/models/destination.md
+  - docs/models/destinationawskinesis.md
+  - docs/models/destinationawskinesistype.md
   - docs/models/destinationawssqs.md
   - docs/models/destinationawssqstype.md
   - docs/models/destinationcreate.md
+  - docs/models/destinationcreateawskinesis.md
+  - docs/models/destinationcreateawskinesistype.md
   - docs/models/destinationcreateawssqs.md
   - docs/models/destinationcreateawssqstype.md
+  - docs/models/destinationcreatehookdeck.md
+  - docs/models/destinationcreatehookdecktype.md
   - docs/models/destinationcreaterabbitmq.md
   - docs/models/destinationcreaterabbitmqtype.md
   - docs/models/destinationcreatewebhook.md
   - docs/models/destinationcreatewebhooktype.md
+  - docs/models/destinationhookdeck.md
+  - docs/models/destinationhookdecktype.md
   - docs/models/destinationid.md
-  - docs/models/destinationoauthredirect.md
   - docs/models/destinationrabbitmq.md
   - docs/models/destinationrabbitmqtype.md
   - docs/models/destinationschemafield.md
   - docs/models/destinationschemafieldtype.md
   - docs/models/destinationtypeschema.md
   - docs/models/destinationupdate.md
+  - docs/models/destinationupdateawskinesis.md
   - docs/models/destinationupdateawssqs.md
+  - docs/models/destinationupdatehookdeck.md
   - docs/models/destinationupdaterabbitmq.md
   - docs/models/destinationupdatewebhook.md
   - docs/models/destinationwebhook.md
@@ -109,6 +124,7 @@ generatedFiles:
   - docs/models/gettenantsecurity.md
   - docs/models/gettenanttokenglobals.md
   - docs/models/gettenanttokenrequest.md
+  - docs/models/hookdeckcredentials.md
   - docs/models/internal/globals.md
   - docs/models/listdestinationtypeschemasjwtsecurity.md
   - docs/models/listtenantdestinationsglobals.md
@@ -194,6 +210,8 @@ generatedFiles:
   - src/openapi/health.py
   - src/openapi/httpclient.py
   - src/openapi/models/__init__.py
+  - src/openapi/models/awskinesisconfig.py
+  - src/openapi/models/awskinesiscredentials.py
   - src/openapi/models/awssqsconfig.py
   - src/openapi/models/awssqscredentials.py
   - src/openapi/models/createtenantdestinationop.py
@@ -201,17 +219,22 @@ generatedFiles:
   - src/openapi/models/deletetenantop.py
   - src/openapi/models/deliveryattempt.py
   - src/openapi/models/destination.py
+  - src/openapi/models/destinationawskinesis.py
   - src/openapi/models/destinationawssqs.py
   - src/openapi/models/destinationcreate.py
+  - src/openapi/models/destinationcreateawskinesis.py
   - src/openapi/models/destinationcreateawssqs.py
+  - src/openapi/models/destinationcreatehookdeck.py
   - src/openapi/models/destinationcreaterabbitmq.py
   - src/openapi/models/destinationcreatewebhook.py
-  - src/openapi/models/destinationoauthredirect.py
+  - src/openapi/models/destinationhookdeck.py
   - src/openapi/models/destinationrabbitmq.py
   - src/openapi/models/destinationschemafield.py
   - src/openapi/models/destinationtypeschema.py
   - src/openapi/models/destinationupdate.py
+  - src/openapi/models/destinationupdateawskinesis.py
   - src/openapi/models/destinationupdateawssqs.py
+  - src/openapi/models/destinationupdatehookdeck.py
   - src/openapi/models/destinationupdaterabbitmq.py
   - src/openapi/models/destinationupdatewebhook.py
   - src/openapi/models/destinationwebhook.py
@@ -227,6 +250,7 @@ generatedFiles:
   - src/openapi/models/gettenantop.py
   - src/openapi/models/gettenantportalurlop.py
   - src/openapi/models/gettenanttokenop.py
+  - src/openapi/models/hookdeckcredentials.py
   - src/openapi/models/internal/__init__.py
   - src/openapi/models/internal/globals.py
   - src/openapi/models/listdestinationtypeschemasjwtop.py
@@ -392,7 +416,7 @@ examples:
         application/json: {"topics": "*", "config": {"server_url": "localhost:5672", "exchange": "my-exchange", "tls": "false"}, "credentials": {"username": "guest", "password": "guest"}}
       responses:
         "200":
-          application/json: {"redirect_url": "https://dashboard.hookdeck.com/authorize?token=12313123"}
+          application/json: {"id": "des_kns_xyz", "type": "aws_kinesis", "topics": ["user.created", "user.updated"], "disabled_at": null, "created_at": "2024-03-10T15:30:00Z", "config": {"stream_name": "production-events", "region": "eu-west-1"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}
     OAuthRedirectExample:
       parameters:
         path:
@@ -462,7 +486,7 @@ examples:
           tenant_id: "<id>"
       responses:
         "200":
-          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the event to", "validation": "/((([A-Za-z]{3,9}:(?://)?)(?:[-;:&=+$,w]+@)?[A-Za-z0-9.-]+(:[0-9]+)?|(?:www.|[-;:&=+$,w]+@)[A-Za-z0-9.-]+)((?:/[+~%/.w-_]*)???(?:[-+=&;%@.w_]*)#?(?:[w]*))?)/", "required": true}], "credential_fields": [{"type": "text", "label": "Secret", "description": "The URL to send the event to", "required": false}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL"}, {"type": "text", "label": "Endpoint"}], "credential_fields": [{"type": "text", "label": "Key"}, {"type": "text", "label": "Secret"}, {"type": "text", "label": "Session"}]}]
+          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}]
   getTenantDestinationTypeSchema:
     WebhookSchemaExample:
       parameters:
@@ -471,12 +495,12 @@ examples:
           type: "rabbitmq"
       responses:
         "200":
-          application/json: {"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the event to", "validation": "/((([A-Za-z]{3,9}:(?://)?)(?:[-;:&=+$,w]+@)?[A-Za-z0-9.-]+(:[0-9]+)?|(?:www.|[-;:&=+$,w]+@)[A-Za-z0-9.-]+)((?:/[+~%/.w-_]*)???(?:[-+=&;%@.w_]*)#?(?:[w]*))?)/", "required": true}], "credential_fields": [{"type": "text", "label": "Secret", "description": "The URL to send the event to", "required": false}]}
+          application/json: {"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}
   listDestinationTypeSchemasJwt:
     DestinationTypesExample:
       responses:
         "200":
-          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the event to", "validation": "/((([A-Za-z]{3,9}:(?://)?)(?:[-;:&=+$,w]+@)?[A-Za-z0-9.-]+(:[0-9]+)?|(?:www.|[-;:&=+$,w]+@)[A-Za-z0-9.-]+)((?:/[+~%/.w-_]*)???(?:[-+=&;%@.w_]*)#?(?:[w]*))?)/", "required": true}], "credential_fields": [{"type": "text", "label": "Secret", "description": "The URL to send the event to", "required": false}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL"}, {"type": "text", "label": "Endpoint"}], "credential_fields": [{"type": "text", "label": "Key"}, {"type": "text", "label": "Secret"}, {"type": "text", "label": "Session"}]}]
+          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}]
   getDestinationTypeSchemaJwt:
     WebhookSchemaExample:
       parameters:
@@ -484,7 +508,7 @@ examples:
           type: "rabbitmq"
       responses:
         "200":
-          application/json: {"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the event to", "validation": "/((([A-Za-z]{3,9}:(?://)?)(?:[-;:&=+$,w]+@)?[A-Za-z0-9.-]+(:[0-9]+)?|(?:www.|[-;:&=+$,w]+@)[A-Za-z0-9.-]+)((?:/[+~%/.w-_]*)???(?:[-+=&;%@.w_]*)#?(?:[w]*))?)/", "required": true}], "credential_fields": [{"type": "text", "label": "Secret", "description": "The URL to send the event to", "required": false}]}
+          application/json: {"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}
   listTenantTopics:
     TopicsListExample:
       parameters:

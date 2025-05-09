@@ -21,3 +21,15 @@ value: models.DestinationAWSSQS = /* values here */
 value: models.DestinationRabbitMQ = /* values here */
 ```
 
+### `models.DestinationHookdeck`
+
+```python
+value: models.DestinationHookdeck = /* values here */
+```
+
+### `models.DestinationAWSKinesis`
+
+```python
+value: models.DestinationAWSKinesis = /* values here */
+```
+

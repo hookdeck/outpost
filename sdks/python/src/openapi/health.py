@@ -44,11 +44,10 @@ class Health(BaseSDK):
             request=None,
             request_body_required=False,
             request_has_path_params=False,
-            request_has_query_params=True,
+            request_has_query_params=False,
             user_agent_header="user-agent",
             accept_header_value="text/plain",
             http_headers=http_headers,
-            security=self.sdk_configuration.security,
             timeout_ms=timeout_ms,
         )
 
@@ -65,7 +64,7 @@ class Health(BaseSDK):
                 base_url=base_url or "",
                 operation_id="healthCheck",
                 oauth2_scopes=[],
-                security_source=self.sdk_configuration.security,
+                security_source=None,
             ),
             request=req,
             error_status_codes=[
@@ -209,11 +208,10 @@ class Health(BaseSDK):
             request=None,
             request_body_required=False,
             request_has_path_params=False,
-            request_has_query_params=True,
+            request_has_query_params=False,
             user_agent_header="user-agent",
             accept_header_value="text/plain",
             http_headers=http_headers,
-            security=self.sdk_configuration.security,
             timeout_ms=timeout_ms,
         )
 
@@ -230,7 +228,7 @@ class Health(BaseSDK):
                 base_url=base_url or "",
                 operation_id="healthCheck",
                 oauth2_scopes=[],
-                security_source=self.sdk_configuration.security,
+                security_source=None,
             ),
             request=req,
             error_status_codes=[

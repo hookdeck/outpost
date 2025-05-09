@@ -11,9 +11,3 @@ Destination updated successfully or OAuth redirect needed.
 value: models.Destination = /* values here */
 ```
 
-### `models.DestinationOAuthRedirect`
-
-```python
-value: models.DestinationOAuthRedirect = /* values here */
-```
-

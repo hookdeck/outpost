@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 from .destination import Destination, DestinationTypedDict
-from .destinationoauthredirect import (
-    DestinationOAuthRedirect,
-    DestinationOAuthRedirectTypedDict,
-)
 from .destinationupdate import DestinationUpdate, DestinationUpdateTypedDict
 from openapi.types import BaseModel
 from openapi.utils import (
@@ -14,8 +10,8 @@ from openapi.utils import (
     RequestMetadata,
     SecurityMetadata,
 )
-from typing import Optional, Union
-from typing_extensions import Annotated, NotRequired, TypeAliasType, TypedDict
+from typing import Optional
+from typing_extensions import Annotated, NotRequired, TypedDict
 
 
 class UpdateTenantDestinationGlobalsTypedDict(TypedDict):
@@ -86,14 +82,9 @@ class UpdateTenantDestinationRequest(BaseModel):
     r"""The ID of the tenant. Required when using AdminApiKey authentication."""
 
 
-UpdateTenantDestinationResponseTypedDict = TypeAliasType(
-    "UpdateTenantDestinationResponseTypedDict",
-    Union[DestinationOAuthRedirectTypedDict, DestinationTypedDict],
-)
+UpdateTenantDestinationResponseTypedDict = DestinationTypedDict
 r"""Destination updated successfully or OAuth redirect needed."""
 
 
-UpdateTenantDestinationResponse = TypeAliasType(
-    "UpdateTenantDestinationResponse", Union[DestinationOAuthRedirect, Destination]
-)
+UpdateTenantDestinationResponse = Destination
 r"""Destination updated successfully or OAuth redirect needed."""

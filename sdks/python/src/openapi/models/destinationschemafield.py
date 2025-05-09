@@ -9,27 +9,46 @@ from typing_extensions import NotRequired, TypedDict
 
 class DestinationSchemaFieldType(str, Enum):
     TEXT = "text"
-    NUMBER = "number"
-    BOOLEAN = "boolean"
+    CHECKBOX = "checkbox"
 
 
 class DestinationSchemaFieldTypedDict(TypedDict):
-    type: NotRequired[DestinationSchemaFieldType]
+    type: DestinationSchemaFieldType
+    required: bool
     label: NotRequired[str]
     description: NotRequired[str]
-    validation: NotRequired[str]
-    r"""Regex string for validation."""
-    required: NotRequired[bool]
+    sensitive: NotRequired[bool]
+    r"""Indicates if the field contains sensitive information."""
+    default: NotRequired[str]
+    r"""Default value for the field."""
+    minlength: NotRequired[int]
+    r"""Minimum length for a text input."""
+    maxlength: NotRequired[int]
+    r"""Maximum length for a text input."""
+    pattern: NotRequired[str]
+    r"""Regex pattern for validation (compatible with HTML5 pattern attribute)."""
 
 
 class DestinationSchemaField(BaseModel):
-    type: Optional[DestinationSchemaFieldType] = None
+    type: DestinationSchemaFieldType
+
+    required: bool
 
     label: Optional[str] = None
 
     description: Optional[str] = None
 
-    validation: Optional[str] = None
-    r"""Regex string for validation."""
+    sensitive: Optional[bool] = None
+    r"""Indicates if the field contains sensitive information."""
 
-    required: Optional[bool] = None
+    default: Optional[str] = None
+    r"""Default value for the field."""
+
+    minlength: Optional[int] = None
+    r"""Minimum length for a text input."""
+
+    maxlength: Optional[int] = None
+    r"""Maximum length for a text input."""
+
+    pattern: Optional[str] = None
+    r"""Regex pattern for validation (compatible with HTML5 pattern attribute)."""

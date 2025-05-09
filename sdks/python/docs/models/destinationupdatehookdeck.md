@@ -1,0 +1,10 @@
+# DestinationUpdateHookdeck
+
+
+## Fields
+
+| Field                                                                    | Type                                                                     | Required                                                                 | Description                                                              | Example                                                                  |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `topics`                                                                 | [Optional[models.TopicsUnion]](../models/topicsunion.md)                 | :heavy_minus_sign:                                                       | "*" or an array of enabled topics.                                       | *                                                                        |
+| `config`                                                                 | *Optional[Any]*                                                          | :heavy_minus_sign:                                                       | N/A                                                                      |                                                                          |
+| `credentials`                                                            | [Optional[models.HookdeckCredentials]](../models/hookdeckcredentials.md) | :heavy_minus_sign:                                                       | N/A                                                                      |                                                                          |

@@ -3,8 +3,7 @@
 
 ## Values
 
-| Name      | Value     |
-| --------- | --------- |
-| `TEXT`    | text      |
-| `NUMBER`  | number    |
-| `BOOLEAN` | boolean   |
+| Name       | Value      |
+| ---------- | ---------- |
+| `TEXT`     | text       |
+| `CHECKBOX` | checkbox   |

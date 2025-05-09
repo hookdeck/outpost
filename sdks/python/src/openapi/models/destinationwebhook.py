@@ -6,9 +6,10 @@ from .webhookconfig import WebhookConfig, WebhookConfigTypedDict
 from .webhookcredentials import WebhookCredentials, WebhookCredentialsTypedDict
 from datetime import datetime
 from enum import Enum
-from openapi.types import BaseModel, Nullable, UNSET_SENTINEL
+from openapi.types import BaseModel, Nullable, OptionalNullable, UNSET, UNSET_SENTINEL
 from pydantic import model_serializer
-from typing_extensions import TypedDict
+from typing import Optional
+from typing_extensions import NotRequired, TypedDict
 
 
 class DestinationWebhookType(str, Enum):
@@ -30,6 +31,10 @@ class DestinationWebhookTypedDict(TypedDict):
     r"""ISO Date when the destination was created."""
     config: WebhookConfigTypedDict
     credentials: WebhookCredentialsTypedDict
+    target: NotRequired[str]
+    r"""A human-readable representation of the destination target (e.g., URL host). Read-only."""
+    target_url: NotRequired[Nullable[str]]
+    r"""A URL link to the destination target (the webhook URL). Read-only."""
 
 
 class DestinationWebhook(BaseModel):
@@ -52,10 +57,16 @@ class DestinationWebhook(BaseModel):
 
     credentials: WebhookCredentials
 
+    target: Optional[str] = None
+    r"""A human-readable representation of the destination target (e.g., URL host). Read-only."""
+
+    target_url: OptionalNullable[str] = UNSET
+    r"""A URL link to the destination target (the webhook URL). Read-only."""
+
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
-        optional_fields = []
-        nullable_fields = ["disabled_at"]
+        optional_fields = ["target", "target_url"]
+        nullable_fields = ["disabled_at", "target_url"]
         null_default_fields = []
 
         serialized = handler(self)

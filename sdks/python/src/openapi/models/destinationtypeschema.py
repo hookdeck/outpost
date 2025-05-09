@@ -20,7 +20,7 @@ class DestinationTypeSchemaTypedDict(TypedDict):
     r"""Markdown instructions."""
     remote_setup_url: NotRequired[str]
     r"""Some destinations may have Oauth flow or other managed-setup flow that can be triggered with a link. If a `remote_setup_url` is set then the user should be prompted to follow the link to configure the destination.
-    See the [dashboard design guide](https://outpost.hookdeck.com/guides/dashboard-design.mdx) for recommended UI patterns and wireframes for implementation in your own app.
+    See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
     """
     config_fields: NotRequired[List[DestinationSchemaFieldTypedDict]]
     r"""Config fields are non-secret values that can be stored and displayed to the user in plain text."""
@@ -43,7 +43,7 @@ class DestinationTypeSchema(BaseModel):
 
     remote_setup_url: Optional[str] = None
     r"""Some destinations may have Oauth flow or other managed-setup flow that can be triggered with a link. If a `remote_setup_url` is set then the user should be prompted to follow the link to configure the destination.
-    See the [dashboard design guide](https://outpost.hookdeck.com/guides/dashboard-design.mdx) for recommended UI patterns and wireframes for implementation in your own app.
+    See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
     """
 
     config_fields: Optional[List[DestinationSchemaField]] = None

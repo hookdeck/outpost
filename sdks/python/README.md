@@ -45,10 +45,6 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
 <!-- Start SDK Installation [installation] -->
 ## SDK Installation
 
-> [!TIP]
-> To finish publishing your SDK to PyPI you must [run your first generation action](https://www.speakeasy.com/docs/github-setup#step-by-step-guide).
-
-
 > [!NOTE]
 > **Python version upgrade policy**
 >
@@ -61,7 +57,7 @@ The SDK can be installed with either *pip* or *poetry* package managers.
 *PIP* is the default package installer for Python, enabling easy installation and management of packages from PyPI via the command line.
 
 ```bash
-pip install git+<UNSET>.git
+pip install openapi
 ```
 
 ### Poetry
@@ -69,7 +65,7 @@ pip install git+<UNSET>.git
 *Poetry* is a modern tool that simplifies dependency management and package publishing by using a single `pyproject.toml` file to handle project metadata and dependencies.
 
 ```bash
-poetry add git+<UNSET>.git
+poetry add openapi
 ```
 
 ### Shell and script usage with `uv`
@@ -124,9 +120,7 @@ Generally, the SDK will work well with most IDEs out of the box. However, when u
 from openapi import SDK
 
 
-with SDK(
-    admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-) as sdk:
+with SDK() as sdk:
 
     res = sdk.health.check()
 
@@ -144,9 +138,7 @@ from openapi import SDK
 
 async def main():
 
-    async with SDK(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ) as sdk:
+    async with SDK() as sdk:
 
         res = await sdk.health.check_async()
 
@@ -307,9 +299,7 @@ from openapi import SDK
 from openapi.utils import BackoffStrategy, RetryConfig
 
 
-with SDK(
-    admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-) as sdk:
+with SDK() as sdk:
 
     res = sdk.health.check(,
         RetryConfig("backoff", BackoffStrategy(1, 50, 1.1, 100), False))
@@ -327,7 +317,6 @@ from openapi.utils import BackoffStrategy, RetryConfig
 
 with SDK(
     retry_config=RetryConfig("backoff", BackoffStrategy(1, 50, 1.1, 100), False),
-    admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as sdk:
 
     res = sdk.health.check()
@@ -374,9 +363,7 @@ When custom error responses are specified for an operation, the SDK may also rai
 from openapi import SDK, errors
 
 
-with SDK(
-    admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-) as sdk:
+with SDK() as sdk:
     res = None
     try:
 
@@ -433,7 +420,6 @@ from openapi import SDK
 
 with SDK(
     server_url="http://localhost:3333/api/v1",
-    admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as sdk:
 
     res = sdk.health.check()
@@ -536,18 +522,14 @@ The `SDK` class implements the context manager protocol and registers a finalize
 from openapi import SDK
 def main():
 
-    with SDK(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ) as sdk:
+    with SDK() as sdk:
         # Rest of application here...
 
 
 # Or when using async:
 async def amain():
 
-    async with SDK(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ) as sdk:
+    async with SDK() as sdk:
         # Rest of application here...
 ```
 <!-- End Resource Management [resource-management] -->

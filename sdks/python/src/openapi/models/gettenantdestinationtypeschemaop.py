@@ -56,6 +56,8 @@ class GetTenantDestinationTypeSchemaType(str, Enum):
     WEBHOOK = "webhook"
     AWS_SQS = "aws_sqs"
     RABBITMQ = "rabbitmq"
+    HOOKDECK = "hookdeck"
+    AWS_KINESIS = "aws_kinesis"
 
 
 class GetTenantDestinationTypeSchemaRequestTypedDict(TypedDict):

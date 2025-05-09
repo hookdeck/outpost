@@ -4,9 +4,7 @@
 from openapi import SDK
 
 
-with SDK(
-    admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-) as sdk:
+with SDK() as sdk:
 
     res = sdk.health.check()
 
@@ -24,9 +22,7 @@ from openapi import SDK
 
 async def main():
 
-    async with SDK(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ) as sdk:
+    async with SDK() as sdk:
 
         res = await sdk.health.check_async()
 
