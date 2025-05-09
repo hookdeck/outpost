@@ -175,10 +175,11 @@ func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 	uptime := time.Since(s.started)
 
 	response := map[string]interface{}{
-		"status":          "healthy",
-		"events_received": s.stats.EventsReceived,
-		"events_stored":   s.stats.EventsStored,
-		"uptime_seconds":  int(uptime.Seconds()),
+		"status":                "healthy",
+		"events_received":       s.stats.EventsReceived,
+		"events_stored":         s.stats.EventsStored,
+		"events_stored_current": s.events.Len(),
+		"uptime_seconds":        int(uptime.Seconds()),
 	}
 
 	json.NewEncoder(w).Encode(response)
