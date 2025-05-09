@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -72,7 +73,9 @@ func (q *AWSQueue) Subscribe(ctx context.Context) (Subscription, error) {
 	if err != nil {
 		return nil, err
 	}
-	subscription := awssnssqs.OpenSubscriptionV2(ctx, q.sqsClient, q.sqsQueueURL, nil)
+	subscription := awssnssqs.OpenSubscriptionV2(ctx, q.sqsClient, q.sqsQueueURL, &awssnssqs.SubscriptionOptions{
+		WaitTime: 20 * time.Second,
+	})
 	return q.base.Subscribe(ctx, subscription)
 }
 
