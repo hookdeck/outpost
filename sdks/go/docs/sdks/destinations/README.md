@@ -125,7 +125,7 @@ func main() {
 
     res, err := s.Destinations.Create(ctx, operations.CreateTenantDestinationSecurity{
         AdminAPIKey: openapi.String("<YOUR_BEARER_TOKEN_HERE>"),
-    }, components.CreateDestinationCreateDestinationCreateAWSSQS(
+    }, components.CreateDestinationCreateAwsSqs(
         components.DestinationCreateAWSSQS{
             ID: openapi.String("user-provided-id"),
             Type: components.DestinationCreateAWSSQSTypeAwsSqs,

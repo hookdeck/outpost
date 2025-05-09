@@ -1,8 +1,21 @@
-speakeasyVersion: 1.541.2
-sources: {}
+speakeasyVersion: 1.543.1
+sources:
+    Outpost API:
+        sourceNamespace: outpost-api
+        sourceRevisionDigest: sha256:77b971b921bcd02326cc5a621f50030dd4f4b7d01ec00aa77ec70197c5f0f058
+        sourceBlobDigest: sha256:a10a816abada79cb73fc22c859e5ea890870e42dce925fafd67710978d756693
+        tags:
+            - latest
+            - speakeasy-sdk-regen-1746793165
+            - 0.0.1
 targets:
     outpost-go:
         source: Outpost API
+        sourceNamespace: outpost-api
+        sourceRevisionDigest: sha256:77b971b921bcd02326cc5a621f50030dd4f4b7d01ec00aa77ec70197c5f0f058
+        sourceBlobDigest: sha256:a10a816abada79cb73fc22c859e5ea890870e42dce925fafd67710978d756693
+        codeSamplesNamespace: outpost-api-go-code-samples
+        codeSamplesRevisionDigest: sha256:54a8935c3f985bcf425bf2b69cb4da7b9a82e14ccc462e88b192e9d26aee6323
     outpost-python:
         source: Outpost API
     outpost-ts:
@@ -13,7 +26,7 @@ workflow:
     sources:
         Outpost API:
             inputs:
-                - location: ./sdks/schemas/hookdeck-schema.yaml
+                - location: ./docs/apis/openapi.yaml
             overlays:
                 - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
                 - location: ./sdks/schemas/error-types.yaml
@@ -34,6 +47,9 @@ workflow:
             target: python
             source: Outpost API
             output: ./sdks/python
+            publish:
+                pypi:
+                    token: $pypi_token
             codeSamples:
                 registry:
                     location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api-python-code-samples
@@ -44,6 +60,9 @@ workflow:
             target: typescript
             source: Outpost API
             output: ./sdks/typescript
+            publish:
+                npm:
+                    token: $npm_token
             codeSamples:
                 registry:
                     location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api-typescript-code-samples

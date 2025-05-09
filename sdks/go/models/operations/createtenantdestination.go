@@ -56,6 +56,26 @@ func (o *CreateTenantDestinationRequest) GetDestinationCreate() components.Desti
 	return o.DestinationCreate
 }
 
+func (o *CreateTenantDestinationRequest) GetDestinationCreateWebhook() *components.DestinationCreateWebhook {
+	return o.GetDestinationCreate().DestinationCreateWebhook
+}
+
+func (o *CreateTenantDestinationRequest) GetDestinationCreateAwsSqs() *components.DestinationCreateAWSSQS {
+	return o.GetDestinationCreate().DestinationCreateAWSSQS
+}
+
+func (o *CreateTenantDestinationRequest) GetDestinationCreateRabbitmq() *components.DestinationCreateRabbitMQ {
+	return o.GetDestinationCreate().DestinationCreateRabbitMQ
+}
+
+func (o *CreateTenantDestinationRequest) GetDestinationCreateHookdeck() *components.DestinationCreateHookdeck {
+	return o.GetDestinationCreate().DestinationCreateHookdeck
+}
+
+func (o *CreateTenantDestinationRequest) GetDestinationCreateAwsKinesis() *components.DestinationCreateAWSKinesis {
+	return o.GetDestinationCreate().DestinationCreateAWSKinesis
+}
+
 type CreateTenantDestinationResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
 	// Destination created successfully.
@@ -93,6 +113,20 @@ func (o *CreateTenantDestinationResponse) GetDestinationAwsSqs() *components.Des
 func (o *CreateTenantDestinationResponse) GetDestinationRabbitmq() *components.DestinationRabbitMQ {
 	if v := o.GetDestination(); v != nil {
 		return v.DestinationRabbitMQ
+	}
+	return nil
+}
+
+func (o *CreateTenantDestinationResponse) GetDestinationHookdeck() *components.DestinationHookdeck {
+	if v := o.GetDestination(); v != nil {
+		return v.DestinationHookdeck
+	}
+	return nil
+}
+
+func (o *CreateTenantDestinationResponse) GetDestinationAwsKinesis() *components.DestinationAWSKinesis {
+	if v := o.GetDestination(); v != nil {
+		return v.DestinationAWSKinesis
 	}
 	return nil
 }

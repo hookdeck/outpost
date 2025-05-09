@@ -6,18 +6,30 @@
 ### DestinationCreateWebhook
 
 ```go
-destinationCreate := components.CreateDestinationCreateDestinationCreateWebhook(components.DestinationCreateWebhook{/* values here */})
+destinationCreate := components.CreateDestinationCreateWebhook(components.DestinationCreateWebhook{/* values here */})
 ```
 
 ### DestinationCreateAWSSQS
 
 ```go
-destinationCreate := components.CreateDestinationCreateDestinationCreateAWSSQS(components.DestinationCreateAWSSQS{/* values here */})
+destinationCreate := components.CreateDestinationCreateAwsSqs(components.DestinationCreateAWSSQS{/* values here */})
 ```
 
 ### DestinationCreateRabbitMQ
 
 ```go
-destinationCreate := components.CreateDestinationCreateDestinationCreateRabbitMQ(components.DestinationCreateRabbitMQ{/* values here */})
+destinationCreate := components.CreateDestinationCreateRabbitmq(components.DestinationCreateRabbitMQ{/* values here */})
+```
+
+### DestinationCreateHookdeck
+
+```go
+destinationCreate := components.CreateDestinationCreateHookdeck(components.DestinationCreateHookdeck{/* values here */})
+```
+
+### DestinationCreateAWSKinesis
+
+```go
+destinationCreate := components.CreateDestinationCreateAwsKinesis(components.DestinationCreateAWSKinesis{/* values here */})
 ```
 

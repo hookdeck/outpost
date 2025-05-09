@@ -97,3 +97,17 @@ func (o *EnableTenantDestinationResponse) GetDestinationRabbitmq() *components.D
 	}
 	return nil
 }
+
+func (o *EnableTenantDestinationResponse) GetDestinationHookdeck() *components.DestinationHookdeck {
+	if v := o.GetDestination(); v != nil {
+		return v.DestinationHookdeck
+	}
+	return nil
+}
+
+func (o *EnableTenantDestinationResponse) GetDestinationAwsKinesis() *components.DestinationAWSKinesis {
+	if v := o.GetDestination(); v != nil {
+		return v.DestinationAWSKinesis
+	}
+	return nil
+}
