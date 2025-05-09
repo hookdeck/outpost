@@ -3,19 +3,8 @@
 package operations
 
 import (
-	"openapi/models/components"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 )
-
-type ListDestinationTypeSchemasJwtSecurity struct {
-	TenantJwt string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-}
-
-func (o *ListDestinationTypeSchemasJwtSecurity) GetTenantJwt() string {
-	if o == nil {
-		return ""
-	}
-	return o.TenantJwt
-}
 
 type ListDestinationTypeSchemasJwtResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`

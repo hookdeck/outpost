@@ -5,21 +5,25 @@ package components
 import (
 	"errors"
 	"fmt"
-	"openapi/internal/utils"
+	"github.com/hookdeck/outpost/sdks/go/client/internal/utils"
 )
 
 type DestinationUpdateType string
 
 const (
-	DestinationUpdateTypeDestinationUpdateWebhook  DestinationUpdateType = "DestinationUpdateWebhook"
-	DestinationUpdateTypeDestinationUpdateAWSSQS   DestinationUpdateType = "DestinationUpdateAWSSQS"
-	DestinationUpdateTypeDestinationUpdateRabbitMQ DestinationUpdateType = "DestinationUpdateRabbitMQ"
+	DestinationUpdateTypeDestinationUpdateWebhook    DestinationUpdateType = "DestinationUpdateWebhook"
+	DestinationUpdateTypeDestinationUpdateAWSSQS     DestinationUpdateType = "DestinationUpdateAWSSQS"
+	DestinationUpdateTypeDestinationUpdateRabbitMQ   DestinationUpdateType = "DestinationUpdateRabbitMQ"
+	DestinationUpdateTypeDestinationUpdateHookdeck   DestinationUpdateType = "DestinationUpdateHookdeck"
+	DestinationUpdateTypeDestinationUpdateAWSKinesis DestinationUpdateType = "DestinationUpdateAWSKinesis"
 )
 
 type DestinationUpdate struct {
-	DestinationUpdateWebhook  *DestinationUpdateWebhook  `queryParam:"inline"`
-	DestinationUpdateAWSSQS   *DestinationUpdateAWSSQS   `queryParam:"inline"`
-	DestinationUpdateRabbitMQ *DestinationUpdateRabbitMQ `queryParam:"inline"`
+	DestinationUpdateWebhook    *DestinationUpdateWebhook    `queryParam:"inline"`
+	DestinationUpdateAWSSQS     *DestinationUpdateAWSSQS     `queryParam:"inline"`
+	DestinationUpdateRabbitMQ   *DestinationUpdateRabbitMQ   `queryParam:"inline"`
+	DestinationUpdateHookdeck   *DestinationUpdateHookdeck   `queryParam:"inline"`
+	DestinationUpdateAWSKinesis *DestinationUpdateAWSKinesis `queryParam:"inline"`
 
 	Type DestinationUpdateType
 }
@@ -51,6 +55,24 @@ func CreateDestinationUpdateDestinationUpdateRabbitMQ(destinationUpdateRabbitMQ 
 	}
 }
 
+func CreateDestinationUpdateDestinationUpdateHookdeck(destinationUpdateHookdeck DestinationUpdateHookdeck) DestinationUpdate {
+	typ := DestinationUpdateTypeDestinationUpdateHookdeck
+
+	return DestinationUpdate{
+		DestinationUpdateHookdeck: &destinationUpdateHookdeck,
+		Type:                      typ,
+	}
+}
+
+func CreateDestinationUpdateDestinationUpdateAWSKinesis(destinationUpdateAWSKinesis DestinationUpdateAWSKinesis) DestinationUpdate {
+	typ := DestinationUpdateTypeDestinationUpdateAWSKinesis
+
+	return DestinationUpdate{
+		DestinationUpdateAWSKinesis: &destinationUpdateAWSKinesis,
+		Type:                        typ,
+	}
+}
+
 func (u *DestinationUpdate) UnmarshalJSON(data []byte) error {
 
 	var destinationUpdateWebhook DestinationUpdateWebhook = DestinationUpdateWebhook{}
@@ -74,6 +96,20 @@ func (u *DestinationUpdate) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var destinationUpdateHookdeck DestinationUpdateHookdeck = DestinationUpdateHookdeck{}
+	if err := utils.UnmarshalJSON(data, &destinationUpdateHookdeck, "", true, true); err == nil {
+		u.DestinationUpdateHookdeck = &destinationUpdateHookdeck
+		u.Type = DestinationUpdateTypeDestinationUpdateHookdeck
+		return nil
+	}
+
+	var destinationUpdateAWSKinesis DestinationUpdateAWSKinesis = DestinationUpdateAWSKinesis{}
+	if err := utils.UnmarshalJSON(data, &destinationUpdateAWSKinesis, "", true, true); err == nil {
+		u.DestinationUpdateAWSKinesis = &destinationUpdateAWSKinesis
+		u.Type = DestinationUpdateTypeDestinationUpdateAWSKinesis
+		return nil
+	}
+
 	return fmt.Errorf("could not unmarshal `%s` into any supported union types for DestinationUpdate", string(data))
 }
 
@@ -88,6 +124,14 @@ func (u DestinationUpdate) MarshalJSON() ([]byte, error) {
 
 	if u.DestinationUpdateRabbitMQ != nil {
 		return utils.MarshalJSON(u.DestinationUpdateRabbitMQ, "", true)
+	}
+
+	if u.DestinationUpdateHookdeck != nil {
+		return utils.MarshalJSON(u.DestinationUpdateHookdeck, "", true)
+	}
+
+	if u.DestinationUpdateAWSKinesis != nil {
+		return utils.MarshalJSON(u.DestinationUpdateAWSKinesis, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type DestinationUpdate: all fields are null")

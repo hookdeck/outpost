@@ -1,12 +1,15 @@
 lockVersion: 2.0.0
 id: 48f73216-74ac-483a-863e-b24adeebd201
 management:
-  docChecksum: 35452b03a7656852880f92c8b3a255e9
+  docChecksum: facaffd173e65f9c7d9b42e7d5d4f736
   docVersion: 0.0.1
-  speakeasyVersion: 1.541.2
-  generationVersion: 2.595.4
-  releaseVersion: 0.0.1
-  configChecksum: a0ced32f3f1e75712357ecf9e673a4f1
+  speakeasyVersion: 1.543.3
+  generationVersion: 2.598.22
+  releaseVersion: 0.1.0
+  configChecksum: 90e7df209a668adfc2271e2d6c154be0
+  repoURL: https://github.com/hookdeck/outpost.git
+  repoSubDirectory: sdks/go
+  installationURL: https://github.com/hookdeck/outpost/sdks/go
 features:
   go:
     additionalDependencies: 0.1.0
@@ -17,11 +20,9 @@ features:
     flattening: 2.81.1
     globalSecurity: 2.82.11
     globalSecurityCallbacks: 0.1.0
-    globalSecurityFlattening: 0.1.0
-    globalServerURLs: 2.82.2
+    globalServerURLs: 2.82.3
     globals: 2.82.2
     intellisenseMarkdownSupport: 0.1.0
-    methodSecurity: 2.82.3
     nameOverrides: 2.81.2
     nullables: 0.1.1
     responseFormat: 0.1.2
@@ -36,25 +37,33 @@ generatedFiles:
   - /models/apierrors/ratelimitederror.go
   - /models/apierrors/timeouterror.go
   - /models/apierrors/unauthorizederror.go
+  - /models/components/awskinesisconfig.go
+  - /models/components/awskinesiscredentials.go
   - /models/components/awssqsconfig.go
   - /models/components/awssqscredentials.go
   - /models/components/deliveryattempt.go
   - /models/components/destination.go
+  - /models/components/destinationawskinesis.go
   - /models/components/destinationawssqs.go
   - /models/components/destinationcreate.go
+  - /models/components/destinationcreateawskinesis.go
   - /models/components/destinationcreateawssqs.go
+  - /models/components/destinationcreatehookdeck.go
   - /models/components/destinationcreaterabbitmq.go
   - /models/components/destinationcreatewebhook.go
-  - /models/components/destinationoauthredirect.go
+  - /models/components/destinationhookdeck.go
   - /models/components/destinationrabbitmq.go
   - /models/components/destinationschemafield.go
   - /models/components/destinationtypeschema.go
   - /models/components/destinationupdate.go
+  - /models/components/destinationupdateawskinesis.go
   - /models/components/destinationupdateawssqs.go
+  - /models/components/destinationupdatehookdeck.go
   - /models/components/destinationupdaterabbitmq.go
   - /models/components/destinationupdatewebhook.go
   - /models/components/destinationwebhook.go
   - /models/components/event.go
+  - /models/components/hookdeckcredentials.go
   - /models/components/httpmetadata.go
   - /models/components/portalredirect.go
   - /models/components/publishrequest.go
@@ -73,8 +82,7 @@ generatedFiles:
   - /models/operations/deletetenantdestination.go
   - /models/operations/disabletenantdestination.go
   - /models/operations/enabletenantdestination.go
-  - /models/operations/getdestinationtypeschemajwt.go
-  - /models/operations/getportalurljwtcontext.go
+  - /models/operations/getdestinationtypeschema.go
   - /models/operations/gettenant.go
   - /models/operations/gettenantdestination.go
   - /models/operations/gettenantdestinationtypeschema.go
@@ -82,7 +90,6 @@ generatedFiles:
   - /models/operations/gettenanteventbydestination.go
   - /models/operations/gettenantportalurl.go
   - /models/operations/gettenanttoken.go
-  - /models/operations/gettenanttokenjwtcontext.go
   - /models/operations/healthcheck.go
   - /models/operations/listdestinationtypeschemasjwt.go
   - /models/operations/listtenantdestinations.go
@@ -91,7 +98,7 @@ generatedFiles:
   - /models/operations/listtenantevents.go
   - /models/operations/listtenanteventsbydestination.go
   - /models/operations/listtenanttopics.go
-  - /models/operations/listtopicsjwt.go
+  - /models/operations/listtopics.go
   - /models/operations/publishevent.go
   - /models/operations/retrytenantevent.go
   - /models/operations/updatetenantdestination.go
@@ -104,32 +111,44 @@ generatedFiles:
   - docs/models/apierrors/ratelimitederror.md
   - docs/models/apierrors/timeouterror.md
   - docs/models/apierrors/unauthorizederror.md
+  - docs/models/components/awskinesisconfig.md
+  - docs/models/components/awskinesiscredentials.md
   - docs/models/components/awssqsconfig.md
   - docs/models/components/awssqscredentials.md
   - docs/models/components/deliveryattempt.md
   - docs/models/components/destination.md
+  - docs/models/components/destinationawskinesis.md
+  - docs/models/components/destinationawskinesistype.md
   - docs/models/components/destinationawssqs.md
   - docs/models/components/destinationawssqstype.md
   - docs/models/components/destinationcreate.md
+  - docs/models/components/destinationcreateawskinesis.md
+  - docs/models/components/destinationcreateawskinesistype.md
   - docs/models/components/destinationcreateawssqs.md
   - docs/models/components/destinationcreateawssqstype.md
+  - docs/models/components/destinationcreatehookdeck.md
+  - docs/models/components/destinationcreatehookdecktype.md
   - docs/models/components/destinationcreaterabbitmq.md
   - docs/models/components/destinationcreaterabbitmqtype.md
   - docs/models/components/destinationcreatewebhook.md
   - docs/models/components/destinationcreatewebhooktype.md
-  - docs/models/components/destinationoauthredirect.md
+  - docs/models/components/destinationhookdeck.md
+  - docs/models/components/destinationhookdecktype.md
   - docs/models/components/destinationrabbitmq.md
   - docs/models/components/destinationrabbitmqtype.md
   - docs/models/components/destinationschemafield.md
   - docs/models/components/destinationschemafieldtype.md
   - docs/models/components/destinationtypeschema.md
   - docs/models/components/destinationupdate.md
+  - docs/models/components/destinationupdateawskinesis.md
   - docs/models/components/destinationupdateawssqs.md
+  - docs/models/components/destinationupdatehookdeck.md
   - docs/models/components/destinationupdaterabbitmq.md
   - docs/models/components/destinationupdatewebhook.md
   - docs/models/components/destinationwebhook.md
   - docs/models/components/destinationwebhooktype.md
   - docs/models/components/event.md
+  - docs/models/components/hookdeckcredentials.md
   - docs/models/components/httpmetadata.md
   - docs/models/components/portalredirect.md
   - docs/models/components/publishrequest.md
@@ -149,115 +168,90 @@ generatedFiles:
   - docs/models/operations/createtenantdestinationglobals.md
   - docs/models/operations/createtenantdestinationrequest.md
   - docs/models/operations/createtenantdestinationresponse.md
-  - docs/models/operations/createtenantdestinationsecurity.md
   - docs/models/operations/deletetenantdestinationglobals.md
   - docs/models/operations/deletetenantdestinationrequest.md
   - docs/models/operations/deletetenantdestinationresponse.md
-  - docs/models/operations/deletetenantdestinationsecurity.md
   - docs/models/operations/deletetenantglobals.md
   - docs/models/operations/deletetenantrequest.md
   - docs/models/operations/deletetenantresponse.md
-  - docs/models/operations/deletetenantsecurity.md
   - docs/models/operations/destinationid.md
   - docs/models/operations/disabletenantdestinationglobals.md
   - docs/models/operations/disabletenantdestinationrequest.md
   - docs/models/operations/disabletenantdestinationresponse.md
-  - docs/models/operations/disabletenantdestinationsecurity.md
   - docs/models/operations/enabletenantdestinationglobals.md
   - docs/models/operations/enabletenantdestinationrequest.md
   - docs/models/operations/enabletenantdestinationresponse.md
-  - docs/models/operations/enabletenantdestinationsecurity.md
-  - docs/models/operations/getdestinationtypeschemajwtrequest.md
-  - docs/models/operations/getdestinationtypeschemajwtresponse.md
-  - docs/models/operations/getdestinationtypeschemajwtsecurity.md
-  - docs/models/operations/getdestinationtypeschemajwttype.md
-  - docs/models/operations/getportalurljwtcontextrequest.md
-  - docs/models/operations/getportalurljwtcontextresponse.md
-  - docs/models/operations/getportalurljwtcontexttheme.md
+  - docs/models/operations/getdestinationtypeschemarequest.md
+  - docs/models/operations/getdestinationtypeschemaresponse.md
+  - docs/models/operations/getdestinationtypeschematype.md
   - docs/models/operations/gettenantdestinationglobals.md
   - docs/models/operations/gettenantdestinationrequest.md
   - docs/models/operations/gettenantdestinationresponse.md
-  - docs/models/operations/gettenantdestinationsecurity.md
   - docs/models/operations/gettenantdestinationtypeschemaglobals.md
   - docs/models/operations/gettenantdestinationtypeschemarequest.md
   - docs/models/operations/gettenantdestinationtypeschemaresponse.md
-  - docs/models/operations/gettenantdestinationtypeschemasecurity.md
   - docs/models/operations/gettenantdestinationtypeschematype.md
   - docs/models/operations/gettenanteventbydestinationglobals.md
   - docs/models/operations/gettenanteventbydestinationrequest.md
   - docs/models/operations/gettenanteventbydestinationresponse.md
-  - docs/models/operations/gettenanteventbydestinationsecurity.md
   - docs/models/operations/gettenanteventglobals.md
   - docs/models/operations/gettenanteventrequest.md
   - docs/models/operations/gettenanteventresponse.md
-  - docs/models/operations/gettenanteventsecurity.md
   - docs/models/operations/gettenantglobals.md
   - docs/models/operations/gettenantportalurlglobals.md
   - docs/models/operations/gettenantportalurlrequest.md
   - docs/models/operations/gettenantportalurlresponse.md
-  - docs/models/operations/gettenantportalurltheme.md
   - docs/models/operations/gettenantrequest.md
   - docs/models/operations/gettenantresponse.md
-  - docs/models/operations/gettenantsecurity.md
   - docs/models/operations/gettenanttokenglobals.md
-  - docs/models/operations/gettenanttokenjwtcontextresponse.md
   - docs/models/operations/gettenanttokenrequest.md
   - docs/models/operations/gettenanttokenresponse.md
   - docs/models/operations/healthcheckresponse.md
   - docs/models/operations/listdestinationtypeschemasjwtresponse.md
-  - docs/models/operations/listdestinationtypeschemasjwtsecurity.md
   - docs/models/operations/listtenantdestinationsglobals.md
   - docs/models/operations/listtenantdestinationsrequest.md
   - docs/models/operations/listtenantdestinationsresponse.md
-  - docs/models/operations/listtenantdestinationssecurity.md
   - docs/models/operations/listtenantdestinationstypeenum1.md
   - docs/models/operations/listtenantdestinationstypeenum2.md
   - docs/models/operations/listtenantdestinationtypeschemasglobals.md
   - docs/models/operations/listtenantdestinationtypeschemasrequest.md
   - docs/models/operations/listtenantdestinationtypeschemasresponse.md
-  - docs/models/operations/listtenantdestinationtypeschemassecurity.md
   - docs/models/operations/listtenanteventdeliveriesglobals.md
   - docs/models/operations/listtenanteventdeliveriesrequest.md
   - docs/models/operations/listtenanteventdeliveriesresponse.md
-  - docs/models/operations/listtenanteventdeliveriessecurity.md
   - docs/models/operations/listtenanteventsbydestinationglobals.md
   - docs/models/operations/listtenanteventsbydestinationrequest.md
   - docs/models/operations/listtenanteventsbydestinationresponse.md
-  - docs/models/operations/listtenanteventsbydestinationsecurity.md
   - docs/models/operations/listtenanteventsbydestinationstatus.md
   - docs/models/operations/listtenanteventsglobals.md
   - docs/models/operations/listtenanteventsrequest.md
   - docs/models/operations/listtenanteventsresponse.md
-  - docs/models/operations/listtenanteventssecurity.md
   - docs/models/operations/listtenanteventsstatus.md
   - docs/models/operations/listtenanttopicsglobals.md
   - docs/models/operations/listtenanttopicsrequest.md
   - docs/models/operations/listtenanttopicsresponse.md
-  - docs/models/operations/listtenanttopicssecurity.md
-  - docs/models/operations/listtopicsjwtresponse.md
-  - docs/models/operations/listtopicsjwtsecurity.md
+  - docs/models/operations/listtopicsresponse.md
   - docs/models/operations/option.md
   - docs/models/operations/publisheventresponse.md
   - docs/models/operations/retrytenanteventglobals.md
   - docs/models/operations/retrytenanteventrequest.md
   - docs/models/operations/retrytenanteventresponse.md
-  - docs/models/operations/retrytenanteventsecurity.md
+  - docs/models/operations/theme.md
   - docs/models/operations/topics.md
   - docs/models/operations/type.md
   - docs/models/operations/updatetenantdestinationglobals.md
   - docs/models/operations/updatetenantdestinationrequest.md
   - docs/models/operations/updatetenantdestinationresponse.md
   - docs/models/operations/updatetenantdestinationresponsebody.md
-  - docs/models/operations/updatetenantdestinationsecurity.md
   - docs/models/operations/upserttenantglobals.md
   - docs/models/operations/upserttenantrequest.md
   - docs/models/operations/upserttenantresponse.md
   - docs/sdks/destinations/README.md
   - docs/sdks/events/README.md
   - docs/sdks/health/README.md
+  - docs/sdks/outpost/README.md
   - docs/sdks/publish/README.md
   - docs/sdks/schemas/README.md
-  - docs/sdks/sdk/README.md
   - docs/sdks/tenants/README.md
   - docs/sdks/topics/README.md
   - events.go
@@ -278,10 +272,10 @@ generatedFiles:
   - internal/utils/utils.go
   - models/apierrors/apierror.go
   - models/operations/options.go
+  - outpost.go
   - publish.go
   - retry/config.go
   - schemas.go
-  - sdk.go
   - tenants.go
   - topics.go
   - types/bigint.go
@@ -404,7 +398,7 @@ examples:
         application/json: {"topics": "*", "config": {"server_url": "localhost:5672", "exchange": "my-exchange", "tls": "false"}, "credentials": {"username": "guest", "password": "guest"}}
       responses:
         "200":
-          application/json: {"redirect_url": "https://dashboard.hookdeck.com/authorize?token=12313123"}
+          application/json: {"id": "des_kns_xyz", "type": "aws_kinesis", "topics": ["user.created", "user.updated"], "disabled_at": null, "created_at": "2024-03-10T15:30:00Z", "config": {"stream_name": "production-events", "region": "eu-west-1"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}
     OAuthRedirectExample:
       parameters:
         path:
@@ -474,7 +468,7 @@ examples:
           tenant_id: "<id>"
       responses:
         "200":
-          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the event to", "validation": "/((([A-Za-z]{3,9}:(?://)?)(?:[-;:&=+$,w]+@)?[A-Za-z0-9.-]+(:[0-9]+)?|(?:www.|[-;:&=+$,w]+@)[A-Za-z0-9.-]+)((?:/[+~%/.w-_]*)???(?:[-+=&;%@.w_]*)#?(?:[w]*))?)/", "required": true}], "credential_fields": [{"type": "text", "label": "Secret", "description": "The URL to send the event to", "required": false}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL"}, {"type": "text", "label": "Endpoint"}], "credential_fields": [{"type": "text", "label": "Key"}, {"type": "text", "label": "Secret"}, {"type": "text", "label": "Session"}]}]
+          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}]
   getTenantDestinationTypeSchema:
     WebhookSchemaExample:
       parameters:
@@ -483,12 +477,12 @@ examples:
           type: "rabbitmq"
       responses:
         "200":
-          application/json: {"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the event to", "validation": "/((([A-Za-z]{3,9}:(?://)?)(?:[-;:&=+$,w]+@)?[A-Za-z0-9.-]+(:[0-9]+)?|(?:www.|[-;:&=+$,w]+@)[A-Za-z0-9.-]+)((?:/[+~%/.w-_]*)???(?:[-+=&;%@.w_]*)#?(?:[w]*))?)/", "required": true}], "credential_fields": [{"type": "text", "label": "Secret", "description": "The URL to send the event to", "required": false}]}
+          application/json: {"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}
   listDestinationTypeSchemasJwt:
     DestinationTypesExample:
       responses:
         "200":
-          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the event to", "validation": "/((([A-Za-z]{3,9}:(?://)?)(?:[-;:&=+$,w]+@)?[A-Za-z0-9.-]+(:[0-9]+)?|(?:www.|[-;:&=+$,w]+@)[A-Za-z0-9.-]+)((?:/[+~%/.w-_]*)???(?:[-+=&;%@.w_]*)#?(?:[w]*))?)/", "required": true}], "credential_fields": [{"type": "text", "label": "Secret", "description": "The URL to send the event to", "required": false}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL"}, {"type": "text", "label": "Endpoint"}], "credential_fields": [{"type": "text", "label": "Key"}, {"type": "text", "label": "Secret"}, {"type": "text", "label": "Session"}]}]
+          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}]
   getDestinationTypeSchemaJwt:
     WebhookSchemaExample:
       parameters:
@@ -583,5 +577,18 @@ examples:
           application/json: {"key": "<value>", "key1": "<value>"}
         "511":
           application/json: {"key": "<value>"}
+  getDestinationTypeSchema:
+    WebhookSchemaExample:
+      parameters:
+        path:
+          type: "aws_kinesis"
+      responses:
+        "200":
+          application/json: {"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}
+  listTopics:
+    TopicsListExample:
+      responses:
+        "200":
+          application/json: ["user.created", "user.updated", "order.shipped", "inventory.updated"]
 examplesVersion: 1.0.1
 generatedTests: {}

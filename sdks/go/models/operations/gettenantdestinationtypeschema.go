@@ -5,7 +5,7 @@ package operations
 import (
 	"encoding/json"
 	"fmt"
-	"openapi/models/components"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 )
 
 type GetTenantDestinationTypeSchemaGlobals struct {
@@ -19,32 +19,15 @@ func (o *GetTenantDestinationTypeSchemaGlobals) GetTenantID() *string {
 	return o.TenantID
 }
 
-type GetTenantDestinationTypeSchemaSecurity struct {
-	AdminAPIKey *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-	TenantJwt   *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-}
-
-func (o *GetTenantDestinationTypeSchemaSecurity) GetAdminAPIKey() *string {
-	if o == nil {
-		return nil
-	}
-	return o.AdminAPIKey
-}
-
-func (o *GetTenantDestinationTypeSchemaSecurity) GetTenantJwt() *string {
-	if o == nil {
-		return nil
-	}
-	return o.TenantJwt
-}
-
 // GetTenantDestinationTypeSchemaType - The type of the destination.
 type GetTenantDestinationTypeSchemaType string
 
 const (
-	GetTenantDestinationTypeSchemaTypeWebhook  GetTenantDestinationTypeSchemaType = "webhook"
-	GetTenantDestinationTypeSchemaTypeAwsSqs   GetTenantDestinationTypeSchemaType = "aws_sqs"
-	GetTenantDestinationTypeSchemaTypeRabbitmq GetTenantDestinationTypeSchemaType = "rabbitmq"
+	GetTenantDestinationTypeSchemaTypeWebhook    GetTenantDestinationTypeSchemaType = "webhook"
+	GetTenantDestinationTypeSchemaTypeAwsSqs     GetTenantDestinationTypeSchemaType = "aws_sqs"
+	GetTenantDestinationTypeSchemaTypeRabbitmq   GetTenantDestinationTypeSchemaType = "rabbitmq"
+	GetTenantDestinationTypeSchemaTypeHookdeck   GetTenantDestinationTypeSchemaType = "hookdeck"
+	GetTenantDestinationTypeSchemaTypeAwsKinesis GetTenantDestinationTypeSchemaType = "aws_kinesis"
 )
 
 func (e GetTenantDestinationTypeSchemaType) ToPointer() *GetTenantDestinationTypeSchemaType {
@@ -61,6 +44,10 @@ func (e *GetTenantDestinationTypeSchemaType) UnmarshalJSON(data []byte) error {
 	case "aws_sqs":
 		fallthrough
 	case "rabbitmq":
+		fallthrough
+	case "hookdeck":
+		fallthrough
+	case "aws_kinesis":
 		*e = GetTenantDestinationTypeSchemaType(v)
 		return nil
 	default:

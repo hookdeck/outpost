@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"openapi/internal/utils"
+	"github.com/hookdeck/outpost/sdks/go/client/internal/utils"
 )
 
 type TopicsEnum string

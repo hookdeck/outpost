@@ -3,7 +3,7 @@
 package operations
 
 import (
-	"openapi/models/components"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 )
 
 type GetTenantEventGlobals struct {
@@ -15,25 +15,6 @@ func (o *GetTenantEventGlobals) GetTenantID() *string {
 		return nil
 	}
 	return o.TenantID
-}
-
-type GetTenantEventSecurity struct {
-	AdminAPIKey *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-	TenantJwt   *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-}
-
-func (o *GetTenantEventSecurity) GetAdminAPIKey() *string {
-	if o == nil {
-		return nil
-	}
-	return o.AdminAPIKey
-}
-
-func (o *GetTenantEventSecurity) GetTenantJwt() *string {
-	if o == nil {
-		return nil
-	}
-	return o.TenantJwt
 }
 
 type GetTenantEventRequest struct {

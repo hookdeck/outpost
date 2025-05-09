@@ -5,7 +5,7 @@ package operations
 import (
 	"encoding/json"
 	"fmt"
-	"openapi/models/components"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 )
 
 type GetTenantPortalURLGlobals struct {
@@ -19,18 +19,18 @@ func (o *GetTenantPortalURLGlobals) GetTenantID() *string {
 	return o.TenantID
 }
 
-// GetTenantPortalURLTheme - Optional theme preference for the portal.
-type GetTenantPortalURLTheme string
+// Theme - Optional theme preference for the portal.
+type Theme string
 
 const (
-	GetTenantPortalURLThemeLight GetTenantPortalURLTheme = "light"
-	GetTenantPortalURLThemeDark  GetTenantPortalURLTheme = "dark"
+	ThemeLight Theme = "light"
+	ThemeDark  Theme = "dark"
 )
 
-func (e GetTenantPortalURLTheme) ToPointer() *GetTenantPortalURLTheme {
+func (e Theme) ToPointer() *Theme {
 	return &e
 }
-func (e *GetTenantPortalURLTheme) UnmarshalJSON(data []byte) error {
+func (e *Theme) UnmarshalJSON(data []byte) error {
 	var v string
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
@@ -39,10 +39,10 @@ func (e *GetTenantPortalURLTheme) UnmarshalJSON(data []byte) error {
 	case "light":
 		fallthrough
 	case "dark":
-		*e = GetTenantPortalURLTheme(v)
+		*e = Theme(v)
 		return nil
 	default:
-		return fmt.Errorf("invalid value for GetTenantPortalURLTheme: %v", v)
+		return fmt.Errorf("invalid value for Theme: %v", v)
 	}
 }
 
@@ -50,7 +50,7 @@ type GetTenantPortalURLRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 	// Optional theme preference for the portal.
-	Theme *GetTenantPortalURLTheme `queryParam:"style=form,explode=true,name=theme"`
+	Theme *Theme `queryParam:"style=form,explode=true,name=theme"`
 }
 
 func (o *GetTenantPortalURLRequest) GetTenantID() *string {
@@ -60,7 +60,7 @@ func (o *GetTenantPortalURLRequest) GetTenantID() *string {
 	return o.TenantID
 }
 
-func (o *GetTenantPortalURLRequest) GetTheme() *GetTenantPortalURLTheme {
+func (o *GetTenantPortalURLRequest) GetTheme() *Theme {
 	if o == nil {
 		return nil
 	}

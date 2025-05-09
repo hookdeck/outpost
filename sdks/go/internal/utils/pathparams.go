@@ -13,7 +13,7 @@ import (
 
 	"github.com/ericlagergren/decimal"
 
-	"openapi/types"
+	"github.com/hookdeck/outpost/sdks/go/client/types"
 )
 
 func GenerateURL(_ context.Context, serverURL, path string, pathParams interface{}, globals interface{}) (string, error) {

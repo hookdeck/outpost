@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"openapi/internal/utils"
-	"openapi/models/components"
+	"github.com/hookdeck/outpost/sdks/go/client/internal/utils"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 )
 
 type ListTenantEventsGlobals struct {
@@ -19,25 +19,6 @@ func (o *ListTenantEventsGlobals) GetTenantID() *string {
 		return nil
 	}
 	return o.TenantID
-}
-
-type ListTenantEventsSecurity struct {
-	AdminAPIKey *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-	TenantJwt   *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-}
-
-func (o *ListTenantEventsSecurity) GetAdminAPIKey() *string {
-	if o == nil {
-		return nil
-	}
-	return o.AdminAPIKey
-}
-
-func (o *ListTenantEventsSecurity) GetTenantJwt() *string {
-	if o == nil {
-		return nil
-	}
-	return o.TenantJwt
 }
 
 type DestinationIDType string

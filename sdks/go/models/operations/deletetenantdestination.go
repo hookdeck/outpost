@@ -3,7 +3,7 @@
 package operations
 
 import (
-	"openapi/models/components"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 )
 
 type DeleteTenantDestinationGlobals struct {
@@ -15,25 +15,6 @@ func (o *DeleteTenantDestinationGlobals) GetTenantID() *string {
 		return nil
 	}
 	return o.TenantID
-}
-
-type DeleteTenantDestinationSecurity struct {
-	AdminAPIKey *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-	TenantJwt   *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-}
-
-func (o *DeleteTenantDestinationSecurity) GetAdminAPIKey() *string {
-	if o == nil {
-		return nil
-	}
-	return o.AdminAPIKey
-}
-
-func (o *DeleteTenantDestinationSecurity) GetTenantJwt() *string {
-	if o == nil {
-		return nil
-	}
-	return o.TenantJwt
 }
 
 type DeleteTenantDestinationRequest struct {

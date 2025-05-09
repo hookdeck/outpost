@@ -5,7 +5,7 @@ package components
 import (
 	"encoding/json"
 	"fmt"
-	"openapi/internal/utils"
+	"github.com/hookdeck/outpost/sdks/go/client/internal/utils"
 	"time"
 )
 
@@ -46,6 +46,10 @@ type DestinationWebhook struct {
 	CreatedAt   time.Time          `json:"created_at"`
 	Config      WebhookConfig      `json:"config"`
 	Credentials WebhookCredentials `json:"credentials"`
+	// A human-readable representation of the destination target (e.g., URL host). Read-only.
+	Target *string `json:"target,omitempty"`
+	// A URL link to the destination target (the webhook URL). Read-only.
+	TargetURL *string `json:"target_url,omitempty"`
 }
 
 func (d DestinationWebhook) MarshalJSON() ([]byte, error) {
@@ -106,4 +110,18 @@ func (o *DestinationWebhook) GetCredentials() WebhookCredentials {
 		return WebhookCredentials{}
 	}
 	return o.Credentials
+}
+
+func (o *DestinationWebhook) GetTarget() *string {
+	if o == nil {
+		return nil
+	}
+	return o.Target
+}
+
+func (o *DestinationWebhook) GetTargetURL() *string {
+	if o == nil {
+		return nil
+	}
+	return o.TargetURL
 }

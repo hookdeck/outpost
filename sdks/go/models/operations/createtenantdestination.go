@@ -3,7 +3,7 @@
 package operations
 
 import (
-	"openapi/models/components"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 )
 
 type CreateTenantDestinationGlobals struct {
@@ -15,25 +15,6 @@ func (o *CreateTenantDestinationGlobals) GetTenantID() *string {
 		return nil
 	}
 	return o.TenantID
-}
-
-type CreateTenantDestinationSecurity struct {
-	AdminAPIKey *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-	TenantJwt   *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-}
-
-func (o *CreateTenantDestinationSecurity) GetAdminAPIKey() *string {
-	if o == nil {
-		return nil
-	}
-	return o.AdminAPIKey
-}
-
-func (o *CreateTenantDestinationSecurity) GetTenantJwt() *string {
-	if o == nil {
-		return nil
-	}
-	return o.TenantJwt
 }
 
 type CreateTenantDestinationRequest struct {
@@ -54,6 +35,26 @@ func (o *CreateTenantDestinationRequest) GetDestinationCreate() components.Desti
 		return components.DestinationCreate{}
 	}
 	return o.DestinationCreate
+}
+
+func (o *CreateTenantDestinationRequest) GetDestinationCreateWebhook() *components.DestinationCreateWebhook {
+	return o.GetDestinationCreate().DestinationCreateWebhook
+}
+
+func (o *CreateTenantDestinationRequest) GetDestinationCreateAwsSqs() *components.DestinationCreateAWSSQS {
+	return o.GetDestinationCreate().DestinationCreateAWSSQS
+}
+
+func (o *CreateTenantDestinationRequest) GetDestinationCreateRabbitmq() *components.DestinationCreateRabbitMQ {
+	return o.GetDestinationCreate().DestinationCreateRabbitMQ
+}
+
+func (o *CreateTenantDestinationRequest) GetDestinationCreateHookdeck() *components.DestinationCreateHookdeck {
+	return o.GetDestinationCreate().DestinationCreateHookdeck
+}
+
+func (o *CreateTenantDestinationRequest) GetDestinationCreateAwsKinesis() *components.DestinationCreateAWSKinesis {
+	return o.GetDestinationCreate().DestinationCreateAWSKinesis
 }
 
 type CreateTenantDestinationResponse struct {
@@ -93,6 +94,20 @@ func (o *CreateTenantDestinationResponse) GetDestinationAwsSqs() *components.Des
 func (o *CreateTenantDestinationResponse) GetDestinationRabbitmq() *components.DestinationRabbitMQ {
 	if v := o.GetDestination(); v != nil {
 		return v.DestinationRabbitMQ
+	}
+	return nil
+}
+
+func (o *CreateTenantDestinationResponse) GetDestinationHookdeck() *components.DestinationHookdeck {
+	if v := o.GetDestination(); v != nil {
+		return v.DestinationHookdeck
+	}
+	return nil
+}
+
+func (o *CreateTenantDestinationResponse) GetDestinationAwsKinesis() *components.DestinationAWSKinesis {
+	if v := o.GetDestination(); v != nil {
+		return v.DestinationAWSKinesis
 	}
 	return nil
 }

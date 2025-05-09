@@ -49,19 +49,21 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/operations"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New()
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
 
-    res, err := s.Destinations.List(ctx, operations.ListTenantDestinationsSecurity{
-        AdminAPIKey: openapi.String("<YOUR_BEARER_TOKEN_HERE>"),
-    }, openapi.String("<id>"), nil, nil)
+    res, err := s.Destinations.List(ctx, client.String("<id>"), nil, nil)
     if err != nil {
         log.Fatal(err)
     }
@@ -73,14 +75,13 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                              | Type                                                                                                   | Required                                                                                               | Description                                                                                            |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `ctx`                                                                                                  | [context.Context](https://pkg.go.dev/context#Context)                                                  | :heavy_check_mark:                                                                                     | The context to use for the request.                                                                    |
-| `security`                                                                                             | [operations.ListTenantDestinationsSecurity](../../models/operations/listtenantdestinationssecurity.md) | :heavy_check_mark:                                                                                     | The security requirements to use for the request.                                                      |
-| `tenantID`                                                                                             | **string*                                                                                              | :heavy_minus_sign:                                                                                     | The ID of the tenant. Required when using AdminApiKey authentication.                                  |
-| `type_`                                                                                                | [*operations.Type](../../models/operations/type.md)                                                    | :heavy_minus_sign:                                                                                     | Filter destinations by type(s).                                                                        |
-| `topics`                                                                                               | [*operations.Topics](../../models/operations/topics.md)                                                | :heavy_minus_sign:                                                                                     | Filter destinations by supported topic(s).                                                             |
-| `opts`                                                                                                 | [][operations.Option](../../models/operations/option.md)                                               | :heavy_minus_sign:                                                                                     | The options for this request.                                                                          |
+| Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `ctx`                                                                 | [context.Context](https://pkg.go.dev/context#Context)                 | :heavy_check_mark:                                                    | The context to use for the request.                                   |
+| `tenantID`                                                            | **string*                                                             | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `type_`                                                               | [*operations.Type](../../models/operations/type.md)                   | :heavy_minus_sign:                                                    | Filter destinations by type(s).                                       |
+| `topics`                                                              | [*operations.Topics](../../models/operations/topics.md)               | :heavy_minus_sign:                                                    | Filter destinations by supported topic(s).                            |
+| `opts`                                                                | [][operations.Option](../../models/operations/option.md)              | :heavy_minus_sign:                                                    | The options for this request.                                         |
 
 ### Response
 
@@ -112,37 +113,38 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/components"
-	"openapi/models/operations"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New()
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
 
-    res, err := s.Destinations.Create(ctx, operations.CreateTenantDestinationSecurity{
-        AdminAPIKey: openapi.String("<YOUR_BEARER_TOKEN_HERE>"),
-    }, components.CreateDestinationCreateDestinationCreateAWSSQS(
+    res, err := s.Destinations.Create(ctx, components.CreateDestinationCreateAwsSqs(
         components.DestinationCreateAWSSQS{
-            ID: openapi.String("user-provided-id"),
+            ID: client.String("user-provided-id"),
             Type: components.DestinationCreateAWSSQSTypeAwsSqs,
             Topics: components.CreateTopicsTopicsEnum(
                 components.TopicsEnumWildcard,
             ),
             Config: components.AWSSQSConfig{
-                Endpoint: openapi.String("https://sqs.us-east-1.amazonaws.com"),
+                Endpoint: client.String("https://sqs.us-east-1.amazonaws.com"),
                 QueueURL: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue",
             },
             Credentials: components.AWSSQSCredentials{
                 Key: "AKIAIOSFODNN7EXAMPLE",
                 Secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-                Session: openapi.String("AQoDYXdzEPT//////////wEXAMPLE..."),
+                Session: client.String("AQoDYXdzEPT//////////wEXAMPLE..."),
             },
         },
-    ), openapi.String("<id>"))
+    ), client.String("<id>"))
     if err != nil {
         log.Fatal(err)
     }
@@ -154,13 +156,12 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                                | Type                                                                                                     | Required                                                                                                 | Description                                                                                              |
-| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `ctx`                                                                                                    | [context.Context](https://pkg.go.dev/context#Context)                                                    | :heavy_check_mark:                                                                                       | The context to use for the request.                                                                      |
-| `security`                                                                                               | [operations.CreateTenantDestinationSecurity](../../models/operations/createtenantdestinationsecurity.md) | :heavy_check_mark:                                                                                       | The security requirements to use for the request.                                                        |
-| `destinationCreate`                                                                                      | [components.DestinationCreate](../../models/components/destinationcreate.md)                             | :heavy_check_mark:                                                                                       | N/A                                                                                                      |
-| `tenantID`                                                                                               | **string*                                                                                                | :heavy_minus_sign:                                                                                       | The ID of the tenant. Required when using AdminApiKey authentication.                                    |
-| `opts`                                                                                                   | [][operations.Option](../../models/operations/option.md)                                                 | :heavy_minus_sign:                                                                                       | The options for this request.                                                                            |
+| Parameter                                                                    | Type                                                                         | Required                                                                     | Description                                                                  |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `ctx`                                                                        | [context.Context](https://pkg.go.dev/context#Context)                        | :heavy_check_mark:                                                           | The context to use for the request.                                          |
+| `destinationCreate`                                                          | [components.DestinationCreate](../../models/components/destinationcreate.md) | :heavy_check_mark:                                                           | N/A                                                                          |
+| `tenantID`                                                                   | **string*                                                                    | :heavy_minus_sign:                                                           | The ID of the tenant. Required when using AdminApiKey authentication.        |
+| `opts`                                                                       | [][operations.Option](../../models/operations/option.md)                     | :heavy_minus_sign:                                                           | The options for this request.                                                |
 
 ### Response
 
@@ -192,19 +193,21 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/operations"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New()
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
 
-    res, err := s.Destinations.Get(ctx, operations.GetTenantDestinationSecurity{
-        AdminAPIKey: openapi.String("<YOUR_BEARER_TOKEN_HERE>"),
-    }, "<id>", openapi.String("<id>"))
+    res, err := s.Destinations.Get(ctx, "<id>", client.String("<id>"))
     if err != nil {
         log.Fatal(err)
     }
@@ -216,13 +219,12 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                          | Type                                                                                               | Required                                                                                           | Description                                                                                        |
-| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `ctx`                                                                                              | [context.Context](https://pkg.go.dev/context#Context)                                              | :heavy_check_mark:                                                                                 | The context to use for the request.                                                                |
-| `security`                                                                                         | [operations.GetTenantDestinationSecurity](../../models/operations/gettenantdestinationsecurity.md) | :heavy_check_mark:                                                                                 | The security requirements to use for the request.                                                  |
-| `destinationID`                                                                                    | *string*                                                                                           | :heavy_check_mark:                                                                                 | The ID of the destination.                                                                         |
-| `tenantID`                                                                                         | **string*                                                                                          | :heavy_minus_sign:                                                                                 | The ID of the tenant. Required when using AdminApiKey authentication.                              |
-| `opts`                                                                                             | [][operations.Option](../../models/operations/option.md)                                           | :heavy_minus_sign:                                                                                 | The options for this request.                                                                      |
+| Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `ctx`                                                                 | [context.Context](https://pkg.go.dev/context#Context)                 | :heavy_check_mark:                                                    | The context to use for the request.                                   |
+| `destinationID`                                                       | *string*                                                              | :heavy_check_mark:                                                    | The ID of the destination.                                            |
+| `tenantID`                                                            | **string*                                                             | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `opts`                                                                | [][operations.Option](../../models/operations/option.md)              | :heavy_minus_sign:                                                    | The options for this request.                                         |
 
 ### Response
 
@@ -254,22 +256,23 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/components"
-	"openapi/models/operations"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New()
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
 
-    res, err := s.Destinations.Update(ctx, operations.UpdateTenantDestinationSecurity{
-        AdminAPIKey: openapi.String("<YOUR_BEARER_TOKEN_HERE>"),
-    }, "<id>", components.CreateDestinationUpdateDestinationUpdateRabbitMQ(
+    res, err := s.Destinations.Update(ctx, "<id>", components.CreateDestinationUpdateDestinationUpdateRabbitMQ(
         components.DestinationUpdateRabbitMQ{
-            Topics: openapi.Pointer(components.CreateTopicsTopicsEnum(
+            Topics: client.Pointer(components.CreateTopicsTopicsEnum(
                 components.TopicsEnumWildcard,
             )),
             Config: &components.RabbitMQConfig{
@@ -282,7 +285,7 @@ func main() {
                 Password: "guest",
             },
         },
-    ), openapi.String("<id>"))
+    ), client.String("<id>"))
     if err != nil {
         log.Fatal(err)
     }
@@ -294,14 +297,13 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                                | Type                                                                                                     | Required                                                                                                 | Description                                                                                              |
-| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `ctx`                                                                                                    | [context.Context](https://pkg.go.dev/context#Context)                                                    | :heavy_check_mark:                                                                                       | The context to use for the request.                                                                      |
-| `security`                                                                                               | [operations.UpdateTenantDestinationSecurity](../../models/operations/updatetenantdestinationsecurity.md) | :heavy_check_mark:                                                                                       | The security requirements to use for the request.                                                        |
-| `destinationID`                                                                                          | *string*                                                                                                 | :heavy_check_mark:                                                                                       | The ID of the destination.                                                                               |
-| `destinationUpdate`                                                                                      | [components.DestinationUpdate](../../models/components/destinationupdate.md)                             | :heavy_check_mark:                                                                                       | N/A                                                                                                      |
-| `tenantID`                                                                                               | **string*                                                                                                | :heavy_minus_sign:                                                                                       | The ID of the tenant. Required when using AdminApiKey authentication.                                    |
-| `opts`                                                                                                   | [][operations.Option](../../models/operations/option.md)                                                 | :heavy_minus_sign:                                                                                       | The options for this request.                                                                            |
+| Parameter                                                                    | Type                                                                         | Required                                                                     | Description                                                                  |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `ctx`                                                                        | [context.Context](https://pkg.go.dev/context#Context)                        | :heavy_check_mark:                                                           | The context to use for the request.                                          |
+| `destinationID`                                                              | *string*                                                                     | :heavy_check_mark:                                                           | The ID of the destination.                                                   |
+| `destinationUpdate`                                                          | [components.DestinationUpdate](../../models/components/destinationupdate.md) | :heavy_check_mark:                                                           | N/A                                                                          |
+| `tenantID`                                                                   | **string*                                                                    | :heavy_minus_sign:                                                           | The ID of the tenant. Required when using AdminApiKey authentication.        |
+| `opts`                                                                       | [][operations.Option](../../models/operations/option.md)                     | :heavy_minus_sign:                                                           | The options for this request.                                                |
 
 ### Response
 
@@ -333,19 +335,21 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/operations"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New()
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
 
-    res, err := s.Destinations.Delete(ctx, operations.DeleteTenantDestinationSecurity{
-        AdminAPIKey: openapi.String("<YOUR_BEARER_TOKEN_HERE>"),
-    }, "<id>", openapi.String("<id>"))
+    res, err := s.Destinations.Delete(ctx, "<id>", client.String("<id>"))
     if err != nil {
         log.Fatal(err)
     }
@@ -357,13 +361,12 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                                | Type                                                                                                     | Required                                                                                                 | Description                                                                                              |
-| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `ctx`                                                                                                    | [context.Context](https://pkg.go.dev/context#Context)                                                    | :heavy_check_mark:                                                                                       | The context to use for the request.                                                                      |
-| `security`                                                                                               | [operations.DeleteTenantDestinationSecurity](../../models/operations/deletetenantdestinationsecurity.md) | :heavy_check_mark:                                                                                       | The security requirements to use for the request.                                                        |
-| `destinationID`                                                                                          | *string*                                                                                                 | :heavy_check_mark:                                                                                       | The ID of the destination.                                                                               |
-| `tenantID`                                                                                               | **string*                                                                                                | :heavy_minus_sign:                                                                                       | The ID of the tenant. Required when using AdminApiKey authentication.                                    |
-| `opts`                                                                                                   | [][operations.Option](../../models/operations/option.md)                                                 | :heavy_minus_sign:                                                                                       | The options for this request.                                                                            |
+| Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `ctx`                                                                 | [context.Context](https://pkg.go.dev/context#Context)                 | :heavy_check_mark:                                                    | The context to use for the request.                                   |
+| `destinationID`                                                       | *string*                                                              | :heavy_check_mark:                                                    | The ID of the destination.                                            |
+| `tenantID`                                                            | **string*                                                             | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `opts`                                                                | [][operations.Option](../../models/operations/option.md)              | :heavy_minus_sign:                                                    | The options for this request.                                         |
 
 ### Response
 
@@ -395,19 +398,21 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/operations"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New()
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
 
-    res, err := s.Destinations.Enable(ctx, operations.EnableTenantDestinationSecurity{
-        AdminAPIKey: openapi.String("<YOUR_BEARER_TOKEN_HERE>"),
-    }, "<id>", openapi.String("<id>"))
+    res, err := s.Destinations.Enable(ctx, "<id>", client.String("<id>"))
     if err != nil {
         log.Fatal(err)
     }
@@ -419,13 +424,12 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                                | Type                                                                                                     | Required                                                                                                 | Description                                                                                              |
-| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `ctx`                                                                                                    | [context.Context](https://pkg.go.dev/context#Context)                                                    | :heavy_check_mark:                                                                                       | The context to use for the request.                                                                      |
-| `security`                                                                                               | [operations.EnableTenantDestinationSecurity](../../models/operations/enabletenantdestinationsecurity.md) | :heavy_check_mark:                                                                                       | The security requirements to use for the request.                                                        |
-| `destinationID`                                                                                          | *string*                                                                                                 | :heavy_check_mark:                                                                                       | The ID of the destination.                                                                               |
-| `tenantID`                                                                                               | **string*                                                                                                | :heavy_minus_sign:                                                                                       | The ID of the tenant. Required when using AdminApiKey authentication.                                    |
-| `opts`                                                                                                   | [][operations.Option](../../models/operations/option.md)                                                 | :heavy_minus_sign:                                                                                       | The options for this request.                                                                            |
+| Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `ctx`                                                                 | [context.Context](https://pkg.go.dev/context#Context)                 | :heavy_check_mark:                                                    | The context to use for the request.                                   |
+| `destinationID`                                                       | *string*                                                              | :heavy_check_mark:                                                    | The ID of the destination.                                            |
+| `tenantID`                                                            | **string*                                                             | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `opts`                                                                | [][operations.Option](../../models/operations/option.md)              | :heavy_minus_sign:                                                    | The options for this request.                                         |
 
 ### Response
 
@@ -457,19 +461,21 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/operations"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New()
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
 
-    res, err := s.Destinations.Disable(ctx, operations.DisableTenantDestinationSecurity{
-        AdminAPIKey: openapi.String("<YOUR_BEARER_TOKEN_HERE>"),
-    }, "<id>", openapi.String("<id>"))
+    res, err := s.Destinations.Disable(ctx, "<id>", client.String("<id>"))
     if err != nil {
         log.Fatal(err)
     }
@@ -481,13 +487,12 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                                  | Type                                                                                                       | Required                                                                                                   | Description                                                                                                |
-| ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `ctx`                                                                                                      | [context.Context](https://pkg.go.dev/context#Context)                                                      | :heavy_check_mark:                                                                                         | The context to use for the request.                                                                        |
-| `security`                                                                                                 | [operations.DisableTenantDestinationSecurity](../../models/operations/disabletenantdestinationsecurity.md) | :heavy_check_mark:                                                                                         | The security requirements to use for the request.                                                          |
-| `destinationID`                                                                                            | *string*                                                                                                   | :heavy_check_mark:                                                                                         | The ID of the destination.                                                                                 |
-| `tenantID`                                                                                                 | **string*                                                                                                  | :heavy_minus_sign:                                                                                         | The ID of the tenant. Required when using AdminApiKey authentication.                                      |
-| `opts`                                                                                                     | [][operations.Option](../../models/operations/option.md)                                                   | :heavy_minus_sign:                                                                                         | The options for this request.                                                                              |
+| Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `ctx`                                                                 | [context.Context](https://pkg.go.dev/context#Context)                 | :heavy_check_mark:                                                    | The context to use for the request.                                   |
+| `destinationID`                                                       | *string*                                                              | :heavy_check_mark:                                                    | The ID of the destination.                                            |
+| `tenantID`                                                            | **string*                                                             | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `opts`                                                                | [][operations.Option](../../models/operations/option.md)              | :heavy_minus_sign:                                                    | The options for this request.                                         |
 
 ### Response
 

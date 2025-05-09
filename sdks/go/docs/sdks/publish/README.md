@@ -20,21 +20,23 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/components"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New(
-        openapi.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
     )
 
     res, err := s.Publish.Event(ctx, components.PublishRequest{
         TenantID: "<TENANT_ID>",
-        DestinationID: openapi.String("<DESTINATION_ID>"),
+        DestinationID: client.String("<DESTINATION_ID>"),
         Topic: "topic.name",
         EligibleForRetry: false,
         Metadata: map[string]string{

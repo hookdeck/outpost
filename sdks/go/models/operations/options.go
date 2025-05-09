@@ -4,8 +4,8 @@ package operations
 
 import (
 	"errors"
-	"openapi/internal/utils"
-	"openapi/retry"
+	"github.com/hookdeck/outpost/sdks/go/client/internal/utils"
+	"github.com/hookdeck/outpost/sdks/go/client/retry"
 	"time"
 )
 

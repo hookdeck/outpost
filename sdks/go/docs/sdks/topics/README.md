@@ -8,7 +8,7 @@ Operations for retrieving available event topics.
 ### Available Operations
 
 * [List](#list) - List Available Topics (for Tenant)
-* [ListJwt](#listjwt) - List Available Topics (JWT Auth)
+* [ListJwt](#listjwt) - List Available Topics)
 
 ## List
 
@@ -21,19 +21,21 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/operations"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New()
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
 
-    res, err := s.Topics.List(ctx, operations.ListTenantTopicsSecurity{
-        AdminAPIKey: openapi.String("<YOUR_BEARER_TOKEN_HERE>"),
-    }, openapi.String("<id>"))
+    res, err := s.Topics.List(ctx, client.String("<id>"))
     if err != nil {
         log.Fatal(err)
     }
@@ -45,12 +47,11 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                  | Type                                                                                       | Required                                                                                   | Description                                                                                |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `ctx`                                                                                      | [context.Context](https://pkg.go.dev/context#Context)                                      | :heavy_check_mark:                                                                         | The context to use for the request.                                                        |
-| `security`                                                                                 | [operations.ListTenantTopicsSecurity](../../models/operations/listtenanttopicssecurity.md) | :heavy_check_mark:                                                                         | The security requirements to use for the request.                                          |
-| `tenantID`                                                                                 | **string*                                                                                  | :heavy_minus_sign:                                                                         | The ID of the tenant. Required when using AdminApiKey authentication.                      |
-| `opts`                                                                                     | [][operations.Option](../../models/operations/option.md)                                   | :heavy_minus_sign:                                                                         | The options for this request.                                                              |
+| Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `ctx`                                                                 | [context.Context](https://pkg.go.dev/context#Context)                 | :heavy_check_mark:                                                    | The context to use for the request.                                   |
+| `tenantID`                                                            | **string*                                                             | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `opts`                                                                | [][operations.Option](../../models/operations/option.md)              | :heavy_minus_sign:                                                    | The options for this request.                                         |
 
 ### Response
 
@@ -73,7 +74,7 @@ func main() {
 
 ## ListJwt
 
-Returns a list of available event topics configured in the Outpost instance (infers tenant from JWT).
+Returns a list of available event topics configured in the Outpost instance.
 
 ### Example Usage
 
@@ -82,19 +83,21 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/operations"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New()
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
 
-    res, err := s.Topics.ListJwt(ctx, operations.ListTopicsJwtSecurity{
-        TenantJwt: "<YOUR_BEARER_TOKEN_HERE>",
-    })
+    res, err := s.Topics.ListJwt(ctx)
     if err != nil {
         log.Fatal(err)
     }
@@ -106,15 +109,14 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                            | Type                                                                                 | Required                                                                             | Description                                                                          |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `ctx`                                                                                | [context.Context](https://pkg.go.dev/context#Context)                                | :heavy_check_mark:                                                                   | The context to use for the request.                                                  |
-| `security`                                                                           | [operations.ListTopicsJwtSecurity](../../models/operations/listtopicsjwtsecurity.md) | :heavy_check_mark:                                                                   | The security requirements to use for the request.                                    |
-| `opts`                                                                               | [][operations.Option](../../models/operations/option.md)                             | :heavy_minus_sign:                                                                   | The options for this request.                                                        |
+| Parameter                                                | Type                                                     | Required                                                 | Description                                              |
+| -------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| `ctx`                                                    | [context.Context](https://pkg.go.dev/context#Context)    | :heavy_check_mark:                                       | The context to use for the request.                      |
+| `opts`                                                   | [][operations.Option](../../models/operations/option.md) | :heavy_minus_sign:                                       | The options for this request.                            |
 
 ### Response
 
-**[*operations.ListTopicsJwtResponse](../../models/operations/listtopicsjwtresponse.md), error**
+**[*operations.ListTopicsResponse](../../models/operations/listtopicsresponse.md), error**
 
 ### Errors
 

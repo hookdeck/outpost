@@ -10,7 +10,7 @@ Operations for retrieving destination type schemas.
 * [ListTenantDestinationTypes](#listtenantdestinationtypes) - List Destination Type Schemas (for Tenant)
 * [Get](#get) - Get Destination Type Schema (for Tenant)
 * [ListDestinationTypesJwt](#listdestinationtypesjwt) - List Destination Type Schemas (JWT Auth)
-* [GetDestinationTypeJwt](#getdestinationtypejwt) - Get Destination Type Schema (JWT Auth)
+* [GetDestinationTypeJwt](#getdestinationtypejwt) - Get Destination Type Schema
 
 ## ListTenantDestinationTypes
 
@@ -23,19 +23,21 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/operations"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New()
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
 
-    res, err := s.Schemas.ListTenantDestinationTypes(ctx, operations.ListTenantDestinationTypeSchemasSecurity{
-        AdminAPIKey: openapi.String("<YOUR_BEARER_TOKEN_HERE>"),
-    }, openapi.String("<id>"))
+    res, err := s.Schemas.ListTenantDestinationTypes(ctx, client.String("<id>"))
     if err != nil {
         log.Fatal(err)
     }
@@ -47,12 +49,11 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                                                  | Type                                                                                                                       | Required                                                                                                                   | Description                                                                                                                |
-| -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `ctx`                                                                                                                      | [context.Context](https://pkg.go.dev/context#Context)                                                                      | :heavy_check_mark:                                                                                                         | The context to use for the request.                                                                                        |
-| `security`                                                                                                                 | [operations.ListTenantDestinationTypeSchemasSecurity](../../models/operations/listtenantdestinationtypeschemassecurity.md) | :heavy_check_mark:                                                                                                         | The security requirements to use for the request.                                                                          |
-| `tenantID`                                                                                                                 | **string*                                                                                                                  | :heavy_minus_sign:                                                                                                         | The ID of the tenant. Required when using AdminApiKey authentication.                                                      |
-| `opts`                                                                                                                     | [][operations.Option](../../models/operations/option.md)                                                                   | :heavy_minus_sign:                                                                                                         | The options for this request.                                                                                              |
+| Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `ctx`                                                                 | [context.Context](https://pkg.go.dev/context#Context)                 | :heavy_check_mark:                                                    | The context to use for the request.                                   |
+| `tenantID`                                                            | **string*                                                             | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `opts`                                                                | [][operations.Option](../../models/operations/option.md)              | :heavy_minus_sign:                                                    | The options for this request.                                         |
 
 ### Response
 
@@ -84,19 +85,22 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/operations"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
+	"github.com/hookdeck/outpost/sdks/go/client/models/operations"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New()
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
 
-    res, err := s.Schemas.Get(ctx, operations.GetTenantDestinationTypeSchemaSecurity{
-        AdminAPIKey: openapi.String("<YOUR_BEARER_TOKEN_HERE>"),
-    }, operations.GetTenantDestinationTypeSchemaTypeRabbitmq, openapi.String("<id>"))
+    res, err := s.Schemas.Get(ctx, operations.GetTenantDestinationTypeSchemaTypeRabbitmq, client.String("<id>"))
     if err != nil {
         log.Fatal(err)
     }
@@ -108,13 +112,12 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                                              | Type                                                                                                                   | Required                                                                                                               | Description                                                                                                            |
-| ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `ctx`                                                                                                                  | [context.Context](https://pkg.go.dev/context#Context)                                                                  | :heavy_check_mark:                                                                                                     | The context to use for the request.                                                                                    |
-| `security`                                                                                                             | [operations.GetTenantDestinationTypeSchemaSecurity](../../models/operations/gettenantdestinationtypeschemasecurity.md) | :heavy_check_mark:                                                                                                     | The security requirements to use for the request.                                                                      |
-| `type_`                                                                                                                | [operations.GetTenantDestinationTypeSchemaType](../../models/operations/gettenantdestinationtypeschematype.md)         | :heavy_check_mark:                                                                                                     | The type of the destination.                                                                                           |
-| `tenantID`                                                                                                             | **string*                                                                                                              | :heavy_minus_sign:                                                                                                     | The ID of the tenant. Required when using AdminApiKey authentication.                                                  |
-| `opts`                                                                                                                 | [][operations.Option](../../models/operations/option.md)                                                               | :heavy_minus_sign:                                                                                                     | The options for this request.                                                                                          |
+| Parameter                                                                                                      | Type                                                                                                           | Required                                                                                                       | Description                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `ctx`                                                                                                          | [context.Context](https://pkg.go.dev/context#Context)                                                          | :heavy_check_mark:                                                                                             | The context to use for the request.                                                                            |
+| `type_`                                                                                                        | [operations.GetTenantDestinationTypeSchemaType](../../models/operations/gettenantdestinationtypeschematype.md) | :heavy_check_mark:                                                                                             | The type of the destination.                                                                                   |
+| `tenantID`                                                                                                     | **string*                                                                                                      | :heavy_minus_sign:                                                                                             | The ID of the tenant. Required when using AdminApiKey authentication.                                          |
+| `opts`                                                                                                         | [][operations.Option](../../models/operations/option.md)                                                       | :heavy_minus_sign:                                                                                             | The options for this request.                                                                                  |
 
 ### Response
 
@@ -146,19 +149,21 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/operations"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New()
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
 
-    res, err := s.Schemas.ListDestinationTypesJwt(ctx, operations.ListDestinationTypeSchemasJwtSecurity{
-        TenantJwt: "<YOUR_BEARER_TOKEN_HERE>",
-    })
+    res, err := s.Schemas.ListDestinationTypesJwt(ctx)
     if err != nil {
         log.Fatal(err)
     }
@@ -170,11 +175,10 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                                            | Type                                                                                                                 | Required                                                                                                             | Description                                                                                                          |
-| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `ctx`                                                                                                                | [context.Context](https://pkg.go.dev/context#Context)                                                                | :heavy_check_mark:                                                                                                   | The context to use for the request.                                                                                  |
-| `security`                                                                                                           | [operations.ListDestinationTypeSchemasJwtSecurity](../../models/operations/listdestinationtypeschemasjwtsecurity.md) | :heavy_check_mark:                                                                                                   | The security requirements to use for the request.                                                                    |
-| `opts`                                                                                                               | [][operations.Option](../../models/operations/option.md)                                                             | :heavy_minus_sign:                                                                                                   | The options for this request.                                                                                        |
+| Parameter                                                | Type                                                     | Required                                                 | Description                                              |
+| -------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| `ctx`                                                    | [context.Context](https://pkg.go.dev/context#Context)    | :heavy_check_mark:                                       | The context to use for the request.                      |
+| `opts`                                                   | [][operations.Option](../../models/operations/option.md) | :heavy_minus_sign:                                       | The options for this request.                            |
 
 ### Response
 
@@ -198,7 +202,7 @@ func main() {
 
 ## GetDestinationTypeJwt
 
-Returns the input schema for a specific destination type (infers tenant from JWT).
+Returns the input schema for a specific destination type.
 
 ### Example Usage
 
@@ -207,19 +211,22 @@ package main
 
 import(
 	"context"
-	"openapi"
-	"openapi/models/operations"
+	"github.com/hookdeck/outpost/sdks/go/client"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
+	"github.com/hookdeck/outpost/sdks/go/client/models/operations"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New()
+    s := client.New(
+        client.WithSecurity(components.Security{
+            AdminAPIKey: client.String("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
 
-    res, err := s.Schemas.GetDestinationTypeJwt(ctx, operations.GetDestinationTypeSchemaJwtSecurity{
-        TenantJwt: "<YOUR_BEARER_TOKEN_HERE>",
-    }, operations.GetDestinationTypeSchemaJwtTypeRabbitmq)
+    res, err := s.Schemas.GetDestinationTypeJwt(ctx, operations.GetDestinationTypeSchemaTypeAwsKinesis)
     if err != nil {
         log.Fatal(err)
     }
@@ -231,16 +238,15 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                                        | Type                                                                                                             | Required                                                                                                         | Description                                                                                                      |
-| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `ctx`                                                                                                            | [context.Context](https://pkg.go.dev/context#Context)                                                            | :heavy_check_mark:                                                                                               | The context to use for the request.                                                                              |
-| `security`                                                                                                       | [operations.GetDestinationTypeSchemaJwtSecurity](../../models/operations/getdestinationtypeschemajwtsecurity.md) | :heavy_check_mark:                                                                                               | The security requirements to use for the request.                                                                |
-| `type_`                                                                                                          | [operations.GetDestinationTypeSchemaJwtType](../../models/operations/getdestinationtypeschemajwttype.md)         | :heavy_check_mark:                                                                                               | The type of the destination.                                                                                     |
-| `opts`                                                                                                           | [][operations.Option](../../models/operations/option.md)                                                         | :heavy_minus_sign:                                                                                               | The options for this request.                                                                                    |
+| Parameter                                                                                          | Type                                                                                               | Required                                                                                           | Description                                                                                        |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `ctx`                                                                                              | [context.Context](https://pkg.go.dev/context#Context)                                              | :heavy_check_mark:                                                                                 | The context to use for the request.                                                                |
+| `type_`                                                                                            | [operations.GetDestinationTypeSchemaType](../../models/operations/getdestinationtypeschematype.md) | :heavy_check_mark:                                                                                 | The type of the destination.                                                                       |
+| `opts`                                                                                             | [][operations.Option](../../models/operations/option.md)                                           | :heavy_minus_sign:                                                                                 | The options for this request.                                                                      |
 
 ### Response
 
-**[*operations.GetDestinationTypeSchemaJwtResponse](../../models/operations/getdestinationtypeschemajwtresponse.md), error**
+**[*operations.GetDestinationTypeSchemaResponse](../../models/operations/getdestinationtypeschemaresponse.md), error**
 
 ### Errors
 

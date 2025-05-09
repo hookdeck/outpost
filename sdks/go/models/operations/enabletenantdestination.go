@@ -3,7 +3,7 @@
 package operations
 
 import (
-	"openapi/models/components"
+	"github.com/hookdeck/outpost/sdks/go/client/models/components"
 )
 
 type EnableTenantDestinationGlobals struct {
@@ -15,25 +15,6 @@ func (o *EnableTenantDestinationGlobals) GetTenantID() *string {
 		return nil
 	}
 	return o.TenantID
-}
-
-type EnableTenantDestinationSecurity struct {
-	AdminAPIKey *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-	TenantJwt   *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-}
-
-func (o *EnableTenantDestinationSecurity) GetAdminAPIKey() *string {
-	if o == nil {
-		return nil
-	}
-	return o.AdminAPIKey
-}
-
-func (o *EnableTenantDestinationSecurity) GetTenantJwt() *string {
-	if o == nil {
-		return nil
-	}
-	return o.TenantJwt
 }
 
 type EnableTenantDestinationRequest struct {
@@ -94,6 +75,20 @@ func (o *EnableTenantDestinationResponse) GetDestinationAwsSqs() *components.Des
 func (o *EnableTenantDestinationResponse) GetDestinationRabbitmq() *components.DestinationRabbitMQ {
 	if v := o.GetDestination(); v != nil {
 		return v.DestinationRabbitMQ
+	}
+	return nil
+}
+
+func (o *EnableTenantDestinationResponse) GetDestinationHookdeck() *components.DestinationHookdeck {
+	if v := o.GetDestination(); v != nil {
+		return v.DestinationHookdeck
+	}
+	return nil
+}
+
+func (o *EnableTenantDestinationResponse) GetDestinationAwsKinesis() *components.DestinationAWSKinesis {
+	if v := o.GetDestination(); v != nil {
+		return v.DestinationAWSKinesis
 	}
 	return nil
 }

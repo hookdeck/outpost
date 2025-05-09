@@ -20,16 +20,14 @@ package main
 
 import(
 	"context"
-	"openapi"
+	"github.com/hookdeck/outpost/sdks/go/client"
 	"log"
 )
 
 func main() {
     ctx := context.Background()
 
-    s := openapi.New(
-        openapi.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
-    )
+    s := client.New()
 
     res, err := s.Health.Check(ctx)
     if err != nil {

@@ -3,7 +3,7 @@
 package components
 
 import (
-	"openapi/internal/utils"
+	"github.com/hookdeck/outpost/sdks/go/client/internal/utils"
 	"time"
 )
 

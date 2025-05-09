@@ -5,7 +5,7 @@ package components
 import (
 	"encoding/json"
 	"fmt"
-	"openapi/internal/utils"
+	"github.com/hookdeck/outpost/sdks/go/client/internal/utils"
 	"time"
 )
 

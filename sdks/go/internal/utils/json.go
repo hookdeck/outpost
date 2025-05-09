@@ -13,7 +13,7 @@ import (
 	"time"
 	"unsafe"
 
-	"openapi/types"
+	"github.com/hookdeck/outpost/sdks/go/client/types"
 
 	"github.com/ericlagergren/decimal"
 )

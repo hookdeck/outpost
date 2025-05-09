@@ -12,7 +12,7 @@ import (
 
 	"github.com/ericlagergren/decimal"
 
-	"openapi/types"
+	"github.com/hookdeck/outpost/sdks/go/client/types"
 )
 
 func populateForm(paramName string, explode bool, objType reflect.Type, objValue reflect.Value, delimiter string, defaultValue *string, getFieldName func(reflect.StructField) string) url.Values {

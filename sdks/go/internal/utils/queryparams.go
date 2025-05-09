@@ -14,7 +14,7 @@ import (
 
 	"github.com/ericlagergren/decimal"
 
-	"openapi/types"
+	"github.com/hookdeck/outpost/sdks/go/client/types"
 )
 
 func PopulateQueryParams(_ context.Context, req *http.Request, queryParams interface{}, globals interface{}) error {
