@@ -1,0 +1,117 @@
+# Outpost deployment values for AWS EKS load testing
+
+outpost:
+  image:
+    # repository: hookdeck/outpost
+    # tag: latest
+    repository: 442042537672.dkr.ecr.us-east-1.amazonaws.com/outpost
+    tag: max_handlers
+    pullPolicy: Always
+
+  config:
+    publish_max_concurrency: 200
+    delivery_max_concurrency: 200
+    log_max_concurrency: 200
+
+    mqs:
+      delivery_retry_limit: 10
+      log_retry_limit: 10
+
+    portal:
+      organization_name: "Outpost LoadTest"
+      referer_url: "https://example.com"
+      favicon_url: "https://example.com/favicon.svg"
+      logo: "https://example.com"
+
+    destinations:
+      webhook:
+        header_prefix: "x-outpost-"
+
+  # Environment variables referencing Kubernetes secrets
+  env:
+    - name: POSTGRES_URL
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: POSTGRES_URL
+    - name: REDIS_HOST
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: REDIS_HOST
+    - name: REDIS_PORT
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: REDIS_PORT
+    - name: AWS_SQS_REGION
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: AWS_REGION
+    - name: AWS_SQS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: AWS_ACCESS_KEY_ID
+    - name: AWS_SQS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: AWS_SECRET_ACCESS_KEY
+    - name: API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: API_KEY
+    - name: API_JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: API_JWT_SECRET
+    - name: AES_ENCRYPTION_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: outpost-secrets
+          key: AES_ENCRYPTION_SECRET
+
+  replicas:
+    api: 5
+    delivery: 2
+    log: 1
+
+  resources:
+    api:
+      requests:
+        cpu: 150m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    delivery:
+      requests:
+        cpu: 200m
+        memory: 128Mi
+      limits:
+        cpu: 450m
+        memory: 256Mi
+    log:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 3333
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: nlb
+      service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    loadBalancerSourceRanges: []
+
+# Explicitly disable ingress
+ingress:
+  enabled: false

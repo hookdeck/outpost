@@ -104,10 +104,10 @@ export API_KEY=your_api_key_here
 export TESTID=$(date +%s)
 
 # Run the throughput test
-API_KEY=$API_KEY TESTID=$TESTID ./run-test.sh events-throughput
+API_KEY=$API_KEY TESTID=$TESTID ./run-test.sh events-throughput --environment local
 
 # Run the verification test
-API_KEY=$API_KEY TESTID=$TESTID MAX_ITERATIONS=1000 ./run-test.sh events-verify
+API_KEY=$API_KEY TESTID=$TESTID MAX_ITERATIONS=1000 ./run-test.sh events-verify --environment local
 ```
 
 The `TESTID` variable is used to correlate the tests, allowing the verification test to check the results of a specific throughput test run.

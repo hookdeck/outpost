@@ -10,5 +10,21 @@
 # Golang test coverage
 /*.out
 
+# Node.js
+node_modules
+
+# Terraform
+.terraform/
+terraform.tfstate
+terraform.tfstate.*
+.terraform.tfstate.lock.info
+.terraform.lock.hcl
+*.tf.backup
+
 # Misc
 .DS_Store
+*.log
+cmd/dev
+.bruno/
+.cursor/
+.ai/

@@ -47,6 +47,21 @@ const defaultOptions = {
       maxVUs: 100,
     },
   },
+  // HTTP configuration
+  http: {
+    // Disable connection reuse to avoid potential issues with keep-alive
+    keepAlive: false,
+    // Increase timeouts
+    timeout: "30s",
+    // Disable compression to reduce CPU usage
+    compression: "none",
+    // Disable redirects
+    redirects: 0,
+    // Disable cookies
+    cookies: {
+      enabled: false,
+    },
+  },
 };
 
 // Merge config options with defaults (config takes precedence)
@@ -115,6 +130,8 @@ export function setup() {
 
   // Clear any existing data for this test ID
   redisClient.del([`events:${TESTID}`]);
+  redisClient.del([`events_sorted:${TESTID}`]);
+  redisClient.del([`events_list:${TESTID}`]);
   redisClient.del([`events:${TESTID}:count`]);
   redisClient.set(`events:${TESTID}:count`, "0", 0);
 
@@ -150,6 +167,7 @@ export default function (data: { tenantId: string }) {
         vu: __VU,
         timestamp: new Date().toISOString(),
         sent_at: sentTimestamp,
+        // filler_payload: fillerPayload(),
       },
     }),
     { headers }
@@ -177,8 +195,13 @@ export default function (data: { tenantId: string }) {
 
   // Store event ID in Redis
   if (redisClient) {
-    // Add to Redis set
+    // Add to Redis set (keep for backward compatibility)
     redisClient.sadd(`events:${TESTID}`, eventId);
+
+    // Also add to a simple list that preserves insertion order
+    // We're using lpush (push to head) so most recent events are at the front
+    // @ts-ignore - Redis client types don't match correctly
+    redisClient.lpush(`events_list:${TESTID}`, eventId);
 
     // Store the sent timestamp for latency calculation
     redisClient.set(
@@ -195,8 +218,26 @@ export default function (data: { tenantId: string }) {
 // Teardown function runs once at the end of the test
 export function teardown(data: { tenantId: string }) {
   console.log(`📊 Test completed for tenant: ${data.tenantId}`);
-  console.log(`📊 Events stored in Redis under key: events:${TESTID}`);
+  console.log(
+    `📊 Events stored in Redis under keys: events:${TESTID} and events_list:${TESTID}`
+  );
   console.log(
     `📊 To verify these events, run the events-verify test with TESTID=${TESTID}`
   );
+}
+
+// Each item is ~49 bytes:
+// - id: "item_0" (~7 chars)
+// - value: "value_0" (~8 chars)
+// - timestamp: ISO string (~24 chars)
+// - JSON structure (~10 chars)
+// 125 items × 49 bytes = 6,125 bytes ≈ 6KB
+function fillerPayload(count: number = 125) {
+  return Array(count)
+    .fill(null)
+    .map((_, i) => ({
+      id: `item_${i}`,
+      value: `value_${i}`,
+      timestamp: new Date().toISOString(),
+    }));
 }
