@@ -1,0 +1,13 @@
+{
+  "name": "local",
+  "api": {
+    "baseUrl": "<URL>",
+    "timeout": "30s"
+  },
+  "mockWebhook": {
+    "url": "<URL>",
+    "destinationUrl": "<URL>",
+    "verificationPollTimeout": "5s"
+  },
+  "redis": "redis://localhost:46379"
+}
