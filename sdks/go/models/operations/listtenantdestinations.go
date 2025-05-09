@@ -43,9 +43,11 @@ func (o *ListTenantDestinationsSecurity) GetTenantJwt() *string {
 type ListTenantDestinationsTypeEnum2 string
 
 const (
-	ListTenantDestinationsTypeEnum2Webhook  ListTenantDestinationsTypeEnum2 = "webhook"
-	ListTenantDestinationsTypeEnum2AwsSqs   ListTenantDestinationsTypeEnum2 = "aws_sqs"
-	ListTenantDestinationsTypeEnum2Rabbitmq ListTenantDestinationsTypeEnum2 = "rabbitmq"
+	ListTenantDestinationsTypeEnum2Webhook    ListTenantDestinationsTypeEnum2 = "webhook"
+	ListTenantDestinationsTypeEnum2AwsSqs     ListTenantDestinationsTypeEnum2 = "aws_sqs"
+	ListTenantDestinationsTypeEnum2Rabbitmq   ListTenantDestinationsTypeEnum2 = "rabbitmq"
+	ListTenantDestinationsTypeEnum2Hookdeck   ListTenantDestinationsTypeEnum2 = "hookdeck"
+	ListTenantDestinationsTypeEnum2AwsKinesis ListTenantDestinationsTypeEnum2 = "aws_kinesis"
 )
 
 func (e ListTenantDestinationsTypeEnum2) ToPointer() *ListTenantDestinationsTypeEnum2 {
@@ -62,6 +64,10 @@ func (e *ListTenantDestinationsTypeEnum2) UnmarshalJSON(data []byte) error {
 	case "aws_sqs":
 		fallthrough
 	case "rabbitmq":
+		fallthrough
+	case "hookdeck":
+		fallthrough
+	case "aws_kinesis":
 		*e = ListTenantDestinationsTypeEnum2(v)
 		return nil
 	default:
@@ -72,9 +78,11 @@ func (e *ListTenantDestinationsTypeEnum2) UnmarshalJSON(data []byte) error {
 type ListTenantDestinationsTypeEnum1 string
 
 const (
-	ListTenantDestinationsTypeEnum1Webhook  ListTenantDestinationsTypeEnum1 = "webhook"
-	ListTenantDestinationsTypeEnum1AwsSqs   ListTenantDestinationsTypeEnum1 = "aws_sqs"
-	ListTenantDestinationsTypeEnum1Rabbitmq ListTenantDestinationsTypeEnum1 = "rabbitmq"
+	ListTenantDestinationsTypeEnum1Webhook    ListTenantDestinationsTypeEnum1 = "webhook"
+	ListTenantDestinationsTypeEnum1AwsSqs     ListTenantDestinationsTypeEnum1 = "aws_sqs"
+	ListTenantDestinationsTypeEnum1Rabbitmq   ListTenantDestinationsTypeEnum1 = "rabbitmq"
+	ListTenantDestinationsTypeEnum1Hookdeck   ListTenantDestinationsTypeEnum1 = "hookdeck"
+	ListTenantDestinationsTypeEnum1AwsKinesis ListTenantDestinationsTypeEnum1 = "aws_kinesis"
 )
 
 func (e ListTenantDestinationsTypeEnum1) ToPointer() *ListTenantDestinationsTypeEnum1 {
@@ -91,6 +99,10 @@ func (e *ListTenantDestinationsTypeEnum1) UnmarshalJSON(data []byte) error {
 	case "aws_sqs":
 		fallthrough
 	case "rabbitmq":
+		fallthrough
+	case "hookdeck":
+		fallthrough
+	case "aws_kinesis":
 		*e = ListTenantDestinationsTypeEnum1(v)
 		return nil
 	default:

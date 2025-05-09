@@ -3,6 +3,7 @@
 package components
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"openapi/internal/utils"
@@ -11,66 +12,139 @@ import (
 type DestinationCreateType string
 
 const (
-	DestinationCreateTypeDestinationCreateWebhook  DestinationCreateType = "DestinationCreateWebhook"
-	DestinationCreateTypeDestinationCreateAWSSQS   DestinationCreateType = "DestinationCreateAWSSQS"
-	DestinationCreateTypeDestinationCreateRabbitMQ DestinationCreateType = "DestinationCreateRabbitMQ"
+	DestinationCreateTypeWebhook    DestinationCreateType = "webhook"
+	DestinationCreateTypeAwsSqs     DestinationCreateType = "aws_sqs"
+	DestinationCreateTypeRabbitmq   DestinationCreateType = "rabbitmq"
+	DestinationCreateTypeHookdeck   DestinationCreateType = "hookdeck"
+	DestinationCreateTypeAwsKinesis DestinationCreateType = "aws_kinesis"
 )
 
 type DestinationCreate struct {
-	DestinationCreateWebhook  *DestinationCreateWebhook  `queryParam:"inline"`
-	DestinationCreateAWSSQS   *DestinationCreateAWSSQS   `queryParam:"inline"`
-	DestinationCreateRabbitMQ *DestinationCreateRabbitMQ `queryParam:"inline"`
+	DestinationCreateWebhook    *DestinationCreateWebhook    `queryParam:"inline"`
+	DestinationCreateAWSSQS     *DestinationCreateAWSSQS     `queryParam:"inline"`
+	DestinationCreateRabbitMQ   *DestinationCreateRabbitMQ   `queryParam:"inline"`
+	DestinationCreateHookdeck   *DestinationCreateHookdeck   `queryParam:"inline"`
+	DestinationCreateAWSKinesis *DestinationCreateAWSKinesis `queryParam:"inline"`
 
 	Type DestinationCreateType
 }
 
-func CreateDestinationCreateDestinationCreateWebhook(destinationCreateWebhook DestinationCreateWebhook) DestinationCreate {
-	typ := DestinationCreateTypeDestinationCreateWebhook
+func CreateDestinationCreateWebhook(webhook DestinationCreateWebhook) DestinationCreate {
+	typ := DestinationCreateTypeWebhook
+
+	typStr := DestinationCreateWebhookType(typ)
+	webhook.Type = typStr
 
 	return DestinationCreate{
-		DestinationCreateWebhook: &destinationCreateWebhook,
+		DestinationCreateWebhook: &webhook,
 		Type:                     typ,
 	}
 }
 
-func CreateDestinationCreateDestinationCreateAWSSQS(destinationCreateAWSSQS DestinationCreateAWSSQS) DestinationCreate {
-	typ := DestinationCreateTypeDestinationCreateAWSSQS
+func CreateDestinationCreateAwsSqs(awsSqs DestinationCreateAWSSQS) DestinationCreate {
+	typ := DestinationCreateTypeAwsSqs
+
+	typStr := DestinationCreateAWSSQSType(typ)
+	awsSqs.Type = typStr
 
 	return DestinationCreate{
-		DestinationCreateAWSSQS: &destinationCreateAWSSQS,
+		DestinationCreateAWSSQS: &awsSqs,
 		Type:                    typ,
 	}
 }
 
-func CreateDestinationCreateDestinationCreateRabbitMQ(destinationCreateRabbitMQ DestinationCreateRabbitMQ) DestinationCreate {
-	typ := DestinationCreateTypeDestinationCreateRabbitMQ
+func CreateDestinationCreateRabbitmq(rabbitmq DestinationCreateRabbitMQ) DestinationCreate {
+	typ := DestinationCreateTypeRabbitmq
+
+	typStr := DestinationCreateRabbitMQType(typ)
+	rabbitmq.Type = typStr
 
 	return DestinationCreate{
-		DestinationCreateRabbitMQ: &destinationCreateRabbitMQ,
+		DestinationCreateRabbitMQ: &rabbitmq,
 		Type:                      typ,
+	}
+}
+
+func CreateDestinationCreateHookdeck(hookdeck DestinationCreateHookdeck) DestinationCreate {
+	typ := DestinationCreateTypeHookdeck
+
+	typStr := DestinationCreateHookdeckType(typ)
+	hookdeck.Type = typStr
+
+	return DestinationCreate{
+		DestinationCreateHookdeck: &hookdeck,
+		Type:                      typ,
+	}
+}
+
+func CreateDestinationCreateAwsKinesis(awsKinesis DestinationCreateAWSKinesis) DestinationCreate {
+	typ := DestinationCreateTypeAwsKinesis
+
+	typStr := DestinationCreateAWSKinesisType(typ)
+	awsKinesis.Type = typStr
+
+	return DestinationCreate{
+		DestinationCreateAWSKinesis: &awsKinesis,
+		Type:                        typ,
 	}
 }
 
 func (u *DestinationCreate) UnmarshalJSON(data []byte) error {
 
-	var destinationCreateWebhook DestinationCreateWebhook = DestinationCreateWebhook{}
-	if err := utils.UnmarshalJSON(data, &destinationCreateWebhook, "", true, true); err == nil {
-		u.DestinationCreateWebhook = &destinationCreateWebhook
-		u.Type = DestinationCreateTypeDestinationCreateWebhook
-		return nil
+	type discriminator struct {
+		Type string `json:"type"`
 	}
 
-	var destinationCreateAWSSQS DestinationCreateAWSSQS = DestinationCreateAWSSQS{}
-	if err := utils.UnmarshalJSON(data, &destinationCreateAWSSQS, "", true, true); err == nil {
-		u.DestinationCreateAWSSQS = &destinationCreateAWSSQS
-		u.Type = DestinationCreateTypeDestinationCreateAWSSQS
-		return nil
+	dis := new(discriminator)
+	if err := json.Unmarshal(data, &dis); err != nil {
+		return fmt.Errorf("could not unmarshal discriminator: %w", err)
 	}
 
-	var destinationCreateRabbitMQ DestinationCreateRabbitMQ = DestinationCreateRabbitMQ{}
-	if err := utils.UnmarshalJSON(data, &destinationCreateRabbitMQ, "", true, true); err == nil {
-		u.DestinationCreateRabbitMQ = &destinationCreateRabbitMQ
-		u.Type = DestinationCreateTypeDestinationCreateRabbitMQ
+	switch dis.Type {
+	case "webhook":
+		destinationCreateWebhook := new(DestinationCreateWebhook)
+		if err := utils.UnmarshalJSON(data, &destinationCreateWebhook, "", true, false); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == webhook) type DestinationCreateWebhook within DestinationCreate: %w", string(data), err)
+		}
+
+		u.DestinationCreateWebhook = destinationCreateWebhook
+		u.Type = DestinationCreateTypeWebhook
+		return nil
+	case "aws_sqs":
+		destinationCreateAWSSQS := new(DestinationCreateAWSSQS)
+		if err := utils.UnmarshalJSON(data, &destinationCreateAWSSQS, "", true, false); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == aws_sqs) type DestinationCreateAWSSQS within DestinationCreate: %w", string(data), err)
+		}
+
+		u.DestinationCreateAWSSQS = destinationCreateAWSSQS
+		u.Type = DestinationCreateTypeAwsSqs
+		return nil
+	case "rabbitmq":
+		destinationCreateRabbitMQ := new(DestinationCreateRabbitMQ)
+		if err := utils.UnmarshalJSON(data, &destinationCreateRabbitMQ, "", true, false); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == rabbitmq) type DestinationCreateRabbitMQ within DestinationCreate: %w", string(data), err)
+		}
+
+		u.DestinationCreateRabbitMQ = destinationCreateRabbitMQ
+		u.Type = DestinationCreateTypeRabbitmq
+		return nil
+	case "hookdeck":
+		destinationCreateHookdeck := new(DestinationCreateHookdeck)
+		if err := utils.UnmarshalJSON(data, &destinationCreateHookdeck, "", true, false); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == hookdeck) type DestinationCreateHookdeck within DestinationCreate: %w", string(data), err)
+		}
+
+		u.DestinationCreateHookdeck = destinationCreateHookdeck
+		u.Type = DestinationCreateTypeHookdeck
+		return nil
+	case "aws_kinesis":
+		destinationCreateAWSKinesis := new(DestinationCreateAWSKinesis)
+		if err := utils.UnmarshalJSON(data, &destinationCreateAWSKinesis, "", true, false); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == aws_kinesis) type DestinationCreateAWSKinesis within DestinationCreate: %w", string(data), err)
+		}
+
+		u.DestinationCreateAWSKinesis = destinationCreateAWSKinesis
+		u.Type = DestinationCreateTypeAwsKinesis
 		return nil
 	}
 
@@ -88,6 +162,14 @@ func (u DestinationCreate) MarshalJSON() ([]byte, error) {
 
 	if u.DestinationCreateRabbitMQ != nil {
 		return utils.MarshalJSON(u.DestinationCreateRabbitMQ, "", true)
+	}
+
+	if u.DestinationCreateHookdeck != nil {
+		return utils.MarshalJSON(u.DestinationCreateHookdeck, "", true)
+	}
+
+	if u.DestinationCreateAWSKinesis != nil {
+		return utils.MarshalJSON(u.DestinationCreateAWSKinesis, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type DestinationCreate: all fields are null")

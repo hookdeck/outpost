@@ -3,8 +3,7 @@
 
 ## Values
 
-| Name                                | Value                               |
-| ----------------------------------- | ----------------------------------- |
-| `DestinationSchemaFieldTypeText`    | text                                |
-| `DestinationSchemaFieldTypeNumber`  | number                              |
-| `DestinationSchemaFieldTypeBoolean` | boolean                             |
+| Name                                 | Value                                |
+| ------------------------------------ | ------------------------------------ |
+| `DestinationSchemaFieldTypeText`     | text                                 |
+| `DestinationSchemaFieldTypeCheckbox` | checkbox                             |

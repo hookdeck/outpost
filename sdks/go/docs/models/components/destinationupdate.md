@@ -21,3 +21,15 @@ destinationUpdate := components.CreateDestinationUpdateDestinationUpdateAWSSQS(c
 destinationUpdate := components.CreateDestinationUpdateDestinationUpdateRabbitMQ(components.DestinationUpdateRabbitMQ{/* values here */})
 ```
 
+### DestinationUpdateHookdeck
+
+```go
+destinationUpdate := components.CreateDestinationUpdateDestinationUpdateHookdeck(components.DestinationUpdateHookdeck{/* values here */})
+```
+
+### DestinationUpdateAWSKinesis
+
+```go
+destinationUpdate := components.CreateDestinationUpdateDestinationUpdateAWSKinesis(components.DestinationUpdateAWSKinesis{/* values here */})
+```
+

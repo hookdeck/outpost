@@ -11,7 +11,7 @@ type DestinationTypeSchema struct {
 	// Markdown instructions.
 	Instructions *string `json:"instructions,omitempty"`
 	// Some destinations may have Oauth flow or other managed-setup flow that can be triggered with a link. If a `remote_setup_url` is set then the user should be prompted to follow the link to configure the destination.
-	// See the [dashboard design guide](https://outpost.hookdeck.com/guides/dashboard-design.mdx) for recommended UI patterns and wireframes for implementation in your own app.
+	// See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
 	RemoteSetupURL *string `json:"remote_setup_url,omitempty"`
 	// Config fields are non-secret values that can be stored and displayed to the user in plain text.
 	ConfigFields []DestinationSchemaField `json:"config_fields,omitempty"`

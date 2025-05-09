@@ -46,6 +46,10 @@ type DestinationRabbitMQ struct {
 	CreatedAt   time.Time           `json:"created_at"`
 	Config      RabbitMQConfig      `json:"config"`
 	Credentials RabbitMQCredentials `json:"credentials"`
+	// A human-readable representation of the destination target (RabbitMQ exchange). Read-only.
+	Target *string `json:"target,omitempty"`
+	// A URL link to the destination target (not applicable for RabbitMQ exchange). Read-only.
+	TargetURL *string `json:"target_url,omitempty"`
 }
 
 func (d DestinationRabbitMQ) MarshalJSON() ([]byte, error) {
@@ -106,4 +110,18 @@ func (o *DestinationRabbitMQ) GetCredentials() RabbitMQCredentials {
 		return RabbitMQCredentials{}
 	}
 	return o.Credentials
+}
+
+func (o *DestinationRabbitMQ) GetTarget() *string {
+	if o == nil {
+		return nil
+	}
+	return o.Target
+}
+
+func (o *DestinationRabbitMQ) GetTargetURL() *string {
+	if o == nil {
+		return nil
+	}
+	return o.TargetURL
 }

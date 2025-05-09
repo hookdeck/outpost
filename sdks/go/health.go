@@ -58,7 +58,7 @@ func (s *Health) Check(ctx context.Context, opts ...operations.Option) (*operati
 		Context:        ctx,
 		OperationID:    "healthCheck",
 		OAuth2Scopes:   []string{},
-		SecuritySource: s.sdkConfiguration.Security,
+		SecuritySource: nil,
 	}
 
 	timeout := o.Timeout
@@ -78,10 +78,6 @@ func (s *Health) Check(ctx context.Context, opts ...operations.Option) (*operati
 	}
 	req.Header.Set("Accept", "text/plain")
 	req.Header.Set("User-Agent", s.sdkConfiguration.UserAgent)
-
-	if err := utils.PopulateSecurity(ctx, req, s.sdkConfiguration.Security); err != nil {
-		return nil, err
-	}
 
 	for k, v := range o.SetHeaders {
 		req.Header.Set(k, v)

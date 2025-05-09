@@ -10,9 +10,8 @@ import (
 type DestinationSchemaFieldType string
 
 const (
-	DestinationSchemaFieldTypeText    DestinationSchemaFieldType = "text"
-	DestinationSchemaFieldTypeNumber  DestinationSchemaFieldType = "number"
-	DestinationSchemaFieldTypeBoolean DestinationSchemaFieldType = "boolean"
+	DestinationSchemaFieldTypeText     DestinationSchemaFieldType = "text"
+	DestinationSchemaFieldTypeCheckbox DestinationSchemaFieldType = "checkbox"
 )
 
 func (e DestinationSchemaFieldType) ToPointer() *DestinationSchemaFieldType {
@@ -26,9 +25,7 @@ func (e *DestinationSchemaFieldType) UnmarshalJSON(data []byte) error {
 	switch v {
 	case "text":
 		fallthrough
-	case "number":
-		fallthrough
-	case "boolean":
+	case "checkbox":
 		*e = DestinationSchemaFieldType(v)
 		return nil
 	default:
@@ -37,17 +34,25 @@ func (e *DestinationSchemaFieldType) UnmarshalJSON(data []byte) error {
 }
 
 type DestinationSchemaField struct {
-	Type        *DestinationSchemaFieldType `json:"type,omitempty"`
-	Label       *string                     `json:"label,omitempty"`
-	Description *string                     `json:"description,omitempty"`
-	// Regex string for validation.
-	Validation *string `json:"validation,omitempty"`
-	Required   *bool   `json:"required,omitempty"`
+	Type        DestinationSchemaFieldType `json:"type"`
+	Label       *string                    `json:"label,omitempty"`
+	Description *string                    `json:"description,omitempty"`
+	Required    bool                       `json:"required"`
+	// Indicates if the field contains sensitive information.
+	Sensitive *bool `json:"sensitive,omitempty"`
+	// Default value for the field.
+	Default *string `json:"default,omitempty"`
+	// Minimum length for a text input.
+	Minlength *int64 `json:"minlength,omitempty"`
+	// Maximum length for a text input.
+	Maxlength *int64 `json:"maxlength,omitempty"`
+	// Regex pattern for validation (compatible with HTML5 pattern attribute).
+	Pattern *string `json:"pattern,omitempty"`
 }
 
-func (o *DestinationSchemaField) GetType() *DestinationSchemaFieldType {
+func (o *DestinationSchemaField) GetType() DestinationSchemaFieldType {
 	if o == nil {
-		return nil
+		return DestinationSchemaFieldType("")
 	}
 	return o.Type
 }
@@ -66,16 +71,44 @@ func (o *DestinationSchemaField) GetDescription() *string {
 	return o.Description
 }
 
-func (o *DestinationSchemaField) GetValidation() *string {
+func (o *DestinationSchemaField) GetRequired() bool {
 	if o == nil {
-		return nil
-	}
-	return o.Validation
-}
-
-func (o *DestinationSchemaField) GetRequired() *bool {
-	if o == nil {
-		return nil
+		return false
 	}
 	return o.Required
+}
+
+func (o *DestinationSchemaField) GetSensitive() *bool {
+	if o == nil {
+		return nil
+	}
+	return o.Sensitive
+}
+
+func (o *DestinationSchemaField) GetDefault() *string {
+	if o == nil {
+		return nil
+	}
+	return o.Default
+}
+
+func (o *DestinationSchemaField) GetMinlength() *int64 {
+	if o == nil {
+		return nil
+	}
+	return o.Minlength
+}
+
+func (o *DestinationSchemaField) GetMaxlength() *int64 {
+	if o == nil {
+		return nil
+	}
+	return o.Maxlength
+}
+
+func (o *DestinationSchemaField) GetPattern() *string {
+	if o == nil {
+		return nil
+	}
+	return o.Pattern
 }

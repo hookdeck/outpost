@@ -46,6 +46,10 @@ type DestinationAWSSQS struct {
 	CreatedAt   time.Time         `json:"created_at"`
 	Config      AWSSQSConfig      `json:"config"`
 	Credentials AWSSQSCredentials `json:"credentials"`
+	// A human-readable representation of the destination target (SQS queue name). Read-only.
+	Target *string `json:"target,omitempty"`
+	// A URL link to the destination target (AWS Console link to the queue). Read-only.
+	TargetURL *string `json:"target_url,omitempty"`
 }
 
 func (d DestinationAWSSQS) MarshalJSON() ([]byte, error) {
@@ -106,4 +110,18 @@ func (o *DestinationAWSSQS) GetCredentials() AWSSQSCredentials {
 		return AWSSQSCredentials{}
 	}
 	return o.Credentials
+}
+
+func (o *DestinationAWSSQS) GetTarget() *string {
+	if o == nil {
+		return nil
+	}
+	return o.Target
+}
+
+func (o *DestinationAWSSQS) GetTargetURL() *string {
+	if o == nil {
+		return nil
+	}
+	return o.TargetURL
 }

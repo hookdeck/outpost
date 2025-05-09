@@ -11,9 +11,3 @@ Destination updated successfully or OAuth redirect needed.
 updateTenantDestinationResponseBody := operations.CreateUpdateTenantDestinationResponseBodyDestination(components.Destination{/* values here */})
 ```
 
-### DestinationOAuthRedirect
-
-```go
-updateTenantDestinationResponseBody := operations.CreateUpdateTenantDestinationResponseBodyDestinationOAuthRedirect(components.DestinationOAuthRedirect{/* values here */})
-```
-
