@@ -105,7 +105,8 @@ outpost:
 
   service:
     type: LoadBalancer
-    port: 3333
+    port: 80
+    targetPort: 3333
     annotations:
       service.beta.kubernetes.io/aws-load-balancer-type: nlb
       service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
