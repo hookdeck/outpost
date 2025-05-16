@@ -101,7 +101,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlert() {
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
+					StatusCode: http.StatusAccepted,
 				},
 			},
 		})
@@ -226,7 +226,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
+					StatusCode: http.StatusAccepted,
 				},
 			},
 		})
@@ -254,7 +254,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
 		}),
 		Expected: APITestExpectation{
 			Match: &httpclient.Response{
-				StatusCode: http.StatusOK,
+				StatusCode: http.StatusAccepted,
 			},
 		},
 	})
@@ -281,7 +281,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
+					StatusCode: http.StatusAccepted,
 				},
 			},
 		})

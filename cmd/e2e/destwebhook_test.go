@@ -103,7 +103,7 @@ func (suite *basicSuite) TestDestwebhookPublish() {
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
+					StatusCode: http.StatusAccepted,
 				},
 			},
 		},
@@ -187,7 +187,7 @@ func (suite *basicSuite) TestDestwebhookPublish() {
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
+					StatusCode: http.StatusAccepted,
 				},
 			},
 		},
@@ -270,7 +270,7 @@ func (suite *basicSuite) TestDestwebhookPublish() {
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
+					StatusCode: http.StatusAccepted,
 				},
 			},
 		},
@@ -352,7 +352,7 @@ func (suite *basicSuite) TestDestwebhookPublish() {
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
+					StatusCode: http.StatusAccepted,
 				},
 			},
 		},

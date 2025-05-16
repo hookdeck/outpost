@@ -39,6 +39,6 @@ func TestPublishHandlers(t *testing.T) {
 		var response map[string]any
 		json.Unmarshal(w.Body.Bytes(), &response)
 
-		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, http.StatusAccepted, w.Code)
 	})
 }

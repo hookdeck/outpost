@@ -951,7 +951,20 @@ paths:
       operationId: upsertTenant
       responses:
         "200":
-          description: Tenant details.
+          description: Tenant updated details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+              examples:
+                TenantExample:
+                  value:
+                    id: "tenant_123"
+                    destinations_count: 5
+                    topics: ["user.created", "user.deleted"]
+                    created_at: "2024-01-01T00:00:00Z"
+        "201":
+          description: Tenant created details.
           content:
             application/json:
               schema:
@@ -1387,7 +1400,7 @@ paths:
             schema:
               $ref: "#/components/schemas/PublishRequest"
       responses:
-        "202": # Accepted seems appropriate as processing is likely async
+        "202":
           description: Event accepted for publishing. Empty body.
         "400":
           description: Invalid request body.
