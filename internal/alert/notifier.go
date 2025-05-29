@@ -42,13 +42,20 @@ func NotifierWithBearerToken(token string) NotifierOption {
 	}
 }
 
+type AlertedEvent struct {
+	Topic    string                 `json:"topic"`    // event topic
+	Metadata map[string]string      `json:"metadata"` // event metadata
+	Data     map[string]interface{} `json:"data"`     // event payload
+}
+
 // ConsecutiveFailureData represents the data needed for a consecutive failure alert
 type ConsecutiveFailureData struct {
+	Event                  AlertedEvent           `json:"event"`
 	MaxConsecutiveFailures int                    `json:"max_consecutive_failures"`
 	ConsecutiveFailures    int                    `json:"consecutive_failures"`
 	WillDisable            bool                   `json:"will_disable"`
 	Destination            *models.Destination    `json:"destination"`
-	Data                   map[string]interface{} `json:"data"`
+	Data                   map[string]interface{} `json:"data"` // alert data, i.e. error message, etc.
 }
 
 // ConsecutiveFailureAlert represents an alert for consecutive failures

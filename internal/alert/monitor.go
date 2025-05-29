@@ -147,6 +147,11 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 	}
 
 	alert := NewConsecutiveFailureAlert(ConsecutiveFailureData{
+		Event: AlertedEvent{
+			Topic:    attempt.DeliveryEvent.Event.Topic,
+			Metadata: attempt.DeliveryEvent.Event.Metadata,
+			Data:     attempt.DeliveryEvent.Event.Data,
+		},
 		MaxConsecutiveFailures: m.autoDisableFailureCount,
 		ConsecutiveFailures:    count,
 		WillDisable:            m.disabler != nil && level == 100,
