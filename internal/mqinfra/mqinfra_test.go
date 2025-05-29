@@ -21,15 +21,15 @@ func testMQInfra(t *testing.T, mqConfig mqs.QueueConfig, dlqConfig mqs.QueueConf
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 
-	ctx := context.Background()
-	infra := mqinfra.New(&mqConfig)
-	require.NoError(t, infra.Declare(ctx))
-
-	t.Cleanup(func() {
-		require.NoError(t, infra.TearDown(ctx))
-	})
-
 	t.Run("should create queue", func(t *testing.T) {
+		ctx := context.Background()
+		infra := mqinfra.New(&mqConfig)
+		require.NoError(t, infra.Declare(ctx))
+
+		t.Cleanup(func() {
+			require.NoError(t, infra.TearDown(ctx))
+		})
+
 		mq := mqs.NewQueue(&mqConfig)
 		cleanup, err := mq.Init(ctx)
 		require.NoError(t, err)
@@ -75,6 +75,14 @@ func testMQInfra(t *testing.T, mqConfig mqs.QueueConfig, dlqConfig mqs.QueueConf
 	// - When the message is nacked, it should be retried 5 times before being sent to the DLQ.
 	// - Afterwards, reading the DLQ should return the message.
 	t.Run("should create dlq queue", func(t *testing.T) {
+		ctx := context.Background()
+		infra := mqinfra.New(&mqConfig)
+		require.NoError(t, infra.Declare(ctx))
+
+		t.Cleanup(func() {
+			require.NoError(t, infra.TearDown(ctx))
+		})
+
 		mq := mqs.NewQueue(&mqConfig)
 		cleanup, err := mq.Init(ctx)
 		require.NoError(t, err)
