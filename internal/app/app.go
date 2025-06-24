@@ -13,6 +13,7 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/otel"
+	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/services/api"
 	"github.com/hookdeck/outpost/internal/services/delivery"
 	"github.com/hookdeck/outpost/internal/services/log"
@@ -53,14 +54,20 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	if err := infra.Declare(mainContext, infra.Config{
-		DeliveryMQ: cfg.MQs.ToInfraConfig("deliverymq"),
-		LogMQ:      cfg.MQs.ToInfraConfig("logmq"),
-	}); err != nil {
+	redisClient, err := redis.New(mainContext, cfg.Redis.ToConfig())
+	if err != nil {
 		return err
 	}
 
-	installationID, err := getInstallation(mainContext, cfg.Redis.ToConfig(), cfg.Telemetry.ToTelemetryConfig())
+	outpostInfra := infra.NewInfra(infra.Config{
+		DeliveryMQ: cfg.MQs.ToInfraConfig("deliverymq"),
+		LogMQ:      cfg.MQs.ToInfraConfig("logmq"),
+	}, redisClient)
+	if err := outpostInfra.Declare(mainContext); err != nil {
+		return err
+	}
+
+	installationID, err := getInstallation(mainContext, redisClient, cfg.Telemetry.ToTelemetryConfig())
 	if err != nil {
 		return err
 	}
