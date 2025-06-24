@@ -11,6 +11,76 @@ type infraRabbitMQ struct {
 	cfg *MQInfraConfig
 }
 
+func (infra *infraRabbitMQ) Exist(ctx context.Context) (bool, error) {
+	if infra.cfg == nil || infra.cfg.RabbitMQ == nil {
+		return false, errors.New("failed assertion: cfg.RabbitMQ != nil") // IMPOSSIBLE
+	}
+
+	conn, err := amqp091.Dial(infra.cfg.RabbitMQ.ServerURL)
+	if err != nil {
+		return false, err
+	}
+	defer conn.Close()
+	ch, err := conn.Channel()
+	if err != nil {
+		return false, err
+	}
+	defer ch.Close()
+
+	dlq := infra.cfg.RabbitMQ.Queue + ".dlq"
+
+	// Check if exchange exists using passive declare
+	if err := ch.ExchangeDeclarePassive(
+		infra.cfg.RabbitMQ.Exchange, // name
+		"topic",                     // type
+		true,                        // durable
+		false,                       // auto-deleted
+		false,                       // internal
+		false,                       // no-wait
+		nil,                         // arguments
+	); err != nil {
+		// If error is channel/connection closed, exchange doesn't exist
+		if amqpErr, ok := err.(*amqp091.Error); ok && amqpErr.Code == 404 {
+			return false, nil
+		}
+		return false, err
+	}
+
+	// Check if main queue exists using passive declare
+	if _, err := ch.QueueDeclarePassive(
+		infra.cfg.RabbitMQ.Queue, // name
+		true,                     // durable
+		false,                    // delete when unused
+		false,                    // exclusive
+		false,                    // no-wait
+		nil,                      // arguments
+	); err != nil {
+		// If error is channel/connection closed, queue doesn't exist
+		if amqpErr, ok := err.(*amqp091.Error); ok && amqpErr.Code == 404 {
+			return false, nil
+		}
+		return false, err
+	}
+
+	// Check if DLQ exists using passive declare
+	if _, err := ch.QueueDeclarePassive(
+		dlq,   // name
+		true,  // durable
+		false, // delete when unused
+		false, // exclusive
+		false, // no-wait
+		nil,   // arguments
+	); err != nil {
+		// If error is channel/connection closed, queue doesn't exist
+		if amqpErr, ok := err.(*amqp091.Error); ok && amqpErr.Code == 404 {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
+}
+
 func (infra *infraRabbitMQ) Declare(ctx context.Context) error {
 	if infra.cfg == nil || infra.cfg.RabbitMQ == nil {
 		return errors.New("failed assertion: cfg.RabbitMQ != nil") // IMPOSSIBLE
