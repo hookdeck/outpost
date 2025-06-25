@@ -41,11 +41,20 @@ down/uptrace:
 up/portal:
 	cd internal/portal && npm install && npm run dev
 
+up/azure:
+	docker compose -f build/dev/azure/compose.yml up -d
+
+down/azure:
+	docker compose -f build/dev/azure/compose.yml down --volumes
+
 up/test:
 	docker-compose -f build/test/compose.yml up -d
 
 down/test:
 	docker-compose -f build/test/compose.yml down --volumes
+
+test/setup:
+	bash scripts/test-setup-info.sh
 
 test:
 	go test $(TEST) $(TESTARGS)

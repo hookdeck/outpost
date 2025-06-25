@@ -63,7 +63,9 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     ports:
-      - 5672:5672
+      # Reserve 5672 for AzureSB Emulator which doens't support custom ports.
+      # We may not need to expose 5672 at all if we run the full local dev env with Docker Compose.
+      # - 5673:5672
       - 15672:15672
     volumes:
       - rabbitmq:/var/lib/rabbitmq

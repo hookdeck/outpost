@@ -1,0 +1,26 @@
+{
+  "UserConfig": {
+    "Namespaces": [
+      {
+        "Name": "sbemulatorns",
+        "Queues": [],
+        "Topics": [
+          {
+            "Name": "TestIntegrationMQ_AzureServiceBus-topic",
+            "Properties": {},
+            "Subscriptions": [
+              {
+                "Name": "TestIntegrationMQ_AzureServiceBus-subscription",
+                "Properties": {},
+                "Rules": []
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "Logging": {
+      "Type": "Console"
+    }
+  }
+}
