@@ -1,7 +1,7 @@
-name: "outpost-azure-emulator"
+name: "outpost-azure"
 
 services:
-  emulator:
+  azuresb:
     image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
     volumes:
       - "./config.json:/ServiceBus_Emulator/ConfigFiles/Config.json"
