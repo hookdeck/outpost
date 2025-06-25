@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/infra"
+	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/require"
@@ -74,10 +75,15 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 
 	// Setup cleanup
 	t.Cleanup(func() {
-		if err := infra.Teardown(context.Background(), infra.Config{
+		redisClient, err := redis.New(context.Background(), c.Redis.ToConfig())
+		if err != nil {
+			log.Println("Failed to create redis client:", err)
+		}
+		outpostInfra := infra.NewInfra(infra.Config{
 			DeliveryMQ: c.MQs.ToInfraConfig("deliverymq"),
 			LogMQ:      c.MQs.ToInfraConfig("logmq"),
-		}); err != nil {
+		}, redisClient)
+		if err := outpostInfra.Teardown(context.Background()); err != nil {
 			log.Println("Teardown failed:", err)
 		}
 	})

@@ -6,6 +6,7 @@ import (
 )
 
 type MQInfra interface {
+	Exist(ctx context.Context) (bool, error)
 	Declare(ctx context.Context) error
 	TearDown(ctx context.Context) error
 }
@@ -73,6 +74,10 @@ func New(cfg *MQInfraConfig) MQInfra {
 }
 
 type infraInvalid struct {
+}
+
+func (infra *infraInvalid) Exist(ctx context.Context) (bool, error) {
+	return false, ErrInvalidConfig
 }
 
 func (infra *infraInvalid) Declare(ctx context.Context) error {

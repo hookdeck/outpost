@@ -40,6 +40,16 @@ func New(ctx context.Context, config *RedisConfig) (*r.Client, error) {
 	return client, initializationError
 }
 
+// NewClient is a helper function to create a new redis client without the singleton initialization.
+// This is useful for testing purposes.
+func NewClient(ctx context.Context, config *RedisConfig) (*r.Client, error) {
+	return r.NewClient(&r.Options{
+		Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
+		Password: config.Password,
+		DB:       config.Database,
+	}), nil
+}
+
 func instrumentOpenTelemetry() error {
 	if err := redisotel.InstrumentTracing(client); err != nil {
 		return err

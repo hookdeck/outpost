@@ -13,14 +13,9 @@ const (
 	installationKey = "installation"
 )
 
-func getInstallation(ctx context.Context, redisConfig *redis.RedisConfig, telemetryConfig telemetry.TelemetryConfig) (string, error) {
+func getInstallation(ctx context.Context, redisClient *redis.Client, telemetryConfig telemetry.TelemetryConfig) (string, error) {
 	if telemetryConfig.Disabled {
 		return "", nil
-	}
-
-	redisClient, err := redis.New(ctx, redisConfig)
-	if err != nil {
-		return "", err
 	}
 
 	// TODO: consider using WATCH to avoid race condition

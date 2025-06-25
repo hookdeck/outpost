@@ -29,7 +29,14 @@ func testMQInfra(t *testing.T, mqConfig *Config, dlqConfig *Config) {
 	t.Run("should create queue", func(t *testing.T) {
 		ctx := context.Background()
 		infra := mqinfra.New(&mqConfig.infra)
-		require.NoError(t, infra.Declare(ctx))
+		exists, err := infra.Exist(ctx)
+		require.NoError(t, err)
+		if !exists {
+			require.NoError(t, infra.Declare(ctx))
+			exists, err = infra.Exist(ctx)
+			require.NoError(t, err)
+			require.True(t, exists)
+		}
 
 		t.Cleanup(func() {
 			require.NoError(t, infra.TearDown(ctx))
@@ -82,7 +89,14 @@ func testMQInfra(t *testing.T, mqConfig *Config, dlqConfig *Config) {
 	t.Run("should create dlq queue", func(t *testing.T) {
 		ctx := context.Background()
 		infra := mqinfra.New(&mqConfig.infra)
-		require.NoError(t, infra.Declare(ctx))
+		exists, err := infra.Exist(ctx)
+		require.NoError(t, err)
+		if !exists {
+			require.NoError(t, infra.Declare(ctx))
+			exists, err = infra.Exist(ctx)
+			require.NoError(t, err)
+			require.True(t, exists)
+		}
 
 		t.Cleanup(func() {
 			require.NoError(t, infra.TearDown(ctx))

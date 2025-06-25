@@ -14,6 +14,56 @@ type infraAzureServiceBus struct {
 	cfg *MQInfraConfig
 }
 
+func (infra *infraAzureServiceBus) Exist(ctx context.Context) (bool, error) {
+	if infra.cfg == nil || infra.cfg.AzureServiceBus == nil {
+		return false, fmt.Errorf("failed assertion: cfg.AzureServiceBus != nil")
+	}
+
+	cfg := infra.cfg.AzureServiceBus
+
+	// Create credential for authentication
+	cred, err := azidentity.NewClientSecretCredential(
+		cfg.TenantID,
+		cfg.ClientID,
+		cfg.ClientSecret,
+		nil,
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to create credential: %w", err)
+	}
+
+	// Create clients for topic and subscription management
+	topicClient, err := armservicebus.NewTopicsClient(cfg.SubscriptionID, cred, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create topic client: %w", err)
+	}
+
+	subClient, err := armservicebus.NewSubscriptionsClient(cfg.SubscriptionID, cred, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create subscription client: %w", err)
+	}
+
+	// Check if topic exists
+	_, err = topicClient.Get(ctx, cfg.ResourceGroup, cfg.Namespace, cfg.Topic, nil)
+	if err != nil {
+		if isNotFoundError(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check topic existence: %w", err)
+	}
+
+	// Check if subscription exists
+	_, err = subClient.Get(ctx, cfg.ResourceGroup, cfg.Namespace, cfg.Topic, cfg.Subscription, nil)
+	if err != nil {
+		if isNotFoundError(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check subscription existence: %w", err)
+	}
+
+	return true, nil
+}
+
 func (infra *infraAzureServiceBus) Declare(ctx context.Context) error {
 	if infra.cfg == nil || infra.cfg.AzureServiceBus == nil {
 		return fmt.Errorf("failed assertion: cfg.AzureServiceBus != nil")
