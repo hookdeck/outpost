@@ -1,3 +1,21 @@
+// Package infra provides distributed locking for infrastructure provisioning.
+//
+// This implementation uses a naive "single instance" Redis distributed locking algorithm
+// as described in https://redis.io/docs/latest/develop/use/patterns/distributed-locks/
+//
+// We use the simple SET NX PX pattern which has edge cases where multiple nodes may
+// acquire the lock under extreme circumstances (see the Redis documentation for details).
+// We accept these edge cases because:
+//
+// 1. Infrastructure provisioning is infrequent and can tolerate occasional race conditions
+// 2. Cloud providers (AWS, GCP, Azure) handle concurrent provisioning attempts gracefully
+// 3. In the worst case, if provisioning fails due to a conflict, the node won't be able
+//    to start and will fail its health check, allowing another node to take over
+//
+// This locking mechanism is primarily needed during the initial infrastructure setup.
+// Once infrastructure is provisioned on first startup, subsequent nodes will detect it
+// already exists and skip provisioning entirely.
+
 package infra
 
 import (
