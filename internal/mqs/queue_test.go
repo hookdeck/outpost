@@ -49,11 +49,9 @@ func TestIntegrationMQ_GCPPubSub(t *testing.T) {
 }
 
 func TestIntegrationMQ_AzureServiceBus(t *testing.T) {
-	t.Skip("skip AzureServiceBus integration test for now since there's no emulator yet")
-
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
-	// config := testinfra.NewMQAzureServiceBusConfig(t, nil)
+	config := testinfra.GetMQAzureConfig(t, "TestIntegrationMQ_AzureServiceBus")
 
 	// config := mqs.QueueConfig{
 	// 	AzureServiceBus: &mqs.AzureServiceBusConfig{
@@ -62,18 +60,18 @@ func TestIntegrationMQ_AzureServiceBus(t *testing.T) {
 	// 		Subscription:     "test-subscription",
 	// 	},
 	// }
-	config := mqs.QueueConfig{
-		AzureServiceBus: &mqs.AzureServiceBusConfig{
-			TenantID:       "",
-			ClientID:       "",
-			ClientSecret:   "",
-			SubscriptionID: "",
-			ResourceGroup:  "",
-			Namespace:      "",
-			Topic:          "test-topic",
-			Subscription:   "test-subscription",
-		},
-	}
+	// config := mqs.QueueConfig{
+	// 	AzureServiceBus: &mqs.AzureServiceBusConfig{
+	// 		TenantID:       "",
+	// 		ClientID:       "",
+	// 		ClientSecret:   "",
+	// 		SubscriptionID: "",
+	// 		ResourceGroup:  "",
+	// 		Namespace:      "",
+	// 		Topic:          "test-topic",
+	// 		Subscription:   "test-subscription",
+	// 	},
+	// }
 	testMQ(t, func() mqs.QueueConfig { return config })
 }
 

@@ -1,0 +1,28 @@
+name: "outpost-azure"
+
+services:
+  azuresb:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    volumes:
+      - "./config.json:/ServiceBus_Emulator/ConfigFiles/Config.json"
+    ports:
+      - "5672:5672"
+      - "5300:5300"
+    environment:
+      SQL_SERVER: sqledge
+      MSSQL_SA_PASSWORD: "Password!"
+      ACCEPT_EULA: "Y"
+      SQL_WAIT_INTERVAL: "5"
+    depends_on:
+      - sqledge
+
+  sqledge:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Password!"
+
+networks:
+  default:
+    name: outpost
+    external: true

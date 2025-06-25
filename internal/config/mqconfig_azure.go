@@ -8,6 +8,9 @@ import (
 )
 
 type AzureServiceBusConfig struct {
+	// Using AzureSB with ConnectionString will skip infra management
+	ConnectionString string `yaml:"connection_string" env:"AZURE_SERVICEBUS_CONNECTION_STRING" desc:"Azure Service Bus connection string" required:"N"`
+
 	TenantID       string `yaml:"tenant_id" env:"AZURE_SERVICEBUS_TENANT_ID" desc:"Azure Active Directory tenant ID" required:"Y"`
 	ClientID       string `yaml:"client_id" env:"AZURE_SERVICEBUS_CLIENT_ID" desc:"Service principal client ID" required:"Y"`
 	ClientSecret   string `yaml:"client_secret" env:"AZURE_SERVICEBUS_CLIENT_SECRET" desc:"Service principal client secret" required:"Y"`
@@ -16,9 +19,9 @@ type AzureServiceBusConfig struct {
 	Namespace      string `yaml:"namespace" env:"AZURE_SERVICEBUS_NAMESPACE" desc:"Azure Service Bus namespace" required:"Y"`
 
 	DeliveryTopic        string `yaml:"delivery_topic" env:"AZURE_SERVICEBUS_DELIVERY_TOPIC" desc:"Topic name for delivery queue" required:"N" default:"outpost-delivery"`
-	DeliverySubscription string `yaml:"delivery_subscription" env:"AZURE_SERVICEBUS_DELIVERY_SUBSCRIPTION" desc:"Subscription name for delivery queue" required:"N" default:"outpost-delivery-subscription"`
+	DeliverySubscription string `yaml:"delivery_subscription" env:"AZURE_SERVICEBUS_DELIVERY_SUBSCRIPTION" desc:"Subscription name for delivery queue" required:"N" default:"outpost-delivery-sub"`
 	LogTopic             string `yaml:"log_topic" env:"AZURE_SERVICEBUS_LOG_TOPIC" desc:"Topic name for log queue" required:"N" default:"outpost-log"`
-	LogSubscription      string `yaml:"log_subscription" env:"AZURE_SERVICEBUS_LOG_SUBSCRIPTION" desc:"Subscription name for log queue" required:"N" default:"outpost-log-subscription"`
+	LogSubscription      string `yaml:"log_subscription" env:"AZURE_SERVICEBUS_LOG_SUBSCRIPTION" desc:"Subscription name for log queue" required:"N" default:"outpost-log-sub"`
 
 	// connectionStringOnce  sync.Once
 	// connectionString      string
@@ -26,7 +29,7 @@ type AzureServiceBusConfig struct {
 }
 
 func (c *AzureServiceBusConfig) IsConfigured() bool {
-	return c.TenantID != "" && c.ClientID != "" && c.ClientSecret != "" && c.SubscriptionID != "" && c.ResourceGroup != "" && c.Namespace != ""
+	return c.ConnectionString != "" || (c.TenantID != "" && c.ClientID != "" && c.ClientSecret != "" && c.SubscriptionID != "" && c.ResourceGroup != "" && c.Namespace != "")
 }
 
 func (c *AzureServiceBusConfig) GetProviderType() string {
@@ -65,14 +68,15 @@ func (c *AzureServiceBusConfig) ToInfraConfig(queueType string) *mqinfra.MQInfra
 
 	return &mqinfra.MQInfraConfig{
 		AzureServiceBus: &mqinfra.AzureServiceBusInfraConfig{
-			TenantID:       c.TenantID,
-			ClientID:       c.ClientID,
-			ClientSecret:   c.ClientSecret,
-			SubscriptionID: c.SubscriptionID,
-			ResourceGroup:  c.ResourceGroup,
-			Namespace:      c.Namespace,
-			Topic:          topic,
-			Subscription:   subscription,
+			ConnectionString: c.ConnectionString,
+			TenantID:         c.TenantID,
+			ClientID:         c.ClientID,
+			ClientSecret:     c.ClientSecret,
+			SubscriptionID:   c.SubscriptionID,
+			ResourceGroup:    c.ResourceGroup,
+			Namespace:        c.Namespace,
+			Topic:            topic,
+			Subscription:     subscription,
 		},
 	}
 }
@@ -84,6 +88,16 @@ func (c *AzureServiceBusConfig) ToQueueConfig(ctx context.Context, queueType str
 
 	topic := c.getTopicByQueueType(queueType)
 	subscription := c.getSubscriptionByQueueType(queueType)
+
+	if c.ConnectionString != "" {
+		return &mqs.QueueConfig{
+			AzureServiceBus: &mqs.AzureServiceBusConfig{
+				ConnectionString: c.ConnectionString,
+				Topic:            topic,
+				Subscription:     subscription,
+			},
+		}, nil
+	}
 
 	return &mqs.QueueConfig{
 		AzureServiceBus: &mqs.AzureServiceBusConfig{

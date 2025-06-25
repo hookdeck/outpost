@@ -324,7 +324,7 @@ func TestIntegrationMQInfra_GCPPubSub(t *testing.T) {
 }
 
 func TestIntegrationMQInfra_AzureServiceBus(t *testing.T) {
-	t.Skip("skip AzureServiceBus integration test for now since there's no emulator yet")
+	t.Skip("skip TestIntegrationMQInfra_AzureServiceBus integration test for now since the emulator doesn't support managing resources")
 
 	topic := uuid.New().String()
 	subscription := topic + "-subscription"

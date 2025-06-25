@@ -21,6 +21,10 @@ func (infra *infraAzureServiceBus) Exist(ctx context.Context) (bool, error) {
 
 	cfg := infra.cfg.AzureServiceBus
 
+	if cfg.ConnectionString != "" {
+		return true, nil
+	}
+
 	// Create credential for authentication
 	cred, err := azidentity.NewClientSecretCredential(
 		cfg.TenantID,
@@ -70,6 +74,10 @@ func (infra *infraAzureServiceBus) Declare(ctx context.Context) error {
 	}
 
 	cfg := infra.cfg.AzureServiceBus
+
+	if cfg.ConnectionString != "" {
+		return nil
+	}
 
 	// Create credential for authentication
 	cred, err := azidentity.NewClientSecretCredential(
@@ -145,6 +153,10 @@ func (infra *infraAzureServiceBus) TearDown(ctx context.Context) error {
 	}
 
 	cfg := infra.cfg.AzureServiceBus
+
+	if cfg.ConnectionString != "" {
+		return nil
+	}
 
 	// Create credential for authentication
 	cred, err := azidentity.NewClientSecretCredential(
