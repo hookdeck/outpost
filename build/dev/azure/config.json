@@ -32,6 +32,15 @@
               }
             ]
           },
+          // publishmq
+          {
+            "Name": "outpost-publish",
+            "Subscriptions": [
+              {
+                "Name": "outpost-publish-sub"
+              }
+            ]
+          },
 
           // tests
           {
