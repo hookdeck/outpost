@@ -14,6 +14,12 @@ type PublishAWSSQSConfig struct {
 	Queue           string `yaml:"queue" env:"PUBLISH_AWS_SQS_QUEUE" desc:"Name of the SQS queue for publishing events. Required if AWS SQS is the chosen publish MQ provider." required:"C"`
 }
 
+type PublishAzureServiceBusConfig struct {
+	ConnectionString string `yaml:"connection_string" env:"PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING" desc:"Azure Service Bus connection string for the publish queue. Required if Azure Service Bus is the chosen publish MQ provider." required:"C"`
+	Topic            string `yaml:"topic" env:"PUBLISH_AZURE_SERVICEBUS_TOPIC" desc:"Name of the Azure Service Bus topic for publishing events. Required if Azure Service Bus is the chosen publish MQ provider." required:"C"`
+	Subscription     string `yaml:"subscription" env:"PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION" desc:"Name of the Azure Service Bus subscription to read published events from. Required if Azure Service Bus is the chosen publish MQ provider." required:"C"`
+}
+
 type PublishGCPPubSubConfig struct {
 	Project                   string `yaml:"project" env:"PUBLISH_GCP_PUBSUB_PROJECT" desc:"GCP Project ID for the Pub/Sub publish topic. Required if GCP Pub/Sub is the chosen publish MQ provider." required:"C"`
 	Topic                     string `yaml:"topic" env:"PUBLISH_GCP_PUBSUB_TOPIC" desc:"Name of the GCP Pub/Sub topic for publishing events. Required if GCP Pub/Sub is the chosen publish MQ provider." required:"C"`
@@ -28,14 +34,18 @@ type PublishRabbitMQConfig struct {
 }
 
 type PublishMQConfig struct {
-	AWSSQS    PublishAWSSQSConfig    `yaml:"aws_sqs" desc:"Configuration for using AWS SQS as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
-	GCPPubSub PublishGCPPubSubConfig `yaml:"gcp_pubsub" desc:"Configuration for using GCP Pub/Sub as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
-	RabbitMQ  PublishRabbitMQConfig  `yaml:"rabbitmq" desc:"Configuration for using RabbitMQ as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
+	AWSSQS          PublishAWSSQSConfig          `yaml:"aws_sqs" desc:"Configuration for using AWS SQS as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
+	AzureServiceBus PublishAzureServiceBusConfig `yaml:"azure_servicebus" desc:"Configuration for using Azure Service Bus as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
+	GCPPubSub       PublishGCPPubSubConfig       `yaml:"gcp_pubsub" desc:"Configuration for using GCP Pub/Sub as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
+	RabbitMQ        PublishRabbitMQConfig        `yaml:"rabbitmq" desc:"Configuration for using RabbitMQ as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
 }
 
 func (c PublishMQConfig) GetInfraType() string {
 	if hasPublishAWSSQSConfig(c.AWSSQS) {
 		return "awssqs"
+	}
+	if hasPublishAzureServiceBusConfig(c.AzureServiceBus) {
+		return "azureservicebus"
 	}
 	if hasPublishGCPPubSubConfig(c.GCPPubSub) {
 		return "gcppubsub"
@@ -57,6 +67,14 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 				Region:                    c.AWSSQS.Region,
 				ServiceAccountCredentials: creds,
 				Topic:                     c.AWSSQS.Queue,
+			},
+		}
+	case "azureservicebus":
+		return &mqs.QueueConfig{
+			AzureServiceBus: &mqs.AzureServiceBusConfig{
+				ConnectionString: c.AzureServiceBus.ConnectionString,
+				Topic:            c.AzureServiceBus.Topic,
+				Subscription:     c.AzureServiceBus.Subscription,
 			},
 		}
 	case "gcppubsub":
@@ -84,6 +102,10 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 func hasPublishAWSSQSConfig(config PublishAWSSQSConfig) bool {
 	return config.AccessKeyID != "" &&
 		config.SecretAccessKey != "" && config.Region != ""
+}
+
+func hasPublishAzureServiceBusConfig(config PublishAzureServiceBusConfig) bool {
+	return config.ConnectionString != "" && config.Topic != "" && config.Subscription != ""
 }
 
 func hasPublishGCPPubSubConfig(config PublishGCPPubSubConfig) bool {
