@@ -1,0 +1,55 @@
+{
+  "UserConfig": {
+    "Namespaces": [
+      {
+        "Name": "sbemulatorns",
+        "Queues": [],
+        "Topics": [
+          // dev
+          {
+            "Name": "outpost-delivery",
+            "Properties": {},
+            "Subscriptions": [
+              {
+                "Name": "outpost-delivery-sub",
+                "Properties": {
+                  "MaxDeliveryCount": 6
+                },
+                "Rules": []
+              }
+            ]
+          },
+          {
+            "Name": "outpost-log",
+            "Properties": {},
+            "Subscriptions": [
+              {
+                "Name": "outpost-log-sub",
+                "Properties": {
+                  "MaxDeliveryCount": 6
+                },
+                "Rules": []
+              }
+            ]
+          },
+
+          // tests
+          {
+            "Name": "TestIntegrationMQ_AzureServiceBus-topic",
+            "Properties": {},
+            "Subscriptions": [
+              {
+                "Name": "TestIntegrationMQ_AzureServiceBus-subscription",
+                "Properties": {},
+                "Rules": []
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "Logging": {
+      "Type": "Console"
+    }
+  }
+}

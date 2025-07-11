@@ -18,14 +18,16 @@ var (
 )
 
 type Config struct {
-	TestInfra     bool
-	ClickHouseURL string
-	PostgresURL   string
-	LocalStackURL string
-	RabbitMQURL   string
-	MockServerURL string
-	GCPURL        string
-	cleanupFns    []func()
+	TestInfra         bool
+	TestAzure         bool
+	ClickHouseURL     string
+	PostgresURL       string
+	LocalStackURL     string
+	RabbitMQURL       string
+	MockServerURL     string
+	GCPURL            string
+	AzureSBConnString string
+	cleanupFns        []func()
 }
 
 func initConfig() {
@@ -56,24 +58,32 @@ func initConfig() {
 			mockServerURL = "http://" + mockServerURL
 		}
 		cfg = &Config{
-			TestInfra:     v.GetBool("TESTINFRA"),
-			ClickHouseURL: v.GetString("TEST_CLICKHOUSE_URL"),
-			PostgresURL:   v.GetString("TEST_POSTGRES_URL"),
-			LocalStackURL: localstackURL,
-			GCPURL:        v.GetString("TEST_GCP_URL"),
-			RabbitMQURL:   rabbitmqURL,
-			MockServerURL: mockServerURL,
+			TestInfra:         v.GetBool("TESTINFRA"),
+			TestAzure:         v.GetBool("TESTAZURE"),
+			ClickHouseURL:     v.GetString("TEST_CLICKHOUSE_URL"),
+			PostgresURL:       v.GetString("TEST_POSTGRES_URL"),
+			LocalStackURL:     localstackURL,
+			GCPURL:            v.GetString("TEST_GCP_URL"),
+			AzureSBConnString: v.GetString("TEST_AZURE_SB_CONNSTRING"),
+			RabbitMQURL:       rabbitmqURL,
+			MockServerURL:     mockServerURL,
 		}
 		return
 	}
 
 	cfg = &Config{
-		TestInfra:     v.GetBool("TESTINFRA"),
+		TestInfra: v.GetBool("TESTINFRA"),
+		TestAzure: v.GetBool("TESTAZURE"),
+		// dbs
 		ClickHouseURL: "",
-		LocalStackURL: "",
-		RabbitMQURL:   "",
+		PostgresURL:   "",
+		// mq
+		RabbitMQURL:       "",
+		LocalStackURL:     "",
+		GCPURL:            "",
+		AzureSBConnString: "",
+		// misc
 		MockServerURL: "",
-		GCPURL:        "",
 	}
 }
 

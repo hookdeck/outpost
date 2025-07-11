@@ -33,6 +33,8 @@ type AWSSQSInfraConfig struct {
 }
 
 type AzureServiceBusInfraConfig struct {
+	ConnectionString string // If set, skip infra management
+
 	TenantID       string
 	ClientID       string
 	ClientSecret   string
