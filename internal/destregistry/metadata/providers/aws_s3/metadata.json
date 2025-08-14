@@ -1,0 +1,84 @@
+{
+  "type": "aws_s3",
+  "label": "AWS S3",
+  "description": "Store events in an Amazon S3 bucket",
+  "link": "https://aws.amazon.com/s3/",
+  "config_fields": [
+    {
+      "key": "bucket",
+      "type": "text",
+      "label": "Bucket Name",
+      "description": "The name of your AWS S3 bucket",
+      "required": true
+    },
+    {
+      "key": "region",
+      "type": "text",
+      "label": "AWS Region",
+      "description": "The AWS region where your bucket is located",
+      "required": true,
+      "pattern": "^[a-z]{2}-[a-z]+-[0-9]+$"
+    },
+    {
+      "key": "key_prefix",
+      "type": "text",
+      "label": "Object Key Prefix",
+      "description": "Optional prefix to prepend to object keys",
+      "required": false
+    },
+    {
+      "key": "key_suffix",
+      "type": "text",
+      "label": "Object Key Suffix",
+      "description": "Optional suffix to append to object keys",
+      "required": false
+    },
+    {
+      "key": "include_timestamp",
+      "type": "checkbox",
+      "label": "Include Timestamp in Object Key",
+      "description": "Whether to include a timestamp in the object key after the prefix",
+      "default": "on"
+    },
+    {
+      "key": "include_event_id",
+      "type": "checkbox",
+      "label": "Include Event ID in Object Key ",
+      "description": "Whether to include the event ID in the object key after the prefix and timestamp",
+      "default": "on"
+    },
+    {
+      "key": "storage_class",
+      "type": "text",
+      "label": "S3 Storage Class",
+      "description": "The storage class for the S3 objects (e.g., STANDARD, INTELLIGENT_TIERING, GLACIER, etc.)",
+      "required": false
+    }
+  ],
+  "credential_fields": [
+    {
+      "key": "key",
+      "type": "text",
+      "label": "Access Key ID",
+      "description": "AWS Access Key ID",
+      "required": true,
+      "sensitive": true
+    },
+    {
+      "key": "secret",
+      "type": "text",
+      "label": "Secret Access Key",
+      "description": "AWS Secret Access Key",
+      "required": true,
+      "sensitive": true
+    },
+    {
+      "key": "session",
+      "type": "text",
+      "label": "Session Token",
+      "description": "AWS Session Token (optional)",
+      "required": false,
+      "sensitive": true
+    }
+  ]
+}

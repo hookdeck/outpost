@@ -3,6 +3,7 @@ package destregistrydefault
 import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawskinesis"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destawss3"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawssqs"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destazureservicebus"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/desthookdeck"
@@ -84,6 +85,12 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		return err
 	}
 	registry.RegisterProvider("aws_kinesis", awsKinesis)
+
+	awsS3, err := destawss3.New(loader)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("aws_s3", awsS3)
 
 	azureServiceBus, err := destazureservicebus.New(loader)
 	if err != nil {
