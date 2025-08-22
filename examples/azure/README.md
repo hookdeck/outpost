@@ -2,7 +2,59 @@
 
 This example demonstrates how to deploy Outpost on Azure, using Azure Service Bus as the message queue.
 
-## Prerequisites
+## Azure Managed Redis Configuration
+
+Azure Managed Redis requires cluster mode to be explicitly enabled:
+
+```bash
+# Required for Azure Managed Redis Enterprise
+REDIS_CLUSTER_ENABLED=true
+REDIS_TLS_ENABLED=true
+REDIS_HOST="your-redis.westeurope.redisenterprise.cache.azure.net"
+REDIS_PORT=10000
+REDIS_PASSWORD="your-redis-password"
+REDIS_DATABASE=0  # Ignored in cluster mode
+```
+
+## Azure Cache for Redis Configuration  
+
+Azure Cache for Redis uses single-node mode:
+
+```bash
+# For Azure Cache for Redis (older service)
+REDIS_CLUSTER_ENABLED=false
+REDIS_TLS_ENABLED=true
+REDIS_HOST="your-cache.redis.cache.windows.net"
+REDIS_PORT=6380
+REDIS_PASSWORD="your-cache-password"
+REDIS_DATABASE=0
+```
+
+## Local Development Configuration
+
+For local Redis development:
+
+```bash
+# For local/self-hosted Redis
+REDIS_CLUSTER_ENABLED=false
+REDIS_TLS_ENABLED=false
+REDIS_HOST="localhost"
+REDIS_PORT=6379
+REDIS_PASSWORD=""
+REDIS_DATABASE=0
+```
+
+**Important**: The `REDIS_CLUSTER_ENABLED` setting is **required** for Azure Managed Redis to prevent Redis clustering errors. Without this setting, you may see `EXECABORT Transaction discarded` errors.
+
+### Azure Managed Redis Benefits
+
+Azure Managed Redis (Redis Enterprise) offers significant advantages over Azure Cache for Redis:
+
+- **Performance**: Up to 15x better performance than Azure Cache for Redis
+- **Modern Features**: Redis 7.4+ with JSON, vector, time series, and probabilistic data types  
+- **Enhanced Security**: TLS encryption by default, Microsoft EntraID integration
+- **Better Pricing**: Generally more cost-effective than Azure Cache for Redis
+- **High Availability**: 99.999% SLA potential with built-in clustering
 
 Before you begin, ensure you have the following:
 
@@ -310,10 +362,11 @@ This file contains variables related to the Azure infrastructure where the servi
 | `LOCATION` | The Azure region for your resources. | `westeurope` |
 | `RESOURCE_GROUP` | The name of the Azure resource group. | `outpost-azure` |
 | `POSTGRES_URL` | The full connection URL for your PostgreSQL database. | `postgres://user:pass@host:5432/dbname` |
-| `REDIS_HOST` | The hostname of your Redis instance. | `outpost-redis.redis.cache.windows.net` |
-| `REDIS_PORT` | The port for your Redis instance. | `6379` |
+| `REDIS_HOST` | The hostname of your Azure Managed Redis instance. | `outpost-redis.redisenterprise.cache.azure.net` |
+| `REDIS_PORT` | The port for your Redis instance. | `10000` |
 | `REDIS_PASSWORD` | The password for your Redis instance. | `your-redis-password` |
 | `REDIS_DATABASE` | The Redis database number. | `0` |
+| `REDIS_TLS_ENABLED` | Whether TLS is enabled for Redis connections. | `true` |
 | `AZURE_SERVICEBUS_CLIENT_ID` | The Client ID of the service principal for Service Bus access. | `...` |
 | `AZURE_SERVICEBUS_CLIENT_SECRET` | The Client Secret of the service principal. | `...` |
 | `AZURE_SERVICEBUS_SUBSCRIPTION_ID` | Your Azure Subscription ID. | `...` |

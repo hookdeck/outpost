@@ -2,11 +2,14 @@ package rsmq
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-redis/redis"
+	"github.com/hookdeck/outpost/internal/logging"
+	"go.uber.org/zap"
 )
 
 // Unset values are the special values to refer default values of the attributes
@@ -56,10 +59,36 @@ var (
 	hashChangeMessageVisibility = redis.NewScript(scriptChangeMessageVisibility).Hash()
 )
 
+// RedisClient interface defines the operations needed by RSMQ
+// Both redis.Client and redis.ClusterClient implement these methods
+type RedisClient interface {
+	Time() *redis.TimeCmd
+	HSetNX(key, field string, value interface{}) *redis.BoolCmd
+	HMGet(key string, fields ...string) *redis.SliceCmd
+	SMembers(key string) *redis.StringSliceCmd
+	SAdd(key string, members ...interface{}) *redis.IntCmd
+	ZCard(key string) *redis.IntCmd
+	ZCount(key, min, max string) *redis.IntCmd
+	ZAdd(key string, members ...redis.Z) *redis.IntCmd
+	HSet(key, field string, value interface{}) *redis.BoolCmd
+	HIncrBy(key, field string, incr int64) *redis.IntCmd
+	Del(keys ...string) *redis.IntCmd
+	HDel(key string, fields ...string) *redis.IntCmd
+	ZRem(key string, members ...interface{}) *redis.IntCmd
+	SRem(key string, members ...interface{}) *redis.IntCmd
+	EvalSha(sha1 string, keys []string, args ...interface{}) *redis.Cmd
+	ScriptLoad(script string) *redis.StringCmd
+	TxPipeline() redis.Pipeliner
+	Exists(keys ...string) *redis.IntCmd
+	Type(key string) *redis.StatusCmd
+	Close() error
+}
+
 // RedisSMQ is the client of rsmq to execute queue and message operations
 type RedisSMQ struct {
-	client *redis.Client
+	client RedisClient
 	ns     string
+	logger *logging.Logger
 }
 
 // QueueAttributes contains some attributes and stats of queue
@@ -94,7 +123,7 @@ type QueueMessage struct {
 }
 
 // NewRedisSMQ creates and returns new rsmq client
-func NewRedisSMQ(client *redis.Client, ns string) *RedisSMQ {
+func NewRedisSMQ(client RedisClient, ns string, logger ...*logging.Logger) *RedisSMQ {
 	if client == nil {
 		panic("")
 	}
@@ -106,9 +135,15 @@ func NewRedisSMQ(client *redis.Client, ns string) *RedisSMQ {
 		ns += ":"
 	}
 
+	var l *logging.Logger
+	if len(logger) > 0 {
+		l = logger[0]
+	}
+
 	rsmq := &RedisSMQ{
 		client: client,
 		ns:     ns,
+		logger: l,
 	}
 
 	client.ScriptLoad(scriptPopMessage)
@@ -148,6 +183,11 @@ func (rsmq *RedisSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int
 
 	t, err := rsmq.client.Time().Result()
 	if err != nil {
+		if rsmq.logger != nil {
+			rsmq.logger.Debug("Redis TIME command failed during queue creation", 
+				zap.Error(err), 
+				zap.String("queue", qname))
+		}
 		return err
 	}
 
@@ -159,14 +199,68 @@ func (rsmq *RedisSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int
 	tx.HSetNX(key, "maxsize", maxsize)
 	tx.HSetNX(key, "created", t.Unix())
 	tx.HSetNX(key, "modified", t.Unix())
-	if _, err = tx.Exec(); err != nil {
+	
+	if rsmq.logger != nil {
+		rsmq.logger.Debug("executing Redis transaction for queue creation",
+			zap.String("queue", qname),
+			zap.String("key", key),
+			zap.Uint("vt", vt),
+			zap.Uint("delay", delay),
+			zap.Int("maxsize", maxsize))
+			
+		// Check if key already exists and what type it is
+		keyType, typeErr := rsmq.client.Type(key).Result()
+		if typeErr == nil {
+			rsmq.logger.Debug("Redis key diagnostics before transaction",
+				zap.String("key", key),
+				zap.String("key_type", keyType))
+		}
+	}
+	
+	_, err = tx.Exec()
+	if err != nil {
+		if rsmq.logger != nil {
+			rsmq.logger.Error("Redis transaction execution failed during queue creation", 
+				zap.Error(err),
+				zap.String("queue", qname),
+				zap.String("key", key),
+				zap.String("context", "This likely indicates Redis connectivity or permission issues"))
+				
+			// Try to get more details about what might be wrong
+			keyExists, existsErr := rsmq.client.Exists(key).Result()
+			keyType, typeErr := rsmq.client.Type(key).Result()
+			if existsErr == nil && typeErr == nil {
+				rsmq.logger.Error("Redis key state after failed transaction",
+					zap.String("key", key),
+					zap.Int64("exists", keyExists),
+					zap.String("type", keyType))
+			}
+		}
 		return err
 	}
+	
 	if !r.Val() {
+		if rsmq.logger != nil {
+			rsmq.logger.Debug("queue creation skipped - queue already exists", 
+				zap.String("queue", qname))
+		}
 		return ErrQueueExists
 	}
 
 	_, err = rsmq.client.SAdd(rsmq.ns+queues, qname).Result()
+	if err != nil {
+		if rsmq.logger != nil {
+			rsmq.logger.Error("failed to add queue to queue set", 
+				zap.Error(err),
+				zap.String("queue", qname),
+				zap.String("set_key", rsmq.ns+queues))
+		}
+	} else {
+		if rsmq.logger != nil {
+			rsmq.logger.Debug("queue created successfully", 
+				zap.String("queue", qname))
+		}
+	}
 	return err
 }
 
@@ -417,7 +511,7 @@ func (rsmq *RedisSMQ) ReceiveMessage(qname string, vt uint) (*QueueMessage, erro
 	qvt := strconv.FormatUint(queue.ts+uint64(vt)*1000, 10)
 	ct := strconv.FormatUint(queue.ts, 10)
 
-	evalCmd := rsmq.client.EvalSha(hashReceiveMessage, []string{key, ct, qvt})
+	evalCmd := rsmq.client.EvalSha(hashReceiveMessage, []string{key}, ct, qvt)
 	return rsmq.createQueueMessage(evalCmd)
 }
 
@@ -436,14 +530,24 @@ func (rsmq *RedisSMQ) PopMessage(qname string) (*QueueMessage, error) {
 
 	t := strconv.FormatUint(queue.ts, 10)
 
-	evalCmd := rsmq.client.EvalSha(hashPopMessage, []string{key, t})
+	evalCmd := rsmq.client.EvalSha(hashPopMessage, []string{key}, t)
 	return rsmq.createQueueMessage(evalCmd)
 }
 
 func (rsmq *RedisSMQ) createQueueMessage(cmd *redis.Cmd) (*QueueMessage, error) {
-	vals, ok := cmd.Val().([]any)
-	if !ok {
-		return nil, errors.New("mismatched message response type")
+	val := cmd.Val()
+	
+	// Try different type assertions for cluster vs regular client compatibility
+	var vals []any
+	if v, ok := val.([]any); ok {
+		vals = v
+	} else if v, ok := val.([]interface{}); ok {
+		vals = make([]any, len(v))
+		for i, item := range v {
+			vals[i] = item
+		}
+	} else {
+		return nil, fmt.Errorf("mismatched message response type: got %T, value: %v", val, val)
 	}
 	if len(vals) == 0 {
 		return nil, nil
@@ -494,7 +598,7 @@ func (rsmq *RedisSMQ) ChangeMessageVisibility(qname string, id string, vt uint) 
 	key := rsmq.ns + qname
 	t := strconv.FormatUint(queue.ts+uint64(vt)*1000, 10)
 
-	evalCmd := rsmq.client.EvalSha(hashChangeMessageVisibility, []string{key, id, t})
+	evalCmd := rsmq.client.EvalSha(hashChangeMessageVisibility, []string{key}, id, t)
 	if e, err := evalCmd.Bool(); err != nil {
 		return err
 	} else if !e {

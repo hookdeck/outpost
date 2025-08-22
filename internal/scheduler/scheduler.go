@@ -2,12 +2,15 @@ package scheduler
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"time"
 
 	"github.com/go-redis/redis"
+	"github.com/hookdeck/outpost/internal/logging"
 	iredis "github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/rsmq"
+	"go.uber.org/zap"
 )
 
 type ScheduleOption func(*ScheduleOptions)
@@ -39,6 +42,7 @@ type schedulerImpl struct {
 
 type config struct {
 	visibilityTimeout uint
+	logger            *logging.Logger
 }
 
 func WithVisibilityTimeout(vt uint) func(*config) {
@@ -47,19 +51,110 @@ func WithVisibilityTimeout(vt uint) func(*config) {
 	}
 }
 
+func WithLogger(logger *logging.Logger) func(*config) {
+	return func(c *config) {
+		c.logger = logger
+	}
+}
+
 func New(name string, redisConfig *iredis.RedisConfig, exec func(context.Context, string) error, opts ...func(*config)) Scheduler {
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", redisConfig.Host, redisConfig.Port),
-		Password: redisConfig.Password,
-		DB:       redisConfig.Database,
-	})
-	rsmqClient := rsmq.NewRedisSMQ(redisClient, "rsmq")
+	// Extract configuration including logger first
 	config := &config{
 		visibilityTimeout: rsmq.UnsetVt,
 	}
 	for _, opt := range opts {
 		opt(config)
 	}
+	
+	var rsmqClient *rsmq.RedisSMQ
+	
+	if redisConfig.ClusterEnabled {
+		// Use cluster client for clustered Redis deployments
+		clusterOptions := &redis.ClusterOptions{
+			Addrs:    []string{fmt.Sprintf("%s:%d", redisConfig.Host, redisConfig.Port)},
+			Password: redisConfig.Password,
+			// Note: Database is ignored in cluster mode
+		}
+		
+		if redisConfig.TLSEnabled {
+			clusterOptions.TLSConfig = &tls.Config{
+				MinVersion:         tls.VersionTLS12,
+				InsecureSkipVerify: true, // Azure Managed Redis uses self-signed certificates
+			}
+		}
+		
+		clusterClient := redis.NewClusterClient(clusterOptions)
+		
+		// Test cluster connectivity
+		if err := clusterClient.Ping().Err(); err != nil {
+			if config.logger != nil {
+				config.logger.Error("Redis cluster client connection failed", 
+					zap.Error(err),
+					zap.String("host", redisConfig.Host),
+					zap.Int("port", redisConfig.Port),
+					zap.Bool("tls", redisConfig.TLSEnabled))
+			}
+			panic(fmt.Sprintf("Redis cluster client connection failed: %v", err))
+		}
+		
+		if config.logger != nil {
+			config.logger.Info("Redis cluster client initialized successfully",
+				zap.String("host", redisConfig.Host),
+				zap.Int("port", redisConfig.Port),
+				zap.Bool("tls", redisConfig.TLSEnabled))
+		}
+		
+		// Create RSMQ client with cluster client directly
+		if config.logger != nil {
+			rsmqClient = rsmq.NewRedisSMQ(clusterClient, "rsmq", config.logger)
+		} else {
+			rsmqClient = rsmq.NewRedisSMQ(clusterClient, "rsmq")
+		}
+	} else {
+		// Use regular client for non-clustered Redis
+		redisOptions := &redis.Options{
+			Addr:     fmt.Sprintf("%s:%d", redisConfig.Host, redisConfig.Port),
+			Password: redisConfig.Password,
+			DB:       redisConfig.Database,
+		}
+		
+		if redisConfig.TLSEnabled {
+			redisOptions.TLSConfig = &tls.Config{
+				MinVersion:         tls.VersionTLS12,
+				InsecureSkipVerify: true, // Azure Managed Redis uses self-signed certificates
+			}
+		}
+		
+		redisClient := redis.NewClient(redisOptions)
+		
+		// Test regular client connectivity
+		if err := redisClient.Ping().Err(); err != nil {
+			if config.logger != nil {
+				config.logger.Error("Redis regular client connection failed", 
+					zap.Error(err),
+					zap.String("host", redisConfig.Host),
+					zap.Int("port", redisConfig.Port),
+					zap.Bool("tls", redisConfig.TLSEnabled))
+			}
+			panic(fmt.Sprintf("Redis regular client connection failed: %v", err))
+		}
+		
+		if config.logger != nil {
+			config.logger.Info("Redis regular client initialized successfully",
+				zap.String("host", redisConfig.Host),
+				zap.Int("port", redisConfig.Port),
+				zap.Bool("tls", redisConfig.TLSEnabled),
+				zap.Int("database", redisConfig.Database))
+		}
+		
+		// Create RSMQ client with regular client
+		if config.logger != nil {
+			rsmqClient = rsmq.NewRedisSMQ(redisClient, "rsmq", config.logger)
+		} else {
+			rsmqClient = rsmq.NewRedisSMQ(redisClient, "rsmq")
+		}
+	}
+	
 	return &schedulerImpl{
 		rsmqClient: rsmqClient,
 		config:     config,

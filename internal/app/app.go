@@ -54,16 +54,20 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		return err
 	}
 
+	logger.Debug("initializing Redis client")
 	redisClient, err := redis.New(mainContext, cfg.Redis.ToConfig())
 	if err != nil {
+		logger.Error("Redis initialization failed", zap.Error(err))
 		return err
 	}
 
+	logger.Debug("creating Outpost infrastructure")
 	outpostInfra := infra.NewInfra(infra.Config{
 		DeliveryMQ: cfg.MQs.ToInfraConfig("deliverymq"),
 		LogMQ:      cfg.MQs.ToInfraConfig("logmq"),
 	}, redisClient)
 	if err := outpostInfra.Declare(mainContext); err != nil {
+		logger.Error("infrastructure declaration failed", zap.Error(err))
 		return err
 	}
 
@@ -71,6 +75,7 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
+	
 	telemetry := telemetry.New(logger, cfg.Telemetry.ToTelemetryConfig(), installationID)
 	telemetry.Init(mainContext)
 	telemetry.ApplicationStarted(mainContext, cfg.ToTelemetryApplicationInfo())
@@ -97,6 +102,7 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	wg := &sync.WaitGroup{}
 
 	// Construct services based on config
+	logger.Debug("constructing services")
 	services, err := constructServices(
 		ctx,
 		cfg,
@@ -105,11 +111,13 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		telemetry,
 	)
 	if err != nil {
+		logger.Error("service construction failed", zap.Error(err))
 		cancel()
 		return err
 	}
 
 	// Start services
+	logger.Info("starting services", zap.Int("count", len(services)))
 	for _, service := range services {
 		go service.Run(ctx)
 	}
@@ -152,22 +160,28 @@ func constructServices(
 	services := []Service{}
 
 	if serviceType == config.ServiceTypeAPI || serviceType == config.ServiceTypeAll {
+		logger.Debug("creating API service")
 		service, err := api.NewService(ctx, wg, cfg, logger, telemetry)
 		if err != nil {
+			logger.Error("API service creation failed", zap.Error(err))
 			return nil, err
 		}
 		services = append(services, service)
 	}
 	if serviceType == config.ServiceTypeDelivery || serviceType == config.ServiceTypeAll {
+		logger.Debug("creating delivery service")
 		service, err := delivery.NewService(ctx, wg, cfg, logger, nil)
 		if err != nil {
+			logger.Error("delivery service creation failed", zap.Error(err))
 			return nil, err
 		}
 		services = append(services, service)
 	}
 	if serviceType == config.ServiceTypeLog || serviceType == config.ServiceTypeAll {
+		logger.Debug("creating log service")
 		service, err := log.NewService(ctx, wg, cfg, logger, nil)
 		if err != nil {
+			logger.Error("log service creation failed", zap.Error(err))
 			return nil, err
 		}
 		services = append(services, service)

@@ -48,56 +48,78 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 
 	var cleanupFuncs []func(context.Context, *logging.LoggerWithCtx)
 
+	logger.Debug("initializing destination registry")
 	registry := destregistry.NewRegistry(&destregistry.Config{
 		DestinationMetadataPath: cfg.Destinations.MetadataPath,
 		DeliveryTimeout:         time.Duration(cfg.DeliveryTimeoutSeconds) * time.Second,
 	}, logger)
 	if err := destregistrydefault.RegisterDefault(registry, cfg.Destinations.ToConfig(cfg)); err != nil {
+		logger.Error("destination registry setup failed", zap.Error(err))
 		return nil, err
 	}
 
+	logger.Debug("configuring delivery message queue")
 	deliveryQueueConfig, err := cfg.MQs.ToQueueConfig(ctx, "deliverymq")
 	if err != nil {
+		logger.Error("delivery queue configuration failed", zap.Error(err))
 		return nil, err
 	}
+	
+	logger.Debug("initializing delivery MQ connection", zap.String("mq_type", cfg.MQs.GetInfraType()))
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(deliveryQueueConfig))
 	cleanupDeliveryMQ, err := deliveryMQ.Init(ctx)
 	if err != nil {
+		logger.Error("delivery MQ initialization failed", 
+			zap.Error(err),
+			zap.String("mq_type", cfg.MQs.GetInfraType()),
+			zap.String("context", "This likely indicates Azure Service Bus connectivity issues"))
 		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) { cleanupDeliveryMQ() })
 
+	logger.Debug("initializing Redis client for API service")
 	redisClient, err := redis.New(ctx, cfg.Redis.ToConfig())
 	if err != nil {
+		logger.Error("Redis client initialization failed in API service", zap.Error(err))
 		return nil, err
 	}
 
+	logger.Debug("configuring log store driver")
 	logStoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
 		// ClickHouse: cfg.ClickHouse.ToConfig(),
 		Postgres: &cfg.PostgresURL,
 	})
 	if err != nil {
+		logger.Error("log store driver configuration failed", zap.Error(err))
 		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
 		logStoreDriverOpts.Close()
 	})
+	
+	logger.Debug("creating log store")
 	logStore, err := logstore.NewLogStore(ctx, logStoreDriverOpts)
 	if err != nil {
+		logger.Error("log store creation failed", zap.Error(err))
 		return nil, err
 	}
 
+	logger.Debug("setting up event tracer")
 	var eventTracer eventtracer.EventTracer
 	if cfg.OpenTelemetry.ToConfig() == nil {
 		eventTracer = eventtracer.NewNoopEventTracer()
 	} else {
 		eventTracer = eventtracer.NewEventTracer()
 	}
+	
+	logger.Debug("creating entity store with Redis client")
 	entityStore := models.NewEntityStore(redisClient,
 		models.WithCipher(models.NewAESCipher(cfg.AESEncryptionSecret)),
 		models.WithAvailableTopics(cfg.Topics),
 		models.WithMaxDestinationsPerTenant(cfg.MaxDestinationsPerTenant),
 	)
+	
+	logger.Debug("creating event handler and router")
 	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer, cfg.Topics)
 	router := NewRouter(
 		RouterConfig{
@@ -119,12 +141,18 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	)
 
 	// deliverymqRetryScheduler
-	deliverymqRetryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig())
+	logger.Debug("creating delivery MQ retry scheduler")
+	deliverymqRetryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig(), logger)
+	logger.Debug("initializing delivery MQ retry scheduler - this may perform Redis operations")
 	if err := deliverymqRetryScheduler.Init(ctx); err != nil {
+		logger.Error("delivery MQ retry scheduler initialization failed", 
+			zap.Error(err),
+			zap.String("context", "This likely indicates Redis connectivity issues during actual operations"))
 		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) { deliverymqRetryScheduler.Shutdown() })
 
+	logger.Debug("creating HTTP server")
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.APIPort),
 		Handler: router,

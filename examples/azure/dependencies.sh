@@ -1,12 +1,25 @@
 #!/bin/bash
 
+# Azure dependencies setup script
+# This script creates Azure resources including PostgreSQL, Azure Managed Redis, and Service Bus
+# Note: Uses Azure Managed Redis (az redisenterprise) instead of Azure Cache for Redis (az redis)
+# for better performance, features, and cost-effectiveness
+# Requires: Azure CLI with redisenterprise extension (auto-installed by this script)
+
 set -euo pipefail
 
-# Set PG_PASS from env var, or generate a new one
+# Set PG_PASS from env var, extract from existing .env file, or generate a new one
 if [[ -z "${PG_PASS-}" ]]; then
-  echo "🔑 Generating new PostgreSQL password..."
-  # Generate a random alphanumeric password of 24 characters
-  PG_PASS=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 24)
+  # Try to extract password from existing .env.outpost file
+  if [[ -f ".env.outpost" ]] && grep -q "POSTGRES_URL" .env.outpost; then
+    echo "🔍 Extracting existing PostgreSQL password from .env.outpost..."
+    PG_PASS=$(grep POSTGRES_URL .env.outpost | sed 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/')
+    echo "🔑 Using existing PostgreSQL password"
+  else
+    echo "🔑 Generating new PostgreSQL password..."
+    # Generate a random alphanumeric password of 24 characters
+    PG_PASS=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 24)
+  fi
 fi
 
 # CONFIG
@@ -75,7 +88,7 @@ else
   echo "✅ PostgreSQL database already exists"
 fi
 
-# Register Redis provider
+# Register Redis Enterprise provider (for Azure Managed Redis)
 echo "🔎 Checking if Microsoft.Cache is registered..."
 if ! az provider show --namespace Microsoft.Cache --query "registrationState" -o tsv | grep -q "Registered"; then
   echo "📥 Registering Microsoft.Cache..."
@@ -84,19 +97,34 @@ if ! az provider show --namespace Microsoft.Cache --query "registrationState" -o
   until az provider show --namespace Microsoft.Cache --query "registrationState" -o tsv | grep -q "Registered"; do sleep 3; done
 fi
 
-# Create Redis cache
-echo "🔎 Checking if Redis instance '$REDIS_NAME' exists..."
-if ! az redis show --name "$REDIS_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
-  echo "🔴 Creating Redis Cache..."
-  az redis create \
-    --name "$REDIS_NAME" \
+# Install Azure CLI Redis Enterprise extension
+echo "🔧 Installing Azure CLI Redis Enterprise extension..."
+if ! az extension list --query "[?name=='redisenterprise'].name" -o tsv | grep -q "redisenterprise"; then
+  echo "📥 Installing redisenterprise extension..."
+  az extension add --name redisenterprise --yes >/dev/null 2>&1 || {
+    echo "⚠️  Extension installation may require confirmation. Enabling dynamic install..."
+    az config set extension.dynamic_install_allow_preview=true
+    az extension add --name redisenterprise --yes >/dev/null 2>&1
+  }
+else
+  echo "✅ Redis Enterprise extension already installed"
+fi
+
+# Create Azure Managed Redis cluster
+echo "🔎 Checking if Azure Managed Redis cluster '$REDIS_NAME' exists..."
+if ! az redisenterprise show --cluster-name "$REDIS_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+  echo "🔴 Creating Azure Managed Redis cluster..."
+  az redisenterprise create \
+    --cluster-name "$REDIS_NAME" \
     --resource-group "$RESOURCE_GROUP" \
     --location "$LOCATION" \
-    --sku Basic \
-    --vm-size c0
-    --enable-non-ssl-port \ # Comment out or remove if you only want SSL
+    --sku Enterprise_E1 \
+    --minimum-tls-version "1.2"
+  
+  echo "⏳ Waiting for cluster to be ready..."
+  az redisenterprise wait --cluster-name "$REDIS_NAME" --resource-group "$RESOURCE_GROUP" --created
 else
-  echo "✅ Redis instance already exists"
+  echo "✅ Azure Managed Redis cluster already exists"
 fi
 
 
@@ -206,20 +234,21 @@ assign_and_verify_role() {
 
 assign_and_verify_role "Azure Service Bus Data Owner"
 
-# Get Redis host and password
-REDIS_HOST=$(az redis show --name "$REDIS_NAME" --resource-group "$RESOURCE_GROUP" --query hostName -o tsv)
-REDIS_PASSWORD=$(az redis list-keys --name "$REDIS_NAME" --resource-group "$RESOURCE_GROUP" --query primaryKey -o tsv)
+# Get Redis host and password for Azure Managed Redis
+REDIS_HOST=$(az redisenterprise show --cluster-name "$REDIS_NAME" --resource-group "$RESOURCE_GROUP" --query hostName -o tsv)
+REDIS_KEYS=$(az redisenterprise database list-keys --cluster-name "$REDIS_NAME" --resource-group "$RESOURCE_GROUP")
+REDIS_PASSWORD=$(echo "$REDIS_KEYS" | jq -r .primaryKey)
 
 # Build .env.outpost file
 cat > "$ENV_FILE" <<EOF
 LOCATION=$LOCATION
 RESOURCE_GROUP=$RESOURCE_GROUP
-POSTGRES_URL=postgres://$PG_ADMIN:$PG_PASS@$PG_NAME.postgres.database.azure.com:5432/$PG_DB_NAME
+POSTGRES_URL=postgres://$PG_ADMIN:$PG_PASS@$PG_NAME.postgres.database.azure.com:5432/$PG_DB_NAME?sslmode=require
 REDIS_HOST=$REDIS_HOST
-REDIS_PORT=6379
-# REDIS_PORT=6380 # Uncomment if using SSL
+REDIS_PORT=10000
 REDIS_PASSWORD=$REDIS_PASSWORD
 REDIS_DATABASE=0
+REDIS_TLS_ENABLED=true
 AZURE_SERVICEBUS_CLIENT_ID=$CLIENT_ID
 AZURE_SERVICEBUS_CLIENT_SECRET=$CLIENT_SECRET
 AZURE_SERVICEBUS_SUBSCRIPTION_ID=$SUBSCRIPTION_ID
