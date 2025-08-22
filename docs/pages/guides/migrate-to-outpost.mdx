@@ -6,7 +6,7 @@ This guide will help you migrate your existing webhook infrastructure to Outpost
 
 ## Why Migrate to Outpost?
 
-Outpost is a self-hosted and open-source infrastructure that enables event producers to add Event Destinations to their platform with support for destination types such as Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS SNS, GCP Pub/Sub, RabbitMQ, and Kafka.
+Outpost is a self-hosted and open-source infrastructure that enables event producers to add Event Destinations to their platform with support for destination types such as Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS SNS, AWS S3, GCP Pub/Sub, RabbitMQ, and Kafka.
 
 The benefits of migrating to Outpost include:
 
@@ -47,7 +47,7 @@ The following sections outline the key considerations when migrating webhook inf
 Outpost has the following concepts that you need to map to your existing webhook infrastructure provider:
 
 - **Tenants**: A tenant represents a customer organization.
-- **Destination Types**: The type of destination where events will be delivered. For example, webhook, Hookdeck Event Gateway, or AWS SQS.
+- **Destination Types**: The type of destination where events will be delivered. For example, webhook, Hookdeck Event Gateway, or AWS SQS or AWS S3.
 - **Destinations**: A subscription configured to deliver the event to a destination type. For example, a webhook destination with a specific URL.
 - **Events**: An event is a piece of data that represents an action that occurred in your system. For example, a user signed up or a payment was processed.
 - **Topics**: A topic is a way to categorize events and is a common concept found in Pub/Sub messaging. For example, a `user.created`.
