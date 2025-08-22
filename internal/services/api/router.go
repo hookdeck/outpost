@@ -56,12 +56,6 @@ type RouterConfig struct {
 	GinMode      string
 }
 
-type routeDefinition struct {
-	method   string
-	path     string
-	handlers []gin.HandlerFunc
-}
-
 // registerRoutes registers routes to the given router based on route definitions and config
 func registerRoutes(router *gin.RouterGroup, cfg RouterConfig, routes []RouteDefinition) {
 	isPortalMode := cfg.APIKey != "" && cfg.JWTSecret != ""
