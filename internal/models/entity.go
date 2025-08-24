@@ -34,20 +34,21 @@ var (
 	ErrMaxDestinationsPerTenantReached = errors.New("maximum number of destinations per tenant reached")
 )
 
+// New cluster-compatible key formats with hash tags
 func redisTenantID(tenantID string) string {
-	return fmt.Sprintf("tenant:%s", tenantID)
+	return fmt.Sprintf("{%s}:tenant", tenantID)
 }
 
 func redisTenantDestinationSummaryKey(tenantID string) string {
-	return fmt.Sprintf("tenant:%s:destinations", tenantID)
+	return fmt.Sprintf("{%s}:destinations", tenantID)
 }
 
 func redisDestinationID(destinationID, tenantID string) string {
-	return fmt.Sprintf("tenant:%s:destination:%s", tenantID, destinationID)
+	return fmt.Sprintf("{%s}:destination:%s", tenantID, destinationID)
 }
 
 type entityStoreImpl struct {
-	redisClient              *redis.Client
+	redisClient              redis.Cmdable
 	cipher                   Cipher
 	availableTopics          []string
 	maxDestinationsPerTenant int
@@ -75,7 +76,7 @@ func WithMaxDestinationsPerTenant(maxDestinationsPerTenant int) EntityStoreOptio
 	}
 }
 
-func NewEntityStore(redisClient *redis.Client, opts ...EntityStoreOption) EntityStore {
+func NewEntityStore(redisClient redis.Cmdable, opts ...EntityStoreOption) EntityStore {
 	store := &entityStoreImpl{
 		redisClient:              redisClient,
 		cipher:                   NewAESCipher(""),
@@ -124,65 +125,53 @@ func (s *entityStoreImpl) RetrieveTenant(ctx context.Context, tenantID string) (
 func (s *entityStoreImpl) UpsertTenant(ctx context.Context, tenant Tenant) error {
 	key := redisTenantID(tenant.ID)
 
-	_, err := s.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		// Support overriding deleted resources
-		pipe.Persist(ctx, key)
-		pipe.HDel(ctx, key, "deleted_at")
+	// For cluster compatibility, execute commands individually instead of in a transaction
+	// Support overriding deleted resources
+	if err := s.redisClient.Persist(ctx, key).Err(); err != nil && err != redis.Nil {
+		return err
+	}
+	
+	if err := s.redisClient.HDel(ctx, key, "deleted_at").Err(); err != nil && err != redis.Nil {
+		return err
+	}
 
-		// Set tenant data
-		pipe.HSet(ctx, key, tenant)
-		return nil
-	})
-
-	return err
+	// Set tenant data
+	return s.redisClient.HSet(ctx, key, tenant).Err()
 }
 
 func (s *entityStoreImpl) DeleteTenant(ctx context.Context, tenantID string) error {
-	maxRetries := 100
-
 	if exists, err := s.redisClient.Exists(ctx, redisTenantID(tenantID)).Result(); err != nil {
 		return err
 	} else if exists == 0 {
 		return ErrTenantNotFound
 	}
 
-	txf := func(tx *redis.Tx) error {
-		destinationIDs, err := s.redisClient.HKeys(ctx, redisTenantDestinationSummaryKey(tenantID)).Result()
-		if err != nil {
-			return err
-		}
-		if _, err := s.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-			now := time.Now()
-			for _, destinationID := range destinationIDs {
-				s.deleteDestinationOperation(ctx, pipe, redisDestinationID(destinationID, tenantID), now)
-			}
-			pipe.Del(ctx, redisTenantDestinationSummaryKey(tenantID))
-			tenantKey := redisTenantID(tenantID)
-			pipe.Del(ctx, tenantKey)
-			pipe.HSet(ctx, tenantKey, "deleted_at", now)
-			pipe.Expire(ctx, tenantKey, 7*24*time.Hour)
-			return nil
-		}); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	for i := 0; i < maxRetries; i++ {
-		err := s.redisClient.Watch(ctx, txf, redisTenantDestinationSummaryKey(tenantID))
-		if err == nil {
-			// Success.
-			return nil
-		}
-		if err == redis.TxFailedErr {
-			// Optimistic lock lost. Retry.
-			continue
-		}
-		// Return any other error.
+	// Get destination IDs before transaction
+	destinationIDs, err := s.redisClient.HKeys(ctx, redisTenantDestinationSummaryKey(tenantID)).Result()
+	if err != nil {
 		return err
 	}
 
-	return errors.New("increment reached maximum number of retries")
+	// All operations on same tenant - cluster compatible transaction
+	_, err = s.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		now := time.Now()
+		
+		// Delete all destinations atomically
+		for _, destinationID := range destinationIDs {
+			destKey := redisDestinationID(destinationID, tenantID)
+			pipe.HSet(ctx, destKey, "deleted_at", now)
+			pipe.Expire(ctx, destKey, 7*24*time.Hour)
+		}
+		
+		// Delete summary and mark tenant as deleted
+		pipe.Del(ctx, redisTenantDestinationSummaryKey(tenantID))
+		pipe.HSet(ctx, redisTenantID(tenantID), "deleted_at", now)
+		pipe.Expire(ctx, redisTenantID(tenantID), 7*24*time.Hour)
+		
+		return nil
+	})
+	
+	return err
 }
 
 func (s *entityStoreImpl) listDestinationSummaryByTenant(ctx context.Context, tenantID string, opts ListDestinationByTenantOpts) ([]DestinationSummary, error) {
@@ -300,26 +289,33 @@ func (m *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 		return fmt.Errorf("failed to encrypt destination credentials: %w", err)
 	}
 
-	// All marshaling and encryption successful - now perform Redis operations
-	_, err = m.redisClient.TxPipelined(ctx, func(r redis.Pipeliner) error {
-		// Support overriding deleted resources
-		r.Persist(ctx, key)
-		r.HDel(ctx, key, "deleted_at")
-		// Set the new destination values with pre-processed data
-		r.HSet(ctx, key, "id", destination.ID)
-		r.HSet(ctx, key, "type", destination.Type)
-		r.HSet(ctx, key, "topics", &destination.Topics)
-		r.HSet(ctx, key, "config", &destination.Config)
-		r.HSet(ctx, key, "credentials", encryptedCredentials)
-		r.HSet(ctx, key, "created_at", destination.CreatedAt)
+	// All keys use same tenant prefix - cluster compatible transaction
+	summaryKey := redisTenantDestinationSummaryKey(destination.TenantID)
+	
+	_, err = m.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		// Clear deletion markers
+		pipe.Persist(ctx, key)
+		pipe.HDel(ctx, key, "deleted_at")
+		
+		// Set all destination fields atomically
+		pipe.HSet(ctx, key, "id", destination.ID)
+		pipe.HSet(ctx, key, "type", destination.Type)
+		pipe.HSet(ctx, key, "topics", &destination.Topics)
+		pipe.HSet(ctx, key, "config", &destination.Config)
+		pipe.HSet(ctx, key, "credentials", encryptedCredentials)
+		pipe.HSet(ctx, key, "created_at", destination.CreatedAt)
+		
 		if destination.DisabledAt != nil {
-			r.HSet(ctx, key, "disabled_at", *destination.DisabledAt)
+			pipe.HSet(ctx, key, "disabled_at", *destination.DisabledAt)
 		} else {
-			r.HDel(ctx, key, "disabled_at")
+			pipe.HDel(ctx, key, "disabled_at")
 		}
-		r.HSet(ctx, redisTenantDestinationSummaryKey(destination.TenantID), destination.ID, destination.ToSummary()).Val()
+		
+		// Update summary atomically
+		pipe.HSet(ctx, summaryKey, destination.ID, destination.ToSummary())
 		return nil
 	})
+	
 	return err
 }
 
@@ -334,20 +330,19 @@ func (s *entityStoreImpl) DeleteDestination(ctx context.Context, tenantID, desti
 		return ErrDestinationNotFound
 	}
 
-	pipe := s.redisClient.Pipeline()
-	pipe.HDel(ctx, summaryKey, destinationID)
-	s.deleteDestinationOperation(ctx, pipe, key, time.Now())
-	if _, err := pipe.Exec(ctx); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *entityStoreImpl) deleteDestinationOperation(ctx context.Context, pipe redis.Pipeliner, key string, ts time.Time) {
-	pipe.Del(ctx, key)
-	pipe.HSet(ctx, key, "deleted_at", ts)
-	pipe.Expire(ctx, key, 7*24*time.Hour)
+	// Atomic deletion with same-tenant keys
+	_, err := s.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		now := time.Now()
+		
+		// Remove from summary and mark as deleted atomically
+		pipe.HDel(ctx, summaryKey, destinationID)
+		pipe.HSet(ctx, key, "deleted_at", now)
+		pipe.Expire(ctx, key, 7*24*time.Hour)
+		
+		return nil
+	})
+	
+	return err
 }
 
 func (s *entityStoreImpl) MatchEvent(ctx context.Context, event Event) ([]DestinationSummary, error) {

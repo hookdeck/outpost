@@ -8,6 +8,7 @@ import (
 
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	r "github.com/redis/go-redis/v9"
+	oldredis "github.com/go-redis/redis"
 )
 
 // Reexport go-redis's Nil constant for DX purposes.
@@ -29,11 +30,11 @@ const (
 
 var (
 	once                sync.Once
-	client              *r.Client
+	client              r.Cmdable  // Use interface to support both regular and cluster clients
 	initializationError error
 )
 
-func New(ctx context.Context, config *RedisConfig) (*r.Client, error) {
+func New(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
 	once.Do(func() {
 		initializeClient(ctx, config)
 		initializationError = instrumentOpenTelemetry()
@@ -41,23 +42,20 @@ func New(ctx context.Context, config *RedisConfig) (*r.Client, error) {
 	return client, initializationError
 }
 
-// NewClient is a helper function to create a new redis client without the singleton initialization.
-// This is useful for testing purposes and when cluster mode is needed.
-func NewClient(ctx context.Context, config *RedisConfig) (*r.Client, error) {
+// NewClientForScheduler creates a Redis client specifically for scheduler/RSMQ usage
+// This uses the old Redis package for compatibility with RSMQ  
+func NewClientForScheduler(ctx context.Context, config *RedisConfig) (interface{}, error) {
 	if config.ClusterEnabled {
-		return newClusterClient(ctx, config)
+		return newOldClusterClient(ctx, config)
 	}
-	return newRegularClient(ctx, config)
+	return newOldRegularClient(ctx, config)
 }
 
-func newClusterClient(ctx context.Context, config *RedisConfig) (*r.Client, error) {
-	// For now, create a regular client that can connect to cluster nodes
-	// This is a limitation of mixing v9 redis package with older packages
-	options := &r.Options{
-		Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
+func newOldClusterClient(ctx context.Context, config *RedisConfig) (interface{}, error) {
+	options := &oldredis.ClusterOptions{
+		Addrs:    []string{fmt.Sprintf("%s:%d", config.Host, config.Port)},
 		Password: config.Password,
-		// Database is ignored in cluster mode, but we'll set it anyway
-		DB: config.Database,
+		// Note: Database is ignored in cluster mode
 	}
 	
 	if config.TLSEnabled {
@@ -67,18 +65,18 @@ func newClusterClient(ctx context.Context, config *RedisConfig) (*r.Client, erro
 		}
 	}
 	
-	regularClient := r.NewClient(options)
+	clusterClient := oldredis.NewClusterClient(options)
 	
 	// Test connectivity
-	if err := regularClient.Ping(ctx).Err(); err != nil {
-		return nil, fmt.Errorf("Redis client connection failed (cluster mode requested but using regular client for compatibility): %w", err)
+	if err := clusterClient.Ping().Err(); err != nil {
+		return nil, fmt.Errorf("Redis cluster client connection failed (old package): %w", err)
 	}
 	
-	return regularClient, nil
+	return clusterClient, nil
 }
 
-func newRegularClient(ctx context.Context, config *RedisConfig) (*r.Client, error) {
-	options := &r.Options{
+func newOldRegularClient(ctx context.Context, config *RedisConfig) (interface{}, error) {
+	options := &oldredis.Options{
 		Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
 		Password: config.Password,
 		DB:       config.Database,
@@ -91,25 +89,35 @@ func newRegularClient(ctx context.Context, config *RedisConfig) (*r.Client, erro
 		}
 	}
 	
-	regularClient := r.NewClient(options)
+	regularClient := oldredis.NewClient(options)
 	
-	// Test regular client connectivity
-	if err := regularClient.Ping(ctx).Err(); err != nil {
-		return nil, fmt.Errorf("regular client connection failed: %w", err)
+	// Test connectivity
+	if err := regularClient.Ping().Err(); err != nil {
+		return nil, fmt.Errorf("Redis regular client connection failed (old package): %w", err)
 	}
 	
 	return regularClient, nil
 }
 
+
+
 func instrumentOpenTelemetry() error {
-	if err := redisotel.InstrumentTracing(client); err != nil {
-		return err
+	// OpenTelemetry instrumentation requires a concrete client type for type assertions
+	if concreteClient, ok := client.(*r.Client); ok {
+		if err := redisotel.InstrumentTracing(concreteClient); err != nil {
+			return err
+		}
+	} else if clusterClient, ok := client.(*r.ClusterClient); ok {
+		if err := redisotel.InstrumentTracing(clusterClient); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func initializeClient(_ context.Context, config *RedisConfig) {
+func initializeClient(ctx context.Context, config *RedisConfig) {
 	if config.ClusterEnabled {
+		// Create proper cluster client for cluster deployments
 		options := &r.ClusterOptions{
 			Addrs:    []string{fmt.Sprintf("%s:%d", config.Host, config.Port)},
 			Password: config.Password,
@@ -123,15 +131,18 @@ func initializeClient(_ context.Context, config *RedisConfig) {
 			}
 		}
 		
-		// For now, we can't easily support cluster in singleton mode with current architecture
-		// Fall back to regular client - this will be addressed in scheduler update
-		client = r.NewClient(&r.Options{
-			Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
-			Password: config.Password,
-			DB:       config.Database,
-			TLSConfig: options.TLSConfig,
-		})
+		clusterClient := r.NewClusterClient(options)
+		
+		// Test the cluster client connectivity
+		if err := clusterClient.Ping(ctx).Err(); err != nil {
+			initializationError = fmt.Errorf("Redis cluster connection failed: %w", err)
+			return
+		}
+		
+		// Assign to interface
+		client = clusterClient
 	} else {
+		// Create regular client for non-cluster deployments
 		options := &r.Options{
 			Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
 			Password: config.Password,
@@ -145,6 +156,14 @@ func initializeClient(_ context.Context, config *RedisConfig) {
 			}
 		}
 		
-		client = r.NewClient(options)
+		regularClient := r.NewClient(options)
+		
+		// Test the regular client connectivity
+		if err := regularClient.Ping(ctx).Err(); err != nil {
+			panic(fmt.Sprintf("Redis regular client connection failed: %v", err))
+		}
+		
+		// Assign to interface
+		client = regularClient
 	}
 }

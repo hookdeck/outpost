@@ -231,6 +231,18 @@ run_api_tests() {
     else
         echo "   -> ✅ View event details at: $PORTAL_URL"
     fi
+
+    echo "   (Testing destination deletion...)"
+    if ! curl -sf -X DELETE "$base_url/api/v1/$TENANT_ID/destinations/$DESTINATION_ID" \
+    -H "Authorization: Bearer $API_KEY" >/dev/null; then
+        echo "   -> ❌ Failed to delete webhook destination."
+        if [[ "$base_url" == *"azurecontainerapps.io"* ]]; then
+            echo "      Fetching logs for '$AZURE_CONTAINER_APP_NAME'..."
+            az containerapp logs show --name "$AZURE_CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --tail 20
+        fi
+        return 1
+    fi
+    echo "   -> ✅ Webhook destination deleted."
 }
 
 # 5. Local Deployment Tests

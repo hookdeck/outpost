@@ -105,7 +105,7 @@ func buildMiddlewareChain(cfg RouterConfig, def RouteDefinition) []gin.HandlerFu
 func NewRouter(
 	cfg RouterConfig,
 	logger *logging.Logger,
-	redisClient *redis.Client,
+	redisClient redis.Cmdable,
 	deliveryMQ *deliverymq.DeliveryMQ,
 	entityStore models.EntityStore,
 	logStore logstore.LogStore,

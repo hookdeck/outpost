@@ -31,7 +31,7 @@ import (
 )
 
 type redisLock struct {
-	client *redis.Client
+	client redis.Cmdable
 	key    string
 	value  string
 	ttl    time.Duration
@@ -55,7 +55,7 @@ func LockWithTTL(ttl time.Duration) LockOption {
 }
 
 // NewRedisLock creates a new Redis-based distributed lock
-func NewRedisLock(client *redis.Client, opts ...LockOption) Lock {
+func NewRedisLock(client redis.Cmdable, opts ...LockOption) Lock {
 	lock := &redisLock{
 		client: client,
 		key:    lockKey, // default

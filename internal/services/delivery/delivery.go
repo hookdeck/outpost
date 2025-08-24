@@ -32,7 +32,7 @@ type DeliveryService struct {
 
 	consumerOptions *consumerOptions
 	Logger          *logging.Logger
-	RedisClient     *redis.Client
+	RedisClient     redis.Cmdable
 	DeliveryMQ      *deliverymq.DeliveryMQ
 	Handler         consumer.MessageHandler
 }
@@ -47,6 +47,7 @@ func NewService(ctx context.Context,
 
 	cleanupFuncs := []func(){}
 
+	// Create Redis client for all operations (now cluster-compatible)
 	redisClient, err := redis.New(ctx, cfg.Redis.ToConfig())
 	if err != nil {
 		return nil, err

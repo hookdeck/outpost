@@ -32,7 +32,7 @@ type APIService struct {
 	cleanupFuncs []func(context.Context, *logging.LoggerWithCtx)
 
 	registry                 destregistry.Registry
-	redisClient              *redis.Client
+	redisClient              redis.Cmdable
 	server                   *http.Server
 	logger                   *logging.Logger
 	publishMQ                *publishmq.PublishMQ
@@ -78,6 +78,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	cleanupFuncs = append(cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) { cleanupDeliveryMQ() })
 
 	logger.Debug("initializing Redis client for API service")
+	// Create Redis client for all operations (now cluster-compatible)
 	redisClient, err := redis.New(ctx, cfg.Redis.ToConfig())
 	if err != nil {
 		logger.Error("Redis client initialization failed in API service", zap.Error(err))

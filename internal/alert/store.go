@@ -20,26 +20,28 @@ type AlertStore interface {
 }
 
 type redisAlertStore struct {
-	client *redis.Client
+	client redis.Cmdable
 }
 
 // NewRedisAlertStore creates a new Redis-backed alert store
-func NewRedisAlertStore(client *redis.Client) AlertStore {
+func NewRedisAlertStore(client redis.Cmdable) AlertStore {
 	return &redisAlertStore{client: client}
 }
 
 func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) (int, error) {
 	key := s.getFailuresKey(destinationID)
-	pipe := s.client.TxPipeline()
-	incr := pipe.Incr(ctx, key)
-	pipe.Expire(ctx, key, 24*time.Hour)
-
-	_, err := pipe.Exec(ctx)
+	
+	// Increment the counter
+	count, err := s.client.Incr(ctx, key).Result()
 	if err != nil {
 		return 0, fmt.Errorf("failed to increment failures: %w", err)
 	}
-
-	return int(incr.Val()), nil
+	
+	// Set expiration - this is a separate operation since we can't use transactions in cluster mode
+	// If this fails, the key will remain but without expiration, which is acceptable
+	s.client.Expire(ctx, key, 24*time.Hour)
+	
+	return int(count), nil
 }
 
 func (s *redisAlertStore) ResetConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) error {

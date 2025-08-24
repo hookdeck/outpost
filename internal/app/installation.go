@@ -13,7 +13,7 @@ const (
 	installationKey = "installation"
 )
 
-func getInstallation(ctx context.Context, redisClient *redis.Client, telemetryConfig telemetry.TelemetryConfig) (string, error) {
+func getInstallation(ctx context.Context, redisClient redis.Cmdable, telemetryConfig telemetry.TelemetryConfig) (string, error) {
 	if telemetryConfig.Disabled {
 		return "", nil
 	}

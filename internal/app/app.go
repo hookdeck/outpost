@@ -54,10 +54,11 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	logger.Debug("initializing Redis client")
+	logger.Debug("initializing Redis client for infrastructure")
+	// Create Redis client for infrastructure components
 	redisClient, err := redis.New(mainContext, cfg.Redis.ToConfig())
 	if err != nil {
-		logger.Error("Redis initialization failed", zap.Error(err))
+		logger.Error("Redis client initialization failed", zap.Error(err))
 		return err
 	}
 
