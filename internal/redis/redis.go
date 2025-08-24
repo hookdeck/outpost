@@ -42,6 +42,62 @@ func New(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
 	return client, initializationError
 }
 
+// NewForTest creates a new Redis client for testing without using the singleton
+func NewForTest(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
+	if config.ClusterEnabled {
+		return createClusterClient(ctx, config)
+	}
+	return createRegularClient(ctx, config)
+}
+
+func createClusterClient(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
+	options := &r.ClusterOptions{
+		Addrs:    []string{fmt.Sprintf("%s:%d", config.Host, config.Port)},
+		Password: config.Password,
+		// Note: Database is ignored in cluster mode
+	}
+	
+	if config.TLSEnabled {
+		options.TLSConfig = &tls.Config{
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: true,
+		}
+	}
+	
+	clusterClient := r.NewClusterClient(options)
+	
+	// Test connectivity
+	if err := clusterClient.Ping(ctx).Err(); err != nil {
+		return nil, fmt.Errorf("cluster client ping failed: %w", err)
+	}
+	
+	return clusterClient, nil
+}
+
+func createRegularClient(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
+	options := &r.Options{
+		Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
+		Password: config.Password,
+		DB:       config.Database,
+	}
+	
+	if config.TLSEnabled {
+		options.TLSConfig = &tls.Config{
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: true,
+		}
+	}
+	
+	regularClient := r.NewClient(options)
+	
+	// Test connectivity
+	if err := regularClient.Ping(ctx).Err(); err != nil {
+		return nil, fmt.Errorf("regular client ping failed: %w", err)
+	}
+	
+	return regularClient, nil
+}
+
 // NewClientForScheduler creates a Redis client specifically for scheduler/RSMQ usage
 // This uses the old Redis package for compatibility with RSMQ  
 func NewClientForScheduler(ctx context.Context, config *RedisConfig) (interface{}, error) {
