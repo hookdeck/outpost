@@ -30,17 +30,26 @@ func NewRedisAlertStore(client redis.Cmdable) AlertStore {
 
 func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) (int, error) {
 	key := s.getFailuresKey(destinationID)
-	
-	// Increment the counter
-	count, err := s.client.Incr(ctx, key).Result()
+
+	// Use a transaction to ensure atomicity between INCR and EXPIRE operations.
+	// Since all operations use the same key, they will be routed to the same hash slot
+	// in Redis cluster mode, making transactions safe to use.
+	pipe := s.client.TxPipeline()
+	incrCmd := pipe.Incr(ctx, key)
+	pipe.Expire(ctx, key, 24*time.Hour)
+
+	// Execute the transaction
+	_, err := pipe.Exec(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("failed to increment failures: %w", err)
+		return 0, fmt.Errorf("failed to execute consecutive failure count transaction: %w", err)
 	}
-	
-	// Set expiration - this is a separate operation since we can't use transactions in cluster mode
-	// If this fails, the key will remain but without expiration, which is acceptable
-	s.client.Expire(ctx, key, 24*time.Hour)
-	
+
+	// Get the incremented count from the INCR command result
+	count, err := incrCmd.Result()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get incremented consecutive failure count: %w", err)
+	}
+
 	return int(count), nil
 }
 
