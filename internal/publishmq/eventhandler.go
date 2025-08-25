@@ -38,7 +38,7 @@ type eventHandler struct {
 
 func NewEventHandler(
 	logger *logging.Logger,
-	redisClient *redis.Client,
+	redisClient redis.Cmdable,
 	deliveryMQ *deliverymq.DeliveryMQ,
 	entityStore models.EntityStore,
 	eventTracer eventtracer.EventTracer,

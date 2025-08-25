@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-redis/redis"
+	"github.com/hookdeck/outpost/internal/logging"
 	iredis "github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/rsmq"
+	"go.uber.org/zap"
 )
 
 type ScheduleOption func(*ScheduleOptions)
@@ -39,6 +40,7 @@ type schedulerImpl struct {
 
 type config struct {
 	visibilityTimeout uint
+	logger            *logging.Logger
 }
 
 func WithVisibilityTimeout(vt uint) func(*config) {
@@ -47,19 +49,55 @@ func WithVisibilityTimeout(vt uint) func(*config) {
 	}
 }
 
+func WithLogger(logger *logging.Logger) func(*config) {
+	return func(c *config) {
+		c.logger = logger
+	}
+}
+
 func New(name string, redisConfig *iredis.RedisConfig, exec func(context.Context, string) error, opts ...func(*config)) Scheduler {
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", redisConfig.Host, redisConfig.Port),
-		Password: redisConfig.Password,
-		DB:       redisConfig.Database,
-	})
-	rsmqClient := rsmq.NewRedisSMQ(redisClient, "rsmq")
+	// Extract configuration including logger first
 	config := &config{
 		visibilityTimeout: rsmq.UnsetVt,
 	}
 	for _, opt := range opts {
 		opt(config)
 	}
+	
+	var rsmqClient *rsmq.RedisSMQ
+	
+	// Use the central Redis abstraction to get a client for RSMQ
+	redisClient, err := iredis.NewClientForScheduler(context.Background(), redisConfig)
+	if err != nil {
+		if config.logger != nil {
+			config.logger.Error("Redis client creation failed", 
+				zap.Error(err),
+				zap.String("host", redisConfig.Host),
+				zap.Int("port", redisConfig.Port),
+				zap.Bool("tls", redisConfig.TLSEnabled))
+		}
+		panic(fmt.Sprintf("Redis client creation failed: %v", err))
+	}
+	
+	if config.logger != nil {
+		logFields := []zap.Field{
+			zap.String("host", redisConfig.Host),
+			zap.Int("port", redisConfig.Port),
+			zap.Bool("tls", redisConfig.TLSEnabled),
+		}
+		if !redisConfig.ClusterEnabled {
+			logFields = append(logFields, zap.Int("database", redisConfig.Database))
+		}
+		config.logger.Info("Redis client initialized successfully", logFields...)
+	}
+	
+	// Create RSMQ client with the Redis client from central abstraction
+	if config.logger != nil {
+		rsmqClient = rsmq.NewRedisSMQ(redisClient.(rsmq.RedisClient), "rsmq", config.logger)
+	} else {
+		rsmqClient = rsmq.NewRedisSMQ(redisClient.(rsmq.RedisClient), "rsmq")
+	}
+	
 	return &schedulerImpl{
 		rsmqClient: rsmqClient,
 		config:     config,

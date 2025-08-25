@@ -40,7 +40,7 @@ func TestEntityStore_TenantCRUD(t *testing.T) {
 		err := entityStore.UpsertTenant(context.Background(), input)
 		require.NoError(t, err)
 
-		hash, err := redisClient.HGetAll(context.Background(), "tenant:"+input.ID).Result()
+		hash, err := redisClient.HGetAll(context.Background(), "{"+input.ID+"}:tenant").Result()
 		require.NoError(t, err)
 		createdAt, err := time.Parse(time.RFC3339Nano, hash["created_at"])
 		require.NoError(t, err)
@@ -251,7 +251,7 @@ func testEntityStoreDestinationCredentialsEncryption(t *testing.T, redisClient *
 	err := entityStore.UpsertDestination(context.Background(), input)
 	require.NoError(t, err)
 
-	actual, err := redisClient.HGetAll(context.Background(), fmt.Sprintf("tenant:%s:destination:%s", input.TenantID, input.ID)).Result()
+	actual, err := redisClient.HGetAll(context.Background(), fmt.Sprintf("{%s}:destination:%s", input.TenantID, input.ID)).Result()
 	require.NoError(t, err)
 	assert.NotEqual(t, input.Credentials, actual["credentials"])
 	decryptedCredentials, err := cipher.Decrypt([]byte(actual["credentials"]))

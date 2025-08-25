@@ -47,7 +47,7 @@ SDKs:
 
 Outpost is a self-hosted and open-source infrastructure that enables event producers to add outbound webhooks and [Event Destinations](https://eventdestinations.org?ref=github-outpost) to their platform with support for destination types such as Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS SNS, GCP Pub/Sub, RabbitMQ, and Kafka.
 
-The Outpost runtime has minimal dependencies (Redis, PostgreSQL or Clickhouse, and one of the supported message queues), is 100% backward compatible with your existing webhooks implementation and is optimized for high-throughput, low-cost operation.
+The Outpost runtime has minimal dependencies (Redis or Redis cluster or PostgreSQL, and one of the supported message queues), is 100% backward compatible with your existing webhooks implementation and is optimized for high-throughput, low-cost operation.
 
 Outpost is built and maintained by [Hookdeck](https://hookdeck.com?ref=github-outpost). It's written in Go and distributed as a binary and Docker container under the Apache-2.0 license.
 
@@ -117,6 +117,34 @@ cp .env.example .env
 ```
 
 Update the `$API_KEY` value within the new `.env` file.
+
+#### Redis Configuration
+
+Outpost supports both standard Redis and cluster Redis configurations:
+
+**Standard Redis** (default, for local development and single-node Redis):
+```env
+REDIS_HOST="redis"
+REDIS_PORT="6379" 
+REDIS_TLS_ENABLED="false"
+REDIS_CLUSTER_ENABLED="false"
+```
+
+**Redis Cluster** (for Redis Enterprise and managed Redis services):
+```env
+REDIS_HOST="your-redis-cluster.example.com"
+REDIS_PORT="10000"
+REDIS_TLS_ENABLED="true"
+REDIS_CLUSTER_ENABLED="true"
+```
+
+For other cloud Redis services or self-hosted Redis clusters, set `REDIS_CLUSTER_ENABLED="true"` if using Redis clustering.
+
+**Troubleshooting Redis connectivity**: Use the built-in diagnostic tool to test your Redis connection:
+```sh
+go run cmd/redis-debug/main.go your-redis-host 6379 password 0 [tls] [cluster]
+```
+See the [Redis Troubleshooting Guide](https://docs.outpost.hookdeck.com/references/troubleshooting-redis) for detailed guidance.
 
 Start the Outpost dependencies and services:
 
