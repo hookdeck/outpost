@@ -18,19 +18,38 @@ func getInstallation(ctx context.Context, redisClient redis.Cmdable, telemetryCo
 		return "", nil
 	}
 
-	// TODO: consider using WATCH to avoid race condition
-	// There's a potential race condition when multiple Outpost instances are started at the same time.
-	// However, given this is for telemetry purposes, and it will be a temporary issue, we can ignore it for now.
+	// First attempt: try to get existing installation ID
 	installationID, err := redisClient.HGet(ctx, outpostrcKey, installationKey).Result()
+	if err == nil {
+		// Installation ID already exists
+		return installationID, nil
+	}
+
+	if err != redis.Nil {
+		// Unexpected error
+		return "", err
+	}
+
+	// Installation ID doesn't exist, create one atomically
+	newInstallationID := uuid.New().String()
+
+	// Use HSETNX to atomically set the installation ID only if it doesn't exist
+	// This prevents race conditions when multiple Outpost instances start simultaneously
+	wasSet, err := redisClient.HSetNX(ctx, outpostrcKey, installationKey, newInstallationID).Result()
 	if err != nil {
-		if err == redis.Nil {
-			installationID = uuid.New().String()
-			if err = redisClient.HSet(ctx, outpostrcKey, installationKey, installationID).Err(); err != nil {
-				return "", err
-			}
-		} else {
-			return "", err
-		}
+		return "", err
+	}
+
+	if wasSet {
+		// We successfully set the installation ID
+		return newInstallationID, nil
+	}
+
+	// Another instance set the installation ID while we were generating ours
+	// Fetch the installation ID that was actually set
+	installationID, err = redisClient.HGet(ctx, outpostrcKey, installationKey).Result()
+	if err != nil {
+		return "", err
 	}
 
 	return installationID, nil
