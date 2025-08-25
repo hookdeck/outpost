@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"sync"
 
+	oldredis "github.com/go-redis/redis"
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	r "github.com/redis/go-redis/v9"
-	oldredis "github.com/go-redis/redis"
 )
 
 // Reexport go-redis's Nil constant for DX purposes.
@@ -30,7 +30,7 @@ const (
 
 var (
 	once                sync.Once
-	client              r.Cmdable  // Use interface to support both regular and cluster clients
+	client              r.Cmdable // Use interface to support both regular and cluster clients
 	initializationError error
 )
 
@@ -56,21 +56,21 @@ func createClusterClient(ctx context.Context, config *RedisConfig) (r.Cmdable, e
 		Password: config.Password,
 		// Note: Database is ignored in cluster mode
 	}
-	
+
 	if config.TLSEnabled {
 		options.TLSConfig = &tls.Config{
 			MinVersion:         tls.VersionTLS12,
 			InsecureSkipVerify: true,
 		}
 	}
-	
+
 	clusterClient := r.NewClusterClient(options)
-	
+
 	// Test connectivity
 	if err := clusterClient.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("cluster client ping failed: %w", err)
 	}
-	
+
 	return clusterClient, nil
 }
 
@@ -80,26 +80,26 @@ func createRegularClient(ctx context.Context, config *RedisConfig) (r.Cmdable, e
 		Password: config.Password,
 		DB:       config.Database,
 	}
-	
+
 	if config.TLSEnabled {
 		options.TLSConfig = &tls.Config{
 			MinVersion:         tls.VersionTLS12,
 			InsecureSkipVerify: true,
 		}
 	}
-	
+
 	regularClient := r.NewClient(options)
-	
+
 	// Test connectivity
 	if err := regularClient.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("regular client ping failed: %w", err)
 	}
-	
+
 	return regularClient, nil
 }
 
 // NewClientForScheduler creates a Redis client specifically for scheduler/RSMQ usage
-// This uses the old Redis package for compatibility with RSMQ  
+// This uses the old Redis package for compatibility with RSMQ
 func NewClientForScheduler(ctx context.Context, config *RedisConfig) (interface{}, error) {
 	if config.ClusterEnabled {
 		return newOldClusterClient(ctx, config)
@@ -113,21 +113,21 @@ func newOldClusterClient(ctx context.Context, config *RedisConfig) (interface{},
 		Password: config.Password,
 		// Note: Database is ignored in cluster mode
 	}
-	
+
 	if config.TLSEnabled {
 		options.TLSConfig = &tls.Config{
 			MinVersion:         tls.VersionTLS12,
 			InsecureSkipVerify: true, // Azure Managed Redis uses self-signed certificates
 		}
 	}
-	
+
 	clusterClient := oldredis.NewClusterClient(options)
-	
+
 	// Test connectivity
 	if err := clusterClient.Ping().Err(); err != nil {
-		return nil, fmt.Errorf("Redis cluster client connection failed (old package): %w", err)
+		return nil, fmt.Errorf("redis cluster client connection failed (old package): %w", err)
 	}
-	
+
 	return clusterClient, nil
 }
 
@@ -137,25 +137,23 @@ func newOldRegularClient(ctx context.Context, config *RedisConfig) (interface{},
 		Password: config.Password,
 		DB:       config.Database,
 	}
-	
+
 	if config.TLSEnabled {
 		options.TLSConfig = &tls.Config{
 			MinVersion:         tls.VersionTLS12,
 			InsecureSkipVerify: true, // Azure Managed Redis uses self-signed certificates
 		}
 	}
-	
+
 	regularClient := oldredis.NewClient(options)
-	
+
 	// Test connectivity
 	if err := regularClient.Ping().Err(); err != nil {
-		return nil, fmt.Errorf("Redis regular client connection failed (old package): %w", err)
+		return nil, fmt.Errorf("redis regular client connection failed (old package): %w", err)
 	}
-	
+
 	return regularClient, nil
 }
-
-
 
 func instrumentOpenTelemetry() error {
 	// OpenTelemetry instrumentation requires a concrete client type for type assertions
@@ -179,22 +177,22 @@ func initializeClient(ctx context.Context, config *RedisConfig) {
 			Password: config.Password,
 			// Note: Database is ignored in cluster mode
 		}
-		
+
 		if config.TLSEnabled {
 			options.TLSConfig = &tls.Config{
 				MinVersion:         tls.VersionTLS12,
 				InsecureSkipVerify: true, // Azure Managed Redis uses self-signed certificates
 			}
 		}
-		
+
 		clusterClient := r.NewClusterClient(options)
-		
+
 		// Test the cluster client connectivity
 		if err := clusterClient.Ping(ctx).Err(); err != nil {
-			initializationError = fmt.Errorf("Redis cluster connection failed: %w", err)
+			initializationError = fmt.Errorf("redis cluster connection failed: %w", err)
 			return
 		}
-		
+
 		// Assign to interface
 		client = clusterClient
 	} else {
@@ -204,21 +202,22 @@ func initializeClient(ctx context.Context, config *RedisConfig) {
 			Password: config.Password,
 			DB:       config.Database,
 		}
-		
+
 		if config.TLSEnabled {
 			options.TLSConfig = &tls.Config{
 				MinVersion:         tls.VersionTLS12,
 				InsecureSkipVerify: true, // Azure Managed Redis uses self-signed certificates
 			}
 		}
-		
+
 		regularClient := r.NewClient(options)
-		
+
 		// Test the regular client connectivity
 		if err := regularClient.Ping(ctx).Err(); err != nil {
-			panic(fmt.Sprintf("Redis regular client connection failed: %v", err))
+			initializationError = fmt.Errorf("redis regular client connection failed: %w", err)
+			return
 		}
-		
+
 		// Assign to interface
 		client = regularClient
 	}
