@@ -47,7 +47,7 @@ SDKs:
 
 Outpost is a self-hosted and open-source infrastructure that enables event producers to add outbound webhooks and [Event Destinations](https://eventdestinations.org?ref=github-outpost) to their platform with support for destination types such as Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS S3, GCP Pub/Sub, RabbitMQ, and Kafka.
 
-The Outpost runtime has minimal dependencies (Redis or Redis cluster or PostgreSQL, and one of the supported message queues), is 100% backward compatible with your existing webhooks implementation and is optimized for high-throughput, low-cost operation.
+The Outpost runtime has minimal dependencies (Redis or Redis cluster, PostgreSQL, and one of the supported message queues), is 100% backward compatible with your existing webhooks implementation, and is optimized for high-throughput, low-cost operation.
 
 Outpost is built and maintained by [Hookdeck](https://hookdeck.com?ref=github-outpost). It's written in Go and distributed as a binary and Docker container under the Apache-2.0 license.
 
