@@ -77,6 +77,9 @@ test/coverage/html:
 docs/generate/config:
 	go run cmd/configdocsgen/main.go
 
+redis/debug:
+	go run cmd/redis-debug/main.go $(ARGS)
+
 network:
 	docker network create outpost
 
