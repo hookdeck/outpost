@@ -1,0 +1,123 @@
+services:
+  # Shared PostgreSQL instance with multiple databases
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      # Default database - additional databases created via init script
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+
+  redis:
+    image: redis:7.4-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+        --save 20 1
+        --requirepass password
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics check_port_connectivity
+      interval: 1s
+      timeout: 1s
+      retries: 30
+
+  # Outpost services
+  outpost-api:
+    image: hookdeck/outpost:v0.4.1
+    env_file: .env.outpost
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SERVICE: api
+      POSTGRES_URL: postgres://outpost:outpost@postgres:5432/outpost?sslmode=disable
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: password
+      REDIS_DATABASE: 0
+      RABBITMQ_SERVER_URL: amqp://guest:guest@rabbitmq:5672
+      RABBITMQ_EXCHANGE: outpost
+      RABBITMQ_DELIVERY_QUEUE: outpost-delivery
+      RABBITMQ_LOG_QUEUE: outpost-log
+    ports:
+      - "3333:3333"
+
+  outpost-delivery:
+    image: hookdeck/outpost:v0.4.1
+    env_file: .env.outpost
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SERVICE: delivery
+      POSTGRES_URL: postgres://outpost:outpost@postgres:5432/outpost?sslmode=disable
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: password
+      REDIS_DATABASE: 0
+      RABBITMQ_SERVER_URL: amqp://guest:guest@rabbitmq:5672
+      RABBITMQ_EXCHANGE: outpost
+      RABBITMQ_DELIVERY_QUEUE: outpost-delivery
+      RABBITMQ_LOG_QUEUE: outpost-log
+
+  outpost-log:
+    image: hookdeck/outpost:v0.4.1
+    env_file: .env.outpost
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SERVICE: log
+      POSTGRES_URL: postgres://outpost:outpost@postgres:5432/outpost?sslmode=disable
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: password
+      REDIS_DATABASE: 0
+      RABBITMQ_SERVER_URL: amqp://guest:guest@rabbitmq:5672
+      RABBITMQ_EXCHANGE: outpost
+      RABBITMQ_DELIVERY_QUEUE: outpost-delivery
+      RABBITMQ_LOG_QUEUE: outpost-log
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
