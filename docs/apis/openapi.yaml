@@ -226,6 +226,57 @@ components:
           type: string
           description: The connection string for the Azure Service Bus namespace.
           example: "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abc123"
+    AWSS3Config:
+      type: object
+      required: [bucket, region]
+      properties:
+        bucket:
+          type: string
+          description: The name of the S3 bucket.
+          example: "my-bucket"
+        region:
+          type: string
+          description: The AWS region where the bucket is located.
+          pattern: "^[a-z]{2}-[a-z]+-[0-9]+$"
+          example: "us-east-1"
+        key_prefix:
+          type: string
+          description: Optional prefix added to object keys.
+          example: "events/"
+        key_suffix:
+          type: string
+          description: Optional suffix appended to object keys.
+          example: ".json"
+        include_timestamp:
+          type: string
+          enum: ["true", "false"]
+          description: Whether to include the event timestamp in the object key. Defaults to "true".
+          example: "true"
+        include_event_id:
+          type: string
+          enum: ["true", "false"]
+          description: Whether to include the event ID in the object key. Defaults to "true".
+          example: "true"
+        storage_class:
+          type: string
+          description: Optional S3 storage class for the object.
+          example: "STANDARD"
+    AWSS3Credentials:
+      type: object
+      required: [key, secret]
+      properties:
+        key:
+          type: string
+          description: AWS Access Key ID.
+          example: "AKIAIOSFODNN7EXAMPLE"
+        secret:
+          type: string
+          description: AWS Secret Access Key.
+          example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        session:
+          type: string
+          description: Optional AWS Session Token (for temporary credentials).
+          example: "AQoDYXdzEPT//////////wEXAMPLE..."
 
     # Type-Specific Destination Schemas (for Responses)
     DestinationWebhook:
@@ -554,6 +605,62 @@ components:
         credentials:
           connection_string: "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abc123"
 
+    DestinationAWSS3:
+      type: object
+      # Properties duplicated from DestinationBase
+      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      properties:
+        id:
+          type: string
+          description: Control plane generated ID or user provided ID for the destination.
+          example: "des_12345"
+        type:
+          type: string
+          description: Type of the destination.
+          enum: [aws_s3]
+          example: "aws_s3"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO Date when the destination was disabled, or null if enabled.
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        config:
+          $ref: "#/components/schemas/AWSS3Config"
+        credentials:
+          $ref: "#/components/schemas/AWSS3Credentials"
+        target:
+          type: string
+          description: A human-readable representation of the destination target (bucket and region). Read-only.
+          readOnly: true
+          example: "my-bucket in us-east-1"
+        target_url:
+          type: string
+          format: url
+          nullable: true
+          description: A URL link to the destination target (AWS Console link to the bucket). Read-only.
+          readOnly: true
+          example: null
+      example:
+        id: "des_s3_789"
+        type: "aws_s3"
+        topics: ["*"]
+        disabled_at: null
+        created_at: "2024-03-20T12:00:00Z"
+        config:
+          bucket: "my-bucket"
+          region: "us-east-1"
+        credentials:
+          key: "AKIAIOSFODNN7EXAMPLE"
+          secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
     # Polymorphic Destination Schema (for Responses)
     Destination:
       oneOf:
@@ -563,6 +670,7 @@ components:
         - $ref: "#/components/schemas/DestinationHookdeck"
         - $ref: "#/components/schemas/DestinationAWSKinesis"
         - $ref: "#/components/schemas/DestinationAzureServiceBus"
+        - $ref: "#/components/schemas/DestinationAWSS3"
       discriminator:
         propertyName: type
         mapping:
@@ -572,6 +680,7 @@ components:
           hookdeck: "#/components/schemas/DestinationHookdeck"
           aws_kinesis: "#/components/schemas/DestinationAWSKinesis"
           azure_servicebus: "#/components/schemas/DestinationAzureServiceBus"
+          aws_s3: "#/components/schemas/DestinationAWSS3"
 
     DestinationCreateWebhook:
       type: object
@@ -683,6 +792,25 @@ components:
         credentials:
           $ref: "#/components/schemas/AzureServiceBusCredentials"
 
+    DestinationCreateAWSS3:
+      type: object
+      required: [type, topics, config, credentials]
+      properties:
+        id:
+          type: string
+          description: Optional user-provided ID. A UUID will be generated if empty.
+          example: "user-provided-id"
+        type:
+          type: string
+          description: Type of the destination. Must be 'aws_s3'.
+          enum: [aws_s3]
+        topics:
+          $ref: "#/components/schemas/Topics"
+        config:
+          $ref: "#/components/schemas/AWSS3Config"
+        credentials:
+          $ref: "#/components/schemas/AWSS3Credentials"
+
     # Polymorphic Destination Creation Schema (for Request Bodies)
     DestinationCreate:
       oneOf:
@@ -692,6 +820,7 @@ components:
         - $ref: "#/components/schemas/DestinationCreateHookdeck"
         - $ref: "#/components/schemas/DestinationCreateAWSKinesis"
         - $ref: "#/components/schemas/DestinationCreateAzureServiceBus"
+        - $ref: "#/components/schemas/DestinationCreateAWSS3"
       discriminator:
         propertyName: type
         mapping:
@@ -701,6 +830,7 @@ components:
           hookdeck: "#/components/schemas/DestinationCreateHookdeck"
           aws_kinesis: "#/components/schemas/DestinationCreateAWSKinesis"
           azure_servicebus: "#/components/schemas/DestinationCreateAzureServiceBus"
+          aws_s3: "#/components/schemas/DestinationCreateAWSS3"
 
     # Type-Specific Destination Update Schemas (for Request Bodies)
     WebhookCredentialsUpdate:
@@ -769,6 +899,17 @@ components:
         credentials:
           $ref: "#/components/schemas/AWSKinesisCredentials" # key/secret required here, but PATCH means optional
 
+    DestinationUpdateAWSS3:
+      type: object
+      # Properties duplicated from DestinationUpdateBase
+      properties:
+        topics:
+          $ref: "#/components/schemas/Topics"
+        config:
+          $ref: "#/components/schemas/AWSS3Config" # bucket/region required here, but PATCH means optional
+        credentials:
+          $ref: "#/components/schemas/AWSS3Credentials" # key/secret required here, but PATCH means optional
+
     # Polymorphic Destination Update Schema (for Request Bodies)
     DestinationUpdate:
       oneOf:
@@ -777,7 +918,7 @@ components:
         - $ref: "#/components/schemas/DestinationUpdateRabbitMQ"
         - $ref: "#/components/schemas/DestinationUpdateHookdeck"
         - $ref: "#/components/schemas/DestinationUpdateAWSKinesis"
-
+        - $ref: "#/components/schemas/DestinationUpdateAWSS3"
     # Event Schemas
     PublishRequest:
       type: object
@@ -1190,11 +1331,11 @@ paths:
           schema:
             oneOf:
               - type: string
-                enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis]
+                enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, aws_s3]
               - type: array
                 items:
                   type: string
-                  enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis]
+                  enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, aws_s3]
           description: Filter destinations by type(s).
         - name: topics
           in: query
@@ -1237,6 +1378,17 @@ paths:
                       config:
                         queue_url: "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue"
                         endpoint: "https://sqs.us-west-2.amazonaws.com"
+                      credentials:
+                        key: "AKIAIOSFODNN7EXAMPLE"
+                        secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                    - id: "des_s3_789"
+                      type: "aws_s3"
+                      topics: ["*"]
+                      disabled_at: null
+                      created_at: "2024-03-20T12:00:00Z"
+                      config:
+                        bucket: "my-bucket"
+                        region: "us-east-1"
                       credentials:
                         key: "AKIAIOSFODNN7EXAMPLE"
                         secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
@@ -1592,6 +1744,80 @@ paths:
                             sensitive: true,
                           },
                         ]
+                    - type: "aws_s3"
+                      label: "AWS S3"
+                      description: "Store events in an Amazon S3 bucket"
+                      icon: "<svg />"
+                      instructions: "Enter bucket and region..."
+                      config_fields:
+                        [
+                          {
+                            type: "text",
+                            label: "Bucket Name",
+                            description: "The name of the S3 bucket.",
+                            required: true,
+                          },
+                          {
+                            type: "text",
+                            label: "AWS Region",
+                            description: "The AWS region where the bucket is located.",
+                            required: true,
+                          },
+                        ]
+                      credential_fields:
+                        [
+                          {
+                            type: "text",
+                            label: "Key",
+                            description: "AWS Access Key ID.",
+                            required: true,
+                            sensitive: true,
+                          },
+                          {
+                            type: "text",
+                            label: "Secret",
+                            description: "AWS Secret Access Key.",
+                            required: true,
+                            sensitive: true,
+                          },
+                        ]
+                    - type: "aws_s3"
+                      label: "AWS S3"
+                      description: "Store events in an Amazon S3 bucket"
+                      icon: "<svg />"
+                      instructions: "Enter bucket and region..."
+                      config_fields:
+                        [
+                          {
+                            type: "text",
+                            label: "Bucket Name",
+                            description: "The name of the S3 bucket.",
+                            required: true,
+                          },
+                          {
+                            type: "text",
+                            label: "AWS Region",
+                            description: "The AWS region where the bucket is located.",
+                            required: true,
+                          },
+                        ]
+                      credential_fields:
+                        [
+                          {
+                            type: "text",
+                            label: "Key",
+                            description: "AWS Access Key ID.",
+                            required: true,
+                            sensitive: true,
+                          },
+                          {
+                            type: "text",
+                            label: "Secret",
+                            description: "AWS Secret Access Key.",
+                            required: true,
+                            sensitive: true,
+                          },
+                        ]
         "404":
           description: Tenant not found.
 
@@ -1608,7 +1834,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis]
+          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, aws_s3]
         description: The type of the destination.
     get:
       tags: [Schemas]
@@ -2069,7 +2295,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis]
+          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, aws_s3]
         description: The type of the destination.
     get:
       tags: [Schemas]

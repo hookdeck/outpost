@@ -28,7 +28,7 @@ services:
   aws:
     image: localstack/localstack:latest
     environment:
-      - SERVICES=sns,sts,sqs,kinesis
+      - SERVICES=s3,sns,sts,sqs,kinesis
     ports:
       - 34566:4566
       - 34571:4571
