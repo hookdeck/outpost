@@ -89,7 +89,7 @@ func (p *infraProvider) Teardown(ctx context.Context) error {
 	return nil
 }
 
-func NewInfra(cfg Config, redisClient *redis.Client) Infra {
+func NewInfra(cfg Config, redisClient redis.Cmdable) Infra {
 	cfg.SetSensiblePolicyDefaults()
 
 	provider := &infraProvider{
