@@ -10,4 +10,5 @@ RUN go build -o ./bin/outpost ./cmd/outpost/main.go
 # Copy binary to a new image
 FROM scratch
 COPY --from=0 /app/bin/outpost /bin/outpost
+COPY --from=0 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 ENTRYPOINT ["/bin/outpost"]
