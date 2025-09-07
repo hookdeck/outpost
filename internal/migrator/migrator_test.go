@@ -1,6 +1,7 @@
 package migrator
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -155,7 +156,7 @@ func TestMigrator_CredentialExposure_Integration(t *testing.T) {
 
 			// Clean up if migrator was created successfully
 			if migrator != nil {
-				migrator.Close(nil)
+				migrator.Close(context.Background())
 			}
 		})
 	}
