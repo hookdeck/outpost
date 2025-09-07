@@ -20,7 +20,7 @@ func sanitizeConnectionError(err error, dbURL string) error {
 	}
 
 	errMsg := err.Error()
-	
+
 	// If the error contains the database URL, replace it entirely
 	// This is the safest approach - better to lose some context than leak credentials
 	if dbURL != "" && strings.Contains(errMsg, dbURL) {
@@ -34,10 +34,10 @@ func sanitizeConnectionError(err error, dbURL string) error {
 			errMsg = strings.ReplaceAll(errMsg, dbURL, "[DATABASE_URL_REDACTED]")
 		}
 	}
-	
+
 	// Also try to remove any other credential patterns
 	sanitized := removeCredentialsFromError(errMsg, dbURL)
-	
+
 	// Return the sanitized error wrapped with context
 	return fmt.Errorf("migrate.New: %s", sanitized)
 }
@@ -56,7 +56,7 @@ func removeCredentialsFromError(errMsg string, dbURL string) string {
 		// If we can't parse the URL, still try to redact it using string matching
 		// This handles malformed URLs in parse errors
 		result := errMsg
-		
+
 		// Try to extract username:password pattern from the malformed URL
 		if idx := strings.Index(dbURL, "://"); idx >= 0 {
 			afterScheme := dbURL[idx+3:]
@@ -65,7 +65,7 @@ func removeCredentialsFromError(errMsg string, dbURL string) string {
 				if colonIdx := strings.Index(userInfo, ":"); colonIdx >= 0 {
 					username := userInfo[:colonIdx]
 					password := userInfo[colonIdx+1:]
-					
+
 					// Replace the password wherever it appears
 					result = strings.ReplaceAll(result, password, "[REDACTED]")
 					// Replace user:password pattern
@@ -73,7 +73,7 @@ func removeCredentialsFromError(errMsg string, dbURL string) string {
 				}
 			}
 		}
-		
+
 		// Also apply common patterns
 		return removeCommonCredentialPatterns(result)
 	}
@@ -95,14 +95,14 @@ func removeCredentialsFromError(errMsg string, dbURL string) string {
 		if pass, hasPass := u.User.Password(); hasPass && pass != "" {
 			// Replace password occurrences
 			result = strings.ReplaceAll(result, pass, "[REDACTED]")
-			
+
 			// Also replace common patterns like "user:password"
 			if username := u.User.Username(); username != "" {
 				credPattern := username + ":" + pass
 				result = strings.ReplaceAll(result, credPattern, username+":[REDACTED]")
 			}
 		}
-		
+
 		// Replace the entire user info if it appears
 		userInfo := u.User.String()
 		if userInfo != "" && strings.Contains(result, userInfo) {
@@ -137,7 +137,7 @@ func sanitizeURL(u *url.URL) string {
 	var result strings.Builder
 	result.WriteString(u.Scheme)
 	result.WriteString("://")
-	
+
 	if u.User != nil {
 		username := u.User.Username()
 		if username != "" {
@@ -146,7 +146,7 @@ func sanitizeURL(u *url.URL) string {
 			result.WriteString("@")
 		}
 	}
-	
+
 	result.WriteString(u.Host)
 	result.WriteString(u.Path)
 	if u.RawQuery != "" {
@@ -157,14 +157,14 @@ func sanitizeURL(u *url.URL) string {
 		result.WriteString("#")
 		result.WriteString(u.Fragment)
 	}
-	
+
 	return result.String()
 }
 
 // removeCommonCredentialPatterns removes common credential patterns when we can't parse the URL
 func removeCommonCredentialPatterns(errMsg string) string {
 	result := errMsg
-	
+
 	// Common patterns to redact - be more aggressive with matching
 	patterns := []struct {
 		regex   string
@@ -180,12 +180,12 @@ func removeCommonCredentialPatterns(errMsg string) string {
 		// Password after colon in URLs
 		{`://([^:]+):([^@]+)@`, "://$1:[REDACTED]@"},
 	}
-	
+
 	for _, p := range patterns {
 		re := regexp.MustCompile(p.regex)
 		result = re.ReplaceAllString(result, p.replace)
 	}
-	
+
 	return result
 }
 

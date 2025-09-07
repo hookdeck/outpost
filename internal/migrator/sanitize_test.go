@@ -165,7 +165,7 @@ func TestSanitizeConnectionError(t *testing.T) {
 
 			// Check for things that should be present
 			for _, expected := range tt.contains {
-				assert.Contains(t, resultStr, expected, 
+				assert.Contains(t, resultStr, expected,
 					"Expected to find '%s' in error message", expected)
 			}
 

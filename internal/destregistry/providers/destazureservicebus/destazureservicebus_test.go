@@ -44,8 +44,8 @@ func TestComputeTarget(t *testing.T) {
 			expectedTarget: "test-namespace/my-topic",
 		},
 		{
-			name:        "with missing name config",
-			config:      map[string]string{},
+			name:   "with missing name config",
+			config: map[string]string{},
 			credentials: map[string]string{
 				"connection_string": "Endpoint=sb://mynamespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abcd1234",
 			},
