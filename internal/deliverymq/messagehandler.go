@@ -110,7 +110,7 @@ type AlertMonitor interface {
 
 func NewMessageHandler(
 	logger *logging.Logger,
-	redisClient *redis.Client,
+	redisClient redis.Cmdable,
 	logMQ LogPublisher,
 	entityStore DestinationGetter,
 	logStore EventGetter,

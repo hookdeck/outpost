@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
 )
 
-func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig) scheduler.Scheduler {
+func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, logger *logging.Logger) scheduler.Scheduler {
 	exec := func(ctx context.Context, msg string) error {
 		retryMessage := RetryMessage{}
 		if err := retryMessage.FromString(msg); err != nil {
@@ -21,7 +22,7 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig) s
 		}
 		return nil
 	}
-	return scheduler.New("deliverymq-retry", redisConfig, exec)
+	return scheduler.New("deliverymq-retry", redisConfig, exec, scheduler.WithLogger(logger))
 }
 
 type RetryMessage struct {
