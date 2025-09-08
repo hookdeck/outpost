@@ -1,7 +1,7 @@
 name: outpost-example
 services:
   api:
-    image: hookdeck/outpost:v0.4.1
+    image: hookdeck/outpost:v0.5.0
     env_file: .env
     depends_on:
       redis:
@@ -14,7 +14,7 @@ services:
       - 3333:3333
 
   delivery:
-    image: hookdeck/outpost:v0.4.1
+    image: hookdeck/outpost:v0.5.0
     env_file: .env
     depends_on:
       redis:
@@ -25,7 +25,7 @@ services:
       SERVICE: delivery
 
   log:
-    image: hookdeck/outpost:v0.4.1
+    image: hookdeck/outpost:v0.5.0
     env_file: .env
     depends_on:
       redis:
