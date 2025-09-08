@@ -34,7 +34,6 @@ type AWSS3Config struct {
 	Endpoint     string // Optional endpoint for testing
 }
 
-
 // AWSS3Credentials is the credentials for an S3 destination
 type AWSS3Credentials struct {
 	Key     string
