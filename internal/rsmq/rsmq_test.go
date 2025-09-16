@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -84,7 +84,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func preIntegrationTest(t *testing.T) *redis.Client {
+func preIntegrationTest(t *testing.T) RedisClient {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -99,12 +99,13 @@ func preIntegrationTest(t *testing.T) *redis.Client {
 	})
 
 	t.Cleanup(func() {
-		client.FlushAll()
-		client.ScriptFlush()
-		client.FlushDB()
+		client.FlushAll(ctx)
+		client.ScriptFlush(ctx)
+		client.FlushDB(ctx)
 	})
 
-	return client
+	// Wrap the v9 client with the adapter
+	return NewRedisAdapter(client)
 }
 
 func TestNewRedisSMQ(t *testing.T) {

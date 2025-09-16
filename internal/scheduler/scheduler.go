@@ -65,9 +65,11 @@ func New(name string, redisConfig *iredis.RedisConfig, exec func(context.Context
 	}
 
 	var rsmqClient *rsmq.RedisSMQ
+	ctx := context.Background()
 
-	// Use the central Redis abstraction to get a client for RSMQ
-	redisClient, err := iredis.NewClientForScheduler(context.Background(), redisConfig)
+	// Create a new Redis client for this scheduler instance
+	// Each scheduler should have its own connection, not share the singleton
+	redisClient, err := iredis.NewClient(ctx, redisConfig)
 	if err != nil {
 		if config.logger != nil {
 			config.logger.Error("Redis client creation failed",
@@ -78,6 +80,9 @@ func New(name string, redisConfig *iredis.RedisConfig, exec func(context.Context
 		}
 		panic(fmt.Sprintf("Redis client creation failed: %v", err))
 	}
+
+	// Create adapter to make v9 client compatible with RSMQ
+	adapter := rsmq.NewRedisAdapter(redisClient)
 
 	if config.logger != nil {
 		logFields := []zap.Field{
@@ -91,11 +96,11 @@ func New(name string, redisConfig *iredis.RedisConfig, exec func(context.Context
 		config.logger.Info("Redis client initialized successfully", logFields...)
 	}
 
-	// Create RSMQ client with the Redis client from central abstraction
+	// Create RSMQ client with the adapter
 	if config.logger != nil {
-		rsmqClient = rsmq.NewRedisSMQ(redisClient.(rsmq.RedisClient), "rsmq", config.logger)
+		rsmqClient = rsmq.NewRedisSMQ(adapter, "rsmq", config.logger)
 	} else {
-		rsmqClient = rsmq.NewRedisSMQ(redisClient.(rsmq.RedisClient), "rsmq")
+		rsmqClient = rsmq.NewRedisSMQ(adapter, "rsmq")
 	}
 
 	return &schedulerImpl{

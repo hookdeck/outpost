@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sync"
 
-	oldredis "github.com/go-redis/redis"
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	r "github.com/redis/go-redis/v9"
 )
@@ -42,8 +41,10 @@ func New(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
 	return client, initializationError
 }
 
-// NewForTest creates a new Redis client for testing without using the singleton
-func NewForTest(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
+// NewClient creates a new Redis client without using the singleton
+// This should be used by components that need their own Redis connection,
+// such as libraries or in test scenarios where isolation is required
+func NewClient(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
 	if config.ClusterEnabled {
 		return createClusterClient(ctx, config)
 	}
@@ -93,63 +94,6 @@ func createRegularClient(ctx context.Context, config *RedisConfig) (r.Cmdable, e
 	// Test connectivity
 	if err := regularClient.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("regular client ping failed: %w", err)
-	}
-
-	return regularClient, nil
-}
-
-// NewClientForScheduler creates a Redis client specifically for scheduler/RSMQ usage
-// This uses the old Redis package for compatibility with RSMQ
-func NewClientForScheduler(ctx context.Context, config *RedisConfig) (interface{}, error) {
-	if config.ClusterEnabled {
-		return newOldClusterClient(ctx, config)
-	}
-	return newOldRegularClient(ctx, config)
-}
-
-func newOldClusterClient(ctx context.Context, config *RedisConfig) (interface{}, error) {
-	options := &oldredis.ClusterOptions{
-		Addrs:    []string{fmt.Sprintf("%s:%d", config.Host, config.Port)},
-		Password: config.Password,
-		// Note: Database is ignored in cluster mode
-	}
-
-	if config.TLSEnabled {
-		options.TLSConfig = &tls.Config{
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: true, // Azure Managed Redis uses self-signed certificates
-		}
-	}
-
-	clusterClient := oldredis.NewClusterClient(options)
-
-	// Test connectivity
-	if err := clusterClient.Ping().Err(); err != nil {
-		return nil, fmt.Errorf("redis cluster client connection failed (old package): %w", err)
-	}
-
-	return clusterClient, nil
-}
-
-func newOldRegularClient(ctx context.Context, config *RedisConfig) (interface{}, error) {
-	options := &oldredis.Options{
-		Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
-		Password: config.Password,
-		DB:       config.Database,
-	}
-
-	if config.TLSEnabled {
-		options.TLSConfig = &tls.Config{
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: true, // Azure Managed Redis uses self-signed certificates
-		}
-	}
-
-	regularClient := oldredis.NewClient(options)
-
-	// Test connectivity
-	if err := regularClient.Ping().Err(); err != nil {
-		return nil, fmt.Errorf("redis regular client connection failed (old package): %w", err)
 	}
 
 	return regularClient, nil

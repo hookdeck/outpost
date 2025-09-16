@@ -64,7 +64,7 @@ func newTestInfra(t *testing.T, provider infra.InfraProvider, lockKey string) *i
 	redisConfig := testutil.CreateTestRedisConfig(t)
 
 	ctx := context.Background()
-	client, err := redis.NewForTest(ctx, redisConfig)
+	client, err := redis.NewClient(ctx, redisConfig)
 	require.NoError(t, err)
 
 	return newTestInfraWithRedis(t, provider, lockKey, client)
@@ -126,7 +126,7 @@ func TestInfra_ConcurrentNodes(t *testing.T) {
 	lockKey := "test:lock:" + uuid.New().String()
 
 	redisConfig := testutil.CreateTestRedisConfig(t)
-	client, err := redis.NewForTest(ctx, redisConfig)
+	client, err := redis.NewClient(ctx, redisConfig)
 	require.NoError(t, err)
 
 	const numNodes = 10
@@ -179,7 +179,7 @@ func TestInfra_LockExpiry(t *testing.T) {
 		Password: "",
 		Database: 0,
 	}
-	client, err := redis.NewForTest(ctx, redisConfig)
+	client, err := redis.NewClient(ctx, redisConfig)
 	require.NoError(t, err)
 
 	// Create and acquire lock with 1 second TTL

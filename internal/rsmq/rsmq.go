@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis"
 	"github.com/hookdeck/outpost/internal/logging"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
@@ -59,6 +59,25 @@ var (
 	hashChangeMessageVisibility = redis.NewScript(scriptChangeMessageVisibility).Hash()
 )
 
+// Pipeliner interface defines the pipeline operations needed by RSMQ
+type Pipeliner interface {
+	HSetNX(key, field string, value interface{}) *redis.BoolCmd
+	HMGet(key string, fields ...string) *redis.SliceCmd
+	Time() *redis.TimeCmd
+	SAdd(key string, members ...interface{}) *redis.IntCmd
+	HSet(key string, values ...interface{}) *redis.IntCmd
+	HIncrBy(key, field string, incr int64) *redis.IntCmd
+	ZAdd(key string, members ...redis.Z) *redis.IntCmd
+	ZCard(key string) *redis.IntCmd
+	ZCount(key, min, max string) *redis.IntCmd
+	ZRem(key string, members ...interface{}) *redis.IntCmd
+	HDel(key string, fields ...string) *redis.IntCmd
+	SRem(key string, members ...interface{}) *redis.IntCmd
+	Del(keys ...string) *redis.IntCmd
+	ZRangeByScoreWithScores(key string, opt *redis.ZRangeBy) *redis.ZSliceCmd
+	Exec() ([]redis.Cmder, error)
+}
+
 // RedisClient interface defines the operations needed by RSMQ
 // Both redis.Client and redis.ClusterClient implement these methods
 type RedisClient interface {
@@ -78,7 +97,7 @@ type RedisClient interface {
 	SRem(key string, members ...interface{}) *redis.IntCmd
 	EvalSha(sha1 string, keys []string, args ...interface{}) *redis.Cmd
 	ScriptLoad(script string) *redis.StringCmd
-	TxPipeline() redis.Pipeliner
+	TxPipeline() Pipeliner
 	Exists(keys ...string) *redis.IntCmd
 	Type(key string) *redis.StatusCmd
 	Close() error
