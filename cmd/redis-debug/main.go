@@ -37,23 +37,23 @@ func main() {
 	portStr := os.Args[2]
 	password := os.Args[3]
 	dbStr := os.Args[4]
-	
+
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
 		log.Fatal("Invalid port:", err)
 	}
-	
+
 	db, err := strconv.Atoi(dbStr)
 	if err != nil {
 		log.Fatal("Invalid database:", err)
 	}
-	
+
 	useTLS := len(os.Args) > 5 && os.Args[5] == "true"
 	useCluster := len(os.Args) > 6 && os.Args[6] == "cluster"
 
-	fmt.Printf("=== Redis Client Mode: %s ===\n", 
+	fmt.Printf("=== Redis Client Mode: %s ===\n",
 		map[bool]string{true: "CLUSTER", false: "REGULAR"}[useCluster])
-	
+
 	if useCluster {
 		testClusterClient(host, port, password, useTLS)
 	} else {
@@ -66,7 +66,7 @@ func testClusterClient(host string, port int, password string, useTLS bool) {
 		Addrs:    []string{fmt.Sprintf("%s:%d", host, port)},
 		Password: password,
 	}
-	
+
 	if useTLS {
 		options.TLSConfig = &tls.Config{
 			MinVersion:         tls.VersionTLS12,
@@ -78,7 +78,7 @@ func testClusterClient(host string, port int, password string, useTLS bool) {
 	defer client.Close()
 
 	fmt.Println("\n=== Redis Cluster Connectivity Test ===")
-	
+
 	// Test basic connectivity
 	pong, err := client.Ping().Result()
 	if err != nil {
@@ -102,7 +102,7 @@ func testRegularClient(host string, port int, password string, db int, useTLS bo
 		Password: password,
 		DB:       db,
 	}
-	
+
 	if useTLS {
 		options.TLSConfig = &tls.Config{
 			MinVersion:         tls.VersionTLS12,
@@ -114,7 +114,7 @@ func testRegularClient(host string, port int, password string, db int, useTLS bo
 	defer client.Close()
 
 	fmt.Println("\n=== Redis Regular Connectivity Test ===")
-	
+
 	// Test basic connectivity
 	pong, err := client.Ping().Result()
 	if err != nil {
@@ -157,20 +157,20 @@ func testRedisOperations(client RedisClientInterface) {
 			fmt.Printf("❌ %s: Error checking existence: %v\n", key, err)
 			continue
 		}
-		
+
 		if exists == 0 {
 			fmt.Printf("ℹ️  %s: Does not exist\n", key)
 			continue
 		}
-		
+
 		keyType, err := client.Type(key).Result()
 		if err != nil {
 			fmt.Printf("❌ %s: Error getting type: %v\n", key, err)
 			continue
 		}
-		
+
 		fmt.Printf("⚠️  %s: EXISTS (type: %s)\n", key, keyType)
-		
+
 		// If it's a hash, show the fields
 		if keyType == "hash" {
 			fields, err := client.HGetAll(key).Result()
@@ -184,10 +184,10 @@ func testRedisOperations(client RedisClientInterface) {
 
 	fmt.Println("\n=== HSETNX Test ===")
 	testKey := "rsmq:test-queue:Q"
-	
+
 	// Clean up any existing test key
 	client.Del(testKey)
-	
+
 	// Test HSETNX command
 	result, err := client.HSetNX(testKey, "vt", 30).Result()
 	if err != nil {
@@ -195,7 +195,7 @@ func testRedisOperations(client RedisClientInterface) {
 	} else {
 		fmt.Printf("✅ HSETNX result: %v\n", result)
 	}
-	
+
 	// Clean up
 	client.Del(testKey)
 
@@ -204,7 +204,7 @@ func testRedisOperations(client RedisClientInterface) {
 	tx.HSetNX("rsmq:test-tx:Q", "vt", 30)
 	tx.HSetNX("rsmq:test-tx:Q", "delay", 0)
 	tx.HSetNX("rsmq:test-tx:Q", "maxsize", 65536)
-	
+
 	results, err := tx.Exec()
 	if err != nil {
 		fmt.Printf("❌ Transaction failed: %v\n", err)
@@ -212,10 +212,10 @@ func testRedisOperations(client RedisClientInterface) {
 	} else {
 		fmt.Printf("✅ Transaction succeeded with %d results\n", len(results))
 	}
-	
+
 	// Clean up
 	client.Del("rsmq:test-tx:Q")
-	
+
 	fmt.Println("\n=== Cleanup Existing RSMQ Keys ===")
 	for _, key := range rsmqKeys {
 		deleted, err := client.Del(key).Result()
@@ -225,6 +225,6 @@ func testRedisOperations(client RedisClientInterface) {
 			fmt.Printf("🗑️  Deleted %s\n", key)
 		}
 	}
-	
+
 	fmt.Println("\n✅ Redis diagnostic complete!")
 }

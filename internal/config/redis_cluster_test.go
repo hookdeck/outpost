@@ -24,7 +24,7 @@ func TestRedisClusterConfigDefaults(t *testing.T) {
 			TLSEnabled:     false,
 			ClusterEnabled: false,
 		}
-		
+
 		redisConfig := config.ToConfig()
 		if redisConfig.ClusterEnabled {
 			t.Error("ToConfig() should preserve ClusterEnabled=false")

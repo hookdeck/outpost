@@ -184,8 +184,8 @@ func (rsmq *RedisSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int
 	t, err := rsmq.client.Time().Result()
 	if err != nil {
 		if rsmq.logger != nil {
-			rsmq.logger.Debug("Redis TIME command failed during queue creation", 
-				zap.Error(err), 
+			rsmq.logger.Debug("Redis TIME command failed during queue creation",
+				zap.Error(err),
 				zap.String("queue", qname))
 		}
 		return err
@@ -199,7 +199,7 @@ func (rsmq *RedisSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int
 	tx.HSetNX(key, "maxsize", maxsize)
 	tx.HSetNX(key, "created", t.Unix())
 	tx.HSetNX(key, "modified", t.Unix())
-	
+
 	if rsmq.logger != nil {
 		rsmq.logger.Debug("executing Redis transaction for queue creation",
 			zap.String("queue", qname),
@@ -207,7 +207,7 @@ func (rsmq *RedisSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int
 			zap.Uint("vt", vt),
 			zap.Uint("delay", delay),
 			zap.Int("maxsize", maxsize))
-			
+
 		// Check if key already exists and what type it is
 		keyType, typeErr := rsmq.client.Type(key).Result()
 		if typeErr == nil {
@@ -216,16 +216,16 @@ func (rsmq *RedisSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int
 				zap.String("key_type", keyType))
 		}
 	}
-	
+
 	_, err = tx.Exec()
 	if err != nil {
 		if rsmq.logger != nil {
-			rsmq.logger.Error("Redis transaction execution failed during queue creation", 
+			rsmq.logger.Error("Redis transaction execution failed during queue creation",
 				zap.Error(err),
 				zap.String("queue", qname),
 				zap.String("key", key),
 				zap.String("context", "This likely indicates Redis connectivity or permission issues"))
-				
+
 			// Try to get more details about what might be wrong
 			keyExists, existsErr := rsmq.client.Exists(key).Result()
 			keyType, typeErr := rsmq.client.Type(key).Result()
@@ -238,10 +238,10 @@ func (rsmq *RedisSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int
 		}
 		return err
 	}
-	
+
 	if !r.Val() {
 		if rsmq.logger != nil {
-			rsmq.logger.Debug("queue creation skipped - queue already exists", 
+			rsmq.logger.Debug("queue creation skipped - queue already exists",
 				zap.String("queue", qname))
 		}
 		return ErrQueueExists
@@ -250,14 +250,14 @@ func (rsmq *RedisSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int
 	_, err = rsmq.client.SAdd(rsmq.ns+queues, qname).Result()
 	if err != nil {
 		if rsmq.logger != nil {
-			rsmq.logger.Error("failed to add queue to queue set", 
+			rsmq.logger.Error("failed to add queue to queue set",
 				zap.Error(err),
 				zap.String("queue", qname),
 				zap.String("set_key", rsmq.ns+queues))
 		}
 	} else {
 		if rsmq.logger != nil {
-			rsmq.logger.Debug("queue created successfully", 
+			rsmq.logger.Debug("queue created successfully",
 				zap.String("queue", qname))
 		}
 	}
@@ -536,7 +536,7 @@ func (rsmq *RedisSMQ) PopMessage(qname string) (*QueueMessage, error) {
 
 func (rsmq *RedisSMQ) createQueueMessage(cmd *redis.Cmd) (*QueueMessage, error) {
 	val := cmd.Val()
-	
+
 	// Try different type assertions for cluster vs regular client compatibility
 	var vals []any
 	if v, ok := val.([]any); ok {

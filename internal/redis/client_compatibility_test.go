@@ -29,7 +29,7 @@ func TestRedisClientInterfaceCompatibility(t *testing.T) {
 
 	// Test that cluster client implements all RedisClient interface methods
 	t.Run("ClusterClientImplementsInterface", func(t *testing.T) {
-		// This will fail at compile time if the interface is not implemented  
+		// This will fail at compile time if the interface is not implemented
 		var _ RedisClient = clusterClient
 	})
 }

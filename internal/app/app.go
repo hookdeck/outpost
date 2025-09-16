@@ -76,7 +76,7 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	
+
 	telemetry := telemetry.New(logger, cfg.Telemetry.ToTelemetryConfig(), installationID)
 	telemetry.Init(mainContext)
 	telemetry.ApplicationStarted(mainContext, cfg.ToTelemetryApplicationInfo())
