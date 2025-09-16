@@ -125,7 +125,7 @@ func initializeClient(ctx context.Context, config *RedisConfig) {
 		if config.TLSEnabled {
 			options.TLSConfig = &tls.Config{
 				MinVersion:         tls.VersionTLS12,
-				InsecureSkipVerify: true, // Azure Managed Redis uses self-signed certificates
+				InsecureSkipVerify: true, // Some managed Redis services use self-signed certificates
 			}
 		}
 
@@ -150,7 +150,7 @@ func initializeClient(ctx context.Context, config *RedisConfig) {
 		if config.TLSEnabled {
 			options.TLSConfig = &tls.Config{
 				MinVersion:         tls.VersionTLS12,
-				InsecureSkipVerify: true, // Azure Managed Redis uses self-signed certificates
+				InsecureSkipVerify: true, // Some managed Redis services use self-signed certificates
 			}
 		}
 

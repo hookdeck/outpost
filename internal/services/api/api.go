@@ -72,7 +72,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		logger.Error("delivery MQ initialization failed",
 			zap.Error(err),
 			zap.String("mq_type", cfg.MQs.GetInfraType()),
-			zap.String("context", "This likely indicates Azure Service Bus connectivity issues"))
+			zap.String("context", "This likely indicates message queue connectivity issues"))
 		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) { cleanupDeliveryMQ() })
