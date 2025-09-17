@@ -1000,6 +1000,10 @@ components:
           additionalProperties:
             type: string
           example: { "source": "crm" }
+        status:
+          type: string
+          enum: [success, failed]
+          example: "success"
         data:
           type: object
           description: Freeform JSON data of the event.
