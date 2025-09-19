@@ -56,12 +56,6 @@ type RouterConfig struct {
 	GinMode      string
 }
 
-type routeDefinition struct {
-	method   string
-	path     string
-	handlers []gin.HandlerFunc
-}
-
 // registerRoutes registers routes to the given router based on route definitions and config
 func registerRoutes(router *gin.RouterGroup, cfg RouterConfig, routes []RouteDefinition) {
 	isPortalMode := cfg.APIKey != "" && cfg.JWTSecret != ""
@@ -111,7 +105,7 @@ func buildMiddlewareChain(cfg RouterConfig, def RouteDefinition) []gin.HandlerFu
 func NewRouter(
 	cfg RouterConfig,
 	logger *logging.Logger,
-	redisClient *redis.Client,
+	redisClient redis.Cmdable,
 	deliveryMQ *deliverymq.DeliveryMQ,
 	entityStore models.EntityStore,
 	logStore logstore.LogStore,

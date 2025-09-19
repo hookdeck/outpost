@@ -1,0 +1,51 @@
+name: "outpost-test-redis-cluster"
+
+networks:
+  default:
+    external: true
+    name: outpost-test_default
+
+volumes:
+  go-modules:
+    name: outpost-test-go-modules
+  go-build:
+    name: outpost-test-go-build
+
+services:
+  redis-cluster:
+    image: ${REDIS_IMAGE:-grokzen/redis-cluster:7.2.4}
+    container_name: redis-cluster
+    hostname: redis-cluster
+    environment:
+      - IP=0.0.0.0 # Bind to all interfaces
+      - INITIAL_PORT=7000
+      - MASTERS=3
+      - SLAVES_PER_MASTER=1 # 3 masters + 3 slaves = 6 nodes total
+
+  test-runner:
+    image: golang:1.23-alpine
+    container_name: test-runner
+    working_dir: /app
+    volumes:
+      - ../../:/app
+      - /app/.git # Exclude .git directory
+      - go-modules:/go/pkg/mod # Cache Go modules
+      - go-build:/root/.cache/go-build # Cache Go build artifacts
+    environment:
+      # Test Infrastructure
+      - TESTINFRA=1
+      # DBs - using container service names
+      - TEST_POSTGRES_URL=postgres:5432
+      - TEST_CLICKHOUSE_URL=clickhouse:9000
+      # MQs
+      - TEST_RABBITMQ_URL=rabbitmq:5672
+      - TEST_LOCALSTACK_URL=aws:4566
+      - TEST_GCP_URL=gcp:8085
+      - TEST_AZURE_SB_CONNSTRING=Endpoint=sb://azure;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
+      # Misc
+      - TEST_MOCKSERVER_URL=mock:5555
+      # Redis Cluster
+      - TEST_REDIS_CLUSTER_URL=redis-cluster:7000
+      # Build
+      - CGO_ENABLED=0 # Disable CGO for Alpine compatibility
+    command: sh -c "apk add --no-cache git && go mod download && sleep infinity" # Download deps and keep container running
