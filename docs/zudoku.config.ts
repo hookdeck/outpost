@@ -81,6 +81,7 @@ const config: ZudokuConfig = {
       {
         type: "category",
         label: "Quickstarts",
+        link: "quickstarts",
         collapsed: false,
         collapsible: false,
         items: [
@@ -171,6 +172,7 @@ const config: ZudokuConfig = {
       {
         type: "category",
         label: "References",
+        link: "references",
         collapsed: false,
         collapsible: false,
         items: [
