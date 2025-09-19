@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/redis/go-redis/extra/redisotel/v9"
@@ -52,10 +53,25 @@ func NewClient(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
 }
 
 func createClusterClient(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
+	// Start with single node - cluster client will auto-discover other nodes
 	options := &r.ClusterOptions{
 		Addrs:    []string{fmt.Sprintf("%s:%d", config.Host, config.Port)},
 		Password: config.Password,
 		// Note: Database is ignored in cluster mode
+	}
+
+	// Development only: Override discovered node IPs with the original host
+	// This is needed for Docker environments where Redis nodes announce internal IPs
+	if config.DevClusterHostOverride {
+		originalHost := config.Host
+		options.NewClient = func(opt *r.Options) *r.Client {
+			// Extract port from discovered address and combine with original host
+			if idx := strings.LastIndex(opt.Addr, ":"); idx > 0 {
+				port := opt.Addr[idx:] // includes the colon
+				opt.Addr = originalHost + port
+			}
+			return r.NewClient(opt)
+		}
 	}
 
 	if config.TLSEnabled {
@@ -116,10 +132,25 @@ func instrumentOpenTelemetry() error {
 func initializeClient(ctx context.Context, config *RedisConfig) {
 	if config.ClusterEnabled {
 		// Create proper cluster client for cluster deployments
+		// Start with single node - cluster client will auto-discover other nodes
 		options := &r.ClusterOptions{
 			Addrs:    []string{fmt.Sprintf("%s:%d", config.Host, config.Port)},
 			Password: config.Password,
 			// Note: Database is ignored in cluster mode
+		}
+
+		// Development only: Override discovered node IPs with the original host
+		// This is needed for Docker environments where Redis nodes announce internal IPs
+		if config.DevClusterHostOverride {
+			originalHost := config.Host
+			options.NewClient = func(opt *r.Options) *r.Client {
+				// Extract port from discovered address and combine with original host
+				if idx := strings.LastIndex(opt.Addr, ":"); idx > 0 {
+					port := opt.Addr[idx:] // includes the colon
+					opt.Addr = originalHost + port
+				}
+				return r.NewClient(opt)
+			}
 		}
 
 		if config.TLSEnabled {

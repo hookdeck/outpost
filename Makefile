@@ -53,6 +53,34 @@ up/test:
 down/test:
 	docker-compose -f build/test/compose.yml down --volumes
 
+up/test/rediscluster:
+	@echo "Ensuring test network exists..."
+	@docker network create outpost-test_default 2>/dev/null || true
+	@UNAME_S=$$(uname -s); \
+	if [ "$$UNAME_S" = "Darwin" ]; then \
+		REDIS_IMAGE=neohq/redis-cluster:latest; \
+		echo "Detected macOS, using neohq/redis-cluster image..."; \
+	else \
+		REDIS_IMAGE=grokzen/redis-cluster:7.2.4; \
+		echo "Using grokzen/redis-cluster image..."; \
+	fi; \
+	REDIS_IMAGE=$$REDIS_IMAGE docker-compose -f build/test/redis-cluster-compose.yml up -d
+	@echo "Starting Redis cluster and test runner containers..."
+	@echo "  - Redis cluster: 6 nodes (3 masters + 3 replicas)"
+	@echo "  - Test runner: Alpine container with Go code mounted"
+	@echo ""
+	@echo "Waiting for cluster to initialize..."
+	@sleep 10
+	@echo "Checking Redis cluster status:"
+	@docker exec redis-cluster redis-cli -p 7000 cluster info | grep cluster_state || echo "Failed to check cluster status"
+	@echo ""
+	@echo "Test environment ready. Run: make test/e2e/rediscluster"
+
+down/test/rediscluster:
+	@echo "Stopping Redis cluster test environment..."
+	@docker-compose -f build/test/redis-cluster-compose.yml down --volumes
+	@echo "Redis cluster test environment stopped."
+
 test/setup:
 	bash scripts/test-setup-info.sh
 
@@ -64,6 +92,15 @@ test/unit:
 
 test/integration:
 	go test $(TEST) $(TESTARGS) -run "Integration"
+
+test/e2e/rediscluster:
+	@echo "Running Redis cluster e2e tests in Docker container..."
+	@if ! docker ps | grep -q test-runner; then \
+		echo "Error: test-runner container not running. Run 'make up/test/rediscluster' first."; \
+		exit 1; \
+	fi
+	@docker exec test-runner sh -c "cd /app && go test ./cmd/e2e -v -run TestRedisClusterBasicSuite"
+	@echo "Redis cluster e2e tests completed."
 
 test/race:
 	TESTRACE=1 go test $(TEST) $(TESTARGS) -race
