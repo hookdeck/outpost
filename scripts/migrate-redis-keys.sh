@@ -6,6 +6,65 @@
 
 set -e
 
+# Check for help flag
+if [ "$1" = "-help" ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    cat << 'EOF'
+Redis Key Migration Script
+Migrates from legacy key format (tenant:*) to hash-tagged format ({tenant}:*)
+This enables Redis cluster transactions while preserving existing data
+
+USAGE:
+    ./scripts/migrate-redis-keys.sh
+
+DESCRIPTION:
+    Scans for all legacy tenant keys in format "tenant:<id>" and migrates them
+    to Redis cluster-compatible format "{<id>}:tenant" using hash tags.
+
+    The migration is non-destructive - original keys are preserved and must be
+    manually deleted after verifying the migration was successful.
+
+ENVIRONMENT VARIABLES:
+    REDIS_HOST          Redis server hostname (default: localhost)
+    REDIS_PORT          Redis server port (default: 6379)
+                        Auto-enables TLS if port is 10000 or 6380
+    REDIS_PASSWORD      Redis password for authentication (default: none)
+
+    Note: Script will source .env file if present in current directory
+
+EXAMPLES:
+    # Use default settings or .env file
+    ./scripts/migrate-redis-keys.sh
+
+    # Connect to specific Redis instance
+    REDIS_HOST=redis.example.com REDIS_PORT=6379 ./scripts/migrate-redis-keys.sh
+
+    # With authentication
+    REDIS_PASSWORD=mypassword ./scripts/migrate-redis-keys.sh
+
+    # For Azure Redis (TLS enabled)
+    REDIS_HOST=myredis.redis.cache.windows.net REDIS_PORT=6380 REDIS_PASSWORD=key ./scripts/migrate-redis-keys.sh
+
+WHAT IT MIGRATES:
+    tenant:<id>                     → {<id>}:tenant
+    tenant:<id>:destinations        → {<id>}:destinations
+    tenant:<id>:destination:<dest>  → {<id>}:destination:<dest>
+
+OUTPUT:
+    - Shows count of tenants found
+    - Progress for each tenant migration
+    - Summary of migrated/skipped/failed counts
+    - Next steps for cleanup after verification
+
+EXIT CODES:
+    0   Success - all migrations completed (or no migrations needed)
+    1   Failure - one or more migrations failed
+
+CLEANUP (after verification):
+    redis-cli KEYS 'tenant:*' | xargs redis-cli DEL
+EOF
+    exit 0
+fi
+
 # Source environment if available
 if [ -f .env ]; then
     source .env
