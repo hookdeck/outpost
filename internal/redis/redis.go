@@ -17,12 +17,16 @@ const (
 )
 
 type (
-	Client             = r.Client
 	Cmdable            = r.Cmdable
 	MapStringStringCmd = r.MapStringStringCmd
 	Pipeliner          = r.Pipeliner
 	Tx                 = r.Tx
 )
+
+type Client interface {
+	Cmdable
+	Close() error
+}
 
 const (
 	TxFailedErr = r.TxFailedErr
@@ -30,7 +34,7 @@ const (
 
 var (
 	once                sync.Once
-	client              r.Cmdable // Use interface to support both regular and cluster clients
+	client              Client
 	initializationError error
 )
 

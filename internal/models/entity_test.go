@@ -230,7 +230,7 @@ func TestEntityStore_DestinationCredentialsEncryption(t *testing.T) {
 	testEntityStoreDestinationCredentialsEncryption(t, redisClient, cipher, entityStore)
 }
 
-func testEntityStoreDestinationCredentialsEncryption(t *testing.T, redisClient *redis.Client, cipher models.Cipher, entityStore models.EntityStore) {
+func testEntityStoreDestinationCredentialsEncryption(t *testing.T, redisClient redis.Cmdable, cipher models.Cipher, entityStore models.EntityStore) {
 	input := models.Destination{
 		ID:     uuid.New().String(),
 		Type:   "rabbitmq",
@@ -272,7 +272,7 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 
 type multiDestinationSuite struct {
 	ctx          context.Context
-	redisClient  *redis.Client
+	redisClient  redis.Client
 	entityStore  models.EntityStore
 	tenant       models.Tenant
 	destinations []models.Destination
