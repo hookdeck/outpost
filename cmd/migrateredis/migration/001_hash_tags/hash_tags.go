@@ -41,7 +41,8 @@ func (m *HashTagsMigration) Plan(ctx context.Context, client redis.Client, verbo
 
 	// Categorize keys
 	tenants := make(map[string]bool)
-	destinationCount := 0
+	destinationSummaryCount := 0
+	individualDestinationCount := 0
 
 	for _, key := range legacyKeys {
 		parts := strings.Split(key, ":")
@@ -51,8 +52,12 @@ func (m *HashTagsMigration) Plan(ctx context.Context, client redis.Client, verbo
 			// Track unique tenants
 			if len(parts) == 2 {
 				tenants[tenantID] = true
-			} else if strings.Contains(key, ":destinations") || strings.Contains(key, ":destination:") {
-				destinationCount++
+			} else if len(parts) == 3 && parts[2] == "destinations" {
+				// This is a destination summary key: tenant:ID:destinations
+				destinationSummaryCount++
+			} else if len(parts) == 4 && parts[2] == "destination" {
+				// This is an individual destination key: tenant:ID:destination:DEST_ID
+				individualDestinationCount++
 			}
 		}
 	}
@@ -63,7 +68,7 @@ func (m *HashTagsMigration) Plan(ctx context.Context, client redis.Client, verbo
 			Description:    m.Description(),
 			Version:        "v2",
 			Timestamp:      time.Now(),
-			Scope:          map[string]int{"tenants": 0, "destinations": 0, "total_keys": 0},
+			Scope:          map[string]int{"tenants": 0, "dest_summaries": 0, "destinations": 0, "total_keys": 0},
 			EstimatedItems: 0,
 		}, nil
 	}
@@ -80,9 +85,10 @@ func (m *HashTagsMigration) Plan(ctx context.Context, client redis.Client, verbo
 		Version:        "v2",
 		Timestamp:      time.Now(),
 		Scope: map[string]int{
-			"tenants":      len(tenants),
-			"destinations": destinationCount,
-			"total_keys":   len(legacyKeys),
+			"tenants":        len(tenants),
+			"dest_summaries": destinationSummaryCount,
+			"destinations":   individualDestinationCount,
+			"total_keys":     len(legacyKeys),
 		},
 		EstimatedItems: len(legacyKeys),
 		Metadata: map[string]string{
