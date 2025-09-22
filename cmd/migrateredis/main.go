@@ -478,7 +478,7 @@ func runStatus(ctx context.Context, client redis.Client) error {
 	if currentVersion == 0 {
 		fmt.Printf(" (original schema)")
 	}
-	fmt.Println("\n")
+	fmt.Println()
 
 	// Check status for all registered migrations
 	hasActiveMigration := false
