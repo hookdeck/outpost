@@ -36,7 +36,7 @@ var (
 
 // New cluster-compatible key formats with hash tags
 func redisTenantID(tenantID string) string {
-	return fmt.Sprintf("tenant:{%s}", tenantID)
+	return fmt.Sprintf("tenant:{%s}:tenant", tenantID)
 }
 
 func redisTenantDestinationSummaryKey(tenantID string) string {

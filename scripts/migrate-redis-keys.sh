@@ -45,7 +45,7 @@ EXAMPLES:
     REDIS_HOST=myredis.redis.cache.windows.net REDIS_PORT=6380 REDIS_PASSWORD=key ./scripts/migrate-redis-keys.sh
 
 WHAT IT MIGRATES:
-    tenant:<id>                     → tenant:{<id>}
+    tenant:<id>                     → tenant:{<id>}:tenant
     tenant:<id>:destinations        → tenant:{<id>}:destinations
     tenant:<id>:destination:<dest>  → tenant:{<id>}:destination:<dest>
 
@@ -114,7 +114,7 @@ for TENANT_ID in $LEGACY_TENANTS; do
     echo "🔄 Migrating tenant: $TENANT_ID"
     
     # Check if already migrated
-    NEW_EXISTS=$($REDIS_CLI EXISTS "tenant:{$TENANT_ID}")
+    NEW_EXISTS=$($REDIS_CLI EXISTS "tenant:{$TENANT_ID}:tenant")
     if [ "$NEW_EXISTS" = "1" ]; then
         echo "  ⏭️  Already migrated, skipping"
         SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
@@ -140,7 +140,7 @@ for TENANT_ID in $LEGACY_TENANTS; do
         
         # Migrate tenant data
         if [ -n "$LEGACY_TENANT_DATA" ]; then
-            echo "HMSET tenant:{$TENANT_ID} $LEGACY_TENANT_DATA"
+            echo "HMSET tenant:{$TENANT_ID}:tenant $LEGACY_TENANT_DATA"
         fi
 
         # Migrate destination summary
@@ -167,7 +167,7 @@ for TENANT_ID in $LEGACY_TENANTS; do
         MIGRATED_COUNT=$((MIGRATED_COUNT + 1))
         
         # Verify new data exists
-        NEW_TENANT_EXISTS=$($REDIS_CLI EXISTS "tenant:{$TENANT_ID}")
+        NEW_TENANT_EXISTS=$($REDIS_CLI EXISTS "tenant:{$TENANT_ID}:tenant")
         if [ "$NEW_TENANT_EXISTS" = "1" ]; then
             echo "  ✅ Verification passed"
         else

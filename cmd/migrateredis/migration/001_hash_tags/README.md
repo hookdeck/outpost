@@ -9,7 +9,7 @@ Redis Cluster requires all keys in a transaction to be on the same hash slot. Wi
 This migration adds hash tags `{...}` to ensure all keys for a tenant stay on the same Redis node, enabling atomic operations.
 
 **Key format change:**
-- `tenant:123` → `tenant:{123}`
+- `tenant:123` → `tenant:{123}:tenant`
 - `tenant:123:destinations` → `tenant:{123}:destinations`
 - `tenant:123:destination:abc` → `tenant:{123}:destination:abc`
 
@@ -23,7 +23,7 @@ Scans for all legacy keys matching `tenant:*` pattern and counts:
 
 ### Apply
 For each tenant found:
-1. Copies tenant hash from `tenant:ID` to `tenant:{ID}`
+1. Copies tenant hash from `tenant:ID` to `tenant:{ID}:tenant`
 2. Copies destination summary from `tenant:ID:destinations` to `tenant:{ID}:destinations`
 3. Copies each destination from `tenant:ID:destination:X` to `tenant:{ID}:destination:X`
 4. Uses transactions where possible for atomicity
@@ -31,7 +31,7 @@ For each tenant found:
 
 ### Verify
 Performs comprehensive spot checks on up to 20 random tenants:
-- Confirms new tenant key exists (`tenant:{ID}`)
+- Confirms new tenant key exists (`tenant:{ID}:tenant`)
 - Validates tenant data integrity by comparing field counts
 - Checks destinations summary key (`tenant:{ID}:destinations`)
 - Verifies each individual destination key (`tenant:{ID}:destination:X`)

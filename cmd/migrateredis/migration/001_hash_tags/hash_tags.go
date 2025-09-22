@@ -207,7 +207,7 @@ func (m *HashTagsMigration) Verify(ctx context.Context, client redis.Client, sta
 
 		// 1. Check tenant key
 		tenantPassed := true
-		newTenantKey := fmt.Sprintf("tenant:{%s}", tenantID)
+		newTenantKey := fmt.Sprintf("tenant:{%s}:tenant", tenantID)
 		exists, err := client.Exists(ctx, newTenantKey).Result()
 		if err != nil || exists == 0 {
 			result.Valid = false
@@ -350,7 +350,7 @@ func (m *HashTagsMigration) migrateTenant(ctx context.Context, client redis.Clie
 
 	// Migrate tenant data
 	oldTenantKey := fmt.Sprintf("tenant:%s", tenantID)
-	newTenantKey := fmt.Sprintf("tenant:{%s}", tenantID)
+	newTenantKey := fmt.Sprintf("tenant:{%s}:tenant", tenantID)
 
 	tenantData, err := client.HGetAll(ctx, oldTenantKey).Result()
 	if err == nil && len(tenantData) > 0 {

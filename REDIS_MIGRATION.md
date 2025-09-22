@@ -15,7 +15,7 @@ tenant:123:destination:abc    → CROSSSLOT errors
 
 **New Hash-Tagged Format:**
 ```
-tenant:{123}                  → Same hash slot
+tenant:{123}:tenant           → Same hash slot
 tenant:{123}:destinations     → Enables transactions
 tenant:{123}:destination:abc  → Atomic operations
 ```
@@ -126,7 +126,7 @@ func redisTenantID(tenantID string) string {
 **After:**
 ```go
 func redisTenantID(tenantID string) string {
-    return fmt.Sprintf("tenant:{%s}", tenantID)
+    return fmt.Sprintf("tenant:{%s}:tenant", tenantID)
 }
 ```
 
