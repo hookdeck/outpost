@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -27,6 +26,7 @@ var (
 	migrationName *string
 	verbose       *bool
 	force         *bool
+	autoApprove   *bool
 	help          *bool
 )
 
@@ -57,6 +57,7 @@ func main() {
 	migrationName = flag.String("migration", "", "Migration to run (e.g., 001_hash_tags)")
 	verbose = flag.Bool("verbose", false, "Enable verbose output")
 	force = flag.Bool("force", false, "Force cleanup without confirmation")
+	autoApprove = flag.Bool("auto-approve", false, "Skip interactive approval for apply command")
 	help = flag.Bool("help", false, "Show help message")
 
 	// Find and extract command from args before parsing flags
@@ -255,7 +256,6 @@ func runPlan(ctx context.Context, client redis.Client, mig migration.Migration) 
 	for key, value := range plan.Scope {
 		fmt.Printf("  %-15s: %d\n", key, value)
 	}
-	fmt.Printf("  %-15s: %s\n", "Est. duration", plan.EstimatedTime)
 	fmt.Println()
 
 	fmt.Printf("✅ Plan complete. Run 'migrateredis -migration %s apply' to execute.\n", mig.Name())
@@ -323,7 +323,28 @@ func runApply(ctx context.Context, client redis.Client, mig migration.Migration)
 		}
 	}
 
-	fmt.Printf("Applying migration with %d estimated items...\n\n", plan.EstimatedItems)
+	// Show plan summary and ask for confirmation
+	fmt.Println("=== Migration Plan Summary ===")
+	fmt.Printf("Migration: %s\n", mig.Name())
+	fmt.Printf("Items to migrate: %d\n", plan.EstimatedItems)
+	for key, value := range plan.Scope {
+		fmt.Printf("  %-15s: %d\n", key, value)
+	}
+	fmt.Println()
+
+	// Ask for confirmation unless auto-approve is set
+	if !*autoApprove {
+		fmt.Printf("Do you want to apply this migration? (y/N): ")
+		var response string
+		fmt.Scanln(&response)
+		if response != "y" && response != "Y" {
+			fmt.Println("Migration cancelled.")
+			return nil
+		}
+		fmt.Println()
+	}
+
+	fmt.Printf("Applying migration...\n\n")
 
 	// Apply migration
 	state, err := mig.Apply(ctx, client, plan, *verbose)
@@ -644,7 +665,6 @@ func loadEnvFile() {
 
 		// Only set if not already set (env vars take precedence over .env)
 		if os.Getenv(key) == "" {
-			log.Println("setting env var", key, value)
 			os.Setenv(key, value)
 		}
 	}

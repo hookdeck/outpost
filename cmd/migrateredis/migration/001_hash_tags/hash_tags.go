@@ -65,7 +65,6 @@ func (m *HashTagsMigration) Plan(ctx context.Context, client redis.Client, verbo
 			Timestamp:      time.Now(),
 			Scope:          map[string]int{"tenants": 0, "destinations": 0, "total_keys": 0},
 			EstimatedItems: 0,
-			EstimatedTime:  "0s",
 		}, nil
 	}
 
@@ -86,7 +85,6 @@ func (m *HashTagsMigration) Plan(ctx context.Context, client redis.Client, verbo
 			"total_keys":   len(legacyKeys),
 		},
 		EstimatedItems: len(legacyKeys),
-		EstimatedTime:  fmt.Sprintf("~%d seconds", len(tenants)/10+1),
 		Metadata: map[string]string{
 			"tenant_ids": strings.Join(tenantList[:min(10, len(tenantList))], ","),
 		},

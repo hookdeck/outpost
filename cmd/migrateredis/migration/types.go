@@ -40,7 +40,6 @@ type Plan struct {
 	Timestamp        time.Time         `json:"timestamp"`
 	Scope            map[string]int    `json:"scope"` // e.g., {"tenants": 100, "destinations": 500}
 	EstimatedItems   int               `json:"estimated_items"`
-	EstimatedTime    string            `json:"estimated_time"`
 	Metadata         map[string]string `json:"metadata,omitempty"`
 }
 
