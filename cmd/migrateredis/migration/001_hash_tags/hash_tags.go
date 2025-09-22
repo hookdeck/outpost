@@ -205,41 +205,87 @@ func (m *HashTagsMigration) Verify(ctx context.Context, client redis.Client, sta
 		tenantID := tenants[i]
 		result.ChecksRun++
 
-		// Check if new key exists
-		newKey := fmt.Sprintf("tenant:{%s}", tenantID)
-		exists, err := client.Exists(ctx, newKey).Result()
+		// 1. Check tenant key
+		tenantPassed := true
+		newTenantKey := fmt.Sprintf("tenant:{%s}", tenantID)
+		exists, err := client.Exists(ctx, newTenantKey).Result()
 		if err != nil || exists == 0 {
 			result.Valid = false
-			result.Issues = append(result.Issues, fmt.Sprintf("Missing new key for tenant: %s", tenantID))
-			continue
-		}
-
-		// Verify data integrity
-		oldData, _ := client.HGetAll(ctx, fmt.Sprintf("tenant:%s", tenantID)).Result()
-		newData, _ := client.HGetAll(ctx, newKey).Result()
-
-		if len(oldData) != len(newData) {
-			result.Issues = append(result.Issues,
-				fmt.Sprintf("Data mismatch for tenant %s: old has %d fields, new has %d",
-					tenantID, len(oldData), len(newData)))
+			result.Issues = append(result.Issues, fmt.Sprintf("Missing new tenant key: %s", newTenantKey))
+			tenantPassed = false
 		} else {
-			// Deep check: compare actual values if verbose
-			if verbose {
-				mismatch := false
+			// Verify tenant data integrity
+			oldData, _ := client.HGetAll(ctx, fmt.Sprintf("tenant:%s", tenantID)).Result()
+			newData, _ := client.HGetAll(ctx, newTenantKey).Result()
+
+			if len(oldData) != len(newData) {
+				result.Issues = append(result.Issues,
+					fmt.Sprintf("Tenant data mismatch for %s: old has %d fields, new has %d",
+						tenantID, len(oldData), len(newData)))
+				tenantPassed = false
+			} else if verbose {
+				// Deep check: compare actual values
 				for field, oldValue := range oldData {
 					if newValue, ok := newData[field]; !ok || newValue != oldValue {
-						mismatch = true
 						result.Issues = append(result.Issues,
 							fmt.Sprintf("Field mismatch for tenant %s, field %s", tenantID, field))
+						tenantPassed = false
 						break
 					}
 				}
-				if !mismatch {
-					result.ChecksPassed++
-				}
-			} else {
-				result.ChecksPassed++
 			}
+		}
+
+		// 2. Check destinations summary
+		destSummaryPassed := true
+		oldDestSummaryKey := fmt.Sprintf("tenant:%s:destinations", tenantID)
+		newDestSummaryKey := fmt.Sprintf("tenant:{%s}:destinations", tenantID)
+
+		oldDestSummary, _ := client.HGetAll(ctx, oldDestSummaryKey).Result()
+		if len(oldDestSummary) > 0 {
+			exists, err := client.Exists(ctx, newDestSummaryKey).Result()
+			if err != nil || exists == 0 {
+				result.Issues = append(result.Issues, fmt.Sprintf("Missing new destinations summary: %s", newDestSummaryKey))
+				destSummaryPassed = false
+			} else {
+				newDestSummary, _ := client.HGetAll(ctx, newDestSummaryKey).Result()
+				if len(oldDestSummary) != len(newDestSummary) {
+					result.Issues = append(result.Issues,
+						fmt.Sprintf("Destinations summary mismatch for %s: old has %d, new has %d",
+							tenantID, len(oldDestSummary), len(newDestSummary)))
+					destSummaryPassed = false
+				}
+			}
+		}
+
+		// 3. Check individual destinations
+		destsPassed := true
+		destIDs, _ := client.HKeys(ctx, oldDestSummaryKey).Result()
+		for _, destID := range destIDs {
+			oldDestKey := fmt.Sprintf("tenant:%s:destination:%s", tenantID, destID)
+			newDestKey := fmt.Sprintf("tenant:{%s}:destination:%s", tenantID, destID)
+
+			oldDestData, _ := client.HGetAll(ctx, oldDestKey).Result()
+			if len(oldDestData) > 0 {
+				exists, err := client.Exists(ctx, newDestKey).Result()
+				if err != nil || exists == 0 {
+					result.Issues = append(result.Issues, fmt.Sprintf("Missing destination: %s", newDestKey))
+					destsPassed = false
+				} else if verbose {
+					newDestData, _ := client.HGetAll(ctx, newDestKey).Result()
+					if len(oldDestData) != len(newDestData) {
+						result.Issues = append(result.Issues,
+							fmt.Sprintf("Destination %s data mismatch: old has %d fields, new has %d",
+								destID, len(oldDestData), len(newDestData)))
+						destsPassed = false
+					}
+				}
+			}
+		}
+
+		// Count as passed only if all checks passed
+		if tenantPassed && destSummaryPassed && destsPassed {
+			result.ChecksPassed++
 		}
 	}
 

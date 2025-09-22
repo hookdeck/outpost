@@ -23,6 +23,7 @@ var (
 	redisPassword *string
 	redisDatabase *int
 	redisCluster  *bool
+	redisTLS      *bool
 	migrationName *string
 	verbose       *bool
 	force         *bool
@@ -51,7 +52,8 @@ func main() {
 	redisPort = flag.String("redis-port", getEnvOrDefault("REDIS_PORT", "6379"), "Redis server port")
 	redisPassword = flag.String("redis-password", getEnvOrDefault("REDIS_PASSWORD", ""), "Redis password for authentication")
 	redisDatabase = flag.Int("redis-database", getEnvOrDefaultInt("REDIS_DATABASE", 0), "Redis database number (ignored in cluster mode)")
-	redisCluster = flag.Bool("redis-cluster", getEnvOrDefault("REDIS_CLUSTER", "false") == "true", "Enable Redis cluster mode")
+	redisCluster = flag.Bool("redis-cluster-enabled", getEnvOrDefault("REDIS_CLUSTER_ENABLED", "false") == "true", "Enable Redis cluster mode")
+	redisTLS = flag.Bool("redis-tls-enabled", getEnvOrDefault("REDIS_TLS_ENABLED", "false") == "true", "Enable TLS encryption for Redis connection")
 	migrationName = flag.String("migration", "", "Migration to run (e.g., 001_hash_tags)")
 	verbose = flag.Bool("verbose", false, "Enable verbose output")
 	force = flag.Bool("force", false, "Force cleanup without confirmation")
@@ -551,10 +553,11 @@ func createRedisClient() (redis.Client, error) {
 		Password:       *redisPassword,
 		Database:       *redisDatabase,
 		ClusterEnabled: *redisCluster,
+		TLSEnabled:     *redisTLS,
 	}
 
-	// Auto-enable TLS for common ports
-	if port == 6380 || port == 10000 {
+	// Auto-enable TLS for common ports if not explicitly set
+	if !*redisTLS && (port == 6380 || port == 10000) {
 		config.TLSEnabled = true
 	}
 
@@ -593,7 +596,7 @@ func getEnvOrDefaultInt(key string, defaultValue int) int {
 // shouldLoadEnvFile checks if we need to load .env file
 // Returns true if no Redis environment variables are set
 func shouldLoadEnvFile() bool {
-	redisEnvVars := []string{"REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD", "REDIS_DATABASE", "REDIS_CLUSTER"}
+	redisEnvVars := []string{"REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD", "REDIS_DATABASE", "REDIS_CLUSTER_ENABLED", "REDIS_TLS_ENABLED"}
 	for _, envVar := range redisEnvVars {
 		if os.Getenv(envVar) != "" {
 			// At least one Redis env var is set, don't load .env
