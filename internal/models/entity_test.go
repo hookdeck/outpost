@@ -40,11 +40,10 @@ func TestEntityStore_TenantCRUD(t *testing.T) {
 		err := entityStore.UpsertTenant(context.Background(), input)
 		require.NoError(t, err)
 
-		hash, err := redisClient.HGetAll(context.Background(), "tenant:{"+input.ID+"}").Result()
+		retrieved, err := entityStore.RetrieveTenant(context.Background(), input.ID)
 		require.NoError(t, err)
-		createdAt, err := time.Parse(time.RFC3339Nano, hash["created_at"])
-		require.NoError(t, err)
-		assert.True(t, input.CreatedAt.Equal(createdAt))
+		assert.Equal(t, input.ID, retrieved.ID)
+		assert.True(t, input.CreatedAt.Equal(retrieved.CreatedAt))
 	})
 
 	t.Run("gets", func(t *testing.T) {
@@ -230,6 +229,12 @@ func TestEntityStore_DestinationCredentialsEncryption(t *testing.T) {
 	testEntityStoreDestinationCredentialsEncryption(t, redisClient, cipher, entityStore)
 }
 
+// testEntityStoreDestinationCredentialsEncryption tests that credentials are properly encrypted in storage.
+// This test intentionally accesses Redis directly (implementation detail) because the public interface
+// transparently encrypts/decrypts credentials, making it impossible to verify encryption through the
+// public API alone. We need to ensure that sensitive credentials are never stored in plaintext in Redis,
+// which requires examining the actual stored values. If the key format changes, this test will need
+// to be updated accordingly.
 func testEntityStoreDestinationCredentialsEncryption(t *testing.T, redisClient redis.Cmdable, cipher models.Cipher, entityStore models.EntityStore) {
 	input := models.Destination{
 		ID:     uuid.New().String(),
