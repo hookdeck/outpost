@@ -29,7 +29,7 @@ func (m *HashTagsMigration) Version() int {
 }
 
 func (m *HashTagsMigration) Description() string {
-	return "Migrate from legacy format (tenant:*) to hash-tagged format ({tenant}:*) for Redis Cluster support"
+	return "Migrate from legacy format (tenant:*) to hash-tagged format (tenant:{id}:*) for Redis Cluster support"
 }
 
 func (m *HashTagsMigration) Plan(ctx context.Context, client redis.Client, verbose bool) (*migration.Plan, error) {
@@ -206,7 +206,7 @@ func (m *HashTagsMigration) Verify(ctx context.Context, client redis.Client, sta
 		result.ChecksRun++
 
 		// Check if new key exists
-		newKey := fmt.Sprintf("{%s}:tenant", tenantID)
+		newKey := fmt.Sprintf("tenant:{%s}", tenantID)
 		exists, err := client.Exists(ctx, newKey).Result()
 		if err != nil || exists == 0 {
 			result.Valid = false
@@ -304,7 +304,7 @@ func (m *HashTagsMigration) migrateTenant(ctx context.Context, client redis.Clie
 
 	// Migrate tenant data
 	oldTenantKey := fmt.Sprintf("tenant:%s", tenantID)
-	newTenantKey := fmt.Sprintf("{%s}:tenant", tenantID)
+	newTenantKey := fmt.Sprintf("tenant:{%s}", tenantID)
 
 	tenantData, err := client.HGetAll(ctx, oldTenantKey).Result()
 	if err == nil && len(tenantData) > 0 {
@@ -313,7 +313,7 @@ func (m *HashTagsMigration) migrateTenant(ctx context.Context, client redis.Clie
 
 	// Migrate destinations summary
 	oldDestKey := fmt.Sprintf("tenant:%s:destinations", tenantID)
-	newDestKey := fmt.Sprintf("{%s}:destinations", tenantID)
+	newDestKey := fmt.Sprintf("tenant:{%s}:destinations", tenantID)
 
 	destData, err := client.HGetAll(ctx, oldDestKey).Result()
 	if err == nil && len(destData) > 0 {
@@ -323,7 +323,7 @@ func (m *HashTagsMigration) migrateTenant(ctx context.Context, client redis.Clie
 		destIDs, _ := client.HKeys(ctx, oldDestKey).Result()
 		for _, destID := range destIDs {
 			oldKey := fmt.Sprintf("tenant:%s:destination:%s", tenantID, destID)
-			newKey := fmt.Sprintf("{%s}:destination:%s", tenantID, destID)
+			newKey := fmt.Sprintf("tenant:{%s}:destination:%s", tenantID, destID)
 
 			data, err := client.HGetAll(ctx, oldKey).Result()
 			if err == nil && len(data) > 0 {

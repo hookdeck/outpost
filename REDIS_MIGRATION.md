@@ -15,9 +15,9 @@ tenant:123:destination:abc    → CROSSSLOT errors
 
 **New Hash-Tagged Format:**
 ```
-{123}:tenant                  → Same hash slot
-{123}:destinations            → Enables transactions  
-{123}:destination:abc         → Atomic operations
+tenant:{123}                  → Same hash slot
+tenant:{123}:destinations     → Enables transactions
+tenant:{123}:destination:abc  → Atomic operations
 ```
 
 ## Migration Strategy
@@ -98,7 +98,7 @@ The new code only supports the hash-tagged format and will not read legacy keys.
 
 This script:
 - Scans for legacy tenant keys (`tenant:*`)
-- Migrates each tenant's data to hash-tagged format (`{tenant}:*`)
+- Migrates each tenant's data to hash-tagged format (`tenant:{id}:*`)
 - Uses transactions where possible for atomicity
 - Provides detailed progress reporting
 - Verifies migration success
@@ -126,7 +126,7 @@ func redisTenantID(tenantID string) string {
 **After:**
 ```go
 func redisTenantID(tenantID string) string {
-    return fmt.Sprintf("{%s}:tenant", tenantID)
+    return fmt.Sprintf("tenant:{%s}", tenantID)
 }
 ```
 

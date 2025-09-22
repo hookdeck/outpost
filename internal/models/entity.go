@@ -36,15 +36,15 @@ var (
 
 // New cluster-compatible key formats with hash tags
 func redisTenantID(tenantID string) string {
-	return fmt.Sprintf("{%s}:tenant", tenantID)
+	return fmt.Sprintf("tenant:{%s}", tenantID)
 }
 
 func redisTenantDestinationSummaryKey(tenantID string) string {
-	return fmt.Sprintf("{%s}:destinations", tenantID)
+	return fmt.Sprintf("tenant:{%s}:destinations", tenantID)
 }
 
 func redisDestinationID(destinationID, tenantID string) string {
-	return fmt.Sprintf("{%s}:destination:%s", tenantID, destinationID)
+	return fmt.Sprintf("tenant:{%s}:destination:%s", tenantID, destinationID)
 }
 
 type entityStoreImpl struct {

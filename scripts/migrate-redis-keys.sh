@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Redis Key Migration Script
-# Migrates from legacy key format (tenant:*) to hash-tagged format ({tenant}:*)
+# Migrates from legacy key format (tenant:*) to hash-tagged format (tenant:{id}:*)
 # This enables Redis cluster transactions while preserving existing data
 
 set -e
@@ -10,7 +10,7 @@ set -e
 if [ "$1" = "-help" ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     cat << 'EOF'
 Redis Key Migration Script
-Migrates from legacy key format (tenant:*) to hash-tagged format ({tenant}:*)
+Migrates from legacy key format (tenant:*) to hash-tagged format (tenant:{id}:*)
 This enables Redis cluster transactions while preserving existing data
 
 USAGE:
@@ -18,7 +18,7 @@ USAGE:
 
 DESCRIPTION:
     Scans for all legacy tenant keys in format "tenant:<id>" and migrates them
-    to Redis cluster-compatible format "{<id>}:tenant" using hash tags.
+    to Redis cluster-compatible format "tenant:{<id>}" using hash tags.
 
     The migration is non-destructive - original keys are preserved and must be
     manually deleted after verifying the migration was successful.
@@ -45,9 +45,9 @@ EXAMPLES:
     REDIS_HOST=myredis.redis.cache.windows.net REDIS_PORT=6380 REDIS_PASSWORD=key ./scripts/migrate-redis-keys.sh
 
 WHAT IT MIGRATES:
-    tenant:<id>                     → {<id>}:tenant
-    tenant:<id>:destinations        → {<id>}:destinations
-    tenant:<id>:destination:<dest>  → {<id>}:destination:<dest>
+    tenant:<id>                     → tenant:{<id>}
+    tenant:<id>:destinations        → tenant:{<id>}:destinations
+    tenant:<id>:destination:<dest>  → tenant:{<id>}:destination:<dest>
 
 OUTPUT:
     - Shows count of tenants found
@@ -114,7 +114,7 @@ for TENANT_ID in $LEGACY_TENANTS; do
     echo "🔄 Migrating tenant: $TENANT_ID"
     
     # Check if already migrated
-    NEW_EXISTS=$($REDIS_CLI EXISTS "{$TENANT_ID}:tenant")
+    NEW_EXISTS=$($REDIS_CLI EXISTS "tenant:{$TENANT_ID}")
     if [ "$NEW_EXISTS" = "1" ]; then
         echo "  ⏭️  Already migrated, skipping"
         SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
@@ -140,12 +140,12 @@ for TENANT_ID in $LEGACY_TENANTS; do
         
         # Migrate tenant data
         if [ -n "$LEGACY_TENANT_DATA" ]; then
-            echo "HMSET {$TENANT_ID}:tenant $LEGACY_TENANT_DATA"
+            echo "HMSET tenant:{$TENANT_ID} $LEGACY_TENANT_DATA"
         fi
-        
+
         # Migrate destination summary
         if [ -n "$LEGACY_DEST_SUMMARY" ]; then
-            echo "HMSET {$TENANT_ID}:destinations $LEGACY_DEST_SUMMARY"
+            echo "HMSET tenant:{$TENANT_ID}:destinations $LEGACY_DEST_SUMMARY"
         fi
         
         # Migrate individual destinations
@@ -153,7 +153,7 @@ for TENANT_ID in $LEGACY_TENANTS; do
             if [ -n "$dest_id" ]; then
                 DEST_DATA=$($REDIS_CLI HGETALL "tenant:$TENANT_ID:destination:$dest_id" 2>/dev/null || echo "")
                 if [ -n "$DEST_DATA" ]; then
-                    echo "HMSET {$TENANT_ID}:destination:$dest_id $DEST_DATA"
+                    echo "HMSET tenant:{$TENANT_ID}:destination:$dest_id $DEST_DATA"
                 fi
             fi
         done
@@ -167,7 +167,7 @@ for TENANT_ID in $LEGACY_TENANTS; do
         MIGRATED_COUNT=$((MIGRATED_COUNT + 1))
         
         # Verify new data exists
-        NEW_TENANT_EXISTS=$($REDIS_CLI EXISTS "{$TENANT_ID}:tenant")
+        NEW_TENANT_EXISTS=$($REDIS_CLI EXISTS "tenant:{$TENANT_ID}")
         if [ "$NEW_TENANT_EXISTS" = "1" ]; then
             echo "  ✅ Verification passed"
         else
