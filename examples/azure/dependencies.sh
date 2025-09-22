@@ -8,6 +8,31 @@
 
 set -euo pipefail
 
+# Check for OUTPOST_AZURE_ID environment variable
+if [[ -z "${OUTPOST_AZURE_ID-}" ]]; then
+  echo "❌ Error: OUTPOST_AZURE_ID environment variable is not set."
+  echo ""
+  echo "This ID ensures your Azure resources have unique names."
+  echo "To generate a random ID and set it, run:"
+  echo ""
+  echo "  export OUTPOST_AZURE_ID=\$(openssl rand -hex 3)"
+  echo ""
+  echo "Or use your own ID (lowercase alphanumeric, 3-6 chars):"
+  echo ""
+  echo "  export OUTPOST_AZURE_ID=abc123"
+  echo ""
+  exit 1
+fi
+
+# Validate OUTPOST_AZURE_ID format (lowercase alphanumeric, 3-6 chars)
+if ! [[ "$OUTPOST_AZURE_ID" =~ ^[a-z0-9]{3,6}$ ]]; then
+  echo "❌ Error: OUTPOST_AZURE_ID must be lowercase alphanumeric, 3-6 characters."
+  echo "Current value: '$OUTPOST_AZURE_ID'"
+  exit 1
+fi
+
+echo "🔧 Using OUTPOST_AZURE_ID: $OUTPOST_AZURE_ID"
+
 # Set PG_PASS from env var, extract from existing .env file, or generate a new one
 if [[ -z "${PG_PASS-}" ]]; then
   # Try to extract password from existing .env.outpost file
@@ -22,15 +47,15 @@ if [[ -z "${PG_PASS-}" ]]; then
   fi
 fi
 
-# CONFIG
+# CONFIG with unique ID suffix
 ENV_FILE=".env.outpost"
 LOCATION="westeurope"
-RESOURCE_GROUP="outpost-azure"
-PG_NAME="outpost-pg-example"
+RESOURCE_GROUP="outpost-azure-${OUTPOST_AZURE_ID}"
+PG_NAME="outpost-pg-${OUTPOST_AZURE_ID}"
 PG_DB_NAME="outpost"
 PG_ADMIN="outpostadmin"
-REDIS_NAME="outpost-redis"
-SB_NAMESPACE="outpost-internal"
+REDIS_NAME="outpost-redis-${OUTPOST_AZURE_ID}"
+SB_NAMESPACE="outpost-sb-${OUTPOST_AZURE_ID}"
 SB_DELIVERY_TOPIC="outpost-delivery"
 SB_DELIVERY_SUB="outpost-delivery-sub"
 SB_LOG_TOPIC="outpost-log"
@@ -53,11 +78,32 @@ fi
 
 # Register PostgreSQL provider
 echo "🔎 Checking if Microsoft.DBforPostgreSQL is registered..."
-if ! az provider show --namespace Microsoft.DBforPostgreSQL --query "registrationState" -o tsv | grep -q "Registered"; then
+REGISTRATION_STATE=$(az provider show --namespace Microsoft.DBforPostgreSQL --query "registrationState" -o tsv 2>/dev/null || echo "NotRegistered")
+echo "   Current state: $REGISTRATION_STATE"
+
+if [[ "$REGISTRATION_STATE" != "Registered" ]]; then
   echo "📥 Registering Microsoft.DBforPostgreSQL..."
-  az provider register --namespace Microsoft.DBforPostgreSQL >/dev/null
-  echo "⏳ Waiting for registration to complete..."
-  until az provider show --namespace Microsoft.DBforPostgreSQL --query "registrationState" -o tsv | grep -q "Registered"; do sleep 3; done
+  az provider register --namespace Microsoft.DBforPostgreSQL --wait >/dev/null
+
+  echo "⏳ Waiting for registration to complete (this may take a few minutes)..."
+  MAX_ATTEMPTS=60
+  ATTEMPT=0
+  while [[ $ATTEMPT -lt $MAX_ATTEMPTS ]]; do
+    REGISTRATION_STATE=$(az provider show --namespace Microsoft.DBforPostgreSQL --query "registrationState" -o tsv 2>/dev/null || echo "NotRegistered")
+    if [[ "$REGISTRATION_STATE" == "Registered" ]]; then
+      break
+    fi
+    echo -n "."
+    sleep 5
+    ((ATTEMPT++))
+  done
+  echo ""
+
+  if [[ "$REGISTRATION_STATE" != "Registered" ]]; then
+    echo "❌ Failed to register Microsoft.DBforPostgreSQL after $MAX_ATTEMPTS attempts"
+    echo "   Please manually register it with: az provider register --namespace Microsoft.DBforPostgreSQL"
+    exit 1
+  fi
 fi
 echo "✅ PostgreSQL provider registered"
 
