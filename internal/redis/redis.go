@@ -41,8 +41,16 @@ var (
 func New(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
 	once.Do(func() {
 		initializeClient(ctx, config)
-		initializationError = instrumentOpenTelemetry()
+		if initializationError == nil {
+			initializationError = instrumentOpenTelemetry()
+		}
 	})
+
+	// Ensure we never return nil client without an error
+	if client == nil && initializationError == nil {
+		initializationError = fmt.Errorf("redis client initialization failed: unexpected state")
+	}
+
 	return client, initializationError
 }
 
