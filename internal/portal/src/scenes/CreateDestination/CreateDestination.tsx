@@ -11,6 +11,7 @@ import TopicPicker from "../../common/TopicPicker/TopicPicker";
 import { DestinationTypeReference } from "../../typings/Destination";
 import DestinationConfigFields from "../../common/DestinationConfigFields/DestinationConfigFields";
 import { getFormValues } from "../../utils/formHelper";
+import CONFIGS from "../../config";
 
 const steps = [
   {
@@ -132,12 +133,21 @@ const steps = [
   },
 ];
 
+const AVAILABLE_TOPICS = CONFIGS.TOPICS.split(",").filter(Boolean);
+
 export default function CreateDestination() {
   const apiClient = useContext(ApiContext);
 
+  // If there are no topics, skip the first step
+  if (AVAILABLE_TOPICS.length === 0 && steps.length === 3) {
+    steps.shift();
+  }
+
   const navigate = useNavigate();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [stepValues, setStepValues] = useState<Record<string, any>>({});
+  const [stepValues, setStepValues] = useState<Record<string, any>>({
+    topics: AVAILABLE_TOPICS.length > 0 ? undefined : ["*"],
+  });
   const [isCreating, setIsCreating] = useState(false);
   const { data: destinations } =
     useSWR<DestinationTypeReference[]>(`destination-types`);
@@ -156,7 +166,10 @@ export default function CreateDestination() {
         method: "POST",
         body: JSON.stringify({
           type: values.type,
-          topics: values.topics.split(","),
+          topics:
+            typeof values.topics === "string"
+              ? values.topics.split(",").filter(Boolean)
+              : values.topics,
           config: Object.fromEntries(
             Object.entries(values).filter(([key]) =>
               destination_type?.config_fields.some((field) => field.key === key)
