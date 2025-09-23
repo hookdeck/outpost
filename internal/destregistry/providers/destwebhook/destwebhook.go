@@ -557,16 +557,31 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// Add default headers unless disabled
-	if !p.disableTimestampHeader {
-		req.Header.Set(p.headerPrefix+"timestamp", fmt.Sprintf("%d", now.Unix()))
+	// Get merged metadata (system + event metadata) using BasePublisher
+	metadata := p.BasePublisher.MakeMetadata(event, now)
+
+	// Add headers from metadata, respecting disable flags
+	for key, value := range metadata {
+		// Check if this specific system header should be disabled
+		switch key {
+		case "timestamp":
+			if p.disableTimestampHeader {
+				continue
+			}
+		case "event-id":
+			if p.disableEventIDHeader {
+				continue
+			}
+		case "topic":
+			if p.disableTopicHeader {
+				continue
+			}
+		}
+		// Add the header with the appropriate prefix
+		req.Header.Set(p.headerPrefix+key, value)
 	}
-	if !p.disableEventIDHeader {
-		req.Header.Set(p.headerPrefix+"event-id", event.ID)
-	}
-	if !p.disableTopicHeader {
-		req.Header.Set(p.headerPrefix+"topic", event.Topic)
-	}
+
+	// Add signature header if not disabled
 	if !p.disableSignatureHeader {
 		signatureHeader := p.sm.GenerateSignatureHeader(SignaturePayload{
 			EventID:   event.ID,
@@ -577,11 +592,6 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 		if signatureHeader != "" {
 			req.Header.Set(p.headerPrefix+"signature", signatureHeader)
 		}
-	}
-
-	// Add metadata headers with the specified prefix
-	for key, value := range event.Metadata {
-		req.Header.Set(p.headerPrefix+strings.ToLower(key), value)
 	}
 
 	return req, nil
