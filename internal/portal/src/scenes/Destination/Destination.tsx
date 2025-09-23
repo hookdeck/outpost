@@ -246,6 +246,7 @@ function DestinationDetailsField(props: {
   value: JSX.Element | string;
 }) {
   let label = "";
+  let isSensitive = false;
   let shouldCopy = false;
   if (props.fieldType === "config") {
     const field = props.type.config_fields.find(
@@ -259,6 +260,7 @@ function DestinationDetailsField(props: {
     );
     label = field?.label || "";
     shouldCopy = field?.type === "text" && !field?.sensitive;
+    isSensitive = Boolean(field?.sensitive);
   }
   if (label === "") {
     label = props.fieldKey
@@ -277,7 +279,7 @@ function DestinationDetailsField(props: {
       <span
         className="mono-s"
         title={
-          typeof props.value === "string" && props.fieldType !== "credentials"
+          typeof props.value === "string" && !isSensitive
             ? props.value
             : undefined
         }
