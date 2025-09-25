@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hookdeck/outpost/cmd/migrateredis/migration"
+	"github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration"
 	"github.com/hookdeck/outpost/internal/redis"
 )
 
@@ -80,10 +80,10 @@ func (m *HashTagsMigration) Plan(ctx context.Context, client redis.Client, verbo
 	}
 
 	plan := &migration.Plan{
-		MigrationName:  m.Name(),
-		Description:    m.Description(),
-		Version:        "v2",
-		Timestamp:      time.Now(),
+		MigrationName: m.Name(),
+		Description:   m.Description(),
+		Version:       "v2",
+		Timestamp:     time.Now(),
 		Scope: map[string]int{
 			"tenants":        len(tenants),
 			"dest_summaries": destinationSummaryCount,
@@ -171,8 +171,8 @@ func (m *HashTagsMigration) Apply(ctx context.Context, client redis.Client, plan
 
 func (m *HashTagsMigration) Verify(ctx context.Context, client redis.Client, state *migration.State, verbose bool) (*migration.VerificationResult, error) {
 	result := &migration.VerificationResult{
-		Valid:    true,
-		Details:  make(map[string]string),
+		Valid:   true,
+		Details: make(map[string]string),
 	}
 
 	// Get all legacy tenant keys for spot checking

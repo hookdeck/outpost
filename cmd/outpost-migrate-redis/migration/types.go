@@ -34,13 +34,13 @@ type Migration interface {
 
 // Plan represents a migration plan
 type Plan struct {
-	MigrationName    string            `json:"migration_name"`
-	Description      string            `json:"description"`
-	Version          string            `json:"version"`
-	Timestamp        time.Time         `json:"timestamp"`
-	Scope            map[string]int    `json:"scope"` // e.g., {"tenants": 100, "destinations": 500}
-	EstimatedItems   int               `json:"estimated_items"`
-	Metadata         map[string]string `json:"metadata,omitempty"`
+	MigrationName  string            `json:"migration_name"`
+	Description    string            `json:"description"`
+	Version        string            `json:"version"`
+	Timestamp      time.Time         `json:"timestamp"`
+	Scope          map[string]int    `json:"scope"` // e.g., {"tenants": 100, "destinations": 500}
+	EstimatedItems int               `json:"estimated_items"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
 }
 
 // State represents the current state of a migration
@@ -64,11 +64,11 @@ type Progress struct {
 
 // VerificationResult contains verification results
 type VerificationResult struct {
-	Valid       bool              `json:"valid"`
-	ChecksRun   int               `json:"checks_run"`
-	ChecksPassed int              `json:"checks_passed"`
-	Issues      []string          `json:"issues,omitempty"`
-	Details     map[string]string `json:"details,omitempty"`
+	Valid        bool              `json:"valid"`
+	ChecksRun    int               `json:"checks_run"`
+	ChecksPassed int               `json:"checks_passed"`
+	Issues       []string          `json:"issues,omitempty"`
+	Details      map[string]string `json:"details,omitempty"`
 }
 
 // Registry manages available migrations

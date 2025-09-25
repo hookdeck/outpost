@@ -1,5 +1,33 @@
 TEST?=$$(go list ./...)
 
+# Build targets
+.PHONY: build
+build:
+	@echo "Building all binaries..."
+	go build -o bin/outpost ./cmd/outpost/main.go
+	go build -o bin/outpost-server ./cmd/outpost-server/main.go
+	go build -o bin/outpost-migrate-redis ./cmd/outpost-migrate-redis/main.go
+	@echo "Binaries built in ./bin/"
+
+build/outpost:
+	go build -o bin/outpost ./cmd/outpost/main.go
+
+build/server:
+	go build -o bin/outpost-server ./cmd/outpost-server/main.go
+
+build/migrate-redis:
+	go build -o bin/outpost-migrate-redis ./cmd/outpost-migrate-redis/main.go
+
+install:
+	@echo "Installing binaries to GOPATH/bin..."
+	go install ./cmd/outpost
+	go install ./cmd/outpost-server
+	go install ./cmd/outpost-migrate-redis
+	@echo "Installation complete"
+
+clean:
+	rm -f bin/outpost bin/outpost-server bin/outpost-migrate-redis
+
 up:
 	make up/deps
 	make up/outpost
