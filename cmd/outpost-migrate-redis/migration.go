@@ -30,11 +30,36 @@ func init() {
 	// registry.Register(migration_003.New())
 }
 
-// MigrationOptions contains options for running migrations
-type MigrationOptions struct {
-	Verbose     bool
-	Force       bool
-	AutoApprove bool
+// Migrator handles Redis migrations
+type Migrator struct {
+	client      *redisClientWrapper
+	verbose     bool
+	force       bool
+	autoApprove bool
+}
+
+// NewMigrator creates a new migrator instance
+func NewMigrator(cfg *config.Config, verbose, force, autoApprove bool) (*Migrator, error) {
+	ctx := context.Background()
+
+	// Build Redis client
+	redisConfig := cfg.Redis.ToConfig()
+	redisClient, err := redis.New(ctx, redisConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
+	}
+
+	// Create wrapper client
+	client := &redisClientWrapper{
+		Cmdable: redisClient,
+	}
+
+	return &Migrator{
+		client:      client,
+		verbose:     verbose,
+		force:       force,
+		autoApprove: autoApprove,
+	}, nil
 }
 
 // ListMigrations lists all available migrations
@@ -60,19 +85,8 @@ func ListMigrations() error {
 	return nil
 }
 
-// ShowStatus shows the current migration status
-func ShowStatus(ctx context.Context, cfg *config.Config, currentCheck bool, verbose bool) error {
-	// Build Redis client
-	redisConfig := cfg.Redis.ToConfig()
-	redisClient, err := redis.New(ctx, redisConfig)
-	if err != nil {
-		return fmt.Errorf("failed to connect to Redis: %w", err)
-	}
-
-	// Create a wrapper client
-	client := &redisClientWrapper{
-		Cmdable: redisClient,
-	}
+// Status shows the current migration status
+func (m *Migrator) Status(ctx context.Context, currentCheck bool) error {
 
 	// Get all migrations and categorize them
 	migrations := registry.GetAll()
@@ -91,18 +105,18 @@ func ShowStatus(ctx context.Context, cfg *config.Config, currentCheck bool, verb
 	})
 
 	// Categorize migrations
-	for _, m := range allMigrations {
-		if isApplied(ctx, client, m.Name()) {
-			appliedMigrations = append(appliedMigrations, m)
+	for _, mig := range allMigrations {
+		if isApplied(ctx, m.client, mig.Name()) {
+			appliedMigrations = append(appliedMigrations, mig)
 		} else {
-			pendingMigrations = append(pendingMigrations, m)
+			pendingMigrations = append(pendingMigrations, mig)
 		}
 	}
 
 	// If --current flag is used, just check and exit
 	if currentCheck {
 		if len(pendingMigrations) > 0 {
-			if !verbose {
+			if !m.verbose {
 				// Silent mode for scripting
 				os.Exit(1)
 			}
@@ -120,9 +134,9 @@ func ShowStatus(ctx context.Context, cfg *config.Config, currentCheck bool, verb
 		fmt.Println("  No migrations applied")
 	} else {
 		fmt.Printf("  Applied: %d migration(s)\n", len(appliedMigrations))
-		if verbose {
-			for _, m := range appliedMigrations {
-				fmt.Printf("    ✓ %s\n", m.Name())
+		if m.verbose {
+			for _, mig := range appliedMigrations {
+				fmt.Printf("    ✓ %s\n", mig.Name())
 			}
 		}
 	}
@@ -142,22 +156,10 @@ func ShowStatus(ctx context.Context, cfg *config.Config, currentCheck bool, verb
 }
 
 
-// PlanMigration shows what changes would be made without applying them
-func PlanMigration(ctx context.Context, cfg *config.Config, verbose bool) error {
-	// Build Redis client
-	redisConfig := cfg.Redis.ToConfig()
-	redisClient, err := redis.New(ctx, redisConfig)
-	if err != nil {
-		return fmt.Errorf("failed to connect to Redis: %w", err)
-	}
-
-	// Create a wrapper client that implements the expected interface
-	client := &redisClientWrapper{
-		Cmdable: redisClient,
-	}
-
+// Plan shows what changes would be made without applying them
+func (m *Migrator) Plan(ctx context.Context) error {
 	// Get the next unapplied migration
-	m, err := getNextMigration(ctx, client)
+	mig, err := getNextMigration(ctx, m.client)
 	if err != nil {
 		if err.Error() == "all migrations have been applied" {
 			fmt.Println("All migrations have been applied. Nothing to plan.")
@@ -167,13 +169,13 @@ func PlanMigration(ctx context.Context, cfg *config.Config, verbose bool) error 
 	}
 
 	// Run the migration in plan mode
-	plan, err := m.Plan(ctx, client, verbose)
+	plan, err := mig.Plan(ctx, m.client, m.verbose)
 	if err != nil {
 		return err
 	}
 
 	// Display the plan
-	fmt.Printf("Migration Plan for %s:\n", m.Name())
+	fmt.Printf("Migration Plan for %s:\n", mig.Name())
 	fmt.Printf("  Description: %s\n", plan.Description)
 	fmt.Printf("  Estimated items: %d\n", plan.EstimatedItems)
 	if len(plan.Scope) > 0 {
@@ -186,36 +188,24 @@ func PlanMigration(ctx context.Context, cfg *config.Config, verbose bool) error 
 	return nil
 }
 
-// VerifyMigration verifies that a migration was successful
-func VerifyMigration(ctx context.Context, cfg *config.Config, verbose bool) error {
-	// Build Redis client
-	redisConfig := cfg.Redis.ToConfig()
-	redisClient, err := redis.New(ctx, redisConfig)
-	if err != nil {
-		return fmt.Errorf("failed to connect to Redis: %w", err)
-	}
-
-	// Create a wrapper client
-	client := &redisClientWrapper{
-		Cmdable: redisClient,
-	}
-
+// Verify verifies that a migration was successful
+func (m *Migrator) Verify(ctx context.Context) error {
 	// Get the last applied migration
-	m, err := getLastAppliedMigration(ctx, client)
+	mig, err := getLastAppliedMigration(ctx, m.client)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Verifying migration %s...\n", m.Name())
+	fmt.Printf("Verifying migration %s...\n", mig.Name())
 
 	// Run verification
 	// Note: We're passing a minimal state object since the full state isn't stored yet
 	verifyState := &migration.State{
-		MigrationName: m.Name(),
+		MigrationName: mig.Name(),
 		Phase:         "applied",
 	}
 
-	result, err := m.Verify(ctx, client, verifyState, verbose)
+	result, err := mig.Verify(ctx, m.client, verifyState, m.verbose)
 	if err != nil {
 		return fmt.Errorf("verification failed: %w", err)
 	}
@@ -238,7 +228,7 @@ func VerifyMigration(ctx context.Context, cfg *config.Config, verbose bool) erro
 		return fmt.Errorf("migration verification failed")
 	}
 
-	if verbose && len(result.Details) > 0 {
+	if m.verbose && len(result.Details) > 0 {
 		fmt.Println("  Details:")
 		for key, value := range result.Details {
 			fmt.Printf("    %s: %s\n", key, value)
@@ -248,35 +238,23 @@ func VerifyMigration(ctx context.Context, cfg *config.Config, verbose bool) erro
 	return nil
 }
 
-// CleanupMigration removes old keys after successful migration
-func CleanupMigration(ctx context.Context, cfg *config.Config, opts MigrationOptions) error {
-	// Build Redis client
-	redisConfig := cfg.Redis.ToConfig()
-	redisClient, err := redis.New(ctx, redisConfig)
-	if err != nil {
-		return fmt.Errorf("failed to connect to Redis: %w", err)
-	}
-
-	// Create a wrapper client
-	client := &redisClientWrapper{
-		Cmdable: redisClient,
-	}
-
+// Cleanup removes old keys after successful migration
+func (m *Migrator) Cleanup(ctx context.Context) error {
 	// Get the last applied migration
-	m, err := getLastAppliedMigration(ctx, client)
+	mig, err := getLastAppliedMigration(ctx, m.client)
 	if err != nil {
 		return err
 	}
 
 	// First verify the migration if not forced
-	if !opts.Force {
+	if !m.force {
 		fmt.Println("Verifying migration before cleanup...")
 		verifyState := &migration.State{
-			MigrationName: m.Name(),
+			MigrationName: mig.Name(),
 			Phase:         "applied",
 		}
 
-		result, err := m.Verify(ctx, client, verifyState, opts.Verbose)
+		result, err := mig.Verify(ctx, m.client, verifyState, m.verbose)
 		if err != nil {
 			return fmt.Errorf("verification failed: %w", err)
 		}
@@ -287,11 +265,11 @@ func CleanupMigration(ctx context.Context, cfg *config.Config, opts MigrationOpt
 		fmt.Println("✅ Verification passed")
 	}
 
-	fmt.Printf("Analyzing cleanup for migration %s...\n", m.Name())
+	fmt.Printf("Analyzing cleanup for migration %s...\n", mig.Name())
 
 	// Get a preview of what will be cleaned up by running a dry-run plan
 	// This helps us show what will be deleted before confirming
-	plan, err := m.Plan(ctx, client, false)
+	plan, err := mig.Plan(ctx, m.client, false)
 	if err != nil {
 		return fmt.Errorf("failed to analyze cleanup scope: %w", err)
 	}
@@ -303,7 +281,7 @@ func CleanupMigration(ctx context.Context, cfg *config.Config, opts MigrationOpt
 	}
 
 	// Confirm if not auto-approved
-	if !opts.AutoApprove && !opts.Force {
+	if !m.autoApprove && !m.force {
 		fmt.Printf("\n⚠️  WARNING: This will delete approximately %d old Redis keys.\n", plan.EstimatedItems)
 		fmt.Println("This action cannot be undone.")
 		fmt.Print("\nDo you want to continue? (yes/no): ")
@@ -315,17 +293,17 @@ func CleanupMigration(ctx context.Context, cfg *config.Config, opts MigrationOpt
 		}
 	}
 
-	fmt.Printf("\nCleaning up old keys from migration %s...\n", m.Name())
+	fmt.Printf("\nCleaning up old keys from migration %s...\n", mig.Name())
 
 	// Run cleanup
 	// Note: We're passing a minimal state object since the full state isn't stored yet
 	cleanupState := &migration.State{
-		MigrationName: m.Name(),
+		MigrationName: mig.Name(),
 		Phase:         "applied",
 	}
 
 	// Run cleanup (migration should not handle confirmations)
-	err = m.Cleanup(ctx, client, cleanupState, opts.Verbose)
+	err = mig.Cleanup(ctx, m.client, cleanupState, m.verbose)
 	if err != nil {
 		return fmt.Errorf("cleanup failed: %w", err)
 	}
@@ -336,22 +314,10 @@ func CleanupMigration(ctx context.Context, cfg *config.Config, opts MigrationOpt
 	return nil
 }
 
-// ApplyMigration executes the migration
-func ApplyMigration(ctx context.Context, cfg *config.Config, opts MigrationOptions) error {
-	// Build Redis client
-	redisConfig := cfg.Redis.ToConfig()
-	redisClient, err := redis.New(ctx, redisConfig)
-	if err != nil {
-		return fmt.Errorf("failed to connect to Redis: %w", err)
-	}
-
-	// Create a wrapper client
-	client := &redisClientWrapper{
-		Cmdable: redisClient,
-	}
-
+// Apply executes the migration
+func (m *Migrator) Apply(ctx context.Context) error {
 	// Get the next unapplied migration
-	m, err := getNextMigration(ctx, client)
+	mig, err := getNextMigration(ctx, m.client)
 	if err != nil {
 		if err.Error() == "all migrations have been applied" {
 			fmt.Println("All migrations have been applied. Nothing to do.")
@@ -362,7 +328,7 @@ func ApplyMigration(ctx context.Context, cfg *config.Config, opts MigrationOptio
 
 	// First show the plan
 	fmt.Println("Planning migration...")
-	plan, err := m.Plan(ctx, client, opts.Verbose)
+	plan, err := mig.Plan(ctx, m.client, m.verbose)
 	if err != nil {
 		return err
 	}
@@ -371,7 +337,7 @@ func ApplyMigration(ctx context.Context, cfg *config.Config, opts MigrationOptio
 	fmt.Printf("  Estimated items: %d\n", plan.EstimatedItems)
 
 	// Confirm if not auto-approved
-	if !opts.AutoApprove && !opts.Force {
+	if !m.autoApprove && !m.force {
 		fmt.Print("\nDo you want to apply these changes? (yes/no): ")
 		var response string
 		fmt.Scanln(&response)
@@ -383,13 +349,13 @@ func ApplyMigration(ctx context.Context, cfg *config.Config, opts MigrationOptio
 
 	// Apply the migration
 	fmt.Println("\nApplying migration...")
-	state, err := m.Apply(ctx, client, plan, opts.Verbose)
+	state, err := mig.Apply(ctx, m.client, plan, m.verbose)
 	if err != nil {
 		return err
 	}
 
 	// Mark migration as applied
-	if err := setMigrationAsApplied(ctx, client, m.Name()); err != nil {
+	if err := setMigrationAsApplied(ctx, m.client, mig.Name()); err != nil {
 		return fmt.Errorf("failed to mark migration as applied: %w", err)
 	}
 

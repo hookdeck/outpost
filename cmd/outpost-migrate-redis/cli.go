@@ -71,9 +71,11 @@ func NewCommand() *cli.Command {
 		},
 		Commands: []*cli.Command{
 			{
-				Name:   "list",
-				Usage:  "List available migrations",
-				Action: listMigrationsCommand,
+				Name:  "list",
+				Usage: "List available migrations",
+				Action: func(ctx context.Context, c *cli.Command) error {
+					return ListMigrations()
+				},
 			},
 			{
 				Name:  "status",
@@ -84,27 +86,57 @@ func NewCommand() *cli.Command {
 						Usage: "Exit with code 1 if migrations are pending (for scripting)",
 					},
 				},
-				Action: statusCommand,
+				Action: func(ctx context.Context, c *cli.Command) error {
+					migrator, err := initMigrator(c)
+					if err != nil {
+						return err
+					}
+					return migrator.Status(ctx, c.Bool("current"))
+				},
 			},
 			{
-				Name:   "plan",
-				Usage:  "Show what changes would be made without applying them",
-				Action: planMigrationCommand,
+				Name:  "plan",
+				Usage: "Show what changes would be made without applying them",
+				Action: func(ctx context.Context, c *cli.Command) error {
+					migrator, err := initMigrator(c)
+					if err != nil {
+						return err
+					}
+					return migrator.Plan(ctx)
+				},
 			},
 			{
-				Name:   "apply",
-				Usage:  "Apply the migration",
-				Action: applyMigrationCommand,
+				Name:  "apply",
+				Usage: "Apply the migration",
+				Action: func(ctx context.Context, c *cli.Command) error {
+					migrator, err := initMigrator(c)
+					if err != nil {
+						return err
+					}
+					return migrator.Apply(ctx)
+				},
 			},
 			{
-				Name:   "verify",
-				Usage:  "Verify that a migration was successful",
-				Action: verifyMigrationCommand,
+				Name:  "verify",
+				Usage: "Verify that a migration was successful",
+				Action: func(ctx context.Context, c *cli.Command) error {
+					migrator, err := initMigrator(c)
+					if err != nil {
+						return err
+					}
+					return migrator.Verify(ctx)
+				},
 			},
 			{
-				Name:   "cleanup",
-				Usage:  "Remove old keys after successful migration",
-				Action: cleanupMigrationCommand,
+				Name:  "cleanup",
+				Usage: "Remove old keys after successful migration",
+				Action: func(ctx context.Context, c *cli.Command) error {
+					migrator, err := initMigrator(c)
+					if err != nil {
+						return err
+					}
+					return migrator.Cleanup(ctx)
+				},
 			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
@@ -114,61 +146,23 @@ func NewCommand() *cli.Command {
 	}
 }
 
-// Command handlers that delegate to migration logic
-func listMigrationsCommand(ctx context.Context, c *cli.Command) error {
-	return ListMigrations()
-}
-
-func statusCommand(ctx context.Context, c *cli.Command) error {
-	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config) error {
-		return ShowStatus(ctx, cfg, c.Bool("current"), c.Bool("verbose"))
-	})
-}
-
-func planMigrationCommand(ctx context.Context, c *cli.Command) error {
-	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config) error {
-		return PlanMigration(ctx, cfg, c.Bool("verbose"))
-	})
-}
-
-func applyMigrationCommand(ctx context.Context, c *cli.Command) error {
-	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config) error {
-		return ApplyMigration(ctx, cfg, MigrationOptions{
-			Verbose:     c.Bool("verbose"),
-			Force:       c.Bool("force"),
-			AutoApprove: c.Bool("auto-approve"),
-		})
-	})
-}
-
-func verifyMigrationCommand(ctx context.Context, c *cli.Command) error {
-	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config) error {
-		return VerifyMigration(ctx, cfg, c.Bool("verbose"))
-	})
-}
-
-func cleanupMigrationCommand(ctx context.Context, c *cli.Command) error {
-	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config) error {
-		return CleanupMigration(ctx, cfg, MigrationOptions{
-			Verbose:     c.Bool("verbose"),
-			Force:       c.Bool("force"),
-			AutoApprove: c.Bool("auto-approve"),
-		})
-	})
-}
-
-// withConfig is a helper that loads config and prints it if verbose
-func withConfig(ctx context.Context, c *cli.Command, fn func(context.Context, *config.Config) error) error {
+// initMigrator creates a migrator instance from command context
+func initMigrator(c *cli.Command) (*Migrator, error) {
 	cfg, err := loadAndValidateConfig(c)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if c.Bool("verbose") {
 		printRedisConfig(&cfg.Redis)
 	}
 
-	return fn(ctx, cfg)
+	return NewMigrator(
+		cfg,
+		c.Bool("verbose"),
+		c.Bool("force"),
+		c.Bool("auto-approve"),
+	)
 }
 
 // loadAndValidateConfig loads config from files/env and applies CLI overrides
