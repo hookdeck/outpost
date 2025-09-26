@@ -101,6 +101,16 @@ func NewCommand() *cli.Command {
 				Usage:  "Apply the migration",
 				Action: applyMigrationCommand,
 			},
+			{
+				Name:   "verify",
+				Usage:  "Verify that a migration was successful",
+				Action: verifyMigrationCommand,
+			},
+			{
+				Name:   "cleanup",
+				Usage:  "Remove old keys after successful migration",
+				Action: cleanupMigrationCommand,
+			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			// Default action: show help
@@ -130,6 +140,22 @@ func planMigrationCommand(ctx context.Context, c *cli.Command) error {
 func applyMigrationCommand(ctx context.Context, c *cli.Command) error {
 	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config, migrationName string) error {
 		return ApplyMigration(ctx, cfg, migrationName, MigrationOptions{
+			Verbose:     c.Bool("verbose"),
+			Force:       c.Bool("force"),
+			AutoApprove: c.Bool("auto-approve"),
+		})
+	})
+}
+
+func verifyMigrationCommand(ctx context.Context, c *cli.Command) error {
+	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config, migrationName string) error {
+		return VerifyMigration(ctx, cfg, migrationName, c.Bool("verbose"))
+	})
+}
+
+func cleanupMigrationCommand(ctx context.Context, c *cli.Command) error {
+	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config, migrationName string) error {
+		return CleanupMigration(ctx, cfg, migrationName, MigrationOptions{
 			Verbose:     c.Bool("verbose"),
 			Force:       c.Bool("force"),
 			AutoApprove: c.Bool("auto-approve"),

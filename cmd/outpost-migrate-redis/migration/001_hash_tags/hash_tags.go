@@ -300,7 +300,7 @@ func (m *HashTagsMigration) Verify(ctx context.Context, client redis.Client, sta
 	return result, nil
 }
 
-func (m *HashTagsMigration) Cleanup(ctx context.Context, client redis.Client, state *migration.State, force bool, verbose bool) error {
+func (m *HashTagsMigration) Cleanup(ctx context.Context, client redis.Client, state *migration.State, verbose bool) error {
 	// Get all legacy keys
 	legacyKeys, err := client.Keys(ctx, "tenant:*").Result()
 	if err != nil {
@@ -313,18 +313,6 @@ func (m *HashTagsMigration) Cleanup(ctx context.Context, client redis.Client, st
 	}
 
 	fmt.Printf("Found %d legacy keys to remove.\n", len(legacyKeys))
-
-	if !force {
-		fmt.Printf("⚠️  WARNING: This will permanently delete %d legacy keys.\n", len(legacyKeys))
-		fmt.Printf("Continue? (y/N): ")
-
-		var response string
-		fmt.Scanln(&response)
-		if response != "y" && response != "Y" {
-			fmt.Println("Cleanup cancelled.")
-			return fmt.Errorf("cleanup cancelled by user")
-		}
-	}
 
 	// Delete in batches
 	batchSize := 100

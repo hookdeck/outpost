@@ -219,6 +219,181 @@ func PlanMigration(ctx context.Context, cfg *config.Config, migrationName string
 	return nil
 }
 
+// VerifyMigration verifies that a migration was successful
+func VerifyMigration(ctx context.Context, cfg *config.Config, migrationName string, verbose bool) error {
+	// Build Redis client
+	redisConfig := cfg.Redis.ToConfig()
+	redisClient, err := redis.New(ctx, redisConfig)
+	if err != nil {
+		return fmt.Errorf("failed to connect to Redis: %w", err)
+	}
+
+	// Get migration
+	m, err := getMigration(migrationName)
+	if err != nil {
+		return err
+	}
+
+	// Create a wrapper client
+	client := &redisClientWrapper{
+		Cmdable: redisClient,
+	}
+
+	// Get migration state from Redis
+	state, err := getMigrationState(ctx, client, m.Name())
+	if err != nil {
+		return fmt.Errorf("failed to get migration state: %w", err)
+	}
+
+	if state == nil || state.Phase != "applied" {
+		return fmt.Errorf("migration %s has not been applied yet", m.Name())
+	}
+
+	fmt.Printf("Verifying migration %s...\n", m.Name())
+
+	// Run verification
+	// Note: We're passing a minimal state object since the full state isn't stored yet
+	verifyState := &migration.State{
+		MigrationName: m.Name(),
+		Phase:         state.Phase,
+	}
+
+	result, err := m.Verify(ctx, client, verifyState, verbose)
+	if err != nil {
+		return fmt.Errorf("verification failed: %w", err)
+	}
+
+	// Display results
+	if result.Valid {
+		fmt.Println("✅ Migration verified successfully")
+		fmt.Printf("  Checks run: %d\n", result.ChecksRun)
+		fmt.Printf("  Checks passed: %d\n", result.ChecksPassed)
+	} else {
+		fmt.Println("❌ Migration verification failed")
+		fmt.Printf("  Checks run: %d\n", result.ChecksRun)
+		fmt.Printf("  Checks passed: %d\n", result.ChecksPassed)
+		if len(result.Issues) > 0 {
+			fmt.Println("  Issues found:")
+			for _, issue := range result.Issues {
+				fmt.Printf("    - %s\n", issue)
+			}
+		}
+		return fmt.Errorf("migration verification failed")
+	}
+
+	if verbose && len(result.Details) > 0 {
+		fmt.Println("  Details:")
+		for key, value := range result.Details {
+			fmt.Printf("    %s: %s\n", key, value)
+		}
+	}
+
+	return nil
+}
+
+// CleanupMigration removes old keys after successful migration
+func CleanupMigration(ctx context.Context, cfg *config.Config, migrationName string, opts MigrationOptions) error {
+	// Build Redis client
+	redisConfig := cfg.Redis.ToConfig()
+	redisClient, err := redis.New(ctx, redisConfig)
+	if err != nil {
+		return fmt.Errorf("failed to connect to Redis: %w", err)
+	}
+
+	// Get migration
+	m, err := getMigration(migrationName)
+	if err != nil {
+		return err
+	}
+
+	// Create a wrapper client
+	client := &redisClientWrapper{
+		Cmdable: redisClient,
+	}
+
+	// Get migration state from Redis
+	state, err := getMigrationState(ctx, client, m.Name())
+	if err != nil {
+		return fmt.Errorf("failed to get migration state: %w", err)
+	}
+
+	if state == nil || state.Phase != "applied" {
+		return fmt.Errorf("migration %s has not been applied yet", m.Name())
+	}
+
+	// First verify the migration if not forced
+	if !opts.Force {
+		fmt.Println("Verifying migration before cleanup...")
+		verifyState := &migration.State{
+			MigrationName: m.Name(),
+			Phase:         state.Phase,
+		}
+
+		result, err := m.Verify(ctx, client, verifyState, opts.Verbose)
+		if err != nil {
+			return fmt.Errorf("verification failed: %w", err)
+		}
+
+		if !result.Valid {
+			return fmt.Errorf("migration verification failed - cleanup aborted. Use --force to override")
+		}
+		fmt.Println("✅ Verification passed")
+	}
+
+	fmt.Printf("Analyzing cleanup for migration %s...\n", m.Name())
+
+	// Get a preview of what will be cleaned up by running a dry-run plan
+	// This helps us show what will be deleted before confirming
+	plan, err := m.Plan(ctx, client, false)
+	if err != nil {
+		return fmt.Errorf("failed to analyze cleanup scope: %w", err)
+	}
+
+	// Estimate cleanup impact from the plan
+	if plan.EstimatedItems == 0 {
+		fmt.Println("No old keys to cleanup.")
+		return nil
+	}
+
+	// Confirm if not auto-approved
+	if !opts.AutoApprove && !opts.Force {
+		fmt.Printf("\n⚠️  WARNING: This will delete approximately %d old Redis keys.\n", plan.EstimatedItems)
+		fmt.Println("This action cannot be undone.")
+		fmt.Print("\nDo you want to continue? (yes/no): ")
+		var response string
+		fmt.Scanln(&response)
+		if !strings.HasPrefix(strings.ToLower(response), "y") {
+			fmt.Println("Cleanup cancelled.")
+			return nil
+		}
+	}
+
+	fmt.Printf("\nCleaning up old keys from migration %s...\n", m.Name())
+
+	// Run cleanup
+	// Note: We're passing a minimal state object since the full state isn't stored yet
+	cleanupState := &migration.State{
+		MigrationName: m.Name(),
+		Phase:         state.Phase,
+	}
+
+	// Run cleanup (migration should not handle confirmations)
+	err = m.Cleanup(ctx, client, cleanupState, opts.Verbose)
+	if err != nil {
+		return fmt.Errorf("cleanup failed: %w", err)
+	}
+
+	// Update migration state
+	if err := setMigrationState(ctx, client, m.Name(), "cleaned"); err != nil {
+		return fmt.Errorf("failed to update migration state: %w", err)
+	}
+
+	fmt.Println("✅ Cleanup completed successfully")
+	fmt.Println("Old keys have been removed.")
+
+	return nil
+}
+
 // ApplyMigration executes the migration
 func ApplyMigration(ctx context.Context, cfg *config.Config, migrationName string, opts MigrationOptions) error {
 	// Build Redis client

@@ -29,7 +29,8 @@ type Migration interface {
 	Verify(ctx context.Context, client redis.Client, state *State, verbose bool) (*VerificationResult, error)
 
 	// Cleanup removes old data after successful verification
-	Cleanup(ctx context.Context, client redis.Client, state *State, force bool, verbose bool) error
+	// Should not prompt for confirmation - that's handled by the CLI
+	Cleanup(ctx context.Context, client redis.Client, state *State, verbose bool) error
 }
 
 // Plan represents a migration plan

@@ -59,10 +59,16 @@ outpost migrate redis --migration 001_hash_tags plan
 outpost migrate redis apply
 outpost migrate redis --auto-approve apply  # Skip confirmation prompt
 
+# Verify the migration was successful
+outpost migrate redis verify
+outpost migrate redis verify --verbose  # Show detailed verification info
+
+# Cleanup old keys after verification
+outpost migrate redis cleanup
+outpost migrate redis cleanup --auto-approve  # Skip confirmation
+outpost migrate redis cleanup --force  # Skip verification check
+
 # Additional commands (not yet implemented in new CLI)
-# verify   # Validate migration succeeded
-# cleanup  # Remove old keys after verification
-# status   # Check current migration status
 # unlock   # Force clear the migration lock (use with caution)
 ```
 
