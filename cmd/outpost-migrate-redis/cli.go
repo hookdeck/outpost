@@ -2,11 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"strconv"
 
-	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/version"
 	"github.com/urfave/cli/v3"
 )
@@ -157,101 +153,16 @@ func NewCommand() *cli.Command {
 
 // initMigrator creates a migrator instance from command context
 func initMigrator(c *cli.Command) (*Migrator, error) {
-	cfg, err := loadAndValidateConfig(c)
+	verbose := c.Bool("verbose")
+	loader := NewConfigLoader()
+	cfg, err := loader.LoadConfig(c)
 	if err != nil {
 		return nil, err
 	}
 
-	if c.Bool("verbose") {
-		printRedisConfig(&cfg.Redis)
+	if verbose {
+		loader.printRedisConfig(&cfg.Redis)
 	}
 
-	return NewMigrator(cfg, c.Bool("verbose"))
-}
-
-// loadAndValidateConfig loads config from files/env and applies CLI overrides
-func loadAndValidateConfig(c *cli.Command) (*config.Config, error) {
-	// Load config using the existing system
-	flags := config.Flags{
-		Config: c.String("config"),
-	}
-
-	// Use ParseWithoutValidation to load config files and env vars
-	// without validating all required fields (since we only need Redis config)
-	cfg, err := config.ParseWithoutValidation(flags, &defaultOSImpl{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse config: %w", err)
-	}
-
-	// Override Redis config with CLI flags if provided
-	if host := c.String("redis-host"); host != "" {
-		cfg.Redis.Host = host
-	}
-	if portStr := c.String("redis-port"); portStr != "" {
-		port, err := strconv.Atoi(portStr)
-		if err != nil {
-			return nil, fmt.Errorf("invalid redis-port: %w", err)
-		}
-		cfg.Redis.Port = port
-	}
-	if password := c.String("redis-password"); password != "" {
-		cfg.Redis.Password = password
-	}
-	if c.IsSet("redis-database") {
-		cfg.Redis.Database = c.Int("redis-database")
-	}
-	if c.IsSet("redis-cluster") {
-		cfg.Redis.ClusterEnabled = c.Bool("redis-cluster")
-	}
-	if c.IsSet("redis-tls") {
-		cfg.Redis.TLSEnabled = c.Bool("redis-tls")
-	}
-
-	// Validate Redis configuration
-	if err := validateRedisConfig(&cfg.Redis); err != nil {
-		return nil, fmt.Errorf("invalid Redis configuration: %w", err)
-	}
-
-	return cfg, nil
-}
-
-// printRedisConfig prints the Redis configuration (with password masked)
-func printRedisConfig(rc *config.RedisConfig) {
-	fmt.Println("Redis Configuration:")
-	fmt.Printf("  Host: %s\n", rc.Host)
-	fmt.Printf("  Port: %d\n", rc.Port)
-	fmt.Printf("  Database: %d\n", rc.Database)
-	fmt.Printf("  Cluster Enabled: %v\n", rc.ClusterEnabled)
-	fmt.Printf("  TLS Enabled: %v\n", rc.TLSEnabled)
-
-	// Mask password for security
-	if rc.Password != "" {
-		fmt.Printf("  Password: ****** (length: %d)\n", len(rc.Password))
-	} else {
-		fmt.Printf("  Password: (not set)\n")
-	}
-
-	if rc.ClusterEnabled && rc.DevClusterHostOverride {
-		fmt.Printf("  Dev Cluster Host Override: %v (WARNING: Dev only!)\n", rc.DevClusterHostOverride)
-	}
-	fmt.Println()
-}
-
-// Simple OSInterface implementation for config loading
-type defaultOSImpl struct{}
-
-func (d *defaultOSImpl) Getenv(key string) string {
-	return os.Getenv(key)
-}
-
-func (d *defaultOSImpl) Stat(name string) (os.FileInfo, error) {
-	return os.Stat(name)
-}
-
-func (d *defaultOSImpl) ReadFile(name string) ([]byte, error) {
-	return os.ReadFile(name)
-}
-
-func (d *defaultOSImpl) Environ() []string {
-	return os.Environ()
+	return NewMigrator(cfg, verbose)
 }

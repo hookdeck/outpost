@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -358,26 +357,6 @@ func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
 	fmt.Printf("  Processed items: %d\n", state.Progress.ProcessedItems)
 	fmt.Printf("  Failed items: %d\n", state.Progress.FailedItems)
 	fmt.Printf("  Skipped items: %d\n", state.Progress.SkippedItems)
-	return nil
-}
-
-// validateRedisConfig validates the Redis configuration
-func validateRedisConfig(rc *config.RedisConfig) error {
-	// Basic validation for Redis config
-	if rc.Host == "" {
-		return errors.New("redis host is required")
-	}
-	if rc.Port == 0 {
-		return errors.New("redis port is required")
-	}
-
-	// Check for cluster-specific configuration
-	if rc.ClusterEnabled {
-		if rc.Database != 0 {
-			return errors.New("redis cluster mode doesn't support database selection")
-		}
-	}
-
 	return nil
 }
 
