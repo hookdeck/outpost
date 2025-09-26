@@ -58,16 +58,6 @@ func NewCommand() *cli.Command {
 				Name:  "verbose",
 				Usage: "Enable verbose output",
 			},
-			&cli.BoolFlag{
-				Name:    "force",
-				Aliases: []string{"f"},
-				Usage:   "Skip confirmation prompts",
-			},
-			&cli.BoolFlag{
-				Name:    "auto-approve",
-				Aliases: []string{"y"},
-				Usage:   "Auto-approve all operations (plan and apply)",
-			},
 		},
 		Commands: []*cli.Command{
 			{
@@ -108,12 +98,19 @@ func NewCommand() *cli.Command {
 			{
 				Name:  "apply",
 				Usage: "Apply the migration",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:    "yes",
+						Aliases: []string{"y"},
+						Usage:   "Skip confirmation prompt",
+					},
+				},
 				Action: func(ctx context.Context, c *cli.Command) error {
 					migrator, err := initMigrator(c)
 					if err != nil {
 						return err
 					}
-					return migrator.Apply(ctx)
+					return migrator.Apply(ctx, c.Bool("yes"))
 				},
 			},
 			{
@@ -130,12 +127,24 @@ func NewCommand() *cli.Command {
 			{
 				Name:  "cleanup",
 				Usage: "Remove old keys after successful migration",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:    "force",
+						Aliases: []string{"f"},
+						Usage:   "Skip verification before cleanup",
+					},
+					&cli.BoolFlag{
+						Name:    "yes",
+						Aliases: []string{"y"},
+						Usage:   "Skip confirmation prompt",
+					},
+				},
 				Action: func(ctx context.Context, c *cli.Command) error {
 					migrator, err := initMigrator(c)
 					if err != nil {
 						return err
 					}
-					return migrator.Cleanup(ctx)
+					return migrator.Cleanup(ctx, c.Bool("force"), c.Bool("yes"))
 				},
 			},
 		},
@@ -157,12 +166,7 @@ func initMigrator(c *cli.Command) (*Migrator, error) {
 		printRedisConfig(&cfg.Redis)
 	}
 
-	return NewMigrator(
-		cfg,
-		c.Bool("verbose"),
-		c.Bool("force"),
-		c.Bool("auto-approve"),
-	)
+	return NewMigrator(cfg, c.Bool("verbose"))
 }
 
 // loadAndValidateConfig loads config from files/env and applies CLI overrides

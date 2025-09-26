@@ -32,14 +32,12 @@ func init() {
 
 // Migrator handles Redis migrations
 type Migrator struct {
-	client      *redisClientWrapper
-	verbose     bool
-	force       bool
-	autoApprove bool
+	client  *redisClientWrapper
+	verbose bool
 }
 
 // NewMigrator creates a new migrator instance
-func NewMigrator(cfg *config.Config, verbose, force, autoApprove bool) (*Migrator, error) {
+func NewMigrator(cfg *config.Config, verbose bool) (*Migrator, error) {
 	ctx := context.Background()
 
 	// Build Redis client
@@ -55,10 +53,8 @@ func NewMigrator(cfg *config.Config, verbose, force, autoApprove bool) (*Migrato
 	}
 
 	return &Migrator{
-		client:      client,
-		verbose:     verbose,
-		force:       force,
-		autoApprove: autoApprove,
+		client:  client,
+		verbose: verbose,
 	}, nil
 }
 
@@ -155,7 +151,6 @@ func (m *Migrator) Status(ctx context.Context, currentCheck bool) error {
 	return nil
 }
 
-
 // Plan shows what changes would be made without applying them
 func (m *Migrator) Plan(ctx context.Context) error {
 	// Get the next unapplied migration
@@ -239,7 +234,7 @@ func (m *Migrator) Verify(ctx context.Context) error {
 }
 
 // Cleanup removes old keys after successful migration
-func (m *Migrator) Cleanup(ctx context.Context) error {
+func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 	// Get the last applied migration
 	mig, err := getLastAppliedMigration(ctx, m.client)
 	if err != nil {
@@ -247,7 +242,7 @@ func (m *Migrator) Cleanup(ctx context.Context) error {
 	}
 
 	// First verify the migration if not forced
-	if !m.force {
+	if !force {
 		fmt.Println("Verifying migration before cleanup...")
 		verifyState := &migration.State{
 			MigrationName: mig.Name(),
@@ -281,7 +276,7 @@ func (m *Migrator) Cleanup(ctx context.Context) error {
 	}
 
 	// Confirm if not auto-approved
-	if !m.autoApprove && !m.force {
+	if !autoApprove && !force {
 		fmt.Printf("\n⚠️  WARNING: This will delete approximately %d old Redis keys.\n", plan.EstimatedItems)
 		fmt.Println("This action cannot be undone.")
 		fmt.Print("\nDo you want to continue? (yes/no): ")
@@ -315,7 +310,7 @@ func (m *Migrator) Cleanup(ctx context.Context) error {
 }
 
 // Apply executes the migration
-func (m *Migrator) Apply(ctx context.Context) error {
+func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
 	// Get the next unapplied migration
 	mig, err := getNextMigration(ctx, m.client)
 	if err != nil {
@@ -337,7 +332,7 @@ func (m *Migrator) Apply(ctx context.Context) error {
 	fmt.Printf("  Estimated items: %d\n", plan.EstimatedItems)
 
 	// Confirm if not auto-approved
-	if !m.autoApprove && !m.force {
+	if !autoApprove {
 		fmt.Print("\nDo you want to apply these changes? (yes/no): ")
 		var response string
 		fmt.Scanln(&response)
@@ -385,7 +380,6 @@ func validateRedisConfig(rc *config.RedisConfig) error {
 
 	return nil
 }
-
 
 // isApplied checks if a migration has been applied
 func isApplied(ctx context.Context, client *redisClientWrapper, name string) bool {

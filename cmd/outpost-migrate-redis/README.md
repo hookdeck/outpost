@@ -55,11 +55,10 @@ outpost migrate redis plan
 
 # Apply the migration (creates new keys, preserves old ones)
 outpost migrate redis apply
-outpost migrate redis --auto-approve apply  # Skip confirmation prompt
+outpost migrate redis apply --auto-approve  # Skip confirmation prompt
 
 # Verify the migration was successful
 outpost migrate redis verify
-outpost migrate redis verify --verbose  # Show detailed verification info
 
 # Cleanup old keys after verification
 outpost migrate redis cleanup
@@ -152,12 +151,12 @@ The tool uses Outpost's standard configuration system, loading settings from (in
 
 ### Other Options
 
-| Option | CLI Flag | Description |
-|--------|----------|-------------|
-| Config File | `--config, -c` | Path to config file |
-| Verbose | `--verbose` | Enable verbose output (shows Redis config) |
-| Force | `--force, -f` | Skip confirmation prompts |
-| Auto-approve | `--auto-approve, -y` | Auto-approve all operations |
+| Option | CLI Flag | Scope | Description |
+|--------|----------|-------|-------------|
+| Config File | `--config, -c` | Global | Path to config file |
+| Verbose | `--verbose` | Global | Enable verbose output (shows Redis config) |
+| Auto-approve | `--auto-approve, -y` | apply, cleanup | Skip confirmation prompts |
+| Force | `--force, -f` | cleanup | Skip verification before cleanup |
 
 ### Examples
 

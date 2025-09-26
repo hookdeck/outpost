@@ -12,7 +12,6 @@ const (
 	migrationLockKey = "outpost:migration:lock"
 )
 
-
 // MigrationLock represents a migration lock
 type MigrationLock struct {
 	Migration string    `json:"migration"`
