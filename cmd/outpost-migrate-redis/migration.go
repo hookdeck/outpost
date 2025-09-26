@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	migrationLockKey = "outpost:migration:lock"
+	migrationLockKey = ".outpost:migration:lock"
 )
 
 // Global migration registry
@@ -86,30 +86,25 @@ func (m *Migrator) ListMigrations() error {
 
 // acquireLock attempts to acquire a lock for running migrations
 func (m *Migrator) acquireLock(ctx context.Context, migrationName string) error {
-	// Check if lock exists
-	exists, err := m.client.Exists(ctx, migrationLockKey).Result()
+	// Create lock with details
+	lock := fmt.Sprintf("migration=%s, started=%s", migrationName, time.Now().Format(time.RFC3339))
+
+	// Try to set lock atomically with SetNX (only sets if not exists)
+	// Use 1 hour expiry in case process dies without cleanup
+	success, err := m.client.SetNX(ctx, migrationLockKey, lock, time.Hour).Result()
 	if err != nil {
-		return fmt.Errorf("failed to check lock: %w", err)
+		return fmt.Errorf("failed to acquire lock: %w", err)
 	}
 
-	if exists == 1 {
-		// Lock exists, check details
+	if !success {
+		// Lock already exists, get details for error message
 		lockData, err := m.client.Get(ctx, migrationLockKey).Result()
 		if err != nil {
-			return fmt.Errorf("failed to get lock details: %w", err)
+			return fmt.Errorf("migration is already running (could not get lock details: %w)", err)
 		}
 
 		return fmt.Errorf("migration is already running: %s\n"+
 			"If this is a stale lock, run: migrateredis unlock", lockData)
-	}
-
-	// Create lock with details
-	lock := fmt.Sprintf("migration=%s, started=%s", migrationName, time.Now().Format(time.RFC3339))
-
-	// Set lock with 1 hour expiry (in case process dies without cleanup)
-	err = m.client.SetEx(ctx, migrationLockKey, lock, time.Hour).Err()
-	if err != nil {
-		return fmt.Errorf("failed to acquire lock: %w", err)
 	}
 
 	return nil
@@ -158,57 +153,68 @@ func (m *Migrator) forceClearLock(ctx context.Context) error {
 
 // Init handles initialization for fresh installations
 func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
-	// Check if Redis has any existing data first (no lock needed for this)
+	fmt.Println("Checking Redis installation status...")
+
+	// Check if Redis has any existing data first
 	isFresh, err := m.checkIfFreshInstallation(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to check installation status: %w", err)
 	}
 
 	if isFresh {
-		// Only acquire lock if we actually need to initialize
-		maxRetries := 3
-		for i := 0; i < maxRetries; i++ {
-			err := m.acquireLock(ctx, "init")
-			if err == nil {
-				// Lock acquired successfully
-				defer m.releaseLock(ctx)
-				break
+		fmt.Println("Fresh installation detected, acquiring lock...")
+
+		// Try to acquire lock - this is atomic with SetNX
+		err := m.acquireLock(ctx, "init")
+		if err != nil {
+			// Someone else is initializing - wait for them
+			fmt.Println("Another process is initializing, waiting...")
+
+			// Wait for initialization to complete (check every second, max 30 seconds)
+			for i := 0; i < 30; i++ {
+				time.Sleep(1 * time.Second)
+
+				stillFresh, err := m.checkIfFreshInstallation(ctx)
+				if err != nil {
+					return fmt.Errorf("failed to check installation status: %w", err)
+				}
+
+				if !stillFresh {
+					fmt.Println("✅ Redis initialized by another process")
+					return nil
+				}
 			}
 
-			if i == maxRetries-1 {
-				// Last attempt failed
-				return fmt.Errorf("failed to acquire lock after %d attempts: %w", maxRetries, err)
-			}
-
-			// Wait before retry
-			if m.verbose {
-				fmt.Printf("Failed to acquire lock, retrying in 5 seconds... (attempt %d/%d)\n", i+1, maxRetries)
-			}
-			time.Sleep(5 * time.Second)
+			return fmt.Errorf("timeout waiting for Redis initialization")
 		}
 
-		// Double-check it's still fresh after acquiring lock (in case another node initialized it)
+		// We got the lock
+		fmt.Println("Lock acquired successfully")
+		defer m.releaseLock(ctx)
+
 		isFresh, err = m.checkIfFreshInstallation(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to recheck installation status: %w", err)
 		}
 
 		if !isFresh {
-			// Another node initialized it while we were waiting for the lock
-			fmt.Println("Redis already initialized")
-		} else {
-			fmt.Println("Initializing fresh Redis installation...")
-
-			// Mark all migrations as applied
-			migrations := registry.GetAll()
-			for name := range migrations {
-				if err := setMigrationAsApplied(ctx, m.client, name); err != nil {
-					return fmt.Errorf("failed to mark migration %s as applied: %w", name, err)
-				}
-			}
-
-			fmt.Printf("✅ Marked %d migration(s) as applied\n", len(migrations))
+			// Someone else initialized while we were acquiring lock
+			fmt.Println("✅ Redis initialized by another process")
+			return nil
 		}
+
+		// Still fresh and we have the lock - do the initialization
+		fmt.Println("Initializing Redis...")
+
+		// Mark all migrations as applied
+		migrations := registry.GetAll()
+		for name := range migrations {
+			if err := setMigrationAsApplied(ctx, m.client, name); err != nil {
+				return fmt.Errorf("failed to mark migration %s as applied: %w", name, err)
+			}
+		}
+
+		fmt.Printf("✅ Redis initialized successfully - marked %d migration(s) as applied\n", len(migrations))
 		return nil
 	}
 
@@ -238,15 +244,6 @@ func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
 
 // checkIfFreshInstallation checks if Redis is a fresh installation
 func (m *Migrator) checkIfFreshInstallation(ctx context.Context) (bool, error) {
-	// Check for any "tenant:*" keys (old format)
-	tenantKeys, err := m.client.Keys(ctx, "tenant:*").Result()
-	if err != nil {
-		return false, fmt.Errorf("failed to check tenant keys: %w", err)
-	}
-	if len(tenantKeys) > 0 {
-		return false, nil // Has old data
-	}
-
 	// Check for any "outpost:*" keys (current format)
 	outpostKeys, err := m.client.Keys(ctx, "outpost:*").Result()
 	if err != nil {
@@ -254,6 +251,15 @@ func (m *Migrator) checkIfFreshInstallation(ctx context.Context) (bool, error) {
 	}
 	if len(outpostKeys) > 0 {
 		return false, nil // Has current data
+	}
+
+	// Check for any "tenant:*" keys (old format)
+	tenantKeys, err := m.client.Keys(ctx, "tenant:*").Result()
+	if err != nil {
+		return false, fmt.Errorf("failed to check tenant keys: %w", err)
+	}
+	if len(tenantKeys) > 0 {
+		return false, nil // Has old data
 	}
 
 	// No keys found - it's a fresh installation
@@ -467,7 +473,15 @@ func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 		}
 	}
 
-	fmt.Printf("\nCleaning up old keys from migration %s...\n", mig.Name())
+	// Acquire lock before cleanup
+	fmt.Printf("\nAcquiring lock for cleanup...\n")
+	if err := m.acquireLock(ctx, fmt.Sprintf("cleanup-%s", mig.Name())); err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	fmt.Println("Lock acquired successfully")
+	defer m.releaseLock(ctx)
+
+	fmt.Printf("Cleaning up old keys from migration %s...\n", mig.Name())
 
 	// Run cleanup
 	// Note: We're passing a minimal state object since the full state isn't stored yet
@@ -521,8 +535,16 @@ func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
 		}
 	}
 
+	// Acquire lock before applying migration
+	fmt.Println("\nAcquiring migration lock...")
+	if err := m.acquireLock(ctx, mig.Name()); err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	fmt.Println("Lock acquired successfully")
+	defer m.releaseLock(ctx)
+
 	// Apply the migration
-	fmt.Println("\nApplying migration...")
+	fmt.Println("Applying migration...")
 	state, err := mig.Apply(ctx, m.client, plan, m.verbose)
 	if err != nil {
 		return err
