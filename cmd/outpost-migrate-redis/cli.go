@@ -54,11 +54,6 @@ func NewCommand() *cli.Command {
 				Usage:   "Enable TLS for Redis connection (overrides config)",
 				Sources: cli.EnvVars("REDIS_TLS_ENABLED"),
 			},
-			&cli.StringFlag{
-				Name:    "migration",
-				Aliases: []string{"m"},
-				Usage:   "Specific migration to run (e.g., '001_hash_tags')",
-			},
 			&cli.BoolFlag{
 				Name:  "verbose",
 				Usage: "Enable verbose output",
@@ -125,21 +120,20 @@ func listMigrationsCommand(ctx context.Context, c *cli.Command) error {
 }
 
 func statusCommand(ctx context.Context, c *cli.Command) error {
-	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config, migrationName string) error {
-		// migrationName is not used for status, but withConfig provides it
+	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config) error {
 		return ShowStatus(ctx, cfg, c.Bool("current"), c.Bool("verbose"))
 	})
 }
 
 func planMigrationCommand(ctx context.Context, c *cli.Command) error {
-	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config, migrationName string) error {
-		return PlanMigration(ctx, cfg, migrationName, c.Bool("verbose"))
+	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config) error {
+		return PlanMigration(ctx, cfg, c.Bool("verbose"))
 	})
 }
 
 func applyMigrationCommand(ctx context.Context, c *cli.Command) error {
-	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config, migrationName string) error {
-		return ApplyMigration(ctx, cfg, migrationName, MigrationOptions{
+	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config) error {
+		return ApplyMigration(ctx, cfg, MigrationOptions{
 			Verbose:     c.Bool("verbose"),
 			Force:       c.Bool("force"),
 			AutoApprove: c.Bool("auto-approve"),
@@ -148,14 +142,14 @@ func applyMigrationCommand(ctx context.Context, c *cli.Command) error {
 }
 
 func verifyMigrationCommand(ctx context.Context, c *cli.Command) error {
-	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config, migrationName string) error {
-		return VerifyMigration(ctx, cfg, migrationName, c.Bool("verbose"))
+	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config) error {
+		return VerifyMigration(ctx, cfg, c.Bool("verbose"))
 	})
 }
 
 func cleanupMigrationCommand(ctx context.Context, c *cli.Command) error {
-	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config, migrationName string) error {
-		return CleanupMigration(ctx, cfg, migrationName, MigrationOptions{
+	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config) error {
+		return CleanupMigration(ctx, cfg, MigrationOptions{
 			Verbose:     c.Bool("verbose"),
 			Force:       c.Bool("force"),
 			AutoApprove: c.Bool("auto-approve"),
@@ -163,8 +157,8 @@ func cleanupMigrationCommand(ctx context.Context, c *cli.Command) error {
 	})
 }
 
-// withConfig is a helper that loads config, prints it if verbose, and gets the migration name
-func withConfig(ctx context.Context, c *cli.Command, fn func(context.Context, *config.Config, string) error) error {
+// withConfig is a helper that loads config and prints it if verbose
+func withConfig(ctx context.Context, c *cli.Command, fn func(context.Context, *config.Config) error) error {
 	cfg, err := loadAndValidateConfig(c)
 	if err != nil {
 		return err
@@ -174,12 +168,7 @@ func withConfig(ctx context.Context, c *cli.Command, fn func(context.Context, *c
 		printRedisConfig(&cfg.Redis)
 	}
 
-	migrationName := c.String("migration")
-	if migrationName == "" {
-		migrationName = "001_hash_tags" // default migration
-	}
-
-	return fn(ctx, cfg, migrationName)
+	return fn(ctx, cfg)
 }
 
 // loadAndValidateConfig loads config from files/env and applies CLI overrides

@@ -4,9 +4,8 @@ A CLI tool for managing Redis schema migrations for Outpost, with support for ve
 
 ## Purpose
 
-This tool manages Redis schema changes in a controlled, versioned manner. It tracks state using Redis keys:
-- `outpost:schema:version` - Current schema version number
-- `outpost:migration:<name>:state` - State of each migration (persisted, no TTL)
+This tool manages Redis schema changes in a controlled manner. It tracks state using Redis keys:
+- `outpost:migration:<name>` - Hash storing migration state (fields: status="applied", applied_at=timestamp)
 - `outpost:migration:lock` - Prevents concurrent migrations (auto-expires after 1 hour)
 
 **Note**: Currently designed for manual migrations with downtime. Not yet suitable for zero-downtime migrations, but provides a foundation for future enhancements.
@@ -53,7 +52,6 @@ outpost migrate redis status --current  # Exit 1 if migrations pending (for CI/C
 
 # Plan a migration (dry run - shows what will change)
 outpost migrate redis plan
-outpost migrate redis --migration 001_hash_tags plan
 
 # Apply the migration (creates new keys, preserves old ones)
 outpost migrate redis apply
@@ -157,7 +155,6 @@ The tool uses Outpost's standard configuration system, loading settings from (in
 | Option | CLI Flag | Description |
 |--------|----------|-------------|
 | Config File | `--config, -c` | Path to config file |
-| Migration | `--migration, -m` | Specific migration to run (default: 001_hash_tags) |
 | Verbose | `--verbose` | Enable verbose output (shows Redis config) |
 | Force | `--force, -f` | Skip confirmation prompts |
 | Auto-approve | `--auto-approve, -y` | Auto-approve all operations |

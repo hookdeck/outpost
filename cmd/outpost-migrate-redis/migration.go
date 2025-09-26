@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration"
 	migration_001 "github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration/001_hash_tags"
@@ -73,24 +74,15 @@ func ShowStatus(ctx context.Context, cfg *config.Config, currentCheck bool, verb
 		Cmdable: redisClient,
 	}
 
-	// Get current schema version from Redis
-	currentVersion, err := getCurrentSchemaVersion(ctx, client)
-	if err != nil {
-		return fmt.Errorf("failed to get current schema version: %w", err)
-	}
-
-	// Get all migrations and find the highest version
+	// Get all migrations and categorize them
 	migrations := registry.GetAll()
-	var highestVersion int
+	var appliedMigrations []migration.Migration
 	var pendingMigrations []migration.Migration
 
-	// Collect all migrations and sort them
+	// Collect all migrations and sort them by version
 	var allMigrations []migration.Migration
 	for _, m := range migrations {
 		allMigrations = append(allMigrations, m)
-		if m.Version() > highestVersion {
-			highestVersion = m.Version()
-		}
 	}
 
 	// Sort migrations by version
@@ -98,9 +90,11 @@ func ShowStatus(ctx context.Context, cfg *config.Config, currentCheck bool, verb
 		return allMigrations[i].Version() < allMigrations[j].Version()
 	})
 
-	// Find pending migrations
+	// Categorize migrations
 	for _, m := range allMigrations {
-		if m.Version() > currentVersion {
+		if isApplied(ctx, client, m.Name()) {
+			appliedMigrations = append(appliedMigrations, m)
+		} else {
 			pendingMigrations = append(pendingMigrations, m)
 		}
 	}
@@ -121,37 +115,24 @@ func ShowStatus(ctx context.Context, cfg *config.Config, currentCheck bool, verb
 
 	// Display status information
 	fmt.Println("Migration Status:")
-	fmt.Printf("  Current version: %d\n", currentVersion)
-	fmt.Printf("  Latest version:  %d\n", highestVersion)
 
-	if currentVersion == 0 {
-		fmt.Println("  Status: Unversioned (no migrations applied)")
-	} else if len(pendingMigrations) == 0 {
-		fmt.Println("  Status: Up to date")
+	if len(appliedMigrations) == 0 {
+		fmt.Println("  No migrations applied")
 	} else {
-		fmt.Printf("  Status: %d migration(s) pending\n", len(pendingMigrations))
-	}
-
-	// Show applied migrations
-	if verbose && currentVersion > 0 {
-		fmt.Println("\nApplied migrations:")
-		for _, m := range allMigrations {
-			if m.Version() <= currentVersion {
-				state, err := getMigrationState(ctx, client, m.Name())
-				if err == nil && state != nil {
-					fmt.Printf("  ✓ %s (v%d) - %s\n", m.Name(), m.Version(), state.Phase)
-				} else {
-					fmt.Printf("  ✓ %s (v%d)\n", m.Name(), m.Version())
-				}
+		fmt.Printf("  Applied: %d migration(s)\n", len(appliedMigrations))
+		if verbose {
+			for _, m := range appliedMigrations {
+				fmt.Printf("    ✓ %s\n", m.Name())
 			}
 		}
 	}
 
-	// Show pending migrations
-	if len(pendingMigrations) > 0 {
-		fmt.Println("\nPending migrations:")
+	if len(pendingMigrations) == 0 {
+		fmt.Println("  Status: Up to date")
+	} else {
+		fmt.Printf("  Pending: %d migration(s)\n", len(pendingMigrations))
 		for _, m := range pendingMigrations {
-			fmt.Printf("  • %s (v%d) - %s\n", m.Name(), m.Version(), m.Description())
+			fmt.Printf("    • %s - %s\n", m.Name(), m.Description())
 		}
 		fmt.Printf("\nNext migration: %s\n", pendingMigrations[0].Name())
 		fmt.Println("Run 'outpost migrate redis plan' to preview changes")
@@ -160,27 +141,9 @@ func ShowStatus(ctx context.Context, cfg *config.Config, currentCheck bool, verb
 	return nil
 }
 
-// getMigrationState retrieves the state of a specific migration from Redis
-func getMigrationState(ctx context.Context, client *redisClientWrapper, name string) (*migration.State, error) {
-	key := fmt.Sprintf("outpost:migration:%s:state", name)
-	val, err := client.Get(ctx, key).Result()
-	if err != nil {
-		if err == redis.Nil {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	// For now, just return a simple state
-	// In a real implementation, we'd deserialize the JSON state
-	return &migration.State{
-		MigrationName: name,
-		Phase:         val, // Assuming we store just the phase for simplicity
-	}, nil
-}
 
 // PlanMigration shows what changes would be made without applying them
-func PlanMigration(ctx context.Context, cfg *config.Config, migrationName string, verbose bool) error {
+func PlanMigration(ctx context.Context, cfg *config.Config, verbose bool) error {
 	// Build Redis client
 	redisConfig := cfg.Redis.ToConfig()
 	redisClient, err := redis.New(ctx, redisConfig)
@@ -188,15 +151,19 @@ func PlanMigration(ctx context.Context, cfg *config.Config, migrationName string
 		return fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 
-	// Get migration
-	m, err := getMigration(migrationName)
-	if err != nil {
-		return err
-	}
-
 	// Create a wrapper client that implements the expected interface
 	client := &redisClientWrapper{
 		Cmdable: redisClient,
+	}
+
+	// Get the next unapplied migration
+	m, err := getNextMigration(ctx, client)
+	if err != nil {
+		if err.Error() == "all migrations have been applied" {
+			fmt.Println("All migrations have been applied. Nothing to plan.")
+			return nil
+		}
+		return err
 	}
 
 	// Run the migration in plan mode
@@ -206,7 +173,7 @@ func PlanMigration(ctx context.Context, cfg *config.Config, migrationName string
 	}
 
 	// Display the plan
-	fmt.Printf("Migration Plan for %s:\n", migrationName)
+	fmt.Printf("Migration Plan for %s:\n", m.Name())
 	fmt.Printf("  Description: %s\n", plan.Description)
 	fmt.Printf("  Estimated items: %d\n", plan.EstimatedItems)
 	if len(plan.Scope) > 0 {
@@ -220,7 +187,7 @@ func PlanMigration(ctx context.Context, cfg *config.Config, migrationName string
 }
 
 // VerifyMigration verifies that a migration was successful
-func VerifyMigration(ctx context.Context, cfg *config.Config, migrationName string, verbose bool) error {
+func VerifyMigration(ctx context.Context, cfg *config.Config, verbose bool) error {
 	// Build Redis client
 	redisConfig := cfg.Redis.ToConfig()
 	redisClient, err := redis.New(ctx, redisConfig)
@@ -228,25 +195,15 @@ func VerifyMigration(ctx context.Context, cfg *config.Config, migrationName stri
 		return fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 
-	// Get migration
-	m, err := getMigration(migrationName)
-	if err != nil {
-		return err
-	}
-
 	// Create a wrapper client
 	client := &redisClientWrapper{
 		Cmdable: redisClient,
 	}
 
-	// Get migration state from Redis
-	state, err := getMigrationState(ctx, client, m.Name())
+	// Get the last applied migration
+	m, err := getLastAppliedMigration(ctx, client)
 	if err != nil {
-		return fmt.Errorf("failed to get migration state: %w", err)
-	}
-
-	if state == nil || state.Phase != "applied" {
-		return fmt.Errorf("migration %s has not been applied yet", m.Name())
+		return err
 	}
 
 	fmt.Printf("Verifying migration %s...\n", m.Name())
@@ -255,7 +212,7 @@ func VerifyMigration(ctx context.Context, cfg *config.Config, migrationName stri
 	// Note: We're passing a minimal state object since the full state isn't stored yet
 	verifyState := &migration.State{
 		MigrationName: m.Name(),
-		Phase:         state.Phase,
+		Phase:         "applied",
 	}
 
 	result, err := m.Verify(ctx, client, verifyState, verbose)
@@ -292,7 +249,7 @@ func VerifyMigration(ctx context.Context, cfg *config.Config, migrationName stri
 }
 
 // CleanupMigration removes old keys after successful migration
-func CleanupMigration(ctx context.Context, cfg *config.Config, migrationName string, opts MigrationOptions) error {
+func CleanupMigration(ctx context.Context, cfg *config.Config, opts MigrationOptions) error {
 	// Build Redis client
 	redisConfig := cfg.Redis.ToConfig()
 	redisClient, err := redis.New(ctx, redisConfig)
@@ -300,25 +257,15 @@ func CleanupMigration(ctx context.Context, cfg *config.Config, migrationName str
 		return fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 
-	// Get migration
-	m, err := getMigration(migrationName)
-	if err != nil {
-		return err
-	}
-
 	// Create a wrapper client
 	client := &redisClientWrapper{
 		Cmdable: redisClient,
 	}
 
-	// Get migration state from Redis
-	state, err := getMigrationState(ctx, client, m.Name())
+	// Get the last applied migration
+	m, err := getLastAppliedMigration(ctx, client)
 	if err != nil {
-		return fmt.Errorf("failed to get migration state: %w", err)
-	}
-
-	if state == nil || state.Phase != "applied" {
-		return fmt.Errorf("migration %s has not been applied yet", m.Name())
+		return err
 	}
 
 	// First verify the migration if not forced
@@ -326,7 +273,7 @@ func CleanupMigration(ctx context.Context, cfg *config.Config, migrationName str
 		fmt.Println("Verifying migration before cleanup...")
 		verifyState := &migration.State{
 			MigrationName: m.Name(),
-			Phase:         state.Phase,
+			Phase:         "applied",
 		}
 
 		result, err := m.Verify(ctx, client, verifyState, opts.Verbose)
@@ -374,18 +321,13 @@ func CleanupMigration(ctx context.Context, cfg *config.Config, migrationName str
 	// Note: We're passing a minimal state object since the full state isn't stored yet
 	cleanupState := &migration.State{
 		MigrationName: m.Name(),
-		Phase:         state.Phase,
+		Phase:         "applied",
 	}
 
 	// Run cleanup (migration should not handle confirmations)
 	err = m.Cleanup(ctx, client, cleanupState, opts.Verbose)
 	if err != nil {
 		return fmt.Errorf("cleanup failed: %w", err)
-	}
-
-	// Update migration state
-	if err := setMigrationState(ctx, client, m.Name(), "cleaned"); err != nil {
-		return fmt.Errorf("failed to update migration state: %w", err)
 	}
 
 	fmt.Println("✅ Cleanup completed successfully")
@@ -395,7 +337,7 @@ func CleanupMigration(ctx context.Context, cfg *config.Config, migrationName str
 }
 
 // ApplyMigration executes the migration
-func ApplyMigration(ctx context.Context, cfg *config.Config, migrationName string, opts MigrationOptions) error {
+func ApplyMigration(ctx context.Context, cfg *config.Config, opts MigrationOptions) error {
 	// Build Redis client
 	redisConfig := cfg.Redis.ToConfig()
 	redisClient, err := redis.New(ctx, redisConfig)
@@ -403,15 +345,19 @@ func ApplyMigration(ctx context.Context, cfg *config.Config, migrationName strin
 		return fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 
-	// Get migration
-	m, err := getMigration(migrationName)
-	if err != nil {
-		return err
-	}
-
 	// Create a wrapper client
 	client := &redisClientWrapper{
 		Cmdable: redisClient,
+	}
+
+	// Get the next unapplied migration
+	m, err := getNextMigration(ctx, client)
+	if err != nil {
+		if err.Error() == "all migrations have been applied" {
+			fmt.Println("All migrations have been applied. Nothing to do.")
+			return nil
+		}
+		return err
 	}
 
 	// First show the plan
@@ -442,14 +388,9 @@ func ApplyMigration(ctx context.Context, cfg *config.Config, migrationName strin
 		return err
 	}
 
-	// Update schema version in Redis
-	if err := setSchemaVersion(ctx, client, m.Version()); err != nil {
-		return fmt.Errorf("failed to update schema version: %w", err)
-	}
-
-	// Store migration state
-	if err := setMigrationState(ctx, client, m.Name(), "applied"); err != nil {
-		return fmt.Errorf("failed to update migration state: %w", err)
+	// Mark migration as applied
+	if err := setMigrationAsApplied(ctx, client, m.Name()); err != nil {
+		return fmt.Errorf("failed to mark migration as applied: %w", err)
 	}
 
 	fmt.Printf("Migration completed successfully.\n")
@@ -479,39 +420,72 @@ func validateRedisConfig(rc *config.RedisConfig) error {
 	return nil
 }
 
-// getMigration returns a migration instance by name
-func getMigration(name string) (migration.Migration, error) {
-	// Try exact match first
-	if m, ok := registry.Get(name); ok {
-		return m, nil
-	}
 
-	// Try aliases for convenience (e.g., "001" for "001_hash_tags")
-	// This allows users to use shorthand
-	for _, registeredName := range registry.List() {
-		// Check if input is a prefix (e.g., "001" matches "001_hash_tags")
-		if strings.HasPrefix(registeredName, name+"_") {
-			if m, ok := registry.Get(registeredName); ok {
-				return m, nil
-			}
-		}
-		// Check if input is a suffix (e.g., "hash_tags" matches "001_hash_tags")
-		parts := strings.SplitN(registeredName, "_", 2)
-		if len(parts) == 2 && parts[1] == name {
-			if m, ok := registry.Get(registeredName); ok {
-				return m, nil
-			}
-		}
+// isApplied checks if a migration has been applied
+func isApplied(ctx context.Context, client *redisClientWrapper, name string) bool {
+	key := fmt.Sprintf("outpost:migration:%s", name)
+	val, err := client.HGet(ctx, key, "status").Result()
+	if err != nil {
+		return false
 	}
-
-	return nil, fmt.Errorf("unknown migration: %s", name)
+	return val == "applied"
 }
 
-// setMigrationState stores the state of a specific migration in Redis
-func setMigrationState(ctx context.Context, client *redisClientWrapper, name string, phase string) error {
-	key := fmt.Sprintf("outpost:migration:%s:state", name)
-	// For now, just store the phase. In a real implementation, we'd serialize the full state
-	return client.Set(ctx, key, phase, 0).Err()
+// getNextMigration finds the next unapplied migration
+func getNextMigration(ctx context.Context, client *redisClientWrapper) (migration.Migration, error) {
+	migrations := registry.GetAll()
+
+	// Sort migrations by version
+	var sortedMigrations []migration.Migration
+	for _, m := range migrations {
+		sortedMigrations = append(sortedMigrations, m)
+	}
+	sort.Slice(sortedMigrations, func(i, j int) bool {
+		return sortedMigrations[i].Version() < sortedMigrations[j].Version()
+	})
+
+	// Find first unapplied
+	for _, m := range sortedMigrations {
+		if !isApplied(ctx, client, m.Name()) {
+			return m, nil
+		}
+	}
+
+	return nil, fmt.Errorf("all migrations have been applied")
+}
+
+// getLastAppliedMigration finds the most recently applied migration
+func getLastAppliedMigration(ctx context.Context, client *redisClientWrapper) (migration.Migration, error) {
+	migrations := registry.GetAll()
+
+	// Sort migrations by version (descending)
+	var sortedMigrations []migration.Migration
+	for _, m := range migrations {
+		sortedMigrations = append(sortedMigrations, m)
+	}
+	sort.Slice(sortedMigrations, func(i, j int) bool {
+		return sortedMigrations[i].Version() > sortedMigrations[j].Version()
+	})
+
+	// Find last applied
+	for _, m := range sortedMigrations {
+		if isApplied(ctx, client, m.Name()) {
+			return m, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no migrations have been applied")
+}
+
+// setMigrationAsApplied marks a migration as applied
+func setMigrationAsApplied(ctx context.Context, client *redisClientWrapper, name string) error {
+	key := fmt.Sprintf("outpost:migration:%s", name)
+
+	// Use Redis hash to store migration state
+	return client.HSet(ctx, key,
+		"status", "applied",
+		"applied_at", time.Now().Format(time.RFC3339),
+	).Err()
 }
 
 // redisClientWrapper wraps go-redis Cmdable to implement the redis.Client interface
