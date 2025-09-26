@@ -57,6 +57,23 @@ func NewCommand() *cli.Command {
 		},
 		Commands: []*cli.Command{
 			{
+				Name:  "init",
+				Usage: "Initialize Redis for Outpost (runs on startup)",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "current",
+						Usage: "Exit with code 1 if migrations are pending",
+					},
+				},
+				Action: func(ctx context.Context, c *cli.Command) error {
+					migrator, err := initMigrator(c)
+					if err != nil {
+						return err
+					}
+					return migrator.Init(ctx, c.Bool("current"))
+				},
+			},
+			{
 				Name:  "list",
 				Usage: "List available migrations",
 				Action: func(ctx context.Context, c *cli.Command) error {

@@ -57,6 +57,110 @@ func NewMigrator(cfg *config.Config, verbose bool) (*Migrator, error) {
 	}, nil
 }
 
+// Init handles initialization for fresh installations
+func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
+	// Check if Redis has any existing data first (no lock needed for this)
+	isFresh, err := m.checkIfFreshInstallation(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to check installation status: %w", err)
+	}
+
+	if isFresh {
+		// Only acquire lock if we actually need to initialize
+		maxRetries := 3
+		for i := 0; i < maxRetries; i++ {
+			err := acquireMigrationLock(ctx, m.client, "init")
+			if err == nil {
+				// Lock acquired successfully
+				defer releaseMigrationLock(ctx, m.client)
+				break
+			}
+
+			if i == maxRetries-1 {
+				// Last attempt failed
+				return fmt.Errorf("failed to acquire lock after %d attempts: %w", maxRetries, err)
+			}
+
+			// Wait before retry
+			if m.verbose {
+				fmt.Printf("Failed to acquire lock, retrying in 5 seconds... (attempt %d/%d)\n", i+1, maxRetries)
+			}
+			time.Sleep(5 * time.Second)
+		}
+
+		// Double-check it's still fresh after acquiring lock (in case another node initialized it)
+		isFresh, err = m.checkIfFreshInstallation(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to recheck installation status: %w", err)
+		}
+
+		if !isFresh {
+			// Another node initialized it while we were waiting for the lock
+			fmt.Println("Redis already initialized")
+		} else {
+			fmt.Println("Initializing fresh Redis installation...")
+
+			// Mark all migrations as applied
+			migrations := registry.GetAll()
+			for name := range migrations {
+				if err := setMigrationAsApplied(ctx, m.client, name); err != nil {
+					return fmt.Errorf("failed to mark migration %s as applied: %w", name, err)
+				}
+			}
+
+			fmt.Printf("✅ Marked %d migration(s) as applied\n", len(migrations))
+		}
+		return nil
+	}
+
+	// Not fresh - Redis already initialized (no lock needed)
+	fmt.Println("Redis already initialized")
+
+	// If --current flag is set, check if migrations are pending
+	if currentCheck {
+		// Get pending migrations count
+		pendingCount := 0
+		migrations := registry.GetAll()
+		for _, mig := range migrations {
+			if !isApplied(ctx, m.client, mig.Name()) {
+				pendingCount++
+			}
+		}
+
+		if pendingCount > 0 {
+			fmt.Fprintf(os.Stderr, "Migration required: %d pending\n", pendingCount)
+			os.Exit(1)
+		}
+		// Up to date - exit normally
+	}
+
+	return nil
+}
+
+// checkIfFreshInstallation checks if Redis is a fresh installation
+func (m *Migrator) checkIfFreshInstallation(ctx context.Context) (bool, error) {
+	// Check for any "tenant:*" keys (old format)
+	tenantKeys, err := m.client.Keys(ctx, "tenant:*").Result()
+	if err != nil {
+		return false, fmt.Errorf("failed to check tenant keys: %w", err)
+	}
+	if len(tenantKeys) > 0 {
+		return false, nil // Has old data
+	}
+
+	// Check for any "outpost:*" keys (current format)
+	outpostKeys, err := m.client.Keys(ctx, "outpost:*").Result()
+	if err != nil {
+		return false, fmt.Errorf("failed to check outpost keys: %w", err)
+	}
+	if len(outpostKeys) > 0 {
+		return false, nil // Has current data
+	}
+
+	// No keys found - it's a fresh installation
+	return true, nil
+}
+
 // ListMigrations lists all available migrations
 func ListMigrations() error {
 	migrations := registry.GetAll()
