@@ -4,19 +4,19 @@ TEST?=$$(go list ./...)
 .PHONY: build
 build:
 	@echo "Building all binaries..."
-	go build -o bin/outpost ./cmd/outpost/main.go
-	go build -o bin/outpost-server ./cmd/outpost-server/main.go
-	go build -o bin/outpost-migrate-redis ./cmd/outpost-migrate-redis/main.go
+	go build -o bin/outpost ./cmd/outpost
+	go build -o bin/outpost-server ./cmd/outpost-server
+	go build -o bin/outpost-migrate-redis ./cmd/outpost-migrate-redis
 	@echo "Binaries built in ./bin/"
 
 build/outpost:
-	go build -o bin/outpost ./cmd/outpost/main.go
+	go build -o bin/outpost ./cmd/outpost
 
 build/server:
-	go build -o bin/outpost-server ./cmd/outpost-server/main.go
+	go build -o bin/outpost-server ./cmd/outpost-server
 
 build/migrate-redis:
-	go build -o bin/outpost-migrate-redis ./cmd/outpost-migrate-redis/main.go
+	go build -o bin/outpost-migrate-redis ./cmd/outpost-migrate-redis
 
 install:
 	@echo "Installing binaries to GOPATH/bin..."
