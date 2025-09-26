@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -56,6 +57,126 @@ func ListMigrations() error {
 		fmt.Printf("  %s - %s\n", name, m.Description())
 	}
 	return nil
+}
+
+// ShowStatus shows the current migration status
+func ShowStatus(ctx context.Context, cfg *config.Config, currentCheck bool, verbose bool) error {
+	// Build Redis client
+	redisConfig := cfg.Redis.ToConfig()
+	redisClient, err := redis.New(ctx, redisConfig)
+	if err != nil {
+		return fmt.Errorf("failed to connect to Redis: %w", err)
+	}
+
+	// Create a wrapper client
+	client := &redisClientWrapper{
+		Cmdable: redisClient,
+	}
+
+	// Get current schema version from Redis
+	currentVersion, err := getCurrentSchemaVersion(ctx, client)
+	if err != nil {
+		return fmt.Errorf("failed to get current schema version: %w", err)
+	}
+
+	// Get all migrations and find the highest version
+	migrations := registry.GetAll()
+	var highestVersion int
+	var pendingMigrations []migration.Migration
+
+	// Collect all migrations and sort them
+	var allMigrations []migration.Migration
+	for _, m := range migrations {
+		allMigrations = append(allMigrations, m)
+		if m.Version() > highestVersion {
+			highestVersion = m.Version()
+		}
+	}
+
+	// Sort migrations by version
+	sort.Slice(allMigrations, func(i, j int) bool {
+		return allMigrations[i].Version() < allMigrations[j].Version()
+	})
+
+	// Find pending migrations
+	for _, m := range allMigrations {
+		if m.Version() > currentVersion {
+			pendingMigrations = append(pendingMigrations, m)
+		}
+	}
+
+	// If --current flag is used, just check and exit
+	if currentCheck {
+		if len(pendingMigrations) > 0 {
+			if !verbose {
+				// Silent mode for scripting
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "Migration required: %d pending\n", len(pendingMigrations))
+			os.Exit(1)
+		}
+		// Up to date
+		return nil
+	}
+
+	// Display status information
+	fmt.Println("Migration Status:")
+	fmt.Printf("  Current version: %d\n", currentVersion)
+	fmt.Printf("  Latest version:  %d\n", highestVersion)
+
+	if currentVersion == 0 {
+		fmt.Println("  Status: Unversioned (no migrations applied)")
+	} else if len(pendingMigrations) == 0 {
+		fmt.Println("  Status: Up to date")
+	} else {
+		fmt.Printf("  Status: %d migration(s) pending\n", len(pendingMigrations))
+	}
+
+	// Show applied migrations
+	if verbose && currentVersion > 0 {
+		fmt.Println("\nApplied migrations:")
+		for _, m := range allMigrations {
+			if m.Version() <= currentVersion {
+				state, err := getMigrationState(ctx, client, m.Name())
+				if err == nil && state != nil {
+					fmt.Printf("  ✓ %s (v%d) - %s\n", m.Name(), m.Version(), state.Phase)
+				} else {
+					fmt.Printf("  ✓ %s (v%d)\n", m.Name(), m.Version())
+				}
+			}
+		}
+	}
+
+	// Show pending migrations
+	if len(pendingMigrations) > 0 {
+		fmt.Println("\nPending migrations:")
+		for _, m := range pendingMigrations {
+			fmt.Printf("  • %s (v%d) - %s\n", m.Name(), m.Version(), m.Description())
+		}
+		fmt.Printf("\nNext migration: %s\n", pendingMigrations[0].Name())
+		fmt.Println("Run 'outpost migrate redis plan' to preview changes")
+	}
+
+	return nil
+}
+
+// getMigrationState retrieves the state of a specific migration from Redis
+func getMigrationState(ctx context.Context, client *redisClientWrapper, name string) (*migration.State, error) {
+	key := fmt.Sprintf("outpost:migration:%s:state", name)
+	val, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	// For now, just return a simple state
+	// In a real implementation, we'd deserialize the JSON state
+	return &migration.State{
+		MigrationName: name,
+		Phase:         val, // Assuming we store just the phase for simplicity
+	}, nil
 }
 
 // PlanMigration shows what changes would be made without applying them
@@ -146,6 +267,16 @@ func ApplyMigration(ctx context.Context, cfg *config.Config, migrationName strin
 		return err
 	}
 
+	// Update schema version in Redis
+	if err := setSchemaVersion(ctx, client, m.Version()); err != nil {
+		return fmt.Errorf("failed to update schema version: %w", err)
+	}
+
+	// Store migration state
+	if err := setMigrationState(ctx, client, m.Name(), "applied"); err != nil {
+		return fmt.Errorf("failed to update migration state: %w", err)
+	}
+
 	fmt.Printf("Migration completed successfully.\n")
 	fmt.Printf("  Processed items: %d\n", state.Progress.ProcessedItems)
 	fmt.Printf("  Failed items: %d\n", state.Progress.FailedItems)
@@ -199,6 +330,13 @@ func getMigration(name string) (migration.Migration, error) {
 	}
 
 	return nil, fmt.Errorf("unknown migration: %s", name)
+}
+
+// setMigrationState stores the state of a specific migration in Redis
+func setMigrationState(ctx context.Context, client *redisClientWrapper, name string, phase string) error {
+	key := fmt.Sprintf("outpost:migration:%s:state", name)
+	// For now, just store the phase. In a real implementation, we'd serialize the full state
+	return client.Set(ctx, key, phase, 0).Err()
 }
 
 // redisClientWrapper wraps go-redis Cmdable to implement the redis.Client interface

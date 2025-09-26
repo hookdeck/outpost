@@ -46,6 +46,11 @@ go run ./cmd/outpost-migrate-redis [command]
 # List available migrations
 outpost migrate redis list
 
+# Check migration status
+outpost migrate redis status
+outpost migrate redis status --verbose  # Show applied migrations
+outpost migrate redis status --current  # Exit 1 if migrations pending (for CI/CD)
+
 # Plan a migration (dry run - shows what will change)
 outpost migrate redis plan
 outpost migrate redis --migration 001_hash_tags plan
@@ -63,10 +68,25 @@ outpost migrate redis --auto-approve apply  # Skip confirmation prompt
 
 ## Migration Workflow
 
-1. **Plan** - Analyze current state and show what will be migrated
-2. **Apply** - Execute the migration (creates new keys, preserves old ones)
-3. **Verify** - Spot-check migrated data for correctness
-4. **Cleanup** - Delete old keys after confirming success
+1. **Status** - Check if any migrations are pending
+2. **Plan** - Analyze current state and show what will be migrated
+3. **Apply** - Execute the migration (creates new keys, preserves old ones)
+4. **Verify** - Spot-check migrated data for correctness
+5. **Cleanup** - Delete old keys after confirming success
+
+## Using in Startup Scripts
+
+The `status --current` command is designed for use in automated scripts:
+
+```bash
+# Fail fast if migrations are pending
+outpost migrate redis status --current || {
+    echo "Error: Database migrations required"
+    echo "Run: outpost migrate redis apply"
+    exit 1
+}
+outpost serve
+```
 
 ## Available Migrations
 

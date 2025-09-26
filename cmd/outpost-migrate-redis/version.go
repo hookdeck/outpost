@@ -16,7 +16,7 @@ const (
 
 // getCurrentSchemaVersion returns the current schema version from Redis
 // Returns 0 if no version is set (original schema)
-func getCurrentSchemaVersion(ctx context.Context, client redis.Client) (int, error) {
+func getCurrentSchemaVersion(ctx context.Context, client redis.Cmdable) (int, error) {
 	versionStr, err := client.Get(ctx, schemaVersionKey).Result()
 	if err == redis.Nil {
 		// No version key means we're at version 0 (original schema)
@@ -35,7 +35,7 @@ func getCurrentSchemaVersion(ctx context.Context, client redis.Client) (int, err
 }
 
 // setSchemaVersion updates the schema version in Redis
-func setSchemaVersion(ctx context.Context, client redis.Client, version int) error {
+func setSchemaVersion(ctx context.Context, client redis.Cmdable, version int) error {
 	err := client.Set(ctx, schemaVersionKey, strconv.Itoa(version), 0).Err()
 	if err != nil {
 		return fmt.Errorf("failed to set schema version: %w", err)
@@ -74,7 +74,7 @@ type MigrationLock struct {
 }
 
 // acquireMigrationLock attempts to acquire a lock for running migrations
-func acquireMigrationLock(ctx context.Context, client redis.Client, migrationName string) error {
+func acquireMigrationLock(ctx context.Context, client redis.Cmdable, migrationName string) error {
 	// Check if lock exists
 	exists, err := client.Exists(ctx, migrationLockKey).Result()
 	if err != nil {
@@ -105,7 +105,7 @@ func acquireMigrationLock(ctx context.Context, client redis.Client, migrationNam
 }
 
 // releaseMigrationLock releases the migration lock
-func releaseMigrationLock(ctx context.Context, client redis.Client) error {
+func releaseMigrationLock(ctx context.Context, client redis.Cmdable) error {
 	err := client.Del(ctx, migrationLockKey).Err()
 	if err != nil {
 		return fmt.Errorf("failed to release lock: %w", err)
@@ -114,7 +114,7 @@ func releaseMigrationLock(ctx context.Context, client redis.Client) error {
 }
 
 // forceClearMigrationLock forcefully clears a migration lock (for stuck situations)
-func forceClearMigrationLock(ctx context.Context, client redis.Client) error {
+func forceClearMigrationLock(ctx context.Context, client redis.Cmdable) error {
 	// Check if lock exists
 	lockData, err := client.Get(ctx, migrationLockKey).Result()
 	if err == redis.Nil {

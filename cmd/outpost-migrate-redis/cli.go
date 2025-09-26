@@ -81,6 +81,17 @@ func NewCommand() *cli.Command {
 				Action: listMigrationsCommand,
 			},
 			{
+				Name:  "status",
+				Usage: "Show current migration status",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "current",
+						Usage: "Exit with code 1 if migrations are pending (for scripting)",
+					},
+				},
+				Action: statusCommand,
+			},
+			{
 				Name:   "plan",
 				Usage:  "Show what changes would be made without applying them",
 				Action: planMigrationCommand,
@@ -101,6 +112,13 @@ func NewCommand() *cli.Command {
 // Command handlers that delegate to migration logic
 func listMigrationsCommand(ctx context.Context, c *cli.Command) error {
 	return ListMigrations()
+}
+
+func statusCommand(ctx context.Context, c *cli.Command) error {
+	return withConfig(ctx, c, func(ctx context.Context, cfg *config.Config, migrationName string) error {
+		// migrationName is not used for status, but withConfig provides it
+		return ShowStatus(ctx, cfg, c.Bool("current"), c.Bool("verbose"))
+	})
 }
 
 func planMigrationCommand(ctx context.Context, c *cli.Command) error {
