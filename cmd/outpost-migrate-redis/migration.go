@@ -14,6 +14,10 @@ import (
 	"github.com/hookdeck/outpost/internal/redis"
 )
 
+const (
+	migrationLockKey = "outpost:migration:lock"
+)
+
 // Global migration registry
 var registry *migration.Registry
 
@@ -57,6 +61,101 @@ func NewMigrator(cfg *config.Config, verbose bool) (*Migrator, error) {
 	}, nil
 }
 
+// ListMigrations lists all available migrations
+func (m *Migrator) ListMigrations() error {
+	migrations := registry.GetAll()
+	if len(migrations) == 0 {
+		fmt.Println("No migrations registered")
+		return nil
+	}
+
+	// Sort migration names for consistent output
+	var names []string
+	for name := range migrations {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	fmt.Println("Available migrations:")
+	for _, name := range names {
+		mig := migrations[name]
+		fmt.Printf("  %s - %s\n", name, mig.Description())
+	}
+	return nil
+}
+
+// acquireLock attempts to acquire a lock for running migrations
+func (m *Migrator) acquireLock(ctx context.Context, migrationName string) error {
+	// Check if lock exists
+	exists, err := m.client.Exists(ctx, migrationLockKey).Result()
+	if err != nil {
+		return fmt.Errorf("failed to check lock: %w", err)
+	}
+
+	if exists == 1 {
+		// Lock exists, check details
+		lockData, err := m.client.Get(ctx, migrationLockKey).Result()
+		if err != nil {
+			return fmt.Errorf("failed to get lock details: %w", err)
+		}
+
+		return fmt.Errorf("migration is already running: %s\n"+
+			"If this is a stale lock, run: migrateredis unlock", lockData)
+	}
+
+	// Create lock with details
+	lock := fmt.Sprintf("migration=%s, started=%s", migrationName, time.Now().Format(time.RFC3339))
+
+	// Set lock with 1 hour expiry (in case process dies without cleanup)
+	err = m.client.SetEx(ctx, migrationLockKey, lock, time.Hour).Err()
+	if err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+
+	return nil
+}
+
+// releaseLock releases the migration lock
+func (m *Migrator) releaseLock(ctx context.Context) error {
+	err := m.client.Del(ctx, migrationLockKey).Err()
+	if err != nil {
+		return fmt.Errorf("failed to release lock: %w", err)
+	}
+	return nil
+}
+
+// forceClearLock forcefully clears a migration lock (for stuck situations)
+func (m *Migrator) forceClearLock(ctx context.Context) error {
+	// Check if lock exists
+	lockData, err := m.client.Get(ctx, migrationLockKey).Result()
+	if err != nil && err.Error() == "redis: nil" {
+		return fmt.Errorf("no migration lock found")
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get lock details: %w", err)
+	}
+
+	fmt.Printf("Current lock: %s\n", lockData)
+	fmt.Printf("⚠️  WARNING: Clearing a lock while a migration is running could cause issues.\n")
+	fmt.Printf("Only clear if you're certain the migration is not running.\n")
+	fmt.Printf("Continue? (y/N): ")
+
+	var response string
+	fmt.Scanln(&response)
+	if response != "y" && response != "Y" {
+		fmt.Println("Lock clear cancelled.")
+		return fmt.Errorf("lock clear cancelled")
+	}
+
+	err = m.client.Del(ctx, migrationLockKey).Err()
+	if err != nil {
+		return fmt.Errorf("failed to clear lock: %w", err)
+	}
+
+	fmt.Println("✅ Migration lock cleared")
+	return nil
+}
+
 // Init handles initialization for fresh installations
 func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
 	// Check if Redis has any existing data first (no lock needed for this)
@@ -69,10 +168,10 @@ func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
 		// Only acquire lock if we actually need to initialize
 		maxRetries := 3
 		for i := 0; i < maxRetries; i++ {
-			err := acquireMigrationLock(ctx, m.client, "init")
+			err := m.acquireLock(ctx, "init")
 			if err == nil {
 				// Lock acquired successfully
-				defer releaseMigrationLock(ctx, m.client)
+				defer m.releaseLock(ctx)
 				break
 			}
 
@@ -159,29 +258,6 @@ func (m *Migrator) checkIfFreshInstallation(ctx context.Context) (bool, error) {
 
 	// No keys found - it's a fresh installation
 	return true, nil
-}
-
-// ListMigrations lists all available migrations
-func ListMigrations() error {
-	migrations := registry.GetAll()
-	if len(migrations) == 0 {
-		fmt.Println("No migrations registered")
-		return nil
-	}
-
-	// Sort migration names for consistent output
-	var names []string
-	for name := range migrations {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	fmt.Println("Available migrations:")
-	for _, name := range names {
-		m := migrations[name]
-		fmt.Printf("  %s - %s\n", name, m.Description())
-	}
-	return nil
 }
 
 // Status shows the current migration status

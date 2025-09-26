@@ -77,7 +77,11 @@ func NewCommand() *cli.Command {
 				Name:  "list",
 				Usage: "List available migrations",
 				Action: func(ctx context.Context, c *cli.Command) error {
-					return ListMigrations()
+					migrator, err := initMigrator(c)
+					if err != nil {
+						return err
+					}
+					return migrator.ListMigrations()
 				},
 			},
 			{
