@@ -26,19 +26,13 @@ func main() {
 			},
 			{
 				Name:  "migrate",
-				Usage: "Migration tools",
-				Commands: []*cli.Command{
-					{
-						Name:  "redis",
-						Usage: "Run Redis migrations",
-						Action: func(ctx context.Context, c *cli.Command) error {
-							// Pass all arguments directly to the redis migration tool
-							return delegateToBinary("outpost-migrate-redis", c)
-						},
-						// Don't define flags here - let the sub-binary handle everything
-						SkipFlagParsing: true,
-					},
+				Usage: "Database migration tools",
+				Action: func(ctx context.Context, c *cli.Command) error {
+					// Pass all arguments directly to the migration tool
+					return delegateToBinary("outpost-migrate-redis", c)
 				},
+				// Don't define flags here - let the sub-binary handle everything
+				SkipFlagParsing: true,
 			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {

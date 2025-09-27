@@ -1,10 +1,10 @@
-# Outpost Redis Migration Tool
+# Outpost Migration Tool
 
-A CLI tool for managing Redis schema migrations for Outpost, with support for versioned migrations and state tracking.
+A CLI tool for managing database schema migrations for Outpost, with support for versioned migrations and state tracking.
 
 ## Purpose
 
-This tool manages Redis schema changes in a controlled manner. It tracks state using Redis keys:
+This tool manages database schema changes in a controlled manner. It tracks state using Redis keys:
 - `outpost:migration:<name>` - Hash storing migration state (fields: status="applied", applied_at=timestamp)
 - `outpost:migration:lock` - Prevents concurrent migrations (auto-expires after 1 hour)
 
@@ -18,7 +18,7 @@ This tool manages Redis schema changes in a controlled manner. It tracks state u
 make build
 
 # Run via the wrapper
-./bin/outpost migrate redis [command]
+./bin/outpost migrate [command]
 ```
 
 ### Direct execution
@@ -33,7 +33,7 @@ go build -o bin/outpost-migrate-redis ./cmd/outpost-migrate-redis
 ### Development
 ```bash
 # Run without building (via wrapper)
-go run ./cmd/outpost migrate redis [command]
+go run ./cmd/outpost migrate [command]
 
 # Run directly
 go run ./cmd/outpost-migrate-redis [command]
@@ -42,31 +42,31 @@ go run ./cmd/outpost-migrate-redis [command]
 ## Usage
 
 ```bash
-# Initialize Redis for fresh installations (runs on startup)
-outpost migrate redis init
-outpost migrate redis init --current  # Exit 1 if migrations pending (for CI/CD)
+# Initialize database for fresh installations (runs on startup)
+outpost migrate init
+outpost migrate init --current  # Exit 1 if migrations pending (for CI/CD)
 
 # List available migrations
-outpost migrate redis list
+outpost migrate list
 
 # Plan next migration (shows current status and what will change)
-outpost migrate redis plan
+outpost migrate plan
 
 # Apply the migration (creates new keys, preserves old ones)
-outpost migrate redis apply
-outpost migrate redis apply --yes  # Skip confirmation prompt
+outpost migrate apply
+outpost migrate apply --yes  # Skip confirmation prompt
 
 # Verify the migration was successful
-outpost migrate redis verify
+outpost migrate verify
 
 # Cleanup old keys after verification
-outpost migrate redis cleanup
-outpost migrate redis cleanup --yes  # Skip confirmation
-outpost migrate redis cleanup --force  # Skip verification check
+outpost migrate cleanup
+outpost migrate cleanup --yes  # Skip confirmation
+outpost migrate cleanup --force  # Skip verification check
 
 # Force clear the migration lock (use with caution)
-outpost migrate redis unlock
-outpost migrate redis unlock --yes  # Skip confirmation prompt
+outpost migrate unlock
+outpost migrate unlock --yes  # Skip confirmation prompt
 ```
 
 ## Migration Workflow
@@ -81,10 +81,10 @@ outpost migrate redis unlock --yes  # Skip confirmation prompt
 The `init --current` command is designed for use in automated startup scripts. It handles both fresh installations and existing deployments:
 
 ```bash
-# Initialize Redis and check for pending migrations
-outpost migrate redis init --current || {
+# Initialize database and check for pending migrations
+outpost migrate init --current || {
     echo "Error: Database migrations required"
-    echo "Run: outpost migrate redis apply"
+    echo "Run: outpost migrate apply"
     exit 1
 }
 outpost serve
@@ -170,16 +170,16 @@ The tool uses Outpost's standard configuration system, loading settings from (in
 
 ```bash
 # Using environment variables
-REDIS_HOST=localhost outpost migrate redis plan
+REDIS_HOST=localhost outpost migrate plan
 
 # Using CLI flags
-outpost migrate redis --redis-host localhost --verbose plan
+outpost migrate --redis-host localhost --verbose plan
 
 # Using config file
-outpost migrate redis --config /path/to/config.yaml plan
+outpost migrate --config /path/to/config.yaml plan
 
 # Production cluster with TLS
-outpost migrate redis \
+outpost migrate \
   --redis-host redis-cluster.example.com \
   --redis-cluster \
   --redis-tls \
