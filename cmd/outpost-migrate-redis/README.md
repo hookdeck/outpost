@@ -42,54 +42,64 @@ go run ./cmd/outpost-migrate-redis [command]
 ## Usage
 
 ```bash
+# Initialize Redis for fresh installations (runs on startup)
+outpost migrate redis init
+outpost migrate redis init --current  # Exit 1 if migrations pending (for CI/CD)
+
 # List available migrations
 outpost migrate redis list
 
-# Check migration status
-outpost migrate redis status
-outpost migrate redis status --verbose  # Show applied migrations
-outpost migrate redis status --current  # Exit 1 if migrations pending (for CI/CD)
-
-# Plan a migration (dry run - shows what will change)
+# Plan next migration (shows current status and what will change)
 outpost migrate redis plan
 
 # Apply the migration (creates new keys, preserves old ones)
 outpost migrate redis apply
-outpost migrate redis apply --auto-approve  # Skip confirmation prompt
+outpost migrate redis apply --yes  # Skip confirmation prompt
 
 # Verify the migration was successful
 outpost migrate redis verify
 
 # Cleanup old keys after verification
 outpost migrate redis cleanup
-outpost migrate redis cleanup --auto-approve  # Skip confirmation
+outpost migrate redis cleanup --yes  # Skip confirmation
 outpost migrate redis cleanup --force  # Skip verification check
 
-# Additional commands (not yet implemented in new CLI)
-# unlock   # Force clear the migration lock (use with caution)
+# Force clear the migration lock (use with caution)
+outpost migrate redis unlock
+outpost migrate redis unlock --yes  # Skip confirmation prompt
 ```
 
 ## Migration Workflow
 
-1. **Status** - Check if any migrations are pending
-2. **Plan** - Analyze current state and show what will be migrated
-3. **Apply** - Execute the migration (creates new keys, preserves old ones)
-4. **Verify** - Spot-check migrated data for correctness
-5. **Cleanup** - Delete old keys after confirming success
+1. **Plan** - Check status and show what will be migrated
+2. **Apply** - Execute the migration (creates new keys, preserves old ones)
+3. **Verify** - Spot-check migrated data for correctness
+4. **Cleanup** - Delete old keys after confirming success
 
 ## Using in Startup Scripts
 
-The `status --current` command is designed for use in automated scripts:
+The `init --current` command is designed for use in automated startup scripts. It handles both fresh installations and existing deployments:
 
 ```bash
-# Fail fast if migrations are pending
-outpost migrate redis status --current || {
+# Initialize Redis and check for pending migrations
+outpost migrate redis init --current || {
     echo "Error: Database migrations required"
     echo "Run: outpost migrate redis apply"
     exit 1
 }
 outpost serve
 ```
+
+### Init Command Behavior
+
+The `init` command intelligently handles different scenarios:
+
+- **Fresh Installation**: Automatically marks all migrations as applied without running them (since the schema is already current)
+- **Existing Installation**: Checks if migrations are pending
+- **With `--current` flag**: Exits with code 1 if migrations are pending, making it perfect for CI/CD pipelines
+- **Multi-node deployments**: Uses atomic locking to ensure only one node performs initialization
+
+This eliminates the need to manually handle fresh installations differently from existing ones.
 
 ## Available Migrations
 
@@ -151,12 +161,10 @@ The tool uses Outpost's standard configuration system, loading settings from (in
 
 ### Other Options
 
-| Option | CLI Flag | Scope | Description |
-|--------|----------|-------|-------------|
-| Config File | `--config, -c` | Global | Path to config file |
-| Verbose | `--verbose` | Global | Enable verbose output (shows Redis config) |
-| Auto-approve | `--auto-approve, -y` | apply, cleanup | Skip confirmation prompts |
-| Force | `--force, -f` | cleanup | Skip verification before cleanup |
+| Option | CLI Flag | Description |
+|--------|----------|-------------|
+| Config File | `--config, -c` | Path to config file |
+| Verbose | `--verbose` | Enable verbose output (shows Redis config) |
 
 ### Examples
 

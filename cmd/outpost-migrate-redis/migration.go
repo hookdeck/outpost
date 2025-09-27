@@ -119,27 +119,31 @@ func (m *Migrator) releaseLock(ctx context.Context) error {
 	return nil
 }
 
-// forceClearLock forcefully clears a migration lock (for stuck situations)
-func (m *Migrator) forceClearLock(ctx context.Context) error {
+// Unlock forcefully clears the migration lock (for stuck situations)
+func (m *Migrator) Unlock(ctx context.Context, autoApprove bool) error {
 	// Check if lock exists
 	lockData, err := m.client.Get(ctx, migrationLockKey).Result()
 	if err != nil && err.Error() == "redis: nil" {
-		return fmt.Errorf("no migration lock found")
+		fmt.Println("No migration lock found")
+		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("failed to get lock details: %w", err)
 	}
 
 	fmt.Printf("Current lock: %s\n", lockData)
-	fmt.Printf("⚠️  WARNING: Clearing a lock while a migration is running could cause issues.\n")
-	fmt.Printf("Only clear if you're certain the migration is not running.\n")
-	fmt.Printf("Continue? (y/N): ")
 
-	var response string
-	fmt.Scanln(&response)
-	if response != "y" && response != "Y" {
-		fmt.Println("Lock clear cancelled.")
-		return fmt.Errorf("lock clear cancelled")
+	if !autoApprove {
+		fmt.Printf("⚠️  WARNING: Clearing a lock while a migration is running could cause issues.\n")
+		fmt.Printf("Only clear if you're certain the migration is not running.\n")
+		fmt.Printf("Continue? (y/N): ")
+
+		var response string
+		fmt.Scanln(&response)
+		if response != "y" && response != "Y" {
+			fmt.Println("Lock clear cancelled.")
+			return nil
+		}
 	}
 
 	err = m.client.Del(ctx, migrationLockKey).Err()
@@ -266,85 +270,36 @@ func (m *Migrator) checkIfFreshInstallation(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-// Status shows the current migration status
-func (m *Migrator) Status(ctx context.Context, currentCheck bool) error {
-
-	// Get all migrations and categorize them
+// Plan shows what changes would be made without applying them
+func (m *Migrator) Plan(ctx context.Context) error {
+	// First show current status
 	migrations := registry.GetAll()
-	var appliedMigrations []migration.Migration
-	var pendingMigrations []migration.Migration
+	var appliedCount, pendingCount int
+	var nextMigration migration.Migration
 
-	// Collect all migrations and sort them by version
-	var allMigrations []migration.Migration
-	for _, m := range migrations {
-		allMigrations = append(allMigrations, m)
-	}
-
-	// Sort migrations by version
-	sort.Slice(allMigrations, func(i, j int) bool {
-		return allMigrations[i].Version() < allMigrations[j].Version()
-	})
-
-	// Categorize migrations
-	for _, mig := range allMigrations {
+	for _, mig := range migrations {
 		if isApplied(ctx, m.client, mig.Name()) {
-			appliedMigrations = append(appliedMigrations, mig)
+			appliedCount++
 		} else {
-			pendingMigrations = append(pendingMigrations, mig)
+			pendingCount++
+			if nextMigration == nil {
+				nextMigration = mig
+			}
 		}
 	}
 
-	// If --current flag is used, just check and exit
-	if currentCheck {
-		if len(pendingMigrations) > 0 {
-			if !m.verbose {
-				// Silent mode for scripting
-				os.Exit(1)
-			}
-			fmt.Fprintf(os.Stderr, "Migration required: %d pending\n", len(pendingMigrations))
-			os.Exit(1)
-		}
-		// Up to date
+	fmt.Println("Migration Status:")
+	fmt.Printf("  Applied: %d migration(s)\n", appliedCount)
+	fmt.Printf("  Pending: %d migration(s)\n", pendingCount)
+
+	if pendingCount == 0 {
+		fmt.Println("\nAll migrations have been applied. Nothing to plan.")
 		return nil
 	}
 
-	// Display status information
-	fmt.Println("Migration Status:")
-
-	if len(appliedMigrations) == 0 {
-		fmt.Println("  No migrations applied")
-	} else {
-		fmt.Printf("  Applied: %d migration(s)\n", len(appliedMigrations))
-		if m.verbose {
-			for _, mig := range appliedMigrations {
-				fmt.Printf("    ✓ %s\n", mig.Name())
-			}
-		}
-	}
-
-	if len(pendingMigrations) == 0 {
-		fmt.Println("  Status: Up to date")
-	} else {
-		fmt.Printf("  Pending: %d migration(s)\n", len(pendingMigrations))
-		for _, m := range pendingMigrations {
-			fmt.Printf("    • %s - %s\n", m.Name(), m.Description())
-		}
-		fmt.Printf("\nNext migration: %s\n", pendingMigrations[0].Name())
-		fmt.Println("Run 'outpost migrate redis plan' to preview changes")
-	}
-
-	return nil
-}
-
-// Plan shows what changes would be made without applying them
-func (m *Migrator) Plan(ctx context.Context) error {
 	// Get the next unapplied migration
 	mig, err := getNextMigration(ctx, m.client)
 	if err != nil {
-		if err.Error() == "all migrations have been applied" {
-			fmt.Println("All migrations have been applied. Nothing to plan.")
-			return nil
-		}
 		return err
 	}
 
@@ -355,7 +310,7 @@ func (m *Migrator) Plan(ctx context.Context) error {
 	}
 
 	// Display the plan
-	fmt.Printf("Migration Plan for %s:\n", mig.Name())
+	fmt.Printf("\nNext Migration: %s\n", mig.Name())
 	fmt.Printf("  Description: %s\n", plan.Description)
 	fmt.Printf("  Estimated items: %d\n", plan.EstimatedItems)
 	if len(plan.Scope) > 0 {

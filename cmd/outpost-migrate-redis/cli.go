@@ -85,23 +85,6 @@ func NewCommand() *cli.Command {
 				},
 			},
 			{
-				Name:  "status",
-				Usage: "Show current migration status",
-				Flags: []cli.Flag{
-					&cli.BoolFlag{
-						Name:  "current",
-						Usage: "Exit with code 1 if migrations are pending (for scripting)",
-					},
-				},
-				Action: func(ctx context.Context, c *cli.Command) error {
-					migrator, err := initMigrator(c)
-					if err != nil {
-						return err
-					}
-					return migrator.Status(ctx, c.Bool("current"))
-				},
-			},
-			{
 				Name:  "plan",
 				Usage: "Show what changes would be made without applying them",
 				Action: func(ctx context.Context, c *cli.Command) error {
@@ -162,6 +145,24 @@ func NewCommand() *cli.Command {
 						return err
 					}
 					return migrator.Cleanup(ctx, c.Bool("force"), c.Bool("yes"))
+				},
+			},
+			{
+				Name:  "unlock",
+				Usage: "Force clear the migration lock (use with caution)",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:    "yes",
+						Aliases: []string{"y"},
+						Usage:   "Skip confirmation prompt",
+					},
+				},
+				Action: func(ctx context.Context, c *cli.Command) error {
+					migrator, err := initMigrator(c)
+					if err != nil {
+						return err
+					}
+					return migrator.Unlock(ctx, c.Bool("yes"))
 				},
 			},
 		},
