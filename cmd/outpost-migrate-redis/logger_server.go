@@ -159,7 +159,7 @@ func (l *ServerLogger) LogVerificationResult(name string, result *migration.Veri
 	if result.Valid {
 		l.logger.Info("verification passed", fields...)
 	} else {
-		l.logger.Error("verification failed", fields...)
+		l.logger.Warn("verification failed", fields...)
 	}
 }
 
@@ -243,8 +243,8 @@ func (l *ServerLogger) LogExistingInstallation() {
 }
 
 func (l *ServerLogger) LogPendingMigrations(count int) {
-	// This is an error condition that should cause the process to exit
-	l.logger.Error("migrations pending",
+	// This condition will cause the process to exit
+	l.logger.Warn("migrations pending",
 		zap.Int("count", count),
 	)
 	// Also write to stderr for container orchestration
