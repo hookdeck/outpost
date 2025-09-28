@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"os"
 	"strings"
 
 	"github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration"
@@ -243,12 +241,7 @@ func (l *ServerLogger) LogExistingInstallation() {
 }
 
 func (l *ServerLogger) LogPendingMigrations(count int) {
-	// This condition will cause the process to exit
-	l.logger.Warn("migrations pending",
-		zap.Int("count", count),
-	)
-	// Also write to stderr for container orchestration
-	fmt.Fprintf(os.Stderr, "Migration required: %d pending\n", count)
+	l.logger.Warn("migrations pending", zap.Int("count", count))
 }
 
 func (l *ServerLogger) LogAllMigrationsApplied() {
@@ -336,9 +329,13 @@ func (l *ServerLogger) LogNoMigrationsNeeded() {
 // Sync flushes any buffered log entries
 func (l *ServerLogger) Sync() error {
 	err := l.logger.Sync()
-	// Ignore "inappropriate ioctl for device" errors which happen with stderr
-	if err != nil && strings.Contains(err.Error(), "inappropriate ioctl for device") {
-		return nil
+	// Ignore common stderr sync errors that occur in containers and terminals
+	if err != nil {
+		errStr := err.Error()
+		if strings.Contains(errStr, "inappropriate ioctl for device") ||
+			strings.Contains(errStr, "invalid argument") {
+			return nil
+		}
 	}
 	return err
 }
