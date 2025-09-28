@@ -275,11 +275,11 @@ func (l *CLILogger) LogProgress(current, total int, item string) {
 
 // Interactive operations
 func (l *CLILogger) Confirm(msg string) (bool, error) {
-	fmt.Printf("%s (yes/no): ", msg)
+	fmt.Printf("%s (y/N): ", msg)
 	scanner := bufio.NewScanner(os.Stdin)
 	if scanner.Scan() {
 		response := strings.ToLower(strings.TrimSpace(scanner.Text()))
-		return strings.HasPrefix(response, "y"), nil
+		return response == "y" || response == "yes", nil
 	}
 	return false, scanner.Err()
 }
