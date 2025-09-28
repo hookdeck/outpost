@@ -103,14 +103,12 @@ func (m *HashTagsMigration) Plan(ctx context.Context) (*migration.Plan, error) {
 		},
 	}
 
-	if m.logger != nil {
-		m.logger.LogInfo(fmt.Sprintf("Found %d tenants to migrate", len(tenants)))
-		if m.logger.Verbose() {
-			if len(tenantList) > 10 {
-				m.logger.LogDebug(fmt.Sprintf("First 10 tenants: %v ... and %d more", tenantList[:10], len(tenantList)-10))
-			} else if len(tenantList) > 0 {
-				m.logger.LogDebug(fmt.Sprintf("Tenants: %v", tenantList))
-			}
+	m.logger.LogInfo(fmt.Sprintf("Found %d tenants to migrate", len(tenants)))
+	if m.logger.Verbose() {
+		if len(tenantList) > 10 {
+			m.logger.LogDebug(fmt.Sprintf("First 10 tenants: %v ... and %d more", tenantList[:10], len(tenantList)-10))
+		} else if len(tenantList) > 0 {
+			m.logger.LogDebug(fmt.Sprintf("Tenants: %v", tenantList))
 		}
 	}
 
@@ -147,14 +145,10 @@ func (m *HashTagsMigration) Apply(ctx context.Context, plan *migration.Plan) (*m
 	i := 0
 	for tenantID := range tenants {
 		i++
-		if m.logger != nil {
-			m.logger.LogProgress(i, len(tenants), tenantID)
-		}
+		m.logger.LogProgress(i, len(tenants), tenantID)
 
 		if err := m.migrateTenant(ctx, tenantID); err != nil {
-			if m.logger != nil {
-				m.logger.LogError(fmt.Sprintf("Failed to migrate tenant %s", tenantID), err)
-			}
+			m.logger.LogError(fmt.Sprintf("Failed to migrate tenant %s", tenantID), err)
 			state.Errors = append(state.Errors, fmt.Sprintf("tenant %s: %v", tenantID, err))
 			state.Progress.FailedItems++
 			continue
@@ -162,7 +156,7 @@ func (m *HashTagsMigration) Apply(ctx context.Context, plan *migration.Plan) (*m
 
 		state.Progress.ProcessedItems++
 
-		if m.logger != nil && m.logger.Verbose() {
+		if m.logger.Verbose() {
 			m.logger.LogDebug(fmt.Sprintf("Migrated tenant: %s", tenantID))
 		}
 	}
@@ -208,9 +202,7 @@ func (m *HashTagsMigration) Verify(ctx context.Context, state *migration.State) 
 		sampleSize = len(tenants) // Check all if less than 20
 	}
 
-	if m.logger != nil {
-		m.logger.LogInfo(fmt.Sprintf("Spot checking %d out of %d tenants...", sampleSize, len(tenants)))
-	}
+	m.logger.LogInfo(fmt.Sprintf("Spot checking %d out of %d tenants...", sampleSize, len(tenants)))
 
 	// Randomly sample tenants to verify
 	// Simple approach: just take first N tenants (could randomize if needed)
@@ -236,7 +228,7 @@ func (m *HashTagsMigration) Verify(ctx context.Context, state *migration.State) 
 					fmt.Sprintf("Tenant data mismatch for %s: old has %d fields, new has %d",
 						tenantID, len(oldData), len(newData)))
 				tenantPassed = false
-			} else if m.logger != nil && m.logger.Verbose() {
+			} else if m.logger.Verbose() {
 				// Deep check: compare actual values
 				for field, oldValue := range oldData {
 					if newValue, ok := newData[field]; !ok || newValue != oldValue {
@@ -284,7 +276,7 @@ func (m *HashTagsMigration) Verify(ctx context.Context, state *migration.State) 
 				if err != nil || exists == 0 {
 					result.Issues = append(result.Issues, fmt.Sprintf("Missing destination: %s", newDestKey))
 					destsPassed = false
-				} else if m.logger != nil && m.logger.Verbose() {
+				} else if m.logger.Verbose() {
 					newDestData, _ := m.client.HGetAll(ctx, newDestKey).Result()
 					if len(oldDestData) != len(newDestData) {
 						result.Issues = append(result.Issues,
@@ -309,23 +301,49 @@ func (m *HashTagsMigration) Verify(ctx context.Context, state *migration.State) 
 	return result, nil
 }
 
-func (m *HashTagsMigration) Cleanup(ctx context.Context, state *migration.State) error {
-	// Get all legacy keys
-	legacyKeys, err := m.client.Keys(ctx, "tenant:*").Result()
+// getLegacyKeys returns all legacy keys (those without hash tags)
+func (m *HashTagsMigration) getLegacyKeys(ctx context.Context) ([]string, error) {
+	// Get all keys matching tenant:* pattern
+	allKeys, err := m.client.Keys(ctx, "tenant:*").Result()
 	if err != nil {
-		return fmt.Errorf("failed to scan keys: %w", err)
+		return nil, fmt.Errorf("failed to scan keys: %w", err)
+	}
+
+	// Filter to only legacy keys (those WITHOUT hash tags)
+	var legacyKeys []string
+	for _, key := range allKeys {
+		// New keys have hash tags like tenant:{123}:...
+		// Old keys don't have curly braces
+		if !strings.Contains(key, "{") && !strings.Contains(key, "}") {
+			legacyKeys = append(legacyKeys, key)
+		}
+	}
+
+	return legacyKeys, nil
+}
+
+// PlanCleanup analyzes what would be cleaned up without making changes
+func (m *HashTagsMigration) PlanCleanup(ctx context.Context) (int, error) {
+	legacyKeys, err := m.getLegacyKeys(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return len(legacyKeys), nil
+}
+
+func (m *HashTagsMigration) Cleanup(ctx context.Context, state *migration.State) error {
+	// Get legacy keys to clean up
+	legacyKeys, err := m.getLegacyKeys(ctx)
+	if err != nil {
+		return err
 	}
 
 	if len(legacyKeys) == 0 {
-		if m.logger != nil {
-			m.logger.LogInfo("No legacy keys to cleanup.")
-		}
+		m.logger.LogInfo("No legacy keys to cleanup.")
 		return nil
 	}
 
-	if m.logger != nil {
-		m.logger.LogInfo(fmt.Sprintf("Found %d legacy keys to remove.", len(legacyKeys)))
-	}
+	m.logger.LogInfo(fmt.Sprintf("Found %d legacy keys to remove.", len(legacyKeys)))
 
 	// Delete in batches
 	batchSize := 100
@@ -340,14 +358,12 @@ func (m *HashTagsMigration) Cleanup(ctx context.Context, state *migration.State)
 		}
 
 		deleted += len(batch)
-		if m.logger != nil && (deleted%500 == 0 || deleted == len(legacyKeys)) {
+		if deleted%500 == 0 || deleted == len(legacyKeys) {
 			m.logger.LogProgress(deleted, len(legacyKeys), "keys")
 		}
 	}
 
-	if m.logger != nil {
-		m.logger.LogInfo(fmt.Sprintf("Cleanup complete! Removed %d legacy keys.", deleted))
-	}
+	m.logger.LogInfo(fmt.Sprintf("Cleanup complete! Removed %d legacy keys.", deleted))
 	return nil
 }
 

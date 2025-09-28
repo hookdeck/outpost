@@ -26,6 +26,10 @@ type Migration interface {
 	// Verify validates that the migration was successful
 	Verify(ctx context.Context, state *State) (*VerificationResult, error)
 
+	// PlanCleanup analyzes what would be cleaned up without making changes
+	// Returns the count of items that would be removed
+	PlanCleanup(ctx context.Context) (int, error)
+
 	// Cleanup removes old data after successful verification
 	// Should not prompt for confirmation - that's handled by the CLI
 	Cleanup(ctx context.Context, state *State) error

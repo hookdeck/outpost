@@ -378,27 +378,23 @@ func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 		m.logger.LogInfo("verification passed")
 	}
 
-	m.logger.LogCleanupAnalysis(0) // Will be updated with actual count
+	m.logger.LogCleanupAnalysis(0) // Initial message
 
-	// Get a preview of what will be cleaned up by running a dry-run plan
-	// This helps us show what will be deleted before confirming
-	plan, err := mig.Plan(ctx)
+	// Plan what would be cleaned up
+	legacyKeyCount, err := mig.PlanCleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to analyze cleanup scope: %w", err)
 	}
 
-	// Estimate cleanup impact from the plan
-	if plan.EstimatedItems == 0 {
+	if legacyKeyCount == 0 {
 		m.logger.LogNoCleanupNeeded()
 		return nil
 	}
 
-	m.logger.LogCleanupAnalysis(plan.EstimatedItems)
-
 	// Confirm if not auto-approved
 	if !autoApprove && !force {
 		confirmed, err := m.logger.ConfirmWithWarning(
-			fmt.Sprintf("This will delete approximately %d old Redis keys. This action cannot be undone.", plan.EstimatedItems),
+			fmt.Sprintf("This will delete approximately %d old Redis keys. This action cannot be undone.", legacyKeyCount),
 			"Do you want to continue?",
 		)
 		if err != nil {
@@ -433,7 +429,7 @@ func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 		return fmt.Errorf("cleanup failed: %w", err)
 	}
 
-	m.logger.LogCleanupComplete(plan.EstimatedItems) // Using estimated as actual
+	m.logger.LogCleanupComplete(legacyKeyCount)
 
 	return nil
 }
