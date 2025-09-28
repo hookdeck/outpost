@@ -36,14 +36,8 @@ func main() {
 			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			// Default action if no command specified - show help
-			if c.NArg() == 0 {
-				return cli.ShowAppHelp(c)
-			}
-
-			// Handle direct binary invocation for backward compatibility
-			// e.g., "outpost --some-flag" defaults to server mode
-			return delegateToBinary("outpost-server", c)
+			// Default action - show help
+			return cli.ShowAppHelp(c)
 		},
 	}
 
