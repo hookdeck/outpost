@@ -10,7 +10,7 @@ import (
 // NewCommand creates and configures the CLI command
 func NewCommand() *cli.Command {
 	return &cli.Command{
-		Name:    "outpost migrate redis",
+		Name:    "outpost-migrate",
 		Usage:   "Redis migration tool for Outpost",
 		Version: version.Version(),
 		Flags: []cli.Flag{
