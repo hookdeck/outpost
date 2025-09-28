@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration"
@@ -18,29 +17,37 @@ const (
 	migrationLockKey = ".outpost:migration:lock"
 )
 
-// Global migration registry
-var registry *migration.Registry
-
-func init() {
-	// Initialize and register all migrations
-	registry = migration.NewRegistry()
-
-	// Register migrations here
-	registry.Register(migration_001.New())
-
-	// Future migrations would be registered like:
-	// registry.Register(migration_002.New())
-	// registry.Register(migration_003.New())
-}
-
 // Migrator handles Redis migrations
 type Migrator struct {
-	client  *redisClientWrapper
-	verbose bool
+	client     *redisClientWrapper
+	logger     MigrationLogger
+	migrations map[string]migration.Migration // All available migrations
+}
+
+// Close cleans up resources (logger sync, redis connection, etc)
+func (m *Migrator) Close() error {
+	var lastErr error
+
+	// Sync logger if it implements Sync
+	if syncer, ok := m.logger.(interface{ Sync() error }); ok {
+		if err := syncer.Sync(); err != nil {
+			lastErr = fmt.Errorf("failed to sync logger: %w", err)
+		}
+	}
+
+	// Close Redis client if it implements Close
+	// (for future when we might need to close connections)
+	if closer, ok := m.client.Cmdable.(interface{ Close() error }); ok {
+		if err := closer.Close(); err != nil {
+			lastErr = fmt.Errorf("failed to close redis client: %w", err)
+		}
+	}
+
+	return lastErr
 }
 
 // NewMigrator creates a new migrator instance
-func NewMigrator(cfg *config.Config, verbose bool) (*Migrator, error) {
+func NewMigrator(cfg *config.Config, logger MigrationLogger) (*Migrator, error) {
 	ctx := context.Background()
 
 	// Build Redis client
@@ -55,32 +62,36 @@ func NewMigrator(cfg *config.Config, verbose bool) (*Migrator, error) {
 		Cmdable: redisClient,
 	}
 
+	// Initialize all migrations
+	migrations := make(map[string]migration.Migration)
+
+	// Helper to register a migration by its name
+	registerMigration := func(m migration.Migration) {
+		migrations[m.Name()] = m
+	}
+
+	// Register all migrations
+	registerMigration(migration_001.New(client, logger))
+
+	// Future migrations would be added here:
+	// registerMigration(migration_002.New(client, logger))
+
 	return &Migrator{
-		client:  client,
-		verbose: verbose,
+		client:     client,
+		logger:     logger,
+		migrations: migrations,
 	}, nil
 }
 
 // ListMigrations lists all available migrations
 func (m *Migrator) ListMigrations() error {
-	migrations := registry.GetAll()
-	if len(migrations) == 0 {
-		fmt.Println("No migrations registered")
-		return nil
+	// Build map of name -> description from actual migrations
+	migrationMap := make(map[string]string)
+	for name, mig := range m.migrations {
+		migrationMap[name] = mig.Description()
 	}
 
-	// Sort migration names for consistent output
-	var names []string
-	for name := range migrations {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	fmt.Println("Available migrations:")
-	for _, name := range names {
-		mig := migrations[name]
-		fmt.Printf("  %s - %s\n", name, mig.Description())
-	}
+	m.logger.LogMigrationList(migrationMap)
 	return nil
 }
 
@@ -116,6 +127,7 @@ func (m *Migrator) releaseLock(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to release lock: %w", err)
 	}
+	m.logger.LogLockReleased()
 	return nil
 }
 
@@ -124,24 +136,25 @@ func (m *Migrator) Unlock(ctx context.Context, autoApprove bool) error {
 	// Check if lock exists
 	lockData, err := m.client.Get(ctx, migrationLockKey).Result()
 	if err != nil && err.Error() == "redis: nil" {
-		fmt.Println("No migration lock found")
+		m.logger.LogLockStatus("", false)
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("failed to get lock details: %w", err)
 	}
 
-	fmt.Printf("Current lock: %s\n", lockData)
+	m.logger.LogLockStatus(lockData, true)
 
 	if !autoApprove {
-		fmt.Printf("⚠️  WARNING: Clearing a lock while a migration is running could cause issues.\n")
-		fmt.Printf("Only clear if you're certain the migration is not running.\n")
-		fmt.Printf("Continue? (y/N): ")
-
-		var response string
-		fmt.Scanln(&response)
-		if response != "y" && response != "Y" {
-			fmt.Println("Lock clear cancelled.")
+		confirmed, err := m.logger.ConfirmWithWarning(
+			"Clearing a lock while a migration is running could cause issues. Only clear if you're certain the migration is not running.",
+			"Continue?",
+		)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			m.logger.LogInfo("lock clear cancelled")
 			return nil
 		}
 	}
@@ -151,13 +164,13 @@ func (m *Migrator) Unlock(ctx context.Context, autoApprove bool) error {
 		return fmt.Errorf("failed to clear lock: %w", err)
 	}
 
-	fmt.Println("✅ Migration lock cleared")
+	m.logger.LogLockCleared()
 	return nil
 }
 
 // Init handles initialization for fresh installations
 func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
-	fmt.Println("Checking Redis installation status...")
+	m.logger.LogCheckingInstallation()
 
 	// Check if Redis has any existing data first
 	isFresh, err := m.checkIfFreshInstallation(ctx)
@@ -166,13 +179,13 @@ func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
 	}
 
 	if isFresh {
-		fmt.Println("Fresh installation detected, acquiring lock...")
+		m.logger.LogFreshInstallation()
 
 		// Try to acquire lock - this is atomic with SetNX
 		err := m.acquireLock(ctx, "init")
 		if err != nil {
 			// Someone else is initializing - wait for them
-			fmt.Println("Another process is initializing, waiting...")
+			m.logger.LogLockWaiting()
 
 			// Wait for initialization to complete (check every second, max 30 seconds)
 			for i := 0; i < 30; i++ {
@@ -184,7 +197,7 @@ func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
 				}
 
 				if !stillFresh {
-					fmt.Println("✅ Redis initialized by another process")
+					m.logger.LogInitialization(false, 0)
 					return nil
 				}
 			}
@@ -193,7 +206,7 @@ func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
 		}
 
 		// We got the lock
-		fmt.Println("Lock acquired successfully")
+		m.logger.LogLockAcquired()
 		defer m.releaseLock(ctx)
 
 		isFresh, err = m.checkIfFreshInstallation(ctx)
@@ -203,41 +216,39 @@ func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
 
 		if !isFresh {
 			// Someone else initialized while we were acquiring lock
-			fmt.Println("✅ Redis initialized by another process")
+			m.logger.LogInitialization(false, 0)
 			return nil
 		}
 
 		// Still fresh and we have the lock - do the initialization
-		fmt.Println("Initializing Redis...")
+		m.logger.LogInfo("initializing redis")
 
 		// Mark all migrations as applied
-		migrations := registry.GetAll()
-		for name := range migrations {
+		for name := range m.migrations {
 			if err := setMigrationAsApplied(ctx, m.client, name); err != nil {
 				return fmt.Errorf("failed to mark migration %s as applied: %w", name, err)
 			}
 		}
 
-		fmt.Printf("✅ Redis initialized successfully - marked %d migration(s) as applied\n", len(migrations))
+		m.logger.LogInitialization(true, len(m.migrations))
 		return nil
 	}
 
 	// Not fresh - Redis already initialized (no lock needed)
-	fmt.Println("Redis already initialized")
+	m.logger.LogExistingInstallation()
 
 	// If --current flag is set, check if migrations are pending
 	if currentCheck {
 		// Get pending migrations count
 		pendingCount := 0
-		migrations := registry.GetAll()
-		for _, mig := range migrations {
-			if !isApplied(ctx, m.client, mig.Name()) {
+		for name := range m.migrations {
+			if !isApplied(ctx, m.client, name) {
 				pendingCount++
 			}
 		}
 
 		if pendingCount > 0 {
-			fmt.Fprintf(os.Stderr, "Migration required: %d pending\n", pendingCount)
+			m.logger.LogPendingMigrations(pendingCount)
 			os.Exit(1)
 		}
 		// Up to date - exit normally
@@ -273,52 +284,37 @@ func (m *Migrator) checkIfFreshInstallation(ctx context.Context) (bool, error) {
 // Plan shows what changes would be made without applying them
 func (m *Migrator) Plan(ctx context.Context) error {
 	// First show current status
-	migrations := registry.GetAll()
 	var appliedCount, pendingCount int
-	var nextMigration migration.Migration
 
-	for _, mig := range migrations {
-		if isApplied(ctx, m.client, mig.Name()) {
+	for name := range m.migrations {
+		if isApplied(ctx, m.client, name) {
 			appliedCount++
 		} else {
 			pendingCount++
-			if nextMigration == nil {
-				nextMigration = mig
-			}
 		}
 	}
 
-	fmt.Println("Migration Status:")
-	fmt.Printf("  Applied: %d migration(s)\n", appliedCount)
-	fmt.Printf("  Pending: %d migration(s)\n", pendingCount)
+	m.logger.LogMigrationStatus(appliedCount, pendingCount)
 
 	if pendingCount == 0 {
-		fmt.Println("\nAll migrations have been applied. Nothing to plan.")
+		m.logger.LogNoMigrationsNeeded()
 		return nil
 	}
 
 	// Get the next unapplied migration
-	mig, err := getNextMigration(ctx, m.client)
+	mig, err := m.getNextMigration(ctx)
 	if err != nil {
 		return err
 	}
 
 	// Run the migration in plan mode
-	plan, err := mig.Plan(ctx, m.client, m.verbose)
+	plan, err := mig.Plan(ctx)
 	if err != nil {
 		return err
 	}
 
 	// Display the plan
-	fmt.Printf("\nNext Migration: %s\n", mig.Name())
-	fmt.Printf("  Description: %s\n", plan.Description)
-	fmt.Printf("  Estimated items: %d\n", plan.EstimatedItems)
-	if len(plan.Scope) > 0 {
-		fmt.Println("  Scope:")
-		for key, value := range plan.Scope {
-			fmt.Printf("    %s: %d\n", key, value)
-		}
-	}
+	m.logger.LogMigrationPlan(mig.Name(), plan)
 
 	return nil
 }
@@ -326,12 +322,12 @@ func (m *Migrator) Plan(ctx context.Context) error {
 // Verify verifies that a migration was successful
 func (m *Migrator) Verify(ctx context.Context) error {
 	// Get the last applied migration
-	mig, err := getLastAppliedMigration(ctx, m.client)
+	mig, err := m.getLastAppliedMigration(ctx)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Verifying migration %s...\n", mig.Name())
+	m.logger.LogVerificationStart(mig.Name())
 
 	// Run verification
 	// Note: We're passing a minimal state object since the full state isn't stored yet
@@ -340,34 +336,16 @@ func (m *Migrator) Verify(ctx context.Context) error {
 		Phase:         "applied",
 	}
 
-	result, err := mig.Verify(ctx, m.client, verifyState, m.verbose)
+	result, err := mig.Verify(ctx, verifyState)
 	if err != nil {
 		return fmt.Errorf("verification failed: %w", err)
 	}
 
 	// Display results
-	if result.Valid {
-		fmt.Println("✅ Migration verified successfully")
-		fmt.Printf("  Checks run: %d\n", result.ChecksRun)
-		fmt.Printf("  Checks passed: %d\n", result.ChecksPassed)
-	} else {
-		fmt.Println("❌ Migration verification failed")
-		fmt.Printf("  Checks run: %d\n", result.ChecksRun)
-		fmt.Printf("  Checks passed: %d\n", result.ChecksPassed)
-		if len(result.Issues) > 0 {
-			fmt.Println("  Issues found:")
-			for _, issue := range result.Issues {
-				fmt.Printf("    - %s\n", issue)
-			}
-		}
-		return fmt.Errorf("migration verification failed")
-	}
+	m.logger.LogVerificationResult(mig.Name(), result)
 
-	if m.verbose && len(result.Details) > 0 {
-		fmt.Println("  Details:")
-		for key, value := range result.Details {
-			fmt.Printf("    %s: %s\n", key, value)
-		}
+	if !result.Valid {
+		return fmt.Errorf("migration verification failed")
 	}
 
 	return nil
@@ -376,20 +354,20 @@ func (m *Migrator) Verify(ctx context.Context) error {
 // Cleanup removes old keys after successful migration
 func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 	// Get the last applied migration
-	mig, err := getLastAppliedMigration(ctx, m.client)
+	mig, err := m.getLastAppliedMigration(ctx)
 	if err != nil {
 		return err
 	}
 
 	// First verify the migration if not forced
 	if !force {
-		fmt.Println("Verifying migration before cleanup...")
+		m.logger.LogInfo("verifying migration before cleanup")
 		verifyState := &migration.State{
 			MigrationName: mig.Name(),
 			Phase:         "applied",
 		}
 
-		result, err := mig.Verify(ctx, m.client, verifyState, m.verbose)
+		result, err := mig.Verify(ctx, verifyState)
 		if err != nil {
 			return fmt.Errorf("verification failed: %w", err)
 		}
@@ -397,46 +375,50 @@ func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 		if !result.Valid {
 			return fmt.Errorf("migration verification failed - cleanup aborted. Use --force to override")
 		}
-		fmt.Println("✅ Verification passed")
+		m.logger.LogInfo("verification passed")
 	}
 
-	fmt.Printf("Analyzing cleanup for migration %s...\n", mig.Name())
+	m.logger.LogCleanupAnalysis(0) // Will be updated with actual count
 
 	// Get a preview of what will be cleaned up by running a dry-run plan
 	// This helps us show what will be deleted before confirming
-	plan, err := mig.Plan(ctx, m.client, false)
+	plan, err := mig.Plan(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to analyze cleanup scope: %w", err)
 	}
 
 	// Estimate cleanup impact from the plan
 	if plan.EstimatedItems == 0 {
-		fmt.Println("No old keys to cleanup.")
+		m.logger.LogNoCleanupNeeded()
 		return nil
 	}
 
+	m.logger.LogCleanupAnalysis(plan.EstimatedItems)
+
 	// Confirm if not auto-approved
 	if !autoApprove && !force {
-		fmt.Printf("\n⚠️  WARNING: This will delete approximately %d old Redis keys.\n", plan.EstimatedItems)
-		fmt.Println("This action cannot be undone.")
-		fmt.Print("\nDo you want to continue? (yes/no): ")
-		var response string
-		fmt.Scanln(&response)
-		if !strings.HasPrefix(strings.ToLower(response), "y") {
-			fmt.Println("Cleanup cancelled.")
+		confirmed, err := m.logger.ConfirmWithWarning(
+			fmt.Sprintf("This will delete approximately %d old Redis keys. This action cannot be undone.", plan.EstimatedItems),
+			"Do you want to continue?",
+		)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			m.logger.LogInfo("cleanup cancelled")
 			return nil
 		}
 	}
 
 	// Acquire lock before cleanup
-	fmt.Printf("\nAcquiring lock for cleanup...\n")
+	m.logger.LogLockAcquiring(fmt.Sprintf("cleanup-%s", mig.Name()))
 	if err := m.acquireLock(ctx, fmt.Sprintf("cleanup-%s", mig.Name())); err != nil {
 		return fmt.Errorf("failed to acquire lock: %w", err)
 	}
-	fmt.Println("Lock acquired successfully")
+	m.logger.LogLockAcquired()
 	defer m.releaseLock(ctx)
 
-	fmt.Printf("Cleaning up old keys from migration %s...\n", mig.Name())
+	m.logger.LogCleanupStart(mig.Name())
 
 	// Run cleanup
 	// Note: We're passing a minimal state object since the full state isn't stored yet
@@ -446,13 +428,12 @@ func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 	}
 
 	// Run cleanup (migration should not handle confirmations)
-	err = mig.Cleanup(ctx, m.client, cleanupState, m.verbose)
+	err = mig.Cleanup(ctx, cleanupState)
 	if err != nil {
 		return fmt.Errorf("cleanup failed: %w", err)
 	}
 
-	fmt.Println("✅ Cleanup completed successfully")
-	fmt.Println("Old keys have been removed.")
+	m.logger.LogCleanupComplete(plan.EstimatedItems) // Using estimated as actual
 
 	return nil
 }
@@ -460,47 +441,47 @@ func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 // Apply executes the migration
 func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
 	// Get the next unapplied migration
-	mig, err := getNextMigration(ctx, m.client)
+	mig, err := m.getNextMigration(ctx)
 	if err != nil {
 		if err.Error() == "all migrations have been applied" {
-			fmt.Println("All migrations have been applied. Nothing to do.")
+			m.logger.LogAllMigrationsApplied()
 			return nil
 		}
 		return err
 	}
 
 	// First show the plan
-	fmt.Println("Planning migration...")
-	plan, err := mig.Plan(ctx, m.client, m.verbose)
+	m.logger.LogInfo("planning migration")
+	plan, err := mig.Plan(ctx)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("  Description: %s\n", plan.Description)
-	fmt.Printf("  Estimated items: %d\n", plan.EstimatedItems)
+	m.logger.LogMigrationPlan(mig.Name(), plan)
 
 	// Confirm if not auto-approved
 	if !autoApprove {
-		fmt.Print("\nDo you want to apply these changes? (yes/no): ")
-		var response string
-		fmt.Scanln(&response)
-		if !strings.HasPrefix(strings.ToLower(response), "y") {
-			fmt.Println("Migration cancelled.")
+		confirmed, err := m.logger.Confirm("Do you want to apply these changes?")
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			m.logger.LogMigrationCancelled()
 			return nil
 		}
 	}
 
 	// Acquire lock before applying migration
-	fmt.Println("\nAcquiring migration lock...")
+	m.logger.LogLockAcquiring("migration")
 	if err := m.acquireLock(ctx, mig.Name()); err != nil {
 		return fmt.Errorf("failed to acquire lock: %w", err)
 	}
-	fmt.Println("Lock acquired successfully")
+	m.logger.LogLockAcquired()
 	defer m.releaseLock(ctx)
 
 	// Apply the migration
-	fmt.Println("Applying migration...")
-	state, err := mig.Apply(ctx, m.client, plan, m.verbose)
+	m.logger.LogMigrationStart(mig.Name())
+	state, err := mig.Apply(ctx, plan)
 	if err != nil {
 		return err
 	}
@@ -510,10 +491,13 @@ func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
 		return fmt.Errorf("failed to mark migration as applied: %w", err)
 	}
 
-	fmt.Printf("Migration completed successfully.\n")
-	fmt.Printf("  Processed items: %d\n", state.Progress.ProcessedItems)
-	fmt.Printf("  Failed items: %d\n", state.Progress.FailedItems)
-	fmt.Printf("  Skipped items: %d\n", state.Progress.SkippedItems)
+	stats := MigrationStats{
+		ProcessedItems: state.Progress.ProcessedItems,
+		FailedItems:    state.Progress.FailedItems,
+		SkippedItems:   state.Progress.SkippedItems,
+		Duration:       "", // TODO: Add duration tracking
+	}
+	m.logger.LogMigrationComplete(mig.Name(), stats)
 	return nil
 }
 
@@ -528,22 +512,24 @@ func isApplied(ctx context.Context, client *redisClientWrapper, name string) boo
 }
 
 // getNextMigration finds the next unapplied migration
-func getNextMigration(ctx context.Context, client *redisClientWrapper) (migration.Migration, error) {
-	migrations := registry.GetAll()
-
+func (m *Migrator) getNextMigration(ctx context.Context) (migration.Migration, error) {
 	// Sort migrations by version
-	var sortedMigrations []migration.Migration
-	for _, m := range migrations {
-		sortedMigrations = append(sortedMigrations, m)
+	type migrationEntry struct {
+		name      string
+		migration migration.Migration
 	}
-	sort.Slice(sortedMigrations, func(i, j int) bool {
-		return sortedMigrations[i].Version() < sortedMigrations[j].Version()
+	var sorted []migrationEntry
+	for name, mig := range m.migrations {
+		sorted = append(sorted, migrationEntry{name: name, migration: mig})
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].migration.Version() < sorted[j].migration.Version()
 	})
 
 	// Find first unapplied
-	for _, m := range sortedMigrations {
-		if !isApplied(ctx, client, m.Name()) {
-			return m, nil
+	for _, entry := range sorted {
+		if !isApplied(ctx, m.client, entry.name) {
+			return entry.migration, nil
 		}
 	}
 
@@ -551,22 +537,24 @@ func getNextMigration(ctx context.Context, client *redisClientWrapper) (migratio
 }
 
 // getLastAppliedMigration finds the most recently applied migration
-func getLastAppliedMigration(ctx context.Context, client *redisClientWrapper) (migration.Migration, error) {
-	migrations := registry.GetAll()
-
+func (m *Migrator) getLastAppliedMigration(ctx context.Context) (migration.Migration, error) {
 	// Sort migrations by version (descending)
-	var sortedMigrations []migration.Migration
-	for _, m := range migrations {
-		sortedMigrations = append(sortedMigrations, m)
+	type migrationEntry struct {
+		name      string
+		migration migration.Migration
 	}
-	sort.Slice(sortedMigrations, func(i, j int) bool {
-		return sortedMigrations[i].Version() > sortedMigrations[j].Version()
+	var sorted []migrationEntry
+	for name, mig := range m.migrations {
+		sorted = append(sorted, migrationEntry{name: name, migration: mig})
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].migration.Version() > sorted[j].migration.Version()
 	})
 
 	// Find last applied
-	for _, m := range sortedMigrations {
-		if isApplied(ctx, client, m.Name()) {
-			return m, nil
+	for _, entry := range sorted {
+		if isApplied(ctx, m.client, entry.name) {
+			return entry.migration, nil
 		}
 	}
 

@@ -11,13 +11,20 @@ import (
 )
 
 // HashTagsMigration migrates from legacy format (tenant:*) to hash-tagged format ({tenant}:*)
-type HashTagsMigration struct{}
+type HashTagsMigration struct {
+	client redis.Client
+	logger migration.Logger
+}
 
 // Ensure HashTagsMigration implements the Migration interface
 var _ migration.Migration = (*HashTagsMigration)(nil)
 
-func New() migration.Migration {
-	return &HashTagsMigration{}
+// New creates a new HashTagsMigration instance
+func New(client redis.Client, logger migration.Logger) *HashTagsMigration {
+	return &HashTagsMigration{
+		client: client,
+		logger: logger,
+	}
 }
 
 func (m *HashTagsMigration) Name() string {
@@ -32,9 +39,9 @@ func (m *HashTagsMigration) Description() string {
 	return "Migrate from legacy format (tenant:*) to hash-tagged format (tenant:{id}:*) for Redis Cluster support"
 }
 
-func (m *HashTagsMigration) Plan(ctx context.Context, client redis.Client, verbose bool) (*migration.Plan, error) {
+func (m *HashTagsMigration) Plan(ctx context.Context) (*migration.Plan, error) {
 	// Find all legacy tenants
-	legacyKeys, err := client.Keys(ctx, "tenant:*").Result()
+	legacyKeys, err := m.client.Keys(ctx, "tenant:*").Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan keys: %w", err)
 	}
@@ -96,21 +103,21 @@ func (m *HashTagsMigration) Plan(ctx context.Context, client redis.Client, verbo
 		},
 	}
 
-	if verbose {
-		fmt.Printf("Found %d tenants to migrate:\n", len(tenants))
-		for i, tenant := range tenantList {
-			if i >= 10 {
-				fmt.Printf("  ... and %d more\n", len(tenantList)-10)
-				break
+	if m.logger != nil {
+		m.logger.LogInfo(fmt.Sprintf("Found %d tenants to migrate", len(tenants)))
+		if m.logger.Verbose() {
+			if len(tenantList) > 10 {
+				m.logger.LogDebug(fmt.Sprintf("First 10 tenants: %v ... and %d more", tenantList[:10], len(tenantList)-10))
+			} else if len(tenantList) > 0 {
+				m.logger.LogDebug(fmt.Sprintf("Tenants: %v", tenantList))
 			}
-			fmt.Printf("  - %s\n", tenant)
 		}
 	}
 
 	return plan, nil
 }
 
-func (m *HashTagsMigration) Apply(ctx context.Context, client redis.Client, plan *migration.Plan, verbose bool) (*migration.State, error) {
+func (m *HashTagsMigration) Apply(ctx context.Context, plan *migration.Plan) (*migration.State, error) {
 	state := &migration.State{
 		MigrationName: m.Name(),
 		Phase:         "applied",
@@ -122,7 +129,7 @@ func (m *HashTagsMigration) Apply(ctx context.Context, client redis.Client, plan
 	}
 
 	// Get all tenant IDs from legacy keys
-	legacyKeys, err := client.Keys(ctx, "tenant:*").Result()
+	legacyKeys, err := m.client.Keys(ctx, "tenant:*").Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan keys: %w", err)
 	}
@@ -140,13 +147,13 @@ func (m *HashTagsMigration) Apply(ctx context.Context, client redis.Client, plan
 	i := 0
 	for tenantID := range tenants {
 		i++
-		if !verbose && i%10 == 0 {
-			fmt.Printf("Progress: %d/%d tenants\n", i, len(tenants))
+		if m.logger != nil {
+			m.logger.LogProgress(i, len(tenants), tenantID)
 		}
 
-		if err := m.migrateTenant(ctx, client, tenantID); err != nil {
-			if verbose {
-				fmt.Printf("❌ Failed to migrate tenant %s: %v\n", tenantID, err)
+		if err := m.migrateTenant(ctx, tenantID); err != nil {
+			if m.logger != nil {
+				m.logger.LogError(fmt.Sprintf("Failed to migrate tenant %s", tenantID), err)
 			}
 			state.Errors = append(state.Errors, fmt.Sprintf("tenant %s: %v", tenantID, err))
 			state.Progress.FailedItems++
@@ -155,8 +162,8 @@ func (m *HashTagsMigration) Apply(ctx context.Context, client redis.Client, plan
 
 		state.Progress.ProcessedItems++
 
-		if verbose {
-			fmt.Printf("  ✓ Migrated tenant: %s\n", tenantID)
+		if m.logger != nil && m.logger.Verbose() {
+			m.logger.LogDebug(fmt.Sprintf("Migrated tenant: %s", tenantID))
 		}
 	}
 
@@ -169,14 +176,14 @@ func (m *HashTagsMigration) Apply(ctx context.Context, client redis.Client, plan
 	return state, nil
 }
 
-func (m *HashTagsMigration) Verify(ctx context.Context, client redis.Client, state *migration.State, verbose bool) (*migration.VerificationResult, error) {
+func (m *HashTagsMigration) Verify(ctx context.Context, state *migration.State) (*migration.VerificationResult, error) {
 	result := &migration.VerificationResult{
 		Valid:   true,
 		Details: make(map[string]string),
 	}
 
 	// Get all legacy tenant keys for spot checking
-	legacyKeys, err := client.Keys(ctx, "tenant:*").Result()
+	legacyKeys, err := m.client.Keys(ctx, "tenant:*").Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan keys for verification: %w", err)
 	}
@@ -201,7 +208,9 @@ func (m *HashTagsMigration) Verify(ctx context.Context, client redis.Client, sta
 		sampleSize = len(tenants) // Check all if less than 20
 	}
 
-	fmt.Printf("Spot checking %d out of %d tenants...\n", sampleSize, len(tenants))
+	if m.logger != nil {
+		m.logger.LogInfo(fmt.Sprintf("Spot checking %d out of %d tenants...", sampleSize, len(tenants)))
+	}
 
 	// Randomly sample tenants to verify
 	// Simple approach: just take first N tenants (could randomize if needed)
@@ -212,22 +221,22 @@ func (m *HashTagsMigration) Verify(ctx context.Context, client redis.Client, sta
 		// 1. Check tenant key
 		tenantPassed := true
 		newTenantKey := fmt.Sprintf("tenant:{%s}:tenant", tenantID)
-		exists, err := client.Exists(ctx, newTenantKey).Result()
+		exists, err := m.client.Exists(ctx, newTenantKey).Result()
 		if err != nil || exists == 0 {
 			result.Valid = false
 			result.Issues = append(result.Issues, fmt.Sprintf("Missing new tenant key: %s", newTenantKey))
 			tenantPassed = false
 		} else {
 			// Verify tenant data integrity
-			oldData, _ := client.HGetAll(ctx, fmt.Sprintf("tenant:%s", tenantID)).Result()
-			newData, _ := client.HGetAll(ctx, newTenantKey).Result()
+			oldData, _ := m.client.HGetAll(ctx, fmt.Sprintf("tenant:%s", tenantID)).Result()
+			newData, _ := m.client.HGetAll(ctx, newTenantKey).Result()
 
 			if len(oldData) != len(newData) {
 				result.Issues = append(result.Issues,
 					fmt.Sprintf("Tenant data mismatch for %s: old has %d fields, new has %d",
 						tenantID, len(oldData), len(newData)))
 				tenantPassed = false
-			} else if verbose {
+			} else if m.logger != nil && m.logger.Verbose() {
 				// Deep check: compare actual values
 				for field, oldValue := range oldData {
 					if newValue, ok := newData[field]; !ok || newValue != oldValue {
@@ -245,14 +254,14 @@ func (m *HashTagsMigration) Verify(ctx context.Context, client redis.Client, sta
 		oldDestSummaryKey := fmt.Sprintf("tenant:%s:destinations", tenantID)
 		newDestSummaryKey := fmt.Sprintf("tenant:{%s}:destinations", tenantID)
 
-		oldDestSummary, _ := client.HGetAll(ctx, oldDestSummaryKey).Result()
+		oldDestSummary, _ := m.client.HGetAll(ctx, oldDestSummaryKey).Result()
 		if len(oldDestSummary) > 0 {
-			exists, err := client.Exists(ctx, newDestSummaryKey).Result()
+			exists, err := m.client.Exists(ctx, newDestSummaryKey).Result()
 			if err != nil || exists == 0 {
 				result.Issues = append(result.Issues, fmt.Sprintf("Missing new destinations summary: %s", newDestSummaryKey))
 				destSummaryPassed = false
 			} else {
-				newDestSummary, _ := client.HGetAll(ctx, newDestSummaryKey).Result()
+				newDestSummary, _ := m.client.HGetAll(ctx, newDestSummaryKey).Result()
 				if len(oldDestSummary) != len(newDestSummary) {
 					result.Issues = append(result.Issues,
 						fmt.Sprintf("Destinations summary mismatch for %s: old has %d, new has %d",
@@ -264,19 +273,19 @@ func (m *HashTagsMigration) Verify(ctx context.Context, client redis.Client, sta
 
 		// 3. Check individual destinations
 		destsPassed := true
-		destIDs, _ := client.HKeys(ctx, oldDestSummaryKey).Result()
+		destIDs, _ := m.client.HKeys(ctx, oldDestSummaryKey).Result()
 		for _, destID := range destIDs {
 			oldDestKey := fmt.Sprintf("tenant:%s:destination:%s", tenantID, destID)
 			newDestKey := fmt.Sprintf("tenant:{%s}:destination:%s", tenantID, destID)
 
-			oldDestData, _ := client.HGetAll(ctx, oldDestKey).Result()
+			oldDestData, _ := m.client.HGetAll(ctx, oldDestKey).Result()
 			if len(oldDestData) > 0 {
-				exists, err := client.Exists(ctx, newDestKey).Result()
+				exists, err := m.client.Exists(ctx, newDestKey).Result()
 				if err != nil || exists == 0 {
 					result.Issues = append(result.Issues, fmt.Sprintf("Missing destination: %s", newDestKey))
 					destsPassed = false
-				} else if verbose {
-					newDestData, _ := client.HGetAll(ctx, newDestKey).Result()
+				} else if m.logger != nil && m.logger.Verbose() {
+					newDestData, _ := m.client.HGetAll(ctx, newDestKey).Result()
 					if len(oldDestData) != len(newDestData) {
 						result.Issues = append(result.Issues,
 							fmt.Sprintf("Destination %s data mismatch: old has %d fields, new has %d",
@@ -300,19 +309,23 @@ func (m *HashTagsMigration) Verify(ctx context.Context, client redis.Client, sta
 	return result, nil
 }
 
-func (m *HashTagsMigration) Cleanup(ctx context.Context, client redis.Client, state *migration.State, verbose bool) error {
+func (m *HashTagsMigration) Cleanup(ctx context.Context, state *migration.State) error {
 	// Get all legacy keys
-	legacyKeys, err := client.Keys(ctx, "tenant:*").Result()
+	legacyKeys, err := m.client.Keys(ctx, "tenant:*").Result()
 	if err != nil {
 		return fmt.Errorf("failed to scan keys: %w", err)
 	}
 
 	if len(legacyKeys) == 0 {
-		fmt.Println("No legacy keys to cleanup.")
+		if m.logger != nil {
+			m.logger.LogInfo("No legacy keys to cleanup.")
+		}
 		return nil
 	}
 
-	fmt.Printf("Found %d legacy keys to remove.\n", len(legacyKeys))
+	if m.logger != nil {
+		m.logger.LogInfo(fmt.Sprintf("Found %d legacy keys to remove.", len(legacyKeys)))
+	}
 
 	// Delete in batches
 	batchSize := 100
@@ -322,29 +335,31 @@ func (m *HashTagsMigration) Cleanup(ctx context.Context, client redis.Client, st
 		end := min(i+batchSize, len(legacyKeys))
 		batch := legacyKeys[i:end]
 
-		if err := client.Del(ctx, batch...).Err(); err != nil {
+		if err := m.client.Del(ctx, batch...).Err(); err != nil {
 			return fmt.Errorf("failed to delete batch: %w", err)
 		}
 
 		deleted += len(batch)
-		if !verbose && deleted%500 == 0 {
-			fmt.Printf("Progress: %d/%d keys deleted\n", deleted, len(legacyKeys))
+		if m.logger != nil && (deleted%500 == 0 || deleted == len(legacyKeys)) {
+			m.logger.LogProgress(deleted, len(legacyKeys), "keys")
 		}
 	}
 
-	fmt.Printf("✅ Cleanup complete! Removed %d legacy keys.\n", deleted)
+	if m.logger != nil {
+		m.logger.LogInfo(fmt.Sprintf("Cleanup complete! Removed %d legacy keys.", deleted))
+	}
 	return nil
 }
 
-func (m *HashTagsMigration) migrateTenant(ctx context.Context, client redis.Client, tenantID string) error {
+func (m *HashTagsMigration) migrateTenant(ctx context.Context, tenantID string) error {
 	// Use transaction for atomic migration
-	pipe := client.TxPipeline()
+	pipe := m.client.TxPipeline()
 
 	// Migrate tenant data
 	oldTenantKey := fmt.Sprintf("tenant:%s", tenantID)
 	newTenantKey := fmt.Sprintf("tenant:{%s}:tenant", tenantID)
 
-	tenantData, err := client.HGetAll(ctx, oldTenantKey).Result()
+	tenantData, err := m.client.HGetAll(ctx, oldTenantKey).Result()
 	if err == nil && len(tenantData) > 0 {
 		pipe.HMSet(ctx, newTenantKey, tenantData)
 	}
@@ -353,17 +368,17 @@ func (m *HashTagsMigration) migrateTenant(ctx context.Context, client redis.Clie
 	oldDestKey := fmt.Sprintf("tenant:%s:destinations", tenantID)
 	newDestKey := fmt.Sprintf("tenant:{%s}:destinations", tenantID)
 
-	destData, err := client.HGetAll(ctx, oldDestKey).Result()
+	destData, err := m.client.HGetAll(ctx, oldDestKey).Result()
 	if err == nil && len(destData) > 0 {
 		pipe.HMSet(ctx, newDestKey, destData)
 
 		// Migrate individual destinations
-		destIDs, _ := client.HKeys(ctx, oldDestKey).Result()
+		destIDs, _ := m.client.HKeys(ctx, oldDestKey).Result()
 		for _, destID := range destIDs {
 			oldKey := fmt.Sprintf("tenant:%s:destination:%s", tenantID, destID)
 			newKey := fmt.Sprintf("tenant:{%s}:destination:%s", tenantID, destID)
 
-			data, err := client.HGetAll(ctx, oldKey).Result()
+			data, err := m.client.HGetAll(ctx, oldKey).Result()
 			if err == nil && len(data) > 0 {
 				pipe.HMSet(ctx, newKey, data)
 			}

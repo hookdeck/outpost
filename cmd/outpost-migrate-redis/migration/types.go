@@ -3,8 +3,6 @@ package migration
 import (
 	"context"
 	"time"
-
-	"github.com/hookdeck/outpost/internal/redis"
 )
 
 // Migration defines the interface that all migrations must implement
@@ -20,17 +18,17 @@ type Migration interface {
 	Description() string
 
 	// Plan analyzes the current state and returns a migration plan
-	Plan(ctx context.Context, client redis.Client, verbose bool) (*Plan, error)
+	Plan(ctx context.Context) (*Plan, error)
 
 	// Apply executes the migration based on the plan
-	Apply(ctx context.Context, client redis.Client, plan *Plan, verbose bool) (*State, error)
+	Apply(ctx context.Context, plan *Plan) (*State, error)
 
 	// Verify validates that the migration was successful
-	Verify(ctx context.Context, client redis.Client, state *State, verbose bool) (*VerificationResult, error)
+	Verify(ctx context.Context, state *State) (*VerificationResult, error)
 
 	// Cleanup removes old data after successful verification
 	// Should not prompt for confirmation - that's handled by the CLI
-	Cleanup(ctx context.Context, client redis.Client, state *State, verbose bool) error
+	Cleanup(ctx context.Context, state *State) error
 }
 
 // Plan represents a migration plan
@@ -72,39 +70,4 @@ type VerificationResult struct {
 	Details      map[string]string `json:"details,omitempty"`
 }
 
-// Registry manages available migrations
-type Registry struct {
-	migrations map[string]Migration
-}
-
-// NewRegistry creates a new migration registry
-func NewRegistry() *Registry {
-	return &Registry{
-		migrations: make(map[string]Migration),
-	}
-}
-
-// Register adds a migration to the registry
-func (r *Registry) Register(m Migration) {
-	r.migrations[m.Name()] = m
-}
-
-// Get retrieves a migration by name
-func (r *Registry) Get(name string) (Migration, bool) {
-	m, ok := r.migrations[name]
-	return m, ok
-}
-
-// List returns all registered migration names
-func (r *Registry) List() []string {
-	names := make([]string, 0, len(r.migrations))
-	for name := range r.migrations {
-		names = append(names, name)
-	}
-	return names
-}
-
-// GetAll returns all registered migrations
-func (r *Registry) GetAll() map[string]Migration {
-	return r.migrations
-}
+// No registry needed - migrations are created directly in the Migrator

@@ -54,6 +54,11 @@ func NewCommand() *cli.Command {
 				Name:  "verbose",
 				Usage: "Enable verbose output",
 			},
+			&cli.StringFlag{
+				Name:  "log-format",
+				Usage: "Log format (text, json)",
+				Value: "text",
+			},
 		},
 		Commands: []*cli.Command{
 			{
@@ -66,33 +71,27 @@ func NewCommand() *cli.Command {
 					},
 				},
 				Action: func(ctx context.Context, c *cli.Command) error {
-					migrator, err := initMigrator(c)
-					if err != nil {
-						return err
-					}
-					return migrator.Init(ctx, c.Bool("current"))
+					return withMigrator(ctx, c, func(migrator *Migrator) error {
+						return migrator.Init(ctx, c.Bool("current"))
+					})
 				},
 			},
 			{
 				Name:  "list",
 				Usage: "List available migrations",
 				Action: func(ctx context.Context, c *cli.Command) error {
-					migrator, err := initMigrator(c)
-					if err != nil {
-						return err
-					}
-					return migrator.ListMigrations()
+					return withMigrator(ctx, c, func(migrator *Migrator) error {
+						return migrator.ListMigrations()
+					})
 				},
 			},
 			{
 				Name:  "plan",
 				Usage: "Show what changes would be made without applying them",
 				Action: func(ctx context.Context, c *cli.Command) error {
-					migrator, err := initMigrator(c)
-					if err != nil {
-						return err
-					}
-					return migrator.Plan(ctx)
+					return withMigrator(ctx, c, func(migrator *Migrator) error {
+						return migrator.Plan(ctx)
+					})
 				},
 			},
 			{
@@ -106,22 +105,18 @@ func NewCommand() *cli.Command {
 					},
 				},
 				Action: func(ctx context.Context, c *cli.Command) error {
-					migrator, err := initMigrator(c)
-					if err != nil {
-						return err
-					}
-					return migrator.Apply(ctx, c.Bool("yes"))
+					return withMigrator(ctx, c, func(migrator *Migrator) error {
+						return migrator.Apply(ctx, c.Bool("yes"))
+					})
 				},
 			},
 			{
 				Name:  "verify",
 				Usage: "Verify that a migration was successful",
 				Action: func(ctx context.Context, c *cli.Command) error {
-					migrator, err := initMigrator(c)
-					if err != nil {
-						return err
-					}
-					return migrator.Verify(ctx)
+					return withMigrator(ctx, c, func(migrator *Migrator) error {
+						return migrator.Verify(ctx)
+					})
 				},
 			},
 			{
@@ -140,11 +135,9 @@ func NewCommand() *cli.Command {
 					},
 				},
 				Action: func(ctx context.Context, c *cli.Command) error {
-					migrator, err := initMigrator(c)
-					if err != nil {
-						return err
-					}
-					return migrator.Cleanup(ctx, c.Bool("force"), c.Bool("yes"))
+					return withMigrator(ctx, c, func(migrator *Migrator) error {
+						return migrator.Cleanup(ctx, c.Bool("force"), c.Bool("yes"))
+					})
 				},
 			},
 			{
@@ -158,11 +151,9 @@ func NewCommand() *cli.Command {
 					},
 				},
 				Action: func(ctx context.Context, c *cli.Command) error {
-					migrator, err := initMigrator(c)
-					if err != nil {
-						return err
-					}
-					return migrator.Unlock(ctx, c.Bool("yes"))
+					return withMigrator(ctx, c, func(migrator *Migrator) error {
+						return migrator.Unlock(ctx, c.Bool("yes"))
+					})
 				},
 			},
 		},
@@ -173,18 +164,44 @@ func NewCommand() *cli.Command {
 	}
 }
 
-// initMigrator creates a migrator instance from command context
-func initMigrator(c *cli.Command) (*Migrator, error) {
-	verbose := c.Bool("verbose")
+// withMigrator creates a migrator instance, runs the function, and cleans up
+func withMigrator(ctx context.Context, c *cli.Command, fn func(*Migrator) error) error {
 	loader := NewConfigLoader()
 	cfg, err := loader.LoadConfig(c)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	if verbose {
-		loader.printRedisConfig(&cfg.Redis)
+	// Create appropriate logger based on context
+	logger, err := CreateMigrationLogger(c, cfg)
+	if err != nil {
+		return err
 	}
 
-	return NewMigrator(cfg, verbose)
+	// Log Redis config if verbose
+	rc := &cfg.Redis
+	logger.LogRedisConfig(
+		rc.Host,
+		rc.Port,
+		rc.Database,
+		rc.ClusterEnabled,
+		rc.TLSEnabled,
+		rc.Password != "",
+	)
+
+	// Create migrator
+	migrator, err := NewMigrator(cfg, logger)
+	if err != nil {
+		return err
+	}
+
+	// Ensure cleanup happens
+	defer func() {
+		if closeErr := migrator.Close(); closeErr != nil {
+			// Log error but don't override the main error
+			logger.LogWarning("Failed to close migrator: " + closeErr.Error())
+		}
+	}()
+
+	return fn(migrator)
 }

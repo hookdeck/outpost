@@ -95,28 +95,6 @@ func (cl *ConfigLoader) validateRedisConfig(rc *config.RedisConfig) error {
 	return nil
 }
 
-// printRedisConfig prints the Redis configuration (with password masked)
-func (cl *ConfigLoader) printRedisConfig(rc *config.RedisConfig) {
-	fmt.Println("Redis Configuration:")
-	fmt.Printf("  Host: %s\n", rc.Host)
-	fmt.Printf("  Port: %d\n", rc.Port)
-	fmt.Printf("  Database: %d\n", rc.Database)
-	fmt.Printf("  Cluster Enabled: %v\n", rc.ClusterEnabled)
-	fmt.Printf("  TLS Enabled: %v\n", rc.TLSEnabled)
-
-	// Mask password for security
-	if rc.Password != "" {
-		fmt.Printf("  Password: ****** (length: %d)\n", len(rc.Password))
-	} else {
-		fmt.Printf("  Password: (not set)\n")
-	}
-
-	if rc.ClusterEnabled && rc.DevClusterHostOverride {
-		fmt.Printf("  Dev Cluster Host Override: %v (WARNING: Dev only!)\n", rc.DevClusterHostOverride)
-	}
-	fmt.Println()
-}
-
 // defaultOSImpl implements OSInterface for config loading
 type defaultOSImpl struct{}
 
