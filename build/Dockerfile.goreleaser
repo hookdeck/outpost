@@ -1,3 +1,17 @@
-FROM gcr.io/distroless/base
-COPY outpost outpost
-ENTRYPOINT ["./outpost", "serve"]
+FROM busybox:1.36-musl AS busybox
+
+FROM gcr.io/distroless/base-debian12:nonroot
+
+# Copy statically linked shell from busybox for entrypoint script
+COPY --from=busybox /bin/sh /bin/sh
+
+# Copy all binaries
+COPY outpost /usr/local/bin/outpost
+COPY outpost-server /usr/local/bin/outpost-server
+COPY outpost-migrate-redis /usr/local/bin/outpost-migrate-redis
+
+# Copy entrypoint script
+COPY build/entrypoint.sh /usr/local/bin/entrypoint.sh
+
+# Default entrypoint runs migrations and starts server
+ENTRYPOINT ["/bin/sh", "/usr/local/bin/entrypoint.sh"]
