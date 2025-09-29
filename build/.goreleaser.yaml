@@ -7,6 +7,11 @@ before:
 
 project_name: outpost
 
+git:
+  # Ignore SDK tags when determining version
+  ignore_tags:
+    - 'sdks/*'
+
 builds:
   # Orchestrator binary
   - id: outpost
