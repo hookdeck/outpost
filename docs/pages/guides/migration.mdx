@@ -2,9 +2,9 @@
 title: "Schema Migration Guide"
 ---
 
-Outpost stores tenant, destination, event, and delivery data across various backends including Redis, Postgres, ClickHouse, and more. When upgrading Outpost, we handle data migrations automatically during startup whenever possible. However, some migrations require manual intervention due to their complexity or impact. For these cases, we provide the `outpost migrate` tool.
+Outpost stores tenant, destination, event, and delivery data using configurable storage backends. You can choose from various options including Redis, Postgres, ClickHouse, and more, depending on your infrastructure and requirements.
 
-This guide covers the `outpost migrate` tool for manual migrations.
+When upgrading Outpost, we handle data migrations automatically during startup whenever possible. However, some migrations require manual intervention due to their complexity or impact. For these cases, we provide the `outpost migrate` tool.
 
 ## Migration Tool
 
