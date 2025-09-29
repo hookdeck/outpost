@@ -9,6 +9,9 @@ build:
 	go build -o bin/outpost-migrate-redis ./cmd/outpost-migrate-redis
 	@echo "Binaries built in ./bin/"
 
+build/goreleaser:
+	goreleaser release -f ./build/.goreleaser.yaml --snapshot --clean
+
 build/outpost:
 	go build -o bin/outpost ./cmd/outpost
 
