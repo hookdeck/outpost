@@ -1,0 +1,158 @@
+---
+title: "Schema Migration Guide"
+---
+
+Outpost stores tenant, destination, event, and delivery data across various backends including Redis, Postgres, ClickHouse, and more. When upgrading Outpost, we handle data migrations automatically during startup whenever possible. However, some migrations require manual intervention due to their complexity or impact. For these cases, we provide the `outpost migrate` tool.
+
+This guide covers the `outpost migrate` tool for manual migrations.
+
+## Migration Tool
+
+The migration tool is delivered as part of the `outpost` CLI. Given that Outpost is primarily distributed as a Docker image, running the migration tool via Docker is the easiest approach. This guide uses Docker for all examples.
+
+Ensure you're using the correct version by specifying the Docker tag:
+
+```bash
+# Use a specific version tag
+docker run --rm hookdeck/outpost:v1.2.3 --version
+
+# Or use latest (verify the version before running migrations)
+docker run --rm hookdeck/outpost:latest --version
+```
+
+## Migration Workflow
+
+When Outpost starts up, it can automatically check and run migrations using `migrate init --current --log-format=json`. However, for production environments with critical data, manual migration using the steps below is recommended.
+
+### Execute a Migration
+
+#### Step 1: Plan the Migration
+
+Review what changes will be made without applying them:
+
+```bash
+docker run --rm hookdeck/outpost migrate plan
+```
+
+#### Step 2: Apply the Migration
+
+Execute the migration (creates new structures, preserves old ones):
+
+```bash
+docker run --rm -it hookdeck/outpost migrate apply
+```
+
+:::info
+The `-it` flags enable interactive mode for confirmation prompts. Add `--yes` to skip confirmations in automated environments.
+:::
+
+#### Step 3: Verify the Migration
+
+After applying the migration, verify that data was migrated correctly:
+
+```bash
+docker run --rm hookdeck/outpost migrate verify
+```
+
+This performs spot-checks on a sample of migrated data to ensure integrity. Additionally, test your application to ensure it works correctly with the migrated data:
+
+- Run your test suite
+- Verify critical workflows
+- Monitor for any errors
+
+#### Step 4: Cleanup Old Data
+
+Once verified, remove the old data structures:
+
+```bash
+docker run --rm -it hookdeck/outpost migrate cleanup
+```
+
+:::warning
+Cleanup is irreversible. Ensure thorough testing before running cleanup as this removes all rollback capability.
+:::
+
+## Safety Features
+
+### Migration Locks
+
+Migrations use distributed locks to prevent concurrent execution:
+
+- Only one migration can run at a time across all instances
+- Locks expire after 1 hour to prevent deadlocks
+- Force-unlock available if a migration process crashes using:
+
+```bash
+docker run --rm -it hookdeck/outpost migrate unlock --yes
+```
+
+### Non-Destructive Application
+
+The Apply phase creates new data structures without removing old ones:
+
+- Allows rollback by pointing application back to old structures
+- Provides time for thorough testing
+- Cleanup is an explicit separate step
+
+### Automatic Verification
+
+Cleanup operations require successful verification by default:
+
+- Prevents accidental data loss
+- Can be overridden with `--force` flag (use with caution)
+
+## Configuration
+
+The `outpost` CLI tool uses the same configuration as Outpost itself. Configuration can be provided through environment variables, a configuration file (using `--config` flag), or CLI flags (e.g., `--redis-host`, `--redis-password`).
+
+For example, common Redis configurations:
+
+```bash
+# Environment variables
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=your-password
+REDIS_DATABASE=0
+REDIS_CLUSTER_ENABLED=true
+```
+
+```yaml
+# Configuration file
+redis:
+  host: localhost
+  port: 6379
+  password: your-password
+  cluster_enabled: false
+```
+
+For a complete list of configuration options, see the [Configuration Reference](/references/configuration).
+
+## Troubleshooting
+
+### Migration Locked
+
+If a migration fails and leaves a lock:
+
+```bash
+# View lock status
+docker run --rm hookdeck/outpost migrate status
+
+# Force unlock (ensure no migration is actually running)
+docker run --rm -it hookdeck/outpost migrate unlock --yes
+```
+
+### Failed Migration
+
+If a migration fails during application:
+
+1. Check the error logs for specific issues
+2. The migration can be safely retried (idempotent)
+3. Partial progress is preserved between attempts
+
+### Rollback Before Cleanup
+
+If issues are discovered after applying but before cleanup:
+
+1. Stop using the new Outpost version
+2. Deploy the previous version (will use old data structures)
+3. Debug and resolve issues before retrying
