@@ -45,7 +45,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup retry scheduler
-	retryScheduler := deliverymq.NewRetryScheduler(s.deliveryMQ, testutil.CreateTestRedisConfig(t))
+	retryScheduler := deliverymq.NewRetryScheduler(s.deliveryMQ, testutil.CreateTestRedisConfig(t), testutil.CreateTestLogger(t))
 	require.NoError(t, retryScheduler.Init(s.ctx))
 	go retryScheduler.Monitor(s.ctx)
 

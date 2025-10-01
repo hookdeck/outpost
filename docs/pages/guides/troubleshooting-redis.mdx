@@ -1,0 +1,200 @@
+# Redis Troubleshooting Guide
+
+This guide helps troubleshoot common Redis connectivity issues with Outpost, particularly when using clustered Redis configurations.
+
+## Common Redis Issues
+
+### EXECABORT Transaction discarded because of previous errors
+
+**Symptoms**: 
+- Outpost fails to start with `EXECABORT Transaction discarded because of previous errors`
+- Error occurs during scheduler initialization
+- Services crash after successful Redis client creation
+
+**Cause**: This error typically occurs when:
+1. Using clustered Redis without enabling cluster mode in Outpost
+2. Redis clustering constraints are violated in Lua scripts
+3. Keys in Redis transactions don't hash to the same slot
+
+**Solutions**:
+
+#### For clustered Redis (Azure Managed Redis, Redis Enterprise, etc.):
+```bash
+# Ensure cluster mode is enabled
+REDIS_CLUSTER_ENABLED=true
+REDIS_TLS_ENABLED=true
+REDIS_HOST="your-cluster-redis-host"
+REDIS_PORT=10000
+```
+
+#### For single-node Redis (local development, Azure Cache for Redis, etc.):
+```bash
+# Use single-node mode
+REDIS_CLUSTER_ENABLED=false
+REDIS_TLS_ENABLED=true  # Enable if required by your Redis service
+REDIS_HOST="your-redis-host"
+REDIS_PORT=6380
+```
+
+### Connection Reset by Peer
+
+**Symptoms**:
+- `read: connection reset by peer` errors
+- Connection failures during TLS handshake
+- Intermittent Redis connectivity issues
+
+**Cause**: Usually related to TLS configuration or network connectivity.
+
+**Solutions**:
+
+#### Check TLS Configuration:
+```bash
+# For managed Redis services, enable TLS
+REDIS_TLS_ENABLED=true
+
+# For local development, disable TLS
+REDIS_TLS_ENABLED=false
+```
+
+#### Verify Network Connectivity:
+```bash
+# Test basic connectivity
+telnet your-redis-host 6380
+
+# Test with redis-cli (if available)
+redis-cli -h your-redis-host -p 6380 --tls ping
+```
+
+### Mismatched Message Response Type
+
+**Symptoms**:
+- Error: `mismatched message response type`
+- RSMQ operations failing
+- Scheduler monitor errors
+
+**Cause**: Type assertion issues between different Redis client types or versions.
+
+**Solution**: This issue has been resolved in recent versions. Ensure you're using the latest Outpost version.
+
+## Redis Diagnostic Tool
+
+Outpost includes a redis-debug tool for testing Redis connectivity:
+
+```bash
+# Using Makefile (recommended)
+make redis/debug ARGS="localhost 6379 password 0"
+make redis/debug ARGS="your-redis.cache.windows.net 6380 password 0 true"
+make redis/debug ARGS="your-redis.redisenterprise.cache.azure.net 10000 password 0 true cluster"
+
+# Using go run directly
+go run cmd/redis-debug/main.go localhost 6379 password 0
+go run cmd/redis-debug/main.go your-redis.cache.windows.net 6380 password 0 true
+go run cmd/redis-debug/main.go your-redis.redisenterprise.cache.azure.net 10000 password 0 true cluster
+
+# Build and use binary
+go build -o redis-debug cmd/redis-debug/main.go
+./redis-debug your-redis.cache.windows.net 6380 password 0 true
+```
+
+**Example Output**:
+```
+=== Redis Client Mode: CLUSTER ===
+
+=== Redis Cluster Connectivity Test ===
+✅ PING: PONG
+✅ TIME: 2025-08-21 22:15:30.123456 +0100 BST
+
+=== RSMQ Key Analysis ===
+ℹ️  rsmq:deliverymq-retry:Q: Does not exist
+ℹ️  rsmq:deliverymq-retry: Does not exist  
+ℹ️  rsmq:QUEUES: Does not exist
+
+=== HSETNX Test ===
+✅ HSETNX result: true
+
+=== Transaction Test ===
+✅ Transaction succeeded with 3 results
+
+✅ Redis diagnostic complete!
+```
+
+## Configuration Examples
+
+### Azure Managed Redis (Clustered)
+```bash
+REDIS_HOST="outpost-redis.westeurope.redisenterprise.cache.azure.net"
+REDIS_PORT=10000
+REDIS_PASSWORD="your-enterprise-password"
+REDIS_DATABASE=0  # Ignored in cluster mode
+REDIS_TLS_ENABLED=true
+REDIS_CLUSTER_ENABLED=true
+```
+
+### Azure Cache for Redis (Single-node)
+```bash
+REDIS_HOST="outpost-cache.redis.cache.windows.net"
+REDIS_PORT=6380
+REDIS_PASSWORD="your-cache-password"
+REDIS_DATABASE=0
+REDIS_TLS_ENABLED=true
+REDIS_CLUSTER_ENABLED=false
+```
+
+### Local Development
+```bash
+REDIS_HOST="localhost"
+REDIS_PORT=6379
+REDIS_PASSWORD=""
+REDIS_DATABASE=0
+REDIS_TLS_ENABLED=false
+REDIS_CLUSTER_ENABLED=false
+```
+
+### Self-Hosted Redis Cluster
+```bash
+REDIS_HOST="redis-cluster-node1.example.com"
+REDIS_PORT=7000
+REDIS_PASSWORD="cluster-password"
+REDIS_DATABASE=0  # Ignored in cluster mode
+REDIS_TLS_ENABLED=true
+REDIS_CLUSTER_ENABLED=true
+```
+
+## Performance Considerations
+
+### Azure Managed Redis vs Azure Cache for Redis
+
+| Feature | Azure Cache for Redis | Azure Managed Redis |
+|---------|----------------------|---------------------|
+| Performance | Standard | Up to 15x faster |
+| Redis Version | Older versions | Redis 7.4+ |
+| Clustering | Limited | Enterprise clustering |
+| TLS | Optional | Default |
+| Modern Features | Basic | JSON, vector, time series |
+| Pricing | Higher | More cost-effective |
+
+### Connection Pool Settings
+
+For high-throughput applications, consider tuning Redis connection settings:
+
+```bash
+# Optional advanced settings (not required for most deployments)
+# REDIS_MAX_RETRIES=3
+# REDIS_MIN_IDLE_CONNS=10
+# REDIS_POOL_SIZE=100
+```
+
+## Getting Help
+
+If you continue to experience Redis connectivity issues:
+
+1. **Check the diagnostic tool output** for specific error details
+2. **Verify network connectivity** to your Redis instance
+3. **Confirm TLS and cluster settings** match your Redis service
+4. **Review Redis service logs** in your cloud provider console
+5. **Test with redis-cli** to isolate Outpost-specific issues
+
+For additional support, please [open an issue](https://github.com/hookdeck/outpost/issues) with:
+- Your Redis configuration (without passwords)
+- Error messages and logs
+- Output from the redis-debug diagnostic tool

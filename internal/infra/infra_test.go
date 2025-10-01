@@ -71,7 +71,7 @@ func newTestInfra(t *testing.T, provider infra.InfraProvider, lockKey string) *i
 }
 
 // Helper to create test infra with specific Redis client
-func newTestInfraWithRedis(t *testing.T, provider infra.InfraProvider, lockKey string, client *redis.Client) *infra.Infra {
+func newTestInfraWithRedis(t *testing.T, provider infra.InfraProvider, lockKey string, client redis.Cmdable) *infra.Infra {
 	lock := infra.NewRedisLock(client, infra.LockWithKey(lockKey))
 	return infra.NewInfraWithProvider(lock, provider)
 }
@@ -179,7 +179,7 @@ func TestInfra_LockExpiry(t *testing.T) {
 		Password: "",
 		Database: 0,
 	}
-	client, err := redis.New(ctx, redisConfig)
+	client, err := redis.NewClient(ctx, redisConfig)
 	require.NoError(t, err)
 
 	// Create and acquire lock with 1 second TTL

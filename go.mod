@@ -19,6 +19,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.58.3
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.3
 	github.com/aws/smithy-go v1.22.4
+	github.com/brianvoe/gofakeit/v6 v6.28.0
 	github.com/caarlos0/env/v9 v9.0.0
 	github.com/getsentry/sentry-go v0.31.1
 	github.com/getsentry/sentry-go/gin v0.31.1
@@ -30,6 +31,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.18.2
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
+	github.com/hookdeck/outpost/sdks/outpost-go v0.4.0
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/jmespath/go-jmespath v0.4.0
 	github.com/joho/godotenv v1.5.1
@@ -48,6 +50,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.36.0
 	github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.36.0
 	github.com/uptrace/opentelemetry-go-extra/otelzap v0.3.1
+	github.com/urfave/cli/v3 v3.4.1
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.53.0
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.5.0
@@ -125,6 +128,7 @@ require (
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/ericlagergren/decimal v0.0.0-20221120152707-495c53812d05 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.4 // indirect

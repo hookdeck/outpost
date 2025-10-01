@@ -25,11 +25,11 @@ import (
 
 // S3Consumer implements testsuite.MessageConsumer
 type S3Consumer struct {
-	client    *s3.Client
-	bucket    string
-	msgChan   chan testsuite.Message
-	done      chan struct{}
-	seenKeys  map[string]bool
+	client   *s3.Client
+	bucket   string
+	msgChan  chan testsuite.Message
+	done     chan struct{}
+	seenKeys map[string]bool
 }
 
 func NewS3Consumer(client *s3.Client, bucket string) *S3Consumer {
@@ -60,7 +60,7 @@ func (c *S3Consumer) consume() {
 
 func (c *S3Consumer) pollS3() {
 	ctx := context.Background()
-	
+
 	// List all objects
 	result, err := c.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket: aws.String(c.bucket),
@@ -71,7 +71,7 @@ func (c *S3Consumer) pollS3() {
 
 	for _, obj := range result.Contents {
 		key := *obj.Key
-		
+
 		// Skip if we've already seen this object
 		if c.seenKeys[key] {
 			continue
@@ -164,7 +164,7 @@ func (s *S3PublishSuite) SetupSuite() {
 
 	// Get LocalStack endpoint
 	endpoint := testinfra.EnsureLocalStack()
-	
+
 	// Set AWS environment variables for LocalStack
 	// The AWS SDK v2 will pick these up automatically
 	os.Setenv("AWS_ENDPOINT_URL_S3", endpoint)
@@ -175,7 +175,7 @@ func (s *S3PublishSuite) SetupSuite() {
 		os.Unsetenv("AWS_S3_ENDPOINT")
 		os.Unsetenv("AWS_ENDPOINT_URL")
 	})
-	
+
 	// Create S3 client for test consumer
 	ctx := context.Background()
 	cfg, err := config.LoadDefaultConfig(ctx,
@@ -183,22 +183,22 @@ func (s *S3PublishSuite) SetupSuite() {
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("test", "test", "")),
 	)
 	require.NoError(t, err)
-	
+
 	s.client = s3.NewFromConfig(cfg, func(o *s3.Options) {
 		o.UsePathStyle = true // Required for LocalStack
 	})
-	
+
 	// Create a unique bucket for this test
 	s.bucket = fmt.Sprintf("test-bucket-%s", uuid.New().String())
 	_, err = s.client.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket: aws.String(s.bucket),
 	})
 	require.NoError(t, err)
-	
+
 	// Create provider
 	provider, err := destawss3.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
-	
+
 	// Create destination configuration
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("aws_s3"),
@@ -214,12 +214,12 @@ func (s *S3PublishSuite) SetupSuite() {
 			"secret": "test",
 		}),
 	)
-	
+
 	// Create consumer
 	consumer := NewS3Consumer(s.client, s.bucket)
 	s.consumer = consumer
-	
-	// Initialize suite 
+
+	// Initialize suite
 	s.InitSuite(testsuite.Config{
 		Provider: provider,
 		Dest:     &dest,
@@ -232,11 +232,11 @@ func (s *S3PublishSuite) TearDownSuite() {
 	if s.consumer != nil {
 		s.consumer.Close()
 	}
-	
+
 	// Clean up bucket
 	if s.client != nil && s.bucket != "" {
 		ctx := context.Background()
-		
+
 		// Delete all objects first
 		listResult, err := s.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 			Bucket: aws.String(s.bucket),
@@ -249,7 +249,7 @@ func (s *S3PublishSuite) TearDownSuite() {
 				})
 			}
 		}
-		
+
 		// Delete bucket
 		s.client.DeleteBucket(ctx, &s3.DeleteBucketInput{
 			Bucket: aws.String(s.bucket),

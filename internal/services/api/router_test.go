@@ -31,7 +31,7 @@ func testRouterWithCHDB(t *testing.T, config *clickhouse.ClickHouseConfig) click
 	return chDB
 }
 
-func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *testing.T) clickhouse.DB) (http.Handler, *logging.Logger, *redis.Client) {
+func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *testing.T) clickhouse.DB) (http.Handler, *logging.Logger, redis.Client) {
 	gin.SetMode(gin.TestMode)
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
@@ -74,7 +74,7 @@ func setupTestLogStore(t *testing.T, funcs ...func(t *testing.T) clickhouse.DB) 
 	return logStore
 }
 
-func setupTestEntityStore(_ *testing.T, redisClient *redis.Client, cipher models.Cipher) models.EntityStore {
+func setupTestEntityStore(_ *testing.T, redisClient redis.Client, cipher models.Cipher) models.EntityStore {
 	if cipher == nil {
 		cipher = models.NewAESCipher("secret")
 	}
