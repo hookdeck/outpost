@@ -171,6 +171,11 @@ const config: ZudokuConfig = {
             label: "Redis Troubleshooting",
             id: "guides/troubleshooting-redis",
           },
+          {
+            type: "doc",
+            label: "Schema Migration",
+            id: "guides/migration",
+          },
         ],
       },
       {

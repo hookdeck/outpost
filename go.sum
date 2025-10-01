@@ -1295,6 +1295,8 @@ github.com/uptrace/opentelemetry-go-extra/otelutil v0.3.1 h1:Suvl9fe12MM0oi8/rcG
 github.com/uptrace/opentelemetry-go-extra/otelutil v0.3.1/go.mod h1:aiX/F5+EYbY2ed2OQEYRXzMcNGvI9pip5gW2ZtBDers=
 github.com/uptrace/opentelemetry-go-extra/otelzap v0.3.1 h1:0iCp8hx3PFhGihubKHxyOCdIlIPxzUr0VsK+rvlMGdk=
 github.com/uptrace/opentelemetry-go-extra/otelzap v0.3.1/go.mod h1:FXrjpUJDqwqofvXWG3YNxQwhg2876tUpZASj8VvOMAM=
+github.com/urfave/cli/v3 v3.4.1 h1:1M9UOCy5bLmGnuu1yn3t3CB4rG79Rtoxuv1sPhnm6qM=
+github.com/urfave/cli/v3 v3.4.1/go.mod h1:FJSKtM/9AiiTOJL4fJ6TbMUkxBXn7GO9guZqoZtpYpo=
 github.com/xdg-go/pbkdf2 v1.0.0/go.mod h1:jrpuAogTd400dnrH08LKmI/xc1MbPOebTwRqcT5RDeI=
 github.com/xdg-go/scram v1.1.1/go.mod h1:RaEWvsqvNKKvBPvcKeFjrG2cJqOkHTiyTpzz23ni57g=
 github.com/xdg-go/stringprep v1.0.3/go.mod h1:W3f5j4i+9rC0kuIEJL0ky1VpHXQU3ocBgklLGvcBnW8=

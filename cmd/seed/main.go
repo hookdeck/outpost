@@ -26,10 +26,10 @@ var (
 )
 
 type seedStats struct {
-	mu                sync.Mutex
-	tenantsCreated    int
+	mu                  sync.Mutex
+	tenantsCreated      int
 	destinationsCreated int
-	errors           []string
+	errors              []string
 }
 
 func (s *seedStats) addTenant() {
@@ -211,7 +211,7 @@ func createDestination(ctx context.Context, client *outpost.Outpost, tenantID st
 	// Keep it simple - only create webhook destinations
 	destCreate := components.DestinationCreate{
 		DestinationCreateWebhook: &components.DestinationCreateWebhook{
-			Type: components.DestinationCreateWebhookTypeWebhook,
+			Type:   components.DestinationCreateWebhookTypeWebhook,
 			Topics: generateTopics(),
 			Config: components.WebhookConfig{
 				URL: fmt.Sprintf("https://mock.hookdeck.com/%s", gofakeit.UUID()),
