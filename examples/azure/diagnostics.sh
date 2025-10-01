@@ -194,6 +194,23 @@ run_api_tests() {
     fi
     echo "   -> ✅ Tenant created."
 
+    echo "   (Checking configured topics...)"
+    topics_response=$(curl -s -w "\n%{http_code}" -X GET "$base_url/api/v1/$TENANT_ID/topics" \
+    -H "Authorization: Bearer $API_KEY")
+    
+    topics_http_code=$(echo "$topics_response" | tail -n1)
+    topics_body=$(echo "$topics_response" | sed '$d')
+    
+    if [ "$topics_http_code" = "200" ]; then
+        if [ -n "$topics_body" ] && [ "$topics_body" != "[]" ] && [ "$topics_body" != "null" ]; then
+            echo "   -> ℹ️  Configured topics: $topics_body"
+        else
+            echo "   -> ℹ️  No topic restrictions configured (all topics allowed)"
+        fi
+    else
+        echo "   -> ⚠️  Could not fetch topics (HTTP $topics_http_code)"
+    fi
+
     echo "   (Creating webhook destination...)"
     DESTINATION_ID=$(curl -sf -X POST "$base_url/api/v1/$TENANT_ID/destinations" \
     -H "Content-Type: application/json" \
@@ -211,11 +228,24 @@ run_api_tests() {
     echo "   -> ✅ Webhook destination created."
 
     echo "   (Publishing test event...)"
-    if ! curl -sf -X POST "$base_url/api/v1/publish" \
+    publish_response=$(curl -s -w "\n%{http_code}" -X POST "$base_url/api/v1/publish" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $API_KEY" \
-    -d "{\"tenant_id\":\"$TENANT_ID\",\"topic\":\"diagnostics.test\",\"data\":{\"hello\":\"world\",\"source\":\"$event_source\"}}" >/dev/null; then
+    -d "{\"tenant_id\":\"$TENANT_ID\",\"topic\":\"diagnostics.test\",\"data\":{\"hello\":\"world\",\"source\":\"$event_source\"}}")
+    
+    publish_http_code=$(echo "$publish_response" | tail -n1)
+    publish_body=$(echo "$publish_response" | sed '$d')
+    
+    if [ "$publish_http_code" != "200" ] && [ "$publish_http_code" != "201" ] && [ "$publish_http_code" != "202" ]; then
         echo "   -> ❌ Failed to publish event."
+        echo "      HTTP Status: $publish_http_code"
+        if [ -n "$publish_body" ]; then
+            echo "      Response: $publish_body"
+        fi
+        echo "      Request details:"
+        echo "        - Tenant ID: $TENANT_ID"
+        echo "        - Topic: diagnostics.test"
+        echo "        - Endpoint: $base_url/api/v1/publish"
         if [[ "$base_url" == *"azurecontainerapps.io"* ]]; then
             echo "      Fetching logs for '$AZURE_CONTAINER_APP_NAME'..."
             az containerapp logs show --name "$AZURE_CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --tail 20

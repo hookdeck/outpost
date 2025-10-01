@@ -131,19 +131,30 @@ This example includes three main scripts to manage the deployment:
 
 To deploy Outpost, you must run the scripts in the following order:
 
-1.  **Provision Dependencies:**
+1.  **Set Required Environment Variable:**
+    ```bash
+    # Generate a random ID (recommended):
+    export OUTPOST_AZURE_ID=$(openssl rand -hex 3)
+    
+    # Or use your own ID (lowercase alphanumeric with hyphens, 3-30 chars):
+    # export OUTPOST_AZURE_ID=abc123
+    ```
+    
+    This ID ensures your Azure resources have unique names and is required by the `dependencies.sh` script.
+
+2.  **Provision Dependencies:**
     ```bash
     # To use a specific password (optional):
     # export PG_PASS=<YOUR_POSTGRES_PASSWORD>
     ./dependencies.sh
     ```
 
-2.  **Deploy Outpost:**
+3.  **Deploy Outpost:**
     ```bash
     ./local-deploy.sh
     ```
 
-3.  **Run Diagnostics:**
+4.  **Run Diagnostics:**
     This command specifically targets the local Docker deployment. You will need a public webhook URL for the test.
     ```bash
     export WEBHOOK_URL=<YOUR_PUBLIC_WEBHOOK_URL>
@@ -163,6 +174,9 @@ To deploy Outpost, you must run the scripts in the following order:
 
     *   **To provision new dependencies (Recommended):** Run the scripts to generate the files automatically.
         ```bash
+        # Set required environment variable:
+        export OUTPOST_AZURE_ID=$(openssl rand -hex 3)
+        
         # To use a specific password (optional):
         # export PG_PASS=<YOUR_POSTGRES_PASSWORD>
         ./dependencies.sh
@@ -189,6 +203,9 @@ Before deploying manually, ensure you have the `.env.outpost` and `.env.runtime`
 
 *   **To provision new dependencies:** Run the scripts to generate the files automatically.
     ```bash
+    # Set required environment variable:
+    export OUTPOST_AZURE_ID=$(openssl rand -hex 3)
+    
     # To use a specific password (optional):
     # export PG_PASS=<YOUR_POSTGRES_PASSWORD>
     ./dependencies.sh

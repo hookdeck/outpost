@@ -17,16 +17,18 @@ if [[ -z "${OUTPOST_AZURE_ID-}" ]]; then
   echo ""
   echo "  export OUTPOST_AZURE_ID=\$(openssl rand -hex 3)"
   echo ""
-  echo "Or use your own ID (lowercase alphanumeric, 3-6 chars):"
+  echo "Or use your own ID (lowercase alphanumeric with hyphens, 3-30 chars):"
   echo ""
-  echo "  export OUTPOST_AZURE_ID=abc123"
+  echo "  export OUTPOST_AZURE_ID=my-project-20251001"
   echo ""
   exit 1
 fi
 
-# Validate OUTPOST_AZURE_ID format (lowercase alphanumeric, 3-6 chars)
-if ! [[ "$OUTPOST_AZURE_ID" =~ ^[a-z0-9]{3,6}$ ]]; then
-  echo "❌ Error: OUTPOST_AZURE_ID must be lowercase alphanumeric, 3-6 characters."
+# Validate OUTPOST_AZURE_ID format (lowercase alphanumeric with hyphens, 3-30 chars)
+# Must start and end with alphanumeric (not hyphen)
+if ! [[ "$OUTPOST_AZURE_ID" =~ ^[a-z0-9]([a-z0-9-]{1,28}[a-z0-9])?$ ]]; then
+  echo "❌ Error: OUTPOST_AZURE_ID must be lowercase alphanumeric with optional hyphens, 3-30 characters."
+  echo "Must start and end with a letter or number (not a hyphen)."
   echo "Current value: '$OUTPOST_AZURE_ID'"
   exit 1
 fi
