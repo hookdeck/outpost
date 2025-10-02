@@ -64,7 +64,7 @@ func NewClient(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
 	return createRegularClient(ctx, config)
 }
 
-func createClusterClient(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
+func createClusterClient(ctx context.Context, config *RedisConfig) (Client, error) {
 	// Start with single node - cluster client will auto-discover other nodes
 	options := &r.ClusterOptions{
 		Addrs:    []string{fmt.Sprintf("%s:%d", config.Host, config.Port)},
@@ -103,7 +103,7 @@ func createClusterClient(ctx context.Context, config *RedisConfig) (r.Cmdable, e
 	return clusterClient, nil
 }
 
-func createRegularClient(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
+func createRegularClient(ctx context.Context, config *RedisConfig) (Client, error) {
 	options := &r.Options{
 		Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
 		Password: config.Password,
@@ -142,70 +142,18 @@ func instrumentOpenTelemetry() error {
 }
 
 func initializeClient(ctx context.Context, config *RedisConfig) {
+	var err error
 	if config.ClusterEnabled {
-		// Create proper cluster client for cluster deployments
-		// Start with single node - cluster client will auto-discover other nodes
-		options := &r.ClusterOptions{
-			Addrs:    []string{fmt.Sprintf("%s:%d", config.Host, config.Port)},
-			Password: config.Password,
-			// Note: Database is ignored in cluster mode
-		}
-
-		// Development only: Override discovered node IPs with the original host
-		// This is needed for Docker environments where Redis nodes announce internal IPs
-		if config.DevClusterHostOverride {
-			originalHost := config.Host
-			options.NewClient = func(opt *r.Options) *r.Client {
-				// Extract port from discovered address and combine with original host
-				if idx := strings.LastIndex(opt.Addr, ":"); idx > 0 {
-					port := opt.Addr[idx:] // includes the colon
-					opt.Addr = originalHost + port
-				}
-				return r.NewClient(opt)
-			}
-		}
-
-		if config.TLSEnabled {
-			options.TLSConfig = &tls.Config{
-				MinVersion:         tls.VersionTLS12,
-				InsecureSkipVerify: true, // Some managed Redis services use self-signed certificates
-			}
-		}
-
-		clusterClient := r.NewClusterClient(options)
-
-		// Test the cluster client connectivity
-		if err := clusterClient.Ping(ctx).Err(); err != nil {
+		client, err = createClusterClient(ctx, config)
+		if err != nil {
 			initializationError = fmt.Errorf("redis cluster connection failed: %w", err)
 			return
 		}
-
-		// Assign to interface
-		client = clusterClient
 	} else {
-		// Create regular client for non-cluster deployments
-		options := &r.Options{
-			Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
-			Password: config.Password,
-			DB:       config.Database,
-		}
-
-		if config.TLSEnabled {
-			options.TLSConfig = &tls.Config{
-				MinVersion:         tls.VersionTLS12,
-				InsecureSkipVerify: true, // Some managed Redis services use self-signed certificates
-			}
-		}
-
-		regularClient := r.NewClient(options)
-
-		// Test the regular client connectivity
-		if err := regularClient.Ping(ctx).Err(); err != nil {
+		client, err = createRegularClient(ctx, config)
+		if err != nil {
 			initializationError = fmt.Errorf("redis regular client connection failed: %w", err)
 			return
 		}
-
-		// Assign to interface
-		client = regularClient
 	}
 }
