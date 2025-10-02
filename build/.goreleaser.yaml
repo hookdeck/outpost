@@ -7,7 +7,13 @@ before:
 
 project_name: outpost
 
+git:
+  # Ignore SDK tags when determining version
+  ignore_tags:
+    - 'sdks/*'
+
 builds:
+  # Orchestrator binary
   - id: outpost
     ldflags:
       - -s -w
@@ -16,7 +22,7 @@ builds:
     binary: outpost
     env:
       - CGO_ENABLED=0
-    main: ./cmd/outpost/main.go
+    main: ./cmd/outpost
     goos:
       - linux
     goarch:
@@ -29,7 +35,63 @@ builds:
     binary: outpost
     env:
       - CGO_ENABLED=0
-    main: ./cmd/outpost/main.go
+    main: ./cmd/outpost
+    goos:
+      - linux
+    goarch:
+      - arm64
+
+  # Server binary
+  - id: outpost-server
+    ldflags:
+      - -s -w
+      - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
+      - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
+    binary: outpost-server
+    env:
+      - CGO_ENABLED=0
+    main: ./cmd/outpost-server
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - id: outpost-server-arm64
+    ldflags:
+      - -s -w
+      - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
+      - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
+    binary: outpost-server
+    env:
+      - CGO_ENABLED=0
+    main: ./cmd/outpost-server
+    goos:
+      - linux
+    goarch:
+      - arm64
+
+  # Migration binary
+  - id: outpost-migrate-redis
+    ldflags:
+      - -s -w
+      - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
+      - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
+    binary: outpost-migrate-redis
+    env:
+      - CGO_ENABLED=0
+    main: ./cmd/outpost-migrate-redis
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - id: outpost-migrate-redis-arm64
+    ldflags:
+      - -s -w
+      - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
+      - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
+    binary: outpost-migrate-redis
+    env:
+      - CGO_ENABLED=0
+    main: ./cmd/outpost-migrate-redis
     goos:
       - linux
     goarch:
@@ -63,6 +125,10 @@ dockers:
     dockerfile: ./build/Dockerfile.goreleaser
     ids:
       - outpost
+      - outpost-server
+      - outpost-migrate-redis
+    extra_files:
+      - build/entrypoint.sh
     image_templates:
       - "hookdeck/outpost:latest-amd64"
       - "hookdeck/outpost:{{ .Tag }}-amd64"
@@ -80,6 +146,10 @@ dockers:
     dockerfile: ./build/Dockerfile.goreleaser
     ids:
       - outpost-arm64
+      - outpost-server-arm64
+      - outpost-migrate-redis-arm64
+    extra_files:
+      - build/entrypoint.sh
     image_templates:
       - "hookdeck/outpost:latest-arm64"
       - "hookdeck/outpost:{{ .Tag }}-arm64"

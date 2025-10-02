@@ -24,7 +24,7 @@ type Idempotence interface {
 }
 
 type IdempotenceImpl struct {
-	redisClient *redis.Client
+	redisClient redis.Cmdable
 	options     IdempotenceImplOptions
 	tracer      trace.Tracer
 }
@@ -46,7 +46,7 @@ func WithSuccessfulTTL(successfulTTL time.Duration) func(opts *IdempotenceImplOp
 	}
 }
 
-func New(redisClient *redis.Client, opts ...func(opts *IdempotenceImplOptions)) Idempotence {
+func New(redisClient redis.Cmdable, opts ...func(opts *IdempotenceImplOptions)) Idempotence {
 	options := &IdempotenceImplOptions{
 		Timeout:       DefaultTimeout,
 		SuccessfulTTL: DefaultSuccessfulTTL,
