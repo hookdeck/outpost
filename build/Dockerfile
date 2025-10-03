@@ -12,6 +12,7 @@ RUN go build -o ./bin/outpost ./cmd/outpost/main.go && \
 # Stage 1
 # Copy binaries to a new image
 FROM scratch
+COPY --from=0 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=0 /app/bin/outpost /bin/outpost
 COPY --from=0 /app/bin/outpost-server /bin/outpost-server
 COPY --from=0 /app/bin/outpost-migrate-redis /bin/outpost-migrate-redis
