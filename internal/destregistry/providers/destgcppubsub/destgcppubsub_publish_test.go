@@ -32,7 +32,7 @@ type GCPPubSubConsumer struct {
 
 func NewGCPPubSubConsumer(projectID, subscriptionID, endpoint string) (*GCPPubSubConsumer, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Create client with emulator settings
 	client, err := pubsub.NewClient(ctx, projectID,
 		option.WithEndpoint(endpoint),
@@ -45,7 +45,7 @@ func NewGCPPubSubConsumer(projectID, subscriptionID, endpoint string) (*GCPPubSu
 	}
 
 	subscription := client.Subscription(subscriptionID)
-	
+
 	consumer := &GCPPubSubConsumer{
 		client:       client,
 		subscription: subscription,
@@ -54,10 +54,10 @@ func NewGCPPubSubConsumer(projectID, subscriptionID, endpoint string) (*GCPPubSu
 		ctx:          ctx,
 		cancel:       cancel,
 	}
-	
+
 	// Start consuming messages
 	go consumer.consume()
-	
+
 	return consumer, nil
 }
 
@@ -68,7 +68,7 @@ func (c *GCPPubSubConsumer) consume() {
 		for k, v := range msg.Attributes {
 			metadata[k] = v
 		}
-		
+
 		// Send to channel
 		select {
 		case c.messages <- testsuite.Message{
@@ -79,11 +79,11 @@ func (c *GCPPubSubConsumer) consume() {
 		case <-c.done:
 			return
 		}
-		
+
 		// Acknowledge the message
 		msg.Ack()
 	})
-	
+
 	if err != nil && err != context.Canceled {
 		// Log error but don't panic
 	}
@@ -109,22 +109,22 @@ func (a *GCPPubSubAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Me
 	// Assert the raw message is a Pub/Sub message
 	pubsubMsg, ok := msg.Raw.(*pubsub.Message)
 	assert.True(t, ok, "raw message should be *pubsub.Message")
-	
+
 	// Verify event data
 	expectedData, _ := json.Marshal(event.Data)
 	assert.JSONEq(t, string(expectedData), string(msg.Data), "event data should match")
-	
+
 	// Verify system metadata
 	metadata := msg.Metadata
 	assert.NotEmpty(t, metadata["timestamp"], "timestamp should be present")
 	assert.Equal(t, event.ID, metadata["event-id"], "event-id should match")
 	assert.Equal(t, event.Topic, metadata["topic"], "topic should match")
-	
+
 	// Verify custom metadata
 	for k, v := range event.Metadata {
 		assert.Equal(t, v, metadata[k], "metadata key %s should match expected value", k)
 	}
-	
+
 	// Verify Pub/Sub specific attributes
 	assert.NotNil(t, pubsubMsg.Attributes, "attributes should be set")
 }
@@ -139,29 +139,29 @@ type GCPPubSubPublishSuite struct {
 func (s *GCPPubSubPublishSuite) SetupSuite() {
 	t := s.T()
 	t.Cleanup(testinfra.Start(t))
-	
+
 	// Set up GCP Pub/Sub test infrastructure
 	mqConfig := testinfra.NewMQGCPConfig(t, nil)
 	s.config = mqConfig
-	
+
 	// Get emulator endpoint
 	endpoint := testinfra.EnsureGCP()
-	
+
 	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader())
 	require.NoError(t, err)
-	
+
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("gcp_pubsub"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"project_id": mqConfig.GCPPubSub.ProjectID,
-			"topic": mqConfig.GCPPubSub.TopicID,
+			"topic":      mqConfig.GCPPubSub.TopicID,
 			"endpoint":   endpoint, // For emulator
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
 			"service_account_json": `{"type":"service_account","project_id":"test-project"}`, // Dummy JSON for emulator
 		}),
 	)
-	
+
 	// Create consumer
 	consumer, err := NewGCPPubSubConsumer(
 		mqConfig.GCPPubSub.ProjectID,
@@ -170,7 +170,7 @@ func (s *GCPPubSubPublishSuite) SetupSuite() {
 	)
 	require.NoError(t, err)
 	s.consumer = consumer
-	
+
 	s.InitSuite(testsuite.Config{
 		Provider: provider,
 		Dest:     &dest,

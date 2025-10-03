@@ -51,8 +51,8 @@ func AssertTimestampIsUnixSeconds(t TestingT, timestampStr string, msgAndArgs ..
 	// Current time in seconds: ~1,700,000,000 (2023-2024)
 	// Current time in millis:  ~1,700,000,000,000
 
-	minUnixSeconds := int64(946684800)     // Jan 1, 2000
-	maxUnixSeconds := int64(4102444800)    // Jan 1, 2100
+	minUnixSeconds := int64(946684800)  // Jan 1, 2000
+	maxUnixSeconds := int64(4102444800) // Jan 1, 2100
 
 	if timestampInt < minUnixSeconds || timestampInt > maxUnixSeconds {
 		// Likely milliseconds - check if dividing by 1000 gives a reasonable timestamp

@@ -18,11 +18,11 @@ import (
 
 const (
 	// Default configuration for local emulator
-	DEFAULT_PROJECT_ID = "test-project"
-	DEFAULT_TOPIC      = "test-topic"
+	DEFAULT_PROJECT_ID   = "test-project"
+	DEFAULT_TOPIC        = "test-topic"
 	DEFAULT_SUBSCRIPTION = "test-subscription"
-	DEFAULT_ENDPOINT   = "localhost:8085" // Default emulator endpoint
-	
+	DEFAULT_ENDPOINT     = "localhost:8085" // Default emulator endpoint
+
 	// To use real GCP, set these environment variables:
 	// GCP_PROJECT_ID - Your GCP project ID
 	// GCP_TOPIC - Your Pub/Sub topic name
@@ -45,7 +45,7 @@ func main() {
 			return
 		}
 	}
-	
+
 	if err := run(); err != nil {
 		log.Fatalf("Error: %v", err)
 	}
@@ -97,14 +97,14 @@ NOTES:
 
 func run() error {
 	ctx := context.Background()
-	
+
 	// Get configuration from environment or use defaults
 	projectID := getEnvOrDefault("GCP_PROJECT_ID", DEFAULT_PROJECT_ID)
 	topicName := getEnvOrDefault("GCP_TOPIC", DEFAULT_TOPIC)
 	subscriptionName := getEnvOrDefault("GCP_SUBSCRIPTION", DEFAULT_SUBSCRIPTION)
 	endpoint := getEnvOrDefault("GCP_ENDPOINT", DEFAULT_ENDPOINT)
 	credentialsPath := os.Getenv("GCP_CREDENTIALS")
-	
+
 	log.Printf("Configuration:")
 	log.Printf("  Project ID: %s", projectID)
 	log.Printf("  Topic: %s", topicName)
@@ -115,7 +115,7 @@ func run() error {
 	} else {
 		log.Printf("  Credentials: Using emulator (no auth)")
 	}
-	
+
 	// Create client options
 	var opts []option.ClientOption
 	if endpoint != "" {
@@ -131,14 +131,14 @@ func run() error {
 		log.Printf("Using service account credentials from: %s", credentialsPath)
 		opts = append(opts, option.WithCredentialsFile(credentialsPath))
 	}
-	
+
 	// Create client
 	client, err := pubsub.NewClient(ctx, projectID, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
 	defer client.Close()
-	
+
 	// Get or create topic
 	topic := client.Topic(topicName)
 	exists, err := topic.Exists(ctx)
@@ -155,7 +155,7 @@ func run() error {
 	} else {
 		log.Printf("Using existing topic: %s", topicName)
 	}
-	
+
 	// Get or create subscription
 	sub := client.Subscription(subscriptionName)
 	exists, err = sub.Exists(ctx)
@@ -175,23 +175,23 @@ func run() error {
 	} else {
 		log.Printf("Using existing subscription: %s", subscriptionName)
 	}
-	
+
 	// Set up signal handling
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
-	
+
 	// Start receiving messages
 	log.Printf("[*] Waiting for messages. To exit press CTRL+C")
-	
+
 	// Create a cancellable context for receiving
 	receiveCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	
+
 	// Handle messages
 	err = sub.Receive(receiveCtx, func(ctx context.Context, msg *pubsub.Message) {
 		log.Printf("[x] Received message ID: %s", msg.ID)
 		log.Printf("    Data: %s", string(msg.Data))
-		
+
 		// Pretty print attributes
 		if len(msg.Attributes) > 0 {
 			log.Printf("    Attributes:")
@@ -199,27 +199,27 @@ func run() error {
 				log.Printf("      %s: %s", key, value)
 			}
 		}
-		
+
 		// Try to parse as JSON for prettier output
 		var jsonData interface{}
 		if err := json.Unmarshal(msg.Data, &jsonData); err == nil {
 			prettyJSON, _ := json.MarshalIndent(jsonData, "    ", "  ")
 			log.Printf("    JSON Data:\n    %s", string(prettyJSON))
 		}
-		
+
 		// Acknowledge the message
 		msg.Ack()
 	})
-	
+
 	if err != nil {
 		return fmt.Errorf("receive error: %w", err)
 	}
-	
+
 	// Wait for termination signal
 	<-termChan
 	log.Println("Shutting down...")
 	cancel()
-	
+
 	return nil
 }
 
@@ -232,20 +232,20 @@ func getEnvOrDefault(key, defaultValue string) string {
 
 func cleanup() error {
 	ctx := context.Background()
-	
+
 	// Get configuration from environment or use defaults
 	projectID := getEnvOrDefault("GCP_PROJECT_ID", DEFAULT_PROJECT_ID)
 	topicName := getEnvOrDefault("GCP_TOPIC", DEFAULT_TOPIC)
 	subscriptionName := getEnvOrDefault("GCP_SUBSCRIPTION", DEFAULT_SUBSCRIPTION)
 	endpoint := getEnvOrDefault("GCP_ENDPOINT", DEFAULT_ENDPOINT)
 	credentialsPath := os.Getenv("GCP_CREDENTIALS")
-	
+
 	log.Printf("Cleanup Configuration:")
 	log.Printf("  Project ID: %s", projectID)
 	log.Printf("  Topic: %s", topicName)
 	log.Printf("  Subscription: %s", subscriptionName)
 	log.Printf("  Endpoint: %s", endpoint)
-	
+
 	// Create client options
 	var opts []option.ClientOption
 	if endpoint != "" {
@@ -257,14 +257,14 @@ func cleanup() error {
 	} else if credentialsPath != "" {
 		opts = append(opts, option.WithCredentialsFile(credentialsPath))
 	}
-	
+
 	// Create client
 	client, err := pubsub.NewClient(ctx, projectID, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
 	defer client.Close()
-	
+
 	// Delete subscription first
 	sub := client.Subscription(subscriptionName)
 	exists, err := sub.Exists(ctx)
@@ -279,7 +279,7 @@ func cleanup() error {
 	} else {
 		log.Printf("Subscription %s doesn't exist", subscriptionName)
 	}
-	
+
 	// Delete topic
 	topic := client.Topic(topicName)
 	exists, err = topic.Exists(ctx)
@@ -294,7 +294,7 @@ func cleanup() error {
 	} else {
 		log.Printf("Topic %s doesn't exist", topicName)
 	}
-	
+
 	log.Println("Cleanup completed")
 	return nil
 }
