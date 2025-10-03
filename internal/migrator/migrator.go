@@ -32,9 +32,13 @@ func New(opts MigrationOpts) (*Migrator, error) {
 		return nil, fmt.Errorf("failed to get migration driver: %w", err)
 	}
 
-	m, err := migrate.NewWithSourceInstance("iofs", d, opts.databaseURL())
+	dbURL := opts.databaseURL()
+	m, err := migrate.NewWithSourceInstance("iofs", d, dbURL)
 	if err != nil {
-		return nil, fmt.Errorf("migrate.New: %w", err)
+		// Sanitize the error to prevent credential exposure in logs
+		// The original error from golang-migrate may contain the full database URL
+		// with credentials, which would be exposed if this error is logged.
+		return nil, sanitizeConnectionError(err, dbURL)
 	}
 
 	return &Migrator{
