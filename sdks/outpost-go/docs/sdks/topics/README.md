@@ -16,6 +16,7 @@ Returns a list of available event topics configured in the Outpost instance. Req
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="listTenantTopics" method="get" path="/{tenant_id}/topics" -->
 ```go
 package main
 
@@ -30,12 +31,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Topics.List(ctx, outpostgo.String("<id>"))
+    res, err := s.Topics.List(ctx)
     if err != nil {
         log.Fatal(err)
     }
@@ -78,6 +80,7 @@ Returns a list of available event topics configured in the Outpost instance.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="listTopics" method="get" path="/topics" -->
 ```go
 package main
 

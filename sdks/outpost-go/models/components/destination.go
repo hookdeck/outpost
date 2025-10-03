@@ -12,19 +12,23 @@ import (
 type DestinationType string
 
 const (
-	DestinationTypeWebhook    DestinationType = "webhook"
-	DestinationTypeAwsSqs     DestinationType = "aws_sqs"
-	DestinationTypeRabbitmq   DestinationType = "rabbitmq"
-	DestinationTypeHookdeck   DestinationType = "hookdeck"
-	DestinationTypeAwsKinesis DestinationType = "aws_kinesis"
+	DestinationTypeWebhook         DestinationType = "webhook"
+	DestinationTypeAwsSqs          DestinationType = "aws_sqs"
+	DestinationTypeRabbitmq        DestinationType = "rabbitmq"
+	DestinationTypeHookdeck        DestinationType = "hookdeck"
+	DestinationTypeAwsKinesis      DestinationType = "aws_kinesis"
+	DestinationTypeAzureServicebus DestinationType = "azure_servicebus"
+	DestinationTypeAwsS3           DestinationType = "aws_s3"
 )
 
 type Destination struct {
-	DestinationWebhook    *DestinationWebhook    `queryParam:"inline"`
-	DestinationAWSSQS     *DestinationAWSSQS     `queryParam:"inline"`
-	DestinationRabbitMQ   *DestinationRabbitMQ   `queryParam:"inline"`
-	DestinationHookdeck   *DestinationHookdeck   `queryParam:"inline"`
-	DestinationAWSKinesis *DestinationAWSKinesis `queryParam:"inline"`
+	DestinationWebhook         *DestinationWebhook         `queryParam:"inline" name:"Destination"`
+	DestinationAWSSQS          *DestinationAWSSQS          `queryParam:"inline" name:"Destination"`
+	DestinationRabbitMQ        *DestinationRabbitMQ        `queryParam:"inline" name:"Destination"`
+	DestinationHookdeck        *DestinationHookdeck        `queryParam:"inline" name:"Destination"`
+	DestinationAWSKinesis      *DestinationAWSKinesis      `queryParam:"inline" name:"Destination"`
+	DestinationAzureServiceBus *DestinationAzureServiceBus `queryParam:"inline" name:"Destination"`
+	DestinationAwss3           *DestinationAwss3           `queryParam:"inline" name:"Destination"`
 
 	Type DestinationType
 }
@@ -89,6 +93,30 @@ func CreateDestinationAwsKinesis(awsKinesis DestinationAWSKinesis) Destination {
 	}
 }
 
+func CreateDestinationAzureServicebus(azureServicebus DestinationAzureServiceBus) Destination {
+	typ := DestinationTypeAzureServicebus
+
+	typStr := DestinationAzureServiceBusType(typ)
+	azureServicebus.Type = typStr
+
+	return Destination{
+		DestinationAzureServiceBus: &azureServicebus,
+		Type:                       typ,
+	}
+}
+
+func CreateDestinationAwsS3(awsS3 DestinationAwss3) Destination {
+	typ := DestinationTypeAwsS3
+
+	typStr := DestinationAwss3Type(typ)
+	awsS3.Type = typStr
+
+	return Destination{
+		DestinationAwss3: &awsS3,
+		Type:             typ,
+	}
+}
+
 func (u *Destination) UnmarshalJSON(data []byte) error {
 
 	type discriminator struct {
@@ -103,7 +131,7 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 	switch dis.Type {
 	case "webhook":
 		destinationWebhook := new(DestinationWebhook)
-		if err := utils.UnmarshalJSON(data, &destinationWebhook, "", true, false); err != nil {
+		if err := utils.UnmarshalJSON(data, &destinationWebhook, "", true, nil); err != nil {
 			return fmt.Errorf("could not unmarshal `%s` into expected (Type == webhook) type DestinationWebhook within Destination: %w", string(data), err)
 		}
 
@@ -112,7 +140,7 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 		return nil
 	case "aws_sqs":
 		destinationAWSSQS := new(DestinationAWSSQS)
-		if err := utils.UnmarshalJSON(data, &destinationAWSSQS, "", true, false); err != nil {
+		if err := utils.UnmarshalJSON(data, &destinationAWSSQS, "", true, nil); err != nil {
 			return fmt.Errorf("could not unmarshal `%s` into expected (Type == aws_sqs) type DestinationAWSSQS within Destination: %w", string(data), err)
 		}
 
@@ -121,7 +149,7 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 		return nil
 	case "rabbitmq":
 		destinationRabbitMQ := new(DestinationRabbitMQ)
-		if err := utils.UnmarshalJSON(data, &destinationRabbitMQ, "", true, false); err != nil {
+		if err := utils.UnmarshalJSON(data, &destinationRabbitMQ, "", true, nil); err != nil {
 			return fmt.Errorf("could not unmarshal `%s` into expected (Type == rabbitmq) type DestinationRabbitMQ within Destination: %w", string(data), err)
 		}
 
@@ -130,7 +158,7 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 		return nil
 	case "hookdeck":
 		destinationHookdeck := new(DestinationHookdeck)
-		if err := utils.UnmarshalJSON(data, &destinationHookdeck, "", true, false); err != nil {
+		if err := utils.UnmarshalJSON(data, &destinationHookdeck, "", true, nil); err != nil {
 			return fmt.Errorf("could not unmarshal `%s` into expected (Type == hookdeck) type DestinationHookdeck within Destination: %w", string(data), err)
 		}
 
@@ -139,12 +167,30 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 		return nil
 	case "aws_kinesis":
 		destinationAWSKinesis := new(DestinationAWSKinesis)
-		if err := utils.UnmarshalJSON(data, &destinationAWSKinesis, "", true, false); err != nil {
+		if err := utils.UnmarshalJSON(data, &destinationAWSKinesis, "", true, nil); err != nil {
 			return fmt.Errorf("could not unmarshal `%s` into expected (Type == aws_kinesis) type DestinationAWSKinesis within Destination: %w", string(data), err)
 		}
 
 		u.DestinationAWSKinesis = destinationAWSKinesis
 		u.Type = DestinationTypeAwsKinesis
+		return nil
+	case "azure_servicebus":
+		destinationAzureServiceBus := new(DestinationAzureServiceBus)
+		if err := utils.UnmarshalJSON(data, &destinationAzureServiceBus, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == azure_servicebus) type DestinationAzureServiceBus within Destination: %w", string(data), err)
+		}
+
+		u.DestinationAzureServiceBus = destinationAzureServiceBus
+		u.Type = DestinationTypeAzureServicebus
+		return nil
+	case "aws_s3":
+		destinationAwss3 := new(DestinationAwss3)
+		if err := utils.UnmarshalJSON(data, &destinationAwss3, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == aws_s3) type DestinationAwss3 within Destination: %w", string(data), err)
+		}
+
+		u.DestinationAwss3 = destinationAwss3
+		u.Type = DestinationTypeAwsS3
 		return nil
 	}
 
@@ -170,6 +216,14 @@ func (u Destination) MarshalJSON() ([]byte, error) {
 
 	if u.DestinationAWSKinesis != nil {
 		return utils.MarshalJSON(u.DestinationAWSKinesis, "", true)
+	}
+
+	if u.DestinationAzureServiceBus != nil {
+		return utils.MarshalJSON(u.DestinationAzureServiceBus, "", true)
+	}
+
+	if u.DestinationAwss3 != nil {
+		return utils.MarshalJSON(u.DestinationAwss3, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type Destination: all fields are null")

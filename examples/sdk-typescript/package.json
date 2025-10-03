@@ -1,16 +1,20 @@
 {
   "type": "module",
   "dependencies": {
-    "@hookdeck/outpost-sdk": "^0.2.0",
-    "dotenv": "^16.5.0"
+    "@hookdeck/outpost-sdk": "^0.3.0",
+    "dotenv": "^16.5.0",
+    "inquirer": "^9.2.23"
   },
   "devDependencies": {
+    "@types/inquirer": "^9.0.7",
     "@types/node": "^22.15.17",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   },
   "scripts": {
     "start": "node --loader ts-node/esm index.ts",
-    "auth": "node --loader ts-node/esm auth.ts"
+    "auth": "node --loader ts-node/esm auth.ts",
+    "create-destination": "node --loader ts-node/esm create-destination.ts",
+    "publish-event": "node --loader ts-node/esm publish-event.ts"
   }
 }

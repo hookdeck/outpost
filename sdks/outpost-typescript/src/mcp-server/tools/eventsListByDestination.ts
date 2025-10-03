@@ -30,7 +30,7 @@ Retrieves events associated with a specific destination for the tenant.`,
       };
     }
 
-    const value = result.value;
+    const value = result.value.result;
 
     return formatResult(value, apiCall);
   },

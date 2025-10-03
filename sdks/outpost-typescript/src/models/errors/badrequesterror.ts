@@ -5,6 +5,7 @@
 import * as z from "zod";
 import { remap as remap$ } from "../../lib/primitives.js";
 import { collectExtraKeys as collectExtraKeys$ } from "../../lib/schemas.js";
+import { OutpostError } from "./outposterror.js";
 
 /**
  * A collection of codes that generally means the end user got something wrong in making the request
@@ -18,19 +19,19 @@ export type BadRequestErrorData = {
 /**
  * A collection of codes that generally means the end user got something wrong in making the request
  */
-export class BadRequestError extends Error {
+export class BadRequestError extends OutpostError {
   additionalProperties: { [k: string]: any } = {};
 
   /** The original data that was passed to this error instance. */
   data$: BadRequestErrorData;
 
-  constructor(err: BadRequestErrorData) {
-    const message = "message" in err && typeof err.message === "string"
-      ? err.message
-      : `API error occurred: ${JSON.stringify(err)}`;
-    super(message);
+  constructor(
+    err: BadRequestErrorData,
+    httpMeta: { response: Response; request: Request; body: string },
+  ) {
+    const message = err.message || `API error occurred: ${JSON.stringify(err)}`;
+    super(message, httpMeta);
     this.data$ = err;
-
     if (err.additionalProperties != null) {
       this.additionalProperties = err.additionalProperties;
     }
@@ -47,13 +48,20 @@ export const BadRequestError$inboundSchema: z.ZodType<
 > = collectExtraKeys$(
   z.object({
     message: z.string().optional(),
+    request$: z.instanceof(Request),
+    response$: z.instanceof(Response),
+    body$: z.string(),
   })
     .catchall(z.any()),
   "additionalProperties",
   true,
 )
   .transform((v) => {
-    return new BadRequestError(v);
+    return new BadRequestError(v, {
+      request: v.request$,
+      response: v.response$,
+      body: v.body$,
+    });
   });
 
 /** @internal */

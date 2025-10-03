@@ -14,7 +14,7 @@ const config: ZudokuConfig = {
     favicon: "https://outpost.hookdeck.com/docs/icon.svg",
     title: "%s | Outpost",
     description:
-      "Outpost is an open source, self-hostable implementation of Event Destinations, enabling event delivery to user-preferred destinations like Webhooks, Hookdeck, AWS SQS, RabbitMQ, Kafka, and more.",
+      "Outpost is an open source, self-hostable implementation of Event Destinations, enabling event delivery to user-preferred destinations like Webhooks, Hookdeck, AWS SQS, AWS S3, RabbitMQ, Kafka, and more.",
     generator: "Zudoku",
     applicationName: "Outpost Documentation",
     keywords: [
@@ -94,6 +94,11 @@ const config: ZudokuConfig = {
             label: "Kubernetes",
             id: "quickstarts/kubernetes",
           },
+          {
+            type: "doc",
+            label: "Railway",
+            id: "quickstarts/railway",
+          },
         ],
       },
       {
@@ -160,6 +165,16 @@ const config: ZudokuConfig = {
             type: "doc",
             label: "Building Your Own UI",
             id: "guides/building-your-own-ui",
+          },
+          {
+            type: "doc",
+            label: "Redis Troubleshooting",
+            id: "guides/troubleshooting-redis",
+          },
+          {
+            type: "doc",
+            label: "Schema Migration",
+            id: "guides/migration",
           },
         ],
       },

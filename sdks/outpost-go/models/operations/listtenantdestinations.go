@@ -29,6 +29,7 @@ const (
 	ListTenantDestinationsTypeEnum2Rabbitmq   ListTenantDestinationsTypeEnum2 = "rabbitmq"
 	ListTenantDestinationsTypeEnum2Hookdeck   ListTenantDestinationsTypeEnum2 = "hookdeck"
 	ListTenantDestinationsTypeEnum2AwsKinesis ListTenantDestinationsTypeEnum2 = "aws_kinesis"
+	ListTenantDestinationsTypeEnum2AwsS3      ListTenantDestinationsTypeEnum2 = "aws_s3"
 )
 
 func (e ListTenantDestinationsTypeEnum2) ToPointer() *ListTenantDestinationsTypeEnum2 {
@@ -49,6 +50,8 @@ func (e *ListTenantDestinationsTypeEnum2) UnmarshalJSON(data []byte) error {
 	case "hookdeck":
 		fallthrough
 	case "aws_kinesis":
+		fallthrough
+	case "aws_s3":
 		*e = ListTenantDestinationsTypeEnum2(v)
 		return nil
 	default:
@@ -64,6 +67,7 @@ const (
 	ListTenantDestinationsTypeEnum1Rabbitmq   ListTenantDestinationsTypeEnum1 = "rabbitmq"
 	ListTenantDestinationsTypeEnum1Hookdeck   ListTenantDestinationsTypeEnum1 = "hookdeck"
 	ListTenantDestinationsTypeEnum1AwsKinesis ListTenantDestinationsTypeEnum1 = "aws_kinesis"
+	ListTenantDestinationsTypeEnum1AwsS3      ListTenantDestinationsTypeEnum1 = "aws_s3"
 )
 
 func (e ListTenantDestinationsTypeEnum1) ToPointer() *ListTenantDestinationsTypeEnum1 {
@@ -84,6 +88,8 @@ func (e *ListTenantDestinationsTypeEnum1) UnmarshalJSON(data []byte) error {
 	case "hookdeck":
 		fallthrough
 	case "aws_kinesis":
+		fallthrough
+	case "aws_s3":
 		*e = ListTenantDestinationsTypeEnum1(v)
 		return nil
 	default:
@@ -100,8 +106,8 @@ const (
 
 // Type - Filter destinations by type(s).
 type Type struct {
-	ListTenantDestinationsTypeEnum1        *ListTenantDestinationsTypeEnum1  `queryParam:"inline"`
-	ArrayOfListTenantDestinationsTypeEnum2 []ListTenantDestinationsTypeEnum2 `queryParam:"inline"`
+	ListTenantDestinationsTypeEnum1        *ListTenantDestinationsTypeEnum1  `queryParam:"inline" name:"type"`
+	ArrayOfListTenantDestinationsTypeEnum2 []ListTenantDestinationsTypeEnum2 `queryParam:"inline" name:"type"`
 
 	Type TypeType
 }
@@ -127,14 +133,14 @@ func CreateTypeArrayOfListTenantDestinationsTypeEnum2(arrayOfListTenantDestinati
 func (u *Type) UnmarshalJSON(data []byte) error {
 
 	var listTenantDestinationsTypeEnum1 ListTenantDestinationsTypeEnum1 = ListTenantDestinationsTypeEnum1("")
-	if err := utils.UnmarshalJSON(data, &listTenantDestinationsTypeEnum1, "", true, true); err == nil {
+	if err := utils.UnmarshalJSON(data, &listTenantDestinationsTypeEnum1, "", true, nil); err == nil {
 		u.ListTenantDestinationsTypeEnum1 = &listTenantDestinationsTypeEnum1
 		u.Type = TypeTypeListTenantDestinationsTypeEnum1
 		return nil
 	}
 
 	var arrayOfListTenantDestinationsTypeEnum2 []ListTenantDestinationsTypeEnum2 = []ListTenantDestinationsTypeEnum2{}
-	if err := utils.UnmarshalJSON(data, &arrayOfListTenantDestinationsTypeEnum2, "", true, true); err == nil {
+	if err := utils.UnmarshalJSON(data, &arrayOfListTenantDestinationsTypeEnum2, "", true, nil); err == nil {
 		u.ArrayOfListTenantDestinationsTypeEnum2 = arrayOfListTenantDestinationsTypeEnum2
 		u.Type = TypeTypeArrayOfListTenantDestinationsTypeEnum2
 		return nil
@@ -164,8 +170,8 @@ const (
 
 // Topics - Filter destinations by supported topic(s).
 type Topics struct {
-	Str        *string  `queryParam:"inline"`
-	ArrayOfStr []string `queryParam:"inline"`
+	Str        *string  `queryParam:"inline" name:"topics"`
+	ArrayOfStr []string `queryParam:"inline" name:"topics"`
 
 	Type TopicsType
 }
@@ -191,14 +197,14 @@ func CreateTopicsArrayOfStr(arrayOfStr []string) Topics {
 func (u *Topics) UnmarshalJSON(data []byte) error {
 
 	var str string = ""
-	if err := utils.UnmarshalJSON(data, &str, "", true, true); err == nil {
+	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
 		u.Str = &str
 		u.Type = TopicsTypeStr
 		return nil
 	}
 
 	var arrayOfStr []string = []string{}
-	if err := utils.UnmarshalJSON(data, &arrayOfStr, "", true, true); err == nil {
+	if err := utils.UnmarshalJSON(data, &arrayOfStr, "", true, nil); err == nil {
 		u.ArrayOfStr = arrayOfStr
 		u.Type = TopicsTypeArrayOfStr
 		return nil

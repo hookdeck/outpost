@@ -38,7 +38,14 @@ func initConfig() {
 
 	v := viper.New()
 	v.AutomaticEnv()
-	v.SetConfigFile(filepath.Join(projectRoot, ".env.test"))
+
+	// Allow override via environment variable
+	configFile := os.Getenv("TEST_CONFIG_FILE")
+	if configFile == "" {
+		configFile = ".env.test"
+	}
+
+	v.SetConfigFile(filepath.Join(projectRoot, configFile))
 	v.SetConfigType("env")
 	if err := v.ReadInConfig(); err != nil {
 		panic(err)

@@ -112,3 +112,46 @@ const value: components.DestinationAWSKinesis = {
 };
 ```
 
+### `components.DestinationAzureServiceBus`
+
+```typescript
+const value: components.DestinationAzureServiceBus = {
+  id: "des_azuresb_123",
+  type: "azure_servicebus",
+  topics: [
+    "*",
+  ],
+  disabledAt: null,
+  createdAt: new Date("2024-05-01T10:00:00Z"),
+  config: {
+    name: "my-queue-or-topic",
+  },
+  credentials: {
+    connectionString:
+      "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abc123",
+  },
+};
+```
+
+### `components.DestinationAwss3`
+
+```typescript
+const value: components.DestinationAwss3 = {
+  id: "des_s3_789",
+  type: "aws_s3",
+  topics: [
+    "*",
+  ],
+  disabledAt: null,
+  createdAt: new Date("2024-03-20T12:00:00Z"),
+  config: {
+    bucket: "my-bucket",
+    region: "us-east-1",
+  },
+  credentials: {
+    key: "AKIAIOSFODNN7EXAMPLE",
+    secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+  },
+};
+```
+

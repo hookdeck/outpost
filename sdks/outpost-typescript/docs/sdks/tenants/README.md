@@ -22,21 +22,20 @@ Idempotently creates or updates a tenant. Required before associating destinatio
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="upsertTenant" method="put" path="/{tenant_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const result = await outpost.tenants.upsert({
-    tenantId: "<id>",
-  });
+  const result = await outpost.tenants.upsert({});
 
-  // Handle the result
   console.log(result);
 }
 
@@ -54,24 +53,20 @@ import { tenantsUpsert } from "@hookdeck/outpost-sdk/funcs/tenantsUpsert.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const res = await tenantsUpsert(outpost, {
-    tenantId: "<id>",
-  });
-
-  if (!res.ok) {
-    throw res.error;
+  const res = await tenantsUpsert(outpost, {});
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("tenantsUpsert failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -112,21 +107,20 @@ Retrieves details for a specific tenant.
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="getTenant" method="get" path="/{tenant_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const result = await outpost.tenants.get({
-    tenantId: "<id>",
-  });
+  const result = await outpost.tenants.get({});
 
-  // Handle the result
   console.log(result);
 }
 
@@ -144,24 +138,20 @@ import { tenantsGet } from "@hookdeck/outpost-sdk/funcs/tenantsGet.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const res = await tenantsGet(outpost, {
-    tenantId: "<id>",
-  });
-
-  if (!res.ok) {
-    throw res.error;
+  const res = await tenantsGet(outpost, {});
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("tenantsGet failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -201,21 +191,20 @@ Deletes the tenant and all associated destinations.
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="deleteTenant" method="delete" path="/{tenant_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const result = await outpost.tenants.delete({
-    tenantId: "<id>",
-  });
+  const result = await outpost.tenants.delete({});
 
-  // Handle the result
   console.log(result);
 }
 
@@ -233,24 +222,20 @@ import { tenantsDelete } from "@hookdeck/outpost-sdk/funcs/tenantsDelete.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const res = await tenantsDelete(outpost, {
-    tenantId: "<id>",
-  });
-
-  if (!res.ok) {
-    throw res.error;
+  const res = await tenantsDelete(outpost, {});
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("tenantsDelete failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -290,21 +275,20 @@ Returns a redirect URL containing a JWT to authenticate the user with the portal
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="getTenantPortalUrl" method="get" path="/{tenant_id}/portal" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const result = await outpost.tenants.getPortalUrl({
-    tenantId: "<id>",
-  });
+  const result = await outpost.tenants.getPortalUrl({});
 
-  // Handle the result
   console.log(result);
 }
 
@@ -322,24 +306,20 @@ import { tenantsGetPortalUrl } from "@hookdeck/outpost-sdk/funcs/tenantsGetPorta
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const res = await tenantsGetPortalUrl(outpost, {
-    tenantId: "<id>",
-  });
-
-  if (!res.ok) {
-    throw res.error;
+  const res = await tenantsGetPortalUrl(outpost, {});
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("tenantsGetPortalUrl failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -379,21 +359,20 @@ Returns a JWT token scoped to the tenant for safe browser API calls.
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="getTenantToken" method="get" path="/{tenant_id}/token" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const result = await outpost.tenants.getToken({
-    tenantId: "<id>",
-  });
+  const result = await outpost.tenants.getToken({});
 
-  // Handle the result
   console.log(result);
 }
 
@@ -411,24 +390,20 @@ import { tenantsGetToken } from "@hookdeck/outpost-sdk/funcs/tenantsGetToken.js"
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const res = await tenantsGetToken(outpost, {
-    tenantId: "<id>",
-  });
-
-  if (!res.ok) {
-    throw res.error;
+  const res = await tenantsGetToken(outpost, {});
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("tenantsGetToken failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();

@@ -32,6 +32,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `AWS_SQS_SECRET_ACCESS_KEY` | AWS Secret Access Key for SQS. Required if AWS SQS is the chosen MQ provider. | `nil` | Conditional |
 | `AZURE_SERVICEBUS_CLIENT_ID` | Service principal client ID | `nil` | Yes |
 | `AZURE_SERVICEBUS_CLIENT_SECRET` | Service principal client secret | `nil` | Yes |
+| `AZURE_SERVICEBUS_CONNECTION_STRING` | Azure Service Bus connection string | `nil` | No |
 | `AZURE_SERVICEBUS_DELIVERY_SUBSCRIPTION` | Subscription name for delivery queue | `outpost-delivery-sub` | No |
 | `AZURE_SERVICEBUS_DELIVERY_TOPIC` | Topic name for delivery queue | `outpost-delivery` | No |
 | `AZURE_SERVICEBUS_LOG_SUBSCRIPTION` | Subscription name for log queue | `outpost-log-sub` | No |
@@ -40,10 +41,6 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `AZURE_SERVICEBUS_RESOURCE_GROUP` | Azure resource group name | `nil` | Yes |
 | `AZURE_SERVICEBUS_SUBSCRIPTION_ID` | Azure subscription ID | `nil` | Yes |
 | `AZURE_SERVICEBUS_TENANT_ID` | Azure Active Directory tenant ID | `nil` | Yes |
-| `CLICKHOUSE_ADDR` | Address (host:port) of the ClickHouse server. Example: 'localhost:9000'. Required if ClickHouse is used for log storage. | `nil` | Conditional |
-| `CLICKHOUSE_DATABASE` | Database name in ClickHouse to use. | `outpost` | No |
-| `CLICKHOUSE_PASSWORD` | Password for ClickHouse authentication. | `nil` | No |
-| `CLICKHOUSE_USERNAME` | Username for ClickHouse authentication. | `nil` | No |
 | `DELIVERY_MAX_CONCURRENCY` | Maximum number of delivery attempts to process concurrently. | `1` | No |
 | `DELIVERY_TIMEOUT_SECONDS` | Timeout in seconds for HTTP requests made during event delivery to webhook destinations. | `5` | No |
 | `DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD` | If true, includes Outpost metadata (event ID, topic, etc.) within the Kinesis record payload. | `true` | No |
@@ -86,12 +83,15 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `PORTAL_ORGANIZATION_NAME` | Organization name displayed in the Outpost Portal. | `nil` | No |
 | `PORTAL_PROXY_URL` | URL to proxy the Outpost Portal through. If set, Outpost serves the portal assets, and this URL is used as the base. Must be a valid URL. | `nil` | No |
 | `PORTAL_REFERER_URL` | The expected Referer URL for accessing the portal. This is a security measure. Required if the Outpost Portal is enabled/used. Example: 'https://admin.example.com'. | `nil` | Conditional |
-| `POSTGRES_URL` | Connection URL for PostgreSQL, used as an alternative log storage. Example: 'postgres://user:pass@host:port/dbname?sslmode=disable'. Required if ClickHouse is not configured and log storage is needed. | `nil` | Conditional |
+| `POSTGRES_URL` | Connection URL for PostgreSQL, used for log storage. Example: 'postgres://user:pass@host:port/dbname?sslmode=disable'. | `nil` | Yes |
 | `PUBLISH_AWS_SQS_ACCESS_KEY_ID` | AWS Access Key ID for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider. | `nil` | Conditional |
 | `PUBLISH_AWS_SQS_ENDPOINT` | Custom AWS SQS endpoint URL for the publish queue. Optional. | `nil` | No |
 | `PUBLISH_AWS_SQS_QUEUE` | Name of the SQS queue for publishing events. Required if AWS SQS is the chosen publish MQ provider. | `nil` | Conditional |
 | `PUBLISH_AWS_SQS_REGION` | AWS Region for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider. | `nil` | Conditional |
 | `PUBLISH_AWS_SQS_SECRET_ACCESS_KEY` | AWS Secret Access Key for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider. | `nil` | Conditional |
+| `PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING` | Azure Service Bus connection string for the publish queue. Required if Azure Service Bus is the chosen publish MQ provider. | `nil` | Conditional |
+| `PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION` | Name of the Azure Service Bus subscription to read published events from. Required if Azure Service Bus is the chosen publish MQ provider. | `nil` | Conditional |
+| `PUBLISH_AZURE_SERVICEBUS_TOPIC` | Name of the Azure Service Bus topic for publishing events. Required if Azure Service Bus is the chosen publish MQ provider. | `nil` | Conditional |
 | `PUBLISH_GCP_PUBSUB_PROJECT` | GCP Project ID for the Pub/Sub publish topic. Required if GCP Pub/Sub is the chosen publish MQ provider. | `nil` | Conditional |
 | `PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS` | JSON string or path to a file containing GCP service account credentials for the Pub/Sub publish topic. Required if GCP Pub/Sub is chosen and not using implicit credentials. | `nil` | Conditional |
 | `PUBLISH_GCP_PUBSUB_SUBSCRIPTION` | Name of the GCP Pub/Sub subscription to read published events from. Required if GCP Pub/Sub is the chosen publish MQ provider. | `nil` | Conditional |
@@ -104,10 +104,13 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `RABBITMQ_EXCHANGE` | Name of the RabbitMQ exchange to use. | `outpost` | No |
 | `RABBITMQ_LOG_QUEUE` | Name of the RabbitMQ queue for log events. | `outpost-log` | No |
 | `RABBITMQ_SERVER_URL` | RabbitMQ server connection URL (e.g., 'amqp://user:pass@host:port/vhost'). Required if RabbitMQ is the chosen MQ provider. | `nil` | Conditional |
-| `REDIS_DATABASE` | Redis database number to select after connecting. | `0` | Yes |
+| `REDIS_CLUSTER_ENABLED` | Enable Redis cluster mode for distributed Redis deployments. | `false` | No |
+| `REDIS_DATABASE` | Redis database number to select after connecting (ignored in cluster mode). | `0` | Yes |
+| `REDIS_DEV_CLUSTER_HOST_OVERRIDE` | Development only: Force cluster to use original host for discovered nodes. DO NOT use in production. | `false` | No |
 | `REDIS_HOST` | Hostname or IP address of the Redis server. | `127.0.0.1` | Yes |
 | `REDIS_PASSWORD` | Password for Redis authentication, if required by the server. | `nil` | Yes |
 | `REDIS_PORT` | Port number for the Redis server. | `6379` | Yes |
+| `REDIS_TLS_ENABLED` | Enable TLS encryption for Redis connection. | `false` | No |
 | `RETRY_INTERVAL_SECONDS` | Interval in seconds between delivery retry attempts for failed webhooks. | `30` | No |
 | `SERVICE` | Specifies the service type to run. Valid values: 'api', 'log', 'delivery', or empty/all for singular mode (runs all services). | `nil` | No |
 | `TELEMETRY_BATCH_INTERVAL` | Maximum time in seconds to wait before sending a batch of telemetry events if batch size is not reached. | `5` | No |
@@ -152,21 +155,6 @@ alert:
 
 # Enables or disables audit logging for significant events.
 audit_log: true
-
-clickhouse:
-  # Address (host:port) of the ClickHouse server. Example: 'localhost:9000'. Required if ClickHouse is used for log storage.
-  # Required: C
-  addr: ""
-
-  # Database name in ClickHouse to use.
-  database: "outpost"
-
-  # Password for ClickHouse authentication.
-  password: ""
-
-  # Username for ClickHouse authentication.
-  username: ""
-
 
 # Maximum number of delivery attempts to process concurrently.
 delivery_max_concurrency: 1
@@ -243,7 +231,7 @@ mqs:
   # Configuration for using AWS SQS as the message queue. Only one MQ provider should be configured.
   aws_sqs:
     # AWS Access Key ID for SQS. Required if AWS SQS is the chosen MQ provider.
-    # Required: C
+    # Required: Conditional
     access_key_id: ""
 
     # Name of the SQS queue for delivery events.
@@ -256,11 +244,11 @@ mqs:
     log_queue: "outpost-log"
 
     # AWS Region for SQS. Required if AWS SQS is the chosen MQ provider.
-    # Required: C
+    # Required: Conditional
     region: ""
 
     # AWS Secret Access Key for SQS. Required if AWS SQS is the chosen MQ provider.
-    # Required: C
+    # Required: Conditional
     secret_access_key: ""
 
 
@@ -273,6 +261,9 @@ mqs:
     # Service principal client secret
     # Required: Y
     client_secret: ""
+
+    # Azure Service Bus connection string
+    connection_string: ""
 
     # Subscription name for delivery queue
     delivery_subscription: "outpost-delivery-sub"
@@ -318,11 +309,11 @@ mqs:
     log_topic: "outpost-log"
 
     # GCP Project ID for Pub/Sub. Required if GCP Pub/Sub is the chosen MQ provider.
-    # Required: C
+    # Required: Conditional
     project: ""
 
     # JSON string or path to a file containing GCP service account credentials for Pub/Sub. Required if GCP Pub/Sub is the chosen MQ provider and not running in an environment with implicit credentials (e.g., GCE, GKE).
-    # Required: C
+    # Required: Conditional
     service_account_credentials: ""
 
 
@@ -338,7 +329,7 @@ mqs:
     log_queue: "outpost-log"
 
     # RabbitMQ server connection URL (e.g., 'amqp://user:pass@host:port/vhost'). Required if RabbitMQ is the chosen MQ provider.
-    # Required: C
+    # Required: Conditional
     server_url: ""
 
 
@@ -350,22 +341,22 @@ otel:
   # OpenTelemetry configuration specific to logs.
   logs:
     # Specifies the OTLP exporter to use for this telemetry type (e.g., 'otlp'). Typically used with environment variables like OTEL_EXPORTER_OTLP_TRACES_ENDPOINT.
-    # Required: C
+    # Required: Conditional
     exporter: ""
 
     # Specifies the OTLP protocol ('grpc' or 'http') for this telemetry type. Typically used with environment variables like OTEL_EXPORTER_OTLP_TRACES_PROTOCOL.
-    # Required: C
+    # Required: Conditional
     protocol: ""
 
 
   # OpenTelemetry configuration specific to metrics.
   metrics:
     # Specifies the OTLP exporter to use for this telemetry type (e.g., 'otlp'). Typically used with environment variables like OTEL_EXPORTER_OTLP_TRACES_ENDPOINT.
-    # Required: C
+    # Required: Conditional
     exporter: ""
 
     # Specifies the OTLP protocol ('grpc' or 'http') for this telemetry type. Typically used with environment variables like OTEL_EXPORTER_OTLP_TRACES_PROTOCOL.
-    # Required: C
+    # Required: Conditional
     protocol: ""
 
 
@@ -375,11 +366,11 @@ otel:
   # OpenTelemetry configuration specific to traces.
   traces:
     # Specifies the OTLP exporter to use for this telemetry type (e.g., 'otlp'). Typically used with environment variables like OTEL_EXPORTER_OTLP_TRACES_ENDPOINT.
-    # Required: C
+    # Required: Conditional
     exporter: ""
 
     # Specifies the OTLP protocol ('grpc' or 'http') for this telemetry type. Typically used with environment variables like OTEL_EXPORTER_OTLP_TRACES_PROTOCOL.
-    # Required: C
+    # Required: Conditional
     protocol: ""
 
 
@@ -413,53 +404,68 @@ portal:
   proxy_url: ""
 
   # The expected Referer URL for accessing the portal. This is a security measure. Required if the Outpost Portal is enabled/used. Example: 'https://admin.example.com'.
-  # Required: C
+  # Required: Conditional
   referer_url: ""
 
 
-# Connection URL for PostgreSQL, used as an alternative log storage. Example: 'postgres://user:pass@host:port/dbname?sslmode=disable'. Required if ClickHouse is not configured and log storage is needed.
-# Required: C
+# Connection URL for PostgreSQL, used for log storage. Example: 'postgres://user:pass@host:port/dbname?sslmode=disable'.
+# Required: Y
 postgres: ""
 
 publishmq:
   # Configuration for using AWS SQS as the publish message queue. Only one publish MQ provider should be configured.
   aws_sqs:
     # AWS Access Key ID for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider.
-    # Required: C
+    # Required: Conditional
     access_key_id: ""
 
     # Custom AWS SQS endpoint URL for the publish queue. Optional.
     endpoint: ""
 
     # Name of the SQS queue for publishing events. Required if AWS SQS is the chosen publish MQ provider.
-    # Required: C
+    # Required: Conditional
     queue: ""
 
     # AWS Region for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider.
-    # Required: C
+    # Required: Conditional
     region: ""
 
     # AWS Secret Access Key for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider.
-    # Required: C
+    # Required: Conditional
     secret_access_key: ""
+
+
+  # Configuration for using Azure Service Bus as the publish message queue. Only one publish MQ provider should be configured.
+  azure_servicebus:
+    # Azure Service Bus connection string for the publish queue. Required if Azure Service Bus is the chosen publish MQ provider.
+    # Required: Conditional
+    connection_string: ""
+
+    # Name of the Azure Service Bus subscription to read published events from. Required if Azure Service Bus is the chosen publish MQ provider.
+    # Required: Conditional
+    subscription: ""
+
+    # Name of the Azure Service Bus topic for publishing events. Required if Azure Service Bus is the chosen publish MQ provider.
+    # Required: Conditional
+    topic: ""
 
 
   # Configuration for using GCP Pub/Sub as the publish message queue. Only one publish MQ provider should be configured.
   gcp_pubsub:
     # GCP Project ID for the Pub/Sub publish topic. Required if GCP Pub/Sub is the chosen publish MQ provider.
-    # Required: C
+    # Required: Conditional
     project: ""
 
     # JSON string or path to a file containing GCP service account credentials for the Pub/Sub publish topic. Required if GCP Pub/Sub is chosen and not using implicit credentials.
-    # Required: C
+    # Required: Conditional
     service_account_credentials: ""
 
     # Name of the GCP Pub/Sub subscription to read published events from. Required if GCP Pub/Sub is the chosen publish MQ provider.
-    # Required: C
+    # Required: Conditional
     subscription: ""
 
     # Name of the GCP Pub/Sub topic for publishing events. Required if GCP Pub/Sub is the chosen publish MQ provider.
-    # Required: C
+    # Required: Conditional
     topic: ""
 
 
@@ -469,11 +475,11 @@ publishmq:
     exchange: ""
 
     # Name of the RabbitMQ queue for publishing events. Required if RabbitMQ is the chosen publish MQ provider.
-    # Required: C
+    # Required: Conditional
     queue: ""
 
     # RabbitMQ server connection URL for the publish queue. Required if RabbitMQ is the chosen publish MQ provider.
-    # Required: C
+    # Required: Conditional
     server_url: ""
 
 
@@ -482,9 +488,15 @@ publishmq:
 publish_max_concurrency: 1
 
 redis:
-  # Redis database number to select after connecting.
+  # Enable Redis cluster mode for distributed Redis deployments.
+  cluster_enabled: false
+
+  # Redis database number to select after connecting (ignored in cluster mode).
   # Required: Y
   database: 0
+
+  # Development only: Force cluster to use original host for discovered nodes. DO NOT use in production.
+  dev_cluster_host_override: false
 
   # Hostname or IP address of the Redis server.
   # Required: Y
@@ -497,6 +509,9 @@ redis:
   # Port number for the Redis server.
   # Required: Y
   port: 6379
+
+  # Enable TLS encryption for Redis connection.
+  tls_enabled: false
 
 
 # Interval in seconds between delivery retry attempts for failed webhooks.

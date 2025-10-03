@@ -6,7 +6,6 @@
 import { RetryTenantEventRequest } from "@hookdeck/outpost-sdk/models/operations";
 
 let value: RetryTenantEventRequest = {
-  tenantId: "<id>",
   destinationId: "<id>",
   eventId: "<id>",
 };

@@ -12,6 +12,7 @@ import { ClientSDK, RequestOptions } from "../lib/sdks.js";
 import * as components from "../models/components/index.js";
 import * as operations from "../models/operations/index.js";
 import { unwrapAsync } from "../types/fp.js";
+import { PageIterator, unwrapResultIterator } from "../types/operations.js";
 
 export class Events extends ClientSDK {
   /**
@@ -23,8 +24,10 @@ export class Events extends ClientSDK {
   async list(
     request: operations.ListTenantEventsRequest,
     options?: RequestOptions,
-  ): Promise<Array<components.Event>> {
-    return unwrapAsync(eventsList(
+  ): Promise<
+    PageIterator<operations.ListTenantEventsResponse, { cursor: string }>
+  > {
+    return unwrapResultIterator(eventsList(
       this,
       request,
       options,
@@ -74,8 +77,13 @@ export class Events extends ClientSDK {
   async listByDestination(
     request: operations.ListTenantEventsByDestinationRequest,
     options?: RequestOptions,
-  ): Promise<Array<components.Event>> {
-    return unwrapAsync(eventsListByDestination(
+  ): Promise<
+    PageIterator<
+      operations.ListTenantEventsByDestinationResponse,
+      { cursor: string }
+    >
+  > {
+    return unwrapResultIterator(eventsListByDestination(
       this,
       request,
       options,

@@ -2,6 +2,10 @@
 
 package components
 
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+)
+
 type AWSKinesisCredentials struct {
 	// AWS Access Key ID.
 	Key string `json:"key"`
@@ -9,6 +13,17 @@ type AWSKinesisCredentials struct {
 	Secret string `json:"secret"`
 	// Optional AWS Session Token (for temporary credentials).
 	Session *string `json:"session,omitempty"`
+}
+
+func (a AWSKinesisCredentials) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(a, "", false)
+}
+
+func (a *AWSKinesisCredentials) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &a, "", false, []string{"key", "secret"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *AWSKinesisCredentials) GetKey() string {

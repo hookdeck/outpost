@@ -26,7 +26,7 @@ type LogService struct {
 	cleanupFuncs    []func(context.Context, *logging.LoggerWithCtx)
 	consumerOptions *consumerOptions
 	logger          *logging.Logger
-	redisClient     *redis.Client
+	redisClient     redis.Cmdable
 	logMQ           *logmq.LogMQ
 	handler         consumer.MessageHandler
 }
@@ -49,8 +49,8 @@ func NewService(ctx context.Context,
 	var deliveryBatcher *batcher.Batcher[*models.Delivery]
 	if handler == nil {
 		logstoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
-			ClickHouse: cfg.ClickHouse.ToConfig(),
-			Postgres:   &cfg.PostgresURL,
+			// ClickHouse: cfg.ClickHouse.ToConfig(),
+			Postgres: &cfg.PostgresURL,
 		})
 		if err != nil {
 			return nil, err

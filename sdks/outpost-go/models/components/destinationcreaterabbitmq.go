@@ -5,6 +5,7 @@ package components
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 )
 
 // DestinationCreateRabbitMQType - Type of the destination. Must be 'rabbitmq'.
@@ -40,6 +41,17 @@ type DestinationCreateRabbitMQ struct {
 	Topics      Topics              `json:"topics"`
 	Config      RabbitMQConfig      `json:"config"`
 	Credentials RabbitMQCredentials `json:"credentials"`
+}
+
+func (d DestinationCreateRabbitMQ) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(d, "", false)
+}
+
+func (d *DestinationCreateRabbitMQ) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"type", "topics", "config", "credentials"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *DestinationCreateRabbitMQ) GetID() *string {

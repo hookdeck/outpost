@@ -51,6 +51,18 @@ cp .env.example .env
 
 ## Verify Installation
 
+:::tip
+
+You can use shell variables to store the tenant ID and API key for easier use in the following commands:
+
+```sh
+TENANT_ID=your_org_name
+API_KEY=your_api_key
+URL=your_webhook_url
+```
+
+:::
+
 1. Check that the services are running:
 
    ```sh
@@ -60,18 +72,6 @@ cp .env.example .env
    Wait until you get an `OK` response.
 
 2. Create a tenant with the following command, replacing `$TENANT_ID` with a unique identifier such as "your_org_name", and the `$API_KEY` with the value you set in your `.env`:
-
-   :::tip
-
-   You can use shell variables to store the tenant ID and API key for easier use in the following commands:
-
-   ```sh
-   TENANT_ID=your_org_name
-   API_KEY=your_api_key
-   URL=your_webhook_url
-   ```
-
-   :::
 
    ```sh
    curl --location --request PUT "localhost:3333/api/v1/$TENANT_ID" \

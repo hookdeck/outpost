@@ -25,6 +25,7 @@ class ListTenantDestinationsTypeEnum2(str, Enum):
     RABBITMQ = "rabbitmq"
     HOOKDECK = "hookdeck"
     AWS_KINESIS = "aws_kinesis"
+    AWS_S3 = "aws_s3"
 
 
 class ListTenantDestinationsTypeEnum1(str, Enum):
@@ -33,6 +34,7 @@ class ListTenantDestinationsTypeEnum1(str, Enum):
     RABBITMQ = "rabbitmq"
     HOOKDECK = "hookdeck"
     AWS_KINESIS = "aws_kinesis"
+    AWS_S3 = "aws_s3"
 
 
 TypeTypedDict = TypeAliasType(

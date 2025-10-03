@@ -5,9 +5,17 @@ from .destinationcreateawskinesis import (
     DestinationCreateAWSKinesis,
     DestinationCreateAWSKinesisTypedDict,
 )
+from .destinationcreateawss3 import (
+    DestinationCreateAwss3,
+    DestinationCreateAwss3TypedDict,
+)
 from .destinationcreateawssqs import (
     DestinationCreateAWSSQS,
     DestinationCreateAWSSQSTypedDict,
+)
+from .destinationcreateazureservicebus import (
+    DestinationCreateAzureServiceBus,
+    DestinationCreateAzureServiceBusTypedDict,
 )
 from .destinationcreatehookdeck import (
     DestinationCreateHookdeck,
@@ -35,6 +43,8 @@ DestinationCreateTypedDict = TypeAliasType(
         DestinationCreateRabbitMQTypedDict,
         DestinationCreateHookdeckTypedDict,
         DestinationCreateAWSKinesisTypedDict,
+        DestinationCreateAzureServiceBusTypedDict,
+        DestinationCreateAwss3TypedDict,
     ],
 )
 
@@ -46,6 +56,8 @@ DestinationCreate = Annotated[
         Annotated[DestinationCreateRabbitMQ, Tag("rabbitmq")],
         Annotated[DestinationCreateHookdeck, Tag("hookdeck")],
         Annotated[DestinationCreateAWSKinesis, Tag("aws_kinesis")],
+        Annotated[DestinationCreateAzureServiceBus, Tag("azure_servicebus")],
+        Annotated[DestinationCreateAwss3, Tag("aws_s3")],
     ],
     Discriminator(lambda m: get_discriminator(m, "type", "type")),
 ]

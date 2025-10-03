@@ -57,7 +57,7 @@ func (d DestinationRabbitMQ) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationRabbitMQ) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, false); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "disabled_at", "created_at", "config", "credentials"}); err != nil {
 		return err
 	}
 	return nil

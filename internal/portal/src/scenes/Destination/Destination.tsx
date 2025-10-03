@@ -14,7 +14,7 @@ import {
 } from "../../typings/Destination";
 import getLogo from "../../utils/logo";
 import DestinationSettings from "./DestinationSettings/DestinationSettings";
-import Events, { EventRoutes } from "./Events/Events";
+import { EventRoutes } from "./Events/Events";
 
 // Define the tab interface
 interface Tab {
@@ -237,21 +237,30 @@ const Destination = () => {
 
 export default Destination;
 
+const TRUNCATION_LENGTH = 32;
+
 function DestinationDetailsField(props: {
   type: DestinationTypeReference;
   fieldType: "config" | "credentials";
   fieldKey: string;
-  value: JSX.Element;
+  value: JSX.Element | string;
 }) {
   let label = "";
+  let isSensitive = false;
+  let shouldCopy = false;
   if (props.fieldType === "config") {
-    label =
-      props.type.config_fields.find((field) => field.key === props.fieldKey)
-        ?.label || "";
+    const field = props.type.config_fields.find(
+      (field) => field.key === props.fieldKey
+    );
+    label = field?.label || "";
+    shouldCopy = field?.type === "text";
   } else {
-    label =
-      props.type.credential_fields.find((field) => field.key === props.fieldKey)
-        ?.label || "";
+    const field = props.type.credential_fields.find(
+      (field) => field.key === props.fieldKey
+    );
+    label = field?.label || "";
+    shouldCopy = field?.type === "text" && !field?.sensitive;
+    isSensitive = Boolean(field?.sensitive);
   }
   if (label === "") {
     label = props.fieldKey
@@ -267,7 +276,20 @@ function DestinationDetailsField(props: {
   return (
     <li>
       <span className="body-m">{label}</span>
-      <span className="mono-s">{props.value}</span>
+      <span
+        className="mono-s"
+        title={
+          typeof props.value === "string" && !isSensitive
+            ? props.value
+            : undefined
+        }
+      >
+        {typeof props.value === "string" &&
+        props.value.length > TRUNCATION_LENGTH
+          ? `${props.value.substring(0, TRUNCATION_LENGTH)}...`
+          : props.value}{" "}
+        {shouldCopy && <CopyButton value={String(props.value)} />}
+      </span>
     </li>
   );
 }

@@ -5,6 +5,7 @@ package components
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 )
 
 // DestinationCreateWebhookType - Type of the destination. Must be 'webhook'.
@@ -40,6 +41,17 @@ type DestinationCreateWebhook struct {
 	Topics      Topics              `json:"topics"`
 	Config      WebhookConfig       `json:"config"`
 	Credentials *WebhookCredentials `json:"credentials,omitempty"`
+}
+
+func (d DestinationCreateWebhook) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(d, "", false)
+}
+
+func (d *DestinationCreateWebhook) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"type", "topics", "config"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *DestinationCreateWebhook) GetID() *string {

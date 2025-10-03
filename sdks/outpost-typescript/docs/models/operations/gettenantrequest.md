@@ -5,9 +5,7 @@
 ```typescript
 import { GetTenantRequest } from "@hookdeck/outpost-sdk/models/operations";
 
-let value: GetTenantRequest = {
-  tenantId: "<id>",
-};
+let value: GetTenantRequest = {};
 ```
 
 ## Fields

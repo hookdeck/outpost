@@ -35,6 +35,18 @@
     line-height: var(--line-height-m);
   }
 
+  h3 {
+    font-size: var(--font-size-s);
+    font-weight: 600;
+    line-height: var(--line-height-s);
+  }
+
+  h4 {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    line-height: var(--line-height-xs);
+  }
+
   p, li {
     font-size: var(--font-size-m);
     line-height: var(--line-height-m);

@@ -6,33 +6,37 @@ from .sdkconfiguration import SDKConfiguration
 from .utils.logger import Logger, get_default_logger
 from .utils.retries import RetryConfig
 import httpx
+import importlib
 from outpost_sdk import models, utils
 from outpost_sdk._hooks import SDKHooks
-from outpost_sdk.destinations import Destinations
-from outpost_sdk.events import Events
-from outpost_sdk.health import Health
 from outpost_sdk.models import internal
-from outpost_sdk.publish import Publish
-from outpost_sdk.schemas import Schemas
-from outpost_sdk.tenants import Tenants
-from outpost_sdk.topics_sdk import TopicsSDK
 from outpost_sdk.types import OptionalNullable, UNSET
-from typing import Callable, Dict, Optional, Union, cast
+import sys
+from typing import Callable, Dict, Optional, TYPE_CHECKING, Union, cast
 import weakref
+
+if TYPE_CHECKING:
+    from outpost_sdk.destinations import Destinations
+    from outpost_sdk.events import Events
+    from outpost_sdk.health import Health
+    from outpost_sdk.publish import Publish
+    from outpost_sdk.schemas import Schemas
+    from outpost_sdk.tenants import Tenants
+    from outpost_sdk.topics_sdk import TopicsSDK
 
 
 class Outpost(BaseSDK):
     r"""Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events."""
 
-    health: Health
+    health: "Health"
     r"""API Health Check"""
-    tenants: Tenants
+    tenants: "Tenants"
     r"""The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
 
     If your system is not multi-tenant, create a single tenant with a hard-code tenant ID upon initialization. If your system has a single tenant but multiple environments, create a tenant per environment, like `live` and `test`.
 
     """
-    destinations: Destinations
+    destinations: "Destinations"
     r"""Destinations are the endpoints where events are sent. Each destination is associated with a tenant and can be configured to receive specific event topics.
 
     ```json
@@ -58,14 +62,23 @@ class Outpost(BaseSDK):
     By default all destination `credentials` are obfuscated and the values cannot be read. This does not apply to the `webhook` type destination secret and each destination can expose their own obfuscation logic.
 
     """
-    publish: Publish
+    publish: "Publish"
     r"""Operations for publishing events."""
-    schemas: Schemas
+    schemas: "Schemas"
     r"""Operations for retrieving destination type schemas."""
-    topics: TopicsSDK
+    topics: "TopicsSDK"
     r"""Operations for retrieving available event topics."""
-    events: Events
+    events: "Events"
     r"""Operations related to event history and deliveries."""
+    _sub_sdk_map = {
+        "health": ("outpost_sdk.health", "Health"),
+        "tenants": ("outpost_sdk.tenants", "Tenants"),
+        "destinations": ("outpost_sdk.destinations", "Destinations"),
+        "publish": ("outpost_sdk.publish", "Publish"),
+        "schemas": ("outpost_sdk.schemas", "Schemas"),
+        "topics": ("outpost_sdk.topics_sdk", "TopicsSDK"),
+        "events": ("outpost_sdk.events", "Events"),
+    }
 
     def __init__(
         self,
@@ -138,9 +151,13 @@ class Outpost(BaseSDK):
                 timeout_ms=timeout_ms,
                 debug_logger=debug_logger,
             ),
+            parent_ref=self,
         )
 
         hooks = SDKHooks()
+
+        # pylint: disable=protected-access
+        self.sdk_configuration.__dict__["_hooks"] = hooks
 
         current_server_url, *_ = self.sdk_configuration.get_server_details()
         server_url, self.sdk_configuration.client = hooks.sdk_init(
@@ -148,9 +165,6 @@ class Outpost(BaseSDK):
         )
         if current_server_url != server_url:
             self.sdk_configuration.server_url = server_url
-
-        # pylint: disable=protected-access
-        self.sdk_configuration.__dict__["_hooks"] = hooks
 
         weakref.finalize(
             self,
@@ -162,16 +176,43 @@ class Outpost(BaseSDK):
             self.sdk_configuration.async_client_supplied,
         )
 
-        self._init_sdks()
+    def dynamic_import(self, modname, retries=3):
+        for attempt in range(retries):
+            try:
+                return importlib.import_module(modname)
+            except KeyError:
+                # Clear any half-initialized module and retry
+                sys.modules.pop(modname, None)
+                if attempt == retries - 1:
+                    break
+        raise KeyError(f"Failed to import module '{modname}' after {retries} attempts")
 
-    def _init_sdks(self):
-        self.health = Health(self.sdk_configuration)
-        self.tenants = Tenants(self.sdk_configuration)
-        self.destinations = Destinations(self.sdk_configuration)
-        self.publish = Publish(self.sdk_configuration)
-        self.schemas = Schemas(self.sdk_configuration)
-        self.topics = TopicsSDK(self.sdk_configuration)
-        self.events = Events(self.sdk_configuration)
+    def __getattr__(self, name: str):
+        if name in self._sub_sdk_map:
+            module_path, class_name = self._sub_sdk_map[name]
+            try:
+                module = self.dynamic_import(module_path)
+                klass = getattr(module, class_name)
+                instance = klass(self.sdk_configuration, parent_ref=self)
+                setattr(self, name, instance)
+                return instance
+            except ImportError as e:
+                raise AttributeError(
+                    f"Failed to import module {module_path} for attribute {name}: {e}"
+                ) from e
+            except AttributeError as e:
+                raise AttributeError(
+                    f"Failed to find class {class_name} in module {module_path} for attribute {name}: {e}"
+                ) from e
+
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+
+    def __dir__(self):
+        default_attrs = list(super().__dir__())
+        lazy_attrs = list(self._sub_sdk_map.keys())
+        return sorted(list(set(default_attrs + lazy_attrs)))
 
     def __enter__(self):
         return self

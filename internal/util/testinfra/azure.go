@@ -71,6 +71,13 @@ func GetMQAzureConfig(t *testing.T, testName string) mqs.QueueConfig {
 				Subscription:     "TestIntegrationMQ_AzureServiceBus-subscription",
 			},
 		},
+		"TestDestinationAzureServiceBusSuite": {
+			AzureServiceBus: &mqs.AzureServiceBusConfig{
+				ConnectionString: connString,
+				Topic:            "TestDestinationAzureServiceBusSuite-topic",
+				Subscription:     "TestDestinationAzureServiceBusSuite-subscription",
+			},
+		},
 	}
 
 	if cfg, ok := azureSBMap[testName]; !ok {

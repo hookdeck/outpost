@@ -31,8 +31,30 @@ The source code for the TypeScript SDK can be found in the [`sdks/outpost-typesc
     Replace the placeholder values with your Outpost server URL, Admin API key, and Tenant ID. (Note: `.env` is already gitignored).
 
 2.  **Run the example:**
-    ```bash
-    npm run start
-    ```
+    The example is split into multiple files. You can run each one individually.
 
-    This executes `index.ts` via `ts-node`, showcasing SDK functionalities. Review `index.ts` for details.
+    *   **To run the resource management example (from `index.ts`):**
+        This example demonstrates creating tenants, destinations, and publishing events.
+        ```bash
+        npm run start
+        ```
+
+    *   **To run the authentication example (from `auth.ts`):**
+        This example demonstrates using the Admin API key to fetch a tenant JWT and then using that JWT.
+        ```bash
+        npm run auth
+        ```
+
+    *   **To run the create destination example (from `create-destination.ts`):**
+        This example demonstrates creating a destination.
+        ```bash
+        npm run create-destination
+        ```
+
+    *   **To run the publish event example (from `publish-event.ts`):**
+        This example demonstrates publishing an event to a topic.
+        ```bash
+        npm run publish-event
+        ```
+
+    Review the respective `.ts` files (`index.ts`, `auth.ts`, `create-destination.ts`, `publish-event.ts`) for details on what each example does.

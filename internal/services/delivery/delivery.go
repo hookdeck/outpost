@@ -32,7 +32,7 @@ type DeliveryService struct {
 
 	consumerOptions *consumerOptions
 	Logger          *logging.Logger
-	RedisClient     *redis.Client
+	RedisClient     redis.Cmdable
 	DeliveryMQ      *deliverymq.DeliveryMQ
 	Handler         consumer.MessageHandler
 }
@@ -47,6 +47,7 @@ func NewService(ctx context.Context,
 
 	cleanupFuncs := []func(){}
 
+	// Create Redis client for all operations (now cluster-compatible)
 	redisClient, err := redis.New(ctx, cfg.Redis.ToConfig())
 	if err != nil {
 		return nil, err
@@ -96,8 +97,8 @@ func NewService(ctx context.Context,
 		)
 
 		logstoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
-			ClickHouse: cfg.ClickHouse.ToConfig(),
-			Postgres:   &cfg.PostgresURL,
+			// ClickHouse: cfg.ClickHouse.ToConfig(),
+			Postgres: &cfg.PostgresURL,
 		})
 		if err != nil {
 			return nil, err
@@ -110,7 +111,7 @@ func NewService(ctx context.Context,
 			return nil, err
 		}
 
-		retryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig())
+		retryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig(), logger)
 		if err := retryScheduler.Init(ctx); err != nil {
 			return nil, err
 		}

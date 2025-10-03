@@ -20,6 +20,7 @@ Retrieves a list of events for the tenant, supporting cursor navigation (details
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="listTenantEvents" method="get" path="/{tenant_id}/events" -->
 ```go
 package main
 
@@ -27,6 +28,7 @@ import(
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
 )
 
@@ -34,16 +36,17 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Events.List(ctx, outpostgo.String("<id>"), nil, nil)
+    res, err := s.Events.List(ctx, operations.ListTenantEventsRequest{})
     if err != nil {
         log.Fatal(err)
     }
-    if res.Events != nil {
+    if res.Object != nil {
         // handle response
     }
 }
@@ -51,13 +54,11 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                               | Type                                                                                    | Required                                                                                | Description                                                                             |
-| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `ctx`                                                                                   | [context.Context](https://pkg.go.dev/context#Context)                                   | :heavy_check_mark:                                                                      | The context to use for the request.                                                     |
-| `tenantID`                                                                              | **string*                                                                               | :heavy_minus_sign:                                                                      | The ID of the tenant. Required when using AdminApiKey authentication.                   |
-| `destinationID`                                                                         | [*operations.DestinationID](../../models/operations/destinationid.md)                   | :heavy_minus_sign:                                                                      | Filter events by destination ID(s).                                                     |
-| `status`                                                                                | [*operations.ListTenantEventsStatus](../../models/operations/listtenanteventsstatus.md) | :heavy_minus_sign:                                                                      | Filter events by delivery status.                                                       |
-| `opts`                                                                                  | [][operations.Option](../../models/operations/option.md)                                | :heavy_minus_sign:                                                                      | The options for this request.                                                           |
+| Parameter                                                                                | Type                                                                                     | Required                                                                                 | Description                                                                              |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `ctx`                                                                                    | [context.Context](https://pkg.go.dev/context#Context)                                    | :heavy_check_mark:                                                                       | The context to use for the request.                                                      |
+| `request`                                                                                | [operations.ListTenantEventsRequest](../../models/operations/listtenanteventsrequest.md) | :heavy_check_mark:                                                                       | The request object to use for the request.                                               |
+| `opts`                                                                                   | [][operations.Option](../../models/operations/option.md)                                 | :heavy_minus_sign:                                                                       | The options for this request.                                                            |
 
 ### Response
 
@@ -84,6 +85,7 @@ Retrieves details for a specific event.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="getTenantEvent" method="get" path="/{tenant_id}/events/{event_id}" -->
 ```go
 package main
 
@@ -98,12 +100,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Events.Get(ctx, "<id>", outpostgo.String("<id>"))
+    res, err := s.Events.Get(ctx, "<id>")
     if err != nil {
         log.Fatal(err)
     }
@@ -147,6 +150,7 @@ Retrieves a list of delivery attempts for a specific event, including response d
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="listTenantEventDeliveries" method="get" path="/{tenant_id}/events/{event_id}/deliveries" -->
 ```go
 package main
 
@@ -161,12 +165,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Events.ListDeliveries(ctx, "<id>", outpostgo.String("<id>"))
+    res, err := s.Events.ListDeliveries(ctx, "<id>")
     if err != nil {
         log.Fatal(err)
     }
@@ -210,6 +215,7 @@ Retrieves events associated with a specific destination for the tenant.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="listTenantEventsByDestination" method="get" path="/{tenant_id}/destinations/{destination_id}/events" -->
 ```go
 package main
 
@@ -217,6 +223,7 @@ import(
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
 )
 
@@ -224,16 +231,19 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Events.ListByDestination(ctx, "<id>", outpostgo.String("<id>"), nil)
+    res, err := s.Events.ListByDestination(ctx, operations.ListTenantEventsByDestinationRequest{
+        DestinationID: "<id>",
+    })
     if err != nil {
         log.Fatal(err)
     }
-    if res.Events != nil {
+    if res.Object != nil {
         // handle response
     }
 }
@@ -241,13 +251,11 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                                         | Type                                                                                                              | Required                                                                                                          | Description                                                                                                       |
-| ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `ctx`                                                                                                             | [context.Context](https://pkg.go.dev/context#Context)                                                             | :heavy_check_mark:                                                                                                | The context to use for the request.                                                                               |
-| `destinationID`                                                                                                   | *string*                                                                                                          | :heavy_check_mark:                                                                                                | The ID of the destination.                                                                                        |
-| `tenantID`                                                                                                        | **string*                                                                                                         | :heavy_minus_sign:                                                                                                | The ID of the tenant. Required when using AdminApiKey authentication.                                             |
-| `status`                                                                                                          | [*operations.ListTenantEventsByDestinationStatus](../../models/operations/listtenanteventsbydestinationstatus.md) | :heavy_minus_sign:                                                                                                | Filter events by delivery status.                                                                                 |
-| `opts`                                                                                                            | [][operations.Option](../../models/operations/option.md)                                                          | :heavy_minus_sign:                                                                                                | The options for this request.                                                                                     |
+| Parameter                                                                                                          | Type                                                                                                               | Required                                                                                                           | Description                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `ctx`                                                                                                              | [context.Context](https://pkg.go.dev/context#Context)                                                              | :heavy_check_mark:                                                                                                 | The context to use for the request.                                                                                |
+| `request`                                                                                                          | [operations.ListTenantEventsByDestinationRequest](../../models/operations/listtenanteventsbydestinationrequest.md) | :heavy_check_mark:                                                                                                 | The request object to use for the request.                                                                         |
+| `opts`                                                                                                             | [][operations.Option](../../models/operations/option.md)                                                           | :heavy_minus_sign:                                                                                                 | The options for this request.                                                                                      |
 
 ### Response
 
@@ -274,6 +282,7 @@ Retrieves a specific event associated with a specific destination for the tenant
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="getTenantEventByDestination" method="get" path="/{tenant_id}/destinations/{destination_id}/events/{event_id}" -->
 ```go
 package main
 
@@ -288,12 +297,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Events.GetByDestination(ctx, "<id>", "<id>", outpostgo.String("<id>"))
+    res, err := s.Events.GetByDestination(ctx, "<id>", "<id>")
     if err != nil {
         log.Fatal(err)
     }
@@ -338,6 +348,7 @@ Triggers a retry for a failed event delivery.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="retryTenantEvent" method="post" path="/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry" -->
 ```go
 package main
 
@@ -352,12 +363,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Events.Retry(ctx, "<id>", "<id>", outpostgo.String("<id>"))
+    res, err := s.Events.Retry(ctx, "<id>", "<id>")
     if err != nil {
         log.Fatal(err)
     }

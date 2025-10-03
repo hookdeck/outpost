@@ -149,40 +149,40 @@ func TestRedis(t *testing.T) {
 	}
 }
 
-func TestClickHouse(t *testing.T) {
-	tests := []struct {
-		name    string
-		config  *config.Config
-		wantErr error
-	}{
-		{
-			name:    "valid clickhouse config",
-			config:  validConfig(),
-			wantErr: nil,
-		},
-		{
-			name: "missing storage config",
-			config: func() *config.Config {
-				c := validConfig()
-				c.ClickHouse = config.ClickHouseConfig{}
-				c.PostgresURL = ""
-				return c
-			}(),
-			wantErr: config.ErrMissingLogStorage,
-		},
-	}
+// func TestClickHouse(t *testing.T) {
+// 	tests := []struct {
+// 		name    string
+// 		config  *config.Config
+// 		wantErr error
+// 	}{
+// 		{
+// 			name:    "valid clickhouse config",
+// 			config:  validConfig(),
+// 			wantErr: nil,
+// 		},
+// 		{
+// 			name: "missing storage config",
+// 			config: func() *config.Config {
+// 				c := validConfig()
+// 				c.ClickHouse = config.ClickHouseConfig{}
+// 				c.PostgresURL = ""
+// 				return c
+// 			}(),
+// 			wantErr: config.ErrMissingLogStorage,
+// 		},
+// 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate(config.Flags{})
-			if tt.wantErr != nil {
-				assert.ErrorIs(t, err, tt.wantErr)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			err := tt.config.Validate(config.Flags{})
+// 			if tt.wantErr != nil {
+// 				assert.ErrorIs(t, err, tt.wantErr)
+// 			} else {
+// 				assert.NoError(t, err)
+// 			}
+// 		})
+// 	}
+// }
 
 func TestMQs(t *testing.T) {
 	tests := []struct {

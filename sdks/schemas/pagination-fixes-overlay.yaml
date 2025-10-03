@@ -1,0 +1,63 @@
+overlay: 1.0.0
+x-speakeasy-jsonpath: rfc9535
+info:
+  title: Pagination Field Fixes
+  version: 0.0.1
+  x-speakeasy-metadata:
+    type: pagination-fixes
+    description: "Fixes pagination field conflicts with Python built-ins"
+extends: file:///Users/leggetter/hookdeck/git/outpost/docs/apis/openapi.yaml
+actions:
+  # Fix 'next' field conflict with Python's built-in next() function
+  - target: $["components"]["schemas"]["PaginatedResponse"]["properties"]["next"]
+    update:
+      x-speakeasy-name-override: "next_cursor"
+    x-speakeasy-metadata:
+      type: field-name-override
+      description: "Rename 'next' to 'next_cursor' to avoid Python built-in conflict"
+      
+  # Fix 'prev' field for consistency  
+  - target: $["components"]["schemas"]["PaginatedResponse"]["properties"]["prev"]
+    update:
+      x-speakeasy-name-override: "prev_cursor"
+    x-speakeasy-metadata:
+      type: field-name-override
+      description: "Rename 'prev' to 'prev_cursor' for consistency"
+      
+  # Add pagination configuration for events endpoint
+  - target: $["paths"]["/{tenant_id}/events"]["get"]
+    update:
+      x-speakeasy-pagination:
+        type: cursor
+        inputs:
+          - name: next
+            in: parameters
+            type: cursor
+          - name: limit
+            in: parameters
+            type: limit
+        outputs:
+          nextCursor: $.next
+          results: $.data
+    x-speakeasy-metadata:
+      type: pagination-config
+      description: "Configure cursor-based pagination for events listing"
+      
+  # Add pagination configuration for destination events endpoint  
+  - target: $["paths"]["/{tenant_id}/destinations/{destination_id}/events"]["get"]
+    update:
+      x-speakeasy-pagination:
+        type: cursor
+        inputs:
+          - name: next
+            in: parameters
+            type: cursor
+          - name: limit
+            in: parameters
+            type: limit
+        outputs:
+          nextCursor: $.next
+          results: $.data
+    x-speakeasy-metadata:
+      type: pagination-config
+      description: "Configure cursor-based pagination for destination events listing"

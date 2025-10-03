@@ -33,3 +33,15 @@ value: models.DestinationCreateHookdeck = /* values here */
 value: models.DestinationCreateAWSKinesis = /* values here */
 ```
 
+### `models.DestinationCreateAzureServiceBus`
+
+```python
+value: models.DestinationCreateAzureServiceBus = /* values here */
+```
+
+### `models.DestinationCreateAwss3`
+
+```python
+value: models.DestinationCreateAwss3 = /* values here */
+```
+

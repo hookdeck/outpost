@@ -12,3 +12,4 @@ The type of the destination.
 | `GetDestinationTypeSchemaTypeRabbitmq`   | rabbitmq                                 |
 | `GetDestinationTypeSchemaTypeHookdeck`   | hookdeck                                 |
 | `GetDestinationTypeSchemaTypeAwsKinesis` | aws_kinesis                              |
+| `GetDestinationTypeSchemaTypeAwsS3`      | aws_s3                                   |

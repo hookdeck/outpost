@@ -44,17 +44,19 @@ Return a list of the destinations for the tenant. The endpoint is not paged.
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="listTenantDestinations" method="get" path="/{tenant_id}/destinations" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.destinations.list(tenant_id="<id>")
+    res = outpost.destinations.list()
 
     # Handle response
     print(res)
@@ -95,11 +97,13 @@ Creates a new destination for the tenant. The request body structure depends on 
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="createTenantDestination" method="post" path="/{tenant_id}/destinations" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
@@ -118,7 +122,7 @@ with Outpost(
             "username": "guest",
             "password": "guest",
         },
-    }, tenant_id="<id>")
+    })
 
     # Handle response
     print(res)
@@ -158,17 +162,19 @@ Retrieves details for a specific destination.
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="getTenantDestination" method="get" path="/{tenant_id}/destinations/{destination_id}" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.destinations.get(destination_id="<id>", tenant_id="<id>")
+    res = outpost.destinations.get(destination_id="<id>")
 
     # Handle response
     print(res)
@@ -208,11 +214,13 @@ Updates the configuration of an existing destination. The request body structure
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="updateTenantDestination" method="patch" path="/{tenant_id}/destinations/{destination_id}" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
@@ -229,7 +237,7 @@ with Outpost(
             "username": "guest",
             "password": "guest",
         },
-    }, tenant_id="<id>")
+    })
 
     # Handle response
     print(res)
@@ -270,17 +278,19 @@ Deletes a specific destination.
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="deleteTenantDestination" method="delete" path="/{tenant_id}/destinations/{destination_id}" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.destinations.delete(destination_id="<id>", tenant_id="<id>")
+    res = outpost.destinations.delete(destination_id="<id>")
 
     # Handle response
     print(res)
@@ -320,17 +330,19 @@ Enables a previously disabled destination.
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="enableTenantDestination" method="put" path="/{tenant_id}/destinations/{destination_id}/enable" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.destinations.enable(destination_id="<id>", tenant_id="<id>")
+    res = outpost.destinations.enable(destination_id="<id>")
 
     # Handle response
     print(res)
@@ -370,17 +382,19 @@ Disables a previously enabled destination.
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="disableTenantDestination" method="put" path="/{tenant_id}/destinations/{destination_id}/disable" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.destinations.disable(destination_id="<id>", tenant_id="<id>")
+    res = outpost.destinations.disable(destination_id="<id>")
 
     # Handle response
     print(res)

@@ -1,0 +1,66 @@
+{
+  "type": "aws_s3",
+  "label": "AWS S3",
+  "description": "Store events in an Amazon S3 bucket",
+  "link": "https://aws.amazon.com/s3/",
+  "config_fields": [
+    {
+      "key": "bucket",
+      "type": "text",
+      "label": "Bucket Name",
+      "description": "The name of your AWS S3 bucket",
+      "required": true
+    },
+    {
+      "key": "region",
+      "type": "text",
+      "label": "AWS Region",
+      "description": "The AWS region where your bucket is located",
+      "required": true,
+      "pattern": "^[a-z]{2}-[a-z]+-[0-9]+$"
+    },
+    {
+      "key": "key_template",
+      "type": "text",
+      "label": "Object Key Template",
+      "description": "JMESPath expression for generating S3 object keys. Default: join('', [time.rfc3339_nano, '_', metadata.\"event-id\", '.json'])",
+      "required": false,
+      "placeholder": "join('/', [time.year, time.month, time.day, metadata.\"event-id\", '.json'])"
+    },
+    {
+      "key": "storage_class",
+      "type": "text",
+      "label": "S3 Storage Class",
+      "description": "The storage class for the S3 objects (e.g., STANDARD, INTELLIGENT_TIERING, GLACIER, etc.)",
+      "required": false,
+      "default": "STANDARD"
+    }
+  ],
+  "credential_fields": [
+    {
+      "key": "key",
+      "type": "text",
+      "label": "Access Key ID",
+      "description": "AWS Access Key ID",
+      "required": true,
+      "sensitive": true
+    },
+    {
+      "key": "secret",
+      "type": "text",
+      "label": "Secret Access Key",
+      "description": "AWS Secret Access Key",
+      "required": true,
+      "sensitive": true
+    },
+    {
+      "key": "session",
+      "type": "text",
+      "label": "Session Token",
+      "description": "AWS Session Token (optional)",
+      "required": false,
+      "sensitive": true
+    }
+  ],
+  "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"428\" height=\"512\" viewBox=\"0 0 428 512\"><defs><style>.cls-1{fill:#e25444;}.cls-1,.cls-2,.cls-3{fill-rule:evenodd;}.cls-2{fill:#7b1d13;}.cls-3{fill:#58150d;}</style></defs><path class=\"cls-1\" d=\"M378,99L295,257l83,158,34-19V118Z\"/><path class=\"cls-2\" d=\"M378,99L212,118,127.5,257,212,396l166,19V99Z\"/><path class=\"cls-3\" d=\"M43,99L16,111V403l27,12L212,257Z\"/><path class=\"cls-1\" d=\"M42.637,98.667l169.587,47.111V372.444L42.637,415.111V98.667Z\"/><path class=\"cls-3\" d=\"M212.313,170.667l-72.008-11.556,72.008-81.778,71.83,81.778Z\"/><path class=\"cls-3\" d=\"M284.143,159.111l-71.919,11.733-71.919-11.733V77.333\"/><path class=\"cls-3\" d=\"M212.313,342.222l-72.008,13.334,72.008,70.222,71.83-70.222Z\"/><path class=\"cls-2\" d=\"M212,16L140,54V159l72.224-20.333Z\"/><path class=\"cls-2\" d=\"M212.224,196.444l-71.919,7.823V309.105l71.919,8.228V196.444Z\"/><path class=\"cls-2\" d=\"M212.224,373.333L140.305,355.3V458.363L212.224,496V373.333Z\"/><path class=\"cls-1\" d=\"M284.143,355.3l-71.919,18.038V496l71.919-37.637V355.3Z\"/><path class=\"cls-1\" d=\"M212.224,196.444l71.919,7.823V309.105l-71.919,8.228V196.444Z\"/><path class=\"cls-1\" d=\"M212,16l72,38V159l-72-20V16Z\"/></svg>"
+}

@@ -2,9 +2,24 @@
 
 package components
 
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+)
+
 type HookdeckCredentials struct {
 	// Hookdeck authentication token.
 	Token string `json:"token"`
+}
+
+func (h HookdeckCredentials) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(h, "", false)
+}
+
+func (h *HookdeckCredentials) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &h, "", false, []string{"token"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *HookdeckCredentials) GetToken() string {

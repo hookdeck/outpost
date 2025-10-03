@@ -1,0 +1,114 @@
+---
+title: "Outpost Quickstart: Railway"
+---
+
+Deploy Outpost to Railway with a one-click deployment. Railway provides a hosted cloud platform that automatically handles infrastructure provisioning and scaling.
+
+## Prerequisites
+
+- [Railway account](https://railway.com)
+
+## Setup
+
+1. Deploy Outpost to Railway using the one-click deployment button:
+
+   [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/outpost-starter?referralCode=NRulS_)
+
+2. Once the deployment is complete, configure your `TOPICS` environment variable to the topics supported for destination subscriptions, publishing, and routing of events. For example:
+
+   ```
+   TOPICS=user.created,user.updated,user.deleted
+   ```
+
+3. Note the generated `API_KEY` environment variable value and the public Railway URL of your Outpost instance for authentication and API requests.
+
+## Verify Installation
+
+:::tip
+
+You can use shell variables to store the tenant ID and API key for easier use in the following commands:
+
+```sh
+# Replace with your actual Railway app public URL,
+# found in the Railway dashboard under "Domains"
+OUTPOST_URL=https://your-railway-app.railway.app
+TENANT_ID=your_org_name
+API_KEY=your_api_key
+URL=your_webhook_url
+```
+
+:::
+
+1. Check that the services are running by replacing `$OUTPOST_URL` with your Railway public URL:
+
+   ```sh
+   curl $OUTPOST_URL/api/v1/healthz
+   ```
+
+   Wait until you get an `OK` response.
+
+2. Create a tenant with the following command, replacing `$TENANT_ID` with a unique identifier such as "your_org_name", and the `$API_KEY` with the value from your Railway environment variables:
+
+   ```sh
+   curl --location --request PUT "$OUTPOST_URL/api/v1/$TENANT_ID" \
+   --header "Authorization: Bearer $API_KEY"
+   ```
+
+3. Run a local server exposed via a localtunnel or use a hosted service such as the [Hookdeck Console](https://console.hookdeck.com?ref=github-outpost) to capture webhook events.
+
+4. Create a webhook destination where events will be delivered to using the following command. Again, replace `$TENANT_ID` and `$API_KEY`. Also, replace `$URL` with the webhook destination's URL:
+
+   ```sh
+   curl --location "$OUTPOST_URL/api/v1/$TENANT_ID/destinations" \
+   --header "Content-Type: application/json" \
+   --header "Authorization: Bearer $API_KEY" \
+   --data '{
+       "type": "webhook",
+       "topics": ["*"],
+       "config": {
+           "url": "'"$URL"'"
+        }
+    }'
+   ```
+
+5. Publish an event, remembering to replace `$API_KEY` and `$TENANT_ID`:
+
+   ```sh
+   curl --location "$OUTPOST_URL/api/v1/publish" \
+   --header "Content-Type: application/json" \
+   --header "Authorization: Bearer $API_KEY" \
+   --data '{
+       "tenant_id": "'"$TENANT_ID"'",
+       "topic": "user.created",
+       "eligible_for_retry": true,
+       "metadata": {
+           "meta": "data"
+       },
+       "data": {
+           "user_id": "userid"
+       }
+   }'
+   ```
+
+6. Check the logs on your server or your webhook capture tool for the delivered event.
+
+7. Get an Outpost portal link for the tenant:
+
+   ```sh
+   curl "$OUTPOST_URL/api/v1/$TENANT_ID/portal" \
+   --header "Authorization: Bearer $API_KEY"
+   ```
+
+   The response will look something like the following:
+
+   ```json
+   { "redirect_url": "https://$OUTPOST_URL?token=$TOKEN" }
+   ```
+
+   The `token` value is an API-generated JWT.
+
+   Open the `redirect_url` link to view the Outpost portal.
+
+   ![Outpost portal home page](../../public/images/dashboard-homepage.png)
+
+Continue to use the [Outpost API](https://outpost.hookdeck.com/docs/references/api) or the Outpost portal to add and test more destinations.

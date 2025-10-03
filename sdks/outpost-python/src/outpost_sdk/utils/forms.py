@@ -86,11 +86,39 @@ def _populate_form(
     return form
 
 
+def _extract_file_properties(file_obj: Any) -> Tuple[str, Any, Any]:
+    """Extract file name, content, and content type from a file object."""
+    file_fields: Dict[str, FieldInfo] = file_obj.__class__.model_fields
+
+    file_name = ""
+    content = None
+    content_type = None
+
+    for file_field_name in file_fields:
+        file_field = file_fields[file_field_name]
+
+        file_metadata = find_field_metadata(file_field, MultipartFormMetadata)
+        if file_metadata is None:
+            continue
+
+        if file_metadata.content:
+            content = getattr(file_obj, file_field_name, None)
+        elif file_field_name == "content_type":
+            content_type = getattr(file_obj, file_field_name, None)
+        else:
+            file_name = getattr(file_obj, file_field_name)
+
+    if file_name == "" or content is None:
+        raise ValueError("invalid multipart/form-data file")
+
+    return file_name, content, content_type
+
+
 def serialize_multipart_form(
     media_type: str, request: Any
-) -> Tuple[str, Dict[str, Any], Dict[str, Any]]:
+) -> Tuple[str, Dict[str, Any], List[Tuple[str, Any]]]:
     form: Dict[str, Any] = {}
-    files: Dict[str, Any] = {}
+    files: List[Tuple[str, Any]] = []
 
     if not isinstance(request, BaseModel):
         raise TypeError("invalid request body type")
@@ -112,39 +140,32 @@ def serialize_multipart_form(
         f_name = field.alias if field.alias else name
 
         if field_metadata.file:
-            file_fields: Dict[str, FieldInfo] = val.__class__.model_fields
+            if isinstance(val, List):
+                # Handle array of files
+                for file_obj in val:
+                    if not _is_set(file_obj):
+                        continue
+                        
+                    file_name, content, content_type = _extract_file_properties(file_obj)
 
-            file_name = ""
-            content = None
-            content_type = None
-
-            for file_field_name in file_fields:
-                file_field = file_fields[file_field_name]
-
-                file_metadata = find_field_metadata(file_field, MultipartFormMetadata)
-                if file_metadata is None:
-                    continue
-
-                if file_metadata.content:
-                    content = getattr(val, file_field_name, None)
-                elif file_field_name == "content_type":
-                    content_type = getattr(val, file_field_name, None)
-                else:
-                    file_name = getattr(val, file_field_name)
-
-            if file_name == "" or content is None:
-                raise ValueError("invalid multipart/form-data file")
-
-            if content_type is not None:
-                files[f_name] = (file_name, content, content_type)
+                    if content_type is not None:
+                        files.append((f_name + "[]", (file_name, content, content_type)))
+                    else:
+                        files.append((f_name + "[]", (file_name, content)))
             else:
-                files[f_name] = (file_name, content)
+                # Handle single file
+                file_name, content, content_type = _extract_file_properties(val)
+
+                if content_type is not None:
+                    files.append((f_name, (file_name, content, content_type)))
+                else:
+                    files.append((f_name, (file_name, content)))
         elif field_metadata.json:
-            files[f_name] = (
+            files.append((f_name, (
                 None,
                 marshal_json(val, request_field_types[name]),
                 "application/json",
-            )
+            )))
         else:
             if isinstance(val, List):
                 values = []

@@ -7,6 +7,7 @@ import { remap as remap$ } from "../../lib/primitives.js";
 import { safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
+import * as components from "../components/index.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 export type ListTenantEventsGlobals = {
@@ -43,6 +44,49 @@ export type ListTenantEventsRequest = {
    * Filter events by delivery status.
    */
   status?: ListTenantEventsStatus | undefined;
+  /**
+   * Cursor for next page of results
+   */
+  next?: string | undefined;
+  /**
+   * Cursor for previous page of results
+   */
+  prev?: string | undefined;
+  /**
+   * Number of items per page (default 100, max 1000)
+   */
+  limit?: number | undefined;
+  /**
+   * Start time filter (RFC3339 format)
+   */
+  start?: Date | undefined;
+  /**
+   * End time filter (RFC3339 format)
+   */
+  end?: Date | undefined;
+};
+
+/**
+ * A paginated list of events.
+ */
+export type ListTenantEventsResponseBody = {
+  /**
+   * Total number of items across all pages
+   */
+  count: number;
+  data: Array<components.Event>;
+  /**
+   * Cursor for next page (empty string if no next page)
+   */
+  nextCursor: string;
+  /**
+   * Cursor for previous page (empty string if no previous page)
+   */
+  prevCursor: string;
+};
+
+export type ListTenantEventsResponse = {
+  result: ListTenantEventsResponseBody;
 };
 
 /** @internal */
@@ -181,6 +225,13 @@ export const ListTenantEventsRequest$inboundSchema: z.ZodType<
   tenant_id: z.string().optional(),
   destination_id: z.union([z.string(), z.array(z.string())]).optional(),
   status: ListTenantEventsStatus$inboundSchema.optional(),
+  next: z.string().optional(),
+  prev: z.string().optional(),
+  limit: z.number().int().default(100),
+  start: z.string().datetime({ offset: true }).transform(v => new Date(v))
+    .optional(),
+  end: z.string().datetime({ offset: true }).transform(v => new Date(v))
+    .optional(),
 }).transform((v) => {
   return remap$(v, {
     "tenant_id": "tenantId",
@@ -193,6 +244,11 @@ export type ListTenantEventsRequest$Outbound = {
   tenant_id?: string | undefined;
   destination_id?: string | Array<string> | undefined;
   status?: string | undefined;
+  next?: string | undefined;
+  prev?: string | undefined;
+  limit: number;
+  start?: string | undefined;
+  end?: string | undefined;
 };
 
 /** @internal */
@@ -204,6 +260,11 @@ export const ListTenantEventsRequest$outboundSchema: z.ZodType<
   tenantId: z.string().optional(),
   destinationId: z.union([z.string(), z.array(z.string())]).optional(),
   status: ListTenantEventsStatus$outboundSchema.optional(),
+  next: z.string().optional(),
+  prev: z.string().optional(),
+  limit: z.number().int().default(100),
+  start: z.date().transform(v => v.toISOString()).optional(),
+  end: z.date().transform(v => v.toISOString()).optional(),
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",
@@ -239,5 +300,142 @@ export function listTenantEventsRequestFromJSON(
     jsonString,
     (x) => ListTenantEventsRequest$inboundSchema.parse(JSON.parse(x)),
     `Failed to parse 'ListTenantEventsRequest' from JSON`,
+  );
+}
+
+/** @internal */
+export const ListTenantEventsResponseBody$inboundSchema: z.ZodType<
+  ListTenantEventsResponseBody,
+  z.ZodTypeDef,
+  unknown
+> = z.object({
+  count: z.number().int(),
+  data: z.array(components.Event$inboundSchema),
+  next: z.string(),
+  prev: z.string(),
+}).transform((v) => {
+  return remap$(v, {
+    "next": "nextCursor",
+    "prev": "prevCursor",
+  });
+});
+
+/** @internal */
+export type ListTenantEventsResponseBody$Outbound = {
+  count: number;
+  data: Array<components.Event$Outbound>;
+  next: string;
+  prev: string;
+};
+
+/** @internal */
+export const ListTenantEventsResponseBody$outboundSchema: z.ZodType<
+  ListTenantEventsResponseBody$Outbound,
+  z.ZodTypeDef,
+  ListTenantEventsResponseBody
+> = z.object({
+  count: z.number().int(),
+  data: z.array(components.Event$outboundSchema),
+  nextCursor: z.string(),
+  prevCursor: z.string(),
+}).transform((v) => {
+  return remap$(v, {
+    nextCursor: "next",
+    prevCursor: "prev",
+  });
+});
+
+/**
+ * @internal
+ * @deprecated This namespace will be removed in future versions. Use schemas and types that are exported directly from this module.
+ */
+export namespace ListTenantEventsResponseBody$ {
+  /** @deprecated use `ListTenantEventsResponseBody$inboundSchema` instead. */
+  export const inboundSchema = ListTenantEventsResponseBody$inboundSchema;
+  /** @deprecated use `ListTenantEventsResponseBody$outboundSchema` instead. */
+  export const outboundSchema = ListTenantEventsResponseBody$outboundSchema;
+  /** @deprecated use `ListTenantEventsResponseBody$Outbound` instead. */
+  export type Outbound = ListTenantEventsResponseBody$Outbound;
+}
+
+export function listTenantEventsResponseBodyToJSON(
+  listTenantEventsResponseBody: ListTenantEventsResponseBody,
+): string {
+  return JSON.stringify(
+    ListTenantEventsResponseBody$outboundSchema.parse(
+      listTenantEventsResponseBody,
+    ),
+  );
+}
+
+export function listTenantEventsResponseBodyFromJSON(
+  jsonString: string,
+): SafeParseResult<ListTenantEventsResponseBody, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => ListTenantEventsResponseBody$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListTenantEventsResponseBody' from JSON`,
+  );
+}
+
+/** @internal */
+export const ListTenantEventsResponse$inboundSchema: z.ZodType<
+  ListTenantEventsResponse,
+  z.ZodTypeDef,
+  unknown
+> = z.object({
+  Result: z.lazy(() => ListTenantEventsResponseBody$inboundSchema),
+}).transform((v) => {
+  return remap$(v, {
+    "Result": "result",
+  });
+});
+
+/** @internal */
+export type ListTenantEventsResponse$Outbound = {
+  Result: ListTenantEventsResponseBody$Outbound;
+};
+
+/** @internal */
+export const ListTenantEventsResponse$outboundSchema: z.ZodType<
+  ListTenantEventsResponse$Outbound,
+  z.ZodTypeDef,
+  ListTenantEventsResponse
+> = z.object({
+  result: z.lazy(() => ListTenantEventsResponseBody$outboundSchema),
+}).transform((v) => {
+  return remap$(v, {
+    result: "Result",
+  });
+});
+
+/**
+ * @internal
+ * @deprecated This namespace will be removed in future versions. Use schemas and types that are exported directly from this module.
+ */
+export namespace ListTenantEventsResponse$ {
+  /** @deprecated use `ListTenantEventsResponse$inboundSchema` instead. */
+  export const inboundSchema = ListTenantEventsResponse$inboundSchema;
+  /** @deprecated use `ListTenantEventsResponse$outboundSchema` instead. */
+  export const outboundSchema = ListTenantEventsResponse$outboundSchema;
+  /** @deprecated use `ListTenantEventsResponse$Outbound` instead. */
+  export type Outbound = ListTenantEventsResponse$Outbound;
+}
+
+export function listTenantEventsResponseToJSON(
+  listTenantEventsResponse: ListTenantEventsResponse,
+): string {
+  return JSON.stringify(
+    ListTenantEventsResponse$outboundSchema.parse(listTenantEventsResponse),
+  );
+}
+
+export function listTenantEventsResponseFromJSON(
+  jsonString: string,
+): SafeParseResult<ListTenantEventsResponse, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => ListTenantEventsResponse$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListTenantEventsResponse' from JSON`,
   );
 }

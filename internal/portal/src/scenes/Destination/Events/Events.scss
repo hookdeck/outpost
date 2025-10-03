@@ -41,6 +41,11 @@
 
       &__body-cell > * {
         padding: var(--spacing-3) var(--spacing-4);
+        
+        .button__minimal {
+          padding-top: 0;
+          padding-bottom: 0;
+        }
       }
 
       &__footer {

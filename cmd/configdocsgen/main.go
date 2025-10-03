@@ -601,7 +601,11 @@ func generateYAMLPart(builder *strings.Builder, configInfo *ParsedConfig, allCon
 
 		// Required status as a comment
 		if field.Required != "" && field.Required != "N" && field.Required != "false" {
-			builder.WriteString(fmt.Sprintf("%s# Required: %s\n", indent, field.Required))
+			requiredText := field.Required
+			if field.Required == "C" {
+				requiredText = "Conditional"
+			}
+			builder.WriteString(fmt.Sprintf("%s# Required: %s\n", indent, requiredText))
 		}
 
 		// Field line

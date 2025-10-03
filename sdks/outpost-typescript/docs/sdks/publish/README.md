@@ -15,6 +15,7 @@ Publishes an event to the specified topic, potentially routed to a specific dest
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="publishEvent" method="post" path="/publish" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -25,7 +26,7 @@ const outpost = new Outpost({
 });
 
 async function run() {
-  await outpost.publish.event({
+  const result = await outpost.publish.event({
     id: "evt_custom_123",
     tenantId: "<TENANT_ID>",
     destinationId: "<DESTINATION_ID>",
@@ -39,7 +40,7 @@ async function run() {
     },
   });
 
-
+  console.log(result);
 }
 
 run();
@@ -75,14 +76,12 @@ async function run() {
       "status": "active",
     },
   });
-
-  if (!res.ok) {
-    throw res.error;
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("publishEvent failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  
 }
 
 run();
@@ -99,7 +98,7 @@ run();
 
 ### Response
 
-**Promise\<void\>**
+**Promise\<[components.PublishResponse](../../models/components/publishresponse.md)\>**
 
 ### Errors
 

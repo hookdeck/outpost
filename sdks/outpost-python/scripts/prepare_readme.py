@@ -10,12 +10,17 @@ try:
         GITHUB_URL = (
             GITHUB_URL[: -len(".git")] if GITHUB_URL.endswith(".git") else GITHUB_URL
         )
+        REPO_SUBDIR = "sdks/outpost-python"
+        # Ensure the subdirectory has a trailing slash
+        if not REPO_SUBDIR.endswith("/"):
+            REPO_SUBDIR += "/"
         # links on PyPI should have absolute URLs
         readme_contents = re.sub(
             r"(\[[^\]]+\]\()((?!https?:)[^\)]+)(\))",
             lambda m: m.group(1)
             + GITHUB_URL
             + "/blob/master/"
+            + REPO_SUBDIR
             + m.group(2)
             + m.group(3),
             readme_contents,

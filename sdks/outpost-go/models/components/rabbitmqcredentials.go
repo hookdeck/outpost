@@ -2,11 +2,26 @@
 
 package components
 
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+)
+
 type RabbitMQCredentials struct {
 	// RabbitMQ username.
 	Username string `json:"username"`
 	// RabbitMQ password.
 	Password string `json:"password"`
+}
+
+func (r RabbitMQCredentials) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(r, "", false)
+}
+
+func (r *RabbitMQCredentials) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &r, "", false, []string{"username", "password"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *RabbitMQCredentials) GetUsername() string {

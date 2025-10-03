@@ -1,71 +1,15 @@
-import os
-import sys
-from dotenv import load_dotenv
-from outpost_sdk import Outpost, models
+import typer
 
-load_dotenv()
+from example.create_destination import run as create_destination
+from example.publish_event import run as publish_event
+from example.auth import run as auth
 
-admin_api_key = os.getenv("ADMIN_API_KEY")
-tenant_id = os.getenv("TENANT_ID")
-server_url = os.getenv("SERVER_URL")
+app = typer.Typer()
 
-if not admin_api_key:
-    print("Error: ADMIN_API_KEY not set.")
-    sys.exit(1)
-if not tenant_id:
-    print("Error: TENANT_ID not set.")
-    sys.exit(1)
-if not server_url:
-    print("Error: SERVER_URL not set.")
-    sys.exit(1)
-
-api_server_url = f"{server_url}/api/v1"
-
-
-def with_jwt(jwt: str):
-    print("--- Running with Tenant JWT ---")
-    security_config = models.Security(tenant_jwt=jwt)
-    with Outpost(security=security_config, server_url=api_server_url) as outpost:
-        try:
-            destinations_res = outpost.destinations.list()
-            print("Destinations listed successfully using JWT:")
-            print(destinations_res)
-        except Exception as e:
-            print(f"Error listing destinations with JWT: {e}")
-
-
-def with_admin_api_key():
-    print("--- Running with Admin API Key ---")
-    security_config = models.Security(admin_api_key=admin_api_key)
-    with Outpost(security=security_config, server_url=api_server_url) as outpost:
-        try:
-            health_res = outpost.health.check()
-            print("Health check result:")
-            print(health_res)
-
-            destinations_res = outpost.destinations.list(tenant_id=tenant_id)
-            print(
-                f"Destinations listed successfully using Admin Key for tenant {tenant_id}:"  # noqa E501
-            )
-            print(destinations_res)
-
-            token_res = outpost.tenants.get_token(tenant_id=tenant_id)
-            print(f"Tenant token obtained for tenant {tenant_id}:")
-            print(token_res)
-
-            if token_res and hasattr(token_res, "token") and token_res.token:
-                with_jwt(token_res.token)
-            else:
-                print("Could not obtain tenant token.")
-
-        except Exception as e:
-            print(f"Error during admin operations: {e}")
-
-
-def main():
-    with_admin_api_key()
-    print("--- Example finished ---")
+app.command("auth")(auth)
+app.command("create-destination")(create_destination)
+app.command("publish-event")(publish_event)
 
 
 if __name__ == "__main__":
-    main()
+    app()

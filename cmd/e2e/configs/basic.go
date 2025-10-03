@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -24,12 +25,20 @@ const (
 )
 
 type BasicOpts struct {
-	LogStorage LogStorageType
+	LogStorage  LogStorageType
+	RedisConfig *redis.RedisConfig // Optional Redis config override
 }
 
 func Basic(t *testing.T, opts BasicOpts) config.Config {
 	// Get test infrastructure configs
-	redisConfig := testutil.CreateTestRedisConfig(t)
+	var redisConfig *redis.RedisConfig
+	if opts.RedisConfig != nil {
+		// Use provided Redis config (e.g., for cluster testing)
+		redisConfig = opts.RedisConfig
+	} else {
+		// Use default test Redis config
+		redisConfig = testutil.CreateTestRedisConfig(t)
+	}
 	rabbitmqServerURL := testinfra.EnsureRabbitMQ()
 
 	logLevel := "fatal"
@@ -57,6 +66,8 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	c.Redis.Port = redisConfig.Port
 	c.Redis.Password = redisConfig.Password
 	c.Redis.Database = redisConfig.Database
+	c.Redis.ClusterEnabled = redisConfig.ClusterEnabled
+	c.Redis.DevClusterHostOverride = redisConfig.DevClusterHostOverride
 
 	// MQ overrides
 	c.MQs.RabbitMQ.ServerURL = rabbitmqServerURL
@@ -91,17 +102,56 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	return *c
 }
 
+// CreateRedisClusterConfig creates a Redis cluster configuration for testing
+// Returns nil if TEST_REDIS_CLUSTER_URL is not set
+func CreateRedisClusterConfig(t *testing.T) *redis.RedisConfig {
+	// Get Redis cluster URL from environment
+	redisClusterURL := os.Getenv("TEST_REDIS_CLUSTER_URL")
+	if redisClusterURL == "" {
+		return nil
+	}
+
+	// Parse host and port from URL (format: "redis-cluster:7000")
+	parts := strings.Split(redisClusterURL, ":")
+	if len(parts) != 2 {
+		t.Fatalf("Invalid TEST_REDIS_CLUSTER_URL format: %s (expected host:port)", redisClusterURL)
+	}
+
+	redisHost := parts[0]
+	redisPort := 7000 // Default port, could parse from parts[1] if needed
+
+	redisConfig := &redis.RedisConfig{
+		Host:                   redisHost,
+		Port:                   redisPort,
+		Password:               "",
+		Database:               0,
+		ClusterEnabled:         true,
+		DevClusterHostOverride: true, // Always true for Docker-based cluster tests
+	}
+
+	// Test Redis connection before returning
+	t.Logf("Testing Redis cluster connection to %s:%d", redisHost, redisPort)
+	testCtx := context.Background()
+	_, err := redis.NewClient(testCtx, redisConfig)
+	if err != nil {
+		t.Fatalf("Failed to create Redis client: %v", err)
+	}
+	t.Logf("Redis client created successfully")
+
+	return redisConfig
+}
+
 func setLogStorage(t *testing.T, c *config.Config, logStorage LogStorageType) error {
 	switch logStorage {
 	case LogStorageTypePostgres:
 		postgresURL := testinfra.NewPostgresConfig(t)
 		c.PostgresURL = postgresURL
-	case LogStorageTypeClickHouse:
-		clickHouseConfig := testinfra.NewClickHouseConfig(t)
-		c.ClickHouse.Addr = clickHouseConfig.Addr
-		c.ClickHouse.Username = clickHouseConfig.Username
-		c.ClickHouse.Password = clickHouseConfig.Password
-		c.ClickHouse.Database = clickHouseConfig.Database
+	// case LogStorageTypeClickHouse:
+	// 	clickHouseConfig := testinfra.NewClickHouseConfig(t)
+	// 	c.ClickHouse.Addr = clickHouseConfig.Addr
+	// 	c.ClickHouse.Username = clickHouseConfig.Username
+	// 	c.ClickHouse.Password = clickHouseConfig.Password
+	// 	c.ClickHouse.Database = clickHouseConfig.Database
 	default:
 		return fmt.Errorf("invalid log storage type: %s", logStorage)
 	}

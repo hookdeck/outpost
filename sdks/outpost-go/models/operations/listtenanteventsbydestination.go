@@ -5,7 +5,9 @@ package operations
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	"time"
 )
 
 type ListTenantEventsByDestinationGlobals struct {
@@ -53,6 +55,27 @@ type ListTenantEventsByDestinationRequest struct {
 	DestinationID string `pathParam:"style=simple,explode=false,name=destination_id"`
 	// Filter events by delivery status.
 	Status *ListTenantEventsByDestinationStatus `queryParam:"style=form,explode=true,name=status"`
+	// Cursor for next page of results
+	Next *string `queryParam:"style=form,explode=true,name=next"`
+	// Cursor for previous page of results
+	Prev *string `queryParam:"style=form,explode=true,name=prev"`
+	// Number of items per page (default 100, max 1000)
+	Limit *int64 `default:"100" queryParam:"style=form,explode=true,name=limit"`
+	// Start time filter (RFC3339 format)
+	Start *time.Time `queryParam:"style=form,explode=true,name=start"`
+	// End time filter (RFC3339 format)
+	End *time.Time `queryParam:"style=form,explode=true,name=end"`
+}
+
+func (l ListTenantEventsByDestinationRequest) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(l, "", false)
+}
+
+func (l *ListTenantEventsByDestinationRequest) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &l, "", false, []string{"destination_id"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *ListTenantEventsByDestinationRequest) GetTenantID() *string {
@@ -76,10 +99,84 @@ func (o *ListTenantEventsByDestinationRequest) GetStatus() *ListTenantEventsByDe
 	return o.Status
 }
 
+func (o *ListTenantEventsByDestinationRequest) GetNext() *string {
+	if o == nil {
+		return nil
+	}
+	return o.Next
+}
+
+func (o *ListTenantEventsByDestinationRequest) GetPrev() *string {
+	if o == nil {
+		return nil
+	}
+	return o.Prev
+}
+
+func (o *ListTenantEventsByDestinationRequest) GetLimit() *int64 {
+	if o == nil {
+		return nil
+	}
+	return o.Limit
+}
+
+func (o *ListTenantEventsByDestinationRequest) GetStart() *time.Time {
+	if o == nil {
+		return nil
+	}
+	return o.Start
+}
+
+func (o *ListTenantEventsByDestinationRequest) GetEnd() *time.Time {
+	if o == nil {
+		return nil
+	}
+	return o.End
+}
+
+// ListTenantEventsByDestinationResponseBody - A paginated list of events for the destination.
+type ListTenantEventsByDestinationResponseBody struct {
+	// Total number of items across all pages
+	Count int64              `json:"count"`
+	Data  []components.Event `json:"data"`
+	// Cursor for next page (empty string if no next page)
+	Next string `json:"next"`
+	// Cursor for previous page (empty string if no previous page)
+	Prev string `json:"prev"`
+}
+
+func (o *ListTenantEventsByDestinationResponseBody) GetCount() int64 {
+	if o == nil {
+		return 0
+	}
+	return o.Count
+}
+
+func (o *ListTenantEventsByDestinationResponseBody) GetData() []components.Event {
+	if o == nil {
+		return []components.Event{}
+	}
+	return o.Data
+}
+
+func (o *ListTenantEventsByDestinationResponseBody) GetNext() string {
+	if o == nil {
+		return ""
+	}
+	return o.Next
+}
+
+func (o *ListTenantEventsByDestinationResponseBody) GetPrev() string {
+	if o == nil {
+		return ""
+	}
+	return o.Prev
+}
+
 type ListTenantEventsByDestinationResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
-	// A list of events for the destination.
-	Events []components.Event
+	// A paginated list of events for the destination.
+	Object *ListTenantEventsByDestinationResponseBody
 }
 
 func (o *ListTenantEventsByDestinationResponse) GetHTTPMeta() components.HTTPMetadata {
@@ -89,9 +186,9 @@ func (o *ListTenantEventsByDestinationResponse) GetHTTPMeta() components.HTTPMet
 	return o.HTTPMeta
 }
 
-func (o *ListTenantEventsByDestinationResponse) GetEvents() []components.Event {
+func (o *ListTenantEventsByDestinationResponse) GetObject() *ListTenantEventsByDestinationResponseBody {
 	if o == nil {
 		return nil
 	}
-	return o.Events
+	return o.Object
 }

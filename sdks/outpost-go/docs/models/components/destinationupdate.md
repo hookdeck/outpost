@@ -33,3 +33,9 @@ destinationUpdate := components.CreateDestinationUpdateDestinationUpdateHookdeck
 destinationUpdate := components.CreateDestinationUpdateDestinationUpdateAWSKinesis(components.DestinationUpdateAWSKinesis{/* values here */})
 ```
 
+### DestinationUpdateAwss3
+
+```go
+destinationUpdate := components.CreateDestinationUpdateDestinationUpdateAwss3(components.DestinationUpdateAwss3{/* values here */})
+```
+

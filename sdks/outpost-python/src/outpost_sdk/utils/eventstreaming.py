@@ -17,6 +17,9 @@ T = TypeVar("T")
 
 
 class EventStream(Generic[T]):
+    # Holds a reference to the SDK client to avoid it being garbage collected
+    # and cause termination of the underlying httpx client.
+    client_ref: Optional[object]
     response: httpx.Response
     generator: Generator[T, None, None]
 
@@ -25,9 +28,11 @@ class EventStream(Generic[T]):
         response: httpx.Response,
         decoder: Callable[[str], T],
         sentinel: Optional[str] = None,
+        client_ref: Optional[object] = None,
     ):
         self.response = response
         self.generator = stream_events(response, decoder, sentinel)
+        self.client_ref = client_ref
 
     def __iter__(self):
         return self
@@ -43,6 +48,9 @@ class EventStream(Generic[T]):
 
 
 class EventStreamAsync(Generic[T]):
+    # Holds a reference to the SDK client to avoid it being garbage collected
+    # and cause termination of the underlying httpx client.
+    client_ref: Optional[object]
     response: httpx.Response
     generator: AsyncGenerator[T, None]
 
@@ -51,9 +59,11 @@ class EventStreamAsync(Generic[T]):
         response: httpx.Response,
         decoder: Callable[[str], T],
         sentinel: Optional[str] = None,
+        client_ref: Optional[object] = None,
     ):
         self.response = response
         self.generator = stream_events_async(response, decoder, sentinel)
+        self.client_ref = client_ref
 
     def __aiter__(self):
         return self

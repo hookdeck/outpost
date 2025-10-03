@@ -12,3 +12,4 @@ The type of the destination.
 | `GetTenantDestinationTypeSchemaTypeRabbitmq`   | rabbitmq                                       |
 | `GetTenantDestinationTypeSchemaTypeHookdeck`   | hookdeck                                       |
 | `GetTenantDestinationTypeSchemaTypeAwsKinesis` | aws_kinesis                                    |
+| `GetTenantDestinationTypeSchemaTypeAwsS3`      | aws_s3                                         |

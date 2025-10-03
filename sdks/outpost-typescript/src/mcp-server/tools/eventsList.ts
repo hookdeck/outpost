@@ -30,7 +30,7 @@ Retrieves a list of events for the tenant, supporting cursor navigation (details
       };
     }
 
-    const value = result.value;
+    const value = result.value.result;
 
     return formatResult(value, apiCall);
   },

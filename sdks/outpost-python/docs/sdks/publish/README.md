@@ -15,6 +15,7 @@ Publishes an event to the specified topic, potentially routed to a specific dest
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="publishEvent" method="post" path="/publish" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -25,14 +26,15 @@ with Outpost(
     ),
 ) as outpost:
 
-    outpost.publish.event(data={
+    res = outpost.publish.event(data={
         "user_id": "userid",
         "status": "active",
     }, id="evt_custom_123", tenant_id="<TENANT_ID>", destination_id="<DESTINATION_ID>", topic="topic.name", metadata={
         "source": "crm",
     })
 
-    # Use the SDK ...
+    # Handle response
+    print(res)
 
 ```
 
@@ -48,6 +50,10 @@ with Outpost(
 | `eligible_for_retry`                                                                    | *Optional[bool]*                                                                        | :heavy_minus_sign:                                                                      | Should event delivery be retried on failure.                                            |                                                                                         |
 | `metadata`                                                                              | Dict[str, *str*]                                                                        | :heavy_minus_sign:                                                                      | Any key-value string pairs for metadata.                                                | {<br/>"source": "crm"<br/>}                                                             |
 | `retries`                                                                               | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                        | :heavy_minus_sign:                                                                      | Configuration to override the default retry behavior of the client.                     |                                                                                         |
+
+### Response
+
+**[models.PublishResponse](../../models/publishresponse.md)**
 
 ### Errors
 

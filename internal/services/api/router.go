@@ -56,12 +56,6 @@ type RouterConfig struct {
 	GinMode      string
 }
 
-type routeDefinition struct {
-	method   string
-	path     string
-	handlers []gin.HandlerFunc
-}
-
 // registerRoutes registers routes to the given router based on route definitions and config
 func registerRoutes(router *gin.RouterGroup, cfg RouterConfig, routes []RouteDefinition) {
 	isPortalMode := cfg.APIKey != "" && cfg.JWTSecret != ""
@@ -111,7 +105,7 @@ func buildMiddlewareChain(cfg RouterConfig, def RouteDefinition) []gin.HandlerFu
 func NewRouter(
 	cfg RouterConfig,
 	logger *logging.Logger,
-	redisClient *redis.Client,
+	redisClient redis.Cmdable,
 	deliveryMQ *deliverymq.DeliveryMQ,
 	entityStore models.EntityStore,
 	logStore logstore.LogStore,
@@ -129,7 +123,11 @@ func NewRouter(
 	r.Use(telemetry.MakeSentryHandler())
 	r.Use(otelgin.Middleware(cfg.ServiceName))
 	r.Use(MetricsMiddleware())
-	r.Use(LoggerMiddleware(logger))
+
+	// Create sanitizer for secure request body logging on 5xx errors
+	sanitizer := NewRequestBodySanitizer(cfg.Registry)
+	r.Use(LoggerMiddlewareWithSanitizer(logger, sanitizer))
+
 	r.Use(LatencyMiddleware()) // LatencyMiddleware must be after Metrics & Logger to fully capture latency first
 
 	// Application logic

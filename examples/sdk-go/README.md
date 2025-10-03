@@ -4,8 +4,11 @@ This example demonstrates using the Outpost Go SDK. It is structured into a few 
 *   `main.go`: Handles command-line arguments to select which example to run.
 *   `auth.go`: Contains examples related to authentication and tenant JWTs.
 *   `resources.go`: Contains examples for managing Outpost resources like tenants and destinations.
+*   `create_destination.go`: Contains an example for creating a destination.
+*   `publish_event.go`: Contains an example for publishing an event.
 
 The source code for the Go SDK can be found in the [`sdks/outpost-go/`](../../sdks/outpost-go/) directory.
+
 
 ### Prerequisites
 
@@ -53,5 +56,17 @@ The source code for the Go SDK can be found in the [`sdks/outpost-go/`](../../sd
         go run . auth
         ```
 
+    *   **To run the create destination example (from `create_destination.go`):**
+        This example demonstrates creating a destination.
+        ```bash
+        go run . create-destination
+        ```
+
+   *   **To run the publish event example (from `publish_event.go`):**
+       This example demonstrates publishing an event to a topic.
+       ```bash
+       go run . publish-event
+       ```
+
     If you run `go run .` without an argument, or with an unknown argument, it will display a usage message.
-    Review the respective `.go` files (`auth.go`, `resources.go`, `main.go`) for details on what each example does.
+    Review the respective `.go` files (`auth.go`, `resources.go`, `main.go`, `create_destination.go`, `publish_event.go`) for details on what each example does.

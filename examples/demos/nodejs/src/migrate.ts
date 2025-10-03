@@ -88,6 +88,8 @@ main()
     process.exit(0);
   })
   .catch((error) => {
+    console.error("Migration failed:", error.message);
+
     askQuestion("Press 'e' and Enter to see the full error details: ").then(
       (answer) => {
         if (answer === "e") {

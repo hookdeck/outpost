@@ -15,6 +15,7 @@ Simple health check endpoint.
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="healthCheck" method="get" path="/healthz" -->
 ```python
 from outpost_sdk import Outpost
 

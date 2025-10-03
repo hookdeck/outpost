@@ -6,18 +6,17 @@
 import { UpdateTenantDestinationRequest } from "@hookdeck/outpost-sdk/models/operations";
 
 let value: UpdateTenantDestinationRequest = {
-  tenantId: "<id>",
   destinationId: "<id>",
   destinationUpdate: {
     topics: "*",
     config: {
-      endpoint: "https://sqs.us-east-1.amazonaws.com",
-      queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue",
+      serverUrl: "localhost:5672",
+      exchange: "my-exchange",
+      tls: "false",
     },
     credentials: {
-      key: "AKIAIOSFODNN7EXAMPLE",
-      secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-      session: "AQoDYXdzEPT//////////wEXAMPLE...",
+      username: "guest",
+      password: "guest",
     },
   },
 };

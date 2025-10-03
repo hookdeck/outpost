@@ -5,6 +5,10 @@ from .destinationupdateawskinesis import (
     DestinationUpdateAWSKinesis,
     DestinationUpdateAWSKinesisTypedDict,
 )
+from .destinationupdateawss3 import (
+    DestinationUpdateAwss3,
+    DestinationUpdateAwss3TypedDict,
+)
 from .destinationupdateawssqs import (
     DestinationUpdateAWSSQS,
     DestinationUpdateAWSSQSTypedDict,
@@ -33,6 +37,7 @@ DestinationUpdateTypedDict = TypeAliasType(
         DestinationUpdateRabbitMQTypedDict,
         DestinationUpdateHookdeckTypedDict,
         DestinationUpdateAWSKinesisTypedDict,
+        DestinationUpdateAwss3TypedDict,
     ],
 )
 
@@ -45,5 +50,6 @@ DestinationUpdate = TypeAliasType(
         DestinationUpdateRabbitMQ,
         DestinationUpdateHookdeck,
         DestinationUpdateAWSKinesis,
+        DestinationUpdateAwss3,
     ],
 )

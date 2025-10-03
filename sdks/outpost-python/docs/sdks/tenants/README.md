@@ -22,17 +22,19 @@ Idempotently creates or updates a tenant. Required before associating destinatio
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="upsertTenant" method="put" path="/{tenant_id}" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.tenants.upsert(tenant_id="<id>")
+    res = outpost.tenants.upsert()
 
     # Handle response
     print(res)
@@ -72,17 +74,19 @@ Retrieves details for a specific tenant.
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="getTenant" method="get" path="/{tenant_id}" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.tenants.get(tenant_id="<id>")
+    res = outpost.tenants.get()
 
     # Handle response
     print(res)
@@ -121,17 +125,19 @@ Deletes the tenant and all associated destinations.
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="deleteTenant" method="delete" path="/{tenant_id}" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.tenants.delete(tenant_id="<id>")
+    res = outpost.tenants.delete()
 
     # Handle response
     print(res)
@@ -170,17 +176,19 @@ Returns a redirect URL containing a JWT to authenticate the user with the portal
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="getTenantPortalUrl" method="get" path="/{tenant_id}/portal" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.tenants.get_portal_url(tenant_id="<id>")
+    res = outpost.tenants.get_portal_url()
 
     # Handle response
     print(res)
@@ -220,17 +228,19 @@ Returns a JWT token scoped to the tenant for safe browser API calls.
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="getTenantToken" method="get" path="/{tenant_id}/token" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.tenants.get_token(tenant_id="<id>")
+    res = outpost.tenants.get_token()
 
     # Handle response
     print(res)

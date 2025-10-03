@@ -5,6 +5,7 @@ package components
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 )
 
 // TLS - Whether to use TLS connection (amqps). Defaults to "false".
@@ -41,6 +42,17 @@ type RabbitMQConfig struct {
 	Exchange string `json:"exchange"`
 	// Whether to use TLS connection (amqps). Defaults to "false".
 	TLS *TLS `json:"tls,omitempty"`
+}
+
+func (r RabbitMQConfig) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(r, "", false)
+}
+
+func (r *RabbitMQConfig) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &r, "", false, []string{"server_url", "exchange"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *RabbitMQConfig) GetServerURL() string {

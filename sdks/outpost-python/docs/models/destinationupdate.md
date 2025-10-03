@@ -33,3 +33,9 @@ value: models.DestinationUpdateHookdeck = /* values here */
 value: models.DestinationUpdateAWSKinesis = /* values here */
 ```
 
+### `models.DestinationUpdateAwss3`
+
+```python
+value: models.DestinationUpdateAwss3 = /* values here */
+```
+

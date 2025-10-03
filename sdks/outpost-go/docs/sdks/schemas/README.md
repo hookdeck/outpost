@@ -18,6 +18,7 @@ Returns a list of JSON-based input schemas for each available destination type. 
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="listTenantDestinationTypeSchemas" method="get" path="/{tenant_id}/destination-types" -->
 ```go
 package main
 
@@ -32,12 +33,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Schemas.ListTenantDestinationTypes(ctx, outpostgo.String("<id>"))
+    res, err := s.Schemas.ListTenantDestinationTypes(ctx)
     if err != nil {
         log.Fatal(err)
     }
@@ -80,6 +82,7 @@ Returns the input schema for a specific destination type. Requires Admin API Key
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="getTenantDestinationTypeSchema" method="get" path="/{tenant_id}/destination-types/{type}" -->
 ```go
 package main
 
@@ -95,12 +98,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Schemas.Get(ctx, operations.GetTenantDestinationTypeSchemaTypeHookdeck, outpostgo.String("<id>"))
+    res, err := s.Schemas.Get(ctx, operations.GetTenantDestinationTypeSchemaTypeHookdeck)
     if err != nil {
         log.Fatal(err)
     }
@@ -144,6 +148,7 @@ Returns a list of JSON-based input schemas for each available destination type (
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="listDestinationTypeSchemasJwt" method="get" path="/destination-types" -->
 ```go
 package main
 
@@ -206,6 +211,7 @@ Returns the input schema for a specific destination type.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="getDestinationTypeSchema" method="get" path="/destination-types/{type}" -->
 ```go
 package main
 

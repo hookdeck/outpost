@@ -57,7 +57,7 @@ const (
 
 // UpdateTenantDestinationResponseBody - Destination updated successfully or OAuth redirect needed.
 type UpdateTenantDestinationResponseBody struct {
-	Destination *components.Destination `queryParam:"inline"`
+	Destination *components.Destination `queryParam:"inline" name:"ResponseBody"`
 
 	Type UpdateTenantDestinationResponseBodyType
 }
@@ -74,7 +74,7 @@ func CreateUpdateTenantDestinationResponseBodyDestination(destination components
 func (u *UpdateTenantDestinationResponseBody) UnmarshalJSON(data []byte) error {
 
 	var destination components.Destination = components.Destination{}
-	if err := utils.UnmarshalJSON(data, &destination, "", true, true); err == nil {
+	if err := utils.UnmarshalJSON(data, &destination, "", true, nil); err == nil {
 		u.Destination = &destination
 		u.Type = UpdateTenantDestinationResponseBodyTypeDestination
 		return nil

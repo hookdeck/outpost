@@ -1,12 +1,12 @@
 lockVersion: 2.0.0
 id: f0627709-5a00-43ac-8678-ca716d6f379c
 management:
-  docChecksum: 09a46accc53e3497235bb404b206f5b1
+  docChecksum: b861adfcca926bafba8ea408261b6b73
   docVersion: 0.0.1
-  speakeasyVersion: 1.548.1
-  generationVersion: 2.605.0
-  releaseVersion: 0.2.1
-  configChecksum: 39ed4c8c2c8738d9dcd5b67deb776110
+  speakeasyVersion: 1.608.0
+  generationVersion: 2.691.6
+  releaseVersion: 0.4.0
+  configChecksum: 43464e6037bc44205e4d81ff9337663b
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-go
   installationURL: https://github.com/hookdeck/outpost/sdks/outpost-go
@@ -14,7 +14,8 @@ features:
   go:
     additionalDependencies: 0.1.0
     additionalProperties: 0.1.2
-    core: 3.7.5
+    constsAndDefaults: 0.1.12
+    core: 3.9.6
     defaultEnabledRetries: 0.2.0
     envVarSecurityUsage: 0.3.2
     flattening: 2.81.1
@@ -26,9 +27,9 @@ features:
     nameOverrides: 2.81.2
     nullables: 0.1.1
     responseFormat: 0.1.2
-    retries: 2.83.2
-    sdkHooks: 0.1.0
-    unions: 2.85.10
+    retries: 2.84.2
+    sdkHooks: 0.2.0
+    unions: 2.85.14
 generatedFiles:
   - .gitattributes
   - /models/apierrors/badrequesterror.go
@@ -39,15 +40,23 @@ generatedFiles:
   - /models/apierrors/unauthorizederror.go
   - /models/components/awskinesisconfig.go
   - /models/components/awskinesiscredentials.go
+  - /models/components/awss3config.go
+  - /models/components/awss3credentials.go
   - /models/components/awssqsconfig.go
   - /models/components/awssqscredentials.go
+  - /models/components/azureservicebusconfig.go
+  - /models/components/azureservicebuscredentials.go
   - /models/components/deliveryattempt.go
   - /models/components/destination.go
   - /models/components/destinationawskinesis.go
+  - /models/components/destinationawss3.go
   - /models/components/destinationawssqs.go
+  - /models/components/destinationazureservicebus.go
   - /models/components/destinationcreate.go
   - /models/components/destinationcreateawskinesis.go
+  - /models/components/destinationcreateawss3.go
   - /models/components/destinationcreateawssqs.go
+  - /models/components/destinationcreateazureservicebus.go
   - /models/components/destinationcreatehookdeck.go
   - /models/components/destinationcreaterabbitmq.go
   - /models/components/destinationcreatewebhook.go
@@ -57,6 +66,7 @@ generatedFiles:
   - /models/components/destinationtypeschema.go
   - /models/components/destinationupdate.go
   - /models/components/destinationupdateawskinesis.go
+  - /models/components/destinationupdateawss3.go
   - /models/components/destinationupdateawssqs.go
   - /models/components/destinationupdatehookdeck.go
   - /models/components/destinationupdaterabbitmq.go
@@ -114,19 +124,31 @@ generatedFiles:
   - docs/models/apierrors/unauthorizederror.md
   - docs/models/components/awskinesisconfig.md
   - docs/models/components/awskinesiscredentials.md
+  - docs/models/components/awss3config.md
+  - docs/models/components/awss3credentials.md
   - docs/models/components/awssqsconfig.md
   - docs/models/components/awssqscredentials.md
+  - docs/models/components/azureservicebusconfig.md
+  - docs/models/components/azureservicebuscredentials.md
   - docs/models/components/deliveryattempt.md
   - docs/models/components/destination.md
   - docs/models/components/destinationawskinesis.md
   - docs/models/components/destinationawskinesistype.md
+  - docs/models/components/destinationawss3.md
+  - docs/models/components/destinationawss3type.md
   - docs/models/components/destinationawssqs.md
   - docs/models/components/destinationawssqstype.md
+  - docs/models/components/destinationazureservicebus.md
+  - docs/models/components/destinationazureservicebustype.md
   - docs/models/components/destinationcreate.md
   - docs/models/components/destinationcreateawskinesis.md
   - docs/models/components/destinationcreateawskinesistype.md
+  - docs/models/components/destinationcreateawss3.md
+  - docs/models/components/destinationcreateawss3type.md
   - docs/models/components/destinationcreateawssqs.md
   - docs/models/components/destinationcreateawssqstype.md
+  - docs/models/components/destinationcreateazureservicebus.md
+  - docs/models/components/destinationcreateazureservicebustype.md
   - docs/models/components/destinationcreatehookdeck.md
   - docs/models/components/destinationcreatehookdecktype.md
   - docs/models/components/destinationcreaterabbitmq.md
@@ -142,6 +164,7 @@ generatedFiles:
   - docs/models/components/destinationtypeschema.md
   - docs/models/components/destinationupdate.md
   - docs/models/components/destinationupdateawskinesis.md
+  - docs/models/components/destinationupdateawss3.md
   - docs/models/components/destinationupdateawssqs.md
   - docs/models/components/destinationupdatehookdeck.md
   - docs/models/components/destinationupdaterabbitmq.md
@@ -224,10 +247,12 @@ generatedFiles:
   - docs/models/operations/listtenanteventsbydestinationglobals.md
   - docs/models/operations/listtenanteventsbydestinationrequest.md
   - docs/models/operations/listtenanteventsbydestinationresponse.md
+  - docs/models/operations/listtenanteventsbydestinationresponsebody.md
   - docs/models/operations/listtenanteventsbydestinationstatus.md
   - docs/models/operations/listtenanteventsglobals.md
   - docs/models/operations/listtenanteventsrequest.md
   - docs/models/operations/listtenanteventsresponse.md
+  - docs/models/operations/listtenanteventsresponsebody.md
   - docs/models/operations/listtenanteventsstatus.md
   - docs/models/operations/listtenanttopicsglobals.md
   - docs/models/operations/listtenanttopicsrequest.md
@@ -259,6 +284,7 @@ generatedFiles:
   - events.go
   - go.mod
   - health.go
+  - internal/config/sdkconfiguration.go
   - internal/globals/globals.go
   - internal/hooks/hooks.go
   - internal/utils/contenttype.go
@@ -360,7 +386,7 @@ examples:
         query: {}
       responses:
         "200":
-          application/json: [{"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}, {"id": "des_sqs_456", "type": "aws_sqs", "topics": ["*"], "disabled_at": "2024-03-01T12:00:00Z", "created_at": "2024-02-20T11:30:00Z", "config": {"endpoint": "https://sqs.us-west-2.amazonaws.com", "queue_url": "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}]
+          application/json: [{"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}, {"id": "des_sqs_456", "type": "aws_sqs", "topics": ["*"], "disabled_at": "2024-03-01T12:00:00Z", "created_at": "2024-02-20T11:30:00Z", "config": {"endpoint": "https://sqs.us-west-2.amazonaws.com", "queue_url": "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}, {"id": "des_s3_789", "type": "aws_s3", "topics": ["*"], "disabled_at": null, "created_at": "2024-03-20T12:00:00Z", "config": {"bucket": "my-bucket", "region": "us-east-1"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}]
   createTenantDestination:
     WebhookCreatedExample:
       parameters:
@@ -390,7 +416,7 @@ examples:
         application/json: {"topics": "*", "config": {"server_url": "localhost:5672", "exchange": "my-exchange", "tls": "false"}, "credentials": {"username": "guest", "password": "guest"}}
       responses:
         "200":
-          application/json: {"id": "des_kns_xyz", "type": "aws_kinesis", "topics": ["user.created", "user.updated"], "disabled_at": null, "created_at": "2024-03-10T15:30:00Z", "config": {"stream_name": "production-events", "region": "eu-west-1"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}
+          application/json: {"id": "des_webhook_123", "type": "webhook", "topics": ["user.created"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/new-handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}
   deleteTenantDestination:
     SuccessExample:
       parameters:
@@ -452,7 +478,7 @@ examples:
           tenant_id: "<id>"
       responses:
         "200":
-          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}]
+          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}, {"type": "aws_s3", "label": "AWS S3", "description": "Store events in an Amazon S3 bucket", "icon": "<svg />", "instructions": "Enter bucket and region...", "config_fields": [{"type": "text", "label": "Bucket Name", "description": "The name of the S3 bucket.", "required": true}, {"type": "text", "label": "AWS Region", "description": "The AWS region where the bucket is located.", "required": true}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}]}, {"type": "aws_s3", "label": "AWS S3", "description": "Store events in an Amazon S3 bucket", "icon": "<svg />", "instructions": "Enter bucket and region...", "config_fields": [{"type": "text", "label": "Bucket Name", "description": "The name of the S3 bucket.", "required": true}, {"type": "text", "label": "AWS Region", "description": "The AWS region where the bucket is located.", "required": true}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}]}]
   getTenantDestinationTypeSchema:
     WebhookSchemaExample:
       parameters:
@@ -493,10 +519,11 @@ examples:
       parameters:
         path:
           tenant_id: "<id>"
-        query: {}
+        query:
+          limit: 100
       responses:
         "200":
-          application/json: [{"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "destination_id": "des_456", "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "successful_at": null, "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}]
+          application/json: {"count": 2, "data": [{"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "destination_id": "des_456", "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "successful_at": null, "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}], "next": "", "prev": ""}
   getTenantEvent:
     EventExample:
       parameters:
@@ -521,10 +548,11 @@ examples:
         path:
           tenant_id: "<id>"
           destination_id: "<id>"
-        query: {}
+        query:
+          limit: 100
       responses:
         "200":
-          application/json: [{"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "destination_id": "des_456", "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "successful_at": null, "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}]
+          application/json: {"count": 2, "data": [{"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "destination_id": "des_456", "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "successful_at": null, "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}], "next": "", "prev": ""}
   getTenantEventByDestination:
     EventExample:
       parameters:
@@ -563,3 +591,4 @@ examples:
           application/json: {}
 examplesVersion: 1.0.2
 generatedTests: {}
+releaseNotes: "## Go SDK Changes Detected:\n* `Outpost.Events.List()`: \n  *  `request` **Changed** **Breaking** :warning:\n  *  `response` **Changed** **Breaking** :warning:\n* `Outpost.Events.ListByDestination()`: \n  *  `request` **Changed** **Breaking** :warning:\n  *  `response` **Changed** **Breaking** :warning:\n* `Outpost.Destinations.List()`: \n  *  `request.Type` **Changed**\n  *  `response.[].[awsS3]` **Added**\n* `Outpost.Destinations.Create()`: \n  *  `request.DestinationCreate.[awsS3]` **Added**\n  *  `response.[awsS3]` **Added**\n* `Outpost.Destinations.Get()`:  `response.[awsS3]` **Added**\n* `Outpost.Destinations.Update()`: \n  *  `request.DestinationUpdate.[destinationUpdateAwss3]` **Added**\n  *  `response.[destination].[awsS3]` **Added**\n* `Outpost.Destinations.Enable()`:  `response.[awsS3]` **Added**\n* `Outpost.Destinations.Disable()`:  `response.[awsS3]` **Added**\n* `Outpost.Schemas.Get()`:  `request.Type` **Changed**\n* `Outpost.Schemas.GetDestinationTypeJwt()`:  `request.Type` **Changed**\n"

@@ -51,22 +51,22 @@ func NewLogStore(ctx context.Context, driverOpts DriverOpts) (LogStore, error) {
 }
 
 type Config struct {
-	ClickHouse *clickhouse.ClickHouseConfig
-	Postgres   *string
+	// ClickHouse *clickhouse.ClickHouseConfig
+	Postgres *string
 }
 
 func MakeDriverOpts(cfg Config) (DriverOpts, error) {
 	driverOpts := DriverOpts{}
 
-	if cfg.ClickHouse != nil {
-		chDB, err := clickhouse.New(cfg.ClickHouse)
-		if err != nil {
-			return DriverOpts{}, err
-		}
-		driverOpts.CH = chDB
-	}
+	// if cfg.ClickHouse != nil {
+	// 	chDB, err := clickhouse.New(cfg.ClickHouse)
+	// 	if err != nil {
+	// 		return DriverOpts{}, err
+	// 	}
+	// 	driverOpts.CH = chDB
+	// }
 
-	if cfg.Postgres != nil || *cfg.Postgres != "" {
+	if cfg.Postgres != nil && *cfg.Postgres != "" {
 		pgDB, err := pgxpool.New(context.Background(), *cfg.Postgres)
 		if err != nil {
 			return DriverOpts{}, err

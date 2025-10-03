@@ -1,0 +1,10 @@
+# DestinationUpdateAwss3
+
+
+## Fields
+
+| Field                                                                       | Type                                                                        | Required                                                                    | Description                                                                 | Example                                                                     |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `Topics`                                                                    | [*components.Topics](../../models/components/topics.md)                     | :heavy_minus_sign:                                                          | "*" or an array of enabled topics.                                          | *                                                                           |
+| `Config`                                                                    | [*components.Awss3Config](../../models/components/awss3config.md)           | :heavy_minus_sign:                                                          | N/A                                                                         |                                                                             |
+| `Credentials`                                                               | [*components.Awss3Credentials](../../models/components/awss3credentials.md) | :heavy_minus_sign:                                                          | N/A                                                                         |                                                                             |

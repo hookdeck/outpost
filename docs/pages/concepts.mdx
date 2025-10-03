@@ -29,10 +29,10 @@ Outpost consists of 3 services that can either be run as a single deployment or 
 
 - Redis 6.0+ or wire-compatible alternative (RBD or AOF strongly recommended)
 - One of the supported message queues:
-  - AWS SQS
-  - RabbitMQ
-  - GCP Pub/Sub
   - Azure Service Bus
+  - AWS SQS
+  - GCP Pub/Sub
+  - RabbitMQ
 
 ### Log Service
 
@@ -48,9 +48,13 @@ Event destination types belonging to Outpost tenants where events are delivered.
 - **Webhooks**
 - **RabbitMQ**
 - **AWS SQS**
+- **AWS S3**
 - **Hookdeck Event Gateway**
+- **Azure Service Bus**
+- **AWS Kinesis**
+- **AWS SQS**
+- **RabbitMQ**
 - **[Amazon EventBridge (planned)](https://github.com/hookdeck/outpost/issues/201)**
-- **[Azure Service Bus (planned)](https://github.com/hookdeck/outpost/issues/241)**
 - **[GCP Pub/Sub (planned)](https://github.com/hookdeck/outpost/issues/140)**
 - **[Kafka (planned)](https://github.com/hookdeck/outpost/issues/141)**
 

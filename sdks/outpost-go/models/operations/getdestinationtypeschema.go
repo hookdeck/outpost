@@ -17,6 +17,7 @@ const (
 	GetDestinationTypeSchemaTypeRabbitmq   GetDestinationTypeSchemaType = "rabbitmq"
 	GetDestinationTypeSchemaTypeHookdeck   GetDestinationTypeSchemaType = "hookdeck"
 	GetDestinationTypeSchemaTypeAwsKinesis GetDestinationTypeSchemaType = "aws_kinesis"
+	GetDestinationTypeSchemaTypeAwsS3      GetDestinationTypeSchemaType = "aws_s3"
 )
 
 func (e GetDestinationTypeSchemaType) ToPointer() *GetDestinationTypeSchemaType {
@@ -37,6 +38,8 @@ func (e *GetDestinationTypeSchemaType) UnmarshalJSON(data []byte) error {
 	case "hookdeck":
 		fallthrough
 	case "aws_kinesis":
+		fallthrough
+	case "aws_s3":
 		*e = GetDestinationTypeSchemaType(v)
 		return nil
 	default:

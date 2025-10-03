@@ -17,6 +17,7 @@ export const GetDestinationTypeSchemaType = {
   Rabbitmq: "rabbitmq",
   Hookdeck: "hookdeck",
   AwsKinesis: "aws_kinesis",
+  AwsS3: "aws_s3",
 } as const;
 /**
  * The type of the destination.

@@ -44,6 +44,7 @@ Return a list of the destinations for the tenant. The endpoint is not paged.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="listTenantDestinations" method="get" path="/{tenant_id}/destinations" -->
 ```go
 package main
 
@@ -58,12 +59,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Destinations.List(ctx, outpostgo.String("<id>"), nil, nil)
+    res, err := s.Destinations.List(ctx, nil, nil)
     if err != nil {
         log.Fatal(err)
     }
@@ -108,6 +110,7 @@ Creates a new destination for the tenant. The request body structure depends on 
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="createTenantDestination" method="post" path="/{tenant_id}/destinations" -->
 ```go
 package main
 
@@ -122,6 +125,7 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
@@ -144,7 +148,7 @@ func main() {
                 Password: "guest",
             },
         },
-    ), outpostgo.String("<id>"))
+    ))
     if err != nil {
         log.Fatal(err)
     }
@@ -188,6 +192,7 @@ Retrieves details for a specific destination.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="getTenantDestination" method="get" path="/{tenant_id}/destinations/{destination_id}" -->
 ```go
 package main
 
@@ -202,12 +207,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Destinations.Get(ctx, "<id>", outpostgo.String("<id>"))
+    res, err := s.Destinations.Get(ctx, "<id>")
     if err != nil {
         log.Fatal(err)
     }
@@ -251,6 +257,7 @@ Updates the configuration of an existing destination. The request body structure
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="updateTenantDestination" method="patch" path="/{tenant_id}/destinations/{destination_id}" -->
 ```go
 package main
 
@@ -265,6 +272,7 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
@@ -285,7 +293,7 @@ func main() {
                 Password: "guest",
             },
         },
-    ), outpostgo.String("<id>"))
+    ))
     if err != nil {
         log.Fatal(err)
     }
@@ -330,6 +338,7 @@ Deletes a specific destination.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="deleteTenantDestination" method="delete" path="/{tenant_id}/destinations/{destination_id}" -->
 ```go
 package main
 
@@ -344,12 +353,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Destinations.Delete(ctx, "<id>", outpostgo.String("<id>"))
+    res, err := s.Destinations.Delete(ctx, "<id>")
     if err != nil {
         log.Fatal(err)
     }
@@ -393,6 +403,7 @@ Enables a previously disabled destination.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="enableTenantDestination" method="put" path="/{tenant_id}/destinations/{destination_id}/enable" -->
 ```go
 package main
 
@@ -407,12 +418,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Destinations.Enable(ctx, "<id>", outpostgo.String("<id>"))
+    res, err := s.Destinations.Enable(ctx, "<id>")
     if err != nil {
         log.Fatal(err)
     }
@@ -456,6 +468,7 @@ Disables a previously enabled destination.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="disableTenantDestination" method="put" path="/{tenant_id}/destinations/{destination_id}/disable" -->
 ```go
 package main
 
@@ -470,12 +483,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Destinations.Disable(ctx, "<id>", outpostgo.String("<id>"))
+    res, err := s.Destinations.Disable(ctx, "<id>")
     if err != nil {
         log.Fatal(err)
     }

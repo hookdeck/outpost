@@ -30,6 +30,15 @@ class OutpostClient {
     return response.data;
   }
 
+  async healthz(): Promise<boolean> {
+    try {
+      await this.request("/healthz", "GET", {});
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
   async publishEvent({
     tenant_id,
     topic,

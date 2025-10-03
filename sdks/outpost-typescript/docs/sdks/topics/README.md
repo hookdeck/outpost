@@ -16,21 +16,20 @@ Returns a list of available event topics configured in the Outpost instance. Req
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="listTenantTopics" method="get" path="/{tenant_id}/topics" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const result = await outpost.topics.list({
-    tenantId: "<id>",
-  });
+  const result = await outpost.topics.list({});
 
-  // Handle the result
   console.log(result);
 }
 
@@ -48,24 +47,20 @@ import { topicsList } from "@hookdeck/outpost-sdk/funcs/topicsList.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const res = await topicsList(outpost, {
-    tenantId: "<id>",
-  });
-
-  if (!res.ok) {
-    throw res.error;
+  const res = await topicsList(outpost, {});
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("topicsList failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -105,6 +100,7 @@ Returns a list of available event topics configured in the Outpost instance.
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="listTopics" method="get" path="/topics" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -117,7 +113,6 @@ const outpost = new Outpost({
 async function run() {
   const result = await outpost.topics.listJwt();
 
-  // Handle the result
   console.log(result);
 }
 
@@ -142,15 +137,12 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await topicsListJwt(outpost);
-
-  if (!res.ok) {
-    throw res.error;
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("topicsListJwt failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();

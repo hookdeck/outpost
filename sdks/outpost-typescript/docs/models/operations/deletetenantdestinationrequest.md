@@ -6,7 +6,6 @@
 import { DeleteTenantDestinationRequest } from "@hookdeck/outpost-sdk/models/operations";
 
 let value: DeleteTenantDestinationRequest = {
-  tenantId: "<id>",
   destinationId: "<id>",
 };
 ```

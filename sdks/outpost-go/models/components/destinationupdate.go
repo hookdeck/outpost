@@ -16,14 +16,16 @@ const (
 	DestinationUpdateTypeDestinationUpdateRabbitMQ   DestinationUpdateType = "DestinationUpdateRabbitMQ"
 	DestinationUpdateTypeDestinationUpdateHookdeck   DestinationUpdateType = "DestinationUpdateHookdeck"
 	DestinationUpdateTypeDestinationUpdateAWSKinesis DestinationUpdateType = "DestinationUpdateAWSKinesis"
+	DestinationUpdateTypeDestinationUpdateAwss3      DestinationUpdateType = "DestinationUpdateAWSS3"
 )
 
 type DestinationUpdate struct {
-	DestinationUpdateWebhook    *DestinationUpdateWebhook    `queryParam:"inline"`
-	DestinationUpdateAWSSQS     *DestinationUpdateAWSSQS     `queryParam:"inline"`
-	DestinationUpdateRabbitMQ   *DestinationUpdateRabbitMQ   `queryParam:"inline"`
-	DestinationUpdateHookdeck   *DestinationUpdateHookdeck   `queryParam:"inline"`
-	DestinationUpdateAWSKinesis *DestinationUpdateAWSKinesis `queryParam:"inline"`
+	DestinationUpdateWebhook    *DestinationUpdateWebhook    `queryParam:"inline" name:"DestinationUpdate"`
+	DestinationUpdateAWSSQS     *DestinationUpdateAWSSQS     `queryParam:"inline" name:"DestinationUpdate"`
+	DestinationUpdateRabbitMQ   *DestinationUpdateRabbitMQ   `queryParam:"inline" name:"DestinationUpdate"`
+	DestinationUpdateHookdeck   *DestinationUpdateHookdeck   `queryParam:"inline" name:"DestinationUpdate"`
+	DestinationUpdateAWSKinesis *DestinationUpdateAWSKinesis `queryParam:"inline" name:"DestinationUpdate"`
+	DestinationUpdateAwss3      *DestinationUpdateAwss3      `queryParam:"inline" name:"DestinationUpdate"`
 
 	Type DestinationUpdateType
 }
@@ -73,40 +75,56 @@ func CreateDestinationUpdateDestinationUpdateAWSKinesis(destinationUpdateAWSKine
 	}
 }
 
+func CreateDestinationUpdateDestinationUpdateAwss3(destinationUpdateAwss3 DestinationUpdateAwss3) DestinationUpdate {
+	typ := DestinationUpdateTypeDestinationUpdateAwss3
+
+	return DestinationUpdate{
+		DestinationUpdateAwss3: &destinationUpdateAwss3,
+		Type:                   typ,
+	}
+}
+
 func (u *DestinationUpdate) UnmarshalJSON(data []byte) error {
 
 	var destinationUpdateWebhook DestinationUpdateWebhook = DestinationUpdateWebhook{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateWebhook, "", true, true); err == nil {
+	if err := utils.UnmarshalJSON(data, &destinationUpdateWebhook, "", true, nil); err == nil {
 		u.DestinationUpdateWebhook = &destinationUpdateWebhook
 		u.Type = DestinationUpdateTypeDestinationUpdateWebhook
 		return nil
 	}
 
 	var destinationUpdateAWSSQS DestinationUpdateAWSSQS = DestinationUpdateAWSSQS{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateAWSSQS, "", true, true); err == nil {
+	if err := utils.UnmarshalJSON(data, &destinationUpdateAWSSQS, "", true, nil); err == nil {
 		u.DestinationUpdateAWSSQS = &destinationUpdateAWSSQS
 		u.Type = DestinationUpdateTypeDestinationUpdateAWSSQS
 		return nil
 	}
 
 	var destinationUpdateRabbitMQ DestinationUpdateRabbitMQ = DestinationUpdateRabbitMQ{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateRabbitMQ, "", true, true); err == nil {
+	if err := utils.UnmarshalJSON(data, &destinationUpdateRabbitMQ, "", true, nil); err == nil {
 		u.DestinationUpdateRabbitMQ = &destinationUpdateRabbitMQ
 		u.Type = DestinationUpdateTypeDestinationUpdateRabbitMQ
 		return nil
 	}
 
 	var destinationUpdateHookdeck DestinationUpdateHookdeck = DestinationUpdateHookdeck{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateHookdeck, "", true, true); err == nil {
+	if err := utils.UnmarshalJSON(data, &destinationUpdateHookdeck, "", true, nil); err == nil {
 		u.DestinationUpdateHookdeck = &destinationUpdateHookdeck
 		u.Type = DestinationUpdateTypeDestinationUpdateHookdeck
 		return nil
 	}
 
 	var destinationUpdateAWSKinesis DestinationUpdateAWSKinesis = DestinationUpdateAWSKinesis{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateAWSKinesis, "", true, true); err == nil {
+	if err := utils.UnmarshalJSON(data, &destinationUpdateAWSKinesis, "", true, nil); err == nil {
 		u.DestinationUpdateAWSKinesis = &destinationUpdateAWSKinesis
 		u.Type = DestinationUpdateTypeDestinationUpdateAWSKinesis
+		return nil
+	}
+
+	var destinationUpdateAwss3 DestinationUpdateAwss3 = DestinationUpdateAwss3{}
+	if err := utils.UnmarshalJSON(data, &destinationUpdateAwss3, "", true, nil); err == nil {
+		u.DestinationUpdateAwss3 = &destinationUpdateAwss3
+		u.Type = DestinationUpdateTypeDestinationUpdateAwss3
 		return nil
 	}
 
@@ -132,6 +150,10 @@ func (u DestinationUpdate) MarshalJSON() ([]byte, error) {
 
 	if u.DestinationUpdateAWSKinesis != nil {
 		return utils.MarshalJSON(u.DestinationUpdateAWSKinesis, "", true)
+	}
+
+	if u.DestinationUpdateAwss3 != nil {
+		return utils.MarshalJSON(u.DestinationUpdateAwss3, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type DestinationUpdate: all fields are null")

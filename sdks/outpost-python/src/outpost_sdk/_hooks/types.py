@@ -3,10 +3,12 @@
 from abc import ABC, abstractmethod
 import httpx
 from outpost_sdk.httpclient import HttpClient
+from outpost_sdk.sdkconfiguration import SDKConfiguration
 from typing import Any, Callable, List, Optional, Tuple, Union
 
 
 class HookContext:
+    config: SDKConfiguration
     base_url: str
     operation_id: str
     oauth2_scopes: Optional[List[str]] = None
@@ -14,11 +16,13 @@ class HookContext:
 
     def __init__(
         self,
+        config: SDKConfiguration,
         base_url: str,
         operation_id: str,
         oauth2_scopes: Optional[List[str]],
         security_source: Optional[Union[Any, Callable[[], Any]]],
     ):
+        self.config = config
         self.base_url = base_url
         self.operation_id = operation_id
         self.oauth2_scopes = oauth2_scopes
@@ -28,6 +32,7 @@ class HookContext:
 class BeforeRequestContext(HookContext):
     def __init__(self, hook_ctx: HookContext):
         super().__init__(
+            hook_ctx.config,
             hook_ctx.base_url,
             hook_ctx.operation_id,
             hook_ctx.oauth2_scopes,
@@ -38,6 +43,7 @@ class BeforeRequestContext(HookContext):
 class AfterSuccessContext(HookContext):
     def __init__(self, hook_ctx: HookContext):
         super().__init__(
+            hook_ctx.config,
             hook_ctx.base_url,
             hook_ctx.operation_id,
             hook_ctx.oauth2_scopes,
@@ -48,6 +54,7 @@ class AfterSuccessContext(HookContext):
 class AfterErrorContext(HookContext):
     def __init__(self, hook_ctx: HookContext):
         super().__init__(
+            hook_ctx.config,
             hook_ctx.base_url,
             hook_ctx.operation_id,
             hook_ctx.oauth2_scopes,

@@ -10,3 +10,4 @@
 | `ListTenantDestinationsTypeEnum2Rabbitmq`   | rabbitmq                                    |
 | `ListTenantDestinationsTypeEnum2Hookdeck`   | hookdeck                                    |
 | `ListTenantDestinationsTypeEnum2AwsKinesis` | aws_kinesis                                 |
+| `ListTenantDestinationsTypeEnum2AwsS3`      | aws_s3                                      |

@@ -14,7 +14,8 @@
     "publish-gcp-pubsub": "esrun src/publish-gcp-pubsub.ts",
     "verify": "esrun src/verify-signature.ts",
     "portal-urls": "esrun src/portal-urls.ts",
-    "create-tenant": "esrun src/create-tenant.ts"
+    "create-tenant": "esrun src/create-tenant.ts",
+    "healthz": "esrun src/healthz.ts"
   },
   "engines": {
     "node": ">=20.6.0"

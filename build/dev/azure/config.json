@@ -41,6 +41,15 @@
               }
             ]
           },
+          // test destination
+          {
+            "Name": "destination-test",
+            "Subscriptions": [
+              {
+                "Name": "destination-test-sub"
+              }
+            ]
+          },
 
           // tests
           {
@@ -49,6 +58,17 @@
             "Subscriptions": [
               {
                 "Name": "TestIntegrationMQ_AzureServiceBus-subscription",
+                "Properties": {},
+                "Rules": []
+              }
+            ]
+          },
+          {
+            "Name": "TestDestinationAzureServiceBusSuite-topic",
+            "Properties": {},
+            "Subscriptions": [
+              {
+                "Name": "TestDestinationAzureServiceBusSuite-subscription",
                 "Properties": {},
                 "Rules": []
               }

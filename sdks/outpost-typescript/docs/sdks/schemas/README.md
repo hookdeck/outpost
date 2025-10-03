@@ -18,21 +18,20 @@ Returns a list of JSON-based input schemas for each available destination type. 
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="listTenantDestinationTypeSchemas" method="get" path="/{tenant_id}/destination-types" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const result = await outpost.schemas.listTenantDestinationTypes({
-    tenantId: "<id>",
-  });
+  const result = await outpost.schemas.listTenantDestinationTypes({});
 
-  // Handle the result
   console.log(result);
 }
 
@@ -50,24 +49,20 @@ import { schemasListTenantDestinationTypes } from "@hookdeck/outpost-sdk/funcs/s
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const res = await schemasListTenantDestinationTypes(outpost, {
-    tenantId: "<id>",
-  });
-
-  if (!res.ok) {
-    throw res.error;
+  const res = await schemasListTenantDestinationTypes(outpost, {});
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("schemasListTenantDestinationTypes failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -107,10 +102,12 @@ Returns the input schema for a specific destination type. Requires Admin API Key
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="getTenantDestinationTypeSchema" method="get" path="/{tenant_id}/destination-types/{type}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -118,11 +115,9 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.schemas.get({
-    tenantId: "<id>",
     type: "hookdeck",
   });
 
-  // Handle the result
   console.log(result);
 }
 
@@ -140,6 +135,7 @@ import { schemasGet } from "@hookdeck/outpost-sdk/funcs/schemasGet.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -147,18 +143,14 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await schemasGet(outpost, {
-    tenantId: "<id>",
     type: "hookdeck",
   });
-
-  if (!res.ok) {
-    throw res.error;
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("schemasGet failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -198,6 +190,7 @@ Returns a list of JSON-based input schemas for each available destination type (
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="listDestinationTypeSchemasJwt" method="get" path="/destination-types" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -210,7 +203,6 @@ const outpost = new Outpost({
 async function run() {
   const result = await outpost.schemas.listDestinationTypesJwt();
 
-  // Handle the result
   console.log(result);
 }
 
@@ -235,15 +227,12 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await schemasListDestinationTypesJwt(outpost);
-
-  if (!res.ok) {
-    throw res.error;
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("schemasListDestinationTypesJwt failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -283,6 +272,7 @@ Returns the input schema for a specific destination type.
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="getDestinationTypeSchema" method="get" path="/destination-types/{type}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -297,7 +287,6 @@ async function run() {
     type: "rabbitmq",
   });
 
-  // Handle the result
   console.log(result);
 }
 
@@ -324,15 +313,12 @@ async function run() {
   const res = await schemasGetDestinationTypeJwt(outpost, {
     type: "rabbitmq",
   });
-
-  if (!res.ok) {
-    throw res.error;
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("schemasGetDestinationTypeJwt failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();

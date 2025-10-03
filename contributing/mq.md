@@ -22,8 +22,8 @@ This document will focus on the first two types of integrations. The third type,
 ## Supported MQs
 
 - [x] AWS SQS
-- [ ] GCP PubSub
-- [ ] Azure ServiceBus
+- [x] GCP PubSub
+- [x] Azure ServiceBus
 - [x] RabbitMQ (AMQP 0.9.1)
 
 publishmq only:

@@ -5,6 +5,7 @@ package components
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 )
 
 // DestinationCreateAWSSQSType - Type of the destination. Must be 'aws_sqs'.
@@ -40,6 +41,17 @@ type DestinationCreateAWSSQS struct {
 	Topics      Topics            `json:"topics"`
 	Config      AWSSQSConfig      `json:"config"`
 	Credentials AWSSQSCredentials `json:"credentials"`
+}
+
+func (d DestinationCreateAWSSQS) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(d, "", false)
+}
+
+func (d *DestinationCreateAWSSQS) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"type", "topics", "config", "credentials"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *DestinationCreateAWSSQS) GetID() *string {

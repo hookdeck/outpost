@@ -2,11 +2,26 @@
 
 package components
 
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+)
+
 type DestinationUpdateWebhook struct {
 	// "*" or an array of enabled topics.
 	Topics      *Topics                   `json:"topics,omitempty"`
 	Config      *WebhookConfig            `json:"config,omitempty"`
 	Credentials *WebhookCredentialsUpdate `json:"credentials,omitempty"`
+}
+
+func (d DestinationUpdateWebhook) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(d, "", false)
+}
+
+func (d *DestinationUpdateWebhook) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &d, "", false, nil); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *DestinationUpdateWebhook) GetTopics() *Topics {

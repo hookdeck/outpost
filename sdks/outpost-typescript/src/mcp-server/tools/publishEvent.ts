@@ -30,6 +30,8 @@ Publishes an event to the specified topic, potentially routed to a specific dest
       };
     }
 
-    return formatResult(void 0, apiCall);
+    const value = result.value;
+
+    return formatResult(value, apiCall);
   },
 };

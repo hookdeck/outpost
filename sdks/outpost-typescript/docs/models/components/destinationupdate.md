@@ -78,3 +78,23 @@ const value: components.DestinationUpdateAWSKinesis = {
 };
 ```
 
+### `components.DestinationUpdateAwss3`
+
+```typescript
+const value: components.DestinationUpdateAwss3 = {
+  topics: "*",
+  config: {
+    bucket: "my-bucket",
+    region: "us-east-1",
+    keyTemplate:
+      "join('/', [time.year, time.month, time.day, metadata.`\"event-id\"`, '.json'])",
+    storageClass: "STANDARD",
+  },
+  credentials: {
+    key: "AKIAIOSFODNN7EXAMPLE",
+    secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    session: "AQoDYXdzEPT//////////wEXAMPLE...",
+  },
+};
+```
+

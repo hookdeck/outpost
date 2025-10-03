@@ -15,7 +15,8 @@ const value: string = "<value>";
 
 ```typescript
 const value: string[] = [
-  "<value>",
+  "<value 1>",
+  "<value 2>",
 ];
 ```
 

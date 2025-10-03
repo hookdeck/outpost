@@ -44,21 +44,20 @@ Return a list of the destinations for the tenant. The endpoint is not paged.
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="listTenantDestinations" method="get" path="/{tenant_id}/destinations" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const result = await outpost.destinations.list({
-    tenantId: "<id>",
-  });
+  const result = await outpost.destinations.list({});
 
-  // Handle the result
   console.log(result);
 }
 
@@ -76,24 +75,20 @@ import { destinationsList } from "@hookdeck/outpost-sdk/funcs/destinationsList.j
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const res = await destinationsList(outpost, {
-    tenantId: "<id>",
-  });
-
-  if (!res.ok) {
-    throw res.error;
+  const res = await destinationsList(outpost, {});
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("destinationsList failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -133,10 +128,12 @@ Creates a new destination for the tenant. The request body structure depends on 
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="createTenantDestination" method="post" path="/{tenant_id}/destinations" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -144,7 +141,6 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.destinations.create({
-    tenantId: "<id>",
     destinationCreate: {
       id: "user-provided-id",
       type: "rabbitmq",
@@ -161,7 +157,6 @@ async function run() {
     },
   });
 
-  // Handle the result
   console.log(result);
 }
 
@@ -179,6 +174,7 @@ import { destinationsCreate } from "@hookdeck/outpost-sdk/funcs/destinationsCrea
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -186,7 +182,6 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await destinationsCreate(outpost, {
-    tenantId: "<id>",
     destinationCreate: {
       id: "user-provided-id",
       type: "rabbitmq",
@@ -202,15 +197,12 @@ async function run() {
       },
     },
   });
-
-  if (!res.ok) {
-    throw res.error;
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("destinationsCreate failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -250,10 +242,12 @@ Retrieves details for a specific destination.
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="getTenantDestination" method="get" path="/{tenant_id}/destinations/{destination_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -261,11 +255,9 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.destinations.get({
-    tenantId: "<id>",
     destinationId: "<id>",
   });
 
-  // Handle the result
   console.log(result);
 }
 
@@ -283,6 +275,7 @@ import { destinationsGet } from "@hookdeck/outpost-sdk/funcs/destinationsGet.js"
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -290,18 +283,14 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await destinationsGet(outpost, {
-    tenantId: "<id>",
     destinationId: "<id>",
   });
-
-  if (!res.ok) {
-    throw res.error;
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("destinationsGet failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -341,10 +330,12 @@ Updates the configuration of an existing destination. The request body structure
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="updateTenantDestination" method="patch" path="/{tenant_id}/destinations/{destination_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -352,7 +343,6 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.destinations.update({
-    tenantId: "<id>",
     destinationId: "<id>",
     destinationUpdate: {
       topics: "*",
@@ -368,7 +358,6 @@ async function run() {
     },
   });
 
-  // Handle the result
   console.log(result);
 }
 
@@ -386,6 +375,7 @@ import { destinationsUpdate } from "@hookdeck/outpost-sdk/funcs/destinationsUpda
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -393,7 +383,6 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await destinationsUpdate(outpost, {
-    tenantId: "<id>",
     destinationId: "<id>",
     destinationUpdate: {
       topics: "*",
@@ -408,15 +397,12 @@ async function run() {
       },
     },
   });
-
-  if (!res.ok) {
-    throw res.error;
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("destinationsUpdate failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -456,10 +442,12 @@ Deletes a specific destination.
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="deleteTenantDestination" method="delete" path="/{tenant_id}/destinations/{destination_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -467,11 +455,9 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.destinations.delete({
-    tenantId: "<id>",
     destinationId: "<id>",
   });
 
-  // Handle the result
   console.log(result);
 }
 
@@ -489,6 +475,7 @@ import { destinationsDelete } from "@hookdeck/outpost-sdk/funcs/destinationsDele
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -496,18 +483,14 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await destinationsDelete(outpost, {
-    tenantId: "<id>",
     destinationId: "<id>",
   });
-
-  if (!res.ok) {
-    throw res.error;
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("destinationsDelete failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -547,10 +530,12 @@ Enables a previously disabled destination.
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="enableTenantDestination" method="put" path="/{tenant_id}/destinations/{destination_id}/enable" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -558,11 +543,9 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.destinations.enable({
-    tenantId: "<id>",
     destinationId: "<id>",
   });
 
-  // Handle the result
   console.log(result);
 }
 
@@ -580,6 +563,7 @@ import { destinationsEnable } from "@hookdeck/outpost-sdk/funcs/destinationsEnab
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -587,18 +571,14 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await destinationsEnable(outpost, {
-    tenantId: "<id>",
     destinationId: "<id>",
   });
-
-  if (!res.ok) {
-    throw res.error;
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("destinationsEnable failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();
@@ -638,10 +618,12 @@ Disables a previously enabled destination.
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="disableTenantDestination" method="put" path="/{tenant_id}/destinations/{destination_id}/disable" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -649,11 +631,9 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.destinations.disable({
-    tenantId: "<id>",
     destinationId: "<id>",
   });
 
-  // Handle the result
   console.log(result);
 }
 
@@ -671,6 +651,7 @@ import { destinationsDisable } from "@hookdeck/outpost-sdk/funcs/destinationsDis
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
@@ -678,18 +659,14 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await destinationsDisable(outpost, {
-    tenantId: "<id>",
     destinationId: "<id>",
   });
-
-  if (!res.ok) {
-    throw res.error;
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("destinationsDisable failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();

@@ -15,6 +15,7 @@ Simple health check endpoint.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="healthCheck" method="get" path="/healthz" -->
 ```go
 package main
 

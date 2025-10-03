@@ -207,12 +207,13 @@ func main() {
 	ctx := context.Background()
 
 	s := outpostgo.New(
+		outpostgo.WithTenantID("<id>"),
 		outpostgo.WithSecurity(components.Security{
 			AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
 		}),
 	)
 
-	res, err := s.Tenants.Upsert(ctx, outpostgo.String("<id>"))
+	res, err := s.Tenants.Upsert(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -473,12 +474,13 @@ The built-in `net/http` client satisfies this interface and a default client bas
 import (
 	"net/http"
 	"time"
-	"github.com/myorg/your-go-sdk"
+
+	"github.com/hookdeck/outpost/sdks/outpost-go"
 )
 
 var (
 	httpClient = &http.Client{Timeout: 30 * time.Second}
-	sdkClient  = sdk.New(sdk.WithClient(httpClient))
+	sdkClient  = outpostgo.New(outpostgo.WithClient(httpClient))
 )
 ```
 

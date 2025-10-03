@@ -14,6 +14,7 @@ import (
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
 	"github.com/hookdeck/outpost/internal/app"
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
@@ -124,6 +125,7 @@ type basicSuite struct {
 	suite.Suite
 	e2eSuite
 	logStorageType configs.LogStorageType
+	redisConfig    *redis.RedisConfig // Optional Redis config override
 	alertServer    *alert.AlertMockServer
 }
 
@@ -140,7 +142,10 @@ func (suite *basicSuite) SetupSuite() {
 	suite.alertServer = alertServer
 
 	// Configure alert callback URL
-	cfg := configs.Basic(t, configs.BasicOpts{LogStorage: suite.logStorageType})
+	cfg := configs.Basic(t, configs.BasicOpts{
+		LogStorage:  suite.logStorageType,
+		RedisConfig: suite.redisConfig,
+	})
 	cfg.Alert.CallbackURL = alertServer.GetCallbackURL()
 
 	require.NoError(t, cfg.Validate(config.Flags{}))
@@ -180,4 +185,22 @@ func TestPGBasicSuite(t *testing.T) {
 		t.Skip("skipping e2e test")
 	}
 	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypePostgres})
+}
+
+func TestRedisClusterBasicSuite(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+
+	// Get Redis cluster config from environment
+	redisConfig := configs.CreateRedisClusterConfig(t)
+	if redisConfig == nil {
+		t.Skip("skipping Redis cluster test (TEST_REDIS_CLUSTER_URL not set)")
+	}
+
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypePostgres,
+		redisConfig:    redisConfig,
+	})
 }

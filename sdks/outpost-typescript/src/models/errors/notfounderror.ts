@@ -5,6 +5,7 @@
 import * as z from "zod";
 import { remap as remap$ } from "../../lib/primitives.js";
 import { collectExtraKeys as collectExtraKeys$ } from "../../lib/schemas.js";
+import { OutpostError } from "./outposterror.js";
 
 /**
  * Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing
@@ -18,19 +19,19 @@ export type NotFoundErrorData = {
 /**
  * Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing
  */
-export class NotFoundError extends Error {
+export class NotFoundError extends OutpostError {
   additionalProperties: { [k: string]: any } = {};
 
   /** The original data that was passed to this error instance. */
   data$: NotFoundErrorData;
 
-  constructor(err: NotFoundErrorData) {
-    const message = "message" in err && typeof err.message === "string"
-      ? err.message
-      : `API error occurred: ${JSON.stringify(err)}`;
-    super(message);
+  constructor(
+    err: NotFoundErrorData,
+    httpMeta: { response: Response; request: Request; body: string },
+  ) {
+    const message = err.message || `API error occurred: ${JSON.stringify(err)}`;
+    super(message, httpMeta);
     this.data$ = err;
-
     if (err.additionalProperties != null) {
       this.additionalProperties = err.additionalProperties;
     }
@@ -47,13 +48,20 @@ export const NotFoundError$inboundSchema: z.ZodType<
 > = collectExtraKeys$(
   z.object({
     message: z.string().optional(),
+    request$: z.instanceof(Request),
+    response$: z.instanceof(Response),
+    body$: z.string(),
   })
     .catchall(z.any()),
   "additionalProperties",
   true,
 )
   .transform((v) => {
-    return new NotFoundError(v);
+    return new NotFoundError(v, {
+      request: v.request$,
+      response: v.response$,
+      body: v.body$,
+    });
   });
 
 /** @internal */

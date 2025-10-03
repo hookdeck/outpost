@@ -2,11 +2,26 @@
 
 package components
 
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+)
+
 type DestinationUpdateRabbitMQ struct {
 	// "*" or an array of enabled topics.
 	Topics      *Topics              `json:"topics,omitempty"`
 	Config      *RabbitMQConfig      `json:"config,omitempty"`
 	Credentials *RabbitMQCredentials `json:"credentials,omitempty"`
+}
+
+func (d DestinationUpdateRabbitMQ) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(d, "", false)
+}
+
+func (d *DestinationUpdateRabbitMQ) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &d, "", false, nil); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *DestinationUpdateRabbitMQ) GetTopics() *Topics {

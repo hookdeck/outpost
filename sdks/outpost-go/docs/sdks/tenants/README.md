@@ -22,6 +22,7 @@ Idempotently creates or updates a tenant. Required before associating destinatio
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="upsertTenant" method="put" path="/{tenant_id}" -->
 ```go
 package main
 
@@ -36,12 +37,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Tenants.Upsert(ctx, outpostgo.String("<id>"))
+    res, err := s.Tenants.Upsert(ctx)
     if err != nil {
         log.Fatal(err)
     }
@@ -85,6 +87,7 @@ Retrieves details for a specific tenant.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="getTenant" method="get" path="/{tenant_id}" -->
 ```go
 package main
 
@@ -99,12 +102,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Tenants.Get(ctx, outpostgo.String("<id>"))
+    res, err := s.Tenants.Get(ctx)
     if err != nil {
         log.Fatal(err)
     }
@@ -147,6 +151,7 @@ Deletes the tenant and all associated destinations.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="deleteTenant" method="delete" path="/{tenant_id}" -->
 ```go
 package main
 
@@ -161,12 +166,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Tenants.Delete(ctx, outpostgo.String("<id>"))
+    res, err := s.Tenants.Delete(ctx)
     if err != nil {
         log.Fatal(err)
     }
@@ -209,6 +215,7 @@ Returns a redirect URL containing a JWT to authenticate the user with the portal
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="getTenantPortalUrl" method="get" path="/{tenant_id}/portal" -->
 ```go
 package main
 
@@ -223,12 +230,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Tenants.GetPortalURL(ctx, outpostgo.String("<id>"), nil)
+    res, err := s.Tenants.GetPortalURL(ctx, nil)
     if err != nil {
         log.Fatal(err)
     }
@@ -272,6 +280,7 @@ Returns a JWT token scoped to the tenant for safe browser API calls.
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="getTenantToken" method="get" path="/{tenant_id}/token" -->
 ```go
 package main
 
@@ -286,12 +295,13 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
             AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Tenants.GetToken(ctx, outpostgo.String("<id>"))
+    res, err := s.Tenants.GetToken(ctx)
     if err != nil {
         log.Fatal(err)
     }

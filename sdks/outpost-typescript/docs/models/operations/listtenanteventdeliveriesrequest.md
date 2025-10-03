@@ -6,7 +6,6 @@
 import { ListTenantEventDeliveriesRequest } from "@hookdeck/outpost-sdk/models/operations";
 
 let value: ListTenantEventDeliveriesRequest = {
-  tenantId: "<id>",
   eventId: "<id>",
 };
 ```

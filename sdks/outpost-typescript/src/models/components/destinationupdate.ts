@@ -13,6 +13,12 @@ import {
   DestinationUpdateAWSKinesis$outboundSchema,
 } from "./destinationupdateawskinesis.js";
 import {
+  DestinationUpdateAwss3,
+  DestinationUpdateAwss3$inboundSchema,
+  DestinationUpdateAwss3$Outbound,
+  DestinationUpdateAwss3$outboundSchema,
+} from "./destinationupdateawss3.js";
+import {
   DestinationUpdateAWSSQS,
   DestinationUpdateAWSSQS$inboundSchema,
   DestinationUpdateAWSSQS$Outbound,
@@ -42,7 +48,8 @@ export type DestinationUpdate =
   | DestinationUpdateAWSSQS
   | DestinationUpdateRabbitMQ
   | DestinationUpdateHookdeck
-  | DestinationUpdateAWSKinesis;
+  | DestinationUpdateAWSKinesis
+  | DestinationUpdateAwss3;
 
 /** @internal */
 export const DestinationUpdate$inboundSchema: z.ZodType<
@@ -55,6 +62,7 @@ export const DestinationUpdate$inboundSchema: z.ZodType<
   DestinationUpdateRabbitMQ$inboundSchema,
   DestinationUpdateHookdeck$inboundSchema,
   DestinationUpdateAWSKinesis$inboundSchema,
+  DestinationUpdateAwss3$inboundSchema,
 ]);
 
 /** @internal */
@@ -63,7 +71,8 @@ export type DestinationUpdate$Outbound =
   | DestinationUpdateAWSSQS$Outbound
   | DestinationUpdateRabbitMQ$Outbound
   | DestinationUpdateHookdeck$Outbound
-  | DestinationUpdateAWSKinesis$Outbound;
+  | DestinationUpdateAWSKinesis$Outbound
+  | DestinationUpdateAwss3$Outbound;
 
 /** @internal */
 export const DestinationUpdate$outboundSchema: z.ZodType<
@@ -76,6 +85,7 @@ export const DestinationUpdate$outboundSchema: z.ZodType<
   DestinationUpdateRabbitMQ$outboundSchema,
   DestinationUpdateHookdeck$outboundSchema,
   DestinationUpdateAWSKinesis$outboundSchema,
+  DestinationUpdateAwss3$outboundSchema,
 ]);
 
 /**

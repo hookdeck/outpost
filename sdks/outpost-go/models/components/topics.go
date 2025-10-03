@@ -41,8 +41,8 @@ const (
 
 // Topics - "*" or an array of enabled topics.
 type Topics struct {
-	TopicsEnum *TopicsEnum `queryParam:"inline"`
-	ArrayOfStr []string    `queryParam:"inline"`
+	TopicsEnum *TopicsEnum `queryParam:"inline" name:"Topics"`
+	ArrayOfStr []string    `queryParam:"inline" name:"Topics"`
 
 	Type TopicsType
 }
@@ -68,14 +68,14 @@ func CreateTopicsArrayOfStr(arrayOfStr []string) Topics {
 func (u *Topics) UnmarshalJSON(data []byte) error {
 
 	var topicsEnum TopicsEnum = TopicsEnum("")
-	if err := utils.UnmarshalJSON(data, &topicsEnum, "", true, true); err == nil {
+	if err := utils.UnmarshalJSON(data, &topicsEnum, "", true, nil); err == nil {
 		u.TopicsEnum = &topicsEnum
 		u.Type = TopicsTypeTopicsEnum
 		return nil
 	}
 
 	var arrayOfStr []string = []string{}
-	if err := utils.UnmarshalJSON(data, &arrayOfStr, "", true, true); err == nil {
+	if err := utils.UnmarshalJSON(data, &arrayOfStr, "", true, nil); err == nil {
 		u.ArrayOfStr = arrayOfStr
 		u.Type = TopicsTypeArrayOfStr
 		return nil

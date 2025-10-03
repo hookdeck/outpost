@@ -57,7 +57,7 @@ func (d DestinationHookdeck) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationHookdeck) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, false); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "disabled_at", "created_at", "credentials"}); err != nil {
 		return err
 	}
 	return nil

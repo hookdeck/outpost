@@ -17,7 +17,7 @@ export class Publish extends ClientSDK {
   async event(
     request: components.PublishRequest,
     options?: RequestOptions,
-  ): Promise<void> {
+  ): Promise<components.PublishResponse> {
     return unwrapAsync(publishEvent(
       this,
       request,

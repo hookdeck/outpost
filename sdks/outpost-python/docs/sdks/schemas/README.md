@@ -18,17 +18,19 @@ Returns a list of JSON-based input schemas for each available destination type. 
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="listTenantDestinationTypeSchemas" method="get" path="/{tenant_id}/destination-types" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.schemas.list_tenant_destination_types(tenant_id="<id>")
+    res = outpost.schemas.list_tenant_destination_types()
 
     # Handle response
     print(res)
@@ -67,17 +69,19 @@ Returns the input schema for a specific destination type. Requires Admin API Key
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="getTenantDestinationTypeSchema" method="get" path="/{tenant_id}/destination-types/{type}" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.schemas.get(type_=models.GetTenantDestinationTypeSchemaType.HOOKDECK, tenant_id="<id>")
+    res = outpost.schemas.get(type_=models.GetTenantDestinationTypeSchemaType.HOOKDECK)
 
     # Handle response
     print(res)
@@ -117,6 +121,7 @@ Returns a list of JSON-based input schemas for each available destination type (
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="listDestinationTypeSchemasJwt" method="get" path="/destination-types" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -166,6 +171,7 @@ Returns the input schema for a specific destination type.
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="getDestinationTypeSchema" method="get" path="/destination-types/{type}" -->
 ```python
 from outpost_sdk import Outpost, models
 

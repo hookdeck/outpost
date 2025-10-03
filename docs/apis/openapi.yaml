@@ -79,6 +79,27 @@ components:
       description: '"*" or an array of enabled topics.'
       example: "*"
 
+    PaginatedResponse:
+      type: object
+      required: [count, data, next, prev]
+      properties:
+        count:
+          type: integer
+          description: Total number of items across all pages
+          example: 42
+        data:
+          type: array
+          items: {} # Will be overridden by specific endpoints
+          description: Array of items for current page
+        next:
+          type: string
+          description: Cursor for next page (empty string if no next page)
+          example: ""
+        prev:
+          type: string
+          description: Cursor for previous page (empty string if no previous page)
+          example: ""
+
     # Destination Type Specific Config/Credentials Schemas
     WebhookConfig:
       type: object
@@ -194,6 +215,60 @@ components:
           description: Optional. JMESPath template to extract the partition key from the event payload (e.g., `metadata."event-id"`). Defaults to event ID.
           example: 'data."user_id"'
     AWSKinesisCredentials:
+      type: object
+      required: [key, secret]
+      properties:
+        key:
+          type: string
+          description: AWS Access Key ID.
+          example: "AKIAIOSFODNN7EXAMPLE"
+        secret:
+          type: string
+          description: AWS Secret Access Key.
+          example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        session:
+          type: string
+          description: Optional AWS Session Token (for temporary credentials).
+          example: "AQoDYXdzEPT//////////wEXAMPLE..."
+
+    AzureServiceBusConfig:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: The name of the Azure Service Bus queue or topic to publish messages to.
+          example: "my-queue-or-topic"
+    AzureServiceBusCredentials:
+      type: object
+      required: [connection_string]
+      properties:
+        connection_string:
+          type: string
+          description: The connection string for the Azure Service Bus namespace.
+          example: "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abc123"
+    AWSS3Config:
+      type: object
+      required: [bucket, region]
+      properties:
+        bucket:
+          type: string
+          description: The name of your AWS S3 bucket.
+          example: "my-bucket"
+        region:
+          type: string
+          description: The AWS region where your bucket is located.
+          pattern: "^[a-z]{2}-[a-z]+-[0-9]+$"
+          example: "us-east-1"
+        key_template:
+          type: string
+          description: JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata."event-id", '.json']).
+          example: "join('/', [time.year, time.month, time.day, metadata.`\"event-id\"`, '.json'])"
+        storage_class:
+          type: string
+          description: The storage class for the S3 objects (e.g., STANDARD, INTELLIGENT_TIERING, GLACIER, etc.). Defaults to "STANDARD".
+          example: "STANDARD"
+    AWSS3Credentials:
       type: object
       required: [key, secret]
       properties:
@@ -484,6 +559,115 @@ components:
           key: "AKIAIOSFODNN7EXAMPLE"
           secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 
+    DestinationAzureServiceBus:
+      type: object
+      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      properties:
+        id:
+          type: string
+          description: Control plane generated ID or user provided ID for the destination.
+          example: "des_12345"
+        type:
+          type: string
+          description: Type of the destination.
+          enum: [azure_servicebus]
+          example: "azure_servicebus"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO Date when the destination was disabled, or null if enabled.
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        config:
+          $ref: "#/components/schemas/AzureServiceBusConfig"
+        credentials:
+          $ref: "#/components/schemas/AzureServiceBusCredentials"
+        target:
+          type: string
+          description: A human-readable representation of the destination target (Azure Service Bus queue/topic name). Read-only.
+          readOnly: true
+          example: "my-queue-or-topic"
+        target_url:
+          type: string
+          format: url
+          nullable: true # Can construct Azure portal URL
+          description: A URL link to the destination target (Azure Portal link to the Service Bus). Read-only.
+          readOnly: true
+          example: "https://portal.azure.com/#@tenant-id/resource/subscriptions/subscription-id/resourceGroups/resource-group/providers/Microsoft.ServiceBus/namespaces/namespace-name/queues/queue-name"
+      example:
+        id: "des_azuresb_123"
+        type: "azure_servicebus"
+        topics: ["*"]
+        disabled_at: null
+        created_at: "2024-05-01T10:00:00Z"
+        config:
+          name: "my-queue-or-topic"
+        credentials:
+          connection_string: "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abc123"
+
+    DestinationAWSS3:
+      type: object
+      # Properties duplicated from DestinationBase
+      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      properties:
+        id:
+          type: string
+          description: Control plane generated ID or user provided ID for the destination.
+          example: "des_12345"
+        type:
+          type: string
+          description: Type of the destination.
+          enum: [aws_s3]
+          example: "aws_s3"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO Date when the destination was disabled, or null if enabled.
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        config:
+          $ref: "#/components/schemas/AWSS3Config"
+        credentials:
+          $ref: "#/components/schemas/AWSS3Credentials"
+        target:
+          type: string
+          description: A human-readable representation of the destination target (bucket and region). Read-only.
+          readOnly: true
+          example: "my-bucket in us-east-1"
+        target_url:
+          type: string
+          format: url
+          nullable: true
+          description: A URL link to the destination target (AWS Console link to the bucket). Read-only.
+          readOnly: true
+          example: null
+      example:
+        id: "des_s3_789"
+        type: "aws_s3"
+        topics: ["*"]
+        disabled_at: null
+        created_at: "2024-03-20T12:00:00Z"
+        config:
+          bucket: "my-bucket"
+          region: "us-east-1"
+        credentials:
+          key: "AKIAIOSFODNN7EXAMPLE"
+          secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
     # Polymorphic Destination Schema (for Responses)
     Destination:
       oneOf:
@@ -492,6 +676,8 @@ components:
         - $ref: "#/components/schemas/DestinationRabbitMQ"
         - $ref: "#/components/schemas/DestinationHookdeck"
         - $ref: "#/components/schemas/DestinationAWSKinesis"
+        - $ref: "#/components/schemas/DestinationAzureServiceBus"
+        - $ref: "#/components/schemas/DestinationAWSS3"
       discriminator:
         propertyName: type
         mapping:
@@ -500,6 +686,8 @@ components:
           rabbitmq: "#/components/schemas/DestinationRabbitMQ"
           hookdeck: "#/components/schemas/DestinationHookdeck"
           aws_kinesis: "#/components/schemas/DestinationAWSKinesis"
+          azure_servicebus: "#/components/schemas/DestinationAzureServiceBus"
+          aws_s3: "#/components/schemas/DestinationAWSS3"
 
     DestinationCreateWebhook:
       type: object
@@ -592,6 +780,44 @@ components:
         credentials:
           $ref: "#/components/schemas/AWSKinesisCredentials"
 
+    DestinationCreateAzureServiceBus:
+      type: object
+      required: [type, topics, config, credentials]
+      properties:
+        id:
+          type: string
+          description: Optional user-provided ID. A UUID will be generated if empty.
+          example: "user-provided-id"
+        type:
+          type: string
+          description: Type of the destination. Must be 'azure_servicebus'.
+          enum: [azure_servicebus]
+        topics:
+          $ref: "#/components/schemas/Topics"
+        config:
+          $ref: "#/components/schemas/AzureServiceBusConfig"
+        credentials:
+          $ref: "#/components/schemas/AzureServiceBusCredentials"
+
+    DestinationCreateAWSS3:
+      type: object
+      required: [type, topics, config, credentials]
+      properties:
+        id:
+          type: string
+          description: Optional user-provided ID. A UUID will be generated if empty.
+          example: "user-provided-id"
+        type:
+          type: string
+          description: Type of the destination. Must be 'aws_s3'.
+          enum: [aws_s3]
+        topics:
+          $ref: "#/components/schemas/Topics"
+        config:
+          $ref: "#/components/schemas/AWSS3Config"
+        credentials:
+          $ref: "#/components/schemas/AWSS3Credentials"
+
     # Polymorphic Destination Creation Schema (for Request Bodies)
     DestinationCreate:
       oneOf:
@@ -600,6 +826,8 @@ components:
         - $ref: "#/components/schemas/DestinationCreateRabbitMQ"
         - $ref: "#/components/schemas/DestinationCreateHookdeck"
         - $ref: "#/components/schemas/DestinationCreateAWSKinesis"
+        - $ref: "#/components/schemas/DestinationCreateAzureServiceBus"
+        - $ref: "#/components/schemas/DestinationCreateAWSS3"
       discriminator:
         propertyName: type
         mapping:
@@ -608,6 +836,8 @@ components:
           rabbitmq: "#/components/schemas/DestinationCreateRabbitMQ"
           hookdeck: "#/components/schemas/DestinationCreateHookdeck"
           aws_kinesis: "#/components/schemas/DestinationCreateAWSKinesis"
+          azure_servicebus: "#/components/schemas/DestinationCreateAzureServiceBus"
+          aws_s3: "#/components/schemas/DestinationCreateAWSS3"
 
     # Type-Specific Destination Update Schemas (for Request Bodies)
     WebhookCredentialsUpdate:
@@ -676,6 +906,17 @@ components:
         credentials:
           $ref: "#/components/schemas/AWSKinesisCredentials" # key/secret required here, but PATCH means optional
 
+    DestinationUpdateAWSS3:
+      type: object
+      # Properties duplicated from DestinationUpdateBase
+      properties:
+        topics:
+          $ref: "#/components/schemas/Topics"
+        config:
+          $ref: "#/components/schemas/AWSS3Config" # bucket/region required here, but PATCH means optional
+        credentials:
+          $ref: "#/components/schemas/AWSS3Credentials" # key/secret required here, but PATCH means optional
+
     # Polymorphic Destination Update Schema (for Request Bodies)
     DestinationUpdate:
       oneOf:
@@ -684,7 +925,7 @@ components:
         - $ref: "#/components/schemas/DestinationUpdateRabbitMQ"
         - $ref: "#/components/schemas/DestinationUpdateHookdeck"
         - $ref: "#/components/schemas/DestinationUpdateAWSKinesis"
-
+        - $ref: "#/components/schemas/DestinationUpdateAWSS3"
     # Event Schemas
     PublishRequest:
       type: object
@@ -1097,11 +1338,11 @@ paths:
           schema:
             oneOf:
               - type: string
-                enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis]
+                enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, aws_s3]
               - type: array
                 items:
                   type: string
-                  enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis]
+                  enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, aws_s3]
           description: Filter destinations by type(s).
         - name: topics
           in: query
@@ -1144,6 +1385,17 @@ paths:
                       config:
                         queue_url: "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue"
                         endpoint: "https://sqs.us-west-2.amazonaws.com"
+                      credentials:
+                        key: "AKIAIOSFODNN7EXAMPLE"
+                        secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                    - id: "des_s3_789"
+                      type: "aws_s3"
+                      topics: ["*"]
+                      disabled_at: null
+                      created_at: "2024-03-20T12:00:00Z"
+                      config:
+                        bucket: "my-bucket"
+                        region: "us-east-1"
                       credentials:
                         key: "AKIAIOSFODNN7EXAMPLE"
                         secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
@@ -1499,6 +1751,80 @@ paths:
                             sensitive: true,
                           },
                         ]
+                    - type: "aws_s3"
+                      label: "AWS S3"
+                      description: "Store events in an Amazon S3 bucket"
+                      icon: "<svg />"
+                      instructions: "Enter bucket and region..."
+                      config_fields:
+                        [
+                          {
+                            type: "text",
+                            label: "Bucket Name",
+                            description: "The name of the S3 bucket.",
+                            required: true,
+                          },
+                          {
+                            type: "text",
+                            label: "AWS Region",
+                            description: "The AWS region where the bucket is located.",
+                            required: true,
+                          },
+                        ]
+                      credential_fields:
+                        [
+                          {
+                            type: "text",
+                            label: "Key",
+                            description: "AWS Access Key ID.",
+                            required: true,
+                            sensitive: true,
+                          },
+                          {
+                            type: "text",
+                            label: "Secret",
+                            description: "AWS Secret Access Key.",
+                            required: true,
+                            sensitive: true,
+                          },
+                        ]
+                    - type: "aws_s3"
+                      label: "AWS S3"
+                      description: "Store events in an Amazon S3 bucket"
+                      icon: "<svg />"
+                      instructions: "Enter bucket and region..."
+                      config_fields:
+                        [
+                          {
+                            type: "text",
+                            label: "Bucket Name",
+                            description: "The name of the S3 bucket.",
+                            required: true,
+                          },
+                          {
+                            type: "text",
+                            label: "AWS Region",
+                            description: "The AWS region where the bucket is located.",
+                            required: true,
+                          },
+                        ]
+                      credential_fields:
+                        [
+                          {
+                            type: "text",
+                            label: "Key",
+                            description: "AWS Access Key ID.",
+                            required: true,
+                            sensitive: true,
+                          },
+                          {
+                            type: "text",
+                            label: "Secret",
+                            description: "AWS Secret Access Key.",
+                            required: true,
+                            sensitive: true,
+                          },
+                        ]
         "404":
           description: Tenant not found.
 
@@ -1515,7 +1841,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis]
+          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, aws_s3]
         description: The type of the destination.
     get:
       tags: [Schemas]
@@ -1625,33 +1951,76 @@ paths:
             type: string
             enum: [success, failed]
           description: Filter events by delivery status.
-        # Add cursor parameters (e.g., 'after', 'limit') when defined
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for next page of results
+        - name: prev
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for previous page of results
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Number of items per page (default 100, max 1000)
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Start time filter (RFC3339 format)
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: End time filter (RFC3339 format)
       responses:
         "200":
-          description: A list of events.
+          description: A paginated list of events.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Event"
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Event"
               examples:
                 EventsListExample:
                   value:
-                    - id: "evt_123"
-                      destination_id: "des_456"
-                      topic: "user.created"
-                      time: "2024-01-01T00:00:00Z"
-                      successful_at: "2024-01-01T00:00:05Z"
-                      metadata: { "source": "crm" }
-                      data: { "user_id": "userid", "status": "active" }
-                    - id: "evt_789"
-                      destination_id: "des_456"
-                      topic: "order.shipped"
-                      time: "2024-01-02T10:00:00Z"
-                      successful_at: null
-                      metadata: { "source": "oms" }
-                      data: { "order_id": "orderid", "tracking": "1Z..." }
+                    count: 2
+                    data:
+                      - id: "evt_123"
+                        destination_id: "des_456"
+                        topic: "user.created"
+                        time: "2024-01-01T00:00:00Z"
+                        successful_at: "2024-01-01T00:00:05Z"
+                        metadata: { "source": "crm" }
+                        data: { "user_id": "userid", "status": "active" }
+                      - id: "evt_789"
+                        destination_id: "des_456"
+                        topic: "order.shipped"
+                        time: "2024-01-02T10:00:00Z"
+                        successful_at: null
+                        metadata: { "source": "oms" }
+                        data: { "order_id": "orderid", "tracking": "1Z..." }
+                    next: ""
+                    prev: ""
         "404":
           description: Tenant not found.
         # Add other error responses
@@ -1766,33 +2135,76 @@ paths:
             type: string
             enum: [success, failed]
           description: Filter events by delivery status.
-        # Add cursor parameters
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for next page of results
+        - name: prev
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for previous page of results
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Number of items per page (default 100, max 1000)
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Start time filter (RFC3339 format)
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: End time filter (RFC3339 format)
       responses:
         "200":
-          description: A list of events for the destination.
+          description: A paginated list of events for the destination.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Event"
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Event"
               examples:
                 EventsListExample: # Same as /{tenant_id}/events example
                   value:
-                    - id: "evt_123"
-                      destination_id: "des_456"
-                      topic: "user.created"
-                      time: "2024-01-01T00:00:00Z"
-                      successful_at: "2024-01-01T00:00:05Z"
-                      metadata: { "source": "crm" }
-                      data: { "user_id": "userid", "status": "active" }
-                    - id: "evt_789"
-                      destination_id: "des_456"
-                      topic: "order.shipped"
-                      time: "2024-01-02T10:00:00Z"
-                      successful_at: null
-                      metadata: { "source": "oms" }
-                      data: { "order_id": "orderid", "tracking": "1Z..." }
+                    count: 2
+                    data:
+                      - id: "evt_123"
+                        destination_id: "des_456"
+                        topic: "user.created"
+                        time: "2024-01-01T00:00:00Z"
+                        successful_at: "2024-01-01T00:00:05Z"
+                        metadata: { "source": "crm" }
+                        data: { "user_id": "userid", "status": "active" }
+                      - id: "evt_789"
+                        destination_id: "des_456"
+                        topic: "order.shipped"
+                        time: "2024-01-02T10:00:00Z"
+                        successful_at: null
+                        metadata: { "source": "oms" }
+                        data: { "order_id": "orderid", "tracking": "1Z..." }
+                    next: ""
+                    prev: ""
         "404":
           description: Tenant or Destination not found.
 
@@ -1976,7 +2388,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis]
+          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, aws_s3]
         description: The type of the destination.
     get:
       tags: [Schemas]

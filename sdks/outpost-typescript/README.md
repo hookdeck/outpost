@@ -26,6 +26,7 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
   * [Available Resources and Operations](#available-resources-and-operations)
   * [Standalone functions](#standalone-functions)
   * [Global Parameters](#global-parameters)
+  * [Pagination](#pagination)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
   * [Server Selection](#server-selection)
@@ -180,7 +181,6 @@ const outpost = new Outpost();
 async function run() {
   const result = await outpost.health.check();
 
-  // Handle the result
   console.log(result);
 }
 
@@ -214,7 +214,6 @@ const outpost = new Outpost({
 async function run() {
   const result = await outpost.health.check();
 
-  // Handle the result
   console.log(result);
 }
 
@@ -347,17 +346,15 @@ The following global parameter is available.
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
+  tenantId: "<id>",
   security: {
     adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
   },
 });
 
 async function run() {
-  const result = await outpost.tenants.upsert({
-    tenantId: "<id>",
-  });
+  const result = await outpost.tenants.upsert({});
 
-  // Handle the result
   console.log(result);
 }
 
@@ -365,6 +362,41 @@ run();
 
 ```
 <!-- End Global Parameters [global-parameters] -->
+
+<!-- Start Pagination [pagination] -->
+## Pagination
+
+Some of the endpoints in this SDK support pagination. To use pagination, you
+make your SDK calls as usual, but the returned response object will also be an
+async iterable that can be consumed using the [`for await...of`][for-await-of]
+syntax.
+
+[for-await-of]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of
+
+Here's an example of one such pagination call:
+
+```typescript
+import { Outpost } from "@hookdeck/outpost-sdk";
+
+const outpost = new Outpost({
+  tenantId: "<id>",
+  security: {
+    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
+  },
+});
+
+async function run() {
+  const result = await outpost.events.list({});
+
+  for await (const page of result) {
+    console.log(page);
+  }
+}
+
+run();
+
+```
+<!-- End Pagination [pagination] -->
 
 <!-- Start Retries [retries] -->
 ## Retries
@@ -391,7 +423,6 @@ async function run() {
     },
   });
 
-  // Handle the result
   console.log(result);
 }
 
@@ -419,7 +450,6 @@ const outpost = new Outpost({
 async function run() {
   const result = await outpost.health.check();
 
-  // Handle the result
   console.log(result);
 }
 
@@ -431,108 +461,41 @@ run();
 <!-- Start Error Handling [errors] -->
 ## Error Handling
 
-Some methods specify known errors which can be thrown. All the known errors are enumerated in the `models/errors/errors.ts` module. The known errors for a method are documented under the *Errors* tables in SDK docs. For example, the `check` method may throw the following errors:
+[`OutpostError`](./src/models/errors/outposterror.ts) is the base class for all HTTP error responses. It has the following properties:
 
-| Error Type                 | Status Code                  | Content Type     |
-| -------------------------- | ---------------------------- | ---------------- |
-| errors.NotFoundError       | 404                          | application/json |
-| errors.UnauthorizedError   | 401, 403, 407                | application/json |
-| errors.TimeoutError        | 408                          | application/json |
-| errors.RateLimitedError    | 429                          | application/json |
-| errors.BadRequestError     | 400, 413, 414, 415, 422, 431 | application/json |
-| errors.TimeoutError        | 504                          | application/json |
-| errors.NotFoundError       | 501, 505                     | application/json |
-| errors.InternalServerError | 500, 502, 503, 506, 507, 508 | application/json |
-| errors.BadRequestError     | 510                          | application/json |
-| errors.UnauthorizedError   | 511                          | application/json |
-| errors.APIError            | 4XX, 5XX                     | \*/\*            |
+| Property            | Type       | Description                                                                             |
+| ------------------- | ---------- | --------------------------------------------------------------------------------------- |
+| `error.message`     | `string`   | Error message                                                                           |
+| `error.statusCode`  | `number`   | HTTP response status code eg `404`                                                      |
+| `error.headers`     | `Headers`  | HTTP response headers                                                                   |
+| `error.body`        | `string`   | HTTP body. Can be empty string if no body is returned.                                  |
+| `error.rawResponse` | `Response` | Raw HTTP response                                                                       |
+| `error.data$`       |            | Optional. Some errors may contain structured data. [See Error Classes](#error-classes). |
 
-If the method throws an error and it is not captured by the known errors, it will default to throwing a `APIError`.
-
+### Example
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
-import {
-  BadRequestError,
-  InternalServerError,
-  NotFoundError,
-  RateLimitedError,
-  SDKValidationError,
-  TimeoutError,
-  UnauthorizedError,
-} from "@hookdeck/outpost-sdk/models/errors";
+import * as errors from "@hookdeck/outpost-sdk/models/errors";
 
 const outpost = new Outpost();
 
 async function run() {
-  let result;
   try {
-    result = await outpost.health.check();
+    const result = await outpost.health.check();
 
-    // Handle the result
     console.log(result);
-  } catch (err) {
-    switch (true) {
-      // The server response does not match the expected SDK schema
-      case (err instanceof SDKValidationError): {
-        // Pretty-print will provide a human-readable multi-line error message
-        console.error(err.pretty());
-        // Raw value may also be inspected
-        console.error(err.rawValue);
-        return;
-      }
-      case (err instanceof NotFoundError): {
-        // Handle err.data$: NotFoundErrorData
-        console.error(err);
-        return;
-      }
-      case (err instanceof UnauthorizedError): {
-        // Handle err.data$: UnauthorizedErrorData
-        console.error(err);
-        return;
-      }
-      case (err instanceof TimeoutError): {
-        // Handle err.data$: TimeoutErrorData
-        console.error(err);
-        return;
-      }
-      case (err instanceof RateLimitedError): {
-        // Handle err.data$: RateLimitedErrorData
-        console.error(err);
-        return;
-      }
-      case (err instanceof BadRequestError): {
-        // Handle err.data$: BadRequestErrorData
-        console.error(err);
-        return;
-      }
-      case (err instanceof TimeoutError): {
-        // Handle err.data$: TimeoutErrorData
-        console.error(err);
-        return;
-      }
-      case (err instanceof NotFoundError): {
-        // Handle err.data$: NotFoundErrorData
-        console.error(err);
-        return;
-      }
-      case (err instanceof InternalServerError): {
-        // Handle err.data$: InternalServerErrorData
-        console.error(err);
-        return;
-      }
-      case (err instanceof BadRequestError): {
-        // Handle err.data$: BadRequestErrorData
-        console.error(err);
-        return;
-      }
-      case (err instanceof UnauthorizedError): {
-        // Handle err.data$: UnauthorizedErrorData
-        console.error(err);
-        return;
-      }
-      default: {
-        // Other errors such as network errors, see HTTPClientErrors for more details
-        throw err;
+  } catch (error) {
+    // The base class for HTTP error responses
+    if (error instanceof errors.OutpostError) {
+      console.log(error.message);
+      console.log(error.statusCode);
+      console.log(error.body);
+      console.log(error.headers);
+
+      // Depending on the method different errors may be thrown
+      if (error instanceof errors.NotFoundError) {
+        console.log(error.data$.message); // string
+        console.log(error.data$.additionalProperties); // { [k: string]: any }
       }
     }
   }
@@ -542,17 +505,32 @@ run();
 
 ```
 
-Validation errors can also occur when either method arguments or data returned from the server do not match the expected format. The `SDKValidationError` that is thrown as a result will capture the raw value that failed validation in an attribute called `rawValue`. Additionally, a `pretty()` method is available on this error that can be used to log a nicely formatted multi-line string since validation errors can list many issues and the plain error string may be difficult read when debugging.
+### Error Classes
+**Primary errors:**
+* [`OutpostError`](./src/models/errors/outposterror.ts): The base class for HTTP error responses.
+  * [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request.
+  * [`UnauthorizedError`](./src/models/errors/unauthorizederror.ts): A collection of codes that generally means the client was not authenticated correctly for the request they want to make.
+  * [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing.
+  * [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request.
+  * [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`.
+  * [`InternalServerError`](./src/models/errors/internalservererror.ts): A collection of status codes that generally mean the server failed in an unexpected way.
 
-In some rare cases, the SDK can fail to get a response from the server or even make the request due to unexpected circumstances such as network conditions. These types of errors are captured in the `models/errors/httpclienterrors.ts` module:
+<details><summary>Less common errors (6)</summary>
 
-| HTTP Client Error                                    | Description                                          |
-| ---------------------------------------------------- | ---------------------------------------------------- |
-| RequestAbortedError                                  | HTTP request was aborted by the client               |
-| RequestTimeoutError                                  | HTTP request timed out due to an AbortSignal signal  |
-| ConnectionError                                      | HTTP client was unable to make a request to a server |
-| InvalidRequestError                                  | Any input used to create a request is invalid        |
-| UnexpectedClientError                                | Unrecognised or unexpected error                     |
+<br />
+
+**Network errors:**
+* [`ConnectionError`](./src/models/errors/httpclienterrors.ts): HTTP client was unable to make a request to a server.
+* [`RequestTimeoutError`](./src/models/errors/httpclienterrors.ts): HTTP request timed out due to an AbortSignal signal.
+* [`RequestAbortedError`](./src/models/errors/httpclienterrors.ts): HTTP request was aborted by the client.
+* [`InvalidRequestError`](./src/models/errors/httpclienterrors.ts): Any input used to create a request is invalid.
+* [`UnexpectedClientError`](./src/models/errors/httpclienterrors.ts): Unrecognised or unexpected error.
+
+
+**Inherit from [`OutpostError`](./src/models/errors/outposterror.ts)**:
+* [`ResponseValidationError`](./src/models/errors/responsevalidationerror.ts): Type mismatch between the data returned from the server and the structure expected by the SDK. See `error.rawValue` for the raw value and `error.pretty()` for a nicely formatted multi-line string.
+
+</details>
 <!-- End Error Handling [errors] -->
 
 <!-- Start Server Selection [server] -->
@@ -571,7 +549,6 @@ const outpost = new Outpost({
 async function run() {
   const result = await outpost.health.check();
 
-  // Handle the result
   console.log(result);
 }
 

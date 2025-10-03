@@ -1,12 +1,12 @@
 lockVersion: 2.0.0
 id: da774284-22d9-4b6c-bb26-1c3fc9f2c7ee
 management:
-  docChecksum: 9d08f718ce55c534f292ba05af3425db
+  docChecksum: f88900fa0dfdee97044181ff0fbb5027
   docVersion: 0.0.1
-  speakeasyVersion: 1.548.1
-  generationVersion: 2.605.0
-  releaseVersion: 0.2.0
-  configChecksum: 69ffbd3cdb2c5ff26968adc0dac0491c
+  speakeasyVersion: 1.609.0
+  generationVersion: 2.692.0
+  releaseVersion: 0.4.0
+  configChecksum: 5010174e527b0e15ea785476055a0d53
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-python
   installationURL: https://github.com/hookdeck/outpost.git#subdirectory=sdks/outpost-python
@@ -15,7 +15,8 @@ features:
   python:
     additionalDependencies: 1.0.0
     additionalProperties: 1.0.1
-    core: 5.18.1
+    constsAndDefaults: 1.0.5
+    core: 5.20.3
     defaultEnabledRetries: 0.2.0
     enumUnions: 0.1.0
     envVarSecurityUsage: 0.3.2
@@ -28,13 +29,13 @@ features:
     methodArguments: 1.0.2
     nameOverrides: 3.0.1
     nullables: 1.0.1
+    pagination: 3.0.5
     responseFormat: 1.0.1
     retries: 3.0.2
-    sdkHooks: 1.0.1
+    sdkHooks: 1.1.0
     unions: 3.0.4
 generatedFiles:
   - .gitattributes
-  - .python-version
   - .vscode/settings.json
   - USAGE.md
   - docs/errors/badrequesterror.md
@@ -45,8 +46,12 @@ generatedFiles:
   - docs/errors/unauthorizederror.md
   - docs/models/awskinesisconfig.md
   - docs/models/awskinesiscredentials.md
+  - docs/models/awss3config.md
+  - docs/models/awss3credentials.md
   - docs/models/awssqsconfig.md
   - docs/models/awssqscredentials.md
+  - docs/models/azureservicebusconfig.md
+  - docs/models/azureservicebuscredentials.md
   - docs/models/createtenantdestinationglobals.md
   - docs/models/createtenantdestinationrequest.md
   - docs/models/deletetenantdestinationglobals.md
@@ -57,13 +62,21 @@ generatedFiles:
   - docs/models/destination.md
   - docs/models/destinationawskinesis.md
   - docs/models/destinationawskinesistype.md
+  - docs/models/destinationawss3.md
+  - docs/models/destinationawss3type.md
   - docs/models/destinationawssqs.md
   - docs/models/destinationawssqstype.md
+  - docs/models/destinationazureservicebus.md
+  - docs/models/destinationazureservicebustype.md
   - docs/models/destinationcreate.md
   - docs/models/destinationcreateawskinesis.md
   - docs/models/destinationcreateawskinesistype.md
+  - docs/models/destinationcreateawss3.md
+  - docs/models/destinationcreateawss3type.md
   - docs/models/destinationcreateawssqs.md
   - docs/models/destinationcreateawssqstype.md
+  - docs/models/destinationcreateazureservicebus.md
+  - docs/models/destinationcreateazureservicebustype.md
   - docs/models/destinationcreatehookdeck.md
   - docs/models/destinationcreatehookdecktype.md
   - docs/models/destinationcreaterabbitmq.md
@@ -80,6 +93,7 @@ generatedFiles:
   - docs/models/destinationtypeschema.md
   - docs/models/destinationupdate.md
   - docs/models/destinationupdateawskinesis.md
+  - docs/models/destinationupdateawss3.md
   - docs/models/destinationupdateawssqs.md
   - docs/models/destinationupdatehookdeck.md
   - docs/models/destinationupdaterabbitmq.md
@@ -121,14 +135,19 @@ generatedFiles:
   - docs/models/listtenanteventdeliveriesrequest.md
   - docs/models/listtenanteventsbydestinationglobals.md
   - docs/models/listtenanteventsbydestinationrequest.md
+  - docs/models/listtenanteventsbydestinationresponse.md
+  - docs/models/listtenanteventsbydestinationresponsebody.md
   - docs/models/listtenanteventsbydestinationstatus.md
   - docs/models/listtenanteventsglobals.md
   - docs/models/listtenanteventsrequest.md
+  - docs/models/listtenanteventsresponse.md
+  - docs/models/listtenanteventsresponsebody.md
   - docs/models/listtenanteventsstatus.md
   - docs/models/listtenanttopicsglobals.md
   - docs/models/listtenanttopicsrequest.md
   - docs/models/portalredirect.md
   - docs/models/publishrequest.md
+  - docs/models/publishresponse.md
   - docs/models/rabbitmqconfig.md
   - docs/models/rabbitmqcredentials.md
   - docs/models/retrytenanteventglobals.md
@@ -177,8 +196,11 @@ generatedFiles:
   - src/outpost_sdk/errors/apierror.py
   - src/outpost_sdk/errors/badrequest_error.py
   - src/outpost_sdk/errors/internalservererror.py
+  - src/outpost_sdk/errors/no_response_error.py
   - src/outpost_sdk/errors/notfound_error.py
+  - src/outpost_sdk/errors/outposterror.py
   - src/outpost_sdk/errors/ratelimited_error.py
+  - src/outpost_sdk/errors/responsevalidationerror.py
   - src/outpost_sdk/errors/timeout_error.py
   - src/outpost_sdk/errors/unauthorized_error.py
   - src/outpost_sdk/events.py
@@ -187,18 +209,26 @@ generatedFiles:
   - src/outpost_sdk/models/__init__.py
   - src/outpost_sdk/models/awskinesisconfig.py
   - src/outpost_sdk/models/awskinesiscredentials.py
+  - src/outpost_sdk/models/awss3config.py
+  - src/outpost_sdk/models/awss3credentials.py
   - src/outpost_sdk/models/awssqsconfig.py
   - src/outpost_sdk/models/awssqscredentials.py
+  - src/outpost_sdk/models/azureservicebusconfig.py
+  - src/outpost_sdk/models/azureservicebuscredentials.py
   - src/outpost_sdk/models/createtenantdestinationop.py
   - src/outpost_sdk/models/deletetenantdestinationop.py
   - src/outpost_sdk/models/deletetenantop.py
   - src/outpost_sdk/models/deliveryattempt.py
   - src/outpost_sdk/models/destination.py
   - src/outpost_sdk/models/destinationawskinesis.py
+  - src/outpost_sdk/models/destinationawss3.py
   - src/outpost_sdk/models/destinationawssqs.py
+  - src/outpost_sdk/models/destinationazureservicebus.py
   - src/outpost_sdk/models/destinationcreate.py
   - src/outpost_sdk/models/destinationcreateawskinesis.py
+  - src/outpost_sdk/models/destinationcreateawss3.py
   - src/outpost_sdk/models/destinationcreateawssqs.py
+  - src/outpost_sdk/models/destinationcreateazureservicebus.py
   - src/outpost_sdk/models/destinationcreatehookdeck.py
   - src/outpost_sdk/models/destinationcreaterabbitmq.py
   - src/outpost_sdk/models/destinationcreatewebhook.py
@@ -208,6 +238,7 @@ generatedFiles:
   - src/outpost_sdk/models/destinationtypeschema.py
   - src/outpost_sdk/models/destinationupdate.py
   - src/outpost_sdk/models/destinationupdateawskinesis.py
+  - src/outpost_sdk/models/destinationupdateawss3.py
   - src/outpost_sdk/models/destinationupdateawssqs.py
   - src/outpost_sdk/models/destinationupdatehookdeck.py
   - src/outpost_sdk/models/destinationupdaterabbitmq.py
@@ -235,6 +266,7 @@ generatedFiles:
   - src/outpost_sdk/models/listtenanttopicsop.py
   - src/outpost_sdk/models/portalredirect.py
   - src/outpost_sdk/models/publishrequest.py
+  - src/outpost_sdk/models/publishresponse.py
   - src/outpost_sdk/models/rabbitmqconfig.py
   - src/outpost_sdk/models/rabbitmqcredentials.py
   - src/outpost_sdk/models/retrytenanteventop.py
@@ -271,6 +303,7 @@ generatedFiles:
   - src/outpost_sdk/utils/retries.py
   - src/outpost_sdk/utils/security.py
   - src/outpost_sdk/utils/serializers.py
+  - src/outpost_sdk/utils/unmarshal_json_response.py
   - src/outpost_sdk/utils/url.py
   - src/outpost_sdk/utils/values.py
 examples:
@@ -348,7 +381,7 @@ examples:
         query: {}
       responses:
         "200":
-          application/json: [{"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}, {"id": "des_sqs_456", "type": "aws_sqs", "topics": ["*"], "disabled_at": "2024-03-01T12:00:00Z", "created_at": "2024-02-20T11:30:00Z", "config": {"endpoint": "https://sqs.us-west-2.amazonaws.com", "queue_url": "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}]
+          application/json: [{"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}, {"id": "des_sqs_456", "type": "aws_sqs", "topics": ["*"], "disabled_at": "2024-03-01T12:00:00Z", "created_at": "2024-02-20T11:30:00Z", "config": {"endpoint": "https://sqs.us-west-2.amazonaws.com", "queue_url": "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}, {"id": "des_s3_789", "type": "aws_s3", "topics": ["*"], "disabled_at": null, "created_at": "2024-03-20T12:00:00Z", "config": {"bucket": "my-bucket", "region": "us-east-1"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}]
   createTenantDestination:
     WebhookCreatedExample:
       parameters:
@@ -378,7 +411,7 @@ examples:
         application/json: {"topics": "*", "config": {"server_url": "localhost:5672", "exchange": "my-exchange", "tls": "false"}, "credentials": {"username": "guest", "password": "guest"}}
       responses:
         "200":
-          application/json: {"id": "des_kns_xyz", "type": "aws_kinesis", "topics": ["user.created", "user.updated"], "disabled_at": null, "created_at": "2024-03-10T15:30:00Z", "config": {"stream_name": "production-events", "region": "eu-west-1"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}
+          application/json: {"id": "des_webhook_123", "type": "webhook", "topics": ["user.created"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/new-handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}
   deleteTenantDestination:
     SuccessExample:
       parameters:
@@ -431,6 +464,8 @@ examples:
           application/json: {}
         "511":
           application/json: {}
+        "202":
+          application/json: {"id": "evt_abc123xyz789"}
   listTenantDestinationTypeSchemas:
     DestinationTypesExample:
       parameters:
@@ -438,7 +473,7 @@ examples:
           tenant_id: "<id>"
       responses:
         "200":
-          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}]
+          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}, {"type": "aws_s3", "label": "AWS S3", "description": "Store events in an Amazon S3 bucket", "icon": "<svg />", "instructions": "Enter bucket and region...", "config_fields": [{"type": "text", "label": "Bucket Name", "description": "The name of the S3 bucket.", "required": true}, {"type": "text", "label": "AWS Region", "description": "The AWS region where the bucket is located.", "required": true}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}]}, {"type": "aws_s3", "label": "AWS S3", "description": "Store events in an Amazon S3 bucket", "icon": "<svg />", "instructions": "Enter bucket and region...", "config_fields": [{"type": "text", "label": "Bucket Name", "description": "The name of the S3 bucket.", "required": true}, {"type": "text", "label": "AWS Region", "description": "The AWS region where the bucket is located.", "required": true}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}]}]
   getTenantDestinationTypeSchema:
     WebhookSchemaExample:
       parameters:
@@ -479,10 +514,11 @@ examples:
       parameters:
         path:
           tenant_id: "<id>"
-        query: {}
+        query:
+          limit: 100
       responses:
         "200":
-          application/json: [{"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "destination_id": "des_456", "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "successful_at": null, "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}]
+          application/json: {"count": 2, "data": [{"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "destination_id": "des_456", "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "successful_at": null, "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}], "next": "", "prev": ""}
   getTenantEvent:
     EventExample:
       parameters:
@@ -507,10 +543,11 @@ examples:
         path:
           tenant_id: "<id>"
           destination_id: "<id>"
-        query: {}
+        query:
+          limit: 100
       responses:
         "200":
-          application/json: [{"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "destination_id": "des_456", "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "successful_at": null, "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}]
+          application/json: {"count": 2, "data": [{"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "destination_id": "des_456", "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "successful_at": null, "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}], "next": "", "prev": ""}
   getTenantEventByDestination:
     EventExample:
       parameters:

@@ -2,9 +2,12 @@
 
 package outpostgo
 
+// Generated from OpenAPI doc version 0.0.1 and generator version 2.691.6
+
 import (
 	"context"
 	"fmt"
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/config"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/globals"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/hooks"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
@@ -20,7 +23,7 @@ var ServerList = []string{
 	"http://localhost:3333/api/v1",
 }
 
-// HTTPClient provides an interface for suplying the SDK with a custom HTTP client
+// HTTPClient provides an interface for supplying the SDK with a custom HTTP client
 type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
@@ -46,32 +49,9 @@ func Float64(f float64) *float64 { return &f }
 // Pointer provides a helper function to return a pointer to a type
 func Pointer[T any](v T) *T { return &v }
 
-type sdkConfiguration struct {
-	Client            HTTPClient
-	Security          func(context.Context) (interface{}, error)
-	ServerURL         string
-	ServerIndex       int
-	Language          string
-	OpenAPIDocVersion string
-	SDKVersion        string
-	GenVersion        string
-	UserAgent         string
-	Globals           globals.Globals
-	RetryConfig       *retry.Config
-	Hooks             *hooks.Hooks
-	Timeout           *time.Duration
-}
-
-func (c *sdkConfiguration) GetServerDetails() (string, map[string]string) {
-	if c.ServerURL != "" {
-		return c.ServerURL, nil
-	}
-
-	return ServerList[c.ServerIndex], nil
-}
-
 // Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
 type Outpost struct {
+	SDKVersion string
 	// API Health Check
 	Health *Health
 	// The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
@@ -113,7 +93,8 @@ type Outpost struct {
 	// Operations related to event history and deliveries.
 	Events *Events
 
-	sdkConfiguration sdkConfiguration
+	sdkConfiguration config.SDKConfiguration
+	hooks            *hooks.Hooks
 }
 
 type SDKOption func(*Outpost)
@@ -193,15 +174,13 @@ func WithTimeout(timeout time.Duration) SDKOption {
 // New creates a new instance of the SDK with the provided options
 func New(opts ...SDKOption) *Outpost {
 	sdk := &Outpost{
-		sdkConfiguration: sdkConfiguration{
-			Language:          "go",
-			OpenAPIDocVersion: "0.0.1",
-			SDKVersion:        "0.2.1",
-			GenVersion:        "2.605.0",
-			UserAgent:         "speakeasy-sdk/go 0.2.1 2.605.0 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
-			Globals:           globals.Globals{},
-			Hooks:             hooks.New(),
+		SDKVersion: "0.4.0",
+		sdkConfiguration: config.SDKConfiguration{
+			UserAgent:  "speakeasy-sdk/go 0.4.0 2.691.6 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
+			Globals:    globals.Globals{},
+			ServerList: ServerList,
 		},
+		hooks: hooks.New(),
 	}
 	for _, opt := range opts {
 		opt(sdk)
@@ -214,24 +193,18 @@ func New(opts ...SDKOption) *Outpost {
 
 	currentServerURL, _ := sdk.sdkConfiguration.GetServerDetails()
 	serverURL := currentServerURL
-	serverURL, sdk.sdkConfiguration.Client = sdk.sdkConfiguration.Hooks.SDKInit(currentServerURL, sdk.sdkConfiguration.Client)
-	if serverURL != currentServerURL {
+	serverURL, sdk.sdkConfiguration.Client = sdk.hooks.SDKInit(currentServerURL, sdk.sdkConfiguration.Client)
+	if currentServerURL != serverURL {
 		sdk.sdkConfiguration.ServerURL = serverURL
 	}
 
-	sdk.Health = newHealth(sdk.sdkConfiguration)
-
-	sdk.Tenants = newTenants(sdk.sdkConfiguration)
-
-	sdk.Destinations = newDestinations(sdk.sdkConfiguration)
-
-	sdk.Publish = newPublish(sdk.sdkConfiguration)
-
-	sdk.Schemas = newSchemas(sdk.sdkConfiguration)
-
-	sdk.Topics = newTopics(sdk.sdkConfiguration)
-
-	sdk.Events = newEvents(sdk.sdkConfiguration)
+	sdk.Health = newHealth(sdk, sdk.sdkConfiguration, sdk.hooks)
+	sdk.Tenants = newTenants(sdk, sdk.sdkConfiguration, sdk.hooks)
+	sdk.Destinations = newDestinations(sdk, sdk.sdkConfiguration, sdk.hooks)
+	sdk.Publish = newPublish(sdk, sdk.sdkConfiguration, sdk.hooks)
+	sdk.Schemas = newSchemas(sdk, sdk.sdkConfiguration, sdk.hooks)
+	sdk.Topics = newTopics(sdk, sdk.sdkConfiguration, sdk.hooks)
+	sdk.Events = newEvents(sdk, sdk.sdkConfiguration, sdk.hooks)
 
 	return sdk
 }

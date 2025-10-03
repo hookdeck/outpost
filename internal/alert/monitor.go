@@ -104,7 +104,7 @@ func (m *noopAlertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAt
 }
 
 // NewAlertMonitor creates a new alert monitor with default implementations
-func NewAlertMonitor(logger *logging.Logger, redisClient *redis.Client, opts ...AlertOption) AlertMonitor {
+func NewAlertMonitor(logger *logging.Logger, redisClient redis.Cmdable, opts ...AlertOption) AlertMonitor {
 	alertMonitor := &alertMonitor{
 		logger:          logger,
 		alertThresholds: []int{50, 70, 90, 100}, // default thresholds

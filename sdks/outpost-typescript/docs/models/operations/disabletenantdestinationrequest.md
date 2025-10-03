@@ -6,7 +6,6 @@
 import { DisableTenantDestinationRequest } from "@hookdeck/outpost-sdk/models/operations";
 
 let value: DisableTenantDestinationRequest = {
-  tenantId: "<id>",
   destinationId: "<id>",
 };
 ```

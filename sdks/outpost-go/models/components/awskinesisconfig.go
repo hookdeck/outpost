@@ -2,6 +2,10 @@
 
 package components
 
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+)
+
 type AWSKinesisConfig struct {
 	// The name of the AWS Kinesis stream.
 	StreamName string `json:"stream_name"`
@@ -11,6 +15,17 @@ type AWSKinesisConfig struct {
 	Endpoint *string `json:"endpoint,omitempty"`
 	// Optional. JMESPath template to extract the partition key from the event payload (e.g., `metadata."event-id"`). Defaults to event ID.
 	PartitionKeyTemplate *string `json:"partition_key_template,omitempty"`
+}
+
+func (a AWSKinesisConfig) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(a, "", false)
+}
+
+func (a *AWSKinesisConfig) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &a, "", false, []string{"stream_name", "region"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *AWSKinesisConfig) GetStreamName() string {

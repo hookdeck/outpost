@@ -15,6 +15,7 @@ Simple health check endpoint.
 
 ### Example Usage
 
+<!-- UsageSnippet language="typescript" operationID="healthCheck" method="get" path="/healthz" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -23,7 +24,6 @@ const outpost = new Outpost();
 async function run() {
   const result = await outpost.health.check();
 
-  // Handle the result
   console.log(result);
 }
 
@@ -44,15 +44,12 @@ const outpost = new OutpostCore();
 
 async function run() {
   const res = await healthCheck(outpost);
-
-  if (!res.ok) {
-    throw res.error;
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("healthCheck failed:", res.error);
   }
-
-  const { value: result } = res;
-
-  // Handle the result
-  console.log(result);
 }
 
 run();

@@ -7,7 +7,6 @@ const outpost = new Outpost();
 async function run() {
   const result = await outpost.health.check();
 
-  // Handle the result
   console.log(result);
 }
 

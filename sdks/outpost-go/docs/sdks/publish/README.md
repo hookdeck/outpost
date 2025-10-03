@@ -15,6 +15,7 @@ Publishes an event to the specified topic, potentially routed to a specific dest
 
 ### Example Usage
 
+<!-- UsageSnippet language="go" operationID="publishEvent" method="post" path="/publish" -->
 ```go
 package main
 

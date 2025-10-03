@@ -2,11 +2,26 @@
 
 package components
 
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+)
+
 type DestinationUpdateAWSSQS struct {
 	// "*" or an array of enabled topics.
 	Topics      *Topics            `json:"topics,omitempty"`
 	Config      *AWSSQSConfig      `json:"config,omitempty"`
 	Credentials *AWSSQSCredentials `json:"credentials,omitempty"`
+}
+
+func (d DestinationUpdateAWSSQS) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(d, "", false)
+}
+
+func (d *DestinationUpdateAWSSQS) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &d, "", false, nil); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *DestinationUpdateAWSSQS) GetTopics() *Topics {

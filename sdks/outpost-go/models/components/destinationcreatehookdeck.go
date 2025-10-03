@@ -5,6 +5,7 @@ package components
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 )
 
 // DestinationCreateHookdeckType - Type of the destination. Must be 'hookdeck'.
@@ -40,6 +41,17 @@ type DestinationCreateHookdeck struct {
 	Topics      Topics              `json:"topics"`
 	Config      any                 `json:"config,omitempty"`
 	Credentials HookdeckCredentials `json:"credentials"`
+}
+
+func (d DestinationCreateHookdeck) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(d, "", false)
+}
+
+func (d *DestinationCreateHookdeck) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"type", "topics", "credentials"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *DestinationCreateHookdeck) GetID() *string {

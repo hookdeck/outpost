@@ -14,6 +14,10 @@ import (
 )
 
 func LoggerMiddleware(logger *logging.Logger) gin.HandlerFunc {
+	return LoggerMiddlewareWithSanitizer(logger, nil)
+}
+
+func LoggerMiddlewareWithSanitizer(logger *logging.Logger, sanitizer *RequestBodySanitizer) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Skip logging portal requests
 		if !strings.Contains(c.Request.URL.Path, "api/v") {
@@ -22,6 +26,19 @@ func LoggerMiddleware(logger *logging.Logger) gin.HandlerFunc {
 		}
 
 		logger := logger.Ctx(c.Request.Context()).WithOptions(zap.AddStacktrace(zap.FatalLevel))
+
+		// Buffer request body if we have a sanitizer and this might be a destination request
+		var bufferedBody *BufferedReader
+		var requestBodyFields []zap.Field
+
+		if sanitizer != nil && shouldBufferRequestBody(c) {
+			if br, err := NewBufferedReader(c.Request.Body); err == nil {
+				bufferedBody = br
+				// Replace the request body with a new reader so the handler can still read it
+				c.Request.Body = br.NewReadCloser()
+			}
+		}
+
 		c.Next()
 
 		fields := []zap.Field{}
@@ -30,6 +47,12 @@ func LoggerMiddleware(logger *logging.Logger) gin.HandlerFunc {
 		fields = append(fields, queryFields(c)...)
 		fields = append(fields, errorFields(c)...)
 
+		// Add sanitized request body for 5xx errors
+		if c.Writer.Status() >= 500 && bufferedBody != nil {
+			requestBodyFields = getRequestBodyFields(bufferedBody, sanitizer)
+			fields = append(fields, requestBodyFields...)
+		}
+
 		if c.Writer.Status() >= 500 {
 			logger.Error("request completed", fields...)
 
@@ -37,7 +60,11 @@ func LoggerMiddleware(logger *logging.Logger) gin.HandlerFunc {
 				hub.CaptureException(getErrorWithStackTrace(c.Errors.Last().Err))
 			}
 		} else {
-			logger.Info("request completed", fields...)
+			if strings.HasPrefix(c.Request.URL.Path, "/api") && strings.HasSuffix(c.Request.URL.Path, "/healthz") {
+				logger.Debug("healthz request completed", fields...)
+			} else {
+				logger.Info("request completed", fields...)
+			}
 		}
 	}
 }
@@ -90,6 +117,15 @@ func errorFields(c *gin.Context) []zap.Field {
 	if c.Writer.Status() >= 500 {
 		return getErrorFields(err)
 	}
+
+	// Check if it's an ErrorResponse with validation details
+	if errResp, ok := err.(ErrorResponse); ok && errResp.Data != nil {
+		return []zap.Field{
+			zap.String("error", err.Error()),
+			zap.Any("error_details", errResp.Data),
+		}
+	}
+
 	return []zap.Field{
 		zap.String("error", err.Error()),
 	}
@@ -154,4 +190,48 @@ func getErrorWithStackTrace(err error) error {
 		return errResp.Err
 	}
 	return err
+}
+
+// shouldBufferRequestBody determines if we should buffer the request body for potential logging
+func shouldBufferRequestBody(c *gin.Context) bool {
+	// Only buffer POST, PUT, PATCH requests that might contain request bodies
+	method := c.Request.Method
+	if method != "POST" && method != "PUT" && method != "PATCH" {
+		return false
+	}
+
+	// Exclude publish endpoints since they contain user data that shouldn't be logged. We could consider making this configurable in the future.
+	path := c.Request.URL.Path
+	if strings.Contains(path, "/publish") {
+		return false
+	}
+
+	// Buffer all other POST/PUT/PATCH requests for potential 5xx error logging
+	return true
+}
+
+// getRequestBodyFields creates log fields for sanitized request body
+func getRequestBodyFields(bufferedBody *BufferedReader, sanitizer *RequestBodySanitizer) []zap.Field {
+	if bufferedBody == nil || sanitizer == nil {
+		return []zap.Field{
+			zap.String("request_body", "[NO_BODY]"),
+		}
+	}
+
+	sanitizedBody, err := sanitizer.SanitizeRequestBody(bufferedBody.NewReader())
+	if err != nil {
+		return []zap.Field{
+			zap.String("request_body_error", err.Error()),
+		}
+	}
+
+	if len(sanitizedBody) == 0 {
+		return []zap.Field{
+			zap.String("request_body", "[EMPTY_BODY]"),
+		}
+	}
+
+	return []zap.Field{
+		zap.String("request_body", string(sanitizedBody)),
+	}
 }

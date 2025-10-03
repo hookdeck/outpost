@@ -82,12 +82,15 @@ func (c *Config) validateRedis() error {
 // validateLogStorage validates the ClickHouse / PG configuration
 // Temporary: disable CH as it's not fully supported yet
 func (c *Config) validateLogStorage() error {
-	if c.ClickHouse.Addr == "" && c.PostgresURL == "" {
+	// if c.ClickHouse.Addr == "" && c.PostgresURL == "" {
+	// 	return ErrMissingLogStorage
+	// }
+	if c.PostgresURL == "" {
 		return ErrMissingLogStorage
 	}
-	if c.ClickHouse.Addr != "" {
-		return fmt.Errorf("ClickHouse is not currently supported")
-	}
+	// if c.ClickHouse.Addr != "" {
+	// 	return fmt.Errorf("ClickHouse is not currently supported")
+	// }
 	return nil
 }
 

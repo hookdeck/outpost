@@ -33,3 +33,15 @@ destinationCreate := components.CreateDestinationCreateHookdeck(components.Desti
 destinationCreate := components.CreateDestinationCreateAwsKinesis(components.DestinationCreateAWSKinesis{/* values here */})
 ```
 
+### DestinationCreateAzureServiceBus
+
+```go
+destinationCreate := components.CreateDestinationCreateAzureServicebus(components.DestinationCreateAzureServiceBus{/* values here */})
+```
+
+### DestinationCreateAwss3
+
+```go
+destinationCreate := components.CreateDestinationCreateAwsS3(components.DestinationCreateAwss3{/* values here */})
+```
+

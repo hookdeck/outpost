@@ -2,9 +2,24 @@
 
 package components
 
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+)
+
 type WebhookConfig struct {
 	// The URL to send the webhook events to.
 	URL string `json:"url"`
+}
+
+func (w WebhookConfig) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(w, "", false)
+}
+
+func (w *WebhookConfig) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &w, "", false, []string{"url"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *WebhookConfig) GetURL() string {

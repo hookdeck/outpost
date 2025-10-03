@@ -5,6 +5,7 @@ package components
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 )
 
 // DestinationCreateAWSKinesisType - Type of the destination. Must be 'aws_kinesis'.
@@ -40,6 +41,17 @@ type DestinationCreateAWSKinesis struct {
 	Topics      Topics                `json:"topics"`
 	Config      AWSKinesisConfig      `json:"config"`
 	Credentials AWSKinesisCredentials `json:"credentials"`
+}
+
+func (d DestinationCreateAWSKinesis) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(d, "", false)
+}
+
+func (d *DestinationCreateAWSKinesis) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"type", "topics", "config", "credentials"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *DestinationCreateAWSKinesis) GetID() *string {

@@ -2,11 +2,26 @@
 
 package components
 
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+)
+
 type AWSSQSConfig struct {
 	// Optional. Custom AWS endpoint URL (e.g., for LocalStack or specific regions).
 	Endpoint *string `json:"endpoint,omitempty"`
 	// The URL of the SQS queue.
 	QueueURL string `json:"queue_url"`
+}
+
+func (a AWSSQSConfig) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(a, "", false)
+}
+
+func (a *AWSSQSConfig) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &a, "", false, []string{"queue_url"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *AWSSQSConfig) GetEndpoint() *string {

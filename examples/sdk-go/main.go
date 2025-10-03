@@ -26,7 +26,7 @@ func main() {
 
 	if len(os.Args) < 2 {
 		log.Println("Usage: go run . <example_name>")
-		log.Println("Available examples: manage, auth")
+		log.Println("Available examples: manage, auth, create-destination, publish-event")
 		os.Exit(1)
 	}
 
@@ -42,9 +42,21 @@ func main() {
 	case "auth":
 		log.Println("--- Running Auth Example ---")
 		runAuthExample()
+	case "create-destination":
+		if adminAPIKey == "" {
+			log.Fatal("ADMIN_API_KEY environment variable must be set to run the 'create-destination' example.")
+		}
+		log.Println("--- Running Create Destination Example ---")
+		runCreateDestinationExample()
+	case "publish-event":
+		if adminAPIKey == "" {
+			log.Fatal("ADMIN_API_KEY environment variable must be set to run the 'publish-event' example.")
+		}
+		log.Println("--- Running Publish Event Example ---")
+		runPublishEventExample()
 	default:
 		log.Printf("Unknown example: %s\n", exampleToRun)
-		log.Println("Available examples: manage, auth")
+		log.Println("Available examples: manage, auth, create-destination, publish-event")
 		os.Exit(1)
 	}
 }

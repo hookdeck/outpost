@@ -5,9 +5,7 @@
 ```typescript
 import { UpsertTenantRequest } from "@hookdeck/outpost-sdk/models/operations";
 
-let value: UpsertTenantRequest = {
-  tenantId: "<id>",
-};
+let value: UpsertTenantRequest = {};
 ```
 
 ## Fields

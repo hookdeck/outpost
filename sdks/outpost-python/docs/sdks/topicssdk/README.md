@@ -16,17 +16,19 @@ Returns a list of available event topics configured in the Outpost instance. Req
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="listTenantTopics" method="get" path="/{tenant_id}/topics" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
+    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.topics.list(tenant_id="<id>")
+    res = outpost.topics.list()
 
     # Handle response
     print(res)
@@ -65,6 +67,7 @@ Returns a list of available event topics configured in the Outpost instance.
 
 ### Example Usage
 
+<!-- UsageSnippet language="python" operationID="listTopics" method="get" path="/topics" -->
 ```python
 from outpost_sdk import Outpost, models
 
