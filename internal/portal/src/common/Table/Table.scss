@@ -58,6 +58,15 @@
           white-space: nowrap;
         }
       }
+
+      /* Prevent inline SVG icons from inflating row height */
+      svg {
+        width: 16px;
+        height: 16px;
+        max-width: 16px;
+        max-height: 16px;
+        display: block;
+      }
     }
   }
 

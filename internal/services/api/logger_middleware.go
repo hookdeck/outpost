@@ -117,6 +117,15 @@ func errorFields(c *gin.Context) []zap.Field {
 	if c.Writer.Status() >= 500 {
 		return getErrorFields(err)
 	}
+
+	// Check if it's an ErrorResponse with validation details
+	if errResp, ok := err.(ErrorResponse); ok && errResp.Data != nil {
+		return []zap.Field{
+			zap.String("error", err.Error()),
+			zap.Any("error_details", errResp.Data),
+		}
+	}
+
 	return []zap.Field{
 		zap.String("error", err.Error()),
 	}

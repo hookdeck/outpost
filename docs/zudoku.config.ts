@@ -167,6 +167,16 @@ const config: ZudokuConfig = {
             label: "Building Your Own UI",
             id: "guides/building-your-own-ui",
           },
+          {
+            type: "doc",
+            label: "Redis Troubleshooting",
+            id: "guides/troubleshooting-redis",
+          },
+          {
+            type: "doc",
+            label: "Schema Migration",
+            id: "guides/migration",
+          },
         ],
       },
       {

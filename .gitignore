@@ -30,3 +30,4 @@ cmd/dev
 .cursor/
 .claude/
 *.local.*
+bin/
