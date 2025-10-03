@@ -1,3 +1,15 @@
+# ⚠️ IMPORTANT: This Dockerfile is for REFERENCE ONLY and is NOT production-ready.
+#
+# We do NOT recommend using this Dockerfile in production. Instead, use the official
+# hookdeck/outpost image from Docker Hub:
+#   docker pull hookdeck/outpost:latest
+#
+# The official image is optimized, regularly updated, and fully supported.
+#
+# This example is provided for educational purposes and as a starting point for
+# custom builds. If you need help with custom deployments, please create a
+# discussion at: https://github.com/hookdeck/outpost/discussions
+
 # Stage 0
 # Build the binaries
 FROM golang:1.23-alpine
