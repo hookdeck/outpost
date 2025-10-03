@@ -26,7 +26,7 @@ type LogService struct {
 	cleanupFuncs    []func(context.Context, *logging.LoggerWithCtx)
 	consumerOptions *consumerOptions
 	logger          *logging.Logger
-	redisClient     *redis.Client
+	redisClient     redis.Cmdable
 	logMQ           *logmq.LogMQ
 	handler         consumer.MessageHandler
 }

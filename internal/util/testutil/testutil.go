@@ -60,7 +60,7 @@ func CreateTestRedisConfig(t *testing.T) *internalredis.RedisConfig {
 	}
 }
 
-func CreateTestRedisClient(t *testing.T) *redis.Client {
+func CreateTestRedisClient(t *testing.T) internalredis.Client {
 	mr := miniredis.RunT(t)
 
 	t.Cleanup(func() {

@@ -140,6 +140,7 @@ func (a *S3Asserter) AssertMessage(t testsuite.TestingT, msg testsuite.Message, 
 	// 2. Assert system metadata is present
 	metadata := msg.Metadata
 	assert.NotEmpty(t, metadata["timestamp"], "timestamp should be present")
+	testsuite.AssertTimestampIsUnixSeconds(t, metadata["timestamp"])
 	assert.Equal(t, event.ID, metadata["event-id"], "event-id should match")
 	assert.Equal(t, event.Topic, metadata["topic"], "topic should match")
 

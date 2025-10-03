@@ -194,6 +194,23 @@ run_api_tests() {
     fi
     echo "   -> ✅ Tenant created."
 
+    echo "   (Checking configured topics...)"
+    topics_response=$(curl -s -w "\n%{http_code}" -X GET "$base_url/api/v1/$TENANT_ID/topics" \
+    -H "Authorization: Bearer $API_KEY")
+    
+    topics_http_code=$(echo "$topics_response" | tail -n1)
+    topics_body=$(echo "$topics_response" | sed '$d')
+    
+    if [ "$topics_http_code" = "200" ]; then
+        if [ -n "$topics_body" ] && [ "$topics_body" != "[]" ] && [ "$topics_body" != "null" ]; then
+            echo "   -> ℹ️  Configured topics: $topics_body"
+        else
+            echo "   -> ℹ️  No topic restrictions configured (all topics allowed)"
+        fi
+    else
+        echo "   -> ⚠️  Could not fetch topics (HTTP $topics_http_code)"
+    fi
+
     echo "   (Creating webhook destination...)"
     DESTINATION_ID=$(curl -sf -X POST "$base_url/api/v1/$TENANT_ID/destinations" \
     -H "Content-Type: application/json" \
@@ -211,11 +228,24 @@ run_api_tests() {
     echo "   -> ✅ Webhook destination created."
 
     echo "   (Publishing test event...)"
-    if ! curl -sf -X POST "$base_url/api/v1/publish" \
+    publish_response=$(curl -s -w "\n%{http_code}" -X POST "$base_url/api/v1/publish" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $API_KEY" \
-    -d "{\"tenant_id\":\"$TENANT_ID\",\"topic\":\"diagnostics.test\",\"data\":{\"hello\":\"world\",\"source\":\"$event_source\"}}" >/dev/null; then
+    -d "{\"tenant_id\":\"$TENANT_ID\",\"topic\":\"diagnostics.test\",\"data\":{\"hello\":\"world\",\"source\":\"$event_source\"}}")
+    
+    publish_http_code=$(echo "$publish_response" | tail -n1)
+    publish_body=$(echo "$publish_response" | sed '$d')
+    
+    if [ "$publish_http_code" != "200" ] && [ "$publish_http_code" != "201" ] && [ "$publish_http_code" != "202" ]; then
         echo "   -> ❌ Failed to publish event."
+        echo "      HTTP Status: $publish_http_code"
+        if [ -n "$publish_body" ]; then
+            echo "      Response: $publish_body"
+        fi
+        echo "      Request details:"
+        echo "        - Tenant ID: $TENANT_ID"
+        echo "        - Topic: diagnostics.test"
+        echo "        - Endpoint: $base_url/api/v1/publish"
         if [[ "$base_url" == *"azurecontainerapps.io"* ]]; then
             echo "      Fetching logs for '$AZURE_CONTAINER_APP_NAME'..."
             az containerapp logs show --name "$AZURE_CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --tail 20
@@ -231,6 +261,18 @@ run_api_tests() {
     else
         echo "   -> ✅ View event details at: $PORTAL_URL"
     fi
+
+    echo "   (Testing destination deletion...)"
+    if ! curl -sf -X DELETE "$base_url/api/v1/$TENANT_ID/destinations/$DESTINATION_ID" \
+    -H "Authorization: Bearer $API_KEY" >/dev/null; then
+        echo "   -> ❌ Failed to delete webhook destination."
+        if [[ "$base_url" == *"azurecontainerapps.io"* ]]; then
+            echo "      Fetching logs for '$AZURE_CONTAINER_APP_NAME'..."
+            az containerapp logs show --name "$AZURE_CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --tail 20
+        fi
+        return 1
+    fi
+    echo "   -> ✅ Webhook destination deleted."
 }
 
 # 5. Local Deployment Tests
@@ -245,19 +287,28 @@ if [ "$RUN_LOCAL" = true ]; then
     echo "✅ PostgreSQL login successful" || \
     echo "❌ PostgreSQL login failed"
 
-    # Redis test
-    echo "🧪 Testing Redis connection on configured port ($REDIS_PORT)..."
-    if docker run -i --rm redis redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" -n "$REDIS_DATABASE" ping; then
-    echo "✅ Redis responded to ping on port $REDIS_PORT"
+    # Redis test (Azure Managed Redis uses TLS on port 10000 by default)
+    echo "🧪 Testing Azure Managed Redis connection on port $REDIS_PORT..."
+    if [ "${REDIS_TLS_ENABLED:-false}" = "true" ]; then
+        echo "   -> Testing with TLS encryption (skipping cert verification for Azure Managed Redis)..."
+        if docker run -i --rm redis redis-cli --tls --insecure -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" -n "$REDIS_DATABASE" ping 2>/dev/null; then
+            echo "✅ Azure Managed Redis responded to ping with TLS on port $REDIS_PORT"
+        else
+            echo "❌ Azure Managed Redis TLS connection failed on port $REDIS_PORT. Trying fallback test..."
+            # Fallback: Try with certificate files if they exist
+            if docker run -i --rm redis redis-cli --tls --cert /etc/ssl/certs/redis.crt --key /etc/ssl/private/redis.key --cacert /etc/ssl/certs/redis.ca -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" -n "$REDIS_DATABASE" ping 2>/dev/null; then
+                echo "✅ Azure Managed Redis responded to ping with certificate validation"
+            else
+                echo "❌ Azure Managed Redis connection failed with both insecure and certificate modes"
+            fi
+        fi
     else
-    echo "❌ Redis connection failed on port $REDIS_PORT. See error above."
-    fi
-
-    echo "🧪 Testing Redis connection with TLS on port 6380..."
-    if docker run -i --rm redis redis-cli --tls -h "$REDIS_HOST" -p 6380 -a "$REDIS_PASSWORD" -n "$REDIS_DATABASE" ping; then
-    echo "✅ Redis responded to ping with TLS on port 6380"
-    else
-    echo "❌ Redis TLS connection failed. See error above."
+        echo "   -> Testing without TLS..."
+        if docker run -i --rm redis redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" -n "$REDIS_DATABASE" ping; then
+            echo "✅ Azure Managed Redis responded to ping on port $REDIS_PORT"
+        else
+            echo "❌ Azure Managed Redis connection failed on port $REDIS_PORT. See error above."
+        fi
     fi
 
     # API Test

@@ -119,6 +119,7 @@ func (a *AzureServiceBusAsserter) AssertMessage(t testsuite.TestingT, msg testsu
 
 	// Verify system metadata
 	assert.NotEmpty(t, metadata["timestamp"], "timestamp should be present")
+	testsuite.AssertTimestampIsUnixSeconds(t, metadata["timestamp"])
 	assert.Equal(t, event.ID, metadata["event-id"], "event-id should match")
 	assert.Equal(t, event.Topic, metadata["topic"], "topic should match")
 

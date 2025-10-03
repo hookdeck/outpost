@@ -312,18 +312,24 @@ func ParseWithOS(flags Flags, osInterface OSInterface) (*Config, error) {
 }
 
 type RedisConfig struct {
-	Host     string `yaml:"host" env:"REDIS_HOST" desc:"Hostname or IP address of the Redis server." required:"Y"`
-	Port     int    `yaml:"port" env:"REDIS_PORT" desc:"Port number for the Redis server." required:"Y"`
-	Password string `yaml:"password" env:"REDIS_PASSWORD" desc:"Password for Redis authentication, if required by the server." required:"Y"`
-	Database int    `yaml:"database" env:"REDIS_DATABASE" desc:"Redis database number to select after connecting." required:"Y"`
+	Host                   string `yaml:"host" env:"REDIS_HOST" desc:"Hostname or IP address of the Redis server." required:"Y"`
+	Port                   int    `yaml:"port" env:"REDIS_PORT" desc:"Port number for the Redis server." required:"Y"`
+	Password               string `yaml:"password" env:"REDIS_PASSWORD" desc:"Password for Redis authentication, if required by the server." required:"Y"`
+	Database               int    `yaml:"database" env:"REDIS_DATABASE" desc:"Redis database number to select after connecting (ignored in cluster mode)." required:"Y"`
+	TLSEnabled             bool   `yaml:"tls_enabled" env:"REDIS_TLS_ENABLED" desc:"Enable TLS encryption for Redis connection." required:"N"`
+	ClusterEnabled         bool   `yaml:"cluster_enabled" env:"REDIS_CLUSTER_ENABLED" desc:"Enable Redis cluster mode for distributed Redis deployments." required:"N"`
+	DevClusterHostOverride bool   `yaml:"dev_cluster_host_override" env:"REDIS_DEV_CLUSTER_HOST_OVERRIDE" desc:"Development only: Force cluster to use original host for discovered nodes. DO NOT use in production." required:"N"`
 }
 
 func (c *RedisConfig) ToConfig() *redis.RedisConfig {
 	return &redis.RedisConfig{
-		Host:     c.Host,
-		Port:     c.Port,
-		Password: c.Password,
-		Database: c.Database,
+		Host:                   c.Host,
+		Port:                   c.Port,
+		Password:               c.Password,
+		Database:               c.Database,
+		TLSEnabled:             c.TLSEnabled,
+		ClusterEnabled:         c.ClusterEnabled,
+		DevClusterHostOverride: c.DevClusterHostOverride,
 	}
 }
 
