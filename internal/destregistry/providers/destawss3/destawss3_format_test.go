@@ -342,10 +342,10 @@ func TestAWSS3Publisher_Format_LegacyPatterns(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		template    string
-		expected    string
-		oldConfig   string
+		name      string
+		template  string
+		expected  string
+		oldConfig string
 	}{
 		{
 			// OLD CONFIG:
@@ -417,7 +417,7 @@ func TestAWSS3Publisher_Format_LegacyPatterns(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Logf("Old config: %s", tt.oldConfig)
-			
+
 			publisher := destawss3.NewAWSS3Publisher(
 				nil,
 				"my-bucket",

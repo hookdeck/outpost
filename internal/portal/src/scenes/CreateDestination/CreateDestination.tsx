@@ -11,129 +11,147 @@ import TopicPicker from "../../common/TopicPicker/TopicPicker";
 import { DestinationTypeReference } from "../../typings/Destination";
 import DestinationConfigFields from "../../common/DestinationConfigFields/DestinationConfigFields";
 import { getFormValues } from "../../utils/formHelper";
+import CONFIGS from "../../config";
 
-const steps = [
-  {
-    title: "Select event topics",
-    sidebar_shortname: "Event topics",
-    description: "Select the event topics you want to send to your destination",
-    isValid: (values: Record<string, any>) => {
-      if (values.topics?.length > 0) {
-        return true;
-      }
-      return false;
-    },
-    FormFields: ({
-      defaultValue,
-      onChange,
-    }: {
-      defaultValue: Record<string, any>;
-      onChange: (value: Record<string, any>) => void;
-    }) => {
-      const [selectedTopics, setSelectedTopics] = useState<string[]>(
-        defaultValue.topics ? defaultValue.topics.split(",") : []
-      );
+type Step = {
+  title: string;
+  sidebar_shortname: string;
+  description: string;
+  isValid: (values: Record<string, any>) => boolean;
+  FormFields: (props: {
+    defaultValue: Record<string, any>;
+    onChange: (value: Record<string, any>) => void;
+  }) => React.ReactNode;
+  action: string;
+};
 
-      useEffect(() => {
-        onChange({ topics: selectedTopics });
-      }, [selectedTopics]);
-
-      return (
-        <>
-          <TopicPicker
-            selectedTopics={selectedTopics}
-            onTopicsChange={setSelectedTopics}
-          />
-          <input
-            readOnly
-            type="text"
-            name="topics"
-            hidden
-            required
-            value={selectedTopics.length > 0 ? selectedTopics.join(",") : ""}
-          />
-        </>
-      );
-    },
-    action: "Next",
-  },
-  {
-    title: "Select destination type",
-    sidebar_shortname: "Destination type",
-    description:
-      "Select the destination type you want to send to your destination",
-    isValid: (values: Record<string, any>) => {
-      if (!values.type) {
-        return false;
-      }
+const EVENT_TOPICS_STEP: Step = {
+  title: "Select event topics",
+  sidebar_shortname: "Event topics",
+  description: "Select the event topics you want to send to your destination",
+  isValid: (values: Record<string, any>) => {
+    if (values.topics?.length > 0) {
       return true;
-    },
-    FormFields: ({
-      destinations,
-      defaultValue,
-    }: {
-      destinations: DestinationTypeReference[];
-      defaultValue: Record<string, any>;
-    }) => (
-      <div className="destination-types">
-        {destinations?.map((destination) => (
-          <label key={destination.type} className="destination-type-card">
-            <input
-              type="radio"
-              name="type"
-              value={destination.type}
-              required
-              className="destination-type-radio"
-              defaultChecked={
-                defaultValue
-                  ? defaultValue.type === destination.type
-                  : undefined
-              }
-            />
-            <div className="destination-type-content">
-              <h3 className="subtitle-l">
-                <span
-                  className="destination-type-content__icon"
-                  dangerouslySetInnerHTML={{ __html: destination.icon }}
-                />{" "}
-                {destination.label}
-              </h3>
-              <p className="body-m muted">{destination.description}</p>
-            </div>
-          </label>
-        ))}
-      </div>
-    ),
-    action: "Next",
+    }
+    return false;
   },
-  {
-    title: "Configure destination",
-    sidebar_shortname: "Configure destination",
-    description:
-      "Configure the destination you want to send to your destination",
-    FormFields: ({
-      defaultValue,
-      destinations,
-    }: {
-      defaultValue: Record<string, any>;
-      destinations: DestinationTypeReference[];
-    }) => {
-      const destinationType = destinations?.find(
-        (d) => d.type === defaultValue.type
-      );
-      return (
-        <DestinationConfigFields
-          type={destinationType!}
-          destination={undefined}
+  FormFields: ({
+    defaultValue,
+    onChange,
+  }: {
+    defaultValue: Record<string, any>;
+    onChange: (value: Record<string, any>) => void;
+  }) => {
+    const [selectedTopics, setSelectedTopics] = useState<string[]>(
+      defaultValue.topics ? defaultValue.topics.split(",") : []
+    );
+
+    useEffect(() => {
+      onChange({ topics: selectedTopics });
+    }, [selectedTopics]);
+
+    return (
+      <>
+        <TopicPicker
+          selectedTopics={selectedTopics}
+          onTopicsChange={setSelectedTopics}
         />
-      );
-    },
-    action: "Create Destination",
+        <input
+          readOnly
+          type="text"
+          name="topics"
+          hidden
+          required
+          value={selectedTopics.length > 0 ? selectedTopics.join(",") : ""}
+        />
+      </>
+    );
   },
-];
+  action: "Next",
+};
+
+const DESTINATION_TYPE_STEP: Step = {
+  title: "Select destination type",
+  sidebar_shortname: "Destination type",
+  description:
+    "Select the destination type you want to send to your destination",
+  isValid: (values: Record<string, any>) => {
+    if (!values.type) {
+      return false;
+    }
+    return true;
+  },
+  FormFields: ({
+    destinations,
+    defaultValue,
+  }: {
+    destinations: DestinationTypeReference[];
+    defaultValue: Record<string, any>;
+  }) => (
+    <div className="destination-types">
+      {destinations?.map((destination) => (
+        <label key={destination.type} className="destination-type-card">
+          <input
+            type="radio"
+            name="type"
+            value={destination.type}
+            required
+            className="destination-type-radio"
+            defaultChecked={
+              defaultValue ? defaultValue.type === destination.type : undefined
+            }
+          />
+          <div className="destination-type-content">
+            <h3 className="subtitle-l">
+              <span
+                className="destination-type-content__icon"
+                dangerouslySetInnerHTML={{ __html: destination.icon }}
+              />{" "}
+              {destination.label}
+            </h3>
+            <p className="body-m muted">{destination.description}</p>
+          </div>
+        </label>
+      ))}
+    </div>
+  ),
+  action: "Next",
+};
+
+const CONFIGURATION_STEP: Step = {
+  title: "Configure destination",
+  sidebar_shortname: "Configure destination",
+  description: "Configure the destination you want to send to your destination",
+  FormFields: ({
+    defaultValue,
+    destinations,
+  }: {
+    defaultValue: Record<string, any>;
+    destinations: DestinationTypeReference[];
+  }) => {
+    const destinationType = destinations?.find(
+      (d) => d.type === defaultValue.type
+    );
+    return (
+      <DestinationConfigFields
+        type={destinationType!}
+        destination={undefined}
+      />
+    );
+  },
+  action: "Create Destination",
+};
 
 export default function CreateDestination() {
   const apiClient = useContext(ApiContext);
+
+  const AVAILABLE_TOPICS = CONFIGS.TOPICS.split(",").filter(Boolean);
+  let steps = [EVENT_TOPICS_STEP, DESTINATION_TYPE_STEP, CONFIGURATION_STEP];
+
+  // If there are no topics, skip the first step
+  if (AVAILABLE_TOPICS.length === 0 && steps.length === 3) {
+    steps = [DESTINATION_TYPE_STEP, CONFIGURATION_STEP];
+  }
 
   const navigate = useNavigate();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -151,12 +169,24 @@ export default function CreateDestination() {
 
     const destination_type = destinations?.find((d) => d.type === values.type);
 
+    let topics: string[];
+    if (typeof values.topics === "string") {
+      topics = values.topics.split(",").filter(Boolean);
+    } else if (typeof values.topics === "undefined") {
+      topics = ["*"];
+    } else if (Array.isArray(values.topics)) {
+      topics = values.topics;
+    } else {
+      // Default to all topics
+      topics = ["*"];
+    }
+
     apiClient
       .fetch(`destinations`, {
         method: "POST",
         body: JSON.stringify({
           type: values.type,
-          topics: values.topics.split(","),
+          topics: topics,
           config: Object.fromEntries(
             Object.entries(values).filter(([key]) =>
               destination_type?.config_fields.some((field) => field.key === key)

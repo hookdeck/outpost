@@ -104,10 +104,13 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `RABBITMQ_EXCHANGE` | Name of the RabbitMQ exchange to use. | `outpost` | No |
 | `RABBITMQ_LOG_QUEUE` | Name of the RabbitMQ queue for log events. | `outpost-log` | No |
 | `RABBITMQ_SERVER_URL` | RabbitMQ server connection URL (e.g., 'amqp://user:pass@host:port/vhost'). Required if RabbitMQ is the chosen MQ provider. | `nil` | Conditional |
-| `REDIS_DATABASE` | Redis database number to select after connecting. | `0` | Yes |
+| `REDIS_CLUSTER_ENABLED` | Enable Redis cluster mode for distributed Redis deployments. | `false` | No |
+| `REDIS_DATABASE` | Redis database number to select after connecting (ignored in cluster mode). | `0` | Yes |
+| `REDIS_DEV_CLUSTER_HOST_OVERRIDE` | Development only: Force cluster to use original host for discovered nodes. DO NOT use in production. | `false` | No |
 | `REDIS_HOST` | Hostname or IP address of the Redis server. | `127.0.0.1` | Yes |
 | `REDIS_PASSWORD` | Password for Redis authentication, if required by the server. | `nil` | Yes |
 | `REDIS_PORT` | Port number for the Redis server. | `6379` | Yes |
+| `REDIS_TLS_ENABLED` | Enable TLS encryption for Redis connection. | `false` | No |
 | `RETRY_INTERVAL_SECONDS` | Interval in seconds between delivery retry attempts for failed webhooks. | `30` | No |
 | `SERVICE` | Specifies the service type to run. Valid values: 'api', 'log', 'delivery', or empty/all for singular mode (runs all services). | `nil` | No |
 | `TELEMETRY_BATCH_INTERVAL` | Maximum time in seconds to wait before sending a batch of telemetry events if batch size is not reached. | `5` | No |
@@ -485,9 +488,15 @@ publishmq:
 publish_max_concurrency: 1
 
 redis:
-  # Redis database number to select after connecting.
+  # Enable Redis cluster mode for distributed Redis deployments.
+  cluster_enabled: false
+
+  # Redis database number to select after connecting (ignored in cluster mode).
   # Required: Y
   database: 0
+
+  # Development only: Force cluster to use original host for discovered nodes. DO NOT use in production.
+  dev_cluster_host_override: false
 
   # Hostname or IP address of the Redis server.
   # Required: Y
@@ -500,6 +509,9 @@ redis:
   # Port number for the Redis server.
   # Required: Y
   port: 6379
+
+  # Enable TLS encryption for Redis connection.
+  tls_enabled: false
 
 
 # Interval in seconds between delivery retry attempts for failed webhooks.
