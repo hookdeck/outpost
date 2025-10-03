@@ -6,6 +6,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawss3"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawssqs"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destazureservicebus"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destgcppubsub"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/desthookdeck"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
@@ -91,6 +92,12 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		return err
 	}
 	registry.RegisterProvider("aws_s3", awsS3)
+
+	gcpPubSub, err := destgcppubsub.New(loader)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("gcp_pubsub", gcpPubSub)
 
 	azureServiceBus, err := destazureservicebus.New(loader)
 	if err != nil {

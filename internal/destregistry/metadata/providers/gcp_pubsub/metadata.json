@@ -1,0 +1,40 @@
+{
+  "type": "gcp_pubsub",
+  "config_fields": [
+    {
+      "key": "project_id",
+      "type": "text",
+      "label": "Project ID",
+      "description": "The GCP project ID",
+      "required": true
+    },
+    {
+      "key": "topic",
+      "type": "text",
+      "label": "Topic",
+      "description": "The Pub/Sub topic",
+      "required": true
+    },
+    {
+      "key": "endpoint",
+      "type": "text",
+      "label": "Endpoint",
+      "description": "Custom endpoint URL (e.g., localhost:8085 for emulator)",
+      "required": false
+    }
+  ],
+  "credential_fields": [
+    {
+      "key": "service_account_json",
+      "type": "text",
+      "label": "Service Account JSON",
+      "description": "Service account key JSON",
+      "required": true,
+      "sensitive": true
+    }
+  ],
+  "label": "GCP Pub/Sub",
+  "link": "https://cloud.google.com/pubsub",
+  "description": "Send events to Google Cloud Pub/Sub topics using service account authentication.",
+  "icon": ""
+}
