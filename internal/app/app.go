@@ -193,6 +193,20 @@ func constructServices(
 	return services, nil
 }
 
+// runMigration handles database schema migrations with retry logic for lock conflicts.
+//
+// MIGRATION LOCK BEHAVIOR:
+// - Database locks are only acquired when migrations need to be performed
+// - When multiple nodes start simultaneously and migrations are pending:
+//   1. One node acquires the lock and performs migrations (ideally < 5 seconds)
+//   2. Other nodes fail with lock errors ("try lock failed", "can't acquire lock")
+//   3. Failed nodes wait 5 seconds and retry
+//   4. On retry, migrations are complete and nodes proceed successfully
+//
+// RETRY STRATEGY:
+// - Max 3 attempts with 5-second delays between retries
+// - 5 seconds is sufficient because most migrations complete quickly
+// - If no migrations are needed (common case), all nodes proceed immediately without lock contention
 func runMigration(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
 	const (
 		maxRetries = 3
