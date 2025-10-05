@@ -120,8 +120,8 @@ func WithSignatureAlgorithm(algorithm string) Option {
 	}
 }
 
-func New(loader metadata.MetadataLoader, opts ...Option) (*WebhookDestination, error) {
-	base, err := destregistry.NewBaseProvider(loader, "webhook")
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*WebhookDestination, error) {
+	base, err := destregistry.NewBaseProvider(loader, "webhook", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 	})
 
 	return &WebhookPublisher{
-		BasePublisher:          &destregistry.BasePublisher{},
+		BasePublisher:          d.BaseProvider.NewPublisher(),
 		httpClient:             httpClient,
 		url:                    config.URL,
 		headerPrefix:           d.headerPrefix,

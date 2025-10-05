@@ -14,7 +14,7 @@ import (
 )
 
 func TestComputeTarget(t *testing.T) {
-	provider, err := destazureservicebus.New(testutil.Registry.MetadataLoader())
+	provider, err := destazureservicebus.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -142,7 +142,7 @@ func TestParseNamespaceFromConnectionString(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// We need to test the parseNamespaceFromConnectionString function
 			// Since it's not exported, we test it indirectly through ComputeTarget
-			provider, err := destazureservicebus.New(testutil.Registry.MetadataLoader())
+			provider, err := destazureservicebus.New(testutil.Registry.MetadataLoader(), nil)
 			require.NoError(t, err)
 
 			dest := models.Destination{
@@ -166,7 +166,7 @@ func TestParseNamespaceFromConnectionString(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
-	provider, err := destazureservicebus.New(testutil.Registry.MetadataLoader())
+	provider, err := destazureservicebus.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	tests := []struct {

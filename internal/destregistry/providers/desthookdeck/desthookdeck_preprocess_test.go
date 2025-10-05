@@ -168,6 +168,7 @@ func TestPreprocess(t *testing.T) {
 			// Create the provider with our custom client
 			provider, err := desthookdeck.New(
 				testutil.Registry.MetadataLoader(),
+				nil,
 				desthookdeck.WithHTTPClient(client),
 			)
 			require.NoError(t, err)
@@ -257,6 +258,7 @@ func TestPreprocess_ServerError(t *testing.T) {
 	// Create the provider with our custom client
 	provider, err := desthookdeck.New(
 		testutil.Registry.MetadataLoader(),
+		nil,
 		desthookdeck.WithHTTPClient(client),
 	)
 	require.NoError(t, err)
@@ -312,6 +314,7 @@ func TestPreprocess_Timeout(t *testing.T) {
 	// Create the provider with our custom client
 	provider, err := desthookdeck.New(
 		testutil.Registry.MetadataLoader(),
+		nil,
 		desthookdeck.WithHTTPClient(client),
 	)
 	require.NoError(t, err)

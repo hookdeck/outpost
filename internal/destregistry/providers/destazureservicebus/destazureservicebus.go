@@ -27,8 +27,8 @@ type AzureServiceBusDestinationCredentials struct {
 
 var _ destregistry.Provider = (*AzureServiceBusDestination)(nil)
 
-func New(loader metadata.MetadataLoader) (*AzureServiceBusDestination, error) {
-	base, err := destregistry.NewBaseProvider(loader, "azure_servicebus")
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*AzureServiceBusDestination, error) {
+	base, err := destregistry.NewBaseProvider(loader, "azure_servicebus", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (d *AzureServiceBusDestination) CreatePublisher(ctx context.Context, destin
 	}
 
 	return &AzureServiceBusPublisher{
-		BasePublisher:    &destregistry.BasePublisher{},
+		BasePublisher:    d.BaseProvider.NewPublisher(),
 		connectionString: creds.ConnectionString,
 		queueOrTopic:     cfg.Name,
 	}, nil

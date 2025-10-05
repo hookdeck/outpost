@@ -27,7 +27,7 @@ func TestAWSSQSDestination_Validate(t *testing.T) {
 		}),
 	)
 
-	awsSQSDestination, err := destawssqs.New(testutil.Registry.MetadataLoader())
+	awsSQSDestination, err := destawssqs.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
@@ -103,7 +103,7 @@ func TestAWSSQSDestination_Validate(t *testing.T) {
 func TestAWSSQSDestination_ComputeTarget(t *testing.T) {
 	t.Parallel()
 
-	awsSQSDestination, err := destawssqs.New(testutil.Registry.MetadataLoader())
+	awsSQSDestination, err := destawssqs.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	t.Run("should return queue_url as target", func(t *testing.T) {

@@ -153,7 +153,7 @@ func (s *AzureServiceBusSuite) SetupSuite() {
 	s.consumer = consumer
 
 	// Create provider
-	provider, err := destazureservicebus.New(testutil.Registry.MetadataLoader())
+	provider, err := destazureservicebus.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	// Create destination

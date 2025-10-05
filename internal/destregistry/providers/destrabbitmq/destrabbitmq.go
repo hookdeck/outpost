@@ -31,8 +31,8 @@ type RabbitMQDestinationCredentials struct {
 
 var _ destregistry.Provider = (*RabbitMQDestination)(nil)
 
-func New(loader metadata.MetadataLoader) (*RabbitMQDestination, error) {
-	base, err := destregistry.NewBaseProvider(loader, "rabbitmq")
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*RabbitMQDestination, error) {
+	base, err := destregistry.NewBaseProvider(loader, "rabbitmq", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (d *RabbitMQDestination) CreatePublisher(ctx context.Context, destination *
 		return nil, err
 	}
 	return &RabbitMQPublisher{
-		BasePublisher: &destregistry.BasePublisher{},
+		BasePublisher: d.BaseProvider.NewPublisher(),
 		url:           rabbitURL(config, credentials),
 		exchange:      config.Exchange,
 	}, nil

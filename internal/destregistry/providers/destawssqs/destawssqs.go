@@ -36,8 +36,8 @@ type AWSSQSDestinationCredentials struct {
 
 var _ destregistry.Provider = (*AWSSQSDestination)(nil)
 
-func New(loader metadata.MetadataLoader) (*AWSSQSDestination, error) {
-	base, err := destregistry.NewBaseProvider(loader, "aws_sqs")
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*AWSSQSDestination, error) {
+	base, err := destregistry.NewBaseProvider(loader, "aws_sqs", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (p *AWSSQSDestination) CreatePublisher(ctx context.Context, destination *mo
 	})
 
 	return &AWSSQSPublisher{
-		BasePublisher: &destregistry.BasePublisher{},
+		BasePublisher: p.BaseProvider.NewPublisher(),
 		client:        sqsClient,
 		queueURL:      cfg.QueueURL,
 	}, nil

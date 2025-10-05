@@ -49,8 +49,8 @@ type AWSS3Provider struct {
 var _ destregistry.Provider = (*AWSS3Provider)(nil)
 
 // New creates a new AWSS3Provider
-func New(loader metadata.MetadataLoader) (*AWSS3Provider, error) {
-	base, err := destregistry.NewBaseProvider(loader, "aws_s3")
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*AWSS3Provider, error) {
+	base, err := destregistry.NewBaseProvider(loader, "aws_s3", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +360,7 @@ func NewAWSS3Publisher(
 	}
 
 	return &AWSS3Publisher{
-		BasePublisher: &destregistry.BasePublisher{},
+		BasePublisher: destregistry.NewBasePublisher(),
 		client:        client,
 		bucket:        bucket,
 		keyTemplate:   tmpl,
