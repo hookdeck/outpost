@@ -188,39 +188,3 @@ func removeCommonCredentialPatterns(errMsg string) string {
 
 	return result
 }
-
-// extractHostPort extracts the host and port from a database URL without exposing credentials.
-// Returns "unknown" for host and "unknown" for port if parsing fails.
-func extractHostPort(dbURL string) (string, string) {
-	if dbURL == "" {
-		return "unknown", "unknown"
-	}
-
-	// Try to parse as URL
-	u, err := url.Parse(dbURL)
-	if err != nil {
-		return "unknown", "unknown"
-	}
-
-	host := u.Hostname()
-	if host == "" {
-		host = "unknown"
-	}
-
-	port := u.Port()
-	if port == "" {
-		// Default ports based on scheme
-		switch u.Scheme {
-		case "postgres", "postgresql":
-			port = "5432"
-		case "clickhouse":
-			port = "9000"
-		case "mysql":
-			port = "3306"
-		default:
-			port = "unknown"
-		}
-	}
-
-	return host, port
-}
