@@ -51,8 +51,8 @@ func removeCredentialsFromError(errMsg string, dbURL string) string {
 
 	// Parse the URL to extract credentials
 	u, err := url.Parse(dbURL)
-	// Also check if it's actually a database URL (has scheme and user info)
-	if err != nil || u == nil || u.Scheme == "" || u.User == nil {
+	// Also check if it's actually a database URL (has scheme)
+	if err != nil || u == nil || u.Scheme == "" {
 		// If we can't parse the URL, still try to redact it using string matching
 		// This handles malformed URLs in parse errors
 		result := errMsg
