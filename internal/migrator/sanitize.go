@@ -170,8 +170,8 @@ func removeCommonCredentialPatterns(errMsg string) string {
 		regex   string
 		replace string
 	}{
-		// user:password@ pattern (match any non-whitespace for password)
-		{`(\b\w+):([^@\s]+)@`, "$1:[REDACTED]@"},
+		// user:password@ pattern (match usernames with hyphens, dots, etc.)
+		{`([^:@\s]+):([^@\s]+)@`, "$1:[REDACTED]@"},
 		// password=value in query strings
 		{`password=([^&\s]+)`, "password=[REDACTED]"},
 		// common password fields in errors

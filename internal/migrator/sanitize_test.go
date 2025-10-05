@@ -210,6 +210,24 @@ func TestRemoveCredentialsFromError(t *testing.T) {
 			dbURL:    "postgres://user:pass@word@host/db",
 			expected: `url contains [REDACTED] which is encoded`,
 		},
+		{
+			name:     "Username with hyphens",
+			errMsg:   `credentials my-user:secret123 were rejected`,
+			dbURL:    "postgres://my-user:secret123@host/db",
+			expected: `credentials my-user:[REDACTED] were rejected`,
+		},
+		{
+			name:     "Username with dots",
+			errMsg:   `auth failed for user.name:password`,
+			dbURL:    "postgres://user.name:password@host/db",
+			expected: `auth failed for user.name:[REDACTED]`,
+		},
+		{
+			name:     "Username with underscores",
+			errMsg:   `connection string includes db_admin:pass123@`,
+			dbURL:    "postgres://db_admin:pass123@host/db",
+			expected: `connection string includes db_admin:[REDACTED]@`,
+		},
 	}
 
 	for _, tt := range tests {
