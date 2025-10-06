@@ -1,4 +1,5 @@
 TEST?=$$(go list ./...)
+RUN?=
 
 # Build targets
 .PHONY: build
@@ -122,13 +123,17 @@ test/setup:
 	@echo ""
 
 test:
-	go test $(TEST) $(TESTARGS)
+	@if [ "$(RUN)" != "" ]; then \
+		$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test $(TEST) $(TESTARGS) -run "$(RUN)"; \
+	else \
+		$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test $(TEST) $(TESTARGS); \
+	fi
 
 test/unit:
-	go test $(TEST) $(TESTARGS) -short
+	$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test $(TEST) $(TESTARGS) -short
 
 test/integration:
-	go test $(TEST) $(TESTARGS) -run "Integration"
+	$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test $(TEST) $(TESTARGS) -run "Integration"
 
 test/e2e/rediscluster:
 	@echo "Running Redis cluster e2e tests in Docker container..."
