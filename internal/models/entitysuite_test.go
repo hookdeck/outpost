@@ -31,9 +31,10 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 // EntityTestSuite contains all entity store tests
 type EntityTestSuite struct {
 	suite.Suite
-	ctx         context.Context
-	redisClient redis.Cmdable
-	entityStore models.EntityStore
+	ctx          context.Context
+	redisClient  redis.Cmdable
+	entityStore  models.EntityStore
+	deploymentID string
 }
 
 func (s *EntityTestSuite) SetupTest() {
@@ -43,6 +44,9 @@ func (s *EntityTestSuite) SetupTest() {
 	opts := []models.EntityStoreOption{
 		models.WithCipher(models.NewAESCipher("secret")),
 		models.WithAvailableTopics(testutil.TestTopics),
+	}
+	if s.deploymentID != "" {
+		opts = append(opts, models.WithDeploymentID(s.deploymentID))
 	}
 	s.entityStore = models.NewEntityStore(s.redisClient, opts...)
 }
@@ -242,7 +246,13 @@ func (s *EntityTestSuite) TestDestinationCredentialsEncryption() {
 	err := s.entityStore.UpsertDestination(s.ctx, input)
 	require.NoError(s.T(), err)
 
-	actual, err := s.redisClient.HGetAll(s.ctx, fmt.Sprintf("tenant:{%s}:destination:%s", input.TenantID, input.ID)).Result()
+	// Build key format based on deploymentID
+	keyFormat := "tenant:{%s}:destination:%s"
+	if s.deploymentID != "" {
+		keyFormat = fmt.Sprintf("deployment:%s:tenant:{%%s}:destination:%%s", s.deploymentID)
+	}
+
+	actual, err := s.redisClient.HGetAll(s.ctx, fmt.Sprintf(keyFormat, input.TenantID, input.ID)).Result()
 	require.NoError(s.T(), err)
 	assert.NotEqual(s.T(), input.Credentials, actual["credentials"])
 	decryptedCredentials, err := cipher.Decrypt([]byte(actual["credentials"]))
@@ -673,6 +683,9 @@ func (s *EntityTestSuite) TestMaxDestinationsPerTenant() {
 		models.WithCipher(models.NewAESCipher("secret")),
 		models.WithAvailableTopics(testutil.TestTopics),
 		models.WithMaxDestinationsPerTenant(maxDestinations),
+	}
+	if s.deploymentID != "" {
+		opts = append(opts, models.WithDeploymentID(s.deploymentID))
 	}
 	limitedStore := models.NewEntityStore(s.redisClient, opts...)
 

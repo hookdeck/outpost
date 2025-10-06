@@ -6,8 +6,12 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// Run full entity store test suite
-func TestEntityStore(t *testing.T) {
+func TestEntityStore_WithoutDeploymentID(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, &EntityTestSuite{})
+	suite.Run(t, &EntityTestSuite{deploymentID: ""})
+}
+
+func TestEntityStore_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{deploymentID: "dp_test_001"})
 }
