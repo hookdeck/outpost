@@ -25,8 +25,9 @@ const (
 )
 
 type BasicOpts struct {
-	LogStorage  LogStorageType
-	RedisConfig *redis.RedisConfig // Optional Redis config override
+	LogStorage   LogStorageType
+	RedisConfig  *redis.RedisConfig // Optional Redis config override
+	DeploymentID string              // Optional deployment ID for multi-tenancy testing
 }
 
 func Basic(t *testing.T, opts BasicOpts) config.Config {
@@ -83,6 +84,7 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	c.RetryMaxLimit = 3
 	c.LogBatchThresholdSeconds = 1
 	c.LogBatchSize = 100
+	c.DeploymentID = opts.DeploymentID
 
 	// Setup cleanup
 	t.Cleanup(func() {
