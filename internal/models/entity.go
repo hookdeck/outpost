@@ -212,6 +212,9 @@ func (s *entityStoreImpl) ListDestinationByTenant(ctx context.Context, tenantID 
 	}
 
 	destinationSummaryList, err := s.listDestinationSummaryByTenant(ctx, tenantID, opts)
+	if err != nil {
+		return nil, err
+	}
 
 	pipe := s.redisClient.Pipeline()
 	cmds := make([]*redis.MapStringStringCmd, len(destinationSummaryList))
