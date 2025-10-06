@@ -94,6 +94,7 @@ func NewService(ctx context.Context,
 			models.WithCipher(models.NewAESCipher(cfg.AESEncryptionSecret)),
 			models.WithAvailableTopics(cfg.Topics),
 			models.WithMaxDestinationsPerTenant(cfg.MaxDestinationsPerTenant),
+			models.WithDeploymentID(cfg.DeploymentID),
 		)
 
 		logstoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
@@ -111,7 +112,7 @@ func NewService(ctx context.Context,
 			return nil, err
 		}
 
-		retryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig(), logger)
+		retryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, logger)
 		if err := retryScheduler.Init(ctx); err != nil {
 			return nil, err
 		}
@@ -133,6 +134,7 @@ func NewService(ctx context.Context,
 			alert.WithNotifier(alertNotifier),
 			alert.WithDisabler(destinationDisabler),
 			alert.WithAutoDisableFailureCount(cfg.Alert.ConsecutiveFailureCount),
+			alert.WithDeploymentID(cfg.DeploymentID),
 		)
 
 		handler = deliverymq.NewMessageHandler(

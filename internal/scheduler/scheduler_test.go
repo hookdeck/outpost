@@ -3,7 +3,6 @@ package scheduler_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -155,7 +154,7 @@ func TestScheduler_CustomID(t *testing.T) {
 			return nil
 		}
 
-		rsmqClient := createRSMQClient(t, redisConfig, "")
+		rsmqClient := createRSMQClient(t, redisConfig)
 		s := scheduler.New(uuid.New().String(), rsmqClient, exec)
 		require.NoError(t, s.Init(ctx))
 		go s.Monitor(ctx)
@@ -260,7 +259,7 @@ func TestScheduler_Cancel(t *testing.T) {
 			return nil
 		}
 
-		rsmqClient := createRSMQClient(t, redisConfig, "")
+		rsmqClient := createRSMQClient(t, redisConfig)
 		s := scheduler.New(uuid.New().String(), rsmqClient, exec)
 		require.NoError(t, s.Init(ctx))
 		go s.Monitor(ctx)
