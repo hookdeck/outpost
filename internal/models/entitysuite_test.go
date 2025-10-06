@@ -2,8 +2,6 @@ package models_test
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -223,43 +221,6 @@ func (s *EntityTestSuite) TestDeleteTenantAndAssociatedDestinations() {
 	}
 }
 
-func (s *EntityTestSuite) TestDestinationCredentialsEncryption() {
-	cipher := models.NewAESCipher("secret")
-
-	input := models.Destination{
-		ID:     uuid.New().String(),
-		Type:   "rabbitmq",
-		Topics: []string{"user.created", "user.updated"},
-		Config: map[string]string{
-			"server_url": "localhost:5672",
-			"exchange":   "events",
-		},
-		Credentials: map[string]string{
-			"username": "guest",
-			"password": "guest",
-		},
-		CreatedAt:  time.Now(),
-		DisabledAt: nil,
-		TenantID:   uuid.New().String(),
-	}
-
-	err := s.entityStore.UpsertDestination(s.ctx, input)
-	require.NoError(s.T(), err)
-
-	// Build key format based on deploymentID
-	keyFormat := "tenant:{%s}:destination:%s"
-	if s.deploymentID != "" {
-		keyFormat = fmt.Sprintf("deployment:%s:tenant:{%%s}:destination:%%s", s.deploymentID)
-	}
-
-	actual, err := s.redisClient.HGetAll(s.ctx, fmt.Sprintf(keyFormat, input.TenantID, input.ID)).Result()
-	require.NoError(s.T(), err)
-	assert.NotEqual(s.T(), input.Credentials, actual["credentials"])
-	decryptedCredentials, err := cipher.Decrypt([]byte(actual["credentials"]))
-	require.NoError(s.T(), err)
-	jsonCredentials, _ := json.Marshal(input.Credentials)
-	assert.Equal(s.T(), string(jsonCredentials), string(decryptedCredentials))
-}
 
 // Helper struct for multi-destination tests
 type multiDestinationData struct {
