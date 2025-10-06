@@ -20,12 +20,16 @@ type AlertStore interface {
 }
 
 type redisAlertStore struct {
-	client redis.Cmdable
+	client       redis.Cmdable
+	deploymentID string
 }
 
 // NewRedisAlertStore creates a new Redis-backed alert store
-func NewRedisAlertStore(client redis.Cmdable) AlertStore {
-	return &redisAlertStore{client: client}
+func NewRedisAlertStore(client redis.Cmdable, deploymentID string) AlertStore {
+	return &redisAlertStore{
+		client:       client,
+		deploymentID: deploymentID,
+	}
 }
 
 func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) (int, error) {
@@ -57,6 +61,13 @@ func (s *redisAlertStore) ResetConsecutiveFailureCount(ctx context.Context, tena
 	return s.client.Del(ctx, s.getFailuresKey(destinationID)).Err()
 }
 
+func (s *redisAlertStore) deploymentPrefix() string {
+	if s.deploymentID == "" {
+		return ""
+	}
+	return fmt.Sprintf("deployment:%s:", s.deploymentID)
+}
+
 func (s *redisAlertStore) getFailuresKey(destinationID string) string {
-	return fmt.Sprintf("%s:%s:%s", keyPrefixAlert, destinationID, keyFailures)
+	return fmt.Sprintf("%s%s:%s:%s", s.deploymentPrefix(), keyPrefixAlert, destinationID, keyFailures)
 }
