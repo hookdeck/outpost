@@ -134,7 +134,7 @@ func CreateRedisClusterConfig(t *testing.T) *redis.RedisConfig {
 	// Test Redis connection before returning
 	t.Logf("Testing Redis cluster connection to %s:%d", redisHost, redisPort)
 	testCtx := context.Background()
-	_, err := redis.NewClient(testCtx, redisConfig)
+	_, err := redis.New(testCtx, redisConfig)
 	if err != nil {
 		t.Fatalf("Failed to create Redis client: %v", err)
 	}

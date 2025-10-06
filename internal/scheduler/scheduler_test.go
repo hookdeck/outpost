@@ -17,7 +17,7 @@ import (
 // createRSMQClient creates an RSMQ client for testing
 func createRSMQClient(t *testing.T, redisConfig *iredis.RedisConfig) *rsmq.RedisSMQ {
 	ctx := context.Background()
-	redisClient, err := iredis.NewClient(ctx, redisConfig)
+	redisClient, err := iredis.New(ctx, redisConfig)
 	require.NoError(t, err)
 
 	adapter := rsmq.NewRedisAdapter(redisClient)

@@ -15,7 +15,7 @@ import (
 func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, deploymentID string, logger *logging.Logger) scheduler.Scheduler {
 	// Create Redis client for RSMQ
 	ctx := context.Background()
-	redisClient, err := redis.NewClient(ctx, redisConfig)
+	redisClient, err := redis.New(ctx, redisConfig)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create Redis client for retry scheduler: %v", err))
 	}
