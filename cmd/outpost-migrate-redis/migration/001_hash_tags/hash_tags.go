@@ -10,7 +10,17 @@ import (
 	"github.com/hookdeck/outpost/internal/redis"
 )
 
-// HashTagsMigration migrates from legacy format (tenant:*) to hash-tagged format ({tenant}:*)
+// HashTagsMigration migrates from legacy format (tenant:*) to hash-tagged format (tenant:{ID}:*)
+//
+// NOTE: This migration only handles non-deployment-prefixed keys.
+// If you are using DEPLOYMENT_ID configuration, your keys already have the correct format
+// with deployment prefixes (deployment:{ID}:tenant:{TENANT_ID}:*) and hash tags are already
+// in place. In that case, this migration can be safely skipped.
+//
+// This migration is only needed for legacy deployments that:
+// - Started before hash tag support was added
+// - Are NOT using DEPLOYMENT_ID configuration
+// - Have keys in the old format: tenant:ID:* (without curly braces)
 type HashTagsMigration struct {
 	client redis.Client
 	logger migration.Logger
