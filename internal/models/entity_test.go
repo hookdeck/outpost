@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -70,4 +72,54 @@ func TestDestinationCredentialsEncryption(t *testing.T) {
 	require.NoError(t, err)
 	jsonCredentials, _ := json.Marshal(input.Credentials)
 	assert.Equal(t, string(jsonCredentials), string(decryptedCredentials))
+}
+
+// TestMaxDestinationsPerTenant verifies that the entity store properly enforces
+// the maximum destinations per tenant limit.
+func TestMaxDestinationsPerTenant(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	redisClient := testutil.CreateTestRedisClient(t)
+	maxDestinations := 2
+
+	limitedStore := models.NewEntityStore(redisClient,
+		models.WithCipher(models.NewAESCipher("secret")),
+		models.WithAvailableTopics(testutil.TestTopics),
+		models.WithMaxDestinationsPerTenant(maxDestinations),
+	)
+
+	tenant := models.Tenant{
+		ID:        uuid.New().String(),
+		CreatedAt: time.Now(),
+	}
+	require.NoError(t, limitedStore.UpsertTenant(ctx, tenant))
+
+	// Should be able to create up to maxDestinations
+	for i := 0; i < maxDestinations; i++ {
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+		)
+		err := limitedStore.CreateDestination(ctx, destination)
+		require.NoError(t, err, "Should be able to create destination %d", i+1)
+	}
+
+	// Should fail when trying to create one more
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	err := limitedStore.CreateDestination(ctx, destination)
+	require.Error(t, err)
+	require.ErrorIs(t, err, models.ErrMaxDestinationsPerTenantReached)
+
+	// Should be able to create after deleting one
+	destinations, err := limitedStore.ListDestinationByTenant(ctx, tenant.ID)
+	require.NoError(t, err)
+	require.NoError(t, limitedStore.DeleteDestination(ctx, tenant.ID, destinations[0].ID))
+
+	destination = testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	err = limitedStore.CreateDestination(ctx, destination)
+	require.NoError(t, err, "Should be able to create destination after deleting one")
 }
