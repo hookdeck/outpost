@@ -102,6 +102,7 @@ func (p *AWSS3Provider) CreatePublisher(ctx context.Context, destination *models
 	}
 
 	return NewAWSS3Publisher(
+		p.BaseProvider.NewPublisher(),
 		client,
 		cfg.Bucket,
 		cfg.KeyTemplate,
@@ -349,6 +350,7 @@ func parseStorageClass(storageClass string) (types.StorageClass, error) {
 
 // NewAWSS3Publisher exposed for testing
 func NewAWSS3Publisher(
+	basePublisher *destregistry.BasePublisher,
 	client *s3.Client,
 	bucket, keyTemplateStr, storageClass string,
 ) *AWSS3Publisher {
@@ -360,7 +362,7 @@ func NewAWSS3Publisher(
 	}
 
 	return &AWSS3Publisher{
-		BasePublisher: destregistry.NewBasePublisher(),
+		BasePublisher: basePublisher,
 		client:        client,
 		bucket:        bucket,
 		keyTemplate:   tmpl,
