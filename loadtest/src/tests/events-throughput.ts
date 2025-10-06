@@ -173,8 +173,8 @@ export default function (data: { tenantId: string }) {
     { headers }
   );
 
-  // Check if the event was published successfully
-  const isSuccess = eventResponse.status === 200;
+  // Check if the event was published successfully (202 Accepted is the success status)
+  const isSuccess = eventResponse.status === 202;
 
   // Record custom metrics
   publishSuccessRate.add(isSuccess);

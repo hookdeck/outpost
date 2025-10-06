@@ -51,8 +51,8 @@ func WithMetadataInPayload(include bool) Option {
 }
 
 // Constructor
-func New(loader metadata.MetadataLoader, opts ...Option) (*AWSKinesisProvider, error) {
-	base, err := destregistry.NewBaseProvider(loader, "aws_kinesis")
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*AWSKinesisProvider, error) {
+	base, err := destregistry.NewBaseProvider(loader, "aws_kinesis", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func (p *AWSKinesisProvider) CreatePublisher(ctx context.Context, destination *m
 	})
 
 	return &AWSKinesisPublisher{
-		BasePublisher:        &destregistry.BasePublisher{},
+		BasePublisher:        p.BaseProvider.NewPublisher(),
 		client:               kinesisClient,
 		streamName:           config.StreamName,
 		partitionKeyTemplate: config.PartitionKeyTemplate,

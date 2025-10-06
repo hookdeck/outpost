@@ -169,7 +169,7 @@ func (s *RabbitMQPublishSuite) SetupSuite() {
 	rabbitURL := testinfra.EnsureRabbitMQ()
 	exchange := uuid.New().String()
 
-	provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
+	provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	dest := testutil.DestinationFactory.Any(

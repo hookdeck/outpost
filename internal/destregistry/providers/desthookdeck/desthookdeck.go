@@ -49,8 +49,8 @@ func WithUserAgent(userAgent string) ProviderOption {
 }
 
 // Constructor
-func New(loader metadata.MetadataLoader, opts ...ProviderOption) (*HookdeckProvider, error) {
-	base, err := destregistry.NewBaseProvider(loader, "hookdeck")
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...ProviderOption) (*HookdeckProvider, error) {
+	base, err := destregistry.NewBaseProvider(loader, "hookdeck", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -108,9 +108,10 @@ func NewPublisher(tokenString string, opts ...PublisherOption) (*HookdeckPublish
 		return nil, err
 	}
 
-	// Create publisher with default settings
+	// Note: This NewPublisher is called from CreatePublisher which has access to BaseProvider
+	// For now, we create a default BasePublisher here - this will be refactored
 	publisher := &HookdeckPublisher{
-		BasePublisher: &destregistry.BasePublisher{},
+		BasePublisher: destregistry.NewBasePublisher(),
 		tokenString:   tokenString,
 		parsedToken:   parsedToken,
 		client:        &http.Client{Timeout: 30 * time.Second},
@@ -134,26 +135,31 @@ func (p *HookdeckProvider) CreatePublisher(ctx context.Context, destination *mod
 	// Get the token from credentials
 	tokenString := destination.Credentials["token"]
 
-	// Create publisher options
-	var opts []PublisherOption
-
-	// Use the provider's HTTP client if set
-	if p.httpClient != nil {
-		opts = append(opts, PublisherWithClient(p.httpClient))
-	} else {
-		httpClient := p.BaseProvider.MakeHTTPClient(destregistry.HTTPClientConfig{
-			UserAgent: &p.userAgent,
-		})
-		opts = append(opts, PublisherWithClient(httpClient))
-	}
-
-	// Use NewPublisher to create the publisher with options
-	publisher, err := NewPublisher(tokenString, opts...)
+	// Parse the token
+	parsedToken, err := ParseHookdeckToken(tokenString)
 	if err != nil {
 		return nil, destregistry.NewErrDestinationPublishAttempt(err, "hookdeck", map[string]interface{}{
 			"error":   "invalid_token",
 			"message": err.Error(),
 		})
+	}
+
+	// Determine HTTP client
+	var client *http.Client
+	if p.httpClient != nil {
+		client = p.httpClient
+	} else {
+		client = p.BaseProvider.MakeHTTPClient(destregistry.HTTPClientConfig{
+			UserAgent: &p.userAgent,
+		})
+	}
+
+	// Create publisher with base publisher from provider
+	publisher := &HookdeckPublisher{
+		BasePublisher: p.BaseProvider.NewPublisher(),
+		tokenString:   tokenString,
+		parsedToken:   parsedToken,
+		client:        client,
 	}
 
 	return publisher, nil

@@ -28,9 +28,10 @@ type DestAWSKinesisConfig struct {
 }
 
 type RegisterDefaultDestinationOptions struct {
-	UserAgent  string
-	Webhook    *DestWebhookConfig
-	AWSKinesis *DestAWSKinesisConfig
+	UserAgent                   string
+	IncludeMillisecondTimestamp bool
+	Webhook                     *DestWebhookConfig
+	AWSKinesis                  *DestAWSKinesisConfig
 }
 
 // RegisterDefault registers the default destination providers with the registry.
@@ -38,6 +39,12 @@ type RegisterDefaultDestinationOptions struct {
 // returned when listing providers.
 func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestinationOptions) error {
 	loader := registry.MetadataLoader()
+
+	// Build base publisher options that apply to all providers
+	basePublisherOpts := []destregistry.BasePublisherOption{}
+	if opts.IncludeMillisecondTimestamp {
+		basePublisherOpts = append(basePublisherOpts, destregistry.WithMillisecondTimestamp(opts.IncludeMillisecondTimestamp))
+	}
 
 	webhookOpts := []destwebhook.Option{
 		destwebhook.WithUserAgent(opts.UserAgent),
@@ -55,20 +62,20 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 			destwebhook.WithSignatureAlgorithm(opts.Webhook.SignatureAlgorithm),
 		)
 	}
-	webhook, err := destwebhook.New(loader, webhookOpts...)
+	webhook, err := destwebhook.New(loader, basePublisherOpts, webhookOpts...)
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("webhook", webhook)
 
-	hookdeck, err := desthookdeck.New(loader,
+	hookdeck, err := desthookdeck.New(loader, basePublisherOpts,
 		desthookdeck.WithUserAgent(opts.UserAgent))
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("hookdeck", hookdeck)
 
-	awsSQS, err := destawssqs.New(loader)
+	awsSQS, err := destawssqs.New(loader, basePublisherOpts)
 	if err != nil {
 		return err
 	}
@@ -80,25 +87,25 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 			destawskinesis.WithMetadataInPayload(opts.AWSKinesis.MetadataInPayload),
 		)
 	}
-	awsKinesis, err := destawskinesis.New(loader, awsKinesisOpts...)
+	awsKinesis, err := destawskinesis.New(loader, basePublisherOpts, awsKinesisOpts...)
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("aws_kinesis", awsKinesis)
 
-	awsS3, err := destawss3.New(loader)
+	awsS3, err := destawss3.New(loader, basePublisherOpts)
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("aws_s3", awsS3)
 
-	azureServiceBus, err := destazureservicebus.New(loader)
+	azureServiceBus, err := destazureservicebus.New(loader, basePublisherOpts)
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("azure_servicebus", azureServiceBus)
 
-	rabbitmq, err := destrabbitmq.New(loader)
+	rabbitmq, err := destrabbitmq.New(loader, basePublisherOpts)
 	if err != nil {
 		return err
 	}

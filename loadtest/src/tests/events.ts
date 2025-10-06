@@ -117,10 +117,10 @@ export default function (): void {
   );
 
   check(eventResponse, {
-    "event published": (r) => r.status === 200,
+    "event published": (r) => r.status === 202,
   });
 
-  if (eventResponse.status !== 200) {
+  if (eventResponse.status !== 202) {
     throw new Error(
       `Failed to publish event: ${eventResponse.status} ${eventResponse.body}`
     );

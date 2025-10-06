@@ -25,19 +25,26 @@ func ObfuscateValue(value string) string {
 
 // BaseProvider provides common functionality for all destination providers
 type BaseProvider struct {
-	metadata *metadata.ProviderMetadata
+	metadata          *metadata.ProviderMetadata
+	basePublisherOpts []BasePublisherOption
 }
 
 // NewBaseProvider creates a new base provider with loaded metadata
-func NewBaseProvider(loader metadata.MetadataLoader, providerType string) (*BaseProvider, error) {
+func NewBaseProvider(loader metadata.MetadataLoader, providerType string, opts ...BasePublisherOption) (*BaseProvider, error) {
 	meta, err := loader.Load(providerType)
 	if err != nil {
 		return nil, fmt.Errorf("loading provider metadata: %w", err)
 	}
 
 	return &BaseProvider{
-		metadata: meta,
+		metadata:          meta,
+		basePublisherOpts: opts,
 	}, nil
+}
+
+// NewPublisher creates a BasePublisher with provider-configured options
+func (p *BaseProvider) NewPublisher() *BasePublisher {
+	return NewBasePublisher(p.basePublisherOpts...)
 }
 
 // Metadata returns the provider metadata

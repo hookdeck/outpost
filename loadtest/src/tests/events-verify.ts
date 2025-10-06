@@ -137,19 +137,33 @@ export default async function () {
               }
             }
 
-            // Extract delivery start timestamp from headers (X-Acme-Timestamp or X-Outpost-Timestamp)
+            // Extract delivery start timestamp from headers
+            // First try millisecond timestamp (X-Outpost-Timestamp-Ms), then fall back to second precision
             if (responseData && responseData.headers) {
-              const timestampHeader =
-                responseData.headers["X-Acme-Timestamp"] ||
-                responseData.headers["X-Outpost-Timestamp"];
-              if (timestampHeader) {
-                const timestamp = parseInt(timestampHeader, 10);
+              const timestampMsHeader =
+                responseData.headers["X-Acme-Timestamp-Ms"] ||
+                responseData.headers["X-Outpost-Timestamp-Ms"];
+
+              if (timestampMsHeader) {
+                // Millisecond timestamp - use directly
+                const timestamp = parseInt(timestampMsHeader, 10);
                 if (!isNaN(timestamp)) {
-                  // Convert seconds to milliseconds if needed
-                  deliveryStartTimestamp =
-                    timestamp.toString().length === 10
-                      ? timestamp * 1000
-                      : timestamp;
+                  deliveryStartTimestamp = timestamp;
+                }
+              } else {
+                // Fall back to second precision timestamp
+                const timestampHeader =
+                  responseData.headers["X-Acme-Timestamp"] ||
+                  responseData.headers["X-Outpost-Timestamp"];
+                if (timestampHeader) {
+                  const timestamp = parseInt(timestampHeader, 10);
+                  if (!isNaN(timestamp)) {
+                    // Convert seconds to milliseconds if needed
+                    deliveryStartTimestamp =
+                      timestamp.toString().length === 10
+                        ? timestamp * 1000
+                        : timestamp;
+                  }
                 }
               }
             }

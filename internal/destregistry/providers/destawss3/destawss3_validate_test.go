@@ -29,7 +29,7 @@ func TestAWSS3Destination_Validate(t *testing.T) {
 		}),
 	)
 
-	awsS3Destination, err := destawss3.New(testutil.Registry.MetadataLoader())
+	awsS3Destination, err := destawss3.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
@@ -137,7 +137,7 @@ func TestAWSS3Destination_Validate(t *testing.T) {
 func TestAWSS3Destination_ComputeTarget(t *testing.T) {
 	t.Parallel()
 
-	awsS3Destination, err := destawss3.New(testutil.Registry.MetadataLoader())
+	awsS3Destination, err := destawss3.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(
