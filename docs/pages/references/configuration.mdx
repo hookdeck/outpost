@@ -44,6 +44,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `DELIVERY_MAX_CONCURRENCY` | Maximum number of delivery attempts to process concurrently. | `1` | No |
 | `DELIVERY_TIMEOUT_SECONDS` | Timeout in seconds for HTTP requests made during event delivery to webhook destinations. | `5` | No |
 | `DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD` | If true, includes Outpost metadata (event ID, topic, etc.) within the Kinesis record payload. | `true` | No |
+| `DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP` | If true, includes a 'timestamp-ms' field with millisecond precision in destination metadata. Useful for load testing and debugging. | `false` | No |
 | `DESTINATIONS_METADATA_PATH` | Path to the directory containing custom destination type definitions. This can be overridden by the root-level 'destination_metadata_path' if also set. | `config/outpost/destinations` | No |
 | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER` | If true, disables adding the default 'X-Outpost-Event-Id' header to webhook requests. | `false` | No |
 | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | If true, disables adding the default 'X-Outpost-Signature' header to webhook requests. | `false` | No |
@@ -171,6 +172,9 @@ destinations:
     # If true, includes Outpost metadata (event ID, topic, etc.) within the Kinesis record payload.
     metadata_in_payload: true
 
+
+  # If true, includes a 'timestamp-ms' field with millisecond precision in destination metadata. Useful for load testing and debugging.
+  include_millisecond_timestamp: false
 
   # Path to the directory containing custom destination type definitions. This can be overridden by the root-level 'destination_metadata_path' if also set.
   metadata_path: "config/outpost/destinations"
