@@ -123,3 +123,89 @@ func TestMaxDestinationsPerTenant(t *testing.T) {
 	err = limitedStore.CreateDestination(ctx, destination)
 	require.NoError(t, err, "Should be able to create destination after deleting one")
 }
+
+// TestDeploymentIsolation verifies that entity stores with different deployment IDs
+// are completely isolated from each other, even when sharing the same Redis instance.
+func TestDeploymentIsolation(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	redisClient := testutil.CreateTestRedisClient(t)
+
+	// Create two entity stores with different deployment IDs
+	store1 := models.NewEntityStore(redisClient,
+		models.WithCipher(models.NewAESCipher("secret")),
+		models.WithAvailableTopics(testutil.TestTopics),
+		models.WithDeploymentID("dp_001"),
+	)
+
+	store2 := models.NewEntityStore(redisClient,
+		models.WithCipher(models.NewAESCipher("secret")),
+		models.WithAvailableTopics(testutil.TestTopics),
+		models.WithDeploymentID("dp_002"),
+	)
+
+	// Use the SAME tenant ID and destination ID for both deployments
+	tenantID := uuid.New().String()
+	destinationID := uuid.New().String()
+
+	// Create tenant in both deployments
+	tenant := models.Tenant{
+		ID:        tenantID,
+		CreatedAt: time.Now(),
+	}
+	require.NoError(t, store1.UpsertTenant(ctx, tenant))
+	require.NoError(t, store2.UpsertTenant(ctx, tenant))
+
+	// Create destination with same ID but different config in each deployment
+	destination1 := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID(destinationID),
+		testutil.DestinationFactory.WithTenantID(tenantID),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"deployment": "dp_001",
+		}),
+	)
+	destination2 := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID(destinationID),
+		testutil.DestinationFactory.WithTenantID(tenantID),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"deployment": "dp_002",
+		}),
+	)
+
+	require.NoError(t, store1.CreateDestination(ctx, destination1))
+	require.NoError(t, store2.CreateDestination(ctx, destination2))
+
+	// Verify store1 only sees its own data
+	retrieved1, err := store1.RetrieveDestination(ctx, tenantID, destinationID)
+	require.NoError(t, err)
+	assert.Equal(t, "dp_001", retrieved1.Config["deployment"], "Store 1 should see its own data")
+
+	// Verify store2 only sees its own data
+	retrieved2, err := store2.RetrieveDestination(ctx, tenantID, destinationID)
+	require.NoError(t, err)
+	assert.Equal(t, "dp_002", retrieved2.Config["deployment"], "Store 2 should see its own data")
+
+	// Verify list operations are also isolated
+	list1, err := store1.ListDestinationByTenant(ctx, tenantID)
+	require.NoError(t, err)
+	require.Len(t, list1, 1, "Store 1 should only see 1 destination")
+	assert.Equal(t, "dp_001", list1[0].Config["deployment"])
+
+	list2, err := store2.ListDestinationByTenant(ctx, tenantID)
+	require.NoError(t, err)
+	require.Len(t, list2, 1, "Store 2 should only see 1 destination")
+	assert.Equal(t, "dp_002", list2[0].Config["deployment"])
+
+	// Verify deleting from one deployment doesn't affect the other
+	require.NoError(t, store1.DeleteDestination(ctx, tenantID, destinationID))
+
+	// Store1 should not find the destination
+	_, err = store1.RetrieveDestination(ctx, tenantID, destinationID)
+	require.ErrorIs(t, err, models.ErrDestinationDeleted)
+
+	// Store2 should still have its destination
+	retrieved2Again, err := store2.RetrieveDestination(ctx, tenantID, destinationID)
+	require.NoError(t, err)
+	assert.Equal(t, "dp_002", retrieved2Again.Config["deployment"], "Store 2 data should be unaffected")
+}
