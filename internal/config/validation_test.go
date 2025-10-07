@@ -261,6 +261,69 @@ func TestMisc(t *testing.T) {
 			}(),
 			wantErr: config.ErrInvalidPortalProxyURL,
 		},
+		{
+			name: "empty deployment id is valid",
+			config: func() *config.Config {
+				c := validConfig()
+				c.DeploymentID = ""
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "valid deployment id with alphanumeric",
+			config: func() *config.Config {
+				c := validConfig()
+				c.DeploymentID = "deployment123"
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "valid deployment id with hyphens and underscores",
+			config: func() *config.Config {
+				c := validConfig()
+				c.DeploymentID = "deployment_123-abc"
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "invalid deployment id with colon",
+			config: func() *config.Config {
+				c := validConfig()
+				c.DeploymentID = "deployment:123"
+				return c
+			}(),
+			wantErr: config.ErrInvalidDeploymentID,
+		},
+		{
+			name: "invalid deployment id with asterisk",
+			config: func() *config.Config {
+				c := validConfig()
+				c.DeploymentID = "deployment*"
+				return c
+			}(),
+			wantErr: config.ErrInvalidDeploymentID,
+		},
+		{
+			name: "invalid deployment id with braces",
+			config: func() *config.Config {
+				c := validConfig()
+				c.DeploymentID = "deployment{123}"
+				return c
+			}(),
+			wantErr: config.ErrInvalidDeploymentID,
+		},
+		{
+			name: "invalid deployment id exceeds max length",
+			config: func() *config.Config {
+				c := validConfig()
+				c.DeploymentID = "a123456789012345678901234567890123456789012345678901234567890123456"
+				return c
+			}(),
+			wantErr: config.ErrInvalidDeploymentID,
+		},
 	}
 
 	for _, tt := range tests {

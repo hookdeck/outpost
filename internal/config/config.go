@@ -107,6 +107,7 @@ var (
 	ErrMissingMQs            = errors.New("config validation error: message queue configuration is required")
 	ErrMissingAESSecret      = errors.New("config validation error: AES encryption secret is required")
 	ErrInvalidPortalProxyURL = errors.New("config validation error: invalid portal proxy url")
+	ErrInvalidDeploymentID   = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
 )
 
 func (c *Config) InitDefaults() {
