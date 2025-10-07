@@ -25,8 +25,9 @@ const (
 )
 
 type BasicOpts struct {
-	LogStorage  LogStorageType
-	RedisConfig *redis.RedisConfig // Optional Redis config override
+	LogStorage   LogStorageType
+	RedisConfig  *redis.RedisConfig // Optional Redis config override
+	DeploymentID string             // Optional deployment ID for multi-tenancy testing
 }
 
 func Basic(t *testing.T, opts BasicOpts) config.Config {
@@ -83,6 +84,7 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	c.RetryMaxLimit = 3
 	c.LogBatchThresholdSeconds = 1
 	c.LogBatchSize = 100
+	c.DeploymentID = opts.DeploymentID
 
 	// Setup cleanup
 	t.Cleanup(func() {
@@ -132,7 +134,7 @@ func CreateRedisClusterConfig(t *testing.T) *redis.RedisConfig {
 	// Test Redis connection before returning
 	t.Logf("Testing Redis cluster connection to %s:%d", redisHost, redisPort)
 	testCtx := context.Background()
-	_, err := redis.NewClient(testCtx, redisConfig)
+	_, err := redis.New(testCtx, redisConfig)
 	if err != nil {
 		t.Fatalf("Failed to create Redis client: %v", err)
 	}

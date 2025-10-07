@@ -73,6 +73,13 @@ func WithLogger(logger *logging.Logger) AlertOption {
 	}
 }
 
+// WithDeploymentID sets the deployment ID for the monitor
+func WithDeploymentID(deploymentID string) AlertOption {
+	return func(m *alertMonitor) {
+		m.deploymentID = deploymentID
+	}
+}
+
 // DeliveryAttempt represents a single delivery attempt
 type DeliveryAttempt struct {
 	Success          bool
@@ -83,11 +90,12 @@ type DeliveryAttempt struct {
 }
 
 type alertMonitor struct {
-	logger    *logging.Logger
-	store     AlertStore
-	evaluator AlertEvaluator
-	notifier  AlertNotifier
-	disabler  DestinationDisabler
+	logger       *logging.Logger
+	store        AlertStore
+	evaluator    AlertEvaluator
+	notifier     AlertNotifier
+	disabler     DestinationDisabler
+	deploymentID string
 
 	// autoDisableFailureCount is the number of consecutive failures before auto-disabling
 	autoDisableFailureCount int
@@ -119,7 +127,7 @@ func NewAlertMonitor(logger *logging.Logger, redisClient redis.Cmdable, opts ...
 	}
 
 	if alertMonitor.store == nil {
-		alertMonitor.store = NewRedisAlertStore(redisClient)
+		alertMonitor.store = NewRedisAlertStore(redisClient, alertMonitor.deploymentID)
 	}
 
 	if alertMonitor.evaluator == nil {

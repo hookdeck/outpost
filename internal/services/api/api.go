@@ -118,6 +118,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		models.WithCipher(models.NewAESCipher(cfg.AESEncryptionSecret)),
 		models.WithAvailableTopics(cfg.Topics),
 		models.WithMaxDestinationsPerTenant(cfg.MaxDestinationsPerTenant),
+		models.WithDeploymentID(cfg.DeploymentID),
 	)
 
 	logger.Debug("creating event handler and router")
@@ -143,7 +144,11 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 
 	// deliverymqRetryScheduler
 	logger.Debug("creating delivery MQ retry scheduler")
-	deliverymqRetryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig(), logger)
+	deliverymqRetryScheduler, err := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, logger)
+	if err != nil {
+		logger.Error("failed to create delivery MQ retry scheduler", zap.Error(err))
+		return nil, err
+	}
 	logger.Debug("initializing delivery MQ retry scheduler - this may perform Redis operations")
 	if err := deliverymqRetryScheduler.Init(ctx); err != nil {
 		logger.Error("delivery MQ retry scheduler initialization failed",

@@ -44,8 +44,47 @@ After verification, removes all legacy keys:
 - Requires confirmation unless `-force` flag is used
 - Processes deletions in batches of 100 keys
 
+## Deployment Mode Compatibility
+
+### When This Migration is NOT Needed
+
+If you are using the `DEPLOYMENT_ID` configuration option (or `deployment_id` in YAML), **you can skip this migration entirely**. Deployments using deployment IDs already have keys in the correct format:
+
+```
+dp_001:tenant:{123}:tenant
+dp_001:tenant:{123}:destinations
+dp_001:tenant:{123}:destination:abc
+```
+
+These keys already include hash tags `{123}` and are Redis Cluster compatible.
+
+### When This Migration IS Needed
+
+This migration is only required for legacy deployments that:
+1. Started before hash tag support was added
+2. Are **NOT** using `DEPLOYMENT_ID` configuration
+3. Have keys in the old format without curly braces:
+   ```
+   tenant:123
+   tenant:123:destinations
+   tenant:123:destination:abc
+   ```
+
+### Checking If You Need This Migration
+
+Run the migration planner to check:
+```bash
+outpost-migrate-redis plan
+```
+
+If the output shows `0 tenants to migrate`, your deployment either:
+- Already has hash tags (you're good!)
+- Is using deployment IDs (you're good!)
+- Has no data yet (you're good!)
+
 ## Notes
 
 - Original keys are preserved during Apply phase for rollback safety
 - Migration is idempotent - can be run multiple times safely
 - Skips tenants that are already migrated
+- Does not touch deployment-prefixed keys (e.g., `dp_001:*`)

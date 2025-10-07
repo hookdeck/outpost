@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	r "github.com/redis/go-redis/v9"
@@ -32,36 +31,25 @@ const (
 	TxFailedErr = r.TxFailedErr
 )
 
-var (
-	once                sync.Once
-	client              Client
-	initializationError error
-)
+func New(ctx context.Context, config *RedisConfig) (Client, error) {
+	var client Client
+	var err error
 
-func New(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
-	once.Do(func() {
-		initializeClient(ctx, config)
-		if initializationError == nil {
-			initializationError = instrumentOpenTelemetry()
-		}
-	})
-
-	// Ensure we never return nil client without an error
-	if client == nil && initializationError == nil {
-		initializationError = fmt.Errorf("redis client initialization failed: unexpected state")
-	}
-
-	return client, initializationError
-}
-
-// NewClient creates a new Redis client without using the singleton
-// This should be used by components that need their own Redis connection,
-// such as libraries or in test scenarios where isolation is required
-func NewClient(ctx context.Context, config *RedisConfig) (r.Cmdable, error) {
 	if config.ClusterEnabled {
-		return createClusterClient(ctx, config)
+		client, err = createClusterClient(ctx, config)
+	} else {
+		client, err = createRegularClient(ctx, config)
 	}
-	return createRegularClient(ctx, config)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := instrumentOpenTelemetry(client); err != nil {
+		return nil, err
+	}
+
+	return client, nil
 }
 
 func createClusterClient(ctx context.Context, config *RedisConfig) (Client, error) {
@@ -127,7 +115,7 @@ func createRegularClient(ctx context.Context, config *RedisConfig) (Client, erro
 	return regularClient, nil
 }
 
-func instrumentOpenTelemetry() error {
+func instrumentOpenTelemetry(client Client) error {
 	// OpenTelemetry instrumentation requires a concrete client type for type assertions
 	if concreteClient, ok := client.(*r.Client); ok {
 		if err := redisotel.InstrumentTracing(concreteClient); err != nil {
@@ -139,21 +127,4 @@ func instrumentOpenTelemetry() error {
 		}
 	}
 	return nil
-}
-
-func initializeClient(ctx context.Context, config *RedisConfig) {
-	var err error
-	if config.ClusterEnabled {
-		client, err = createClusterClient(ctx, config)
-		if err != nil {
-			initializationError = fmt.Errorf("redis cluster connection failed: %w", err)
-			return
-		}
-	} else {
-		client, err = createRegularClient(ctx, config)
-		if err != nil {
-			initializationError = fmt.Errorf("redis regular client connection failed: %w", err)
-			return
-		}
-	}
 }
