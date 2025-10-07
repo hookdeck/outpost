@@ -149,9 +149,13 @@ func (p *HookdeckProvider) CreatePublisher(ctx context.Context, destination *mod
 	if p.httpClient != nil {
 		client = p.httpClient
 	} else {
-		client = p.BaseProvider.MakeHTTPClient(destregistry.HTTPClientConfig{
+		var err error
+		client, err = p.BaseProvider.MakeHTTPClient(destregistry.HTTPClientConfig{
 			UserAgent: &p.userAgent,
 		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Create publisher with base publisher from provider

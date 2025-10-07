@@ -51,6 +51,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | If true, disables adding the default 'X-Outpost-Timestamp' header to webhook requests. | `false` | No |
 | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER` | If true, disables adding the default 'X-Outpost-Topic' header to webhook requests. | `false` | No |
 | `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | Prefix for custom headers added to webhook requests (e.g., 'X-MyOrg-'). | `x-outpost-` | No |
+| `DESTINATIONS_WEBHOOK_PROXY_URL` | Proxy URL for routing webhook requests through a proxy server. Supports HTTP and HTTPS proxies. When configured, all outgoing webhook traffic will be routed through the specified proxy. | `nil` | No |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | Algorithm used for signing webhook requests (e.g., 'hmac-sha256'). | `hmac-sha256` | No |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | Go template for constructing the content to be signed for webhook requests. | `{{.Timestamp.Unix}}.{{.Body}}` | No |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | Encoding for the signature (e.g., 'hex', 'base64'). | `hex` | No |
@@ -195,6 +196,9 @@ destinations:
 
     # Prefix for custom headers added to webhook requests (e.g., 'X-MyOrg-').
     header_prefix: "x-outpost-"
+
+    # Proxy URL for routing webhook requests through a proxy server. Supports HTTP and HTTPS proxies. When configured, all outgoing webhook traffic will be routed through the specified proxy.
+    proxy_url: ""
 
     # Algorithm used for signing webhook requests (e.g., 'hmac-sha256').
     signature_algorithm: "hmac-sha256"
