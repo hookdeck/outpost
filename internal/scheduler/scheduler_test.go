@@ -298,4 +298,3 @@ func TestScheduler_Cancel(t *testing.T) {
 		require.NoError(t, s.Cancel(ctx, id))
 	})
 }
-

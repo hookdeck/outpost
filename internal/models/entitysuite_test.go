@@ -221,7 +221,6 @@ func (s *EntityTestSuite) TestDeleteTenantAndAssociatedDestinations() {
 	}
 }
 
-
 // Helper struct for multi-destination tests
 type multiDestinationData struct {
 	tenant       models.Tenant
@@ -636,4 +635,3 @@ func (s *EntityTestSuite) TestMultiSuiteDeleteAndMatch() {
 		}
 	})
 }
-

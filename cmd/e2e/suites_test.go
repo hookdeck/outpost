@@ -126,7 +126,7 @@ type basicSuite struct {
 	e2eSuite
 	logStorageType configs.LogStorageType
 	redisConfig    *redis.RedisConfig // Optional Redis config override
-	deploymentID   string              // Optional deployment ID
+	deploymentID   string             // Optional deployment ID
 	alertServer    *alert.AlertMockServer
 }
 

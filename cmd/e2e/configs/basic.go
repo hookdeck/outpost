@@ -27,7 +27,7 @@ const (
 type BasicOpts struct {
 	LogStorage   LogStorageType
 	RedisConfig  *redis.RedisConfig // Optional Redis config override
-	DeploymentID string              // Optional deployment ID for multi-tenancy testing
+	DeploymentID string             // Optional deployment ID for multi-tenancy testing
 }
 
 func Basic(t *testing.T, opts BasicOpts) config.Config {
