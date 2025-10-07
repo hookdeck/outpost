@@ -204,7 +204,7 @@ type HTTPClientConfig struct {
 	ProxyURL  *string
 }
 
-func (p *BaseProvider) MakeHTTPClient(config HTTPClientConfig) *http.Client {
+func (p *BaseProvider) MakeHTTPClient(config HTTPClientConfig) (*http.Client, error) {
 	client := &http.Client{}
 
 	if config.Timeout != nil {
@@ -219,9 +219,10 @@ func (p *BaseProvider) MakeHTTPClient(config HTTPClientConfig) *http.Client {
 		// Configure proxy if provided
 		if config.ProxyURL != nil && *config.ProxyURL != "" {
 			proxyURLParsed, err := url.Parse(*config.ProxyURL)
-			if err == nil {
-				transport.Proxy = http.ProxyURL(proxyURLParsed)
+			if err != nil {
+				return nil, fmt.Errorf("invalid proxy URL: %w", err)
 			}
+			transport.Proxy = http.ProxyURL(proxyURLParsed)
 		}
 
 		// Wrap transport with user agent if needed
@@ -235,7 +236,7 @@ func (p *BaseProvider) MakeHTTPClient(config HTTPClientConfig) *http.Client {
 		}
 	}
 
-	return client
+	return client, nil
 }
 
 // userAgentTransport wraps an http.RoundTripper to inject a User-Agent header
