@@ -47,10 +47,14 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	}
 	defer logger.Sync()
 
-	logger.Info("starting outpost",
+	logFields := []zap.Field{
 		zap.String("config_path", cfg.ConfigFilePath()),
 		zap.String("service", cfg.MustGetService().String()),
-	)
+	}
+	if cfg.DeploymentID != "" {
+		logFields = append(logFields, zap.String("deployment_id", cfg.DeploymentID))
+	}
+	logger.Info("starting outpost", logFields...)
 
 	if err := runMigration(mainContext, cfg, logger); err != nil {
 		return err
