@@ -26,6 +26,7 @@ type WebhookDestination struct {
 	*destregistry.BaseProvider
 	headerPrefix             string
 	userAgent                string
+	proxyURL                 string
 	signatureContentTemplate string
 	signatureHeaderTemplate  string
 	disableEventIDHeader     bool
@@ -68,6 +69,12 @@ func WithHeaderPrefix(prefix string) Option {
 func WithUserAgent(userAgent string) Option {
 	return func(w *WebhookDestination) {
 		w.userAgent = userAgent
+	}
+}
+
+func WithProxyURL(proxyURL string) Option {
+	return func(w *WebhookDestination) {
+		w.proxyURL = proxyURL
 	}
 }
 
@@ -213,8 +220,14 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		WithAlgorithm(GetAlgorithm(d.algorithm)),
 	)
 
+	var proxyURL *string
+	if d.proxyURL != "" {
+		proxyURL = &d.proxyURL
+	}
+
 	httpClient := d.BaseProvider.MakeHTTPClient(destregistry.HTTPClientConfig{
 		UserAgent: &d.userAgent,
+		ProxyURL:  proxyURL,
 	})
 
 	return &WebhookPublisher{

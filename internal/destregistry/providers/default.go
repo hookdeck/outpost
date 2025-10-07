@@ -12,6 +12,7 @@ import (
 )
 
 type DestWebhookConfig struct {
+	ProxyURL                      string
 	HeaderPrefix                  string
 	DisableDefaultEventIDHeader   bool
 	DisableDefaultSignatureHeader bool
@@ -51,6 +52,7 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	if opts.Webhook != nil {
 		webhookOpts = append(webhookOpts,
+			destwebhook.WithProxyURL(opts.Webhook.ProxyURL),
 			destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
 			destwebhook.WithDisableDefaultEventIDHeader(opts.Webhook.DisableDefaultEventIDHeader),
 			destwebhook.WithDisableDefaultSignatureHeader(opts.Webhook.DisableDefaultSignatureHeader),

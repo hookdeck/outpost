@@ -35,6 +35,7 @@ func (c *DestinationsConfig) ToConfig(cfg *Config) destregistrydefault.RegisterD
 
 // Webhook configuration
 type DestinationWebhookConfig struct {
+	ProxyURL                      string `yaml:"proxy_url" env:"DESTINATIONS_WEBHOOK_PROXY_URL" desc:"Proxy URL for routing webhook requests through a proxy server. Supports HTTP and HTTPS proxies. When configured, all outgoing webhook traffic will be routed through the specified proxy." required:"N"`
 	HeaderPrefix                  string `yaml:"header_prefix" env:"DESTINATIONS_WEBHOOK_HEADER_PREFIX" desc:"Prefix for custom headers added to webhook requests (e.g., 'X-MyOrg-')." required:"N"`
 	DisableDefaultEventIDHeader   bool   `yaml:"disable_default_event_id_header" env:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER" desc:"If true, disables adding the default 'X-Outpost-Event-Id' header to webhook requests." required:"N"`
 	DisableDefaultSignatureHeader bool   `yaml:"disable_default_signature_header" env:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER" desc:"If true, disables adding the default 'X-Outpost-Signature' header to webhook requests." required:"N"`
@@ -49,6 +50,7 @@ type DestinationWebhookConfig struct {
 // toConfig converts WebhookConfig to the provider config - private since it's only used internally
 func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookConfig {
 	return &destregistrydefault.DestWebhookConfig{
+		ProxyURL:                      c.ProxyURL,
 		HeaderPrefix:                  c.HeaderPrefix,
 		DisableDefaultEventIDHeader:   c.DisableDefaultEventIDHeader,
 		DisableDefaultSignatureHeader: c.DisableDefaultSignatureHeader,
