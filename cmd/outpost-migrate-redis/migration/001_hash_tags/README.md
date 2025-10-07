@@ -51,9 +51,9 @@ After verification, removes all legacy keys:
 If you are using the `DEPLOYMENT_ID` configuration option (or `deployment_id` in YAML), **you can skip this migration entirely**. Deployments using deployment IDs already have keys in the correct format:
 
 ```
-deployment:dp_001:tenant:{123}:tenant
-deployment:dp_001:tenant:{123}:destinations
-deployment:dp_001:tenant:{123}:destination:abc
+dp_001:tenant:{123}:tenant
+dp_001:tenant:{123}:destinations
+dp_001:tenant:{123}:destination:abc
 ```
 
 These keys already include hash tags `{123}` and are Redis Cluster compatible.
@@ -87,4 +87,4 @@ If the output shows `0 tenants to migrate`, your deployment either:
 - Original keys are preserved during Apply phase for rollback safety
 - Migration is idempotent - can be run multiple times safely
 - Skips tenants that are already migrated
-- Does not touch deployment-prefixed keys (`deployment:*`)
+- Does not touch deployment-prefixed keys (e.g., `dp_001:*`)

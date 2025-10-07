@@ -114,8 +114,8 @@ Migrates Redis keys from legacy format to hash-tagged format for Redis Cluster c
 - `tenant:123:destination:abc` → `tenant:{123}:destination:abc`
 
 **Deployment Mode Note:** If you are using `DEPLOYMENT_ID` configuration, this migration is **not needed**. Deployment-scoped keys already include hash tags:
-- `deployment:dp_001:tenant:{123}:tenant` (already has hash tags)
-- `deployment:dp_001:tenant:{123}:destinations` (already has hash tags)
+- `dp_001:tenant:{123}:tenant` (already has hash tags)
+- `dp_001:tenant:{123}:destinations` (already has hash tags)
 
 See [001_hash_tags/README.md](./migration/001_hash_tags/README.md) for details.
 

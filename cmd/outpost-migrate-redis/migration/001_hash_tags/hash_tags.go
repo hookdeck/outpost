@@ -14,7 +14,7 @@ import (
 //
 // NOTE: This migration only handles non-deployment-prefixed keys.
 // If you are using DEPLOYMENT_ID configuration, your keys already have the correct format
-// with deployment prefixes (deployment:{ID}:tenant:{TENANT_ID}:*) and hash tags are already
+// with deployment prefixes (dp_001:tenant:{TENANT_ID}:*) and hash tags are already
 // in place. In that case, this migration can be safely skipped.
 //
 // This migration is only needed for legacy deployments that:

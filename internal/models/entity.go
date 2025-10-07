@@ -47,7 +47,7 @@ func (s *entityStoreImpl) deploymentPrefix() string {
 	if s.deploymentID == "" {
 		return ""
 	}
-	return fmt.Sprintf("deployment:%s:", s.deploymentID)
+	return fmt.Sprintf("%s:", s.deploymentID)
 }
 
 // New cluster-compatible key formats with hash tags

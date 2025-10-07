@@ -24,11 +24,11 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 	adapter := rsmq.NewRedisAdapter(redisClient)
 
 	// Construct RSMQ namespace with deployment prefix if provided
-	// This creates keys like: deployment:dp_001:rsmq:QUEUES, deployment:dp_001:rsmq:deliverymq-retry:Q
+	// This creates keys like: dp_001:rsmq:QUEUES, dp_001:rsmq:deliverymq-retry:Q
 	// Without deployment ID: rsmq:QUEUES, rsmq:deliverymq-retry:Q
 	namespace := "rsmq"
 	if deploymentID != "" {
-		namespace = fmt.Sprintf("deployment:%s:rsmq", deploymentID)
+		namespace = fmt.Sprintf("%s:rsmq", deploymentID)
 	}
 
 	// Create RSMQ client with deployment-aware namespace

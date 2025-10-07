@@ -65,7 +65,7 @@ func (s *redisAlertStore) deploymentPrefix() string {
 	if s.deploymentID == "" {
 		return ""
 	}
-	return fmt.Sprintf("deployment:%s:", s.deploymentID)
+	return fmt.Sprintf("%s:", s.deploymentID)
 }
 
 func (s *redisAlertStore) getFailuresKey(destinationID string) string {
