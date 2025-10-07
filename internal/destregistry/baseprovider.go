@@ -249,10 +249,3 @@ func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error
 	req.Header.Set("User-Agent", t.userAgent)
 	return t.transport.RoundTrip(req)
 }
-
-// Helper type for custom RoundTripper
-type roundTripperFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req)
-}
