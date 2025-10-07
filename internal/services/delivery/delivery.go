@@ -112,7 +112,10 @@ func NewService(ctx context.Context,
 			return nil, err
 		}
 
-		retryScheduler := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, logger)
+		retryScheduler, err := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, logger)
+		if err != nil {
+			return nil, err
+		}
 		if err := retryScheduler.Init(ctx); err != nil {
 			return nil, err
 		}
