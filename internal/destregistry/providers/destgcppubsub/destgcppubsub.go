@@ -32,8 +32,8 @@ type GCPPubSubDestinationCredentials struct {
 
 var _ destregistry.Provider = (*GCPPubSubDestination)(nil)
 
-func New(loader metadata.MetadataLoader) (*GCPPubSubDestination, error) {
-	base, err := destregistry.NewBaseProvider(loader, "gcp_pubsub")
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*GCPPubSubDestination, error) {
+	base, err := destregistry.NewBaseProvider(loader, "gcp_pubsub", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
