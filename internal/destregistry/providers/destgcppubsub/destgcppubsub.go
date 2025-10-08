@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
 	"cloud.google.com/go/pubsub"
@@ -119,7 +118,6 @@ type GCPPubSubPublisher struct {
 	client    *pubsub.Client
 	topic     *pubsub.Topic
 	projectID string
-	mu        sync.Mutex
 }
 
 func (pub *GCPPubSubPublisher) Format(ctx context.Context, event *models.Event) (*pubsub.Message, error) {
@@ -189,9 +187,6 @@ func (pub *GCPPubSubPublisher) Publish(ctx context.Context, event *models.Event)
 
 func (pub *GCPPubSubPublisher) Close() error {
 	pub.BasePublisher.StartClose()
-
-	pub.mu.Lock()
-	defer pub.mu.Unlock()
 
 	if pub.topic != nil {
 		pub.topic.Stop()
