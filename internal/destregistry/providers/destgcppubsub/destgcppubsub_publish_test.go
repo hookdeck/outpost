@@ -148,7 +148,7 @@ func (s *GCPPubSubPublishSuite) SetupSuite() {
 	// Get emulator endpoint
 	endpoint := testinfra.EnsureGCP()
 
-	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader())
+	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	dest := testutil.DestinationFactory.Any(

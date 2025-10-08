@@ -13,7 +13,7 @@ import (
 )
 
 func TestComputeTarget(t *testing.T) {
-	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader())
+	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -78,7 +78,7 @@ func TestComputeTarget(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
-	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader())
+	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	tests := []struct {
