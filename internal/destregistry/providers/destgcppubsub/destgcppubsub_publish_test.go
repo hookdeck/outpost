@@ -3,6 +3,7 @@ package destgcppubsub_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"cloud.google.com/go/pubsub"
@@ -85,7 +86,7 @@ func (c *GCPPubSubConsumer) consume() {
 	})
 
 	if err != nil && err != context.Canceled {
-		// Log error but don't panic
+		fmt.Printf("Error in GCP Pub/Sub consume loop: %v\n", err)
 	}
 }
 
