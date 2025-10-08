@@ -112,6 +112,11 @@ func (d *GCPPubSubDestination) ComputeTarget(destination *models.Destination) de
 	}
 }
 
+func (d *GCPPubSubDestination) Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {
+	// No preprocessing needed for GCP Pub/Sub
+	return nil
+}
+
 type GCPPubSubPublisher struct {
 	*destregistry.BasePublisher
 
