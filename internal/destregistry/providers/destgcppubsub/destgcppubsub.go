@@ -82,7 +82,7 @@ func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination 
 	topic := client.Topic(cfg.Topic)
 
 	return &GCPPubSubPublisher{
-		BasePublisher: &destregistry.BasePublisher{},
+		BasePublisher: d.BaseProvider.NewPublisher(),
 		client:        client,
 		topic:         topic,
 		projectID:     cfg.ProjectID,
