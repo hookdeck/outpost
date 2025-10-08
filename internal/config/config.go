@@ -52,6 +52,7 @@ type Config struct {
 	GinMode      string `yaml:"gin_mode" env:"GIN_MODE" desc:"Sets the Gin framework mode (e.g., 'debug', 'release', 'test'). See Gin documentation for details." required:"N"`
 
 	// Application
+	DeploymentID        string   `yaml:"deployment_id" env:"DEPLOYMENT_ID" desc:"Optional deployment identifier for multi-tenancy. Enables multiple deployments to share the same infrastructure while maintaining data isolation." required:"N"`
 	AESEncryptionSecret string   `yaml:"aes_encryption_secret" env:"AES_ENCRYPTION_SECRET" desc:"A 16, 24, or 32 byte secret key used for AES encryption of sensitive data at rest." required:"Y"`
 	Topics              []string `yaml:"topics" env:"TOPICS" envSeparator:"," desc:"Comma-separated list of topics that this Outpost instance should subscribe to for event processing." required:"N"`
 	OrganizationName    string   `yaml:"organization_name" env:"ORGANIZATION_NAME" desc:"Name of the organization, used for display purposes and potentially in user agent strings." required:"N"`
@@ -106,6 +107,7 @@ var (
 	ErrMissingMQs            = errors.New("config validation error: message queue configuration is required")
 	ErrMissingAESSecret      = errors.New("config validation error: AES encryption secret is required")
 	ErrInvalidPortalProxyURL = errors.New("config validation error: invalid portal proxy url")
+	ErrInvalidDeploymentID   = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
 )
 
 func (c *Config) InitDefaults() {

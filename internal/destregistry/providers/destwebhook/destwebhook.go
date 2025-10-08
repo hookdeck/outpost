@@ -26,6 +26,7 @@ type WebhookDestination struct {
 	*destregistry.BaseProvider
 	headerPrefix             string
 	userAgent                string
+	proxyURL                 string
 	signatureContentTemplate string
 	signatureHeaderTemplate  string
 	disableEventIDHeader     bool
@@ -68,6 +69,12 @@ func WithHeaderPrefix(prefix string) Option {
 func WithUserAgent(userAgent string) Option {
 	return func(w *WebhookDestination) {
 		w.userAgent = userAgent
+	}
+}
+
+func WithProxyURL(proxyURL string) Option {
+	return func(w *WebhookDestination) {
+		w.proxyURL = proxyURL
 	}
 }
 
@@ -120,8 +127,8 @@ func WithSignatureAlgorithm(algorithm string) Option {
 	}
 }
 
-func New(loader metadata.MetadataLoader, opts ...Option) (*WebhookDestination, error) {
-	base, err := destregistry.NewBaseProvider(loader, "webhook")
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*WebhookDestination, error) {
+	base, err := destregistry.NewBaseProvider(loader, "webhook", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -213,12 +220,21 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		WithAlgorithm(GetAlgorithm(d.algorithm)),
 	)
 
-	httpClient := d.BaseProvider.MakeHTTPClient(destregistry.HTTPClientConfig{
+	var proxyURL *string
+	if d.proxyURL != "" {
+		proxyURL = &d.proxyURL
+	}
+
+	httpClient, err := d.BaseProvider.MakeHTTPClient(destregistry.HTTPClientConfig{
 		UserAgent: &d.userAgent,
+		ProxyURL:  proxyURL,
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	return &WebhookPublisher{
-		BasePublisher:          &destregistry.BasePublisher{},
+		BasePublisher:          d.BaseProvider.NewPublisher(),
 		httpClient:             httpClient,
 		url:                    config.URL,
 		headerPrefix:           d.headerPrefix,

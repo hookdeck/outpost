@@ -148,7 +148,7 @@ func (s *WebhookPublishSuite) TearDownSuite() {
 func (s *WebhookPublishSuite) setupBasicSuite() {
 	consumer := NewWebhookConsumer("x-outpost-")
 
-	provider, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(s.T(), err)
 
 	dest := testutil.DestinationFactory.Any(
@@ -179,7 +179,7 @@ func (s *WebhookPublishSuite) setupBasicSuite() {
 func (s *WebhookPublishSuite) setupSingleSecretSuite() {
 	consumer := NewWebhookConsumer("x-outpost-")
 
-	provider, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(s.T(), err)
 
 	dest := testutil.DestinationFactory.Any(
@@ -210,7 +210,7 @@ func (s *WebhookPublishSuite) setupSingleSecretSuite() {
 func (s *WebhookPublishSuite) setupMultipleSecretsSuite() {
 	consumer := NewWebhookConsumer("x-outpost-")
 
-	provider, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(s.T(), err)
 
 	now := time.Now()
@@ -245,7 +245,7 @@ func (s *WebhookPublishSuite) setupMultipleSecretsSuite() {
 func (s *WebhookPublishSuite) setupExpiredSecretsSuite() {
 	consumer := NewWebhookConsumer("x-outpost-")
 
-	provider, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(s.T(), err)
 
 	now := time.Now()
@@ -283,6 +283,7 @@ func (s *WebhookPublishSuite) setupCustomHeaderSuite() {
 
 	provider, err := destwebhook.New(
 		testutil.Registry.MetadataLoader(),
+		nil,
 		destwebhook.WithHeaderPrefix(customPrefix),
 	)
 	require.NoError(s.T(), err)
@@ -397,7 +398,7 @@ func TestWebhookPublisher_DisableDefaultHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dest, err := destwebhook.New(testutil.Registry.MetadataLoader(), tt.options...)
+			dest, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil, tt.options...)
 			require.NoError(t, err)
 
 			destination := testutil.DestinationFactory.Any(
@@ -498,6 +499,7 @@ func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			provider, err := destwebhook.New(
 				testutil.Registry.MetadataLoader(),
+				nil,
 				destwebhook.WithSignatureContentTemplate(tt.contentTemplate),
 				destwebhook.WithSignatureHeaderTemplate(tt.headerTemplate),
 			)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -25,19 +26,26 @@ func ObfuscateValue(value string) string {
 
 // BaseProvider provides common functionality for all destination providers
 type BaseProvider struct {
-	metadata *metadata.ProviderMetadata
+	metadata          *metadata.ProviderMetadata
+	basePublisherOpts []BasePublisherOption
 }
 
 // NewBaseProvider creates a new base provider with loaded metadata
-func NewBaseProvider(loader metadata.MetadataLoader, providerType string) (*BaseProvider, error) {
+func NewBaseProvider(loader metadata.MetadataLoader, providerType string, opts ...BasePublisherOption) (*BaseProvider, error) {
 	meta, err := loader.Load(providerType)
 	if err != nil {
 		return nil, fmt.Errorf("loading provider metadata: %w", err)
 	}
 
 	return &BaseProvider{
-		metadata: meta,
+		metadata:          meta,
+		basePublisherOpts: opts,
 	}, nil
+}
+
+// NewPublisher creates a BasePublisher with provider-configured options
+func (p *BaseProvider) NewPublisher() *BasePublisher {
+	return NewBasePublisher(p.basePublisherOpts...)
 }
 
 // Metadata returns the provider metadata
@@ -193,28 +201,51 @@ func (p *BaseProvider) Preprocess(newDestination *models.Destination, originalDe
 type HTTPClientConfig struct {
 	Timeout   *time.Duration
 	UserAgent *string
+	ProxyURL  *string
 }
 
-func (p *BaseProvider) MakeHTTPClient(config HTTPClientConfig) *http.Client {
+func (p *BaseProvider) MakeHTTPClient(config HTTPClientConfig) (*http.Client, error) {
 	client := &http.Client{}
 
 	if config.Timeout != nil {
 		client.Timeout = *config.Timeout
 	}
 
-	if config.UserAgent != nil {
-		client.Transport = roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-			req.Header.Set("User-Agent", *config.UserAgent)
-			return http.DefaultTransport.RoundTrip(req)
-		})
+	// Configure transport with proxy and/or user agent if needed
+	if config.ProxyURL != nil || config.UserAgent != nil {
+		// Start with default transport settings
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+
+		// Configure proxy if provided
+		if config.ProxyURL != nil && *config.ProxyURL != "" {
+			proxyURLParsed, err := url.Parse(*config.ProxyURL)
+			if err != nil {
+				return nil, fmt.Errorf("invalid proxy URL: %w", err)
+			}
+			transport.Proxy = http.ProxyURL(proxyURLParsed)
+		}
+
+		// Wrap transport with user agent if needed
+		if config.UserAgent != nil {
+			client.Transport = &userAgentTransport{
+				userAgent: *config.UserAgent,
+				transport: transport,
+			}
+		} else {
+			client.Transport = transport
+		}
 	}
 
-	return client
+	return client, nil
 }
 
-// Helper type for custom RoundTripper
-type roundTripperFunc func(*http.Request) (*http.Response, error)
+// userAgentTransport wraps an http.RoundTripper to inject a User-Agent header
+type userAgentTransport struct {
+	userAgent string
+	transport http.RoundTripper
+}
 
-func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req)
+func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("User-Agent", t.userAgent)
+	return t.transport.RoundTrip(req)
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawss3"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/stretchr/testify/assert"
@@ -30,6 +31,7 @@ func TestAWSS3Publisher_Format_DefaultTemplate(t *testing.T) {
 
 	// Use default template
 	publisher := destawss3.NewAWSS3Publisher(
+		destregistry.NewBasePublisher(),
 		nil,
 		"my-bucket",
 		`join('', [time.rfc3339_nano, '_', metadata."event-id", '.json'])`,
@@ -70,6 +72,7 @@ func TestAWSS3Publisher_Format_DatePartitionTemplate(t *testing.T) {
 	// Use date partitioning template
 	template := `join('/', ['year=', time.year, 'month=', time.month, 'day=', time.day, metadata."event-id", '.json'])`
 	publisher := destawss3.NewAWSS3Publisher(
+		destregistry.NewBasePublisher(),
 		nil,
 		"my-bucket",
 		template,
@@ -94,6 +97,7 @@ func TestAWSS3Publisher_Format_TopicBasedTemplate(t *testing.T) {
 	// Use topic-based organization
 	template := `join('/', [metadata.topic, time.date, metadata."event-id"])`
 	publisher := destawss3.NewAWSS3Publisher(
+		destregistry.NewBasePublisher(),
 		nil,
 		"my-bucket",
 		template,
@@ -120,6 +124,7 @@ func TestAWSS3Publisher_Format_DataFieldTemplate(t *testing.T) {
 	// Use data fields in template
 	template := `join('/', ['users', data.user_id, 'actions', data.action, metadata."event-id"])`
 	publisher := destawss3.NewAWSS3Publisher(
+		destregistry.NewBasePublisher(),
 		nil,
 		"my-bucket",
 		template,
@@ -153,6 +158,7 @@ func TestAWSS3Publisher_Format_ComplexTemplate(t *testing.T) {
 	// Complex template with multiple fields
 	template := `join('/', [metadata.env, metadata.region, time.year, time.month, metadata.topic, data.customer_id, join('_', [data.order_id, time.unix])])`
 	publisher := destawss3.NewAWSS3Publisher(
+		destregistry.NewBasePublisher(),
 		nil,
 		"my-bucket",
 		template,
@@ -169,6 +175,7 @@ func TestAWSS3Publisher_Format_InvalidTemplate(t *testing.T) {
 	// This should panic since the template is invalid
 	assert.Panics(t, func() {
 		destawss3.NewAWSS3Publisher(
+			destregistry.NewBasePublisher(),
 			nil,
 			"my-bucket",
 			"invalid[template",
@@ -187,6 +194,7 @@ func TestAWSS3Publisher_Format_NilResult(t *testing.T) {
 	// Template that accesses non-existent field
 	template := `data.nonexistent`
 	publisher := destawss3.NewAWSS3Publisher(
+		destregistry.NewBasePublisher(),
 		nil,
 		"my-bucket",
 		template,
@@ -210,6 +218,7 @@ func TestAWSS3Publisher_Format_EmptyResult(t *testing.T) {
 	// Template that returns empty string
 	template := `data.empty`
 	publisher := destawss3.NewAWSS3Publisher(
+		destregistry.NewBasePublisher(),
 		nil,
 		"my-bucket",
 		template,
@@ -233,6 +242,7 @@ func TestAWSS3Publisher_Format_NumericResult(t *testing.T) {
 	// Template that returns a number
 	template := `data.count`
 	publisher := destawss3.NewAWSS3Publisher(
+		destregistry.NewBasePublisher(),
 		nil,
 		"my-bucket",
 		template,
@@ -256,6 +266,7 @@ func TestAWSS3Publisher_Format_BooleanResult(t *testing.T) {
 	// Template that returns a boolean
 	template := `data.active`
 	publisher := destawss3.NewAWSS3Publisher(
+		destregistry.NewBasePublisher(),
 		nil,
 		"my-bucket",
 		template,
@@ -296,6 +307,7 @@ func TestAWSS3Publisher_Format_TimeFields(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			publisher := destawss3.NewAWSS3Publisher(
+				destregistry.NewBasePublisher(),
 				nil,
 				"my-bucket",
 				tt.template,
@@ -311,6 +323,7 @@ func TestAWSS3Publisher_Format_TimeFields(t *testing.T) {
 
 func TestAWSS3Publisher_Format_InvalidStorageClass(t *testing.T) {
 	publisher := destawss3.NewAWSS3Publisher(
+		destregistry.NewBasePublisher(),
 		nil,
 		"my-bucket",
 		`metadata."event-id"`,
@@ -419,6 +432,7 @@ func TestAWSS3Publisher_Format_LegacyPatterns(t *testing.T) {
 			t.Logf("Old config: %s", tt.oldConfig)
 
 			publisher := destawss3.NewAWSS3Publisher(
+				destregistry.NewBasePublisher(),
 				nil,
 				"my-bucket",
 				tt.template,

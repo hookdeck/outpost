@@ -122,7 +122,7 @@ func TestWebhookDestination_SignatureOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dest, err := destwebhook.New(testutil.Registry.MetadataLoader(), tt.opts...)
+			dest, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil, tt.opts...)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.wantEncoding, dest.GetSignatureEncoding())
 			assert.Equal(t, tt.wantAlgorithm, dest.GetSignatureAlgorithm())

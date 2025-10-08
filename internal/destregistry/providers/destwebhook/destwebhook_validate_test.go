@@ -27,7 +27,7 @@ func TestWebhookDestination_Validate(t *testing.T) {
 		}),
 	)
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestWebhookDestination_ValidateSecrets(t *testing.T) {
 		}),
 	)
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
@@ -139,7 +139,7 @@ func TestWebhookDestination_ValidateSecrets(t *testing.T) {
 func TestWebhookDestination_ComputeTarget(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	t.Run("should return url as target", func(t *testing.T) {
@@ -158,7 +158,7 @@ func TestWebhookDestination_ComputeTarget(t *testing.T) {
 func TestWebhookDestination_Preprocess(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader())
+	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	t.Run("should generate default secret if not provided", func(t *testing.T) {

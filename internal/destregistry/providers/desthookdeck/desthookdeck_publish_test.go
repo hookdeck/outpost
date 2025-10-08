@@ -205,6 +205,7 @@ func (s *HookdeckPublishSuite) SetupSuite() {
 	// Create provider with the custom HTTP client
 	provider, err := desthookdeck.New(
 		testutil.Registry.MetadataLoader(),
+		nil,
 		desthookdeck.WithHTTPClient(customClient),
 	)
 	require.NoError(s.T(), err)
@@ -261,6 +262,7 @@ func TestHookdeckProvider_WithClientOption(t *testing.T) {
 	// Create a provider with the custom client
 	provider, err := desthookdeck.New(
 		testutil.Registry.MetadataLoader(),
+		nil,
 		desthookdeck.WithHTTPClient(customClient),
 	)
 	require.NoError(t, err)

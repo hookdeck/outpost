@@ -326,7 +326,7 @@ func (s *AWSKinesisSuite) SetupSuite() {
 	require.NoError(t, err)
 
 	// Create provider
-	provider, err := destawskinesis.New(testutil.Registry.MetadataLoader())
+	provider, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	// Create destination with partition key template

@@ -109,9 +109,15 @@ Migrates Redis keys from legacy format to hash-tagged format for Redis Cluster c
 **Purpose:** Ensures all keys for a tenant are routed to the same Redis Cluster node by using hash tags.
 
 **Key Transformations:**
-- `tenant:<id>:*` → `{tenant:<id>}:*`
-- `destination_summary:<tenant>:<dest>` → `{tenant:<tenant>}:destination_summary:<dest>`
-- Individual destination keys are properly hash-tagged by tenant
+- `tenant:123` → `tenant:{123}:tenant`
+- `tenant:123:destinations` → `tenant:{123}:destinations`
+- `tenant:123:destination:abc` → `tenant:{123}:destination:abc`
+
+**Deployment Mode Note:** If you are using `DEPLOYMENT_ID` configuration, this migration is **not needed**. Deployment-scoped keys already include hash tags:
+- `dp_001:tenant:{123}:tenant` (already has hash tags)
+- `dp_001:tenant:{123}:destinations` (already has hash tags)
+
+See [001_hash_tags/README.md](./migration/001_hash_tags/README.md) for details.
 
 **Safety:** This migration preserves original keys. Use the cleanup command after verification to remove old keys.
 

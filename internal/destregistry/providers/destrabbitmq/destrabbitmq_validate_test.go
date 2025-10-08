@@ -28,7 +28,7 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		}),
 	)
 
-	rabbitmqDestination, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
+	rabbitmqDestination, err := destrabbitmq.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
@@ -186,7 +186,7 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 func TestRabbitMQDestination_ComputeTarget(t *testing.T) {
 	t.Parallel()
 
-	rabbitmqDestination, err := destrabbitmq.New(testutil.Registry.MetadataLoader())
+	rabbitmqDestination, err := destrabbitmq.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	t.Run("should return 'exchange -> *' as target for destination with all topics", func(t *testing.T) {

@@ -29,7 +29,7 @@ func TestAWSKinesisDestination_Validate(t *testing.T) {
 		}),
 	)
 
-	awsKinesisDestination, err := destawskinesis.New(testutil.Registry.MetadataLoader())
+	awsKinesisDestination, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
@@ -122,7 +122,7 @@ func TestAWSKinesisDestination_Validate(t *testing.T) {
 func TestAWSKinesisDestination_ComputeTarget(t *testing.T) {
 	t.Parallel()
 
-	awsKinesisDestination, err := destawskinesis.New(testutil.Registry.MetadataLoader())
+	awsKinesisDestination, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	t.Run("should return stream and region as target", func(t *testing.T) {

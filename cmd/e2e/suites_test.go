@@ -126,6 +126,7 @@ type basicSuite struct {
 	e2eSuite
 	logStorageType configs.LogStorageType
 	redisConfig    *redis.RedisConfig // Optional Redis config override
+	deploymentID   string             // Optional deployment ID
 	alertServer    *alert.AlertMockServer
 }
 
@@ -143,8 +144,9 @@ func (suite *basicSuite) SetupSuite() {
 
 	// Configure alert callback URL
 	cfg := configs.Basic(t, configs.BasicOpts{
-		LogStorage:  suite.logStorageType,
-		RedisConfig: suite.redisConfig,
+		LogStorage:   suite.logStorageType,
+		RedisConfig:  suite.redisConfig,
+		DeploymentID: suite.deploymentID,
 	})
 	cfg.Alert.CallbackURL = alertServer.GetCallbackURL()
 
@@ -202,5 +204,17 @@ func TestRedisClusterBasicSuite(t *testing.T) {
 	suite.Run(t, &basicSuite{
 		logStorageType: configs.LogStorageTypePostgres,
 		redisConfig:    redisConfig,
+	})
+}
+
+func TestBasicSuiteWithDeploymentID(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypePostgres,
+		deploymentID:   "dp_e2e_test",
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"regexp"
 )
 
 // Validate checks if the configuration is valid
@@ -33,6 +34,10 @@ func (c *Config) Validate(flags Flags) error {
 	}
 
 	if err := c.validatePortal(); err != nil {
+		return err
+	}
+
+	if err := c.validateDeploymentID(); err != nil {
 		return err
 	}
 
@@ -134,5 +139,31 @@ func (c *Config) validatePortal() error {
 			return ErrInvalidPortalProxyURL
 		}
 	}
+	return nil
+}
+
+// validateDeploymentID validates the deployment ID format
+// Empty string is allowed (optional field)
+// If provided, must contain only alphanumeric characters, hyphens, and underscores
+// Maximum length is 64 characters to prevent excessive key sizes
+func (c *Config) validateDeploymentID() error {
+	if c.DeploymentID == "" {
+		return nil
+	}
+
+	// Check length
+	if len(c.DeploymentID) > 64 {
+		return ErrInvalidDeploymentID
+	}
+
+	// Check format: alphanumeric, hyphens, and underscores only
+	matched, err := regexp.MatchString(`^[a-zA-Z0-9_-]+$`, c.DeploymentID)
+	if err != nil {
+		return fmt.Errorf("failed to validate deployment_id: %w", err)
+	}
+	if !matched {
+		return ErrInvalidDeploymentID
+	}
+
 	return nil
 }

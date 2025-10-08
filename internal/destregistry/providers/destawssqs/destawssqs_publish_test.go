@@ -128,7 +128,7 @@ func (s *AWSSQSSuite) SetupSuite() {
 	s.consumer = NewSQSConsumer(sqsClient, queueURL)
 
 	// Create provider
-	provider, err := destawssqs.New(testutil.Registry.MetadataLoader())
+	provider, err := destawssqs.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
 
 	// Create destination

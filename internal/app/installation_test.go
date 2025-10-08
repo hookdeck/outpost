@@ -17,7 +17,7 @@ func TestGetInstallationAtomic(t *testing.T) {
 
 	ctx := context.Background()
 	redisConfig := testutil.CreateTestRedisConfig(t)
-	redisClient, err := redis.NewClient(ctx, redisConfig)
+	redisClient, err := redis.New(ctx, redisConfig)
 	require.NoError(t, err)
 
 	// Clear any existing installation ID
@@ -51,7 +51,7 @@ func TestGetInstallationConcurrency(t *testing.T) {
 	// This test simulates concurrent access to verify atomicity
 	ctx := context.Background()
 	redisConfig := testutil.CreateTestRedisConfig(t)
-	redisClient, err := redis.NewClient(ctx, redisConfig)
+	redisClient, err := redis.New(ctx, redisConfig)
 	require.NoError(t, err)
 
 	// Clear any existing installation ID
