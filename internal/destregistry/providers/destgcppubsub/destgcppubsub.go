@@ -74,7 +74,7 @@ func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination 
 	// Create the client
 	client, err := pubsub.NewClient(ctx, cfg.ProjectID, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create pubsub client: %w", err)
+		return nil, fmt.Errorf("failed to create Pub/Sub client: %w", err)
 	}
 
 	// Get the topic
