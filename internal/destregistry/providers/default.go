@@ -102,8 +102,7 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("aws_s3", awsS3)
 
-	// TODO: should basePublisherOpts be passed here?
-	gcpPubSub, err := destgcppubsub.New(loader)
+	gcpPubSub, err := destgcppubsub.New(loader, basePublisherOpts)
 	if err != nil {
 		return err
 	}
