@@ -28,7 +28,7 @@ cat ./gcppubsub-credentials.json | jq -c '.'
 
 For the Outpost destination config:
 - project_id: "outpost-pubsub-test"
-- topic: "outpost-test-topic"
+- topic: "outpost-destination-test"
 - service_account_json: (paste the JSON content from step 6)
 
 To verify messages:
