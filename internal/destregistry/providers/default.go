@@ -9,9 +9,11 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/desthookdeck"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhookstandard"
 )
 
 type DestWebhookConfig struct {
+	Mode                          string
 	ProxyURL                      string
 	HeaderPrefix                  string
 	DisableDefaultEventIDHeader   bool
@@ -47,28 +49,47 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		basePublisherOpts = append(basePublisherOpts, destregistry.WithMillisecondTimestamp(opts.IncludeMillisecondTimestamp))
 	}
 
-	webhookOpts := []destwebhook.Option{
-		destwebhook.WithUserAgent(opts.UserAgent),
+	// Register webhook provider based on mode
+	if opts.Webhook != nil && opts.Webhook.Mode == "standard" {
+		// Standard Webhooks mode - register webhook_standard as "webhook"
+		webhookStandardOpts := []destwebhookstandard.Option{
+			destwebhookstandard.WithUserAgent(opts.UserAgent),
+		}
+		if opts.Webhook.ProxyURL != "" {
+			webhookStandardOpts = append(webhookStandardOpts,
+				destwebhookstandard.WithProxyURL(opts.Webhook.ProxyURL),
+			)
+		}
+		webhookStandard, err := destwebhookstandard.New(loader, basePublisherOpts, webhookStandardOpts...)
+		if err != nil {
+			return err
+		}
+		registry.RegisterProvider("webhook", webhookStandard)
+	} else {
+		// Default mode - register customizable webhook as "webhook"
+		webhookOpts := []destwebhook.Option{
+			destwebhook.WithUserAgent(opts.UserAgent),
+		}
+		if opts.Webhook != nil {
+			webhookOpts = append(webhookOpts,
+				destwebhook.WithProxyURL(opts.Webhook.ProxyURL),
+				destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
+				destwebhook.WithDisableDefaultEventIDHeader(opts.Webhook.DisableDefaultEventIDHeader),
+				destwebhook.WithDisableDefaultSignatureHeader(opts.Webhook.DisableDefaultSignatureHeader),
+				destwebhook.WithDisableDefaultTimestampHeader(opts.Webhook.DisableDefaultTimestampHeader),
+				destwebhook.WithDisableDefaultTopicHeader(opts.Webhook.DisableDefaultTopicHeader),
+				destwebhook.WithSignatureContentTemplate(opts.Webhook.SignatureContentTemplate),
+				destwebhook.WithSignatureHeaderTemplate(opts.Webhook.SignatureHeaderTemplate),
+				destwebhook.WithSignatureEncoding(opts.Webhook.SignatureEncoding),
+				destwebhook.WithSignatureAlgorithm(opts.Webhook.SignatureAlgorithm),
+			)
+		}
+		webhook, err := destwebhook.New(loader, basePublisherOpts, webhookOpts...)
+		if err != nil {
+			return err
+		}
+		registry.RegisterProvider("webhook", webhook)
 	}
-	if opts.Webhook != nil {
-		webhookOpts = append(webhookOpts,
-			destwebhook.WithProxyURL(opts.Webhook.ProxyURL),
-			destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
-			destwebhook.WithDisableDefaultEventIDHeader(opts.Webhook.DisableDefaultEventIDHeader),
-			destwebhook.WithDisableDefaultSignatureHeader(opts.Webhook.DisableDefaultSignatureHeader),
-			destwebhook.WithDisableDefaultTimestampHeader(opts.Webhook.DisableDefaultTimestampHeader),
-			destwebhook.WithDisableDefaultTopicHeader(opts.Webhook.DisableDefaultTopicHeader),
-			destwebhook.WithSignatureContentTemplate(opts.Webhook.SignatureContentTemplate),
-			destwebhook.WithSignatureHeaderTemplate(opts.Webhook.SignatureHeaderTemplate),
-			destwebhook.WithSignatureEncoding(opts.Webhook.SignatureEncoding),
-			destwebhook.WithSignatureAlgorithm(opts.Webhook.SignatureAlgorithm),
-		)
-	}
-	webhook, err := destwebhook.New(loader, basePublisherOpts, webhookOpts...)
-	if err != nil {
-		return err
-	}
-	registry.RegisterProvider("webhook", webhook)
 
 	hookdeck, err := desthookdeck.New(loader, basePublisherOpts,
 		desthookdeck.WithUserAgent(opts.UserAgent))
