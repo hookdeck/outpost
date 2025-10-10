@@ -41,6 +41,17 @@ func TestNew(t *testing.T) {
 		assert.NotNil(t, provider)
 	})
 
+	t.Run("creates provider with header prefix option", func(t *testing.T) {
+		t.Parallel()
+		provider, err := destwebhookstandard.New(
+			testutil.Registry.MetadataLoader(),
+			nil,
+			destwebhookstandard.WithHeaderPrefix("x-custom-"),
+		)
+		require.NoError(t, err)
+		assert.NotNil(t, provider)
+	})
+
 	t.Run("creates provider with multiple options", func(t *testing.T) {
 		t.Parallel()
 		provider, err := destwebhookstandard.New(
@@ -48,6 +59,7 @@ func TestNew(t *testing.T) {
 			nil,
 			destwebhookstandard.WithUserAgent("test-agent"),
 			destwebhookstandard.WithProxyURL("http://proxy.example.com"),
+			destwebhookstandard.WithHeaderPrefix("x-outpost-"),
 		)
 		require.NoError(t, err)
 		assert.NotNil(t, provider)

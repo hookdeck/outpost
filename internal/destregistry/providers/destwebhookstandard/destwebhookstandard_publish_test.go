@@ -78,6 +78,7 @@ func (c *StandardWebhookConsumer) Close() error {
 type StandardWebhookAsserter struct {
 	secret             string
 	expectedSignatures int
+	headerPrefix       string // Defaults to "webhook-"
 }
 
 func (a *StandardWebhookAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Message, event models.Event) {
@@ -87,17 +88,23 @@ func (a *StandardWebhookAsserter) AssertMessage(t testsuite.TestingT, msg testsu
 	assert.Equal(t, "POST", req.Method)
 	assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
 
-	// Verify Standard Webhooks headers
-	webhookID := req.Header.Get("webhook-id")
-	assert.NotEmpty(t, webhookID, "webhook-id should be present")
+	// Use configured prefix or default to "webhook-"
+	prefix := a.headerPrefix
+	if prefix == "" {
+		prefix = "webhook-"
+	}
+
+	// Verify Standard Webhooks headers with configured prefix
+	webhookID := req.Header.Get(prefix + "id")
+	assert.NotEmpty(t, webhookID, prefix+"id should be present")
 	// Note: webhook-id format depends on event.ID format (user-provided)
 
-	webhookTimestamp := req.Header.Get("webhook-timestamp")
-	assert.NotEmpty(t, webhookTimestamp, "webhook-timestamp should be present")
+	webhookTimestamp := req.Header.Get(prefix + "timestamp")
+	assert.NotEmpty(t, webhookTimestamp, prefix+"timestamp should be present")
 	testsuite.AssertTimestampIsUnixSeconds(t, webhookTimestamp)
 
-	webhookSignature := req.Header.Get("webhook-signature")
-	assert.NotEmpty(t, webhookSignature, "webhook-signature should be present")
+	webhookSignature := req.Header.Get(prefix + "signature")
+	assert.NotEmpty(t, webhookSignature, prefix+"signature should be present")
 
 	// Verify signature format and count
 	assertSignatureFormat(t, webhookSignature, a.expectedSignatures)
@@ -343,6 +350,66 @@ func TestStandardWebhookPublisher_MessageIDFormat(t *testing.T) {
 		assert.NotEmpty(t, webhookID)
 		assert.Equal(t, event.ID, webhookID)
 		assert.True(t, strings.HasPrefix(webhookID, "msg_"), "webhook-id should have msg_ prefix, got: %s", webhookID)
+
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for message")
+	}
+}
+
+func TestStandardWebhookPublisher_CustomHeaderPrefix(t *testing.T) {
+	t.Parallel()
+
+	consumer := NewStandardWebhookConsumer()
+	defer consumer.Close()
+
+	// Create provider with custom header prefix
+	provider, err := destwebhookstandard.New(
+		testutil.Registry.MetadataLoader(),
+		nil,
+		destwebhookstandard.WithHeaderPrefix("x-custom-"),
+	)
+	require.NoError(t, err)
+
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": consumer.server.URL + "/webhook",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+		}),
+	)
+
+	publisher, err := provider.CreatePublisher(context.Background(), &dest)
+	require.NoError(t, err)
+	defer publisher.Close()
+
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithID("msg_2KWPBgLlAfxdpx2AI54pPJ85f4W"),
+		testutil.EventFactory.WithData(map[string]interface{}{"test": "data"}),
+		testutil.EventFactory.WithTopic("user.created"),
+	)
+
+	_, err = publisher.Publish(context.Background(), &event)
+	require.NoError(t, err)
+
+	// Get the message
+	select {
+	case msg := <-consumer.Consume():
+		req := msg.Raw.(*http.Request)
+
+		// Verify ALL headers use custom prefix (including Standard Webhooks headers)
+		assert.NotEmpty(t, req.Header.Get("x-custom-id"), "should have x-custom-id header")
+		assert.NotEmpty(t, req.Header.Get("x-custom-timestamp"), "should have x-custom-timestamp header")
+		assert.NotEmpty(t, req.Header.Get("x-custom-signature"), "should have x-custom-signature header")
+		assert.NotEmpty(t, req.Header.Get("x-custom-topic"), "should have x-custom-topic header")
+		assert.Equal(t, "user.created", req.Header.Get("x-custom-topic"))
+
+		// Verify default prefix is NOT used
+		assert.Empty(t, req.Header.Get("webhook-id"), "should not have webhook-id header")
+		assert.Empty(t, req.Header.Get("webhook-timestamp"), "should not have webhook-timestamp header")
+		assert.Empty(t, req.Header.Get("webhook-signature"), "should not have webhook-signature header")
+		assert.Empty(t, req.Header.Get("webhook-topic"), "should not have webhook-topic header")
 
 	case <-time.After(5 * time.Second):
 		t.Fatal("timeout waiting for message")

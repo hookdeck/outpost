@@ -12,7 +12,10 @@ signature management infrastructure (SignatureManager). The key differences are:
 
 2. Header Names:
    - destwebhook: Customizable via templates
-   - destwebhookstandard: Fixed "webhook-id", "webhook-timestamp", "webhook-signature"
+   - destwebhookstandard: Uses configurable prefix for all headers: "id", "timestamp", "signature",
+                          and metadata headers (topic, etc.)
+   - Prefix defaults to "webhook-" in standard mode, "x-outpost-" in default mode
+   - Examples: "webhook-id", "webhook-timestamp" OR "x-custom-id", "x-custom-timestamp"
 
 3. Signature Format:
    - destwebhook: Customizable template
@@ -65,8 +68,9 @@ import (
 
 type StandardWebhookDestination struct {
 	*destregistry.BaseProvider
-	userAgent string
-	proxyURL  string
+	userAgent    string
+	proxyURL     string
+	headerPrefix string // Prefix for metadata headers (defaults to "webhook-")
 }
 
 type StandardWebhookDestinationConfig struct {
@@ -94,7 +98,18 @@ func WithUserAgent(userAgent string) Option {
 // WithProxyURL sets the proxy URL for the webhook request
 func WithProxyURL(proxyURL string) Option {
 	return func(d *StandardWebhookDestination) {
-		d.proxyURL = proxyURL
+		if proxyURL != "" {
+			d.proxyURL = proxyURL
+		}
+	}
+}
+
+// WithHeaderPrefix sets the prefix for metadata headers (defaults to "webhook-")
+func WithHeaderPrefix(prefix string) Option {
+	return func(d *StandardWebhookDestination) {
+		if prefix != "" {
+			d.headerPrefix = prefix
+		}
 	}
 }
 
@@ -105,6 +120,7 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	}
 	destination := &StandardWebhookDestination{
 		BaseProvider: base,
+		headerPrefix: "webhook-", // Default to Standard Webhooks spec
 	}
 	for _, opt := range opts {
 		opt(destination)
@@ -212,6 +228,7 @@ func (d *StandardWebhookDestination) CreatePublisher(ctx context.Context, destin
 		url:           config.URL,
 		secrets:       secrets,
 		sm:            sm,
+		headerPrefix:  d.headerPrefix,
 	}, nil
 }
 
@@ -483,10 +500,11 @@ func (d *StandardWebhookDestination) Preprocess(newDestination *models.Destinati
 
 type StandardWebhookPublisher struct {
 	*destregistry.BasePublisher
-	httpClient *http.Client
-	url        string
-	secrets    []destwebhook.WebhookSecret
-	sm         *destwebhook.SignatureManager
+	httpClient   *http.Client
+	url          string
+	secrets      []destwebhook.WebhookSecret
+	sm           *destwebhook.SignatureManager
+	headerPrefix string
 }
 
 func (p *StandardWebhookPublisher) Close() error {
@@ -559,9 +577,9 @@ func (p *StandardWebhookPublisher) Format(ctx context.Context, event *models.Eve
 	// TODO: Support configurable ID generator/template (e.g., "msg_" prefix)
 	messageID := event.ID
 
-	// Set Standard Webhooks headers
-	req.Header.Set("webhook-id", messageID)
-	req.Header.Set("webhook-timestamp", strconv.FormatInt(now.Unix(), 10))
+	// Set Standard Webhooks headers with configurable prefix
+	req.Header.Set(p.headerPrefix+"id", messageID)
+	req.Header.Set(p.headerPrefix+"timestamp", strconv.FormatInt(now.Unix(), 10))
 
 	// Generate and set signature header
 	signatureHeader := p.sm.GenerateSignatureHeader(destwebhook.SignaturePayload{
@@ -571,7 +589,7 @@ func (p *StandardWebhookPublisher) Format(ctx context.Context, event *models.Eve
 		Body:      string(rawBody),
 	})
 	if signatureHeader != "" {
-		req.Header.Set("webhook-signature", signatureHeader)
+		req.Header.Set(p.headerPrefix+"signature", signatureHeader)
 	}
 
 	// Add event metadata as custom headers
@@ -583,8 +601,8 @@ func (p *StandardWebhookPublisher) Format(ctx context.Context, event *models.Eve
 		if key == "event-id" || key == "timestamp" {
 			continue
 		}
-		// Add with webhook- prefix to be consistent with Standard Webhooks naming
-		req.Header.Set("webhook-"+key, value)
+		// Add with configured prefix (defaults to "webhook-")
+		req.Header.Set(p.headerPrefix+key, value)
 	}
 
 	// Also add custom event metadata without prefix (user-defined metadata)

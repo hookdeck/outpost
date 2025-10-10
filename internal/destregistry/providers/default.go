@@ -54,11 +54,8 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		// Standard Webhooks mode - register webhook_standard as "webhook"
 		webhookStandardOpts := []destwebhookstandard.Option{
 			destwebhookstandard.WithUserAgent(opts.UserAgent),
-		}
-		if opts.Webhook.ProxyURL != "" {
-			webhookStandardOpts = append(webhookStandardOpts,
-				destwebhookstandard.WithProxyURL(opts.Webhook.ProxyURL),
-			)
+			destwebhookstandard.WithProxyURL(opts.Webhook.ProxyURL),
+			destwebhookstandard.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
 		}
 		webhookStandard, err := destwebhookstandard.New(loader, basePublisherOpts, webhookStandardOpts...)
 		if err != nil {
