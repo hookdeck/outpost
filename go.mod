@@ -42,6 +42,7 @@ require (
 	github.com/redis/go-redis/v9 v9.6.1
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.1
 	github.com/spf13/viper v1.19.0
+	github.com/standard-webhooks/standard-webhooks/libraries v0.0.0-20250711233419-a173a6c0125c
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.36.0
 	github.com/testcontainers/testcontainers-go/modules/clickhouse v0.33.0
