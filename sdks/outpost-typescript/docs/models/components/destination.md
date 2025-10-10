@@ -155,3 +155,26 @@ const value: components.DestinationAwss3 = {
 };
 ```
 
+### `components.DestinationGCPPubSub`
+
+```typescript
+const value: components.DestinationGCPPubSub = {
+  id: "des_gcp_pubsub_123",
+  type: "gcp_pubsub",
+  topics: [
+    "order.created",
+    "order.updated",
+  ],
+  disabledAt: null,
+  createdAt: new Date("2024-03-10T14:30:00Z"),
+  config: {
+    projectId: "my-project-123",
+    topic: "events-topic",
+  },
+  credentials: {
+    serviceAccountJson:
+      "{\"type\":\"service_account\",\"project_id\":\"my-project-123\",...}",
+  },
+};
+```
+
