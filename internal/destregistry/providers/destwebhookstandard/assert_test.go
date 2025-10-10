@@ -5,18 +5,34 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"net/http"
 	"strings"
 
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
+	standardwebhooks "github.com/standard-webhooks/standard-webhooks/libraries/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // assertValidStandardWebhookSignature verifies a Standard Webhooks signature
+// using both our manual verification AND the official Standard Webhooks SDK
 func assertValidStandardWebhookSignature(t testsuite.TestingT, secret, msgID, timestamp string, body []byte, signatureHeader string) {
 	t.Helper()
 
-	// Parse whsec_ secret
+	// First, verify using the official Standard Webhooks SDK
+	// This ensures our implementation is compatible with the official library
+	wh, err := standardwebhooks.NewWebhook(secret)
+	require.NoError(t, err, "failed to create webhook verifier with official SDK")
+
+	headers := http.Header{}
+	headers.Set("webhook-id", msgID)
+	headers.Set("webhook-timestamp", timestamp)
+	headers.Set("webhook-signature", signatureHeader)
+
+	err = wh.Verify(body, headers)
+	assert.NoError(t, err, "official Standard Webhooks SDK should verify our signature")
+
+	// Also verify manually to ensure we understand the signature format
 	encodedPart := strings.TrimPrefix(secret, "whsec_")
 	decodedSecret, err := base64.StdEncoding.DecodeString(encodedPart)
 	require.NoError(t, err, "secret should decode successfully")
@@ -40,7 +56,7 @@ func assertValidStandardWebhookSignature(t testsuite.TestingT, secret, msgID, ti
 		}
 	}
 
-	assert.True(t, found, "no valid signature found in header")
+	assert.True(t, found, "no valid signature found in header (manual verification)")
 }
 
 // assertSignatureFormat verifies the signature header format
