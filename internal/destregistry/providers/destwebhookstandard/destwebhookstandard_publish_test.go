@@ -133,7 +133,7 @@ func (s *StandardWebhookPublishSuite) setupBasicSuite() {
 	require.NoError(s.T(), err)
 
 	dest := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhook_standard"),
+		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": consumer.server.URL + "/webhook",
 		}),
@@ -165,7 +165,7 @@ func (s *StandardWebhookPublishSuite) setupMultipleSecretsSuite() {
 	now := time.Now()
 	invalidAt := now.Add(24 * time.Hour)
 	dest := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhook_standard"),
+		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": consumer.server.URL + "/webhook",
 		}),
@@ -199,7 +199,7 @@ func (s *StandardWebhookPublishSuite) setupExpiredSecretsSuite() {
 	now := time.Now()
 	invalidAt := now.Add(-1 * time.Hour) // Previous secret is already invalid
 	dest := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhook_standard"),
+		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": consumer.server.URL + "/webhook",
 		}),
@@ -261,7 +261,7 @@ func TestStandardWebhookPublisher_SignatureFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	dest := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhook_standard"),
+		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": consumer.server.URL + "/webhook",
 		}),
@@ -312,7 +312,7 @@ func TestStandardWebhookPublisher_MessageIDFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	dest := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhook_standard"),
+		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": consumer.server.URL + "/webhook",
 		}),

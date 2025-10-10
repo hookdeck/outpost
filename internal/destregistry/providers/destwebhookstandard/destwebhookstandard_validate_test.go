@@ -18,7 +18,7 @@ func TestStandardWebhookDestination_Validate(t *testing.T) {
 	t.Parallel()
 
 	validDestination := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhook_standard"),
+		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"url": "https://example.com",
 		}),
@@ -167,7 +167,7 @@ func TestStandardWebhookDestination_ComputeTarget(t *testing.T) {
 	t.Run("should return url as target", func(t *testing.T) {
 		t.Parallel()
 		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com/webhook",
 			}),
@@ -186,7 +186,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 	t.Run("should generate default whsec secret if not provided", func(t *testing.T) {
 		t.Parallel()
 		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com",
 			}),
@@ -205,7 +205,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 	t.Run("should preserve existing secret for admin", func(t *testing.T) {
 		t.Parallel()
 		destination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com",
 			}),
@@ -224,7 +224,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 	t.Run("tenant should not be able to override existing secret", func(t *testing.T) {
 		t.Parallel()
 		originalDestination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com",
 			}),
@@ -234,7 +234,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		newDestination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com/new",
 			}),
@@ -257,7 +257,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 	t.Run("tenant should be able to rotate secret", func(t *testing.T) {
 		t.Parallel()
 		originalDestination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com",
 			}),
@@ -267,7 +267,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		newDestination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com/new",
 			}),
@@ -301,7 +301,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 	t.Run("admin should be able to set previous_secret directly", func(t *testing.T) {
 		t.Parallel()
 		originalDestination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com",
 			}),
@@ -311,7 +311,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		newDestination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com/new",
 			}),
@@ -335,7 +335,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 		t.Parallel()
 		customInvalidAt := time.Now().Add(48 * time.Hour).Format(time.RFC3339)
 		originalDestination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com",
 			}),
@@ -345,7 +345,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		newDestination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com/new",
 			}),
@@ -369,7 +369,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 	t.Run("should set default previous_secret_invalid_at when previous_secret is provided", func(t *testing.T) {
 		t.Parallel()
 		originalDestination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com",
 			}),
@@ -379,7 +379,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		newDestination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com/new",
 			}),
@@ -406,7 +406,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 	t.Run("should remove extra fields from credentials map", func(t *testing.T) {
 		t.Parallel()
 		originalDestination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com",
 			}),
@@ -416,7 +416,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 		)
 
 		newDestination := testutil.DestinationFactory.Any(
-			testutil.DestinationFactory.WithType("webhook_standard"),
+			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
 				"url": "https://example.com/new",
 			}),
