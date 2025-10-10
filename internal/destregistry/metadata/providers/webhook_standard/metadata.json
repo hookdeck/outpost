@@ -1,5 +1,5 @@
 {
-  "type": "webhook_standard",
+  "type": "webhook",
   "config_fields": [
     {
       "key": "url",
