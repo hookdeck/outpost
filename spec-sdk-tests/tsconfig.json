@@ -18,9 +18,16 @@
     "paths": {
       "@/*": ["./*"],
       "@utils/*": ["./utils/*"],
-      "@tests/*": ["./tests/*"]
+      "@tests/*": ["./tests/*"],
+      "@hookdeck/outpost-sdk": ["../../../sdks/outpost-typescript/src/index.ts"],
+      "@hookdeck/outpost-sdk/*": ["../../../sdks/outpost-typescript/src/*"]
     }
   },
-  "include": ["tests/**/*", "utils/**/*", "../../../sdks/outpost-typescript/src/**/*"],
+  "include": [
+    "tests/**/*",
+    "utils/**/*",
+    "factories/**/*",
+    "../../../sdks/outpost-typescript/src/**/*"
+  ],
   "exclude": ["node_modules", "dist"]
 }

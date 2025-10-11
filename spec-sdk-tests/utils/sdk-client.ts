@@ -1,13 +1,9 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
 import { config as loadEnv } from 'dotenv';
+// Import from the built CommonJS distribution
+import { Outpost } from '../../sdks/outpost-typescript/dist/commonjs/index';
 
 // Load environment variables from .env file
 loadEnv();
-
-// Import SDK - using direct path to built CommonJS files
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const SDK = require('../../sdks/outpost-typescript/dist/commonjs/index.js');
-const Outpost = SDK.Outpost;
 
 export interface SdkClientConfig {
   baseURL?: string;
