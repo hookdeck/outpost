@@ -8,7 +8,7 @@ Filter destinations by type(s).
 ### `operations.ListTenantDestinationsTypeEnum1`
 
 ```typescript
-const value: operations.ListTenantDestinationsTypeEnum1 = "hookdeck";
+const value: operations.ListTenantDestinationsTypeEnum1 = "aws_kinesis";
 ```
 
 ### `operations.ListTenantDestinationsTypeEnum2[]`

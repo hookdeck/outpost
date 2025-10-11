@@ -3,6 +3,24 @@
 
 ## Supported Types
 
+### `components.DestinationCreateWebhook`
+
+```typescript
+const value: components.DestinationCreateWebhook = {
+  id: "user-provided-id",
+  type: "webhook",
+  topics: "*",
+  config: {
+    url: "https://example.com/webhooks/user",
+  },
+  credentials: {
+    secret: "whsec_abc123",
+    previousSecret: "whsec_xyz789",
+    previousSecretInvalidAt: new Date("2024-01-02T00:00:00Z"),
+  },
+};
+```
+
 ### `components.DestinationCreateAWSSQS`
 
 ```typescript
@@ -37,6 +55,19 @@ const value: components.DestinationCreateRabbitMQ = {
   credentials: {
     username: "guest",
     password: "guest",
+  },
+};
+```
+
+### `components.DestinationCreateHookdeck`
+
+```typescript
+const value: components.DestinationCreateHookdeck = {
+  id: "user-provided-id",
+  type: "hookdeck",
+  topics: "*",
+  credentials: {
+    token: "hd_token_...",
   },
 };
 ```
@@ -90,7 +121,7 @@ const value: components.DestinationCreateAwss3 = {
     bucket: "my-bucket",
     region: "us-east-1",
     keyTemplate:
-      "join('/', [time.year, time.month, time.day, metadata.`\"event-id\"`, '.json'])",
+      "join('/', [time.year, time.month, time.day, metadata.\"event-id\", '.json'])",
     storageClass: "STANDARD",
   },
   credentials: {
@@ -101,33 +132,21 @@ const value: components.DestinationCreateAwss3 = {
 };
 ```
 
-### `components.DestinationCreateWebhook`
+### `components.DestinationCreateGCPPubSub`
 
 ```typescript
-const value: components.DestinationCreateWebhook = {
+const value: components.DestinationCreateGCPPubSub = {
   id: "user-provided-id",
-  type: "webhook",
+  type: "gcp_pubsub",
   topics: "*",
   config: {
-    url: "https://example.com/webhooks/user",
+    projectId: "my-project-123",
+    topic: "events-topic",
+    endpoint: "pubsub.googleapis.com:443",
   },
   credentials: {
-    secret: "whsec_abc123",
-    previousSecret: "whsec_xyz789",
-    previousSecretInvalidAt: new Date("2024-01-02T00:00:00Z"),
-  },
-};
-```
-
-### `components.DestinationCreateHookdeck`
-
-```typescript
-const value: components.DestinationCreateHookdeck = {
-  id: "user-provided-id",
-  type: "hookdeck",
-  topics: "*",
-  credentials: {
-    token: "hd_token_...",
+    serviceAccountJson:
+      "{\"type\":\"service_account\",\"project_id\":\"my-project\",\"private_key_id\":\"key123\",\"private_key\":\"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n\",\"client_email\":\"my-service@my-project.iam.gserviceaccount.com\"}",
   },
 };
 ```

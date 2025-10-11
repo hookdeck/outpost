@@ -1,12 +1,12 @@
 lockVersion: 2.0.0
 id: edb58086-83b9-45a3-9095-52bf57a11009
 management:
-  docChecksum: f88900fa0dfdee97044181ff0fbb5027
+  docChecksum: 5ba70e6fd5c38bf6938a020a3ee4e211
   docVersion: 0.0.1
-  speakeasyVersion: 1.609.0
-  generationVersion: 2.692.0
-  releaseVersion: 0.4.0
-  configChecksum: 261fce5d39cf94a38cacbbd5e21d37f2
+  speakeasyVersion: 1.636.3
+  generationVersion: 2.723.11
+  releaseVersion: 0.5.1
+  configChecksum: f68ee8655bbd6462d87583a682258f8b
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-typescript
   installationURL: https://gitpkg.now.sh/hookdeck/outpost/sdks/outpost-typescript
@@ -16,11 +16,11 @@ features:
     additionalDependencies: 0.1.0
     additionalProperties: 0.1.1
     constsAndDefaults: 0.1.12
-    core: 3.21.22
+    core: 3.21.26
     defaultEnabledRetries: 0.1.0
     enumUnions: 0.1.0
     envVarSecurityUsage: 0.1.2
-    globalSecurity: 2.82.13
+    globalSecurity: 2.82.14
     globalSecurityCallbacks: 0.1.0
     globalServerURLs: 2.82.5
     globals: 2.82.2
@@ -31,7 +31,7 @@ features:
     responseFormat: 0.2.3
     retries: 2.83.0
     sdkHooks: 0.3.0
-    unions: 2.85.11
+    unions: 2.86.0
 generatedFiles:
   - .gitattributes
   - .npmignore
@@ -66,12 +66,16 @@ generatedFiles:
   - docs/models/components/destinationcreateawssqstype.md
   - docs/models/components/destinationcreateazureservicebus.md
   - docs/models/components/destinationcreateazureservicebustype.md
+  - docs/models/components/destinationcreategcppubsub.md
+  - docs/models/components/destinationcreategcppubsubtype.md
   - docs/models/components/destinationcreatehookdeck.md
   - docs/models/components/destinationcreatehookdecktype.md
   - docs/models/components/destinationcreaterabbitmq.md
   - docs/models/components/destinationcreaterabbitmqtype.md
   - docs/models/components/destinationcreatewebhook.md
   - docs/models/components/destinationcreatewebhooktype.md
+  - docs/models/components/destinationgcppubsub.md
+  - docs/models/components/destinationgcppubsubtype.md
   - docs/models/components/destinationhookdeck.md
   - docs/models/components/destinationhookdecktype.md
   - docs/models/components/destinationrabbitmq.md
@@ -83,12 +87,15 @@ generatedFiles:
   - docs/models/components/destinationupdateawskinesis.md
   - docs/models/components/destinationupdateawss3.md
   - docs/models/components/destinationupdateawssqs.md
+  - docs/models/components/destinationupdategcppubsub.md
   - docs/models/components/destinationupdatehookdeck.md
   - docs/models/components/destinationupdaterabbitmq.md
   - docs/models/components/destinationupdatewebhook.md
   - docs/models/components/destinationwebhook.md
   - docs/models/components/destinationwebhooktype.md
   - docs/models/components/event.md
+  - docs/models/components/gcppubsubconfig.md
+  - docs/models/components/gcppubsubcredentials.md
   - docs/models/components/hookdeckcredentials.md
   - docs/models/components/portalredirect.md
   - docs/models/components/publishrequest.md
@@ -173,7 +180,6 @@ generatedFiles:
   - docs/sdks/destinations/README.md
   - docs/sdks/events/README.md
   - docs/sdks/health/README.md
-  - docs/sdks/outpost/README.md
   - docs/sdks/publish/README.md
   - docs/sdks/schemas/README.md
   - docs/sdks/tenants/README.md
@@ -289,9 +295,11 @@ generatedFiles:
   - src/models/components/destinationcreateawss3.ts
   - src/models/components/destinationcreateawssqs.ts
   - src/models/components/destinationcreateazureservicebus.ts
+  - src/models/components/destinationcreategcppubsub.ts
   - src/models/components/destinationcreatehookdeck.ts
   - src/models/components/destinationcreaterabbitmq.ts
   - src/models/components/destinationcreatewebhook.ts
+  - src/models/components/destinationgcppubsub.ts
   - src/models/components/destinationhookdeck.ts
   - src/models/components/destinationrabbitmq.ts
   - src/models/components/destinationschemafield.ts
@@ -300,11 +308,14 @@ generatedFiles:
   - src/models/components/destinationupdateawskinesis.ts
   - src/models/components/destinationupdateawss3.ts
   - src/models/components/destinationupdateawssqs.ts
+  - src/models/components/destinationupdategcppubsub.ts
   - src/models/components/destinationupdatehookdeck.ts
   - src/models/components/destinationupdaterabbitmq.ts
   - src/models/components/destinationupdatewebhook.ts
   - src/models/components/destinationwebhook.ts
   - src/models/components/event.ts
+  - src/models/components/gcppubsubconfig.ts
+  - src/models/components/gcppubsubcredentials.ts
   - src/models/components/hookdeckcredentials.ts
   - src/models/components/index.ts
   - src/models/components/portalredirect.ts
@@ -654,4 +665,3 @@ examples:
           application/json: {}
 examplesVersion: 1.0.2
 generatedTests: {}
-releaseNotes: "## Typescript SDK Changes Detected:\n* `outpost.events.list()`: \n  *  `request` **Changed**\n  *  `response` **Changed** **Breaking** :warning:\n* `outpost.events.listByDestination()`: \n  *  `request` **Changed**\n  *  `response` **Changed** **Breaking** :warning:\n* `outpost.destinations.list()`: \n  *  `request.type` **Changed**\n  *  `response.[].[awsS3]` **Added**\n* `outpost.destinations.create()`: \n  *  `request.destinationCreate.[awsS3]` **Added**\n  *  `response.[aws_s3]` **Added**\n* `outpost.destinations.get()`:  `response.[aws_s3]` **Added**\n* `outpost.destinations.update()`: \n  *  `request.destinationUpdate.[destinationUpdateAwss3]` **Added**\n  *  `response.[destination].[awsS3]` **Added**\n* `outpost.destinations.enable()`:  `response.[aws_s3]` **Added**\n* `outpost.destinations.disable()`:  `response.[aws_s3]` **Added**\n* `outpost.schemas.get()`: \n  *  `request.type` **Changed**\n* `outpost.schemas.getDestinationTypeJwt()`: \n  *  `request.type` **Changed**\n"

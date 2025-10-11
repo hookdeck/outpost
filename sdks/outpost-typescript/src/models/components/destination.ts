@@ -31,6 +31,12 @@ import {
   DestinationAzureServiceBus$outboundSchema,
 } from "./destinationazureservicebus.js";
 import {
+  DestinationGCPPubSub,
+  DestinationGCPPubSub$inboundSchema,
+  DestinationGCPPubSub$Outbound,
+  DestinationGCPPubSub$outboundSchema,
+} from "./destinationgcppubsub.js";
+import {
   DestinationHookdeck,
   DestinationHookdeck$inboundSchema,
   DestinationHookdeck$Outbound,
@@ -56,6 +62,7 @@ export type Destination =
   | (DestinationAWSKinesis & { type: "aws_kinesis" })
   | (DestinationAzureServiceBus & { type: "azure_servicebus" })
   | (DestinationAwss3 & { type: "aws_s3" })
+  | (DestinationGCPPubSub & { type: "gcp_pubsub" })
   | (DestinationHookdeck & { type: "hookdeck" });
 
 /** @internal */
@@ -94,6 +101,11 @@ export const Destination$inboundSchema: z.ZodType<
       type: v.type,
     })),
   ),
+  DestinationGCPPubSub$inboundSchema.and(
+    z.object({ type: z.literal("gcp_pubsub") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
   DestinationHookdeck$inboundSchema.and(
     z.object({ type: z.literal("hookdeck") }).transform((v) => ({
       type: v.type,
@@ -109,6 +121,7 @@ export type Destination$Outbound =
   | (DestinationAWSKinesis$Outbound & { type: "aws_kinesis" })
   | (DestinationAzureServiceBus$Outbound & { type: "azure_servicebus" })
   | (DestinationAwss3$Outbound & { type: "aws_s3" })
+  | (DestinationGCPPubSub$Outbound & { type: "gcp_pubsub" })
   | (DestinationHookdeck$Outbound & { type: "hookdeck" });
 
 /** @internal */
@@ -144,6 +157,11 @@ export const Destination$outboundSchema: z.ZodType<
   ),
   DestinationAwss3$outboundSchema.and(
     z.object({ type: z.literal("aws_s3") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
+  DestinationGCPPubSub$outboundSchema.and(
+    z.object({ type: z.literal("gcp_pubsub") }).transform((v) => ({
       type: v.type,
     })),
   ),

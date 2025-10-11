@@ -16,7 +16,7 @@ import { Outpost } from "@hookdeck/outpost-sdk";
 const outpost = new Outpost();
 
 async function main() {
-  const result = await outpost.check();
+  const result = await outpost.health.check();
 
   console.log(result);
 }

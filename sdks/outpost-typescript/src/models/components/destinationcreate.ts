@@ -31,6 +31,12 @@ import {
   DestinationCreateAzureServiceBus$outboundSchema,
 } from "./destinationcreateazureservicebus.js";
 import {
+  DestinationCreateGCPPubSub,
+  DestinationCreateGCPPubSub$inboundSchema,
+  DestinationCreateGCPPubSub$Outbound,
+  DestinationCreateGCPPubSub$outboundSchema,
+} from "./destinationcreategcppubsub.js";
+import {
   DestinationCreateHookdeck,
   DestinationCreateHookdeck$inboundSchema,
   DestinationCreateHookdeck$Outbound,
@@ -55,6 +61,7 @@ export type DestinationCreate =
   | (DestinationCreateAWSKinesis & { type: "aws_kinesis" })
   | (DestinationCreateAzureServiceBus & { type: "azure_servicebus" })
   | (DestinationCreateAwss3 & { type: "aws_s3" })
+  | (DestinationCreateGCPPubSub & { type: "gcp_pubsub" })
   | (DestinationCreateWebhook & { type: "webhook" })
   | (DestinationCreateHookdeck & { type: "hookdeck" });
 
@@ -89,6 +96,11 @@ export const DestinationCreate$inboundSchema: z.ZodType<
       type: v.type,
     })),
   ),
+  DestinationCreateGCPPubSub$inboundSchema.and(
+    z.object({ type: z.literal("gcp_pubsub") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
   DestinationCreateWebhook$inboundSchema.and(
     z.object({ type: z.literal("webhook") }).transform((v) => ({
       type: v.type,
@@ -108,6 +120,7 @@ export type DestinationCreate$Outbound =
   | (DestinationCreateAWSKinesis$Outbound & { type: "aws_kinesis" })
   | (DestinationCreateAzureServiceBus$Outbound & { type: "azure_servicebus" })
   | (DestinationCreateAwss3$Outbound & { type: "aws_s3" })
+  | (DestinationCreateGCPPubSub$Outbound & { type: "gcp_pubsub" })
   | (DestinationCreateWebhook$Outbound & { type: "webhook" })
   | (DestinationCreateHookdeck$Outbound & { type: "hookdeck" });
 
@@ -139,6 +152,11 @@ export const DestinationCreate$outboundSchema: z.ZodType<
   ),
   DestinationCreateAwss3$outboundSchema.and(
     z.object({ type: z.literal("aws_s3") }).transform((v) => ({
+      type: v.type,
+    })),
+  ),
+  DestinationCreateGCPPubSub$outboundSchema.and(
+    z.object({ type: z.literal("gcp_pubsub") }).transform((v) => ({
       type: v.type,
     })),
   ),

@@ -1,0 +1,48 @@
+{
+  "name": "@outpost/spec-test",
+  "version": "1.0.0",
+  "description": "OpenAPI contract testing for Outpost using Speakeasy SDK",
+  "private": true,
+  "scripts": {
+    "test": "npm run test:validation",
+    "test:validation": "mocha --require ts-node/register --extensions ts --timeout 10000 'tests/**/*.test.ts'",
+    "test:watch": "mocha --require ts-node/register --extensions ts --watch --watch-files 'tests/**/*.ts' 'tests/**/*.test.ts'",
+    "test:coverage": "nyc npm run test:validation",
+    "lint:spec": "spectral lint ../apis/openapi.yaml",
+    "validate:spec": "swagger-cli validate ../apis/openapi.yaml",
+    "format": "prettier --write 'tests/**/*.ts' 'utils/**/*.ts'",
+    "format:check": "prettier --check 'tests/**/*.ts' 'utils/**/*.ts'",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "openapi",
+    "contract-testing",
+    "speakeasy",
+    "sdk",
+    "api-testing"
+  ],
+  "author": "Outpost Team",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@hookdeck/outpost-sdk": "file:../../../sdks/outpost-typescript"
+  },
+  "devDependencies": {
+    "@stoplight/spectral-cli": "^6.11.0",
+    "@types/chai": "^4.3.11",
+    "@types/chai-as-promised": "^8.0.2",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.10.6",
+    "chai": "^4.4.1",
+    "chai-as-promised": "^8.0.2",
+    "dotenv": "^16.3.1",
+    "mocha": "^10.2.0",
+    "nyc": "^15.1.0",
+    "prettier": "^3.1.1",
+    "swagger-cli": "^4.0.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
