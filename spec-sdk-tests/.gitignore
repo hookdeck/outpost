@@ -28,3 +28,7 @@ npm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Created to automate the creation
+# of GitHub issues from test failures
+.github-issues
