@@ -60,12 +60,15 @@ export function createRabbitMqDestination(
 export function createHookdeckDestination(
   overrides?: Partial<DestinationCreateHookdeck>
 ): DestinationCreateHookdeck {
+  // Create a valid Hookdeck token format: base64 encoded "source_id:signing_key"
+  // This will pass ParseHookdeckToken but fail VerifyHookdeckToken (expected for tests)
+  const validToken = Buffer.from('src_test123:test_signing_key').toString('base64');
+
   return {
     type: 'hookdeck',
     topics: ['*'],
-    config: {},
     credentials: {
-      token: 'hk_12345',
+      token: validToken,
     },
     ...overrides,
   };
