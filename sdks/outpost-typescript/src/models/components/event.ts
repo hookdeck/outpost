@@ -5,8 +5,15 @@
 import * as z from "zod";
 import { remap as remap$ } from "../../lib/primitives.js";
 import { safeParse } from "../../lib/schemas.js";
+import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
+
+export const EventStatus = {
+  Success: "success",
+  Failed: "failed",
+} as const;
+export type EventStatus = ClosedEnum<typeof EventStatus>;
 
 export type Event = {
   id?: string | undefined;
@@ -23,12 +30,32 @@ export type Event = {
   /**
    * Key-value string pairs of metadata associated with the event.
    */
-  metadata?: { [k: string]: string } | undefined;
+  metadata?: { [k: string]: string } | null | undefined;
+  status?: EventStatus | undefined;
   /**
    * Freeform JSON data of the event.
    */
   data?: { [k: string]: any } | undefined;
 };
+
+/** @internal */
+export const EventStatus$inboundSchema: z.ZodNativeEnum<typeof EventStatus> = z
+  .nativeEnum(EventStatus);
+
+/** @internal */
+export const EventStatus$outboundSchema: z.ZodNativeEnum<typeof EventStatus> =
+  EventStatus$inboundSchema;
+
+/**
+ * @internal
+ * @deprecated This namespace will be removed in future versions. Use schemas and types that are exported directly from this module.
+ */
+export namespace EventStatus$ {
+  /** @deprecated use `EventStatus$inboundSchema` instead. */
+  export const inboundSchema = EventStatus$inboundSchema;
+  /** @deprecated use `EventStatus$outboundSchema` instead. */
+  export const outboundSchema = EventStatus$outboundSchema;
+}
 
 /** @internal */
 export const Event$inboundSchema: z.ZodType<Event, z.ZodTypeDef, unknown> = z
@@ -41,7 +68,8 @@ export const Event$inboundSchema: z.ZodType<Event, z.ZodTypeDef, unknown> = z
     successful_at: z.nullable(
       z.string().datetime({ offset: true }).transform(v => new Date(v)),
     ).optional(),
-    metadata: z.record(z.string()).optional(),
+    metadata: z.nullable(z.record(z.string())).optional(),
+    status: EventStatus$inboundSchema.optional(),
     data: z.record(z.any()).optional(),
   }).transform((v) => {
     return remap$(v, {
@@ -57,7 +85,8 @@ export type Event$Outbound = {
   topic?: string | undefined;
   time?: string | undefined;
   successful_at?: string | null | undefined;
-  metadata?: { [k: string]: string } | undefined;
+  metadata?: { [k: string]: string } | null | undefined;
+  status?: string | undefined;
   data?: { [k: string]: any } | undefined;
 };
 
@@ -72,7 +101,8 @@ export const Event$outboundSchema: z.ZodType<
   topic: z.string().optional(),
   time: z.date().transform(v => v.toISOString()).optional(),
   successfulAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
-  metadata: z.record(z.string()).optional(),
+  metadata: z.nullable(z.record(z.string())).optional(),
+  status: EventStatus$outboundSchema.optional(),
   data: z.record(z.any()).optional(),
 }).transform((v) => {
   return remap$(v, {

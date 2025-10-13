@@ -64,10 +64,7 @@ bun add @hookdeck/outpost-sdk
 ### Yarn
 
 ```bash
-yarn add @hookdeck/outpost-sdk zod
-
-# Note that Yarn does not install peer dependencies automatically. You will need
-# to install zod as shown above.
+yarn add @hookdeck/outpost-sdk
 ```
 
 > [!NOTE]
@@ -250,7 +247,6 @@ run();
 ### [health](docs/sdks/health/README.md)
 
 * [check](docs/sdks/health/README.md#check) - Health Check
-
 
 ### [publish](docs/sdks/publish/README.md)
 
@@ -602,7 +598,7 @@ httpClient.addHook("requestError", (error, request) => {
   console.groupEnd();
 });
 
-const sdk = new Outpost({ httpClient });
+const sdk = new Outpost({ httpClient: httpClient });
 ```
 <!-- End Custom HTTP Client [http-client] -->
 

@@ -9,37 +9,39 @@ import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
-export const Status = {
+export const DeliveryAttemptStatus = {
   Success: "success",
   Failed: "failed",
 } as const;
-export type Status = ClosedEnum<typeof Status>;
+export type DeliveryAttemptStatus = ClosedEnum<typeof DeliveryAttemptStatus>;
 
 export type DeliveryAttempt = {
   deliveredAt?: Date | undefined;
-  status?: Status | undefined;
+  status?: DeliveryAttemptStatus | undefined;
   responseStatusCode?: number | undefined;
   responseBody?: string | undefined;
   responseHeaders?: { [k: string]: string } | undefined;
 };
 
 /** @internal */
-export const Status$inboundSchema: z.ZodNativeEnum<typeof Status> = z
-  .nativeEnum(Status);
+export const DeliveryAttemptStatus$inboundSchema: z.ZodNativeEnum<
+  typeof DeliveryAttemptStatus
+> = z.nativeEnum(DeliveryAttemptStatus);
 
 /** @internal */
-export const Status$outboundSchema: z.ZodNativeEnum<typeof Status> =
-  Status$inboundSchema;
+export const DeliveryAttemptStatus$outboundSchema: z.ZodNativeEnum<
+  typeof DeliveryAttemptStatus
+> = DeliveryAttemptStatus$inboundSchema;
 
 /**
  * @internal
  * @deprecated This namespace will be removed in future versions. Use schemas and types that are exported directly from this module.
  */
-export namespace Status$ {
-  /** @deprecated use `Status$inboundSchema` instead. */
-  export const inboundSchema = Status$inboundSchema;
-  /** @deprecated use `Status$outboundSchema` instead. */
-  export const outboundSchema = Status$outboundSchema;
+export namespace DeliveryAttemptStatus$ {
+  /** @deprecated use `DeliveryAttemptStatus$inboundSchema` instead. */
+  export const inboundSchema = DeliveryAttemptStatus$inboundSchema;
+  /** @deprecated use `DeliveryAttemptStatus$outboundSchema` instead. */
+  export const outboundSchema = DeliveryAttemptStatus$outboundSchema;
 }
 
 /** @internal */
@@ -51,7 +53,7 @@ export const DeliveryAttempt$inboundSchema: z.ZodType<
   delivered_at: z.string().datetime({ offset: true }).transform(v =>
     new Date(v)
   ).optional(),
-  status: Status$inboundSchema.optional(),
+  status: DeliveryAttemptStatus$inboundSchema.optional(),
   response_status_code: z.number().int().optional(),
   response_body: z.string().optional(),
   response_headers: z.record(z.string()).optional(),
@@ -80,7 +82,7 @@ export const DeliveryAttempt$outboundSchema: z.ZodType<
   DeliveryAttempt
 > = z.object({
   deliveredAt: z.date().transform(v => v.toISOString()).optional(),
-  status: Status$outboundSchema.optional(),
+  status: DeliveryAttemptStatus$outboundSchema.optional(),
   responseStatusCode: z.number().int().optional(),
   responseBody: z.string().optional(),
   responseHeaders: z.record(z.string()).optional(),

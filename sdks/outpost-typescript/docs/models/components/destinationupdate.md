@@ -78,6 +78,21 @@ const value: components.DestinationUpdateAWSKinesis = {
 };
 ```
 
+### `components.DestinationUpdateAzureServiceBus`
+
+```typescript
+const value: components.DestinationUpdateAzureServiceBus = {
+  topics: "*",
+  config: {
+    name: "my-queue-or-topic",
+  },
+  credentials: {
+    connectionString:
+      "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abc123",
+  },
+};
+```
+
 ### `components.DestinationUpdateAwss3`
 
 ```typescript
@@ -87,13 +102,30 @@ const value: components.DestinationUpdateAwss3 = {
     bucket: "my-bucket",
     region: "us-east-1",
     keyTemplate:
-      "join('/', [time.year, time.month, time.day, metadata.`\"event-id\"`, '.json'])",
+      "join('/', [time.year, time.month, time.day, metadata.\"event-id\", '.json'])",
     storageClass: "STANDARD",
   },
   credentials: {
     key: "AKIAIOSFODNN7EXAMPLE",
     secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
     session: "AQoDYXdzEPT//////////wEXAMPLE...",
+  },
+};
+```
+
+### `components.DestinationUpdateGCPPubSub`
+
+```typescript
+const value: components.DestinationUpdateGCPPubSub = {
+  topics: "*",
+  config: {
+    projectId: "my-project-123",
+    topic: "events-topic",
+    endpoint: "pubsub.googleapis.com:443",
+  },
+  credentials: {
+    serviceAccountJson:
+      "{\"type\":\"service_account\",\"project_id\":\"my-project\",\"private_key_id\":\"key123\",\"private_key\":\"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n\",\"client_email\":\"my-service@my-project.iam.gserviceaccount.com\"}",
   },
 };
 ```

@@ -25,6 +25,18 @@ import {
   DestinationUpdateAWSSQS$outboundSchema,
 } from "./destinationupdateawssqs.js";
 import {
+  DestinationUpdateAzureServiceBus,
+  DestinationUpdateAzureServiceBus$inboundSchema,
+  DestinationUpdateAzureServiceBus$Outbound,
+  DestinationUpdateAzureServiceBus$outboundSchema,
+} from "./destinationupdateazureservicebus.js";
+import {
+  DestinationUpdateGCPPubSub,
+  DestinationUpdateGCPPubSub$inboundSchema,
+  DestinationUpdateGCPPubSub$Outbound,
+  DestinationUpdateGCPPubSub$outboundSchema,
+} from "./destinationupdategcppubsub.js";
+import {
   DestinationUpdateHookdeck,
   DestinationUpdateHookdeck$inboundSchema,
   DestinationUpdateHookdeck$Outbound,
@@ -49,7 +61,9 @@ export type DestinationUpdate =
   | DestinationUpdateRabbitMQ
   | DestinationUpdateHookdeck
   | DestinationUpdateAWSKinesis
-  | DestinationUpdateAwss3;
+  | DestinationUpdateAzureServiceBus
+  | DestinationUpdateAwss3
+  | DestinationUpdateGCPPubSub;
 
 /** @internal */
 export const DestinationUpdate$inboundSchema: z.ZodType<
@@ -62,7 +76,9 @@ export const DestinationUpdate$inboundSchema: z.ZodType<
   DestinationUpdateRabbitMQ$inboundSchema,
   DestinationUpdateHookdeck$inboundSchema,
   DestinationUpdateAWSKinesis$inboundSchema,
+  DestinationUpdateAzureServiceBus$inboundSchema,
   DestinationUpdateAwss3$inboundSchema,
+  DestinationUpdateGCPPubSub$inboundSchema,
 ]);
 
 /** @internal */
@@ -72,7 +88,9 @@ export type DestinationUpdate$Outbound =
   | DestinationUpdateRabbitMQ$Outbound
   | DestinationUpdateHookdeck$Outbound
   | DestinationUpdateAWSKinesis$Outbound
-  | DestinationUpdateAwss3$Outbound;
+  | DestinationUpdateAzureServiceBus$Outbound
+  | DestinationUpdateAwss3$Outbound
+  | DestinationUpdateGCPPubSub$Outbound;
 
 /** @internal */
 export const DestinationUpdate$outboundSchema: z.ZodType<
@@ -85,7 +103,9 @@ export const DestinationUpdate$outboundSchema: z.ZodType<
   DestinationUpdateRabbitMQ$outboundSchema,
   DestinationUpdateHookdeck$outboundSchema,
   DestinationUpdateAWSKinesis$outboundSchema,
+  DestinationUpdateAzureServiceBus$outboundSchema,
   DestinationUpdateAwss3$outboundSchema,
+  DestinationUpdateGCPPubSub$outboundSchema,
 ]);
 
 /**

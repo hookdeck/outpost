@@ -7,6 +7,7 @@ export * from "./badrequesterror.js";
 export * from "./httpclienterrors.js";
 export * from "./internalservererror.js";
 export * from "./notfounderror.js";
+export * from "./outposterror.js";
 export * from "./ratelimitederror.js";
 export * from "./responsevalidationerror.js";
 export * from "./sdkvalidationerror.js";

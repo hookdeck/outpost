@@ -263,7 +263,7 @@ components:
         key_template:
           type: string
           description: JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata."event-id", '.json']).
-          example: "join('/', [time.year, time.month, time.day, metadata.`\"event-id\"`, '.json'])"
+          example: 'join(''/'', [time.year, time.month, time.day, metadata."event-id", ''.json''])'
         storage_class:
           type: string
           description: The storage class for the S3 objects (e.g., STANDARD, INTELLIGENT_TIERING, GLACIER, etc.). Defaults to "STANDARD".
@@ -284,6 +284,30 @@ components:
           type: string
           description: Optional AWS Session Token (for temporary credentials).
           example: "AQoDYXdzEPT//////////wEXAMPLE..."
+    GCPPubSubConfig:
+      type: object
+      required: [project_id, topic]
+      properties:
+        project_id:
+          type: string
+          description: The GCP project ID.
+          example: "my-project-123"
+        topic:
+          type: string
+          description: The Pub/Sub topic name.
+          example: "events-topic"
+        endpoint:
+          type: string
+          description: Optional. Custom endpoint URL (e.g., localhost:8085 for emulator).
+          example: "pubsub.googleapis.com:443"
+    GCPPubSubCredentials:
+      type: object
+      required: [service_account_json]
+      properties:
+        service_account_json:
+          type: string
+          description: Service account key JSON. The entire JSON key file content as a string.
+          example: '{"type":"service_account","project_id":"my-project","private_key_id":"key123","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"my-service@my-project.iam.gserviceaccount.com"}'
 
     # Type-Specific Destination Schemas (for Responses)
     DestinationWebhook:
@@ -667,6 +691,60 @@ components:
         credentials:
           key: "AKIAIOSFODNN7EXAMPLE"
           secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+    DestinationGCPPubSub:
+      type: object
+      # Properties duplicated from DestinationBase
+      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      properties:
+        id:
+          type: string
+          description: Control plane generated ID or user provided ID for the destination.
+          example: "des_12345"
+        type:
+          type: string
+          description: Type of the destination.
+          enum: [gcp_pubsub]
+          example: "gcp_pubsub"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO Date when the destination was disabled, or null if enabled.
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        config:
+          $ref: "#/components/schemas/GCPPubSubConfig"
+        credentials:
+          $ref: "#/components/schemas/GCPPubSubCredentials"
+        target:
+          type: string
+          description: A human-readable representation of the destination target (project/topic). Read-only.
+          readOnly: true
+          example: "my-project-123/events-topic"
+        target_url:
+          type: string
+          format: url
+          nullable: true
+          description: A URL link to the destination target (GCP Console link to the topic). Read-only.
+          readOnly: true
+          example: "https://console.cloud.google.com/cloudpubsub/topic/detail/events-topic?project=my-project-123"
+      example:
+        id: "des_gcp_pubsub_123"
+        type: "gcp_pubsub"
+        topics: ["order.created", "order.updated"]
+        disabled_at: null
+        created_at: "2024-03-10T14:30:00Z"
+        config:
+          project_id: "my-project-123"
+          topic: "events-topic"
+        credentials:
+          service_account_json: '{"type":"service_account","project_id":"my-project-123",...}'
 
     # Polymorphic Destination Schema (for Responses)
     Destination:
@@ -678,6 +756,7 @@ components:
         - $ref: "#/components/schemas/DestinationAWSKinesis"
         - $ref: "#/components/schemas/DestinationAzureServiceBus"
         - $ref: "#/components/schemas/DestinationAWSS3"
+        - $ref: "#/components/schemas/DestinationGCPPubSub"
       discriminator:
         propertyName: type
         mapping:
@@ -688,6 +767,7 @@ components:
           aws_kinesis: "#/components/schemas/DestinationAWSKinesis"
           azure_servicebus: "#/components/schemas/DestinationAzureServiceBus"
           aws_s3: "#/components/schemas/DestinationAWSS3"
+          gcp_pubsub: "#/components/schemas/DestinationGCPPubSub"
 
     DestinationCreateWebhook:
       type: object
@@ -817,6 +897,24 @@ components:
           $ref: "#/components/schemas/AWSS3Config"
         credentials:
           $ref: "#/components/schemas/AWSS3Credentials"
+    DestinationCreateGCPPubSub:
+      type: object
+      required: [type, topics, config, credentials]
+      properties:
+        id:
+          type: string
+          description: Optional user-provided ID. A UUID will be generated if empty.
+          example: "user-provided-id"
+        type:
+          type: string
+          description: Type of the destination. Must be 'gcp_pubsub'.
+          enum: [gcp_pubsub]
+        topics:
+          $ref: "#/components/schemas/Topics"
+        config:
+          $ref: "#/components/schemas/GCPPubSubConfig"
+        credentials:
+          $ref: "#/components/schemas/GCPPubSubCredentials"
 
     # Polymorphic Destination Creation Schema (for Request Bodies)
     DestinationCreate:
@@ -828,6 +926,7 @@ components:
         - $ref: "#/components/schemas/DestinationCreateAWSKinesis"
         - $ref: "#/components/schemas/DestinationCreateAzureServiceBus"
         - $ref: "#/components/schemas/DestinationCreateAWSS3"
+        - $ref: "#/components/schemas/DestinationCreateGCPPubSub"
       discriminator:
         propertyName: type
         mapping:
@@ -838,6 +937,7 @@ components:
           aws_kinesis: "#/components/schemas/DestinationCreateAWSKinesis"
           azure_servicebus: "#/components/schemas/DestinationCreateAzureServiceBus"
           aws_s3: "#/components/schemas/DestinationCreateAWSS3"
+          gcp_pubsub: "#/components/schemas/DestinationCreateGCPPubSub"
 
     # Type-Specific Destination Update Schemas (for Request Bodies)
     WebhookCredentialsUpdate:
@@ -905,6 +1005,16 @@ components:
           $ref: "#/components/schemas/AWSKinesisConfig" # stream_name/region required here, but PATCH means optional
         credentials:
           $ref: "#/components/schemas/AWSKinesisCredentials" # key/secret required here, but PATCH means optional
+    DestinationUpdateAzureServiceBus:
+      type: object
+      # Properties duplicated from DestinationUpdateBase
+      properties:
+        topics:
+          $ref: "#/components/schemas/Topics"
+        config:
+          $ref: "#/components/schemas/AzureServiceBusConfig" # name required here, but PATCH means optional
+        credentials:
+          $ref: "#/components/schemas/AzureServiceBusCredentials" # connection_string required here, but PATCH means optional
 
     DestinationUpdateAWSS3:
       type: object
@@ -916,6 +1026,16 @@ components:
           $ref: "#/components/schemas/AWSS3Config" # bucket/region required here, but PATCH means optional
         credentials:
           $ref: "#/components/schemas/AWSS3Credentials" # key/secret required here, but PATCH means optional
+    DestinationUpdateGCPPubSub:
+      type: object
+      # Properties duplicated from DestinationUpdateBase
+      properties:
+        topics:
+          $ref: "#/components/schemas/Topics"
+        config:
+          $ref: "#/components/schemas/GCPPubSubConfig" # project_id/topic required here, but PATCH means optional
+        credentials:
+          $ref: "#/components/schemas/GCPPubSubCredentials" # service_account_json required here, but PATCH means optional
 
     # Polymorphic Destination Update Schema (for Request Bodies)
     DestinationUpdate:
@@ -925,7 +1045,9 @@ components:
         - $ref: "#/components/schemas/DestinationUpdateRabbitMQ"
         - $ref: "#/components/schemas/DestinationUpdateHookdeck"
         - $ref: "#/components/schemas/DestinationUpdateAWSKinesis"
+        - $ref: "#/components/schemas/DestinationUpdateAzureServiceBus"
         - $ref: "#/components/schemas/DestinationUpdateAWSS3"
+        - $ref: "#/components/schemas/DestinationUpdateGCPPubSub"
     # Event Schemas
     PublishRequest:
       type: object
@@ -996,10 +1118,15 @@ components:
           example: "2024-01-01T00:00:00Z"
         metadata:
           type: object
+          nullable: true
           description: Key-value string pairs of metadata associated with the event.
           additionalProperties:
             type: string
           example: { "source": "crm" }
+        status:
+          type: string
+          enum: [success, failed]
+          example: "success"
         data:
           type: object
           description: Freeform JSON data of the event.
@@ -1338,11 +1465,31 @@ paths:
           schema:
             oneOf:
               - type: string
-                enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, aws_s3]
+                enum:
+                  [
+                    webhook,
+                    aws_sqs,
+                    rabbitmq,
+                    hookdeck,
+                    aws_kinesis,
+                    azure_servicebus,
+                    aws_s3,
+                    gcp_pubsub,
+                  ]
               - type: array
                 items:
                   type: string
-                  enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, aws_s3]
+                  enum:
+                    [
+                      webhook,
+                      aws_sqs,
+                      rabbitmq,
+                      hookdeck,
+                      aws_kinesis,
+                      azure_servicebus,
+                      aws_s3,
+                      gcp_pubsub,
+                    ]
           description: Filter destinations by type(s).
         - name: topics
           in: query
