@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/idempotence"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
@@ -78,7 +78,7 @@ type PublishedEvent struct {
 func (p *PublishedEvent) toEvent() models.Event {
 	id := p.ID
 	if id == "" {
-		id = uuid.New().String()
+		id = idgen.Event()
 	}
 	eventTime := p.Time
 	if eventTime.IsZero() {

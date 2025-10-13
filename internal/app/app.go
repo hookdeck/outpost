@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/migrator"
@@ -55,6 +56,16 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		logFields = append(logFields, zap.String("deployment_id", cfg.DeploymentID))
 	}
 	logger.Info("starting outpost", logFields...)
+
+	// Initialize ID generators
+	logger.Debug("configuring ID generators",
+		zap.String("event_template", cfg.IDTemplate.Event))
+	if err := idgen.Configure(idgen.IDTemplateConfig{
+		Event: cfg.IDTemplate.Event,
+	}); err != nil {
+		logger.Error("failed to configure ID generators", zap.Error(err))
+		return err
+	}
 
 	if err := runMigration(mainContext, cfg, logger); err != nil {
 		return err

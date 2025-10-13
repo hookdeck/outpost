@@ -97,6 +97,9 @@ type Config struct {
 
 	// Alert
 	Alert AlertConfig `yaml:"alert"`
+
+	// ID Template
+	IDTemplate IDTemplateConfig `yaml:"id_template"`
 }
 
 var (
@@ -183,6 +186,10 @@ func (c *Config) InitDefaults() {
 		BatchInterval:     5,
 		HookdeckSourceURL: "https://hkdk.events/yhk665ljz3rn6l",
 		SentryDSN:         "https://examplePublicKey@o0.ingest.sentry.io/0",
+	}
+
+	c.IDTemplate = IDTemplateConfig{
+		Event: "{{uuidv4}}",
 	}
 }
 
