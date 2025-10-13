@@ -9,14 +9,8 @@ let value: UpdateTenantDestinationRequest = {
   destinationId: "<id>",
   destinationUpdate: {
     topics: "*",
-    config: {
-      serverUrl: "localhost:5672",
-      exchange: "my-exchange",
-      tls: "false",
-    },
     credentials: {
-      username: "guest",
-      password: "guest",
+      token: "hd_token_...",
     },
   },
 };

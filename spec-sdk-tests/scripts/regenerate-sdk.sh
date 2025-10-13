@@ -2,7 +2,7 @@
 set -e
 
 # Navigate to the TypeScript SDK directory
-cd "$(dirname "$0")/../../../sdks/outpost-typescript"
+cd "$(dirname "$0")/../../sdks/outpost-typescript"
 
 # Regenerate the SDK using Speakeasy
 echo "Regenerating TypeScript SDK..."

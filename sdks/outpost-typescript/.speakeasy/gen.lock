@@ -1,12 +1,12 @@
 lockVersion: 2.0.0
 id: edb58086-83b9-45a3-9095-52bf57a11009
 management:
-  docChecksum: 5ba70e6fd5c38bf6938a020a3ee4e211
+  docChecksum: 0e5299d5650362a90c20df3906cf0c76
   docVersion: 0.0.1
   speakeasyVersion: 1.636.3
   generationVersion: 2.723.11
-  releaseVersion: 0.5.1
-  configChecksum: f68ee8655bbd6462d87583a682258f8b
+  releaseVersion: 0.5.0
+  configChecksum: 9fbad82eb37adcf42c1125163f3177c3
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-typescript
   installationURL: https://gitpkg.now.sh/hookdeck/outpost/sdks/outpost-typescript
@@ -48,6 +48,7 @@ generatedFiles:
   - docs/models/components/azureservicebusconfig.md
   - docs/models/components/azureservicebuscredentials.md
   - docs/models/components/deliveryattempt.md
+  - docs/models/components/deliveryattemptstatus.md
   - docs/models/components/destination.md
   - docs/models/components/destinationawskinesis.md
   - docs/models/components/destinationawskinesistype.md
@@ -87,6 +88,7 @@ generatedFiles:
   - docs/models/components/destinationupdateawskinesis.md
   - docs/models/components/destinationupdateawss3.md
   - docs/models/components/destinationupdateawssqs.md
+  - docs/models/components/destinationupdateazureservicebus.md
   - docs/models/components/destinationupdategcppubsub.md
   - docs/models/components/destinationupdatehookdeck.md
   - docs/models/components/destinationupdaterabbitmq.md
@@ -94,6 +96,7 @@ generatedFiles:
   - docs/models/components/destinationwebhook.md
   - docs/models/components/destinationwebhooktype.md
   - docs/models/components/event.md
+  - docs/models/components/eventstatus.md
   - docs/models/components/gcppubsubconfig.md
   - docs/models/components/gcppubsubcredentials.md
   - docs/models/components/hookdeckcredentials.md
@@ -103,7 +106,6 @@ generatedFiles:
   - docs/models/components/rabbitmqconfig.md
   - docs/models/components/rabbitmqcredentials.md
   - docs/models/components/security.md
-  - docs/models/components/status.md
   - docs/models/components/successresponse.md
   - docs/models/components/tenant.md
   - docs/models/components/tenanttoken.md
@@ -308,6 +310,7 @@ generatedFiles:
   - src/models/components/destinationupdateawskinesis.ts
   - src/models/components/destinationupdateawss3.ts
   - src/models/components/destinationupdateawssqs.ts
+  - src/models/components/destinationupdateazureservicebus.ts
   - src/models/components/destinationupdategcppubsub.ts
   - src/models/components/destinationupdatehookdeck.ts
   - src/models/components/destinationupdaterabbitmq.ts

@@ -34,6 +34,7 @@ export * from "./destinationupdate.js";
 export * from "./destinationupdateawskinesis.js";
 export * from "./destinationupdateawss3.js";
 export * from "./destinationupdateawssqs.js";
+export * from "./destinationupdateazureservicebus.js";
 export * from "./destinationupdategcppubsub.js";
 export * from "./destinationupdatehookdeck.js";
 export * from "./destinationupdaterabbitmq.js";

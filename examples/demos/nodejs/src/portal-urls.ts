@@ -8,6 +8,13 @@ const main = async () => {
     const portalUrl = await outpost.getPortalURL(org.id);
     console.log(`Portal URL for ${org.id}:`, portalUrl);
   }
+
+  try {
+    const portalUrl = await outpost.getPortalURL("test-tenant");
+    console.log(`Portal URL for test-tenant:`, portalUrl);
+  } catch (error) {
+    console.error(`Failed to create portal for test-tenant:`, error);
+  }
 };
 
 main()

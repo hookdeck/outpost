@@ -78,6 +78,21 @@ const value: components.DestinationUpdateAWSKinesis = {
 };
 ```
 
+### `components.DestinationUpdateAzureServiceBus`
+
+```typescript
+const value: components.DestinationUpdateAzureServiceBus = {
+  topics: "*",
+  config: {
+    name: "my-queue-or-topic",
+  },
+  credentials: {
+    connectionString:
+      "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abc123",
+  },
+};
+```
+
 ### `components.DestinationUpdateAwss3`
 
 ```typescript

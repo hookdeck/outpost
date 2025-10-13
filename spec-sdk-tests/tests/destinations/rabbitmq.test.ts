@@ -320,7 +320,6 @@ describe('RabbitMQ Destinations - Contract Tests (SDK-based validation)', () => 
 
     it('should update destination topics', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'rabbitmq',
         topics: ['user.created', 'user.updated'],
       });
 
@@ -332,7 +331,6 @@ describe('RabbitMQ Destinations - Contract Tests (SDK-based validation)', () => 
 
     it('should update destination config', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'rabbitmq',
         config: {
           exchange: 'updated-exchange',
         },
@@ -347,7 +345,6 @@ describe('RabbitMQ Destinations - Contract Tests (SDK-based validation)', () => 
 
     it('should update destination credentials', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'rabbitmq',
         credentials: {
           username: 'newuser',
           password: 'newpass',
@@ -361,7 +358,6 @@ describe('RabbitMQ Destinations - Contract Tests (SDK-based validation)', () => 
       let errorThrown = false;
       try {
         await client.updateDestination('non-existent-id-12345', {
-          type: 'rabbitmq',
           topics: ['test'],
         });
       } catch (error: any) {

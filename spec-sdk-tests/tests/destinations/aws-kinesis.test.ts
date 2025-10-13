@@ -320,7 +320,6 @@ describe('AWS Kinesis Destinations - Contract Tests (SDK-based validation)', () 
 
     it('should update destination topics', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'aws_kinesis',
         topics: ['user.created', 'user.updated'],
       });
 
@@ -335,7 +334,6 @@ describe('AWS Kinesis Destinations - Contract Tests (SDK-based validation)', () 
     // See TEST_STATUS.md for detailed analysis
     it.skip('should update destination config', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'aws_kinesis',
         config: {
           streamName: 'updated-stream',
         },
@@ -350,7 +348,6 @@ describe('AWS Kinesis Destinations - Contract Tests (SDK-based validation)', () 
 
     it('should update destination credentials', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'aws_kinesis',
         credentials: {
           key: 'AKIAIOSFODNN7UPDATED',
           secret: 'updatedSecretKey',
@@ -364,7 +361,6 @@ describe('AWS Kinesis Destinations - Contract Tests (SDK-based validation)', () 
       let errorThrown = false;
       try {
         await client.updateDestination('non-existent-id-12345', {
-          type: 'aws_kinesis',
           topics: ['test'],
         });
       } catch (error: any) {

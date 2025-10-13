@@ -256,7 +256,6 @@ describe('Hookdeck Destinations - Contract Tests (SDK-based validation)', () => 
 
     it('should update destination topics', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'hookdeck',
         topics: ['user.created', 'user.updated'],
       });
 
@@ -268,7 +267,6 @@ describe('Hookdeck Destinations - Contract Tests (SDK-based validation)', () => 
 
     it('should update destination credentials', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'hookdeck',
         credentials: {
           token: 'hk_updated_token',
         },
@@ -281,7 +279,6 @@ describe('Hookdeck Destinations - Contract Tests (SDK-based validation)', () => 
       let errorThrown = false;
       try {
         await client.updateDestination('non-existent-id-12345', {
-          type: 'hookdeck',
           topics: ['test'],
         });
       } catch (error: any) {

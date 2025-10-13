@@ -1,6 +1,13 @@
 import { config as loadEnv } from 'dotenv';
 // Import from the built CommonJS distribution
 import { Outpost } from '../../sdks/outpost-typescript/dist/commonjs/index';
+// Import proper types from the SDK
+import type {
+  Destination,
+  DestinationCreate,
+  DestinationUpdate,
+  Tenant,
+} from '../../sdks/outpost-typescript/dist/commonjs/models/components';
 
 // Load environment variables from .env file
 loadEnv();
@@ -12,11 +19,8 @@ export interface SdkClientConfig {
   timeout?: number;
 }
 
-// Re-export types for convenience
-export type Destination = any;
-export type DestinationCreate = any;
-export type DestinationUpdate = any;
-export type Tenant = any;
+// Re-export SDK types for convenience
+export type { Destination, DestinationCreate, DestinationUpdate, Tenant };
 
 /**
  * Wrapper around the Speakeasy-generated SDK to provide a similar API

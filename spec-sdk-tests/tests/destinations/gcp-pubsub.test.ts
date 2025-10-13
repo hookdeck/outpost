@@ -145,7 +145,7 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
           credentials: {
             serviceAccountJson: '{"type":"service_account"}',
           },
-        });
+        } as any);
       } catch (error: any) {
         errorThrown = true;
         expect(error).to.exist;
@@ -173,7 +173,7 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
           credentials: {
             serviceAccountJson: '{"type":"service_account"}',
           },
-        });
+        } as any);
       } catch (error: any) {
         errorThrown = true;
         expect(error).to.exist;
@@ -199,7 +199,7 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
             topic: 'test-topic',
           },
           // Missing credentials
-        });
+        } as any);
       } catch (error: any) {
         errorThrown = true;
         expect(error).to.exist;
@@ -459,7 +459,6 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
 
     it('should update destination topics', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'gcp_pubsub',
         topics: ['user.created', 'user.updated'],
       });
 
@@ -471,7 +470,6 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
 
     it('should update destination config', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'gcp_pubsub',
         config: {
           topic: 'updated-topic-name',
         },
@@ -486,7 +484,6 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
 
     it('should update destination credentials', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'gcp_pubsub',
         credentials: {
           serviceAccountJson: '{"type":"service_account","projectId":"updated"}',
         },
@@ -499,7 +496,6 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
       let errorThrown = false;
       try {
         await client.updateDestination('non-existent-id-12345', {
-          type: 'gcp_pubsub',
           topics: '*',
         });
       } catch (error: any) {

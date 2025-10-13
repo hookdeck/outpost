@@ -18,6 +18,7 @@ let value: ListTenantEventsByDestinationResponse = {
         metadata: {
           "source": "crm",
         },
+        status: "success",
         data: {
           "user_id": "userid",
           "status": "active",

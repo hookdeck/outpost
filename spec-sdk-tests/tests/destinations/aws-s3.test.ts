@@ -320,7 +320,6 @@ describe('AWS S3 Destinations - Contract Tests (SDK-based validation)', () => {
 
     it('should update destination topics', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'aws_s3',
         topics: ['user.created', 'user.updated'],
       });
 
@@ -332,7 +331,6 @@ describe('AWS S3 Destinations - Contract Tests (SDK-based validation)', () => {
 
     it('should update destination config', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'aws_s3',
         config: {
           bucket: 'updated-bucket',
         },
@@ -347,7 +345,6 @@ describe('AWS S3 Destinations - Contract Tests (SDK-based validation)', () => {
 
     it('should update destination credentials', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'aws_s3',
         credentials: {
           key: 'AKIAIOSFODNN7UPDATED',
           secret: 'updatedSecretKey',
@@ -361,7 +358,6 @@ describe('AWS S3 Destinations - Contract Tests (SDK-based validation)', () => {
       let errorThrown = false;
       try {
         await client.updateDestination('non-existent-id-12345', {
-          type: 'aws_s3',
           topics: ['test'],
         });
       } catch (error: any) {

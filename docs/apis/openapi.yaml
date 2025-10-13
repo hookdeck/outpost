@@ -1005,6 +1005,16 @@ components:
           $ref: "#/components/schemas/AWSKinesisConfig" # stream_name/region required here, but PATCH means optional
         credentials:
           $ref: "#/components/schemas/AWSKinesisCredentials" # key/secret required here, but PATCH means optional
+    DestinationUpdateAzureServiceBus:
+      type: object
+      # Properties duplicated from DestinationUpdateBase
+      properties:
+        topics:
+          $ref: "#/components/schemas/Topics"
+        config:
+          $ref: "#/components/schemas/AzureServiceBusConfig" # name required here, but PATCH means optional
+        credentials:
+          $ref: "#/components/schemas/AzureServiceBusCredentials" # connection_string required here, but PATCH means optional
 
     DestinationUpdateAWSS3:
       type: object
@@ -1035,6 +1045,7 @@ components:
         - $ref: "#/components/schemas/DestinationUpdateRabbitMQ"
         - $ref: "#/components/schemas/DestinationUpdateHookdeck"
         - $ref: "#/components/schemas/DestinationUpdateAWSKinesis"
+        - $ref: "#/components/schemas/DestinationUpdateAzureServiceBus"
         - $ref: "#/components/schemas/DestinationUpdateAWSS3"
         - $ref: "#/components/schemas/DestinationUpdateGCPPubSub"
     # Event Schemas
@@ -1107,6 +1118,7 @@ components:
           example: "2024-01-01T00:00:00Z"
         metadata:
           type: object
+          nullable: true
           description: Key-value string pairs of metadata associated with the event.
           additionalProperties:
             type: string

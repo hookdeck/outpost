@@ -285,7 +285,6 @@ describe('Azure Service Bus Destinations - Contract Tests (SDK-based validation)
 
     it('should update destination topics', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'azure_servicebus',
         topics: ['user.created', 'user.updated'],
       });
 
@@ -297,7 +296,6 @@ describe('Azure Service Bus Destinations - Contract Tests (SDK-based validation)
 
     it('should update destination config', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'azure_servicebus',
         config: {
           name: 'updated-queue',
         },
@@ -312,7 +310,6 @@ describe('Azure Service Bus Destinations - Contract Tests (SDK-based validation)
 
     it('should update destination credentials', async () => {
       const updated = await client.updateDestination(destinationId, {
-        type: 'azure_servicebus',
         credentials: {
           connectionString:
             'Endpoint=sb://updated.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=updatedkey',
@@ -326,7 +323,6 @@ describe('Azure Service Bus Destinations - Contract Tests (SDK-based validation)
       let errorThrown = false;
       try {
         await client.updateDestination('non-existent-id-12345', {
-          type: 'azure_servicebus',
           topics: ['test'],
         });
       } catch (error: any) {

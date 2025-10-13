@@ -25,6 +25,12 @@ import {
   DestinationUpdateAWSSQS$outboundSchema,
 } from "./destinationupdateawssqs.js";
 import {
+  DestinationUpdateAzureServiceBus,
+  DestinationUpdateAzureServiceBus$inboundSchema,
+  DestinationUpdateAzureServiceBus$Outbound,
+  DestinationUpdateAzureServiceBus$outboundSchema,
+} from "./destinationupdateazureservicebus.js";
+import {
   DestinationUpdateGCPPubSub,
   DestinationUpdateGCPPubSub$inboundSchema,
   DestinationUpdateGCPPubSub$Outbound,
@@ -55,6 +61,7 @@ export type DestinationUpdate =
   | DestinationUpdateRabbitMQ
   | DestinationUpdateHookdeck
   | DestinationUpdateAWSKinesis
+  | DestinationUpdateAzureServiceBus
   | DestinationUpdateAwss3
   | DestinationUpdateGCPPubSub;
 
@@ -69,6 +76,7 @@ export const DestinationUpdate$inboundSchema: z.ZodType<
   DestinationUpdateRabbitMQ$inboundSchema,
   DestinationUpdateHookdeck$inboundSchema,
   DestinationUpdateAWSKinesis$inboundSchema,
+  DestinationUpdateAzureServiceBus$inboundSchema,
   DestinationUpdateAwss3$inboundSchema,
   DestinationUpdateGCPPubSub$inboundSchema,
 ]);
@@ -80,6 +88,7 @@ export type DestinationUpdate$Outbound =
   | DestinationUpdateRabbitMQ$Outbound
   | DestinationUpdateHookdeck$Outbound
   | DestinationUpdateAWSKinesis$Outbound
+  | DestinationUpdateAzureServiceBus$Outbound
   | DestinationUpdateAwss3$Outbound
   | DestinationUpdateGCPPubSub$Outbound;
 
@@ -94,6 +103,7 @@ export const DestinationUpdate$outboundSchema: z.ZodType<
   DestinationUpdateRabbitMQ$outboundSchema,
   DestinationUpdateHookdeck$outboundSchema,
   DestinationUpdateAWSKinesis$outboundSchema,
+  DestinationUpdateAzureServiceBus$outboundSchema,
   DestinationUpdateAwss3$outboundSchema,
   DestinationUpdateGCPPubSub$outboundSchema,
 ]);
