@@ -19,7 +19,9 @@ export const ListTenantDestinationsTypeEnum2 = {
   Rabbitmq: "rabbitmq",
   Hookdeck: "hookdeck",
   AwsKinesis: "aws_kinesis",
+  AzureServicebus: "azure_servicebus",
   AwsS3: "aws_s3",
+  GcpPubsub: "gcp_pubsub",
 } as const;
 export type ListTenantDestinationsTypeEnum2 = ClosedEnum<
   typeof ListTenantDestinationsTypeEnum2
@@ -31,7 +33,9 @@ export const ListTenantDestinationsTypeEnum1 = {
   Rabbitmq: "rabbitmq",
   Hookdeck: "hookdeck",
   AwsKinesis: "aws_kinesis",
+  AzureServicebus: "azure_servicebus",
   AwsS3: "aws_s3",
+  GcpPubsub: "gcp_pubsub",
 } as const;
 export type ListTenantDestinationsTypeEnum1 = ClosedEnum<
   typeof ListTenantDestinationsTypeEnum1

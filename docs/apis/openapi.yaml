@@ -263,7 +263,7 @@ components:
         key_template:
           type: string
           description: JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata."event-id", '.json']).
-          example: "join('/', [time.year, time.month, time.day, metadata.\"event-id\", '.json'])"
+          example: 'join(''/'', [time.year, time.month, time.day, metadata."event-id", ''.json''])'
         storage_class:
           type: string
           description: The storage class for the S3 objects (e.g., STANDARD, INTELLIGENT_TIERING, GLACIER, etc.). Defaults to "STANDARD".

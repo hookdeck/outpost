@@ -11,5 +11,5 @@ let value: ListTenantDestinationsTypeEnum2 = "aws_s3";
 ## Values
 
 ```typescript
-"webhook" | "aws_sqs" | "rabbitmq" | "hookdeck" | "aws_kinesis" | "aws_s3"
+"webhook" | "aws_sqs" | "rabbitmq" | "hookdeck" | "aws_kinesis" | "azure_servicebus" | "aws_s3" | "gcp_pubsub"
 ```

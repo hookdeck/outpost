@@ -11,7 +11,7 @@ let value: DestinationUpdateAwss3 = {
     bucket: "my-bucket",
     region: "us-east-1",
     keyTemplate:
-      "join('/', [time.year, time.month, time.day, metadata.`\"event-id\"`, '.json'])",
+      "join('/', [time.year, time.month, time.day, metadata.\"event-id\", '.json'])",
     storageClass: "STANDARD",
   },
   credentials: {
