@@ -4,7 +4,7 @@ import "time"
 
 type Backoff interface {
 	// Duration returns the duration to wait before retrying the operation.
-	// Duration accepts the numeber of times the operation has been retried.
+	// Duration accepts the number of times the operation has been retried.
 	// If the operation has never been retried, the number should be 0.
 	Duration(int) time.Duration
 }
