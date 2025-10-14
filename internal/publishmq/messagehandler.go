@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/consumer"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 )
@@ -52,7 +52,7 @@ type PublishedEvent struct {
 func (p *PublishedEvent) toEvent() models.Event {
 	id := p.ID
 	if id == "" {
-		id = uuid.New().String()
+		id = idgen.Event()
 	}
 	eventTime := p.Time
 	if eventTime.IsZero() {

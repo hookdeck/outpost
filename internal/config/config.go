@@ -97,6 +97,9 @@ type Config struct {
 
 	// Alert
 	Alert AlertConfig `yaml:"alert"`
+
+	// ID Generation
+	IDGen IDGenConfig `yaml:"id_gen"`
 }
 
 var (
@@ -183,6 +186,11 @@ func (c *Config) InitDefaults() {
 		BatchInterval:     5,
 		HookdeckSourceURL: "https://hkdk.events/yhk665ljz3rn6l",
 		SentryDSN:         "https://examplePublicKey@o0.ingest.sentry.io/0",
+	}
+
+	c.IDGen = IDGenConfig{
+		Type:        "uuidv4",
+		EventPrefix: "",
 	}
 }
 
