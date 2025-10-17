@@ -169,6 +169,12 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		shouldRevalidate = true
 		updatedDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, input.Credentials)
 	}
+	if input.DeliveryMetadata != nil {
+		updatedDestination.DeliveryMetadata = maputil.MergeStringMaps(originalDestination.DeliveryMetadata, input.DeliveryMetadata)
+	}
+	if input.Metadata != nil {
+		updatedDestination.Metadata = maputil.MergeStringMaps(originalDestination.Metadata, input.Metadata)
+	}
 
 	// Always preprocess before updating
 	if err := h.registry.PreprocessDestination(&updatedDestination, originalDestination, &destregistry.PreprocessDestinationOpts{
@@ -310,11 +316,13 @@ func (h *DestinationHandlers) handleUpsertDestinationError(c *gin.Context, err e
 // ===== Requests =====
 
 type CreateDestinationRequest struct {
-	ID          string             `json:"id" binding:"-"`
-	Type        string             `json:"type" binding:"required"`
-	Topics      models.Topics      `json:"topics" binding:"required"`
-	Config      models.Config      `json:"config" binding:"-"`
-	Credentials models.Credentials `json:"credentials" binding:"-"`
+	ID               string                  `json:"id" binding:"-"`
+	Type             string                  `json:"type" binding:"required"`
+	Topics           models.Topics           `json:"topics" binding:"required"`
+	Config           models.Config           `json:"config" binding:"-"`
+	Credentials      models.Credentials      `json:"credentials" binding:"-"`
+	DeliveryMetadata models.DeliveryMetadata `json:"delivery_metadata,omitempty" binding:"-"`
+	Metadata         models.Metadata         `json:"metadata,omitempty" binding:"-"`
 }
 
 func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destination {
@@ -329,22 +337,26 @@ func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destina
 	}
 
 	return models.Destination{
-		ID:          r.ID,
-		Type:        r.Type,
-		Topics:      r.Topics,
-		Config:      r.Config,
-		Credentials: r.Credentials,
-		CreatedAt:   time.Now(),
-		DisabledAt:  nil,
-		TenantID:    tenantID,
+		ID:               r.ID,
+		Type:             r.Type,
+		Topics:           r.Topics,
+		Config:           r.Config,
+		Credentials:      r.Credentials,
+		DeliveryMetadata: r.DeliveryMetadata,
+		Metadata:         r.Metadata,
+		CreatedAt:        time.Now(),
+		DisabledAt:       nil,
+		TenantID:         tenantID,
 	}
 }
 
 type UpdateDestinationRequest struct {
-	Type        string             `json:"type" binding:"-"`
-	Topics      models.Topics      `json:"topics" binding:"-"`
-	Config      models.Config      `json:"config" binding:"-"`
-	Credentials models.Credentials `json:"credentials" binding:"-"`
+	Type             string                  `json:"type" binding:"-"`
+	Topics           models.Topics           `json:"topics" binding:"-"`
+	Config           models.Config           `json:"config" binding:"-"`
+	Credentials      models.Credentials      `json:"credentials" binding:"-"`
+	DeliveryMetadata models.DeliveryMetadata `json:"delivery_metadata,omitempty" binding:"-"`
+	Metadata         models.Metadata         `json:"metadata,omitempty" binding:"-"`
 }
 
 func mustRoleFromContext(c *gin.Context) string {
