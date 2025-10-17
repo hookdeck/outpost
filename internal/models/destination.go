@@ -19,14 +19,16 @@ var (
 )
 
 type Destination struct {
-	ID          string      `json:"id" redis:"id"`
-	TenantID    string      `json:"tenant_id" redis:"-"`
-	Type        string      `json:"type" redis:"type"`
-	Topics      Topics      `json:"topics" redis:"-"`
-	Config      Config      `json:"config" redis:"-"`
-	Credentials Credentials `json:"credentials" redis:"-"`
-	CreatedAt   time.Time   `json:"created_at" redis:"created_at"`
-	DisabledAt  *time.Time  `json:"disabled_at" redis:"disabled_at"`
+	ID               string           `json:"id" redis:"id"`
+	TenantID         string           `json:"tenant_id" redis:"-"`
+	Type             string           `json:"type" redis:"type"`
+	Topics           Topics           `json:"topics" redis:"-"`
+	Config           Config           `json:"config" redis:"-"`
+	Credentials      Credentials      `json:"credentials" redis:"-"`
+	DeliveryMetadata DeliveryMetadata `json:"delivery_metadata,omitempty" redis:"-"`
+	Metadata         Metadata         `json:"metadata,omitempty" redis:"-"`
+	CreatedAt        time.Time        `json:"created_at" redis:"created_at"`
+	DisabledAt       *time.Time       `json:"disabled_at" redis:"disabled_at"`
 }
 
 func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Cipher) error {
@@ -166,6 +168,7 @@ func TopicsFromString(s string) Topics {
 
 type Config = MapStringString
 type Credentials = MapStringString
+type DeliveryMetadata = MapStringString
 type MapStringString map[string]string
 
 var _ encoding.BinaryMarshaler = &MapStringString{}
