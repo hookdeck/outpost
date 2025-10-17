@@ -62,6 +62,20 @@ func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Ciphe
 	if err != nil {
 		return fmt.Errorf("invalid credentials: %w", err)
 	}
+	// Deserialize delivery_metadata if present
+	if deliveryMetadataStr, exists := hash["delivery_metadata"]; exists && deliveryMetadataStr != "" {
+		err = d.DeliveryMetadata.UnmarshalBinary([]byte(deliveryMetadataStr))
+		if err != nil {
+			return fmt.Errorf("invalid delivery_metadata: %w", err)
+		}
+	}
+	// Deserialize metadata if present
+	if metadataStr, exists := hash["metadata"]; exists && metadataStr != "" {
+		err = d.Metadata.UnmarshalBinary([]byte(metadataStr))
+		if err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
 	return nil
 }
 

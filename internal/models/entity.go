@@ -329,6 +329,20 @@ func (s *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 			pipe.HDel(ctx, key, "disabled_at")
 		}
 
+		// Store delivery_metadata if present
+		if destination.DeliveryMetadata != nil {
+			pipe.HSet(ctx, key, "delivery_metadata", &destination.DeliveryMetadata)
+		} else {
+			pipe.HDel(ctx, key, "delivery_metadata")
+		}
+
+		// Store metadata if present
+		if destination.Metadata != nil {
+			pipe.HSet(ctx, key, "metadata", &destination.Metadata)
+		} else {
+			pipe.HDel(ctx, key, "metadata")
+		}
+
 		// Update summary atomically
 		pipe.HSet(ctx, summaryKey, destination.ID, destination.ToSummary())
 		return nil
