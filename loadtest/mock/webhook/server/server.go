@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -13,8 +14,14 @@ import (
 
 // Config holds server configuration options
 type Config struct {
-	EventTTL time.Duration
-	MaxSize  int
+	EventTTL     time.Duration
+	MaxSize      int
+	DelayMode    bool          // Enable artificial delays
+	MinDelay     time.Duration // Minimum delay (e.g., 1s)
+	MaxDelay     time.Duration // Maximum delay (e.g., 2s)
+	SlowDelayMin time.Duration // Slow delay minimum (e.g., 30s)
+	SlowDelayMax time.Duration // Slow delay maximum (e.g., 35s)
+	SlowPercent  float64       // Percentage of slow requests (e.g., 0.1 for 0.1%)
 }
 
 // Server handles webhook events and provides APIs to check their delivery
@@ -87,6 +94,33 @@ func (s *Server) Routes() http.Handler {
 
 // handleWebhook processes incoming webhook requests
 func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
+	// Apply artificial delay if delay mode is enabled
+	if s.config.DelayMode {
+		var delay time.Duration
+
+		// Determine if this request should be slow (0.1% chance)
+		if rand.Float64() < s.config.SlowPercent/100.0 {
+			// Slow request: 30-35s delay
+			slowRange := s.config.SlowDelayMax - s.config.SlowDelayMin
+			if slowRange > 0 {
+				delay = s.config.SlowDelayMin + time.Duration(rand.Int63n(int64(slowRange)))
+			} else {
+				delay = s.config.SlowDelayMin
+			}
+			log.Printf("SLOW REQUEST: Applying delay of %v", delay)
+		} else {
+			// Normal delay: 1-2s
+			normalRange := s.config.MaxDelay - s.config.MinDelay
+			if normalRange > 0 {
+				delay = s.config.MinDelay + time.Duration(rand.Int63n(int64(normalRange)))
+			} else {
+				delay = s.config.MinDelay
+			}
+		}
+
+		time.Sleep(delay)
+	}
+
 	// Extract the event ID from headers - try both supported header formats
 	eventID := r.Header.Get("x-outpost-event-id")
 	if eventID == "" {
