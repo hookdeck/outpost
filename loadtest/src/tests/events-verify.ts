@@ -55,7 +55,7 @@ export const options = {
     verify: {
       executor: "shared-iterations",
       iterations: MAX_ITERATIONS,
-      vus: 10,
+      vus: MAX_ITERATIONS / 10,
       maxDuration: "5m",
     },
   },
