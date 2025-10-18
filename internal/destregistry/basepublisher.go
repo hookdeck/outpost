@@ -30,7 +30,9 @@ func WithMillisecondTimestamp(enabled bool) BasePublisherOption {
 // WithDeliveryMetadata sets static metadata to be merged with every event delivery
 func WithDeliveryMetadata(metadata map[string]string) BasePublisherOption {
 	return func(p *BasePublisher) {
-		p.deliveryMetadata = metadata
+		if metadata != nil {
+			p.deliveryMetadata = metadata
+		}
 	}
 }
 

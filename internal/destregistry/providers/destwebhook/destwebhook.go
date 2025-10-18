@@ -234,7 +234,7 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 	}
 
 	return &WebhookPublisher{
-		BasePublisher:          d.BaseProvider.NewPublisher(),
+		BasePublisher:          d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		httpClient:             httpClient,
 		url:                    config.URL,
 		headerPrefix:           d.headerPrefix,

@@ -65,7 +65,7 @@ func (d *RabbitMQDestination) CreatePublisher(ctx context.Context, destination *
 		return nil, err
 	}
 	return &RabbitMQPublisher{
-		BasePublisher: d.BaseProvider.NewPublisher(),
+		BasePublisher: d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		url:           rabbitURL(config, credentials),
 		exchange:      config.Exchange,
 	}, nil

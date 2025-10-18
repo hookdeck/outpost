@@ -50,7 +50,7 @@ func (d *AzureServiceBusDestination) CreatePublisher(ctx context.Context, destin
 	}
 
 	return &AzureServiceBusPublisher{
-		BasePublisher:    d.BaseProvider.NewPublisher(),
+		BasePublisher:    d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		connectionString: creds.ConnectionString,
 		queueOrTopic:     cfg.Name,
 	}, nil
