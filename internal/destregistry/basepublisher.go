@@ -14,6 +14,7 @@ type BasePublisher struct {
 	active                      sync.WaitGroup
 	closed                      atomic.Bool
 	includeMillisecondTimestamp bool
+	deliveryMetadata            map[string]string
 }
 
 // BasePublisherOption is a functional option for configuring BasePublisher
@@ -23,6 +24,13 @@ type BasePublisherOption func(*BasePublisher)
 func WithMillisecondTimestamp(enabled bool) BasePublisherOption {
 	return func(p *BasePublisher) {
 		p.includeMillisecondTimestamp = enabled
+	}
+}
+
+// WithDeliveryMetadata sets static metadata to be merged with every event delivery
+func WithDeliveryMetadata(metadata map[string]string) BasePublisherOption {
+	return func(p *BasePublisher) {
+		p.deliveryMetadata = metadata
 	}
 }
 
@@ -67,10 +75,17 @@ func (p *BasePublisher) MakeMetadata(event *models.Event, timestamp time.Time) m
 		systemMetadata["timestamp-ms"] = fmt.Sprintf("%d", timestamp.UnixMilli())
 	}
 
+	// Merge with priority: system < deliveryMetadata < event.Metadata
+	// Start with system metadata (lowest priority)
 	metadata := make(map[string]string)
 	for k, v := range systemMetadata {
 		metadata[k] = v
 	}
+	// Merge delivery metadata (can override system metadata)
+	for k, v := range p.deliveryMetadata {
+		metadata[k] = v
+	}
+	// Merge event metadata (highest priority, can override both)
 	for k, v := range event.Metadata {
 		metadata[k] = v
 	}
