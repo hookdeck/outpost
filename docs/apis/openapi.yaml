@@ -341,6 +341,20 @@ components:
           $ref: "#/components/schemas/WebhookConfig"
         credentials:
           $ref: "#/components/schemas/WebhookCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (e.g., URL host). Read-only.
@@ -396,6 +410,20 @@ components:
           $ref: "#/components/schemas/AWSSQSConfig"
         credentials:
           $ref: "#/components/schemas/AWSSQSCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (SQS queue name). Read-only.
@@ -451,6 +479,20 @@ components:
           $ref: "#/components/schemas/RabbitMQConfig"
         credentials:
           $ref: "#/components/schemas/RabbitMQCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (RabbitMQ exchange). Read-only.
@@ -506,6 +548,20 @@ components:
         config: {} # Empty config
         credentials:
           $ref: "#/components/schemas/HookdeckCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (Hookdeck). Read-only.
@@ -558,6 +614,20 @@ components:
           $ref: "#/components/schemas/AWSKinesisConfig"
         credentials:
           $ref: "#/components/schemas/AWSKinesisCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (Kinesis stream name). Read-only.
@@ -613,6 +683,20 @@ components:
           $ref: "#/components/schemas/AzureServiceBusConfig"
         credentials:
           $ref: "#/components/schemas/AzureServiceBusCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (Azure Service Bus queue/topic name). Read-only.
@@ -667,6 +751,20 @@ components:
           $ref: "#/components/schemas/AWSS3Config"
         credentials:
           $ref: "#/components/schemas/AWSS3Credentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (bucket and region). Read-only.
@@ -722,6 +820,20 @@ components:
           $ref: "#/components/schemas/GCPPubSubConfig"
         credentials:
           $ref: "#/components/schemas/GCPPubSubCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (project/topic). Read-only.
@@ -788,6 +900,20 @@ components:
         credentials:
           # Secret is optional on create for admin, forbidden for tenant
           $ref: "#/components/schemas/WebhookCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationCreateAWSSQS:
       type: object
       required: [type, topics, config, credentials]
@@ -806,6 +932,20 @@ components:
           $ref: "#/components/schemas/AWSSQSConfig"
         credentials:
           $ref: "#/components/schemas/AWSSQSCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationCreateRabbitMQ:
       type: object
       required: [type, topics, config, credentials]
@@ -824,6 +964,20 @@ components:
           $ref: "#/components/schemas/RabbitMQConfig"
         credentials:
           $ref: "#/components/schemas/RabbitMQCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationCreateHookdeck:
       type: object
       required: [type, topics, credentials] # No config
@@ -841,6 +995,20 @@ components:
         config: {}
         credentials:
           $ref: "#/components/schemas/HookdeckCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationCreateAWSKinesis:
       type: object
       required: [type, topics, config, credentials]
@@ -859,6 +1027,20 @@ components:
           $ref: "#/components/schemas/AWSKinesisConfig"
         credentials:
           $ref: "#/components/schemas/AWSKinesisCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
 
     DestinationCreateAzureServiceBus:
       type: object
@@ -878,6 +1060,20 @@ components:
           $ref: "#/components/schemas/AzureServiceBusConfig"
         credentials:
           $ref: "#/components/schemas/AzureServiceBusCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
 
     DestinationCreateAWSS3:
       type: object
@@ -897,6 +1093,20 @@ components:
           $ref: "#/components/schemas/AWSS3Config"
         credentials:
           $ref: "#/components/schemas/AWSS3Credentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationCreateGCPPubSub:
       type: object
       required: [type, topics, config, credentials]
@@ -915,6 +1125,20 @@ components:
           $ref: "#/components/schemas/GCPPubSubConfig"
         credentials:
           $ref: "#/components/schemas/GCPPubSubCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
 
     # Polymorphic Destination Creation Schema (for Request Bodies)
     DestinationCreate:
@@ -966,6 +1190,20 @@ components:
           $ref: "#/components/schemas/WebhookConfig" # URL is required here, but PATCH means it's optional in the request
         credentials:
           $ref: "#/components/schemas/WebhookCredentialsUpdate"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateAWSSQS:
       type: object
       # Properties duplicated from DestinationUpdateBase
@@ -976,6 +1214,20 @@ components:
           $ref: "#/components/schemas/AWSSQSConfig" # queue_url is required here, but PATCH means it's optional
         credentials:
           $ref: "#/components/schemas/AWSSQSCredentials" # key/secret required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateRabbitMQ:
       type: object
       # Properties duplicated from DestinationUpdateBase
@@ -986,6 +1238,20 @@ components:
           $ref: "#/components/schemas/RabbitMQConfig" # server_url/exchange required here, but PATCH means optional
         credentials:
           $ref: "#/components/schemas/RabbitMQCredentials" # username/password required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateHookdeck:
       type: object
       # Properties duplicated from DestinationUpdateBase
@@ -995,6 +1261,20 @@ components:
         config: {} # Empty config, cannot be updated
         credentials:
           $ref: "#/components/schemas/HookdeckCredentials" # token required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateAWSKinesis:
       type: object
       # Properties duplicated from DestinationUpdateBase
@@ -1005,6 +1285,20 @@ components:
           $ref: "#/components/schemas/AWSKinesisConfig" # stream_name/region required here, but PATCH means optional
         credentials:
           $ref: "#/components/schemas/AWSKinesisCredentials" # key/secret required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateAzureServiceBus:
       type: object
       # Properties duplicated from DestinationUpdateBase
@@ -1015,6 +1309,20 @@ components:
           $ref: "#/components/schemas/AzureServiceBusConfig" # name required here, but PATCH means optional
         credentials:
           $ref: "#/components/schemas/AzureServiceBusCredentials" # connection_string required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
 
     DestinationUpdateAWSS3:
       type: object
@@ -1026,6 +1334,20 @@ components:
           $ref: "#/components/schemas/AWSS3Config" # bucket/region required here, but PATCH means optional
         credentials:
           $ref: "#/components/schemas/AWSS3Credentials" # key/secret required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateGCPPubSub:
       type: object
       # Properties duplicated from DestinationUpdateBase
@@ -1036,6 +1358,20 @@ components:
           $ref: "#/components/schemas/GCPPubSubConfig" # project_id/topic required here, but PATCH means optional
         credentials:
           $ref: "#/components/schemas/GCPPubSubCredentials" # service_account_json required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
 
     # Polymorphic Destination Update Schema (for Request Bodies)
     DestinationUpdate:
