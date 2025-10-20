@@ -3,7 +3,7 @@ package testutil
 import (
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 )
 
@@ -16,8 +16,8 @@ type mockEventFactory struct {
 
 func (f *mockEventFactory) Any(opts ...func(*models.Event)) models.Event {
 	event := models.Event{
-		ID:               uuid.New().String(),
-		TenantID:         uuid.New().String(),
+		ID:               idgen.Event(),
+		TenantID:         "test-tenant",
 		DestinationID:    "",
 		Topic:            TestTopics[0],
 		EligibleForRetry: true,
@@ -105,10 +105,10 @@ type mockDeliveryFactory struct {
 
 func (f *mockDeliveryFactory) Any(opts ...func(*models.Delivery)) models.Delivery {
 	delivery := models.Delivery{
-		ID:              uuid.New().String(),
-		DeliveryEventID: uuid.New().String(),
-		EventID:         uuid.New().String(),
-		DestinationID:   uuid.New().String(),
+		ID:              idgen.Delivery(),
+		DeliveryEventID: idgen.DeliveryEvent(),
+		EventID:         idgen.Event(),
+		DestinationID:   idgen.Destination(),
 		Status:          "success",
 		Time:            time.Now(),
 	}

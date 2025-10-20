@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/deliverymq"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
@@ -41,7 +41,7 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 	)
 
 	tenant := models.Tenant{
-		ID:        uuid.New().String(),
+		ID:        idgen.String(),
 		CreatedAt: time.Now(),
 	}
 	entityStore.UpsertTenant(ctx, tenant)
@@ -105,7 +105,7 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 	)
 
 	tenant := models.Tenant{
-		ID:        uuid.New().String(),
+		ID:        idgen.String(),
 		CreatedAt: time.Now(),
 	}
 	entityStore.UpsertTenant(ctx, tenant)

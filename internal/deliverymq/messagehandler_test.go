@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +28,7 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
 	)
@@ -62,7 +62,7 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}
@@ -91,7 +91,7 @@ func TestMessageHandler_DestinationNotFound(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
 	)
@@ -126,7 +126,7 @@ func TestMessageHandler_DestinationNotFound(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}
@@ -152,7 +152,7 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
 	)
@@ -187,7 +187,7 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}
@@ -213,7 +213,7 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -258,7 +258,7 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}
@@ -287,7 +287,7 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -332,7 +332,7 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}
@@ -360,7 +360,7 @@ func TestMessageHandler_EventGetterError(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -396,7 +396,7 @@ func TestMessageHandler_EventGetterError(t *testing.T) {
 
 	// Create and handle message simulating a retry
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Attempt:       2, // Retry attempt
 		DestinationID: destination.ID,
 		Event: models.Event{
@@ -427,7 +427,7 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -462,7 +462,7 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 
 	// Create and handle message simulating a retry
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Attempt:       2, // Retry attempt
 		DestinationID: destination.ID,
 		Event: models.Event{
@@ -495,7 +495,7 @@ func TestMessageHandler_Idempotency(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -530,7 +530,7 @@ func TestMessageHandler_Idempotency(t *testing.T) {
 	)
 
 	// Create message with fixed ID for idempotency check
-	messageID := uuid.New().String()
+	messageID := idgen.DeliveryEvent()
 	deliveryEvent := models.DeliveryEvent{
 		ID:            messageID,
 		Event:         event,
@@ -562,7 +562,7 @@ func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -599,7 +599,7 @@ func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 
 	// Create retry message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Attempt:       2,
 		DestinationID: destination.ID,
 		Event: models.Event{
@@ -638,7 +638,7 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -676,7 +676,7 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}
@@ -704,7 +704,7 @@ func TestMessageHandler_LogPublisherError(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -739,7 +739,7 @@ func TestMessageHandler_LogPublisherError(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}
@@ -766,7 +766,7 @@ func TestMessageHandler_PublishAndLogError(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -801,7 +801,7 @@ func TestMessageHandler_PublishAndLogError(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}
@@ -828,7 +828,7 @@ func TestManualDelivery_Success(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
 	)
@@ -864,7 +864,7 @@ func TestManualDelivery_Success(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 		Manual:        true, // Manual delivery
@@ -894,7 +894,7 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
 	)
@@ -938,7 +938,7 @@ func TestManualDelivery_PublishError(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 		Manual:        true, // Manual delivery
@@ -967,7 +967,7 @@ func TestManualDelivery_CancelError(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
 	)
@@ -1004,7 +1004,7 @@ func TestManualDelivery_CancelError(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 		Manual:        true, // Manual delivery
@@ -1035,7 +1035,7 @@ func TestManualDelivery_DestinationDisabled(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
 		testutil.DestinationFactory.WithDisabledAt(time.Now()),
@@ -1072,7 +1072,7 @@ func TestManualDelivery_DestinationDisabled(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 		Manual:        true, // Manual delivery
@@ -1100,7 +1100,7 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -1145,7 +1145,7 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}
@@ -1169,7 +1169,7 @@ func TestMessageHandler_AlertMonitorError(t *testing.T) {
 	t.Parallel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -1206,7 +1206,7 @@ func TestMessageHandler_AlertMonitorError(t *testing.T) {
 
 	// Create and handle message
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}

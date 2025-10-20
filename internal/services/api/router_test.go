@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/clickhouse"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/eventtracer"
 	"github.com/hookdeck/outpost/internal/logging"
@@ -111,7 +111,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+uuid.New().String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -121,7 +121,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+uuid.New().String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
 		req.Header.Set("Authorization", "Bearer "+validToken)
 		router.ServeHTTP(w, req)
 
@@ -132,7 +132,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+uuid.New().String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		router.ServeHTTP(w, req)
 
@@ -224,7 +224,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+uuid.New().String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
@@ -234,7 +234,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+uuid.New().String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
 		req.Header.Set("Authorization", "Bearer "+validToken)
 		router.ServeHTTP(w, req)
 
@@ -245,7 +245,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+uuid.New().String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		router.ServeHTTP(w, req)
 

@@ -156,3 +156,7 @@ func DeliveryEvent() string {
 func Installation() string {
 	return globalGenerator.Installation()
 }
+
+func String() string {
+	return globalGenerator.generate("")
+}

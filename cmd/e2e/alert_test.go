@@ -5,15 +5,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func (suite *basicSuite) TestConsecutiveFailuresAlert() {
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	secret := "testsecret1234567890abcdefghijklmnop"
 
 	tests := []APITest{
@@ -136,8 +136,8 @@ func (suite *basicSuite) TestConsecutiveFailuresAlert() {
 }
 
 func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	secret := "testsecret1234567890abcdefghijklmnop"
 
 	// Setup phase - same as before

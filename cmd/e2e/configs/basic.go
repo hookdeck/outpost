@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
@@ -72,9 +72,9 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 
 	// MQ overrides
 	c.MQs.RabbitMQ.ServerURL = rabbitmqServerURL
-	c.MQs.RabbitMQ.Exchange = uuid.New().String()
-	c.MQs.RabbitMQ.DeliveryQueue = uuid.New().String()
-	c.MQs.RabbitMQ.LogQueue = uuid.New().String()
+	c.MQs.RabbitMQ.Exchange = idgen.String()
+	c.MQs.RabbitMQ.DeliveryQueue = idgen.String()
+	c.MQs.RabbitMQ.LogQueue = idgen.String()
 
 	// Test-specific overrides
 	c.PublishMaxConcurrency = 3
