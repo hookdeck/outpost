@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
