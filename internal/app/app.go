@@ -61,11 +61,13 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	logger.Debug("configuring ID generators",
 		zap.String("type", cfg.IDGen.Type),
 		zap.String("event_prefix", cfg.IDGen.EventPrefix),
-		zap.String("destination_prefix", cfg.IDGen.DestinationPrefix))
+		zap.String("destination_prefix", cfg.IDGen.DestinationPrefix),
+		zap.String("delivery_prefix", cfg.IDGen.DeliveryPrefix))
 	if err := idgen.Configure(idgen.IDGenConfig{
 		Type:              cfg.IDGen.Type,
 		EventPrefix:       cfg.IDGen.EventPrefix,
 		DestinationPrefix: cfg.IDGen.DestinationPrefix,
+		DeliveryPrefix:    cfg.IDGen.DeliveryPrefix,
 	}); err != nil {
 		logger.Error("failed to configure ID generators", zap.Error(err))
 		return err

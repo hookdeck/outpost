@@ -17,6 +17,7 @@ func init() {
 		generator:         &uuidv4Generator{},
 		eventPrefix:       "",
 		destinationPrefix: "",
+		deliveryPrefix:    "",
 	}
 }
 
@@ -28,6 +29,7 @@ type IDGenerator struct {
 	generator         idGenerator
 	eventPrefix       string
 	destinationPrefix string
+	deliveryPrefix    string
 }
 
 func (g *IDGenerator) Event() string {
@@ -36,6 +38,10 @@ func (g *IDGenerator) Event() string {
 
 func (g *IDGenerator) Destination() string {
 	return g.generate(g.destinationPrefix)
+}
+
+func (g *IDGenerator) Delivery() string {
+	return g.generate(g.deliveryPrefix)
 }
 
 func (g *IDGenerator) generate(prefix string) string {
@@ -100,6 +106,7 @@ type IDGenConfig struct {
 	Type              string
 	EventPrefix       string
 	DestinationPrefix string
+	DeliveryPrefix    string
 }
 
 func Configure(cfg IDGenConfig) error {
@@ -112,6 +119,7 @@ func Configure(cfg IDGenConfig) error {
 		generator:         gen,
 		eventPrefix:       cfg.EventPrefix,
 		destinationPrefix: cfg.DestinationPrefix,
+		deliveryPrefix:    cfg.DeliveryPrefix,
 	}
 
 	return nil
@@ -123,4 +131,8 @@ func Event() string {
 
 func Destination() string {
 	return globalGenerator.Destination()
+}
+
+func Delivery() string {
+	return globalGenerator.Delivery()
 }
