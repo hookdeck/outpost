@@ -27,12 +27,6 @@ import (
 
 const baseAPIPath = "/api/v1"
 
-func testRouterWithCHDB(t *testing.T, config *clickhouse.ClickHouseConfig) clickhouse.DB {
-	chDB, err := clickhouse.New(config)
-	require.NoError(t, err)
-	return chDB
-}
-
 func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *testing.T) clickhouse.DB) (http.Handler, *logging.Logger, redis.Client) {
 	gin.SetMode(gin.TestMode)
 	logger := testutil.CreateTestLogger(t)
