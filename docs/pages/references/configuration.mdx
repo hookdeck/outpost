@@ -67,6 +67,11 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS` | JSON string or path to a file containing GCP service account credentials for Pub/Sub. Required if GCP Pub/Sub is the chosen MQ provider and not running in an environment with implicit credentials (e.g., GCE, GKE). | `nil` | Conditional |
 | `GIN_MODE` | Sets the Gin framework mode (e.g., 'debug', 'release', 'test'). See Gin documentation for details. | `release` | No |
 | `HTTP_USER_AGENT` | Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, a default (OrganizationName/Version) is used. | `nil` | No |
+| `IDGEN_DELIVERY_EVENT_PREFIX` | Prefix for delivery event IDs, prepended with underscore (e.g., 'dev_123'). Default: empty (no prefix) | `nil` | No |
+| `IDGEN_DELIVERY_PREFIX` | Prefix for delivery IDs, prepended with underscore (e.g., 'dlv_123'). Default: empty (no prefix) | `nil` | No |
+| `IDGEN_DESTINATION_PREFIX` | Prefix for destination IDs, prepended with underscore (e.g., 'dst_123'). Default: empty (no prefix) | `nil` | No |
+| `IDGEN_EVENT_PREFIX` | Prefix for event IDs, prepended with underscore (e.g., 'evt_123'). Default: empty (no prefix) | `nil` | No |
+| `IDGEN_TYPE` | ID generation type for all entities: uuidv4, uuidv7, nanoid. Default: uuidv4 | `uuidv4` | No |
 | `LOG_BATCH_SIZE` | Maximum number of log entries to batch together before writing to storage. | `1000` | No |
 | `LOG_BATCH_THRESHOLD_SECONDS` | Maximum time in seconds to buffer logs before flushing them to storage, if batch size is not reached. | `10` | No |
 | `LOG_LEVEL` | Defines the verbosity of application logs. Common values: 'trace', 'debug', 'info', 'warn', 'error'. | `info` | No |
@@ -226,6 +231,23 @@ gin_mode: "release"
 
 # Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, a default (OrganizationName/Version) is used.
 http_user_agent: ""
+
+idgen:
+  # Prefix for delivery event IDs, prepended with underscore (e.g., 'dev_123'). Default: empty (no prefix)
+  delivery_event_prefix: ""
+
+  # Prefix for delivery IDs, prepended with underscore (e.g., 'dlv_123'). Default: empty (no prefix)
+  delivery_prefix: ""
+
+  # Prefix for destination IDs, prepended with underscore (e.g., 'dst_123'). Default: empty (no prefix)
+  destination_prefix: ""
+
+  # Prefix for event IDs, prepended with underscore (e.g., 'evt_123'). Default: empty (no prefix)
+  event_prefix: ""
+
+  # ID generation type for all entities: uuidv4, uuidv7, nanoid. Default: uuidv4
+  type: "uuidv4"
+
 
 # Maximum number of log entries to batch together before writing to storage.
 log_batch_size: 1000
