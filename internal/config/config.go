@@ -99,7 +99,7 @@ type Config struct {
 	Alert AlertConfig `yaml:"alert"`
 
 	// ID Generation
-	IDGen IDGenConfig `yaml:"id_gen"`
+	IDGen IDGenConfig `yaml:"idgen"`
 }
 
 var (
