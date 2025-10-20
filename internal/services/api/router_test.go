@@ -8,9 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/clickhouse"
-	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/eventtracer"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
