@@ -14,8 +14,9 @@ var (
 func init() {
 	// Initialize with default UUID v4 generator
 	globalGenerator = &IDGenerator{
-		generator:   &uuidv4Generator{},
-		eventPrefix: "",
+		generator:         &uuidv4Generator{},
+		eventPrefix:       "",
+		destinationPrefix: "",
 	}
 }
 
@@ -24,12 +25,17 @@ type idGenerator interface {
 }
 
 type IDGenerator struct {
-	generator   idGenerator
-	eventPrefix string
+	generator         idGenerator
+	eventPrefix       string
+	destinationPrefix string
 }
 
 func (g *IDGenerator) Event() string {
 	return g.generate(g.eventPrefix)
+}
+
+func (g *IDGenerator) Destination() string {
+	return g.generate(g.destinationPrefix)
 }
 
 func (g *IDGenerator) generate(prefix string) string {
@@ -91,8 +97,9 @@ func (g *nanoidGenerator) generate() string {
 }
 
 type IDGenConfig struct {
-	Type        string
-	EventPrefix string
+	Type              string
+	EventPrefix       string
+	DestinationPrefix string
 }
 
 func Configure(cfg IDGenConfig) error {
@@ -102,8 +109,9 @@ func Configure(cfg IDGenConfig) error {
 	}
 
 	globalGenerator = &IDGenerator{
-		generator:   gen,
-		eventPrefix: cfg.EventPrefix,
+		generator:         gen,
+		eventPrefix:       cfg.EventPrefix,
+		destinationPrefix: cfg.DestinationPrefix,
 	}
 
 	return nil
@@ -111,4 +119,8 @@ func Configure(cfg IDGenConfig) error {
 
 func Event() string {
 	return globalGenerator.Event()
+}
+
+func Destination() string {
+	return globalGenerator.Destination()
 }

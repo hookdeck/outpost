@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/telemetry"
@@ -319,7 +320,7 @@ type CreateDestinationRequest struct {
 
 func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destination {
 	if r.ID == "" {
-		r.ID = uuid.New().String()
+		r.ID = idgen.Destination()
 	}
 	if r.Config == nil {
 		r.Config = make(map[string]string)
