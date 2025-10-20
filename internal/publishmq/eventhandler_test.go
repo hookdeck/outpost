@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/deliverymq"
+	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
@@ -33,12 +34,11 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanup()
 	eventHandler := publishmq.NewEventHandler(logger,
-		testutil.CreateTestRedisClient(t),
 		deliveryMQ,
 		entityStore,
 		mockEventTracer,
 		testutil.TestTopics,
-		24*time.Hour,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	tenant := models.Tenant{
@@ -98,12 +98,11 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 	require.NoError(t, err)
 
 	eventHandler := publishmq.NewEventHandler(logger,
-		testutil.CreateTestRedisClient(t),
 		deliveryMQ,
 		entityStore,
 		mockEventTracer,
 		testutil.TestTopics,
-		24*time.Hour,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	tenant := models.Tenant{

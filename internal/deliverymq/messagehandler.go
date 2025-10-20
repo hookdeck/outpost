@@ -14,7 +14,6 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
-	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -110,7 +109,6 @@ type AlertMonitor interface {
 
 func NewMessageHandler(
 	logger *logging.Logger,
-	redisClient redis.Cmdable,
 	logMQ LogPublisher,
 	entityStore DestinationGetter,
 	logStore EventGetter,
@@ -120,7 +118,7 @@ func NewMessageHandler(
 	retryBackoff backoff.Backoff,
 	retryMaxLimit int,
 	alertMonitor AlertMonitor,
-	idempotencyKeyTTL time.Duration,
+	idempotence idempotence.Idempotence,
 ) consumer.MessageHandler {
 	return &messageHandler{
 		eventTracer:    eventTracer,
@@ -132,11 +130,8 @@ func NewMessageHandler(
 		retryScheduler: retryScheduler,
 		retryBackoff:   retryBackoff,
 		retryMaxLimit:  retryMaxLimit,
-		idempotence: idempotence.New(redisClient,
-			idempotence.WithTimeout(5*time.Second),
-			idempotence.WithSuccessfulTTL(idempotencyKeyTTL),
-		),
-		alertMonitor: alertMonitor,
+		idempotence:    idempotence,
+		alertMonitor:   alertMonitor,
 	}
 }
 

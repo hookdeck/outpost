@@ -5,11 +5,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/eventtracer"
+	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
@@ -40,7 +42,7 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *te
 	eventTracer := eventtracer.NewNoopEventTracer()
 	entityStore := setupTestEntityStore(t, redisClient, nil)
 	logStore := setupTestLogStore(t, funcs...)
-	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer, testutil.TestTopics, 24*time.Hour)
+	eventHandler := publishmq.NewEventHandler(logger, deliveryMQ, entityStore, eventTracer, testutil.TestTopics, idempotence.New(redisClient, idempotence.WithSuccessfulTTL(24*time.Hour)))
 	router := api.NewRouter(
 		api.RouterConfig{
 			ServiceName: "",
