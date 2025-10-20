@@ -63,6 +63,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		s.retryMaxCount,
 		s.alertMonitor,
+		24*time.Hour,
 	)
 
 	// Setup message consumer

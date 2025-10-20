@@ -153,6 +153,7 @@ func NewService(ctx context.Context,
 			retryBackoff,
 			retryMaxLimit,
 			alertMonitor,
+			time.Duration(cfg.DeliveryIdempotencyKeyTTL)*time.Second,
 		)
 	}
 

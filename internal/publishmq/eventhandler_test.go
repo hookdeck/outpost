@@ -38,6 +38,7 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 		entityStore,
 		mockEventTracer,
 		testutil.TestTopics,
+		24*time.Hour,
 	)
 
 	tenant := models.Tenant{
@@ -102,6 +103,7 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 		entityStore,
 		mockEventTracer,
 		testutil.TestTopics,
+		24*time.Hour,
 	)
 
 	tenant := models.Tenant{

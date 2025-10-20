@@ -40,7 +40,7 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *te
 	eventTracer := eventtracer.NewNoopEventTracer()
 	entityStore := setupTestEntityStore(t, redisClient, nil)
 	logStore := setupTestLogStore(t, funcs...)
-	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer, testutil.TestTopics)
+	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer, testutil.TestTopics, 24*time.Hour)
 	router := api.NewRouter(
 		api.RouterConfig{
 			ServiceName: "",

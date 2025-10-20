@@ -120,6 +120,7 @@ func NewMessageHandler(
 	retryBackoff backoff.Backoff,
 	retryMaxLimit int,
 	alertMonitor AlertMonitor,
+	idempotencyKeyTTL time.Duration,
 ) consumer.MessageHandler {
 	return &messageHandler{
 		eventTracer:    eventTracer,
@@ -133,7 +134,7 @@ func NewMessageHandler(
 		retryMaxLimit:  retryMaxLimit,
 		idempotence: idempotence.New(redisClient,
 			idempotence.WithTimeout(5*time.Second),
-			idempotence.WithSuccessfulTTL(24*time.Hour),
+			idempotence.WithSuccessfulTTL(idempotencyKeyTTL),
 		),
 		alertMonitor: alertMonitor,
 	}

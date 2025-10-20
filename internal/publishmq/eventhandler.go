@@ -43,13 +43,14 @@ func NewEventHandler(
 	entityStore models.EntityStore,
 	eventTracer eventtracer.EventTracer,
 	topics []string,
+	idempotencyKeyTTL time.Duration,
 ) EventHandler {
 	emeter, _ := emetrics.New()
 	eventHandler := &eventHandler{
 		logger: logger,
 		idempotence: idempotence.New(redisClient,
 			idempotence.WithTimeout(5*time.Second),
-			idempotence.WithSuccessfulTTL(24*time.Hour),
+			idempotence.WithSuccessfulTTL(idempotencyKeyTTL),
 		),
 		deliveryMQ:  deliveryMQ,
 		entityStore: entityStore,

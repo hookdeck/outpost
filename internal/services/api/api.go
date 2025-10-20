@@ -122,7 +122,7 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	)
 
 	logger.Debug("creating event handler and router")
-	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer, cfg.Topics)
+	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer, cfg.Topics, time.Duration(cfg.PublishIdempotencyKeyTTL)*time.Second)
 	router := NewRouter(
 		RouterConfig{
 			ServiceName:  cfg.OpenTelemetry.GetServiceName(),
