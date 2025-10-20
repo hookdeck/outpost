@@ -50,6 +50,10 @@ func (g *IDGenerator) DeliveryEvent() string {
 	return g.generate(g.deliveryEventPrefix)
 }
 
+func (g *IDGenerator) Installation() string {
+	return g.generate("")
+}
+
 func (g *IDGenerator) generate(prefix string) string {
 	id := g.generator.generate()
 	if prefix != "" {
@@ -147,4 +151,8 @@ func Delivery() string {
 
 func DeliveryEvent() string {
 	return globalGenerator.DeliveryEvent()
+}
+
+func Installation() string {
+	return globalGenerator.Installation()
 }
