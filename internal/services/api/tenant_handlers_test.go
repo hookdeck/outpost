@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,7 +24,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 
 		w := httptest.NewRecorder()
 
-		id := uuid.New().String()
+		id := idgen.String()
 		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+id, nil)
 		router.ServeHTTP(w, req)
 
@@ -41,7 +41,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 
 		// Setup
 		existingResource := models.Tenant{
-			ID:        uuid.New().String(),
+			ID:        idgen.String(),
 			CreatedAt: time.Now(),
 		}
 		entityStore.UpsertTenant(context.Background(), existingResource)
@@ -88,7 +88,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 
 		// Setup
 		existingResource := models.Tenant{
-			ID:        uuid.New().String(),
+			ID:        idgen.String(),
 			CreatedAt: time.Now(),
 		}
 		entityStore.UpsertTenant(context.Background(), existingResource)
@@ -135,7 +135,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 
 		// Setup
 		existingResource := models.Tenant{
-			ID:        uuid.New().String(),
+			ID:        idgen.String(),
 			CreatedAt: time.Now(),
 		}
 		entityStore.UpsertTenant(context.Background(), existingResource)
@@ -157,7 +157,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 
 		// Setup
 		existingResource := models.Tenant{
-			ID:        uuid.New().String(),
+			ID:        idgen.String(),
 			CreatedAt: time.Now(),
 		}
 		entityStore.UpsertTenant(context.Background(), existingResource)
@@ -169,7 +169,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 		}
 		ids := make([]string, 5)
 		for i := 0; i < 5; i++ {
-			ids[i] = uuid.New().String()
+			ids[i] = idgen.String()
 			inputDestination.ID = ids[i]
 			inputDestination.CreatedAt = time.Now()
 			entityStore.UpsertDestination(context.Background(), inputDestination)

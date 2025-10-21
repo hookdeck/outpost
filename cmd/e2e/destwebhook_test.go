@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
+	"github.com/hookdeck/outpost/internal/idgen"
 )
 
 // TestingT is an interface wrapper around *testing.T
@@ -15,13 +15,13 @@ type TestingT interface {
 }
 
 func (suite *basicSuite) TestDestwebhookPublish() {
-	tenantID := uuid.New().String()
-	sampleDestinationID := uuid.New().String()
+	tenantID := idgen.String()
+	sampleDestinationID := idgen.Destination()
 	eventIDs := []string{
-		uuid.New().String(),
-		uuid.New().String(),
-		uuid.New().String(),
-		uuid.New().String(),
+		idgen.Event(),
+		idgen.Event(),
+		idgen.Event(),
+		idgen.Event(),
 	}
 	secret := "testsecret1234567890abcdefghijklmnop"
 	newSecret := "testsecret0987654321zyxwvutsrqponm"
@@ -397,8 +397,8 @@ func (suite *basicSuite) TestDestwebhookPublish() {
 }
 
 func (suite *basicSuite) TestDestwebhookSecretRotation() {
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 
 	// Setup tenant
 	resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
@@ -473,8 +473,8 @@ func (suite *basicSuite) TestDestwebhookSecretRotation() {
 }
 
 func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 
 	// First create tenant and get JWT token
 	createTenantTests := []APITest{
@@ -728,8 +728,8 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 }
 
 func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	secret := "testsecret1234567890abcdefghijklmnop"
 	newSecret := "testsecret0987654321zyxwvutsrqponm"
 
