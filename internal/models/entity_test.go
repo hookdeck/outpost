@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -103,7 +103,7 @@ func TestMaxDestinationsPerTenant(t *testing.T) {
 	)
 
 	tenant := models.Tenant{
-		ID:        uuid.New().String(),
+		ID:        idgen.String(),
 		CreatedAt: time.Now(),
 	}
 	require.NoError(t, limitedStore.UpsertTenant(ctx, tenant))
@@ -159,8 +159,8 @@ func TestDeploymentIsolation(t *testing.T) {
 	)
 
 	// Use the SAME tenant ID and destination ID for both deployments
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 
 	// Create tenant in both deployments
 	tenant := models.Tenant{

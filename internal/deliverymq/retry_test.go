@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -102,7 +102,7 @@ func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
 	defer cancel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -137,7 +137,7 @@ func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
 	defer suite.TeardownTest(t)
 
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}
@@ -159,7 +159,7 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 	defer cancel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -199,7 +199,7 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 	defer suite.TeardownTest(t)
 
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}
@@ -239,7 +239,7 @@ func TestDeliveryMQRetry_SystemError(t *testing.T) {
 	defer cancel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -269,7 +269,7 @@ func TestDeliveryMQRetry_SystemError(t *testing.T) {
 	defer suite.TeardownTest(t)
 
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}
@@ -291,7 +291,7 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 	defer cancel()
 
 	// Setup test data
-	tenant := models.Tenant{ID: uuid.New().String()}
+	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
@@ -338,7 +338,7 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 	defer suite.TeardownTest(t)
 
 	deliveryEvent := models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
 	}

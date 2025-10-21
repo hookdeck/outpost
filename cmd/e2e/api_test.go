@@ -3,8 +3,8 @@ package e2e_test
 import (
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
+	"github.com/hookdeck/outpost/internal/idgen"
 )
 
 func (suite *basicSuite) TestHealthzAPI() {
@@ -26,8 +26,8 @@ func (suite *basicSuite) TestHealthzAPI() {
 }
 
 func (suite *basicSuite) TestTenantsAPI() {
-	tenantID := uuid.New().String()
-	sampleDestinationID := uuid.New().String()
+	tenantID := idgen.String()
+	sampleDestinationID := idgen.Destination()
 	tests := []APITest{
 		{
 			Name: "GET /:tenantID without auth header",
@@ -272,9 +272,9 @@ func (suite *basicSuite) TestTenantsAPI() {
 }
 
 func (suite *basicSuite) TestDestinationsAPI() {
-	tenantID := uuid.New().String()
-	sampleDestinationID := uuid.New().String()
-	destinationWithMetadataID := uuid.New().String()
+	tenantID := idgen.String()
+	sampleDestinationID := idgen.Destination()
+	destinationWithMetadataID := idgen.Destination()
 	tests := []APITest{
 		{
 			Name: "PUT /:tenantID",
@@ -754,7 +754,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "DELETE /:tenantID/destinations/:destinationID with invalid destination ID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodDELETE,
-				Path:   "/" + tenantID + "/destinations/" + uuid.New().String(),
+				Path:   "/" + tenantID + "/destinations/" + idgen.Destination(),
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -801,7 +801,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 }
 
 func (suite *basicSuite) TestDestinationsListAPI() {
-	tenantID := uuid.New().String()
+	tenantID := idgen.String()
 	tests := []APITest{
 		{
 			Name: "PUT /:tenantID",
@@ -967,8 +967,8 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 }
 
 func (suite *basicSuite) TestDestinationEnableDisableAPI() {
-	tenantID := uuid.New().String()
-	sampleDestinationID := uuid.New().String()
+	tenantID := idgen.String()
+	sampleDestinationID := idgen.Destination()
 	tests := []APITest{
 		{
 			Name: "PUT /:tenantID",
@@ -1218,8 +1218,8 @@ func (suite *basicSuite) TestDestinationTypesAPI() {
 
 func (suite *basicSuite) TestJWTAuthAPI() {
 	// Step 1: Create tenant and get JWT token
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 
 	// Create tenant first using admin auth
 	createTenantTests := []APITest{
@@ -1384,7 +1384,7 @@ func (suite *basicSuite) TestJWTAuthAPI() {
 			Name: "GET /wrong-tenant-id with JWT should fail",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + uuid.New().String(),
+				Path:   "/" + idgen.String(),
 			}, token),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
