@@ -34,7 +34,13 @@ The events need to follow the given structure:
 
 Each event (without a `destination_id`) is evaluated against all the registered destinations. An event is delivered and logged for each eligible destination.
 
-The `metadata` is translated to the destination's native metadata; for instance, with Webhooks, they are translated to HTTP headers. If the destination does not support metadata, the metadata will be included in the event payload.
+The `metadata` field in published events is merged with the destination's `delivery_metadata` before being translated to the destination's native format. The merge priority is: system metadata (event-id, topic, timestamp) < destination's delivery_metadata < event metadata. This means event metadata has the highest priority and can override delivery_metadata values.
+
+For webhook destinations, the merged metadata is translated to HTTP headers. This allows you to:
+- Set static headers (like `x-api-key`) on the destination via `delivery_metadata`
+- Override or add dynamic headers on a per-event basis via the event's `metadata` field
+
+If the destination does not support metadata natively, it will be included in the event payload.
 
 ## Publishing from a message bus
 
