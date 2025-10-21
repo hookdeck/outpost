@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,9 +24,9 @@ func TestPublishHandlers(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		testEvent := models.Event{
-			ID:            uuid.New().String(),
-			TenantID:      uuid.New().String(),
-			DestinationID: uuid.New().String(),
+			ID:            idgen.Event(),
+			TenantID:      idgen.String(),
+			DestinationID: idgen.Destination(),
 			Topic:         "user.created",
 			Time:          time.Now(),
 			Metadata:      map[string]string{"key": "value"},

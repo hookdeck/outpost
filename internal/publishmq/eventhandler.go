@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"time"
 
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/emetrics"
@@ -12,7 +11,6 @@ import (
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/hookdeck/outpost/internal/redis"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -38,19 +36,16 @@ type eventHandler struct {
 
 func NewEventHandler(
 	logger *logging.Logger,
-	redisClient redis.Cmdable,
 	deliveryMQ *deliverymq.DeliveryMQ,
 	entityStore models.EntityStore,
 	eventTracer eventtracer.EventTracer,
 	topics []string,
+	idempotence idempotence.Idempotence,
 ) EventHandler {
 	emeter, _ := emetrics.New()
 	eventHandler := &eventHandler{
-		logger: logger,
-		idempotence: idempotence.New(redisClient,
-			idempotence.WithTimeout(5*time.Second),
-			idempotence.WithSuccessfulTTL(24*time.Hour),
-		),
+		logger:      logger,
+		idempotence: idempotence,
 		deliveryMQ:  deliveryMQ,
 		entityStore: entityStore,
 		eventTracer: eventTracer,

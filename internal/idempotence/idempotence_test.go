@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/idempotence"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -241,7 +241,7 @@ func TestIntegrationIdempotence_WithUnackedFailures(t *testing.T) {
 		}
 	}()
 
-	id := uuid.New().String()
+	id := idgen.String()
 	err = mq.Publish(ctx, &MockMsg{ID: id})
 
 	require.Nil(t, err)
@@ -322,7 +322,7 @@ func TestIntegrationIdempotence_WithConcurrentHandlerAndSuccess(t *testing.T) {
 		}
 	}()
 
-	id := uuid.New().String()
+	id := idgen.String()
 	err = mq.Publish(ctx, &MockMsg{ID: id})
 	require.Nil(t, err)
 	err = mq.Publish(ctx, &MockMsg{ID: id})
@@ -398,7 +398,7 @@ func TestIntegrationIdempotence_WithConcurrentHandlerAndFailedExecution(t *testi
 	go consumerFn("1")
 	go consumerFn("2")
 
-	id := uuid.New().String()
+	id := idgen.String()
 	err = mq.Publish(ctx, &MockMsg{ID: id})
 	require.Nil(t, err)
 	err = mq.Publish(ctx, &MockMsg{ID: id})

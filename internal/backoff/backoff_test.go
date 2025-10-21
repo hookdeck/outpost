@@ -87,3 +87,53 @@ func TestBackoff_Constant(t *testing.T) {
 	}
 	testBackoff(t, "ConstantBackoff{Interval:30*time.Second}", bo, testCases)
 }
+
+func TestBackoff_Scheduled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CustomSchedule", func(t *testing.T) {
+		bo := &backoff.ScheduledBackoff{
+			Schedule: []time.Duration{
+				5 * time.Second,
+				1 * time.Minute,
+				10 * time.Minute,
+				1 * time.Hour,
+				2 * time.Hour,
+			},
+		}
+		testCases := []testCase{
+			{0, 5 * time.Second},
+			{1, 1 * time.Minute},
+			{2, 10 * time.Minute},
+			{3, 1 * time.Hour},
+			{4, 2 * time.Hour},
+			{5, 2 * time.Hour},  // Beyond schedule, returns last value
+			{10, 2 * time.Hour}, // Beyond schedule, returns last value
+		}
+		testBackoff(t, "ScheduledBackoff{Custom}", bo, testCases)
+	})
+
+	t.Run("EmptySchedule", func(t *testing.T) {
+		bo := &backoff.ScheduledBackoff{
+			Schedule: []time.Duration{},
+		}
+		testCases := []testCase{
+			{0, 0},
+			{1, 0},
+			{5, 0},
+		}
+		testBackoff(t, "ScheduledBackoff{Empty}", bo, testCases)
+	})
+
+	t.Run("SingleElement", func(t *testing.T) {
+		bo := &backoff.ScheduledBackoff{
+			Schedule: []time.Duration{1 * time.Minute},
+		}
+		testCases := []testCase{
+			{0, 1 * time.Minute},
+			{1, 1 * time.Minute}, // Beyond schedule, returns last value
+			{5, 1 * time.Minute}, // Beyond schedule, returns last value
+		}
+		testBackoff(t, "ScheduledBackoff{Single}", bo, testCases)
+	})
+}

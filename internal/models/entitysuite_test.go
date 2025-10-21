@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -22,6 +22,8 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assert.Equal(t, expected.Topics, actual.Topics)
 	assert.Equal(t, expected.Config, actual.Config)
 	assert.Equal(t, expected.Credentials, actual.Credentials)
+	assert.Equal(t, expected.DeliveryMetadata, actual.DeliveryMetadata)
+	assert.Equal(t, expected.Metadata, actual.Metadata)
 	assert.True(t, cmp.Equal(expected.CreatedAt, actual.CreatedAt))
 	assert.True(t, cmp.Equal(expected.DisabledAt, actual.DisabledAt))
 }
@@ -52,7 +54,7 @@ func (s *EntityTestSuite) SetupTest() {
 func (s *EntityTestSuite) TestTenantCRUD() {
 	t := s.T()
 	input := models.Tenant{
-		ID:        uuid.New().String(),
+		ID:        idgen.String(),
 		CreatedAt: time.Now(),
 	}
 
@@ -120,7 +122,7 @@ func (s *EntityTestSuite) TestTenantCRUD() {
 func (s *EntityTestSuite) TestDestinationCRUD() {
 	t := s.T()
 	input := models.Destination{
-		ID:     uuid.New().String(),
+		ID:     idgen.Destination(),
 		Type:   "rabbitmq",
 		Topics: []string{"user.created", "user.updated"},
 		Config: map[string]string{
@@ -131,9 +133,17 @@ func (s *EntityTestSuite) TestDestinationCRUD() {
 			"username": "guest",
 			"password": "guest",
 		},
+		DeliveryMetadata: map[string]string{
+			"app-id": "test-app",
+			"source": "outpost",
+		},
+		Metadata: map[string]string{
+			"environment": "test",
+			"team":        "platform",
+		},
 		CreatedAt:  time.Now(),
 		DisabledAt: nil,
-		TenantID:   uuid.New().String(),
+		TenantID:   idgen.String(),
 	}
 
 	t.Run("gets empty", func(t *testing.T) {
@@ -155,6 +165,13 @@ func (s *EntityTestSuite) TestDestinationCRUD() {
 
 	t.Run("updates", func(t *testing.T) {
 		input.Topics = []string{"*"}
+		input.DeliveryMetadata = map[string]string{
+			"app-id":  "updated-app",
+			"version": "2.0",
+		}
+		input.Metadata = map[string]string{
+			"environment": "staging",
+		}
 
 		err := s.entityStore.UpsertDestination(s.ctx, input)
 		require.NoError(s.T(), err)
@@ -188,22 +205,38 @@ func (s *EntityTestSuite) TestDestinationCRUD() {
 		// cleanup
 		require.NoError(s.T(), s.entityStore.DeleteDestination(s.ctx, input.TenantID, input.ID))
 	})
+
+	t.Run("handles nil delivery_metadata and metadata", func(t *testing.T) {
+		// Factory defaults to nil for DeliveryMetadata and Metadata
+		inputWithNilFields := testutil.DestinationFactory.Any()
+
+		err := s.entityStore.CreateDestination(s.ctx, inputWithNilFields)
+		require.NoError(s.T(), err)
+
+		actual, err := s.entityStore.RetrieveDestination(s.ctx, inputWithNilFields.TenantID, inputWithNilFields.ID)
+		require.NoError(s.T(), err)
+		assert.Nil(t, actual.DeliveryMetadata)
+		assert.Nil(t, actual.Metadata)
+
+		// cleanup
+		require.NoError(s.T(), s.entityStore.DeleteDestination(s.ctx, inputWithNilFields.TenantID, inputWithNilFields.ID))
+	})
 }
 
 func (s *EntityTestSuite) TestListDestinationEmpty() {
-	destinations, err := s.entityStore.ListDestinationByTenant(s.ctx, uuid.New().String())
+	destinations, err := s.entityStore.ListDestinationByTenant(s.ctx, idgen.String())
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), destinations)
 }
 
 func (s *EntityTestSuite) TestDeleteTenantAndAssociatedDestinations() {
 	tenant := models.Tenant{
-		ID:        uuid.New().String(),
+		ID:        idgen.String(),
 		CreatedAt: time.Now(),
 	}
 	// Arrange
 	require.NoError(s.T(), s.entityStore.UpsertTenant(s.ctx, tenant))
-	destinationIDs := []string{uuid.New().String(), uuid.New().String(), uuid.New().String()}
+	destinationIDs := []string{idgen.Destination(), idgen.Destination(), idgen.Destination()}
 	for _, id := range destinationIDs {
 		require.NoError(s.T(), s.entityStore.UpsertDestination(s.ctx, testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithID(id),
@@ -230,7 +263,7 @@ type multiDestinationData struct {
 func (s *EntityTestSuite) setupMultiDestination() multiDestinationData {
 	data := multiDestinationData{
 		tenant: models.Tenant{
-			ID:        uuid.New().String(),
+			ID:        idgen.String(),
 			CreatedAt: time.Now(),
 		},
 		destinations: make([]models.Destination, 5),
@@ -245,7 +278,7 @@ func (s *EntityTestSuite) setupMultiDestination() multiDestinationData {
 		{"user.created", "user.updated"},
 	}
 	for i := 0; i < 5; i++ {
-		id := uuid.New().String()
+		id := idgen.Destination()
 		data.destinations[i] = testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithID(id),
 			testutil.DestinationFactory.WithTenantID(data.tenant.ID),
@@ -255,7 +288,7 @@ func (s *EntityTestSuite) setupMultiDestination() multiDestinationData {
 	}
 
 	// Insert & Delete destination to ensure it's cleaned up properly
-	toBeDeletedID := uuid.New().String()
+	toBeDeletedID := idgen.Destination()
 	require.NoError(s.T(), s.entityStore.UpsertDestination(s.ctx,
 		testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithID(toBeDeletedID),
@@ -387,7 +420,7 @@ func (s *EntityTestSuite) TestMultiDestinationMatchEvent() {
 
 	t.Run("match by topic", func(t *testing.T) {
 		event := models.Event{
-			ID:       uuid.New().String(),
+			ID:       idgen.Event(),
 			Topic:    "user.created",
 			Time:     time.Now(),
 			TenantID: data.tenant.ID,
@@ -405,7 +438,7 @@ func (s *EntityTestSuite) TestMultiDestinationMatchEvent() {
 
 	t.Run("match by topic & destination", func(t *testing.T) {
 		event := models.Event{
-			ID:            uuid.New().String(),
+			ID:            idgen.Event(),
 			Topic:         "user.created",
 			Time:          time.Now(),
 			TenantID:      data.tenant.ID,
@@ -422,7 +455,7 @@ func (s *EntityTestSuite) TestMultiDestinationMatchEvent() {
 
 	t.Run("destination not found", func(t *testing.T) {
 		event := models.Event{
-			ID:            uuid.New().String(),
+			ID:            idgen.Event(),
 			Topic:         "user.created",
 			Time:          time.Now(),
 			TenantID:      data.tenant.ID,
@@ -438,7 +471,7 @@ func (s *EntityTestSuite) TestMultiDestinationMatchEvent() {
 
 	t.Run("destination topic is invalid", func(t *testing.T) {
 		event := models.Event{
-			ID:            uuid.New().String(),
+			ID:            idgen.Event(),
 			Topic:         "user.created",
 			Time:          time.Now(),
 			TenantID:      data.tenant.ID,
@@ -469,7 +502,7 @@ func (s *EntityTestSuite) TestMultiDestinationMatchEvent() {
 
 		// Match user.created
 		event := models.Event{
-			ID:       uuid.New().String(),
+			ID:       idgen.Event(),
 			Topic:    "user.created",
 			Time:     time.Now(),
 			TenantID: data.tenant.ID,
@@ -485,7 +518,7 @@ func (s *EntityTestSuite) TestMultiDestinationMatchEvent() {
 
 		// Match user.updated
 		event = models.Event{
-			ID:       uuid.New().String(),
+			ID:       idgen.Event(),
 			Topic:    "user.updated",
 			Time:     time.Now(),
 			TenantID: data.tenant.ID,
@@ -594,7 +627,7 @@ func (s *EntityTestSuite) TestDeleteDestination() {
 	})
 
 	t.Run("should return error when deleting non-existent destination", func(t *testing.T) {
-		err := s.entityStore.DeleteDestination(s.ctx, destination.TenantID, uuid.New().String())
+		err := s.entityStore.DeleteDestination(s.ctx, destination.TenantID, idgen.Destination())
 		assert.ErrorIs(s.T(), err, models.ErrDestinationNotFound)
 	})
 

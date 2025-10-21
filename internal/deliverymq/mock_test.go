@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/alert"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	mqs "github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/scheduler"
@@ -37,8 +37,8 @@ func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.De
 	if m.current >= len(m.responses) {
 		m.current++
 		return &models.Delivery{
-			ID:              uuid.New().String(),
-			DeliveryEventID: uuid.New().String(),
+			ID:              idgen.Delivery(),
+			DeliveryEventID: idgen.DeliveryEvent(),
 			EventID:         event.ID,
 			DestinationID:   destination.ID,
 			Status:          models.DeliveryStatusSuccess,
@@ -52,8 +52,8 @@ func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.De
 	m.current++
 	if resp == nil {
 		return &models.Delivery{
-			ID:              uuid.New().String(),
-			DeliveryEventID: uuid.New().String(),
+			ID:              idgen.Delivery(),
+			DeliveryEventID: idgen.DeliveryEvent(),
 			EventID:         event.ID,
 			DestinationID:   destination.ID,
 			Status:          models.DeliveryStatusSuccess,
@@ -63,8 +63,8 @@ func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.De
 		}, nil
 	}
 	return &models.Delivery{
-		ID:              uuid.New().String(),
-		DeliveryEventID: uuid.New().String(),
+		ID:              idgen.Delivery(),
+		DeliveryEventID: idgen.DeliveryEvent(),
 		EventID:         event.ID,
 		DestinationID:   destination.ID,
 		Status:          models.DeliveryStatusFailed,

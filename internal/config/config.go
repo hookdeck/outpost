@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/caarlos0/env/v9"
+	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
@@ -73,12 +75,17 @@ type Config struct {
 	LogMaxConcurrency      int `yaml:"log_max_concurrency" env:"LOG_MAX_CONCURRENCY" desc:"Maximum number of log writing operations to process concurrently." required:"N"`
 
 	// Delivery Retry
-	RetryIntervalSeconds int `yaml:"retry_interval_seconds" env:"RETRY_INTERVAL_SECONDS" desc:"Interval in seconds between delivery retry attempts for failed webhooks." required:"N"`
-	RetryMaxLimit        int `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up." required:"N"`
+	RetrySchedule        []int `yaml:"retry_schedule" env:"RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h." required:"N"`
+	RetryIntervalSeconds int   `yaml:"retry_interval_seconds" env:"RETRY_INTERVAL_SECONDS" desc:"Interval in seconds for exponential backoff retry strategy (base 2). Ignored if retry_schedule is provided." required:"N"`
+	RetryMaxLimit        int   `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided." required:"N"`
 
 	// Event Delivery
 	MaxDestinationsPerTenant int `yaml:"max_destinations_per_tenant" env:"MAX_DESTINATIONS_PER_TENANT" desc:"Maximum number of destinations allowed per tenant/organization." required:"N"`
 	DeliveryTimeoutSeconds   int `yaml:"delivery_timeout_seconds" env:"DELIVERY_TIMEOUT_SECONDS" desc:"Timeout in seconds for HTTP requests made during event delivery to webhook destinations." required:"N"`
+
+	// Idempotency
+	PublishIdempotencyKeyTTL  int `yaml:"publish_idempotency_key_ttl" env:"PUBLISH_IDEMPOTENCY_KEY_TTL" desc:"Time-to-live in seconds for publish queue idempotency keys. Controls how long processed events are remembered to prevent duplicate processing. Default: 86400 (24 hours)." required:"N"`
+	DeliveryIdempotencyKeyTTL int `yaml:"delivery_idempotency_key_ttl" env:"DELIVERY_IDEMPOTENCY_KEY_TTL" desc:"Time-to-live in seconds for delivery queue idempotency keys. Controls how long processed deliveries are remembered to prevent duplicate delivery attempts. Default: 86400 (24 hours)." required:"N"`
 
 	// Destination Registry
 	DestinationMetadataPath string `yaml:"destination_metadata_path" env:"DESTINATION_METADATA_PATH" desc:"Path to the directory containing custom destination type definitions. Overrides 'destinations.metadata_path' if set." required:"N"`
@@ -97,17 +104,20 @@ type Config struct {
 
 	// Alert
 	Alert AlertConfig `yaml:"alert"`
+
+	// ID Generation
+	IDGen IDGenConfig `yaml:"idgen"`
 }
 
 var (
-	ErrMismatchedServiceType = errors.New("config validation error: service type mismatch")
-	ErrInvalidServiceType    = errors.New("config validation error: invalid service type")
-	ErrMissingRedis          = errors.New("config validation error: redis configuration is required")
-	ErrMissingLogStorage     = errors.New("config validation error: log storage must be provided")
-	ErrMissingMQs            = errors.New("config validation error: message queue configuration is required")
-	ErrMissingAESSecret      = errors.New("config validation error: AES encryption secret is required")
-	ErrInvalidPortalProxyURL = errors.New("config validation error: invalid portal proxy url")
-	ErrInvalidDeploymentID   = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
+	ErrMismatchedServiceType     = errors.New("config validation error: service type mismatch")
+	ErrInvalidServiceType        = errors.New("config validation error: invalid service type")
+	ErrMissingRedis              = errors.New("config validation error: redis configuration is required")
+	ErrMissingLogStorage         = errors.New("config validation error: log storage must be provided")
+	ErrMissingMQs                = errors.New("config validation error: message queue configuration is required")
+	ErrMissingAESSecret          = errors.New("config validation error: AES encryption secret is required")
+	ErrInvalidPortalProxyURL     = errors.New("config validation error: invalid portal proxy url")
+	ErrInvalidDeploymentID       = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
 )
 
 func (c *Config) InitDefaults() {
@@ -149,10 +159,13 @@ func (c *Config) InitDefaults() {
 	c.PublishMaxConcurrency = 1
 	c.DeliveryMaxConcurrency = 1
 	c.LogMaxConcurrency = 1
+	c.RetrySchedule = []int{} // Empty by default, falls back to exponential backoff
 	c.RetryIntervalSeconds = 30
 	c.RetryMaxLimit = 10
 	c.MaxDestinationsPerTenant = 20
 	c.DeliveryTimeoutSeconds = 5
+	c.PublishIdempotencyKeyTTL = 86400  // 24 hours
+	c.DeliveryIdempotencyKeyTTL = 86400 // 24 hours
 	c.LogBatchThresholdSeconds = 10
 	c.LogBatchSize = 1000
 
@@ -183,6 +196,11 @@ func (c *Config) InitDefaults() {
 		BatchInterval:     5,
 		HookdeckSourceURL: "https://hkdk.events/yhk665ljz3rn6l",
 		SentryDSN:         "https://examplePublicKey@o0.ingest.sentry.io/0",
+	}
+
+	c.IDGen = IDGenConfig{
+		Type:        "uuidv4",
+		EventPrefix: "",
 	}
 }
 
@@ -363,6 +381,23 @@ type AlertConfig struct {
 // ConfigFilePath returns the path of the config file that was used
 func (c *Config) ConfigFilePath() string {
 	return c.configPath
+}
+
+// GetRetryBackoff returns the configured backoff strategy based on retry configuration
+func (c *Config) GetRetryBackoff() (backoff.Backoff, int) {
+	if len(c.RetrySchedule) > 0 {
+		// Use scheduled backoff if retry_schedule is provided
+		schedule := make([]time.Duration, len(c.RetrySchedule))
+		for i, seconds := range c.RetrySchedule {
+			schedule[i] = time.Duration(seconds) * time.Second
+		}
+		return &backoff.ScheduledBackoff{Schedule: schedule}, c.RetryMaxLimit
+	}
+	// Fall back to exponential backoff
+	return &backoff.ExponentialBackoff{
+		Interval: time.Duration(c.RetryIntervalSeconds) * time.Second,
+		Base:     2,
+	}, c.RetryMaxLimit
 }
 
 type TelemetryConfig struct {

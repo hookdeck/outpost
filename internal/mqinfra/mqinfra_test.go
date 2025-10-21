@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mqinfra"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
@@ -70,7 +70,7 @@ func testMQInfra(t *testing.T, mqConfig *Config, dlqConfig *Config) {
 			}
 		}()
 
-		msg := &testutil.MockMsg{ID: uuid.New().String()}
+		msg := &testutil.MockMsg{ID: idgen.String()}
 		require.NoError(t, mq.Publish(ctx, msg))
 
 		var receivedMsg *testutil.MockMsg
@@ -130,7 +130,7 @@ func testMQInfra(t *testing.T, mqConfig *Config, dlqConfig *Config) {
 			}
 		}()
 
-		msg := &testutil.MockMsg{ID: uuid.New().String()}
+		msg := &testutil.MockMsg{ID: idgen.String()}
 		require.NoError(t, mq.Publish(ctx, msg))
 
 		msgCount := 0
@@ -183,8 +183,8 @@ func testMQInfra(t *testing.T, mqConfig *Config, dlqConfig *Config) {
 }
 
 func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
-	exchange := uuid.New().String()
-	queue := uuid.New().String()
+	exchange := idgen.String()
+	queue := idgen.String()
 
 	testMQInfra(t,
 		&Config{
@@ -226,7 +226,7 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 }
 
 func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
-	q := uuid.New().String()
+	q := idgen.String()
 
 	testMQInfra(t,
 		&Config{
@@ -276,7 +276,7 @@ func TestIntegrationMQInfra_GCPPubSub(t *testing.T) {
 	// Set PUBSUB_EMULATOR_HOST environment variable
 	testinfra.EnsureGCP()
 
-	topicID := "test-" + uuid.New().String()
+	topicID := "test-" + idgen.String()
 	subscriptionID := topicID + "-subscription"
 
 	testMQInfra(t,
@@ -326,7 +326,7 @@ func TestIntegrationMQInfra_GCPPubSub(t *testing.T) {
 func TestIntegrationMQInfra_AzureServiceBus(t *testing.T) {
 	t.Skip("skip TestIntegrationMQInfra_AzureServiceBus integration test for now since the emulator doesn't support managing resources")
 
-	topic := uuid.New().String()
+	topic := idgen.String()
 	subscription := topic + "-subscription"
 
 	const (

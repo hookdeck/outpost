@@ -160,7 +160,7 @@ func (p *HookdeckProvider) CreatePublisher(ctx context.Context, destination *mod
 
 	// Create publisher with base publisher from provider
 	publisher := &HookdeckPublisher{
-		BasePublisher: p.BaseProvider.NewPublisher(),
+		BasePublisher: p.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		tokenString:   tokenString,
 		parsedToken:   parsedToken,
 		client:        client,

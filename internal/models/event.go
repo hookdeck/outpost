@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mqs"
 )
 
@@ -33,6 +33,7 @@ func (d *Data) UnmarshalBinary(data []byte) error {
 type Metadata map[string]string
 
 var _ fmt.Stringer = &Metadata{}
+var _ encoding.BinaryMarshaler = &Metadata{}
 var _ encoding.BinaryUnmarshaler = &Metadata{}
 
 func (m *Metadata) String() string {
@@ -41,6 +42,10 @@ func (m *Metadata) String() string {
 		return ""
 	}
 	return string(metadata)
+}
+
+func (m *Metadata) MarshalBinary() ([]byte, error) {
+	return json.Marshal(m)
 }
 
 func (m *Metadata) UnmarshalBinary(metadata []byte) error {
@@ -124,7 +129,7 @@ func (e *DeliveryEvent) GetRetryID() string {
 
 func NewDeliveryEvent(event Event, destinationID string) DeliveryEvent {
 	return DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.DeliveryEvent(),
 		DestinationID: destinationID,
 		Event:         event,
 		Attempt:       0,

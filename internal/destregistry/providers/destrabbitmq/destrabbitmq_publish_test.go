@@ -3,9 +3,9 @@ package destrabbitmq_test
 import (
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -167,7 +167,7 @@ func (s *RabbitMQPublishSuite) SetupSuite() {
 	t := s.T()
 	t.Cleanup(testinfra.Start(t))
 	rabbitURL := testinfra.EnsureRabbitMQ()
-	exchange := uuid.New().String()
+	exchange := idgen.String()
 
 	provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)

@@ -1,6 +1,7 @@
 package models_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -83,4 +84,97 @@ func TestDestinationTopics_Validate(t *testing.T) {
 			assert.Equal(t, tc.validated, tc.topics.Validate(tc.availableTopics) == nil)
 		})
 	}
+}
+
+func TestDestination_JSONMarshalWithDeliveryMetadata(t *testing.T) {
+	t.Parallel()
+
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID("dest_123"),
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTopics([]string{"user.created"}),
+		testutil.DestinationFactory.WithConfig(map[string]string{"url": "https://example.com"}),
+		testutil.DestinationFactory.WithDeliveryMetadata(map[string]string{
+			"app-id":     "my-app",
+			"source":     "outpost",
+			"custom-key": "custom-value",
+		}),
+		testutil.DestinationFactory.WithMetadata(map[string]string{
+			"description": "Production webhook",
+			"team":        "platform",
+		}),
+	)
+
+	// Marshal to JSON
+	jsonBytes, err := json.Marshal(destination)
+	assert.NoError(t, err)
+
+	// Unmarshal back
+	var unmarshaled models.Destination
+	err = json.Unmarshal(jsonBytes, &unmarshaled)
+	assert.NoError(t, err)
+
+	// Verify new fields are preserved
+	assert.Equal(t, destination.DeliveryMetadata, unmarshaled.DeliveryMetadata)
+	assert.Equal(t, "my-app", unmarshaled.DeliveryMetadata["app-id"])
+	assert.Equal(t, "outpost", unmarshaled.DeliveryMetadata["source"])
+	assert.Equal(t, "custom-value", unmarshaled.DeliveryMetadata["custom-key"])
+
+	assert.Equal(t, destination.Metadata, unmarshaled.Metadata)
+	assert.Equal(t, "Production webhook", unmarshaled.Metadata["description"])
+	assert.Equal(t, "platform", unmarshaled.Metadata["team"])
+
+	// Verify existing fields still work
+	assert.Equal(t, destination.ID, unmarshaled.ID)
+	assert.Equal(t, destination.Type, unmarshaled.Type)
+	assert.Equal(t, destination.Topics, unmarshaled.Topics)
+}
+
+func TestDestination_JSONMarshalWithoutNewFields(t *testing.T) {
+	t.Parallel()
+
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID("dest_123"),
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTopics([]string{"user.created"}),
+	)
+
+	// Marshal to JSON
+	jsonBytes, err := json.Marshal(destination)
+	assert.NoError(t, err)
+
+	// Unmarshal back
+	var unmarshaled models.Destination
+	err = json.Unmarshal(jsonBytes, &unmarshaled)
+	assert.NoError(t, err)
+
+	// Verify new fields are nil when not provided
+	assert.Nil(t, unmarshaled.DeliveryMetadata)
+	assert.Nil(t, unmarshaled.Metadata)
+}
+
+func TestDestination_JSONUnmarshalEmptyMaps(t *testing.T) {
+	t.Parallel()
+
+	jsonData := `{
+		"id": "dest_123",
+		"tenant_id": "tenant_1",
+		"type": "webhook",
+		"topics": ["user.created"],
+		"config": {},
+		"credentials": {},
+		"delivery_metadata": {},
+		"metadata": {},
+		"created_at": "2024-01-01T00:00:00Z"
+	}`
+
+	var destination models.Destination
+	err := json.Unmarshal([]byte(jsonData), &destination)
+	assert.NoError(t, err)
+
+	// Empty maps should be preserved as empty, not nil
+	assert.NotNil(t, destination.DeliveryMetadata)
+	assert.Empty(t, destination.DeliveryMetadata)
+	assert.NotNil(t, destination.Metadata)
+	assert.Empty(t, destination.Metadata)
 }

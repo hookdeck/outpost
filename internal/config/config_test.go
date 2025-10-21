@@ -63,6 +63,7 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, 1, cfg.PublishMaxConcurrency)
 	assert.Equal(t, 1, cfg.DeliveryMaxConcurrency)
 	assert.Equal(t, 1, cfg.LogMaxConcurrency)
+	assert.Equal(t, []int{}, cfg.RetrySchedule)
 	assert.Equal(t, 30, cfg.RetryIntervalSeconds)
 	assert.Equal(t, 10, cfg.RetryMaxLimit)
 	assert.Equal(t, 20, cfg.MaxDestinationsPerTenant)

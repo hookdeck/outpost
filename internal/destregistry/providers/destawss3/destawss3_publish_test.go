@@ -12,9 +12,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawss3"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -189,7 +189,7 @@ func (s *S3PublishSuite) SetupSuite() {
 	})
 
 	// Create a unique bucket for this test
-	s.bucket = fmt.Sprintf("test-bucket-%s", uuid.New().String())
+	s.bucket = fmt.Sprintf("test-bucket-%s", idgen.String())
 	_, err = s.client.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket: aws.String(s.bucket),
 	})

@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/lru"
 	"github.com/hookdeck/outpost/internal/models"
@@ -142,7 +142,7 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	}
 
 	delivery := &models.Delivery{
-		ID:            uuid.New().String(),
+		ID:            idgen.Delivery(),
 		DestinationID: destination.ID,
 		EventID:       event.ID,
 	}

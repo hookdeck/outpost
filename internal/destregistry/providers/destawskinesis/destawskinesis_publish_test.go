@@ -13,9 +13,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawskinesis"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -301,7 +301,7 @@ func (s *AWSKinesisSuite) SetupSuite() {
 	t.Cleanup(testinfra.Start(t))
 
 	// Create a unique stream name for the test
-	s.streamName = "test-stream-" + uuid.New().String()
+	s.streamName = "test-stream-" + idgen.String()
 
 	// Setup AWS config and client
 	localstackEndpoint := testinfra.EnsureLocalStack()

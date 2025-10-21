@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -81,7 +81,7 @@ func TestInfra_SingleNode(t *testing.T) {
 
 	ctx := context.Background()
 	mockProvider := &mockInfraProvider{}
-	lockKey := "test:lock:" + uuid.New().String()
+	lockKey := "test:lock:" + idgen.String()
 
 	infra := newTestInfra(t, mockProvider, lockKey)
 
@@ -103,7 +103,7 @@ func TestInfra_InfrastructureAlreadyExists(t *testing.T) {
 	ctx := context.Background()
 	mockProvider := &mockInfraProvider{}
 	mockProvider.exists.Store(true) // Infrastructure already exists
-	lockKey := "test:lock:" + uuid.New().String()
+	lockKey := "test:lock:" + idgen.String()
 
 	infra := newTestInfra(t, mockProvider, lockKey)
 
@@ -123,7 +123,7 @@ func TestInfra_ConcurrentNodes(t *testing.T) {
 	mockProvider := &mockInfraProvider{
 		declareDelay: 100 * time.Millisecond, // Simulate slow declaration
 	}
-	lockKey := "test:lock:" + uuid.New().String()
+	lockKey := "test:lock:" + idgen.String()
 
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	client, err := redis.New(ctx, redisConfig)
@@ -165,7 +165,7 @@ func TestInfra_LockExpiry(t *testing.T) {
 
 	ctx := context.Background()
 	mockProvider := &mockInfraProvider{}
-	lockKey := "test:lock:" + uuid.New().String()
+	lockKey := "test:lock:" + idgen.String()
 
 	mr := miniredis.RunT(t)
 	t.Cleanup(func() {

@@ -430,6 +430,74 @@ func TestWebhookPublisher_DisableDefaultHeaders(t *testing.T) {
 	}
 }
 
+func TestWebhookPublisher_DeliveryMetadata(t *testing.T) {
+	t.Parallel()
+
+	consumer := NewWebhookConsumer("x-outpost-")
+	defer consumer.Close()
+
+	provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": consumer.server.URL + "/webhook",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secret": "test-secret",
+		}),
+		testutil.DestinationFactory.WithDeliveryMetadata(map[string]string{
+			"app-id":     "my-app",
+			"source":     "outpost-delivery",
+			"x-api-key":  "secret-api-key",
+			"timestamp":  "999", // Should override system timestamp
+		}),
+	)
+
+	publisher, err := provider.CreatePublisher(context.Background(), &destination)
+	require.NoError(t, err)
+	defer publisher.Close()
+
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithID("evt_123"),
+		testutil.EventFactory.WithTopic("user.created"),
+		testutil.EventFactory.WithMetadata(map[string]string{
+			"user-id": "usr_456",
+			"source":  "user-service", // Should override delivery_metadata source
+		}),
+		testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+	)
+
+	_, err = publisher.Publish(context.Background(), &event)
+	require.NoError(t, err)
+
+	select {
+	case msg := <-consumer.Consume():
+		req := msg.Raw.(*http.Request)
+
+		// Verify delivery_metadata headers are present
+		assert.Equal(t, "my-app", req.Header.Get("x-outpost-app-id"), "app-id from delivery_metadata should be present")
+		assert.Equal(t, "secret-api-key", req.Header.Get("x-outpost-x-api-key"), "x-api-key from delivery_metadata should be present")
+
+		// Verify merge priority: delivery_metadata overrides system timestamp
+		assert.Equal(t, "999", req.Header.Get("x-outpost-timestamp"), "delivery_metadata timestamp should override system timestamp")
+
+		// Verify merge priority: event metadata overrides delivery_metadata source
+		assert.Equal(t, "user-service", req.Header.Get("x-outpost-source"), "event metadata source should override delivery_metadata source")
+
+		// Verify system metadata still present
+		assert.Equal(t, "evt_123", req.Header.Get("x-outpost-event-id"))
+		assert.Equal(t, "user.created", req.Header.Get("x-outpost-topic"))
+
+		// Verify event metadata present
+		assert.Equal(t, "usr_456", req.Header.Get("x-outpost-user-id"))
+
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for webhook delivery")
+	}
+}
+
 func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),

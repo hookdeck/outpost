@@ -45,6 +45,10 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
+	if err := c.validateRetryConfiguration(); err != nil {
+		return err
+	}
+
 	// Mark as validated if we get here
 	c.validated = true
 	return nil
@@ -165,5 +169,14 @@ func (c *Config) validateDeploymentID() error {
 		return ErrInvalidDeploymentID
 	}
 
+	return nil
+}
+
+// validateRetryConfiguration validates and adjusts the retry configuration
+func (c *Config) validateRetryConfiguration() error {
+	// If retry_schedule is provided, override retry_max_limit to match schedule length
+	if len(c.RetrySchedule) > 0 {
+		c.RetryMaxLimit = len(c.RetrySchedule)
+	}
 	return nil
 }

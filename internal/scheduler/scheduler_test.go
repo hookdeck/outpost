@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	iredis "github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/rsmq"
 	"github.com/hookdeck/outpost/internal/scheduler"
@@ -44,9 +44,9 @@ func TestScheduler_Basic(t *testing.T) {
 
 	// Act
 	ids := []string{
-		uuid.New().String(),
-		uuid.New().String(),
-		uuid.New().String(),
+		idgen.String(),
+		idgen.String(),
+		idgen.String(),
 	}
 	s.Schedule(ctx, ids[0], 1*time.Second)
 	s.Schedule(ctx, ids[1], 2*time.Second)
@@ -89,9 +89,9 @@ func TestScheduler_ParallelMonitor(t *testing.T) {
 
 	// Act
 	ids := []string{
-		uuid.New().String(),
-		uuid.New().String(),
-		uuid.New().String(),
+		idgen.String(),
+		idgen.String(),
+		idgen.String(),
 	}
 	s.Schedule(ctx, ids[0], 1*time.Second)
 	s.Schedule(ctx, ids[1], 2*time.Second)
@@ -131,7 +131,7 @@ func TestScheduler_VisibilityTimeout(t *testing.T) {
 
 	go s.Monitor(ctx)
 
-	id := uuid.New().String()
+	id := idgen.String()
 	s.Schedule(ctx, id, 1*time.Second)
 
 	<-ctx.Done()
@@ -155,7 +155,7 @@ func TestScheduler_CustomID(t *testing.T) {
 		}
 
 		rsmqClient := createRSMQClient(t, redisConfig)
-		s := scheduler.New(uuid.New().String(), rsmqClient, exec)
+		s := scheduler.New(idgen.String(), rsmqClient, exec)
 		require.NoError(t, s.Init(ctx))
 		go s.Monitor(ctx)
 
@@ -260,7 +260,7 @@ func TestScheduler_Cancel(t *testing.T) {
 		}
 
 		rsmqClient := createRSMQClient(t, redisConfig)
-		s := scheduler.New(uuid.New().String(), rsmqClient, exec)
+		s := scheduler.New(idgen.String(), rsmqClient, exec)
 		require.NoError(t, s.Init(ctx))
 		go s.Monitor(ctx)
 

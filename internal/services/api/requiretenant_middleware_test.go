@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +30,7 @@ func TestRequireTenantMiddleware(t *testing.T) {
 		t.Parallel()
 
 		tenant := models.Tenant{
-			ID: uuid.New().String(),
+			ID: idgen.String(),
 		}
 		entityStore := setupTestEntityStore(t, redisClient, nil)
 		err := entityStore.UpsertTenant(context.Background(), tenant)
