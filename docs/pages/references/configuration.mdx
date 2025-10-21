@@ -47,16 +47,17 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD` | If true, includes Outpost metadata (event ID, topic, etc.) within the Kinesis record payload. | `true` | No |
 | `DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP` | If true, includes a 'timestamp-ms' field with millisecond precision in destination metadata. Useful for load testing and debugging. | `false` | No |
 | `DESTINATIONS_METADATA_PATH` | Path to the directory containing custom destination type definitions. This can be overridden by the root-level 'destination_metadata_path' if also set. | `config/outpost/destinations` | No |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER` | If true, disables adding the default 'X-Outpost-Event-Id' header to webhook requests. | `false` | No |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | If true, disables adding the default 'X-Outpost-Signature' header to webhook requests. | `false` | No |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | If true, disables adding the default 'X-Outpost-Timestamp' header to webhook requests. | `false` | No |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER` | If true, disables adding the default 'X-Outpost-Topic' header to webhook requests. | `false` | No |
-| `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | Prefix for custom headers added to webhook requests (e.g., 'X-MyOrg-'). | `x-outpost-` | No |
+| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER` | If true, disables adding the default 'X-Outpost-Event-Id' header to webhook requests. Only applies to 'default' mode. | `false` | No |
+| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | If true, disables adding the default 'X-Outpost-Signature' header to webhook requests. Only applies to 'default' mode. | `false` | No |
+| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | If true, disables adding the default 'X-Outpost-Timestamp' header to webhook requests. Only applies to 'default' mode. | `false` | No |
+| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER` | If true, disables adding the default 'X-Outpost-Topic' header to webhook requests. Only applies to 'default' mode. | `false` | No |
+| `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | Prefix for metadata headers added to webhook requests. Defaults to 'x-outpost-' in 'default' mode and 'webhook-' in 'standard' mode. | `x-outpost-` | No |
+| `DESTINATIONS_WEBHOOK_MODE` | Webhook mode: 'default' for customizable webhooks or 'standard' for Standard Webhooks specification compliance. Defaults to 'default'. | `nil` | No |
 | `DESTINATIONS_WEBHOOK_PROXY_URL` | Proxy URL for routing webhook requests through a proxy server. Supports HTTP and HTTPS proxies. When configured, all outgoing webhook traffic will be routed through the specified proxy. | `nil` | No |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | Algorithm used for signing webhook requests (e.g., 'hmac-sha256'). | `hmac-sha256` | No |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | Go template for constructing the content to be signed for webhook requests. | `{{.Timestamp.Unix}}.{{.Body}}` | No |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | Encoding for the signature (e.g., 'hex', 'base64'). | `hex` | No |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | Go template for the value of the signature header. | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` | No |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | Algorithm used for signing webhook requests (e.g., 'hmac-sha256'). Only applies to 'default' mode. | `hmac-sha256` | No |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | Go template for constructing the content to be signed for webhook requests. Only applies to 'default' mode. | `{{.Timestamp.Unix}}.{{.Body}}` | No |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | Encoding for the signature (e.g., 'hex', 'base64'). Only applies to 'default' mode. | `hex` | No |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | Go template for the value of the signature header. Only applies to 'default' mode. | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` | No |
 | `DESTINATION_METADATA_PATH` | Path to the directory containing custom destination type definitions. Overrides 'destinations.metadata_path' if set. | `nil` | No |
 | `DISABLE_TELEMETRY` | Global flag to disable all telemetry (anonymous usage statistics to Hookdeck and error reporting to Sentry). If true, overrides 'telemetry.disabled'. | `false` | No |
 | `GCP_PUBSUB_DELIVERY_SUBSCRIPTION` | Name of the GCP Pub/Sub subscription for delivery events. | `outpost-delivery-sub` | No |
@@ -186,34 +187,37 @@ destinations:
 
   # Configuration specific to webhook destinations.
   webhook:
-    # If true, disables adding the default 'X-Outpost-Event-Id' header to webhook requests.
+    # If true, disables adding the default 'X-Outpost-Event-Id' header to webhook requests. Only applies to 'default' mode.
     disable_default_event_id_header: false
 
-    # If true, disables adding the default 'X-Outpost-Signature' header to webhook requests.
+    # If true, disables adding the default 'X-Outpost-Signature' header to webhook requests. Only applies to 'default' mode.
     disable_default_signature_header: false
 
-    # If true, disables adding the default 'X-Outpost-Timestamp' header to webhook requests.
+    # If true, disables adding the default 'X-Outpost-Timestamp' header to webhook requests. Only applies to 'default' mode.
     disable_default_timestamp_header: false
 
-    # If true, disables adding the default 'X-Outpost-Topic' header to webhook requests.
+    # If true, disables adding the default 'X-Outpost-Topic' header to webhook requests. Only applies to 'default' mode.
     disable_default_topic_header: false
 
-    # Prefix for custom headers added to webhook requests (e.g., 'X-MyOrg-').
+    # Prefix for metadata headers added to webhook requests. Defaults to 'x-outpost-' in 'default' mode and 'webhook-' in 'standard' mode.
     header_prefix: "x-outpost-"
+
+    # Webhook mode: 'default' for customizable webhooks or 'standard' for Standard Webhooks specification compliance. Defaults to 'default'.
+    mode: ""
 
     # Proxy URL for routing webhook requests through a proxy server. Supports HTTP and HTTPS proxies. When configured, all outgoing webhook traffic will be routed through the specified proxy.
     proxy_url: ""
 
-    # Algorithm used for signing webhook requests (e.g., 'hmac-sha256').
+    # Algorithm used for signing webhook requests (e.g., 'hmac-sha256'). Only applies to 'default' mode.
     signature_algorithm: "hmac-sha256"
 
-    # Go template for constructing the content to be signed for webhook requests.
+    # Go template for constructing the content to be signed for webhook requests. Only applies to 'default' mode.
     signature_content_template: "{{.Timestamp.Unix}}.{{.Body}}"
 
-    # Encoding for the signature (e.g., 'hex', 'base64').
+    # Encoding for the signature (e.g., 'hex', 'base64'). Only applies to 'default' mode.
     signature_encoding: "hex"
 
-    # Go template for the value of the signature header.
+    # Go template for the value of the signature header. Only applies to 'default' mode.
     signature_header_template: "t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
 
 
