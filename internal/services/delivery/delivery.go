@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/alert"
-	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/deliverymq"
@@ -140,6 +139,8 @@ func NewService(ctx context.Context,
 			alert.WithDeploymentID(cfg.DeploymentID),
 		)
 
+		retryBackoff, retryMaxLimit := cfg.GetRetryBackoff()
+
 		handler = deliverymq.NewMessageHandler(
 			logger,
 			redisClient,
@@ -149,11 +150,8 @@ func NewService(ctx context.Context,
 			registry,
 			eventTracer,
 			retryScheduler,
-			&backoff.ExponentialBackoff{
-				Interval: time.Duration(cfg.RetryIntervalSeconds) * time.Second,
-				Base:     2,
-			},
-			cfg.RetryMaxLimit,
+			retryBackoff,
+			retryMaxLimit,
 			alertMonitor,
 		)
 	}
