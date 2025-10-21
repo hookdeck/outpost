@@ -22,6 +22,8 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assert.Equal(t, expected.Topics, actual.Topics)
 	assert.Equal(t, expected.Config, actual.Config)
 	assert.Equal(t, expected.Credentials, actual.Credentials)
+	assert.Equal(t, expected.DeliveryMetadata, actual.DeliveryMetadata)
+	assert.Equal(t, expected.Metadata, actual.Metadata)
 	assert.True(t, cmp.Equal(expected.CreatedAt, actual.CreatedAt))
 	assert.True(t, cmp.Equal(expected.DisabledAt, actual.DisabledAt))
 }
@@ -131,6 +133,14 @@ func (s *EntityTestSuite) TestDestinationCRUD() {
 			"username": "guest",
 			"password": "guest",
 		},
+		DeliveryMetadata: map[string]string{
+			"app-id": "test-app",
+			"source": "outpost",
+		},
+		Metadata: map[string]string{
+			"environment": "test",
+			"team":        "platform",
+		},
 		CreatedAt:  time.Now(),
 		DisabledAt: nil,
 		TenantID:   idgen.String(),
@@ -155,6 +165,13 @@ func (s *EntityTestSuite) TestDestinationCRUD() {
 
 	t.Run("updates", func(t *testing.T) {
 		input.Topics = []string{"*"}
+		input.DeliveryMetadata = map[string]string{
+			"app-id":  "updated-app",
+			"version": "2.0",
+		}
+		input.Metadata = map[string]string{
+			"environment": "staging",
+		}
 
 		err := s.entityStore.UpsertDestination(s.ctx, input)
 		require.NoError(s.T(), err)
@@ -187,6 +204,22 @@ func (s *EntityTestSuite) TestDestinationCRUD() {
 
 		// cleanup
 		require.NoError(s.T(), s.entityStore.DeleteDestination(s.ctx, input.TenantID, input.ID))
+	})
+
+	t.Run("handles nil delivery_metadata and metadata", func(t *testing.T) {
+		// Factory defaults to nil for DeliveryMetadata and Metadata
+		inputWithNilFields := testutil.DestinationFactory.Any()
+
+		err := s.entityStore.CreateDestination(s.ctx, inputWithNilFields)
+		require.NoError(s.T(), err)
+
+		actual, err := s.entityStore.RetrieveDestination(s.ctx, inputWithNilFields.TenantID, inputWithNilFields.ID)
+		require.NoError(s.T(), err)
+		assert.Nil(t, actual.DeliveryMetadata)
+		assert.Nil(t, actual.Metadata)
+
+		// cleanup
+		require.NoError(s.T(), s.entityStore.DeleteDestination(s.ctx, inputWithNilFields.TenantID, inputWithNilFields.ID))
 	})
 }
 

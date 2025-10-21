@@ -80,3 +80,15 @@ func (f *mockDestinationFactory) WithDisabledAt(disabledAt time.Time) func(*mode
 		destination.DisabledAt = &disabledAt
 	}
 }
+
+func (f *mockDestinationFactory) WithDeliveryMetadata(deliveryMetadata map[string]string) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.DeliveryMetadata = deliveryMetadata
+	}
+}
+
+func (f *mockDestinationFactory) WithMetadata(metadata map[string]string) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.Metadata = metadata
+	}
+}

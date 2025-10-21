@@ -145,9 +145,19 @@ func (s *PublisherSuite) verifyMessage(msg Message, event models.Event) {
 	s.Require().NoError(err, "failed to marshal message data")
 	s.Require().JSONEq(string(eventDataJSON), string(msgDataJSON), "message data mismatch")
 
-	// Verify that expected metadata is a subset of received metadata
+	// Verify that system metadata is present (these should always be included)
+	s.Require().NotEmpty(msg.Metadata["timestamp"], "system metadata 'timestamp' should be present")
+	s.Require().Equal(event.ID, msg.Metadata["event-id"], "system metadata 'event-id' should match")
+	s.Require().Equal(event.Topic, msg.Metadata["topic"], "system metadata 'topic' should match")
+
+	// Verify that delivery_metadata is present
+	for k, v := range s.dest.DeliveryMetadata {
+		s.Require().Equal(v, msg.Metadata[k], "delivery_metadata key %s should be present", k)
+	}
+
+	// Verify that expected event metadata is a subset of received metadata
 	for k, v := range event.Metadata {
-		s.Require().Equal(v, msg.Metadata[k], "metadata key %s should match expected value", k)
+		s.Require().Equal(v, msg.Metadata[k], "event metadata key %s should match expected value", k)
 	}
 
 	// Provider-specific assertions if available
@@ -172,6 +182,44 @@ func (s *PublisherSuite) TestBasicPublish() {
 	select {
 	case msg := <-s.consumer.Consume():
 		s.verifyMessage(msg, event)
+	case <-time.After(5 * time.Second):
+		s.Fail("timeout waiting for message")
+	}
+}
+
+func (s *PublisherSuite) TestPublishWithDeliveryMetadata() {
+	// Create a new destination with delivery_metadata
+	destWithMetadata := *s.dest
+	destWithMetadata.DeliveryMetadata = map[string]string{
+		"app-id": "test-app",
+		"source": "delivery-source",
+		"region": "us-east-1",
+	}
+
+	// Create a new publisher with the delivery_metadata
+	pub, err := s.provider.CreatePublisher(context.Background(), &destWithMetadata)
+	s.Require().NoError(err)
+	defer pub.Close()
+
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithData(map[string]interface{}{
+			"test_key": "test_value",
+		}),
+		testutil.EventFactory.WithMetadata(map[string]string{
+			"meta_key": "meta_value",
+		}),
+	)
+
+	_, err = pub.Publish(context.Background(), &event)
+	s.Require().NoError(err)
+
+	select {
+	case msg := <-s.consumer.Consume():
+		// Temporarily swap dest for verification
+		originalDest := s.dest
+		s.dest = &destWithMetadata
+		s.verifyMessage(msg, event)
+		s.dest = originalDest
 	case <-time.After(5 * time.Second):
 		s.Fail("timeout waiting for message")
 	}
