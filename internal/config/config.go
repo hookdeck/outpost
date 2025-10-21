@@ -83,6 +83,10 @@ type Config struct {
 	MaxDestinationsPerTenant int `yaml:"max_destinations_per_tenant" env:"MAX_DESTINATIONS_PER_TENANT" desc:"Maximum number of destinations allowed per tenant/organization." required:"N"`
 	DeliveryTimeoutSeconds   int `yaml:"delivery_timeout_seconds" env:"DELIVERY_TIMEOUT_SECONDS" desc:"Timeout in seconds for HTTP requests made during event delivery to webhook destinations." required:"N"`
 
+	// Idempotency
+	PublishIdempotencyKeyTTL  int `yaml:"publish_idempotency_key_ttl" env:"PUBLISH_IDEMPOTENCY_KEY_TTL" desc:"Time-to-live in seconds for publish queue idempotency keys. Controls how long processed events are remembered to prevent duplicate processing. Default: 86400 (24 hours)." required:"N"`
+	DeliveryIdempotencyKeyTTL int `yaml:"delivery_idempotency_key_ttl" env:"DELIVERY_IDEMPOTENCY_KEY_TTL" desc:"Time-to-live in seconds for delivery queue idempotency keys. Controls how long processed deliveries are remembered to prevent duplicate delivery attempts. Default: 86400 (24 hours)." required:"N"`
+
 	// Destination Registry
 	DestinationMetadataPath string `yaml:"destination_metadata_path" env:"DESTINATION_METADATA_PATH" desc:"Path to the directory containing custom destination type definitions. Overrides 'destinations.metadata_path' if set." required:"N"`
 
@@ -160,6 +164,8 @@ func (c *Config) InitDefaults() {
 	c.RetryMaxLimit = 10
 	c.MaxDestinationsPerTenant = 20
 	c.DeliveryTimeoutSeconds = 5
+	c.PublishIdempotencyKeyTTL = 86400  // 24 hours
+	c.DeliveryIdempotencyKeyTTL = 86400 // 24 hours
 	c.LogBatchThresholdSeconds = 10
 	c.LogBatchSize = 1000
 

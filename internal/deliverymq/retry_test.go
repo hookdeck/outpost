@@ -9,6 +9,7 @@ import (
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -53,7 +54,6 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		s.logPublisher,
 		s.destGetter,
 		s.eventGetter,
@@ -63,6 +63,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		s.retryMaxCount,
 		s.alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Setup message consumer

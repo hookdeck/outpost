@@ -10,6 +10,7 @@ import (
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -48,7 +49,6 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		newMockLogPublisher(nil),
 		destGetter,
 		eventGetter,
@@ -58,6 +58,7 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
@@ -112,7 +113,6 @@ func TestMessageHandler_DestinationNotFound(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -122,6 +122,7 @@ func TestMessageHandler_DestinationNotFound(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
@@ -173,7 +174,6 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -183,6 +183,7 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
@@ -244,7 +245,6 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -254,6 +254,7 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
@@ -318,7 +319,6 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -328,6 +328,7 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
@@ -382,7 +383,6 @@ func TestMessageHandler_EventGetterError(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -392,6 +392,7 @@ func TestMessageHandler_EventGetterError(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message simulating a retry
@@ -448,7 +449,6 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -458,6 +458,7 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		newMockAlertMonitor(),
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message simulating a retry
@@ -517,7 +518,6 @@ func TestMessageHandler_Idempotency(t *testing.T) {
 	redis := testutil.CreateTestRedisClient(t)
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		redis,
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -527,6 +527,7 @@ func TestMessageHandler_Idempotency(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		newMockAlertMonitor(),
+		idempotence.New(redis, idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create message with fixed ID for idempotency check
@@ -585,7 +586,6 @@ func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 	redis := testutil.CreateTestRedisClient(t)
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		redis,
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -595,6 +595,7 @@ func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		newMockAlertMonitor(),
+		idempotence.New(redis, idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create retry message
@@ -662,7 +663,6 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -672,6 +672,7 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
@@ -725,7 +726,6 @@ func TestMessageHandler_LogPublisherError(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -735,6 +735,7 @@ func TestMessageHandler_LogPublisherError(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		newMockAlertMonitor(),
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
@@ -787,7 +788,6 @@ func TestMessageHandler_PublishAndLogError(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -797,6 +797,7 @@ func TestMessageHandler_PublishAndLogError(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		newMockAlertMonitor(),
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
@@ -850,7 +851,6 @@ func TestManualDelivery_Success(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -860,6 +860,7 @@ func TestManualDelivery_Success(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
@@ -924,7 +925,6 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -934,6 +934,7 @@ func TestManualDelivery_PublishError(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
@@ -990,7 +991,6 @@ func TestManualDelivery_CancelError(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -1000,6 +1000,7 @@ func TestManualDelivery_CancelError(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
@@ -1058,7 +1059,6 @@ func TestManualDelivery_DestinationDisabled(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -1068,6 +1068,7 @@ func TestManualDelivery_DestinationDisabled(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
@@ -1131,7 +1132,6 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -1141,6 +1141,7 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
@@ -1192,7 +1193,6 @@ func TestMessageHandler_AlertMonitorError(t *testing.T) {
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
-		testutil.CreateTestRedisClient(t),
 		logPublisher,
 		destGetter,
 		eventGetter,
@@ -1202,6 +1202,7 @@ func TestMessageHandler_AlertMonitorError(t *testing.T) {
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
 		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
