@@ -214,8 +214,7 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
       }
     });
 
-    // TODO: Re-enable this test once the backend validates the contents of the serviceAccountJson.
-    it.skip('should reject creation with invalid serviceAccountJson', async () => {
+    it('should reject creation with invalid serviceAccountJson', async () => {
       let errorThrown = false;
       try {
         await client.createDestination({
