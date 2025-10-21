@@ -46,8 +46,25 @@ func NewStandardWebhookConsumer() *StandardWebhookConsumer {
 		metadata := make(map[string]string)
 		for k, v := range r.Header {
 			if len(v) > 0 {
-				// Convert header name to lowercase for consistent access
-				metadata[strings.ToLower(k)] = v[0]
+				headerKey := strings.ToLower(k)
+				// Map Standard Webhooks headers to expected metadata keys
+				// Standard Webhooks prefixes all headers with "webhook-", so we need to strip it
+				if strings.HasPrefix(headerKey, "webhook-") {
+					// Remove "webhook-" prefix to get the actual metadata key
+					metadataKey := strings.TrimPrefix(headerKey, "webhook-")
+					// Map to expected keys
+					switch metadataKey {
+					case "id":
+						metadata["event-id"] = v[0]
+					case "timestamp":
+						metadata["timestamp"] = v[0]
+					default:
+						metadata[metadataKey] = v[0]
+					}
+				} else {
+					// Keep all non-prefixed headers as-is (user-defined metadata)
+					metadata[headerKey] = v[0]
+				}
 			}
 		}
 
