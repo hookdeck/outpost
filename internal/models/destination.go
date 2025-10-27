@@ -28,6 +28,7 @@ type Destination struct {
 	DeliveryMetadata DeliveryMetadata `json:"delivery_metadata,omitempty" redis:"-"`
 	Metadata         Metadata         `json:"metadata,omitempty" redis:"-"`
 	CreatedAt        time.Time        `json:"created_at" redis:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at" redis:"updated_at"`
 	DisabledAt       *time.Time       `json:"disabled_at" redis:"disabled_at"`
 }
 
@@ -45,6 +46,10 @@ func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Ciphe
 	}
 	if err = cmd.Scan(d); err != nil {
 		return err
+	}
+	// Fallback updated_at to created_at if missing (for existing records)
+	if hash["updated_at"] == "" {
+		d.UpdatedAt = d.CreatedAt
 	}
 	err = d.Topics.UnmarshalBinary([]byte(hash["topics"]))
 	if err != nil {

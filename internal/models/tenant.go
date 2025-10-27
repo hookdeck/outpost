@@ -11,6 +11,7 @@ type Tenant struct {
 	Topics            []string  `json:"topics" redis:"-"`
 	Metadata          Metadata  `json:"metadata,omitempty" redis:"-"`
 	CreatedAt         time.Time `json:"created_at" redis:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at" redis:"updated_at"`
 }
 
 func (t *Tenant) parseRedisHash(hash map[string]string) error {
@@ -29,6 +30,17 @@ func (t *Tenant) parseRedisHash(hash map[string]string) error {
 		return err
 	}
 	t.CreatedAt = createdAt
+
+	// Deserialize updated_at if present, otherwise fallback to created_at (for existing records)
+	if hash["updated_at"] != "" {
+		updatedAt, err := time.Parse(time.RFC3339Nano, hash["updated_at"])
+		if err != nil {
+			return err
+		}
+		t.UpdatedAt = updatedAt
+	} else {
+		t.UpdatedAt = t.CreatedAt
+	}
 
 	// Deserialize metadata if present
 	if metadataStr, exists := hash["metadata"]; exists && metadataStr != "" {

@@ -15,12 +15,14 @@ type mockTenantFactory struct {
 }
 
 func (f *mockTenantFactory) Any(opts ...func(*models.Tenant)) models.Tenant {
+	now := time.Now()
 	tenant := models.Tenant{
 		ID:                idgen.String(),
 		DestinationsCount: 0,
 		Topics:            []string{},
 		Metadata:          nil,
-		CreatedAt:         time.Now(),
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	}
 
 	for _, opt := range opts {
@@ -45,5 +47,11 @@ func (f *mockTenantFactory) WithMetadata(metadata map[string]string) func(*model
 func (f *mockTenantFactory) WithCreatedAt(createdAt time.Time) func(*models.Tenant) {
 	return func(tenant *models.Tenant) {
 		tenant.CreatedAt = createdAt
+	}
+}
+
+func (f *mockTenantFactory) WithUpdatedAt(updatedAt time.Time) func(*models.Tenant) {
+	return func(tenant *models.Tenant) {
+		tenant.UpdatedAt = updatedAt
 	}
 }
