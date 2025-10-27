@@ -37,23 +37,38 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 		return
 	}
 
+	// Parse request body for metadata
+	var input struct {
+		Metadata models.Metadata `json:"metadata,omitempty"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		// If body is empty or invalid, that's OK - metadata is optional
+		// Continue with nil metadata
+	}
+
 	// Check existing tenant.
-	tenant, err := h.entityStore.RetrieveTenant(c.Request.Context(), tenantID)
+	existingTenant, err := h.entityStore.RetrieveTenant(c.Request.Context(), tenantID)
 	if err != nil && err != models.ErrTenantDeleted {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 
-	// If tenant already exists, return.
-	if tenant != nil {
-		c.JSON(http.StatusOK, tenant)
+	// If tenant already exists, update it (PUT replaces metadata)
+	if existingTenant != nil {
+		existingTenant.Metadata = input.Metadata
+		if err := h.entityStore.UpsertTenant(c.Request.Context(), *existingTenant); err != nil {
+			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+			return
+		}
+		c.JSON(http.StatusOK, existingTenant)
 		return
 	}
 
 	// Create new tenant.
-	tenant = &models.Tenant{
+	tenant := &models.Tenant{
 		ID:        tenantID,
 		Topics:    []string{},
+		Metadata:  input.Metadata,
 		CreatedAt: time.Now(),
 	}
 	if err := h.entityStore.UpsertTenant(c.Request.Context(), *tenant); err != nil {

@@ -267,6 +267,152 @@ func (suite *basicSuite) TestTenantsAPI() {
 				},
 			},
 		},
+		// Metadata tests
+		{
+			Name: "PUT /:tenantID with metadata",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+				Body: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"environment": "production",
+						"team":        "platform",
+						"region":      "us-east-1",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id": tenantID,
+						"metadata": map[string]interface{}{
+							"environment": "production",
+							"team":        "platform",
+							"region":      "us-east-1",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID retrieves metadata",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id": tenantID,
+						"metadata": map[string]interface{}{
+							"environment": "production",
+							"team":        "platform",
+							"region":      "us-east-1",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "PUT /:tenantID replaces metadata (full replacement)",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+				Body: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"team":  "engineering",
+						"owner": "alice",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id": tenantID,
+						"metadata": map[string]interface{}{
+							"team":  "engineering",
+							"owner": "alice",
+							// Note: environment and region are gone (full replacement)
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID verifies metadata was replaced",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id": tenantID,
+						"metadata": map[string]interface{}{
+							"team":  "engineering",
+							"owner": "alice",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "PUT /:tenantID without metadata clears it",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+				Body:   map[string]interface{}{},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID verifies metadata is nil",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id":                 tenantID,
+						"destinations_count": 0,
+						"topics":             []string{},
+						// metadata field should not be present (omitempty)
+					},
+				},
+			},
+		},
+		{
+			Name: "Create new tenant with metadata",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + idgen.String(),
+				Body: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"stage": "development",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+					Body: map[string]interface{}{
+						"metadata": map[string]interface{}{
+							"stage": "development",
+						},
+					},
+				},
+			},
+		},
 	}
 	suite.RunAPITests(suite.T(), tests)
 }
