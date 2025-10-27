@@ -448,10 +448,10 @@ func TestWebhookPublisher_DeliveryMetadata(t *testing.T) {
 			"secret": "test-secret",
 		}),
 		testutil.DestinationFactory.WithDeliveryMetadata(map[string]string{
-			"app-id":     "my-app",
-			"source":     "outpost-delivery",
-			"x-api-key":  "secret-api-key",
-			"timestamp":  "999", // Should override system timestamp
+			"app-id":    "my-app",
+			"source":    "outpost-delivery",
+			"x-api-key": "secret-api-key",
+			"timestamp": "999", // Should override system timestamp
 		}),
 	)
 

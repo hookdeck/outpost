@@ -35,8 +35,8 @@ retry_schedule: [5, 300, 1800, 7200, 18000, 36000, 36000]
 				"CONFIG": "config.yaml",
 			},
 			wantSchedule: []int{5, 300, 1800, 7200, 18000, 36000, 36000},
-			wantInterval: 30,         // still have default even though not used
-			wantMaxLimit: 7,          // overridden to schedule length
+			wantInterval: 30, // still have default even though not used
+			wantMaxLimit: 7,  // overridden to schedule length
 		},
 		{
 			name: "env retry schedule overrides yaml and max limit",
