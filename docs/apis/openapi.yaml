@@ -43,11 +43,26 @@ components:
             type: string
           description: List of subscribed topics across all destinations for this tenant.
           example: ["user.created", "user.deleted"]
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary key-value pairs for storing contextual information about the tenant.
         created_at:
           type: string
           format: date-time
           description: ISO Date when the tenant was created.
           example: "2024-01-01T00:00:00Z"
+    TenantUpsert:
+      type: object
+      properties:
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Optional metadata to store with the tenant.
     PortalRedirect:
       type: object
       properties:
@@ -1643,6 +1658,13 @@ paths:
       summary: Create or Update Tenant
       description: Idempotently creates or updates a tenant. Required before associating destinations.
       operationId: upsertTenant
+      requestBody:
+        description: Optional tenant metadata
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantUpsert"
       responses:
         "200":
           description: Tenant updated details.
@@ -1650,26 +1672,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
-              examples:
-                TenantExample:
-                  value:
-                    id: "tenant_123"
-                    destinations_count: 5
-                    topics: ["user.created", "user.deleted"]
-                    created_at: "2024-01-01T00:00:00Z"
         "201":
           description: Tenant created details.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
-              examples:
-                TenantExample:
-                  value:
-                    id: "tenant_123"
-                    destinations_count: 5
-                    topics: ["user.created", "user.deleted"]
-                    created_at: "2024-01-01T00:00:00Z"
         # Add error responses
     get:
       tags: [Tenants]
@@ -1683,13 +1691,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
-              examples:
-                TenantExample:
-                  value:
-                    id: "tenant_123"
-                    destinations_count: 5
-                    topics: ["user.created", "user.deleted"]
-                    created_at: "2024-01-01T00:00:00Z"
         "404":
           description: Tenant not found.
         # Add other error responses
