@@ -29,5 +29,14 @@ func (t *Tenant) parseRedisHash(hash map[string]string) error {
 		return err
 	}
 	t.CreatedAt = createdAt
+
+	// Deserialize metadata if present
+	if metadataStr, exists := hash["metadata"]; exists && metadataStr != "" {
+		err = t.Metadata.UnmarshalBinary([]byte(metadataStr))
+		if err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
 }
