@@ -192,6 +192,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	}
 
 	// Update destination.
+	updatedDestination.UpdatedAt = time.Now()
 	if err := h.entityStore.UpsertDestination(c.Request.Context(), updatedDestination); err != nil {
 		h.handleUpsertDestinationError(c, err)
 		return

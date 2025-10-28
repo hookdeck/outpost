@@ -79,3 +79,24 @@ func TestTenant_JSONUnmarshalEmptyMetadata(t *testing.T) {
 	assert.NotNil(t, tenant.Metadata)
 	assert.Empty(t, tenant.Metadata)
 }
+
+func TestTenant_JSONMarshalWithUpdatedAt(t *testing.T) {
+	t.Parallel()
+
+	tenant := testutil.TenantFactory.Any(
+		testutil.TenantFactory.WithID("tenant_123"),
+	)
+
+	// Marshal to JSON
+	jsonBytes, err := json.Marshal(tenant)
+	assert.NoError(t, err)
+
+	// Unmarshal back
+	var unmarshaled models.Tenant
+	err = json.Unmarshal(jsonBytes, &unmarshaled)
+	assert.NoError(t, err)
+
+	// Verify updated_at is preserved
+	assert.Equal(t, tenant.UpdatedAt.Unix(), unmarshaled.UpdatedAt.Unix())
+	assert.Equal(t, tenant.CreatedAt.Unix(), unmarshaled.CreatedAt.Unix())
+}

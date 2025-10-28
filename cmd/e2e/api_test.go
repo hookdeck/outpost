@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
 	"github.com/hookdeck/outpost/internal/idgen"
@@ -1037,6 +1038,140 @@ func (suite *basicSuite) TestDestinationsAPI() {
 		},
 	}
 	suite.RunAPITests(suite.T(), tests)
+}
+
+func (suite *basicSuite) TestEntityUpdatedAt() {
+	t := suite.T()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
+
+	// Create tenant
+	resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodPUT,
+		Path:   "/" + tenantID,
+	}))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	// Get tenant and verify created_at and updated_at exist and are equal
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodGET,
+		Path:   "/" + tenantID,
+	}))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body := resp.Body.(map[string]interface{})
+	require.NotNil(t, body["created_at"], "created_at should be present")
+	require.NotNil(t, body["updated_at"], "updated_at should be present")
+
+	tenantCreatedAt := body["created_at"].(string)
+	tenantUpdatedAt := body["updated_at"].(string)
+	// On creation, created_at and updated_at should be very close (within 1 second)
+	createdTime, err := time.Parse(time.RFC3339Nano, tenantCreatedAt)
+	require.NoError(t, err)
+	updatedTime, err := time.Parse(time.RFC3339Nano, tenantUpdatedAt)
+	require.NoError(t, err)
+	require.WithinDuration(t, createdTime, updatedTime, time.Second, "created_at and updated_at should be close on creation")
+
+	// Wait a bit to ensure different timestamp
+	time.Sleep(10 * time.Millisecond)
+
+	// Update tenant
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodPUT,
+		Path:   "/" + tenantID,
+		Body: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"env": "production",
+			},
+		},
+	}))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Get tenant again and verify updated_at changed but created_at didn't
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodGET,
+		Path:   "/" + tenantID,
+	}))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body = resp.Body.(map[string]interface{})
+	newTenantCreatedAt := body["created_at"].(string)
+	newTenantUpdatedAt := body["updated_at"].(string)
+
+	require.Equal(t, tenantCreatedAt, newTenantCreatedAt, "created_at should not change")
+	require.NotEqual(t, tenantUpdatedAt, newTenantUpdatedAt, "updated_at should change")
+	require.True(t, newTenantUpdatedAt > tenantUpdatedAt, "updated_at should be newer")
+
+	// Create destination
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodPOST,
+		Path:   "/" + tenantID + "/destinations",
+		Body: map[string]interface{}{
+			"id":     destinationID,
+			"type":   "webhook",
+			"topics": []string{"*"},
+			"config": map[string]interface{}{
+				"url": "http://host.docker.internal:4444",
+			},
+		},
+	}))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	// Get destination and verify created_at and updated_at exist and are equal
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodGET,
+		Path:   "/" + tenantID + "/destinations/" + destinationID,
+	}))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body = resp.Body.(map[string]interface{})
+	require.NotNil(t, body["created_at"], "created_at should be present")
+	require.NotNil(t, body["updated_at"], "updated_at should be present")
+
+	destCreatedAt := body["created_at"].(string)
+	destUpdatedAt := body["updated_at"].(string)
+	// On creation, created_at and updated_at should be very close (within 1 second)
+	createdTime, err = time.Parse(time.RFC3339Nano, destCreatedAt)
+	require.NoError(t, err)
+	updatedTime, err = time.Parse(time.RFC3339Nano, destUpdatedAt)
+	require.NoError(t, err)
+	require.WithinDuration(t, createdTime, updatedTime, time.Second, "created_at and updated_at should be close on creation")
+
+	// Wait a bit to ensure different timestamp
+	time.Sleep(10 * time.Millisecond)
+
+	// Update destination
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodPATCH,
+		Path:   "/" + tenantID + "/destinations/" + destinationID,
+		Body: map[string]interface{}{
+			"topics": []string{"user.created"},
+		},
+	}))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Get destination again and verify updated_at changed but created_at didn't
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodGET,
+		Path:   "/" + tenantID + "/destinations/" + destinationID,
+	}))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body = resp.Body.(map[string]interface{})
+	newDestCreatedAt := body["created_at"].(string)
+	newDestUpdatedAt := body["updated_at"].(string)
+
+	require.Equal(t, destCreatedAt, newDestCreatedAt, "created_at should not change")
+	require.NotEqual(t, destUpdatedAt, newDestUpdatedAt, "updated_at should change")
+	require.True(t, newDestUpdatedAt > destUpdatedAt, "updated_at should be newer")
 }
 
 func (suite *basicSuite) TestDestinationsListAPI() {

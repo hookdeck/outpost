@@ -150,6 +150,15 @@ func (s *entityStoreImpl) UpsertTenant(ctx context.Context, tenant Tenant) error
 		return err
 	}
 
+	// Auto-generate timestamps if not provided
+	now := time.Now()
+	if tenant.CreatedAt.IsZero() {
+		tenant.CreatedAt = now
+	}
+	if tenant.UpdatedAt.IsZero() {
+		tenant.UpdatedAt = now
+	}
+
 	// Set tenant data (basic fields)
 	if err := s.redisClient.HSet(ctx, key, tenant).Err(); err != nil {
 		return err
@@ -335,6 +344,15 @@ func (s *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 		}
 	}
 
+	// Auto-generate timestamps if not provided
+	now := time.Now()
+	if destination.CreatedAt.IsZero() {
+		destination.CreatedAt = now
+	}
+	if destination.UpdatedAt.IsZero() {
+		destination.UpdatedAt = now
+	}
+
 	// All keys use same tenant prefix - cluster compatible transaction
 	summaryKey := s.redisTenantDestinationSummaryKey(destination.TenantID)
 
@@ -350,6 +368,7 @@ func (s *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 		pipe.HSet(ctx, key, "config", &destination.Config)
 		pipe.HSet(ctx, key, "credentials", encryptedCredentials)
 		pipe.HSet(ctx, key, "created_at", destination.CreatedAt)
+		pipe.HSet(ctx, key, "updated_at", destination.UpdatedAt)
 
 		if destination.DisabledAt != nil {
 			pipe.HSet(ctx, key, "disabled_at", *destination.DisabledAt)

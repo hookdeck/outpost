@@ -15,13 +15,15 @@ type mockDestinationFactory struct {
 }
 
 func (f *mockDestinationFactory) Any(opts ...func(*models.Destination)) models.Destination {
+	now := time.Now()
 	destination := models.Destination{
 		ID:          idgen.Destination(),
 		Type:        "webhook",
 		Topics:      []string{"*"},
 		Config:      map[string]string{"url": "http://host.docker.internal:4444"},
 		Credentials: map[string]string{},
-		CreatedAt:   time.Now(),
+		CreatedAt:   now,
+		UpdatedAt:   now,
 		TenantID:    "test-tenant",
 		DisabledAt:  nil,
 	}
@@ -72,6 +74,12 @@ func (f *mockDestinationFactory) WithCredentials(credentials map[string]string) 
 func (f *mockDestinationFactory) WithCreatedAt(createdAt time.Time) func(*models.Destination) {
 	return func(destination *models.Destination) {
 		destination.CreatedAt = createdAt
+	}
+}
+
+func (f *mockDestinationFactory) WithUpdatedAt(updatedAt time.Time) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.UpdatedAt = updatedAt
 	}
 }
 

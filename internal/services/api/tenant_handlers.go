@@ -59,6 +59,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	// If tenant already exists, update it (PUT replaces metadata)
 	if existingTenant != nil {
 		existingTenant.Metadata = input.Metadata
+		existingTenant.UpdatedAt = time.Now()
 		if err := h.entityStore.UpsertTenant(c.Request.Context(), *existingTenant); err != nil {
 			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 			return

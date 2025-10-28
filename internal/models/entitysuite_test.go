@@ -25,6 +25,7 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assert.Equal(t, expected.DeliveryMetadata, actual.DeliveryMetadata)
 	assert.Equal(t, expected.Metadata, actual.Metadata)
 	assert.True(t, cmp.Equal(expected.CreatedAt, actual.CreatedAt))
+	assert.True(t, cmp.Equal(expected.UpdatedAt, actual.UpdatedAt))
 	assert.True(t, cmp.Equal(expected.DisabledAt, actual.DisabledAt))
 }
 
@@ -53,9 +54,11 @@ func (s *EntityTestSuite) SetupTest() {
 
 func (s *EntityTestSuite) TestTenantCRUD() {
 	t := s.T()
+	now := time.Now()
 	input := models.Tenant{
 		ID:        idgen.String(),
-		CreatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
 	t.Run("gets empty", func(t *testing.T) {
@@ -158,10 +161,64 @@ func (s *EntityTestSuite) TestTenantCRUD() {
 		require.NoError(s.T(), err)
 		assert.Nil(s.T(), retrieved.Metadata)
 	})
+
+	// UpdatedAt tests
+	t.Run("sets updated_at on create", func(t *testing.T) {
+		newTenant := testutil.TenantFactory.Any()
+
+		err := s.entityStore.UpsertTenant(s.ctx, newTenant)
+		require.NoError(s.T(), err)
+
+		retrieved, err := s.entityStore.RetrieveTenant(s.ctx, newTenant.ID)
+		require.NoError(s.T(), err)
+		assert.True(s.T(), newTenant.UpdatedAt.Unix() == retrieved.UpdatedAt.Unix())
+	})
+
+	t.Run("updates updated_at on upsert", func(t *testing.T) {
+		original := testutil.TenantFactory.Any()
+
+		err := s.entityStore.UpsertTenant(s.ctx, original)
+		require.NoError(s.T(), err)
+
+		// Wait a bit to ensure different timestamp
+		time.Sleep(10 * time.Millisecond)
+
+		// Update the tenant
+		updated := original
+		updated.UpdatedAt = time.Now()
+
+		err = s.entityStore.UpsertTenant(s.ctx, updated)
+		require.NoError(s.T(), err)
+
+		retrieved, err := s.entityStore.RetrieveTenant(s.ctx, updated.ID)
+		require.NoError(s.T(), err)
+
+		// updated_at should be newer than original
+		assert.True(s.T(), retrieved.UpdatedAt.After(original.UpdatedAt))
+		assert.True(s.T(), updated.UpdatedAt.Unix() == retrieved.UpdatedAt.Unix())
+	})
+
+	t.Run("fallback updated_at to created_at for existing records", func(t *testing.T) {
+		// Create a tenant normally first
+		oldTenant := testutil.TenantFactory.Any()
+		err := s.entityStore.UpsertTenant(s.ctx, oldTenant)
+		require.NoError(s.T(), err)
+
+		// Now manually remove the updated_at field from Redis to simulate old record
+		key := "tenant:" + oldTenant.ID
+		err = s.redisClient.HDel(s.ctx, key, "updated_at").Err()
+		require.NoError(s.T(), err)
+
+		// Retrieve should fallback updated_at to created_at
+		retrieved, err := s.entityStore.RetrieveTenant(s.ctx, oldTenant.ID)
+		require.NoError(s.T(), err)
+		assert.True(s.T(), retrieved.UpdatedAt.Equal(retrieved.CreatedAt))
+	})
 }
 
 func (s *EntityTestSuite) TestDestinationCRUD() {
 	t := s.T()
+	now := time.Now()
 	input := models.Destination{
 		ID:     idgen.Destination(),
 		Type:   "rabbitmq",
@@ -182,7 +239,8 @@ func (s *EntityTestSuite) TestDestinationCRUD() {
 			"environment": "test",
 			"team":        "platform",
 		},
-		CreatedAt:  time.Now(),
+		CreatedAt:  now,
+		UpdatedAt:  now,
 		DisabledAt: nil,
 		TenantID:   idgen.String(),
 	}
@@ -261,6 +319,69 @@ func (s *EntityTestSuite) TestDestinationCRUD() {
 
 		// cleanup
 		require.NoError(s.T(), s.entityStore.DeleteDestination(s.ctx, inputWithNilFields.TenantID, inputWithNilFields.ID))
+	})
+
+	// UpdatedAt tests
+	t.Run("sets updated_at on create", func(t *testing.T) {
+		newDest := testutil.DestinationFactory.Any()
+
+		err := s.entityStore.CreateDestination(s.ctx, newDest)
+		require.NoError(s.T(), err)
+
+		retrieved, err := s.entityStore.RetrieveDestination(s.ctx, newDest.TenantID, newDest.ID)
+		require.NoError(s.T(), err)
+		assert.True(s.T(), newDest.UpdatedAt.Unix() == retrieved.UpdatedAt.Unix())
+
+		// cleanup
+		require.NoError(s.T(), s.entityStore.DeleteDestination(s.ctx, newDest.TenantID, newDest.ID))
+	})
+
+	t.Run("updates updated_at on upsert", func(t *testing.T) {
+		original := testutil.DestinationFactory.Any()
+
+		err := s.entityStore.CreateDestination(s.ctx, original)
+		require.NoError(s.T(), err)
+
+		// Wait a bit to ensure different timestamp
+		time.Sleep(10 * time.Millisecond)
+
+		// Update the destination
+		updated := original
+		updated.UpdatedAt = time.Now()
+		updated.Topics = []string{"updated.topic"}
+
+		err = s.entityStore.UpsertDestination(s.ctx, updated)
+		require.NoError(s.T(), err)
+
+		retrieved, err := s.entityStore.RetrieveDestination(s.ctx, updated.TenantID, updated.ID)
+		require.NoError(s.T(), err)
+
+		// updated_at should be newer than original
+		assert.True(s.T(), retrieved.UpdatedAt.After(original.UpdatedAt))
+		assert.True(s.T(), updated.UpdatedAt.Unix() == retrieved.UpdatedAt.Unix())
+
+		// cleanup
+		require.NoError(s.T(), s.entityStore.DeleteDestination(s.ctx, updated.TenantID, updated.ID))
+	})
+
+	t.Run("fallback updated_at to created_at for existing records", func(t *testing.T) {
+		// Create a destination normally first
+		oldDest := testutil.DestinationFactory.Any()
+		err := s.entityStore.CreateDestination(s.ctx, oldDest)
+		require.NoError(s.T(), err)
+
+		// Now manually remove the updated_at field from Redis to simulate old record
+		key := "destination:" + oldDest.TenantID + ":" + oldDest.ID
+		err = s.redisClient.HDel(s.ctx, key, "updated_at").Err()
+		require.NoError(s.T(), err)
+
+		// Retrieve should fallback updated_at to created_at
+		retrieved, err := s.entityStore.RetrieveDestination(s.ctx, oldDest.TenantID, oldDest.ID)
+		require.NoError(s.T(), err)
+		assert.True(s.T(), retrieved.UpdatedAt.Equal(retrieved.CreatedAt))
+
+		// cleanup
+		require.NoError(s.T(), s.entityStore.DeleteDestination(s.ctx, oldDest.TenantID, oldDest.ID))
 	})
 }
 
