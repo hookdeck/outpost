@@ -54,6 +54,11 @@ components:
           format: date-time
           description: ISO Date when the tenant was created.
           example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the tenant was last updated.
+          example: "2024-01-01T00:00:00Z"
     TenantUpsert:
       type: object
       properties:
@@ -328,7 +333,7 @@ components:
     DestinationWebhook:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
         id:
           type: string
@@ -351,6 +356,11 @@ components:
           type: string
           format: date-time
           description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
           example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/WebhookConfig"
@@ -388,6 +398,7 @@ components:
         topics: ["user.created", "order.shipped"]
         disabled_at: null
         created_at: "2024-02-15T10:00:00Z"
+        updated_at: "2024-02-15T10:00:00Z"
         config:
           url: "https://my-service.com/webhook/handler"
         credentials:
@@ -397,7 +408,7 @@ components:
     DestinationAWSSQS:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
         id:
           type: string
@@ -420,6 +431,11 @@ components:
           type: string
           format: date-time
           description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
           example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/AWSSQSConfig"
@@ -457,6 +473,7 @@ components:
         topics: ["*"]
         disabled_at: "2024-03-01T12:00:00Z"
         created_at: "2024-02-20T11:30:00Z"
+        updated_at: "2024-02-20T11:30:00Z"
         config:
           queue_url: "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue"
           endpoint: "https://sqs.us-west-2.amazonaws.com"
@@ -466,7 +483,7 @@ components:
     DestinationRabbitMQ:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
         id:
           type: string
@@ -489,6 +506,11 @@ components:
           type: string
           format: date-time
           description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
           example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/RabbitMQConfig"
@@ -526,6 +548,7 @@ components:
         topics: ["inventory.updated"]
         disabled_at: null
         created_at: "2024-01-10T09:00:00Z"
+        updated_at: "2024-01-10T09:00:00Z"
         config:
           server_url: "amqp.cloudamqp.com:5671"
           exchange: "events-exchange"
@@ -559,6 +582,11 @@ components:
           type: string
           format: date-time
           description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
           example: "2024-01-01T00:00:00Z"
         config: {} # Empty config
         credentials:
@@ -595,13 +623,14 @@ components:
         topics: ["*"]
         disabled_at: null
         created_at: "2024-04-01T10:00:00Z"
+        updated_at: "2024-04-01T10:00:00Z"
         config: {}
         credentials:
           token: "hd_token_..."
     DestinationAWSKinesis:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
         id:
           type: string
@@ -624,6 +653,11 @@ components:
           type: string
           format: date-time
           description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
           example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/AWSKinesisConfig"
@@ -661,6 +695,7 @@ components:
         topics: ["user.created", "user.updated"]
         disabled_at: null
         created_at: "2024-03-10T15:30:00Z"
+        updated_at: "2024-03-10T15:30:00Z"
         config:
           stream_name: "production-events"
           region: "eu-west-1"
@@ -693,6 +728,11 @@ components:
           type: string
           format: date-time
           description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
           example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/AzureServiceBusConfig"
@@ -730,6 +770,7 @@ components:
         topics: ["*"]
         disabled_at: null
         created_at: "2024-05-01T10:00:00Z"
+        updated_at: "2024-05-01T10:00:00Z"
         config:
           name: "my-queue-or-topic"
         credentials:
@@ -738,7 +779,7 @@ components:
     DestinationAWSS3:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
         id:
           type: string
@@ -761,6 +802,11 @@ components:
           type: string
           format: date-time
           description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
           example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/AWSS3Config"
@@ -798,6 +844,7 @@ components:
         topics: ["*"]
         disabled_at: null
         created_at: "2024-03-20T12:00:00Z"
+        updated_at: "2024-03-20T12:00:00Z"
         config:
           bucket: "my-bucket"
           region: "us-east-1"
@@ -807,7 +854,7 @@ components:
     DestinationGCPPubSub:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
         id:
           type: string
@@ -830,6 +877,11 @@ components:
           type: string
           format: date-time
           description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
           example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/GCPPubSubConfig"
@@ -867,6 +919,7 @@ components:
         topics: ["order.created", "order.updated"]
         disabled_at: null
         created_at: "2024-03-10T14:30:00Z"
+        updated_at: "2024-03-10T14:30:00Z"
         config:
           project_id: "my-project-123"
           topic: "events-topic"
@@ -1855,6 +1908,7 @@ paths:
                       topics: ["user.created", "order.shipped"]
                       disabled_at: null
                       created_at: "2024-02-15T10:00:00Z"
+                      updated_at: "2024-02-15T10:00:00Z"
                       config:
                         url: "https://my-service.com/webhook/handler"
                       credentials:
@@ -1866,6 +1920,7 @@ paths:
                       topics: ["*"]
                       disabled_at: "2024-03-01T12:00:00Z"
                       created_at: "2024-02-20T11:30:00Z"
+                      updated_at: "2024-02-20T11:30:00Z"
                       config:
                         queue_url: "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue"
                         endpoint: "https://sqs.us-west-2.amazonaws.com"
@@ -1877,6 +1932,7 @@ paths:
                       topics: ["*"]
                       disabled_at: null
                       created_at: "2024-03-20T12:00:00Z"
+        updated_at: "2024-03-20T12:00:00Z"
                       config:
                         bucket: "my-bucket"
                         region: "us-east-1"
@@ -1912,6 +1968,7 @@ paths:
                     topics: ["user.created", "order.shipped"]
                     disabled_at: null
                     created_at: "2024-02-15T10:00:00Z"
+                    updated_at: "2024-02-15T10:00:00Z"
                     config:
                       url: "https://my-service.com/webhook/handler"
                     credentials:
@@ -1957,6 +2014,7 @@ paths:
                     topics: ["user.created", "order.shipped"]
                     disabled_at: null
                     created_at: "2024-02-15T10:00:00Z"
+                    updated_at: "2024-02-15T10:00:00Z"
                     config:
                       url: "https://my-service.com/webhook/handler"
                     credentials:
@@ -1993,6 +2051,7 @@ paths:
                     topics: ["user.created"]
                     disabled_at: null
                     created_at: "2024-02-15T10:00:00Z"
+                    updated_at: "2024-02-15T10:00:00Z"
                     config:
                       url: "https://my-service.com/webhook/new-handler" # Updated URL
                     credentials:
@@ -2058,6 +2117,7 @@ paths:
                     topics: ["user.created", "order.shipped"]
                     disabled_at: null # Now enabled
                     created_at: "2024-02-15T10:00:00Z"
+                    updated_at: "2024-02-15T10:00:00Z"
                     config:
                       url: "https://my-service.com/webhook/handler"
                     credentials:
@@ -2102,6 +2162,7 @@ paths:
                     topics: ["user.created", "order.shipped"]
                     disabled_at: "2024-04-11T21:00:00Z" # Now disabled
                     created_at: "2024-02-15T10:00:00Z"
+                    updated_at: "2024-02-15T10:00:00Z"
                     config:
                       url: "https://my-service.com/webhook/handler"
                     credentials:
