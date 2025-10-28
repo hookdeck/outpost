@@ -150,8 +150,23 @@ func (s *entityStoreImpl) UpsertTenant(ctx context.Context, tenant Tenant) error
 		return err
 	}
 
-	// Set tenant data
-	return s.redisClient.HSet(ctx, key, tenant).Err()
+	// Set tenant data (basic fields)
+	if err := s.redisClient.HSet(ctx, key, tenant).Err(); err != nil {
+		return err
+	}
+
+	// Store metadata if present, otherwise delete field
+	if tenant.Metadata != nil {
+		if err := s.redisClient.HSet(ctx, key, "metadata", &tenant.Metadata).Err(); err != nil {
+			return err
+		}
+	} else {
+		if err := s.redisClient.HDel(ctx, key, "metadata").Err(); err != nil && err != redis.Nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *entityStoreImpl) DeleteTenant(ctx context.Context, tenantID string) error {

@@ -30,30 +30,7 @@ func (d *Data) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, d)
 }
 
-type Metadata map[string]string
-
-var _ fmt.Stringer = &Metadata{}
-var _ encoding.BinaryMarshaler = &Metadata{}
-var _ encoding.BinaryUnmarshaler = &Metadata{}
-
-func (m *Metadata) String() string {
-	metadata, err := json.Marshal(m)
-	if err != nil {
-		return ""
-	}
-	return string(metadata)
-}
-
-func (m *Metadata) MarshalBinary() ([]byte, error) {
-	return json.Marshal(m)
-}
-
-func (m *Metadata) UnmarshalBinary(metadata []byte) error {
-	if string(metadata) == "" {
-		return nil
-	}
-	return json.Unmarshal(metadata, m)
-}
+type Metadata = MapStringString
 
 type EventTelemetry struct {
 	TraceID      string

@@ -1,10 +1,13 @@
 package e2e_test
 
 import (
+	"bytes"
+	"fmt"
 	"net/http"
 
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/stretchr/testify/require"
 )
 
 func (suite *basicSuite) TestHealthzAPI() {
@@ -267,8 +270,213 @@ func (suite *basicSuite) TestTenantsAPI() {
 				},
 			},
 		},
+		// Metadata tests
+		{
+			Name: "PUT /:tenantID with metadata",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+				Body: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"environment": "production",
+						"team":        "platform",
+						"region":      "us-east-1",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id": tenantID,
+						"metadata": map[string]interface{}{
+							"environment": "production",
+							"team":        "platform",
+							"region":      "us-east-1",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID retrieves metadata",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id": tenantID,
+						"metadata": map[string]interface{}{
+							"environment": "production",
+							"team":        "platform",
+							"region":      "us-east-1",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "PUT /:tenantID replaces metadata (full replacement)",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+				Body: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"team":  "engineering",
+						"owner": "alice",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id": tenantID,
+						"metadata": map[string]interface{}{
+							"team":  "engineering",
+							"owner": "alice",
+							// Note: environment and region are gone (full replacement)
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID verifies metadata was replaced",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id": tenantID,
+						"metadata": map[string]interface{}{
+							"team":  "engineering",
+							"owner": "alice",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "PUT /:tenantID without metadata clears it",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+				Body:   map[string]interface{}{},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID verifies metadata is nil",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id":                 tenantID,
+						"destinations_count": 0,
+						"topics":             []string{},
+						// metadata field should not be present (omitempty)
+					},
+				},
+			},
+		},
+		{
+			Name: "Create new tenant with metadata",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + idgen.String(),
+				Body: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"stage": "development",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+					Body: map[string]interface{}{
+						"metadata": map[string]interface{}{
+							"stage": "development",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "PUT /:tenantID with metadata value auto-converted (number to string)",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + idgen.String(),
+				Body: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"count":   42,
+						"enabled": true,
+						"ratio":   3.14,
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+					Body: map[string]interface{}{
+						"metadata": map[string]interface{}{
+							"count":   "42",
+							"enabled": "true",
+							"ratio":   "3.14",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "PUT /:tenantID with empty body (no metadata)",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + idgen.String(),
+				Body:   map[string]interface{}{},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
 	}
 	suite.RunAPITests(suite.T(), tests)
+}
+
+func (suite *basicSuite) TestTenantAPIInvalidJSON() {
+	t := suite.T()
+	tenantID := idgen.String()
+	baseURL := fmt.Sprintf("http://localhost:%d/api/v1", suite.config.APIPort)
+
+	// Create tenant with malformed JSON (send raw bytes)
+	jsonBody := []byte(`{"metadata": invalid json}`)
+	req, err := http.NewRequest(httpclient.MethodPUT, baseURL+"/"+tenantID, bytes.NewReader(jsonBody))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+suite.config.APIKey)
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode, "Malformed JSON should return 400")
 }
 
 func (suite *basicSuite) TestDestinationsAPI() {
@@ -794,6 +1002,37 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(2),
+			},
+		},
+		{
+			Name: "POST /:tenantID/destinations with metadata auto-conversion",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
+				Body: map[string]interface{}{
+					"type":   "webhook",
+					"topics": "*",
+					"config": map[string]interface{}{
+						"url": "http://host.docker.internal:4444",
+					},
+					"metadata": map[string]interface{}{
+						"priority": 10,
+						"enabled":  true,
+						"version":  1.5,
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+					Body: map[string]interface{}{
+						"metadata": map[string]interface{}{
+							"priority": "10",
+							"enabled":  "true",
+							"version":  "1.5",
+						},
+					},
+				},
 			},
 		},
 	}

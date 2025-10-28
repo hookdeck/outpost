@@ -9,6 +9,7 @@ type Tenant struct {
 	ID                string    `json:"id" redis:"id"`
 	DestinationsCount int       `json:"destinations_count" redis:"-"`
 	Topics            []string  `json:"topics" redis:"-"`
+	Metadata          Metadata  `json:"metadata,omitempty" redis:"-"`
 	CreatedAt         time.Time `json:"created_at" redis:"created_at"`
 }
 
@@ -28,5 +29,14 @@ func (t *Tenant) parseRedisHash(hash map[string]string) error {
 		return err
 	}
 	t.CreatedAt = createdAt
+
+	// Deserialize metadata if present
+	if metadataStr, exists := hash["metadata"]; exists && metadataStr != "" {
+		err = t.Metadata.UnmarshalBinary([]byte(metadataStr))
+		if err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
 }

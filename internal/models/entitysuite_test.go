@@ -117,6 +117,47 @@ func (s *EntityTestSuite) TestTenantCRUD() {
 		assert.Equal(s.T(), input.ID, actual.ID)
 		assert.True(s.T(), input.CreatedAt.Equal(actual.CreatedAt))
 	})
+
+	t.Run("upserts with metadata", func(t *testing.T) {
+		input.Metadata = map[string]string{
+			"environment": "production",
+			"team":        "platform",
+		}
+
+		err := s.entityStore.UpsertTenant(s.ctx, input)
+		require.NoError(s.T(), err)
+
+		retrieved, err := s.entityStore.RetrieveTenant(s.ctx, input.ID)
+		require.NoError(s.T(), err)
+		assert.Equal(s.T(), input.ID, retrieved.ID)
+		assert.Equal(s.T(), input.Metadata, retrieved.Metadata)
+	})
+
+	t.Run("updates metadata", func(t *testing.T) {
+		input.Metadata = map[string]string{
+			"environment": "staging",
+			"team":        "engineering",
+			"region":      "us-west-2",
+		}
+
+		err := s.entityStore.UpsertTenant(s.ctx, input)
+		require.NoError(s.T(), err)
+
+		retrieved, err := s.entityStore.RetrieveTenant(s.ctx, input.ID)
+		require.NoError(s.T(), err)
+		assert.Equal(s.T(), input.Metadata, retrieved.Metadata)
+	})
+
+	t.Run("handles nil metadata", func(t *testing.T) {
+		input.Metadata = nil
+
+		err := s.entityStore.UpsertTenant(s.ctx, input)
+		require.NoError(s.T(), err)
+
+		retrieved, err := s.entityStore.RetrieveTenant(s.ctx, input.ID)
+		require.NoError(s.T(), err)
+		assert.Nil(s.T(), retrieved.Metadata)
+	})
 }
 
 func (s *EntityTestSuite) TestDestinationCRUD() {
