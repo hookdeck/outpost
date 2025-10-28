@@ -413,6 +413,32 @@ func (suite *basicSuite) TestTenantsAPI() {
 				},
 			},
 		},
+		{
+			Name: "PUT /:tenantID with metadata value auto-converted (number to string)",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + idgen.String(),
+				Body: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"count": 42,
+						"enabled": true,
+						"ratio": 3.14,
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+					Body: map[string]interface{}{
+						"metadata": map[string]interface{}{
+							"count": "42",
+							"enabled": "true",
+							"ratio": "3.14",
+						},
+					},
+				},
+			},
+		},
 	}
 	suite.RunAPITests(suite.T(), tests)
 }
@@ -940,6 +966,37 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(2),
+			},
+		},
+		{
+			Name: "POST /:tenantID/destinations with metadata auto-conversion",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
+				Body: map[string]interface{}{
+					"type":   "webhook",
+					"topics": "*",
+					"config": map[string]interface{}{
+						"url": "http://host.docker.internal:4444",
+					},
+					"metadata": map[string]interface{}{
+						"priority": 10,
+						"enabled":  true,
+						"version":  1.5,
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+					Body: map[string]interface{}{
+						"metadata": map[string]interface{}{
+							"priority": "10",
+							"enabled":  "true",
+							"version":  "1.5",
+						},
+					},
+				},
 			},
 		},
 	}
