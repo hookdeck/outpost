@@ -1,10 +1,13 @@
 package e2e_test
 
 import (
+	"bytes"
+	"fmt"
 	"net/http"
 
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/stretchr/testify/require"
 )
 
 func (suite *basicSuite) TestHealthzAPI() {
@@ -420,9 +423,9 @@ func (suite *basicSuite) TestTenantsAPI() {
 				Path:   "/" + idgen.String(),
 				Body: map[string]interface{}{
 					"metadata": map[string]interface{}{
-						"count": 42,
+						"count":   42,
 						"enabled": true,
-						"ratio": 3.14,
+						"ratio":   3.14,
 					},
 				},
 			}),
@@ -431,16 +434,49 @@ func (suite *basicSuite) TestTenantsAPI() {
 					StatusCode: http.StatusCreated,
 					Body: map[string]interface{}{
 						"metadata": map[string]interface{}{
-							"count": "42",
+							"count":   "42",
 							"enabled": "true",
-							"ratio": "3.14",
+							"ratio":   "3.14",
 						},
 					},
 				},
 			},
 		},
+		{
+			Name: "PUT /:tenantID with empty body (no metadata)",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + idgen.String(),
+				Body:   map[string]interface{}{},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
 	}
 	suite.RunAPITests(suite.T(), tests)
+}
+
+func (suite *basicSuite) TestTenantAPIInvalidJSON() {
+	t := suite.T()
+	tenantID := idgen.String()
+	baseURL := fmt.Sprintf("http://localhost:%d/api/v1", suite.config.APIPort)
+
+	// Create tenant with malformed JSON (send raw bytes)
+	jsonBody := []byte(`{"metadata": invalid json}`)
+	req, err := http.NewRequest(httpclient.MethodPUT, baseURL+"/"+tenantID, bytes.NewReader(jsonBody))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+suite.config.APIKey)
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode, "Malformed JSON should return 400")
 }
 
 func (suite *basicSuite) TestDestinationsAPI() {

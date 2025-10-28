@@ -41,9 +41,12 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	var input struct {
 		Metadata models.Metadata `json:"metadata,omitempty"`
 	}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		// If body is empty or invalid, that's OK - metadata is optional
-		// Continue with nil metadata
+	// Only attempt to parse JSON if there's a request body
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&input); err != nil {
+			AbortWithValidationError(c, err)
+			return
+		}
 	}
 
 	// Check existing tenant.
