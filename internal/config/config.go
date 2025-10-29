@@ -277,6 +277,26 @@ func (c *Config) parseEnvVariables(osInterface OSInterface) error {
 	return env.Parse(c)
 }
 
+func (c *Config) normalizeTopics() {
+	if len(c.Topics) == 0 {
+		return
+	}
+
+	// If topics only contains whitespace entries, treat as empty
+	// This handles cases like TOPICS=" " or TOPICS="  ,  "
+	hasNonWhitespace := false
+	for _, topic := range c.Topics {
+		if strings.TrimSpace(topic) != "" {
+			hasNonWhitespace = true
+			break
+		}
+	}
+
+	if !hasNonWhitespace {
+		c.Topics = []string{}
+	}
+}
+
 // GetService returns ServiceType with error checking
 func (c *Config) GetService() (ServiceType, error) {
 	return ServiceTypeFromString(c.Service)
@@ -308,6 +328,9 @@ func ParseWithoutValidation(flags Flags, osInterface OSInterface) (*Config, erro
 	if err := config.parseEnvVariables(osInterface); err != nil {
 		return nil, err
 	}
+
+	// Normalize topics: trim whitespace and filter out empty strings
+	config.normalizeTopics()
 
 	return &config, nil
 }
