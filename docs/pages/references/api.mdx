@@ -128,14 +128,30 @@ Empty body
     // Destination type specific credentials. AES encrypted. Schema depends on type
     "secret": "some***********"
   },
+  "delivery_metadata": {
+    // Optional. Static key-value pairs automatically merged into event metadata on every delivery
+    "x-api-key": "sk_live_abc123",
+    "x-tenant-id": "tenant_456"
+  },
+  "metadata": {
+    // Optional. Arbitrary contextual information stored with the destination
+    "name": "Production Webhook Server",
+    "description": "Main webhook endpoint for order processing"
+  },
   "disabled_at": null, // null or ISO date if disabled
   "created_at": "2024-01-01T00:00:00Z" // Date the destination was created
 }
 ```
 
-The `topics` array can contain either a list of topics or a wildcard `*` implying that all topics are supported. If you do not wish to implement topics for your application, you set all destination topics to `*`.
+#### Field Details
 
-By default all destination `credentials` are obfuscated and the values cannot be read. This does not apply to the `webhook` type destination secret and each destination can expose their own obfuscation logic.
+- **`topics`**: Can contain either a list of topics or a wildcard `*` implying that all topics are supported. If you do not wish to implement topics for your application, set all destination topics to `*`.
+
+- **`credentials`** (optional): By default all destination credentials are obfuscated and the values cannot be read. This does not apply to the `webhook` type destination secret—each destination type can expose their own obfuscation logic.
+
+- **`delivery_metadata`** (optional): Static key-value pairs automatically merged into event metadata on every delivery. Values are encrypted like credentials. Useful for destination-specific metadata like API keys, authentication tokens, tenant identifiers, or any custom headers/attributes required by the receiving service. For webhook destinations, these are translated to HTTP headers. The merge priority is: system metadata (event-id, topic, timestamp) < delivery_metadata < event metadata.
+
+- **`metadata`** (optional): Arbitrary contextual information stored with the destination for organizational purposes (e.g., name, description, notes). Not encrypted and not included in event deliveries. Useful for documenting what a destination is used for or adding labels for filtering.
 
 ### `GET` `/:tenant_id/destinations`
 

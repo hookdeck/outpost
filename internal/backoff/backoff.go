@@ -4,7 +4,7 @@ import "time"
 
 type Backoff interface {
 	// Duration returns the duration to wait before retrying the operation.
-	// Duration accepts the numeber of times the operation has been retried.
+	// Duration accepts the number of times the operation has been retried.
 	// If the operation has never been retried, the number should be 0.
 	Duration(int) time.Duration
 }
@@ -44,4 +44,23 @@ var _ Backoff = &ConstantBackoff{}
 
 func (b *ConstantBackoff) Duration(retries int) time.Duration {
 	return b.Interval
+}
+
+// ScheduledBackoff uses a predefined schedule of delays for each retry attempt.
+// If the retry attempt exceeds the schedule length, it returns the last value.
+type ScheduledBackoff struct {
+	Schedule []time.Duration
+}
+
+var _ Backoff = &ScheduledBackoff{}
+
+func (b *ScheduledBackoff) Duration(retries int) time.Duration {
+	if len(b.Schedule) == 0 {
+		return 0
+	}
+	if retries >= len(b.Schedule) {
+		// Return last value for attempts beyond schedule
+		return b.Schedule[len(b.Schedule)-1]
+	}
+	return b.Schedule[retries]
 }

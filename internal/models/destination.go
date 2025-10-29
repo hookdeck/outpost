@@ -19,14 +19,17 @@ var (
 )
 
 type Destination struct {
-	ID          string      `json:"id" redis:"id"`
-	TenantID    string      `json:"tenant_id" redis:"-"`
-	Type        string      `json:"type" redis:"type"`
-	Topics      Topics      `json:"topics" redis:"-"`
-	Config      Config      `json:"config" redis:"-"`
-	Credentials Credentials `json:"credentials" redis:"-"`
-	CreatedAt   time.Time   `json:"created_at" redis:"created_at"`
-	DisabledAt  *time.Time  `json:"disabled_at" redis:"disabled_at"`
+	ID               string           `json:"id" redis:"id"`
+	TenantID         string           `json:"tenant_id" redis:"-"`
+	Type             string           `json:"type" redis:"type"`
+	Topics           Topics           `json:"topics" redis:"-"`
+	Config           Config           `json:"config" redis:"-"`
+	Credentials      Credentials      `json:"credentials" redis:"-"`
+	DeliveryMetadata DeliveryMetadata `json:"delivery_metadata,omitempty" redis:"-"`
+	Metadata         Metadata         `json:"metadata,omitempty" redis:"-"`
+	CreatedAt        time.Time        `json:"created_at" redis:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at" redis:"updated_at"`
+	DisabledAt       *time.Time       `json:"disabled_at" redis:"disabled_at"`
 }
 
 func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Cipher) error {
@@ -44,6 +47,10 @@ func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Ciphe
 	if err = cmd.Scan(d); err != nil {
 		return err
 	}
+	// Fallback updated_at to created_at if missing (for existing records)
+	if hash["updated_at"] == "" {
+		d.UpdatedAt = d.CreatedAt
+	}
 	err = d.Topics.UnmarshalBinary([]byte(hash["topics"]))
 	if err != nil {
 		return fmt.Errorf("invalid topics: %w", err)
@@ -59,6 +66,24 @@ func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Ciphe
 	err = d.Credentials.UnmarshalBinary(credentialsBytes)
 	if err != nil {
 		return fmt.Errorf("invalid credentials: %w", err)
+	}
+	// Decrypt and deserialize delivery_metadata if present
+	if deliveryMetadataStr, exists := hash["delivery_metadata"]; exists && deliveryMetadataStr != "" {
+		deliveryMetadataBytes, err := cipher.Decrypt([]byte(deliveryMetadataStr))
+		if err != nil {
+			return fmt.Errorf("invalid delivery_metadata: %w", err)
+		}
+		err = d.DeliveryMetadata.UnmarshalBinary(deliveryMetadataBytes)
+		if err != nil {
+			return fmt.Errorf("invalid delivery_metadata: %w", err)
+		}
+	}
+	// Deserialize metadata if present
+	if metadataStr, exists := hash["metadata"]; exists && metadataStr != "" {
+		err = d.Metadata.UnmarshalBinary([]byte(metadataStr))
+		if err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
 	}
 	return nil
 }
@@ -166,6 +191,7 @@ func TopicsFromString(s string) Topics {
 
 type Config = MapStringString
 type Credentials = MapStringString
+type DeliveryMetadata = MapStringString
 type MapStringString map[string]string
 
 var _ encoding.BinaryMarshaler = &MapStringString{}

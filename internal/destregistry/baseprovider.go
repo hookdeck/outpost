@@ -43,9 +43,11 @@ func NewBaseProvider(loader metadata.MetadataLoader, providerType string, opts .
 	}, nil
 }
 
-// NewPublisher creates a BasePublisher with provider-configured options
-func (p *BaseProvider) NewPublisher() *BasePublisher {
-	return NewBasePublisher(p.basePublisherOpts...)
+// NewPublisher creates a BasePublisher with provider-configured options plus any additional options
+func (p *BaseProvider) NewPublisher(additionalOpts ...BasePublisherOption) *BasePublisher {
+	opts := append([]BasePublisherOption{}, p.basePublisherOpts...)
+	opts = append(opts, additionalOpts...)
+	return NewBasePublisher(opts...)
 }
 
 // Metadata returns the provider metadata

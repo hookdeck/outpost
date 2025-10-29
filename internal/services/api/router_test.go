@@ -5,12 +5,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/eventtracer"
+	"github.com/hookdeck/outpost/internal/idempotence"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
@@ -25,12 +27,6 @@ import (
 
 const baseAPIPath = "/api/v1"
 
-func testRouterWithCHDB(t *testing.T, config *clickhouse.ClickHouseConfig) clickhouse.DB {
-	chDB, err := clickhouse.New(config)
-	require.NoError(t, err)
-	return chDB
-}
-
 func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *testing.T) clickhouse.DB) (http.Handler, *logging.Logger, redis.Client) {
 	gin.SetMode(gin.TestMode)
 	logger := testutil.CreateTestLogger(t)
@@ -40,7 +36,7 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *te
 	eventTracer := eventtracer.NewNoopEventTracer()
 	entityStore := setupTestEntityStore(t, redisClient, nil)
 	logStore := setupTestLogStore(t, funcs...)
-	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer, testutil.TestTopics)
+	eventHandler := publishmq.NewEventHandler(logger, deliveryMQ, entityStore, eventTracer, testutil.TestTopics, idempotence.New(redisClient, idempotence.WithSuccessfulTTL(24*time.Hour)))
 	router := api.NewRouter(
 		api.RouterConfig{
 			ServiceName: "",
@@ -111,7 +107,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+uuid.New().String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -121,7 +117,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+uuid.New().String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
 		req.Header.Set("Authorization", "Bearer "+validToken)
 		router.ServeHTTP(w, req)
 
@@ -132,7 +128,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+uuid.New().String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		router.ServeHTTP(w, req)
 
@@ -224,7 +220,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+uuid.New().String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
@@ -234,7 +230,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+uuid.New().String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
 		req.Header.Set("Authorization", "Bearer "+validToken)
 		router.ServeHTTP(w, req)
 
@@ -245,7 +241,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+uuid.New().String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		router.ServeHTTP(w, req)
 

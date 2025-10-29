@@ -102,7 +102,7 @@ func (p *AWSKinesisProvider) CreatePublisher(ctx context.Context, destination *m
 	})
 
 	return &AWSKinesisPublisher{
-		BasePublisher:        p.BaseProvider.NewPublisher(),
+		BasePublisher:        p.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		client:               kinesisClient,
 		streamName:           config.StreamName,
 		partitionKeyTemplate: config.PartitionKeyTemplate,

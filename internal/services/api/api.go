@@ -14,6 +14,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/eventtracer"
+	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
@@ -122,7 +123,11 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 	)
 
 	logger.Debug("creating event handler and router")
-	eventHandler := publishmq.NewEventHandler(logger, redisClient, deliveryMQ, entityStore, eventTracer, cfg.Topics)
+	publishIdempotence := idempotence.New(redisClient,
+		idempotence.WithTimeout(5*time.Second),
+		idempotence.WithSuccessfulTTL(time.Duration(cfg.PublishIdempotencyKeyTTL)*time.Second),
+	)
+	eventHandler := publishmq.NewEventHandler(logger, deliveryMQ, entityStore, eventTracer, cfg.Topics, publishIdempotence)
 	router := NewRouter(
 		RouterConfig{
 			ServiceName:  cfg.OpenTelemetry.GetServiceName(),

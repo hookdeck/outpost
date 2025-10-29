@@ -102,7 +102,7 @@ func (p *AWSS3Provider) CreatePublisher(ctx context.Context, destination *models
 	}
 
 	return NewAWSS3Publisher(
-		p.BaseProvider.NewPublisher(),
+		p.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		client,
 		cfg.Bucket,
 		cfg.KeyTemplate,

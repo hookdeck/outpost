@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
 )
@@ -31,7 +31,7 @@ func getInstallation(ctx context.Context, redisClient redis.Cmdable, telemetryCo
 	}
 
 	// Installation ID doesn't exist, create one atomically
-	newInstallationID := uuid.New().String()
+	newInstallationID := idgen.Installation()
 
 	// Use HSETNX to atomically set the installation ID only if it doesn't exist
 	// This prevents race conditions when multiple Outpost instances start simultaneously
