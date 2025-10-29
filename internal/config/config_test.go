@@ -444,3 +444,82 @@ func TestConfigFilePath(t *testing.T) {
 		})
 	}
 }
+
+func TestTopicsNormalization(t *testing.T) {
+	tests := []struct {
+		name          string
+		topicsEnv     string
+		expectedCount int
+		expected      []string
+		description   string
+	}{
+		{
+			name:          "normal topics",
+			topicsEnv:     "topic1,topic2,topic3",
+			expectedCount: 3,
+			expected:      []string{"topic1", "topic2", "topic3"},
+			description:   "should parse normal comma-separated topics as-is",
+		},
+		{
+			name:          "topics with leading/trailing spaces",
+			topicsEnv:     " topic1 , topic2 , topic3 ",
+			expectedCount: 3,
+			expected:      []string{" topic1 ", " topic2 ", " topic3 "},
+			description:   "should preserve topics with spaces (not trimmed)",
+		},
+		{
+			name:          "empty string only",
+			topicsEnv:     " ",
+			expectedCount: 0,
+			expected:      []string{},
+			description:   "should treat whitespace-only as empty",
+		},
+		{
+			name:          "multiple spaces",
+			topicsEnv:     "   ",
+			expectedCount: 0,
+			expected:      []string{},
+			description:   "should treat multiple spaces as empty",
+		},
+		{
+			name:          "empty strings between commas",
+			topicsEnv:     " , , ",
+			expectedCount: 0,
+			expected:      []string{},
+			description:   "should treat whitespace-only entries as empty",
+		},
+		{
+			name:          "mixed valid topics and whitespace",
+			topicsEnv:     "topic1, ,topic2",
+			expectedCount: 3,
+			expected:      []string{"topic1", " ", "topic2"},
+			description:   "should preserve valid topics even with whitespace entries",
+		},
+		{
+			name:          "wildcard with spaces",
+			topicsEnv:     " * ",
+			expectedCount: 1,
+			expected:      []string{" * "},
+			description:   "should preserve wildcard with spaces",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{
+				envVars: map[string]string{
+					"TOPICS":                tt.topicsEnv,
+					"API_KEY":               "test",
+					"API_JWT_SECRET":        "test",
+					"AES_ENCRYPTION_SECRET": "test",
+					"POSTGRES_URL":          "postgres://test",
+				},
+			}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedCount, len(cfg.Topics), tt.description)
+			assert.Equal(t, tt.expected, cfg.Topics, tt.description)
+		})
+	}
+}
