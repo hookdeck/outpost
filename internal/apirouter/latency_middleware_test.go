@@ -1,4 +1,4 @@
-package api
+package apirouter_test
 
 import (
 	"net/http"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +25,7 @@ func TestMiddlewareOrder(t *testing.T) {
 			executionOrder = append(executionOrder, "metrics_start")
 			c.Next()
 			executionOrder = append(executionOrder, "metrics_end")
-			metricsLatency = GetRequestLatency(c)
+			metricsLatency = apirouter.GetRequestLatency(c)
 		}
 	}
 
@@ -34,7 +35,7 @@ func TestMiddlewareOrder(t *testing.T) {
 			executionOrder = append(executionOrder, "logger_start")
 			c.Next()
 			executionOrder = append(executionOrder, "logger_end")
-			loggerLatency = GetRequestLatency(c)
+			loggerLatency = apirouter.GetRequestLatency(c)
 		}
 	}
 
@@ -42,7 +43,7 @@ func TestMiddlewareOrder(t *testing.T) {
 	r := gin.New()
 	r.Use(mockMetrics())
 	r.Use(mockLogger())
-	r.Use(LatencyMiddleware())
+	r.Use(apirouter.LatencyMiddleware())
 
 	// Add a handler that sleeps to simulate work
 	r.GET("/test", func(c *gin.Context) {

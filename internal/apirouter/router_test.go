@@ -1,4 +1,4 @@
-package api_test
+package apirouter_test
 
 import (
 	"context"
@@ -18,8 +18,9 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
-	"github.com/hookdeck/outpost/internal/services/api"
 	"github.com/hookdeck/outpost/internal/telemetry"
+
+	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,8 +38,8 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *te
 	entityStore := setupTestEntityStore(t, redisClient, nil)
 	logStore := setupTestLogStore(t, funcs...)
 	eventHandler := publishmq.NewEventHandler(logger, deliveryMQ, entityStore, eventTracer, testutil.TestTopics, idempotence.New(redisClient, idempotence.WithSuccessfulTTL(24*time.Hour)))
-	router := api.NewRouter(
-		api.RouterConfig{
+	router := apirouter.NewRouter(
+		apirouter.RouterConfig{
 			ServiceName: "",
 			APIKey:      apiKey,
 			JWTSecret:   jwtSecret,
@@ -88,7 +89,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 	router, _, _ := setupTestRouter(t, apiKey, jwtSecret)
 
 	tenantID := "tenantID"
-	validToken, err := api.JWT.New(jwtSecret, tenantID)
+	validToken, err := apirouter.JWT.New(jwtSecret, tenantID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +202,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 	router, _, _ := setupTestRouter(t, apiKey, jwtSecret)
 
 	tenantID := "tenantID"
-	validToken, err := api.JWT.New(jwtSecret, tenantID)
+	validToken, err := apirouter.JWT.New(jwtSecret, tenantID)
 	if err != nil {
 		t.Fatal(err)
 	}

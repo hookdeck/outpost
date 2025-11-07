@@ -1,4 +1,4 @@
-package api
+package apirouter
 
 import (
 	"encoding/json"

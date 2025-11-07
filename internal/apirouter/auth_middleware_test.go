@@ -1,4 +1,4 @@
-package api_test
+package apirouter_test
 
 import (
 	"net/http"
@@ -6,8 +6,9 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	api "github.com/hookdeck/outpost/internal/services/api"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/hookdeck/outpost/internal/apirouter"
 )
 
 func TestPublicRouter(t *testing.T) {
@@ -99,7 +100,7 @@ func TestSetTenantIDMiddleware(t *testing.T) {
 
 		// Create a middleware chain
 		var tenantID string
-		handler := api.SetTenantIDMiddleware()
+		handler := apirouter.SetTenantIDMiddleware()
 		nextHandler := func(c *gin.Context) {
 			val, exists := c.Get("tenantID")
 			if exists {
@@ -124,7 +125,7 @@ func TestSetTenantIDMiddleware(t *testing.T) {
 
 		// Create a middleware chain
 		var tenantIDExists bool
-		handler := api.SetTenantIDMiddleware()
+		handler := apirouter.SetTenantIDMiddleware()
 		nextHandler := func(c *gin.Context) {
 			_, tenantIDExists = c.Get("tenantID")
 		}
@@ -145,7 +146,7 @@ func TestSetTenantIDMiddleware(t *testing.T) {
 
 		// Create a middleware chain
 		var tenantIDExists bool
-		handler := api.SetTenantIDMiddleware()
+		handler := apirouter.SetTenantIDMiddleware()
 		nextHandler := func(c *gin.Context) {
 			_, tenantIDExists = c.Get("tenantID")
 		}
@@ -175,7 +176,7 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 		c.Params = []gin.Param{{Key: "tenantID", Value: "different_tenant"}}
 
 		// Create JWT token for tenantID
-		token, err := api.JWT.New(jwtSecret, tenantID)
+		token, err := apirouter.JWT.New(jwtSecret, tenantID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -185,7 +186,7 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 		c.Request.Header.Set("Authorization", "Bearer "+token)
 
 		// Test
-		handler := api.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
+		handler := apirouter.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
 		handler(c)
 
 		assert.Equal(t, http.StatusUnauthorized, c.Writer.Status())
@@ -200,7 +201,7 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 		c.Params = []gin.Param{{Key: "tenantID", Value: tenantID}}
 
 		// Create JWT token for tenantID
-		token, err := api.JWT.New(jwtSecret, tenantID)
+		token, err := apirouter.JWT.New(jwtSecret, tenantID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -211,7 +212,7 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 
 		// Create a middleware chain
 		var contextTenantID string
-		handler := api.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
+		handler := apirouter.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
 		nextHandler := func(c *gin.Context) {
 			val, exists := c.Get("tenantID")
 			if exists {
@@ -242,7 +243,7 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 		c.Request.Header.Set("Authorization", "Bearer "+apiKey)
 
 		// Test
-		handler := api.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
+		handler := apirouter.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
 		handler(c)
 
 		assert.NotEqual(t, http.StatusUnauthorized, c.Writer.Status())
@@ -250,7 +251,7 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 }
 
 func newJWTToken(t *testing.T, secret string, tenantID string) string {
-	token, err := api.JWT.New(secret, tenantID)
+	token, err := apirouter.JWT.New(secret, tenantID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +339,7 @@ func TestTenantJWTAuthMiddleware(t *testing.T) {
 				c.Params = []gin.Param{{Key: "tenantID", Value: tt.paramTenantID}}
 			}
 
-			handler := api.TenantJWTAuthMiddleware(tt.apiKey, tt.jwtSecret)
+			handler := apirouter.TenantJWTAuthMiddleware(tt.apiKey, tt.jwtSecret)
 			handler(c)
 
 			t.Logf("Test case: %s, Expected: %d, Got: %d", tt.name, tt.wantStatus, w.Code)
@@ -362,7 +363,7 @@ func TestAuthRole(t *testing.T) {
 			c, _ := gin.CreateTestContext(w)
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 
-			handler := api.APIKeyAuthMiddleware("")
+			handler := apirouter.APIKeyAuthMiddleware("")
 			var role string
 			nextHandler := func(c *gin.Context) {
 				val, exists := c.Get("authRole")
@@ -374,7 +375,7 @@ func TestAuthRole(t *testing.T) {
 			handler(c)
 			nextHandler(c)
 
-			assert.Equal(t, api.RoleAdmin, role)
+			assert.Equal(t, apirouter.RoleAdmin, role)
 		})
 
 		t.Run("should set RoleAdmin when valid API key", func(t *testing.T) {
@@ -383,7 +384,7 @@ func TestAuthRole(t *testing.T) {
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 			c.Request.Header.Set("Authorization", "Bearer key")
 
-			handler := api.APIKeyAuthMiddleware("key")
+			handler := apirouter.APIKeyAuthMiddleware("key")
 			var role string
 			nextHandler := func(c *gin.Context) {
 				val, exists := c.Get("authRole")
@@ -395,7 +396,7 @@ func TestAuthRole(t *testing.T) {
 			handler(c)
 			nextHandler(c)
 
-			assert.Equal(t, api.RoleAdmin, role)
+			assert.Equal(t, apirouter.RoleAdmin, role)
 		})
 	})
 
@@ -405,7 +406,7 @@ func TestAuthRole(t *testing.T) {
 			c, _ := gin.CreateTestContext(w)
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 
-			handler := api.APIKeyOrTenantJWTAuthMiddleware("", "jwt_secret")
+			handler := apirouter.APIKeyOrTenantJWTAuthMiddleware("", "jwt_secret")
 			var role string
 			nextHandler := func(c *gin.Context) {
 				val, exists := c.Get("authRole")
@@ -417,7 +418,7 @@ func TestAuthRole(t *testing.T) {
 			handler(c)
 			nextHandler(c)
 
-			assert.Equal(t, api.RoleAdmin, role)
+			assert.Equal(t, apirouter.RoleAdmin, role)
 		})
 
 		t.Run("should set RoleAdmin when using API key", func(t *testing.T) {
@@ -426,7 +427,7 @@ func TestAuthRole(t *testing.T) {
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 			c.Request.Header.Set("Authorization", "Bearer key")
 
-			handler := api.APIKeyOrTenantJWTAuthMiddleware("key", "jwt_secret")
+			handler := apirouter.APIKeyOrTenantJWTAuthMiddleware("key", "jwt_secret")
 			var role string
 			nextHandler := func(c *gin.Context) {
 				val, exists := c.Get("authRole")
@@ -438,7 +439,7 @@ func TestAuthRole(t *testing.T) {
 			handler(c)
 			nextHandler(c)
 
-			assert.Equal(t, api.RoleAdmin, role)
+			assert.Equal(t, apirouter.RoleAdmin, role)
 		})
 
 		t.Run("should set RoleTenant when using valid JWT", func(t *testing.T) {
@@ -448,7 +449,7 @@ func TestAuthRole(t *testing.T) {
 			token := newJWTToken(t, "jwt_secret", "tenant-id")
 			c.Request.Header.Set("Authorization", "Bearer "+token)
 
-			handler := api.APIKeyOrTenantJWTAuthMiddleware("key", "jwt_secret")
+			handler := apirouter.APIKeyOrTenantJWTAuthMiddleware("key", "jwt_secret")
 			var role string
 			nextHandler := func(c *gin.Context) {
 				val, exists := c.Get("authRole")
@@ -460,7 +461,7 @@ func TestAuthRole(t *testing.T) {
 			handler(c)
 			nextHandler(c)
 
-			assert.Equal(t, api.RoleTenant, role)
+			assert.Equal(t, apirouter.RoleTenant, role)
 		})
 	})
 
@@ -472,7 +473,7 @@ func TestAuthRole(t *testing.T) {
 			token := newJWTToken(t, "jwt_secret", "tenant-id")
 			c.Request.Header.Set("Authorization", "Bearer "+token)
 
-			handler := api.TenantJWTAuthMiddleware("key", "jwt_secret")
+			handler := apirouter.TenantJWTAuthMiddleware("key", "jwt_secret")
 			var role string
 			nextHandler := func(c *gin.Context) {
 				val, exists := c.Get("authRole")
@@ -484,7 +485,7 @@ func TestAuthRole(t *testing.T) {
 			handler(c)
 			nextHandler(c)
 
-			assert.Equal(t, api.RoleTenant, role)
+			assert.Equal(t, apirouter.RoleTenant, role)
 		})
 
 		t.Run("should not set role when apiKey is empty", func(t *testing.T) {
@@ -494,7 +495,7 @@ func TestAuthRole(t *testing.T) {
 			token := newJWTToken(t, "jwt_secret", "tenant-id")
 			c.Request.Header.Set("Authorization", "Bearer "+token)
 
-			handler := api.TenantJWTAuthMiddleware("", "jwt_secret")
+			handler := apirouter.TenantJWTAuthMiddleware("", "jwt_secret")
 			var roleExists bool
 			nextHandler := func(c *gin.Context) {
 				_, roleExists = c.Get("authRole")
