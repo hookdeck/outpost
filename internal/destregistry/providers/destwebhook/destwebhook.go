@@ -234,7 +234,7 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 	}
 
 	return &WebhookPublisher{
-		BasePublisher:          d.BaseProvider.NewPublisher(),
+		BasePublisher:          d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		httpClient:             httpClient,
 		url:                    config.URL,
 		headerPrefix:           d.headerPrefix,
@@ -534,18 +534,33 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) (*d
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
 		delivery := &destregistry.Delivery{
 			Status: "failed",
 			Code:   fmt.Sprintf("%d", resp.StatusCode),
 		}
 		parseResponse(delivery, resp)
+
+		// Extract body from delivery.Response for error details
+		var bodyStr string
+		if delivery.Response != nil {
+			if body, ok := delivery.Response["body"]; ok {
+				switch v := body.(type) {
+				case string:
+					bodyStr = v
+				case map[string]interface{}:
+					if jsonBytes, err := json.Marshal(v); err == nil {
+						bodyStr = string(jsonBytes)
+					}
+				}
+			}
+		}
+
 		return delivery, destregistry.NewErrDestinationPublishAttempt(
-			fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(bodyBytes)),
+			fmt.Errorf("request failed with status %d: %s", resp.StatusCode, bodyStr),
 			"webhook",
 			map[string]interface{}{
 				"status": resp.StatusCode,
-				"body":   string(bodyBytes),
+				"body":   bodyStr,
 			})
 	}
 

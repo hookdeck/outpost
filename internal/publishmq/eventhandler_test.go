@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/deliverymq"
+	"github.com/hookdeck/outpost/internal/idempotence"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
@@ -33,15 +34,15 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanup()
 	eventHandler := publishmq.NewEventHandler(logger,
-		testutil.CreateTestRedisClient(t),
 		deliveryMQ,
 		entityStore,
 		mockEventTracer,
 		testutil.TestTopics,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	tenant := models.Tenant{
-		ID:        uuid.New().String(),
+		ID:        idgen.String(),
 		CreatedAt: time.Now(),
 	}
 	entityStore.UpsertTenant(ctx, tenant)
@@ -97,15 +98,15 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 	require.NoError(t, err)
 
 	eventHandler := publishmq.NewEventHandler(logger,
-		testutil.CreateTestRedisClient(t),
 		deliveryMQ,
 		entityStore,
 		mockEventTracer,
 		testutil.TestTopics,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	tenant := models.Tenant{
-		ID:        uuid.New().String(),
+		ID:        idgen.String(),
 		CreatedAt: time.Now(),
 	}
 	entityStore.UpsertTenant(ctx, tenant)

@@ -150,8 +150,32 @@ func (s *entityStoreImpl) UpsertTenant(ctx context.Context, tenant Tenant) error
 		return err
 	}
 
-	// Set tenant data
-	return s.redisClient.HSet(ctx, key, tenant).Err()
+	// Auto-generate timestamps if not provided
+	now := time.Now()
+	if tenant.CreatedAt.IsZero() {
+		tenant.CreatedAt = now
+	}
+	if tenant.UpdatedAt.IsZero() {
+		tenant.UpdatedAt = now
+	}
+
+	// Set tenant data (basic fields)
+	if err := s.redisClient.HSet(ctx, key, tenant).Err(); err != nil {
+		return err
+	}
+
+	// Store metadata if present, otherwise delete field
+	if tenant.Metadata != nil {
+		if err := s.redisClient.HSet(ctx, key, "metadata", &tenant.Metadata).Err(); err != nil {
+			return err
+		}
+	} else {
+		if err := s.redisClient.HDel(ctx, key, "metadata").Err(); err != nil && err != redis.Nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *entityStoreImpl) DeleteTenant(ctx context.Context, tenantID string) error {
@@ -296,7 +320,7 @@ func (s *entityStoreImpl) CreateDestination(ctx context.Context, destination Des
 func (s *entityStoreImpl) UpsertDestination(ctx context.Context, destination Destination) error {
 	key := s.redisDestinationID(destination.ID, destination.TenantID)
 
-	// Pre-marshal and encrypt credentials BEFORE starting Redis transaction
+	// Pre-marshal and encrypt credentials and delivery_metadata BEFORE starting Redis transaction
 	// This isolates marshaling failures from Redis transaction failures
 	credentialsBytes, err := destination.Credentials.MarshalBinary()
 	if err != nil {
@@ -305,6 +329,28 @@ func (s *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 	encryptedCredentials, err := s.cipher.Encrypt(credentialsBytes)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt destination credentials: %w", err)
+	}
+
+	// Encrypt delivery_metadata if present (contains sensitive data like auth tokens)
+	var encryptedDeliveryMetadata []byte
+	if destination.DeliveryMetadata != nil {
+		deliveryMetadataBytes, err := destination.DeliveryMetadata.MarshalBinary()
+		if err != nil {
+			return fmt.Errorf("invalid destination delivery_metadata: %w", err)
+		}
+		encryptedDeliveryMetadata, err = s.cipher.Encrypt(deliveryMetadataBytes)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt destination delivery_metadata: %w", err)
+		}
+	}
+
+	// Auto-generate timestamps if not provided
+	now := time.Now()
+	if destination.CreatedAt.IsZero() {
+		destination.CreatedAt = now
+	}
+	if destination.UpdatedAt.IsZero() {
+		destination.UpdatedAt = now
 	}
 
 	// All keys use same tenant prefix - cluster compatible transaction
@@ -322,11 +368,26 @@ func (s *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 		pipe.HSet(ctx, key, "config", &destination.Config)
 		pipe.HSet(ctx, key, "credentials", encryptedCredentials)
 		pipe.HSet(ctx, key, "created_at", destination.CreatedAt)
+		pipe.HSet(ctx, key, "updated_at", destination.UpdatedAt)
 
 		if destination.DisabledAt != nil {
 			pipe.HSet(ctx, key, "disabled_at", *destination.DisabledAt)
 		} else {
 			pipe.HDel(ctx, key, "disabled_at")
+		}
+
+		// Store encrypted delivery_metadata if present
+		if destination.DeliveryMetadata != nil {
+			pipe.HSet(ctx, key, "delivery_metadata", encryptedDeliveryMetadata)
+		} else {
+			pipe.HDel(ctx, key, "delivery_metadata")
+		}
+
+		// Store metadata if present
+		if destination.Metadata != nil {
+			pipe.HSet(ctx, key, "metadata", &destination.Metadata)
+		} else {
+			pipe.HDel(ctx, key, "metadata")
 		}
 
 		// Update summary atomically

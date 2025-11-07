@@ -81,7 +81,7 @@ func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination 
 	topic := client.Topic(cfg.Topic)
 
 	return &GCPPubSubPublisher{
-		BasePublisher: d.BaseProvider.NewPublisher(),
+		BasePublisher: d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		client:        client,
 		topic:         topic,
 		projectID:     cfg.ProjectID,
@@ -91,6 +91,23 @@ func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination 
 func (d *GCPPubSubDestination) resolveMetadata(ctx context.Context, destination *models.Destination) (*GCPPubSubDestinationConfig, *GCPPubSubDestinationCredentials, error) {
 	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
 		return nil, nil, err
+	}
+
+	// Validate service_account_json is valid JSON (if not using emulator endpoint)
+	serviceAccountJSON := destination.Credentials["service_account_json"]
+	endpoint := destination.Config["endpoint"]
+
+	// Only validate JSON if we're not using an emulator endpoint and service_account_json is provided
+	if endpoint == "" && serviceAccountJSON != "" {
+		var jsonCheck map[string]interface{}
+		if err := json.Unmarshal([]byte(serviceAccountJSON), &jsonCheck); err != nil {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "credentials.service_account_json",
+					Type:  "format",
+				},
+			})
+		}
 	}
 
 	return &GCPPubSubDestinationConfig{

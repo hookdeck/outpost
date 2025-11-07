@@ -3,7 +3,7 @@ package testutil
 import (
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 )
 
@@ -15,14 +15,16 @@ type mockDestinationFactory struct {
 }
 
 func (f *mockDestinationFactory) Any(opts ...func(*models.Destination)) models.Destination {
+	now := time.Now()
 	destination := models.Destination{
-		ID:          uuid.New().String(),
+		ID:          idgen.Destination(),
 		Type:        "webhook",
 		Topics:      []string{"*"},
 		Config:      map[string]string{"url": "http://host.docker.internal:4444"},
 		Credentials: map[string]string{},
-		CreatedAt:   time.Now(),
-		TenantID:    uuid.New().String(),
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		TenantID:    "test-tenant",
 		DisabledAt:  nil,
 	}
 
@@ -75,8 +77,26 @@ func (f *mockDestinationFactory) WithCreatedAt(createdAt time.Time) func(*models
 	}
 }
 
+func (f *mockDestinationFactory) WithUpdatedAt(updatedAt time.Time) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.UpdatedAt = updatedAt
+	}
+}
+
 func (f *mockDestinationFactory) WithDisabledAt(disabledAt time.Time) func(*models.Destination) {
 	return func(destination *models.Destination) {
 		destination.DisabledAt = &disabledAt
+	}
+}
+
+func (f *mockDestinationFactory) WithDeliveryMetadata(deliveryMetadata map[string]string) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.DeliveryMetadata = deliveryMetadata
+	}
+}
+
+func (f *mockDestinationFactory) WithMetadata(metadata map[string]string) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.Metadata = metadata
 	}
 }

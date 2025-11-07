@@ -90,7 +90,7 @@ func (p *AWSSQSDestination) CreatePublisher(ctx context.Context, destination *mo
 	})
 
 	return &AWSSQSPublisher{
-		BasePublisher: p.BaseProvider.NewPublisher(),
+		BasePublisher: p.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		client:        sqsClient,
 		queueURL:      cfg.QueueURL,
 	}, nil

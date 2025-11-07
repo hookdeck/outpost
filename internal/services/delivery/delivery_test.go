@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/deliverymq"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -87,8 +87,8 @@ func TestDeliveryService(t *testing.T) {
 
 		// Act
 		time.Sleep(time.Second / 5) // wait for service to start
-		expectedID := uuid.New().String()
-		deliveryMQ.Publish(ctx, models.NewDeliveryEvent(models.Event{ID: expectedID}, uuid.New().String()))
+		expectedID := idgen.Event()
+		deliveryMQ.Publish(ctx, models.NewDeliveryEvent(models.Event{ID: expectedID}, idgen.Destination()))
 
 		// Assert
 		// wait til service has stopped

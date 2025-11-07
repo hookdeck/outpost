@@ -63,6 +63,7 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, 1, cfg.PublishMaxConcurrency)
 	assert.Equal(t, 1, cfg.DeliveryMaxConcurrency)
 	assert.Equal(t, 1, cfg.LogMaxConcurrency)
+	assert.Equal(t, []int{}, cfg.RetrySchedule)
 	assert.Equal(t, 30, cfg.RetryIntervalSeconds)
 	assert.Equal(t, 10, cfg.RetryMaxLimit)
 	assert.Equal(t, 20, cfg.MaxDestinationsPerTenant)
@@ -440,6 +441,85 @@ func TestConfigFilePath(t *testing.T) {
 			cfg, err := config.ParseWithoutValidation(config.Flags{Config: tt.flagPath}, mockOS)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedPath, cfg.ConfigFilePath(), tt.description)
+		})
+	}
+}
+
+func TestTopicsNormalization(t *testing.T) {
+	tests := []struct {
+		name          string
+		topicsEnv     string
+		expectedCount int
+		expected      []string
+		description   string
+	}{
+		{
+			name:          "normal topics",
+			topicsEnv:     "topic1,topic2,topic3",
+			expectedCount: 3,
+			expected:      []string{"topic1", "topic2", "topic3"},
+			description:   "should parse normal comma-separated topics as-is",
+		},
+		{
+			name:          "topics with leading/trailing spaces",
+			topicsEnv:     " topic1 , topic2 , topic3 ",
+			expectedCount: 3,
+			expected:      []string{" topic1 ", " topic2 ", " topic3 "},
+			description:   "should preserve topics with spaces (not trimmed)",
+		},
+		{
+			name:          "empty string only",
+			topicsEnv:     " ",
+			expectedCount: 0,
+			expected:      []string{},
+			description:   "should treat whitespace-only as empty",
+		},
+		{
+			name:          "multiple spaces",
+			topicsEnv:     "   ",
+			expectedCount: 0,
+			expected:      []string{},
+			description:   "should treat multiple spaces as empty",
+		},
+		{
+			name:          "empty strings between commas",
+			topicsEnv:     " , , ",
+			expectedCount: 0,
+			expected:      []string{},
+			description:   "should treat whitespace-only entries as empty",
+		},
+		{
+			name:          "mixed valid topics and whitespace",
+			topicsEnv:     "topic1, ,topic2",
+			expectedCount: 3,
+			expected:      []string{"topic1", " ", "topic2"},
+			description:   "should preserve valid topics even with whitespace entries",
+		},
+		{
+			name:          "wildcard with spaces",
+			topicsEnv:     " * ",
+			expectedCount: 1,
+			expected:      []string{" * "},
+			description:   "should preserve wildcard with spaces",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{
+				envVars: map[string]string{
+					"TOPICS":                tt.topicsEnv,
+					"API_KEY":               "test",
+					"API_JWT_SECRET":        "test",
+					"AES_ENCRYPTION_SECRET": "test",
+					"POSTGRES_URL":          "postgres://test",
+				},
+			}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedCount, len(cfg.Topics), tt.description)
+			assert.Equal(t, tt.expected, cfg.Topics, tt.description)
 		})
 	}
 }
