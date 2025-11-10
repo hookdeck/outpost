@@ -175,34 +175,34 @@ func TestHealthTracker_NoErrorExposed(t *testing.T) {
 	}
 }
 
-func TestWorkerRegistry_RegisterWorker(t *testing.T) {
+func TestWorkerSupervisor_RegisterWorker(t *testing.T) {
 	logger := newMockLogger()
-	registry := NewWorkerRegistry(logger)
+	supervisor := NewWorkerSupervisor(logger)
 
 	worker := newMockWorker("test-worker", nil)
-	registry.Register(worker)
+	supervisor.Register(worker)
 
-	assert.Len(t, registry.workers, 1)
+	assert.Len(t, supervisor.workers, 1)
 	assert.True(t, logger.Contains("worker registered"))
 }
 
-func TestWorkerRegistry_RegisterDuplicateWorker(t *testing.T) {
+func TestWorkerSupervisor_RegisterDuplicateWorker(t *testing.T) {
 	logger := newMockLogger()
-	registry := NewWorkerRegistry(logger)
+	supervisor := NewWorkerSupervisor(logger)
 
 	worker1 := newMockWorker("test-worker", nil)
 	worker2 := newMockWorker("test-worker", nil)
 
-	registry.Register(worker1)
+	supervisor.Register(worker1)
 
 	assert.Panics(t, func() {
-		registry.Register(worker2)
+		supervisor.Register(worker2)
 	})
 }
 
-func TestWorkerRegistry_Run_HealthyWorkers(t *testing.T) {
+func TestWorkerSupervisor_Run_HealthyWorkers(t *testing.T) {
 	logger := newMockLogger()
-	registry := NewWorkerRegistry(logger)
+	supervisor := NewWorkerSupervisor(logger)
 
 	worker1 := newMockWorker("worker-1", func(ctx context.Context) error {
 		<-ctx.Done()
@@ -213,15 +213,15 @@ func TestWorkerRegistry_Run_HealthyWorkers(t *testing.T) {
 		return nil
 	})
 
-	registry.Register(worker1)
-	registry.Register(worker2)
+	supervisor.Register(worker1)
+	supervisor.Register(worker2)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- registry.Run(ctx)
+		errChan <- supervisor.Run(ctx)
 	}()
 
 	// Give workers time to start
@@ -232,7 +232,7 @@ func TestWorkerRegistry_Run_HealthyWorkers(t *testing.T) {
 	assert.True(t, worker2.WasStarted())
 
 	// Verify health
-	assert.True(t, registry.GetHealthTracker().IsHealthy())
+	assert.True(t, supervisor.GetHealthTracker().IsHealthy())
 
 	// Cancel context and verify graceful shutdown
 	cancel()
@@ -241,9 +241,9 @@ func TestWorkerRegistry_Run_HealthyWorkers(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestWorkerRegistry_Run_FailedWorker(t *testing.T) {
+func TestWorkerSupervisor_Run_FailedWorker(t *testing.T) {
 	logger := newMockLogger()
-	registry := NewWorkerRegistry(logger)
+	supervisor := NewWorkerSupervisor(logger)
 
 	healthyWorker := newMockWorker("healthy", func(ctx context.Context) error {
 		<-ctx.Done()
@@ -255,33 +255,33 @@ func TestWorkerRegistry_Run_FailedWorker(t *testing.T) {
 		return errors.New("worker failed")
 	})
 
-	registry.Register(healthyWorker)
-	registry.Register(failingWorker)
+	supervisor.Register(healthyWorker)
+	supervisor.Register(failingWorker)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- registry.Run(ctx)
+		errChan <- supervisor.Run(ctx)
 	}()
 
 	// Wait for failing worker to fail
 	time.Sleep(100 * time.Millisecond)
 
-	// Verify health reflects failure while registry is still running
-	assert.False(t, registry.GetHealthTracker().IsHealthy())
+	// Verify health reflects failure while supervisor is still running
+	assert.False(t, supervisor.GetHealthTracker().IsHealthy())
 
-	status := registry.GetHealthTracker().GetStatus()
+	status := supervisor.GetHealthTracker().GetStatus()
 	assert.Equal(t, "failed", status["status"])
 
 	workers := status["workers"].(map[string]WorkerHealth)
 	assert.Equal(t, WorkerStatusFailed, workers["failing"].Status)
 
-	// Verify that registry is still blocking (hasn't returned yet)
+	// Verify that supervisor is still blocking (hasn't returned yet)
 	select {
 	case <-errChan:
-		t.Fatal("registry.Run() returned early - should keep running until context cancelled")
+		t.Fatal("supervisor.Run() returned early - should keep running until context cancelled")
 	default:
 		// Good - still blocking
 	}
@@ -292,9 +292,9 @@ func TestWorkerRegistry_Run_FailedWorker(t *testing.T) {
 	assert.NoError(t, err) // Graceful shutdown should return nil
 }
 
-func TestWorkerRegistry_Run_AllWorkersExit(t *testing.T) {
+func TestWorkerSupervisor_Run_AllWorkersExit(t *testing.T) {
 	logger := newMockLogger()
-	registry := NewWorkerRegistry(logger)
+	supervisor := NewWorkerSupervisor(logger)
 
 	// Both workers exit on their own (not from context cancellation)
 	worker1 := newMockWorker("worker-1", func(ctx context.Context) error {
@@ -307,14 +307,14 @@ func TestWorkerRegistry_Run_AllWorkersExit(t *testing.T) {
 		return errors.New("worker 2 failed")
 	})
 
-	registry.Register(worker1)
-	registry.Register(worker2)
+	supervisor.Register(worker1)
+	supervisor.Register(worker2)
 
 	ctx := context.Background()
 
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- registry.Run(ctx)
+		errChan <- supervisor.Run(ctx)
 	}()
 
 	// Wait for both workers to exit
@@ -322,9 +322,9 @@ func TestWorkerRegistry_Run_AllWorkersExit(t *testing.T) {
 	assert.NoError(t, err) // Should return nil when all workers exit
 
 	// Verify both workers are marked as failed
-	assert.False(t, registry.GetHealthTracker().IsHealthy())
+	assert.False(t, supervisor.GetHealthTracker().IsHealthy())
 
-	status := registry.GetHealthTracker().GetStatus()
+	status := supervisor.GetHealthTracker().GetStatus()
 	assert.Equal(t, "failed", status["status"])
 
 	workers := status["workers"].(map[string]WorkerHealth)
@@ -335,22 +335,22 @@ func TestWorkerRegistry_Run_AllWorkersExit(t *testing.T) {
 	assert.True(t, logger.Contains("all workers have exited"))
 }
 
-func TestWorkerRegistry_Run_ContextCanceled(t *testing.T) {
+func TestWorkerSupervisor_Run_ContextCanceled(t *testing.T) {
 	logger := newMockLogger()
-	registry := NewWorkerRegistry(logger)
+	supervisor := NewWorkerSupervisor(logger)
 
 	worker := newMockWorker("worker-1", func(ctx context.Context) error {
 		<-ctx.Done()
 		return context.Canceled
 	})
 
-	registry.Register(worker)
+	supervisor.Register(worker)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- registry.Run(ctx)
+		errChan <- supervisor.Run(ctx)
 	}()
 
 	// Give worker time to start
@@ -363,12 +363,12 @@ func TestWorkerRegistry_Run_ContextCanceled(t *testing.T) {
 	assert.NoError(t, err) // context.Canceled is not treated as error
 }
 
-func TestWorkerRegistry_Run_NoWorkers(t *testing.T) {
+func TestWorkerSupervisor_Run_NoWorkers(t *testing.T) {
 	logger := newMockLogger()
-	registry := NewWorkerRegistry(logger)
+	supervisor := NewWorkerSupervisor(logger)
 
 	ctx := context.Background()
-	err := registry.Run(ctx)
+	err := supervisor.Run(ctx)
 
 	assert.NoError(t, err)
 	assert.True(t, logger.Contains("no workers registered"))
@@ -414,9 +414,9 @@ func TestHealthTracker_ConcurrentAccess(t *testing.T) {
 	assert.Len(t, workersMap, workers)
 }
 
-func TestWorkerRegistry_Run_VariableShutdownTiming(t *testing.T) {
+func TestWorkerSupervisor_Run_VariableShutdownTiming(t *testing.T) {
 	logger := newMockLogger()
-	registry := NewWorkerRegistry(logger)
+	supervisor := NewWorkerSupervisor(logger)
 
 	// Worker that shuts down quickly (50ms)
 	fastWorker := newMockWorker("fast", func(ctx context.Context) error {
@@ -438,9 +438,9 @@ func TestWorkerRegistry_Run_VariableShutdownTiming(t *testing.T) {
 		return nil
 	})
 
-	registry.Register(fastWorker)
-	registry.Register(slowWorker)
-	registry.Register(instantWorker)
+	supervisor.Register(fastWorker)
+	supervisor.Register(slowWorker)
+	supervisor.Register(instantWorker)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -448,7 +448,7 @@ func TestWorkerRegistry_Run_VariableShutdownTiming(t *testing.T) {
 	errChan := make(chan error, 1)
 	start := time.Now()
 	go func() {
-		errChan <- registry.Run(ctx)
+		errChan <- supervisor.Run(ctx)
 	}()
 
 	// Give workers time to start
@@ -462,7 +462,7 @@ func TestWorkerRegistry_Run_VariableShutdownTiming(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	// Registry should wait for the slowest worker (200ms)
+	// Supervisor should wait for the slowest worker (200ms)
 	// Total time should be at least 200ms (slow worker) + some overhead
 	assert.True(t, elapsed >= 200*time.Millisecond,
 		"expected shutdown to take at least 200ms (slowest worker), got %v", elapsed)
@@ -472,9 +472,9 @@ func TestWorkerRegistry_Run_VariableShutdownTiming(t *testing.T) {
 		"shutdown took too long: %v", elapsed)
 }
 
-func TestWorkerRegistry_Run_VerySlowShutdown_NoTimeout(t *testing.T) {
+func TestWorkerSupervisor_Run_VerySlowShutdown_NoTimeout(t *testing.T) {
 	logger := newMockLogger()
-	registry := NewWorkerRegistry(logger) // No timeout
+	supervisor := NewWorkerSupervisor(logger) // No timeout
 
 	// Worker that takes a very long time to shutdown (2 seconds)
 	verySlowWorker := newMockWorker("very-slow", func(ctx context.Context) error {
@@ -483,7 +483,7 @@ func TestWorkerRegistry_Run_VerySlowShutdown_NoTimeout(t *testing.T) {
 		return nil
 	})
 
-	registry.Register(verySlowWorker)
+	supervisor.Register(verySlowWorker)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -491,7 +491,7 @@ func TestWorkerRegistry_Run_VerySlowShutdown_NoTimeout(t *testing.T) {
 	errChan := make(chan error, 1)
 	start := time.Now()
 	go func() {
-		errChan <- registry.Run(ctx)
+		errChan <- supervisor.Run(ctx)
 	}()
 
 	// Give worker time to start
@@ -510,17 +510,17 @@ func TestWorkerRegistry_Run_VerySlowShutdown_NoTimeout(t *testing.T) {
 		assert.True(t, elapsed >= 2*time.Second,
 			"expected to wait at least 2s for slow worker, got %v", elapsed)
 
-		t.Logf("Registry waited %v for slow worker to shutdown gracefully (no timeout)", elapsed)
+		t.Logf("Supervisor waited %v for slow worker to shutdown gracefully (no timeout)", elapsed)
 
 	case <-time.After(3 * time.Second):
-		t.Fatal("Registry.Run() blocked for more than 3 seconds")
+		t.Fatal("Supervisor.Run() blocked for more than 3 seconds")
 	}
 }
 
-func TestWorkerRegistry_Run_ShutdownTimeout(t *testing.T) {
+func TestWorkerSupervisor_Run_ShutdownTimeout(t *testing.T) {
 	logger := newMockLogger()
 	// Set shutdown timeout to 500ms
-	registry := NewWorkerRegistry(logger, WithShutdownTimeout(500*time.Millisecond))
+	supervisor := NewWorkerSupervisor(logger, WithShutdownTimeout(500*time.Millisecond))
 
 	// Worker that takes 2 seconds to shutdown (longer than timeout)
 	slowWorker := newMockWorker("slow", func(ctx context.Context) error {
@@ -529,7 +529,7 @@ func TestWorkerRegistry_Run_ShutdownTimeout(t *testing.T) {
 		return nil
 	})
 
-	registry.Register(slowWorker)
+	supervisor.Register(slowWorker)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -537,7 +537,7 @@ func TestWorkerRegistry_Run_ShutdownTimeout(t *testing.T) {
 	errChan := make(chan error, 1)
 	start := time.Now()
 	go func() {
-		errChan <- registry.Run(ctx)
+		errChan <- supervisor.Run(ctx)
 	}()
 
 	// Give worker time to start
@@ -559,13 +559,13 @@ func TestWorkerRegistry_Run_ShutdownTimeout(t *testing.T) {
 	assert.True(t, elapsed < 1*time.Second,
 		"expected to timeout before 1s, got %v", elapsed)
 
-	t.Logf("Registry timed out after %v (expected ~500ms)", elapsed)
+	t.Logf("Supervisor timed out after %v (expected ~500ms)", elapsed)
 }
 
-func TestWorkerRegistry_Run_ShutdownTimeout_FastWorkers(t *testing.T) {
+func TestWorkerSupervisor_Run_ShutdownTimeout_FastWorkers(t *testing.T) {
 	logger := newMockLogger()
 	// Set shutdown timeout to 2s
-	registry := NewWorkerRegistry(logger, WithShutdownTimeout(2*time.Second))
+	supervisor := NewWorkerSupervisor(logger, WithShutdownTimeout(2*time.Second))
 
 	// Workers that shutdown quickly (100ms)
 	fastWorker := newMockWorker("fast", func(ctx context.Context) error {
@@ -574,7 +574,7 @@ func TestWorkerRegistry_Run_ShutdownTimeout_FastWorkers(t *testing.T) {
 		return nil
 	})
 
-	registry.Register(fastWorker)
+	supervisor.Register(fastWorker)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -582,7 +582,7 @@ func TestWorkerRegistry_Run_ShutdownTimeout_FastWorkers(t *testing.T) {
 	errChan := make(chan error, 1)
 	start := time.Now()
 	go func() {
-		errChan <- registry.Run(ctx)
+		errChan <- supervisor.Run(ctx)
 	}()
 
 	// Give worker time to start
@@ -603,12 +603,12 @@ func TestWorkerRegistry_Run_ShutdownTimeout_FastWorkers(t *testing.T) {
 	assert.True(t, elapsed < 500*time.Millisecond,
 		"shutdown took too long: %v", elapsed)
 
-	t.Logf("Registry shutdown in %v (workers finished before timeout)", elapsed)
+	t.Logf("Supervisor shutdown in %v (workers finished before timeout)", elapsed)
 }
 
-func TestWorkerRegistry_Run_StuckWorker(t *testing.T) {
+func TestWorkerSupervisor_Run_StuckWorker(t *testing.T) {
 	logger := newMockLogger()
-	registry := NewWorkerRegistry(logger)
+	supervisor := NewWorkerSupervisor(logger)
 
 	// Worker that never shuts down (ignores context cancellation)
 	stuckWorker := newMockWorker("stuck", func(ctx context.Context) error {
@@ -616,14 +616,14 @@ func TestWorkerRegistry_Run_StuckWorker(t *testing.T) {
 		select {}
 	})
 
-	registry.Register(stuckWorker)
+	supervisor.Register(stuckWorker)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- registry.Run(ctx)
+		errChan <- supervisor.Run(ctx)
 	}()
 
 	// Give worker time to start
@@ -632,13 +632,13 @@ func TestWorkerRegistry_Run_StuckWorker(t *testing.T) {
 	// Cancel context
 	cancel()
 
-	// Verify that registry blocks indefinitely waiting for stuck worker
+	// Verify that supervisor blocks indefinitely waiting for stuck worker
 	select {
 	case <-errChan:
-		t.Fatal("Registry.Run() returned but worker is stuck - should block forever")
+		t.Fatal("Supervisor.Run() returned but worker is stuck - should block forever")
 	case <-time.After(500 * time.Millisecond):
-		// Expected: registry is still waiting for stuck worker
-		t.Log("Registry correctly blocks waiting for stuck worker (this is expected behavior)")
+		// Expected: supervisor is still waiting for stuck worker
+		t.Log("Supervisor correctly blocks waiting for stuck worker (this is expected behavior)")
 	}
 
 	// Note: In production, this is why orchestrators need timeouts for pod termination

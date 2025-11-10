@@ -18,30 +18,30 @@ type Logger interface {
 	Warn(msg string, fields ...zap.Field)
 }
 
-// WorkerRegistry manages and supervises multiple workers.
+// WorkerSupervisor manages and supervises multiple workers.
 // It tracks their health and handles graceful shutdown.
-type WorkerRegistry struct {
+type WorkerSupervisor struct {
 	workers         map[string]Worker
 	health          *HealthTracker
 	logger          Logger
 	shutdownTimeout time.Duration // 0 means no timeout
 }
 
-// RegistryOption configures a WorkerRegistry.
-type RegistryOption func(*WorkerRegistry)
+// SupervisorOption configures a WorkerSupervisor.
+type SupervisorOption func(*WorkerSupervisor)
 
 // WithShutdownTimeout sets the maximum time to wait for workers to shutdown gracefully.
 // After this timeout, Run() will return even if workers haven't finished.
 // Default is 0 (no timeout - wait indefinitely).
-func WithShutdownTimeout(timeout time.Duration) RegistryOption {
-	return func(r *WorkerRegistry) {
+func WithShutdownTimeout(timeout time.Duration) SupervisorOption {
+	return func(r *WorkerSupervisor) {
 		r.shutdownTimeout = timeout
 	}
 }
 
-// NewWorkerRegistry creates a new WorkerRegistry.
-func NewWorkerRegistry(logger Logger, opts ...RegistryOption) *WorkerRegistry {
-	r := &WorkerRegistry{
+// NewWorkerSupervisor creates a new WorkerSupervisor.
+func NewWorkerSupervisor(logger Logger, opts ...SupervisorOption) *WorkerSupervisor {
+	r := &WorkerSupervisor{
 		workers:         make(map[string]Worker),
 		health:          NewHealthTracker(),
 		logger:          logger,
@@ -55,9 +55,9 @@ func NewWorkerRegistry(logger Logger, opts ...RegistryOption) *WorkerRegistry {
 	return r
 }
 
-// Register adds a worker to the registry.
+// Register adds a worker to the supervisor.
 // Panics if a worker with the same name is already registered.
-func (r *WorkerRegistry) Register(w Worker) {
+func (r *WorkerSupervisor) Register(w Worker) {
 	if _, exists := r.workers[w.Name()]; exists {
 		panic(fmt.Sprintf("worker %s already registered", w.Name()))
 	}
@@ -65,8 +65,8 @@ func (r *WorkerRegistry) Register(w Worker) {
 	r.logger.Debug("worker registered", zap.String("worker", w.Name()))
 }
 
-// GetHealthTracker returns the health tracker for this registry.
-func (r *WorkerRegistry) GetHealthTracker() *HealthTracker {
+// GetHealthTracker returns the health tracker for this supervisor.
+func (r *WorkerSupervisor) GetHealthTracker() *HealthTracker {
 	return r.health
 }
 
@@ -83,7 +83,7 @@ func (r *WorkerRegistry) GetHealthTracker() *HealthTracker {
 //
 // Returns nil if context was cancelled and workers shutdown gracefully.
 // Returns error if workers failed to shutdown within timeout (if configured).
-func (r *WorkerRegistry) Run(ctx context.Context) error {
+func (r *WorkerSupervisor) Run(ctx context.Context) error {
 	if len(r.workers) == 0 {
 		r.logger.Warn("no workers registered")
 		return nil
@@ -139,7 +139,7 @@ func (r *WorkerRegistry) Run(ctx context.Context) error {
 
 // waitForWorkers converts WaitGroup.Wait() into a channel that can be used in select.
 // Returns a channel that closes when all workers have exited.
-func (r *WorkerRegistry) waitForWorkers(wg *sync.WaitGroup) <-chan struct{} {
+func (r *WorkerSupervisor) waitForWorkers(wg *sync.WaitGroup) <-chan struct{} {
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -151,7 +151,7 @@ func (r *WorkerRegistry) waitForWorkers(wg *sync.WaitGroup) <-chan struct{} {
 // waitWithTimeout waits for the WaitGroup with a timeout.
 // Returns nil if all workers finish within timeout.
 // Returns error if timeout is exceeded.
-func (r *WorkerRegistry) waitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) error {
+func (r *WorkerSupervisor) waitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) error {
 	select {
 	case <-r.waitForWorkers(wg):
 		r.logger.Info("all workers shutdown gracefully")

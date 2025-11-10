@@ -15,9 +15,9 @@ func TestLoggingLoggerImplementsInterface(t *testing.T) {
 	// This will fail to compile if *logging.Logger doesn't implement worker.Logger
 	var _ worker.Logger = logger
 
-	// Also verify we can actually use it with WorkerRegistry
-	registry := worker.NewWorkerRegistry(logger)
-	if registry == nil {
-		t.Fatal("expected non-nil registry")
+	// Also verify we can actually use it with WorkerSupervisor
+	supervisor := worker.NewWorkerSupervisor(logger)
+	if supervisor == nil {
+		t.Fatal("expected non-nil supervisor")
 	}
 }
