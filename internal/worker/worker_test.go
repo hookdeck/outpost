@@ -238,7 +238,7 @@ func TestWorkerSupervisor_Run_HealthyWorkers(t *testing.T) {
 	cancel()
 
 	err := <-errChan
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
 }
 
 func TestWorkerSupervisor_Run_FailedWorker(t *testing.T) {
@@ -289,7 +289,7 @@ func TestWorkerSupervisor_Run_FailedWorker(t *testing.T) {
 	// Now cancel context and verify graceful shutdown
 	cancel()
 	err := <-errChan
-	assert.NoError(t, err) // Graceful shutdown should return nil
+	assert.ErrorIs(t, err, context.Canceled) // Graceful shutdown should return context.Canceled from ctx.Err()
 }
 
 func TestWorkerSupervisor_Run_AllWorkersExit(t *testing.T) {
@@ -319,7 +319,8 @@ func TestWorkerSupervisor_Run_AllWorkersExit(t *testing.T) {
 
 	// Wait for both workers to exit
 	err := <-errChan
-	assert.NoError(t, err) // Should return nil when all workers exit
+	assert.Error(t, err) // Should return error when all workers exit unexpectedly
+	assert.Contains(t, err.Error(), "all workers have exited unexpectedly")
 
 	// Verify both workers are marked as failed
 	assert.False(t, supervisor.GetHealthTracker().IsHealthy())
@@ -360,7 +361,7 @@ func TestWorkerSupervisor_Run_ContextCanceled(t *testing.T) {
 	cancel()
 
 	err := <-errChan
-	assert.NoError(t, err) // context.Canceled is not treated as error
+	assert.ErrorIs(t, err, context.Canceled) // Should return context.Canceled
 }
 
 func TestWorkerSupervisor_Run_NoWorkers(t *testing.T) {
@@ -370,7 +371,8 @@ func TestWorkerSupervisor_Run_NoWorkers(t *testing.T) {
 	ctx := context.Background()
 	err := supervisor.Run(ctx)
 
-	assert.NoError(t, err)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no workers registered")
 	assert.True(t, logger.Contains("no workers registered"))
 }
 
@@ -460,7 +462,7 @@ func TestWorkerSupervisor_Run_VariableShutdownTiming(t *testing.T) {
 	err := <-errChan
 	elapsed := time.Since(start)
 
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
 
 	// Supervisor should wait for the slowest worker (200ms)
 	// Total time should be at least 200ms (slow worker) + some overhead
@@ -504,7 +506,7 @@ func TestWorkerSupervisor_Run_VerySlowShutdown_NoTimeout(t *testing.T) {
 	select {
 	case err := <-errChan:
 		elapsed := time.Since(start)
-		assert.NoError(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
 
 		// Should wait the full 2 seconds for worker to finish
 		assert.True(t, elapsed >= 2*time.Second,
@@ -594,7 +596,7 @@ func TestWorkerSupervisor_Run_ShutdownTimeout_FastWorkers(t *testing.T) {
 	err := <-errChan
 	elapsed := time.Since(start)
 
-	// Should NOT timeout since worker finishes quickly
+	// Should NOT timeout since worker finishes quickly (returns nil when timeout configured but not exceeded)
 	assert.NoError(t, err)
 
 	// Should return after ~100ms (worker shutdown time), not 2s (timeout)

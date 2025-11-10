@@ -140,14 +140,22 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	}()
 
 	// Wait for either termination signal or worker failure
+	var exitErr error
 	select {
 	case <-termChan:
 		logger.Info("shutdown signal received")
-		cancel()  // Cancel context to trigger graceful shutdown
-		<-errChan // Wait for workers to finish
+		cancel() // Cancel context to trigger graceful shutdown
+		err := <-errChan
+		// context.Canceled is expected during graceful shutdown
+		if err != nil && !errors.Is(err, context.Canceled) {
+			logger.Error("error during graceful shutdown", zap.Error(err))
+			exitErr = err
+		}
 	case err := <-errChan:
+		// Workers exited unexpectedly
 		if err != nil {
-			logger.Error("worker error", zap.Error(err))
+			logger.Error("workers exited unexpectedly", zap.Error(err))
+			exitErr = err
 		}
 	}
 
@@ -160,7 +168,7 @@ func run(mainContext context.Context, cfg *config.Config) error {
 
 	logger.Info("outpost shutdown complete")
 
-	return nil
+	return exitErr
 }
 
 // runMigration handles database schema migrations with retry logic for lock conflicts.

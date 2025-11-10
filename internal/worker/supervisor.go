@@ -86,7 +86,7 @@ func (r *WorkerSupervisor) GetHealthTracker() *HealthTracker {
 func (r *WorkerSupervisor) Run(ctx context.Context) error {
 	if len(r.workers) == 0 {
 		r.logger.Warn("no workers registered")
-		return nil
+		return fmt.Errorf("no workers registered")
 	}
 
 	r.logger.Info("starting workers", zap.Int("count", len(r.workers)))
@@ -129,11 +129,11 @@ func (r *WorkerSupervisor) Run(ctx context.Context) error {
 
 		// No timeout - wait indefinitely
 		wg.Wait()
-		return nil
+		return ctx.Err()
 	case <-r.waitForWorkers(&wg):
 		// All workers exited (either successfully or with errors)
 		r.logger.Warn("all workers have exited")
-		return nil
+		return fmt.Errorf("all workers have exited unexpectedly")
 	}
 }
 
