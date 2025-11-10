@@ -143,7 +143,7 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	select {
 	case <-termChan:
 		logger.Info("shutdown signal received")
-		cancel() // Cancel context to trigger graceful shutdown
+		cancel()  // Cancel context to trigger graceful shutdown
 		<-errChan // Wait for workers to finish
 	case err := <-errChan:
 		if err != nil {
