@@ -169,7 +169,6 @@ func TestHealthTracker_NoErrorExposed(t *testing.T) {
 	// Verify WorkerHealth struct has no Error field (compile-time check via struct)
 	// If Error field existed, this would have compile error
 	_ = WorkerHealth{
-		Name:      "test",
 		Status:    "healthy",
 		LastCheck: time.Now(),
 	}
