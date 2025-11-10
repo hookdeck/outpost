@@ -169,8 +169,7 @@ func TestHealthTracker_NoErrorExposed(t *testing.T) {
 	// Verify WorkerHealth struct has no Error field (compile-time check via struct)
 	// If Error field existed, this would have compile error
 	_ = WorkerHealth{
-		Status:    "healthy",
-		LastCheck: time.Now(),
+		Status: "healthy",
 	}
 }
 
@@ -241,8 +240,7 @@ func TestWorkerSupervisor_Run_HealthyWorkers(t *testing.T) {
 	assert.Len(t, workers, 2, "should have 2 workers in health status")
 	assert.Equal(t, WorkerStatusHealthy, workers["worker-1"].Status, "worker-1 should be healthy")
 	assert.Equal(t, WorkerStatusHealthy, workers["worker-2"].Status, "worker-2 should be healthy")
-	assert.NotZero(t, workers["worker-1"].LastCheck, "worker-1 should have last_check timestamp")
-	assert.NotZero(t, workers["worker-2"].LastCheck, "worker-2 should have last_check timestamp")
+	assert.NotZero(t, status["timestamp"], "should have timestamp field")
 
 	// Cancel context and verify graceful shutdown
 	cancel()

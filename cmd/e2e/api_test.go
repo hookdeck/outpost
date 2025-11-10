@@ -29,6 +29,9 @@ func (suite *basicSuite) TestHealthzAPI() {
 						"status": map[string]interface{}{
 							"type": "string",
 						},
+						"timestamp": map[string]interface{}{
+							"type": "string",
+						},
 						"workers": map[string]interface{}{
 							"type": "object",
 						},

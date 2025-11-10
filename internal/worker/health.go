@@ -13,8 +13,7 @@ const (
 // WorkerHealth represents the health status of a single worker.
 // Error details are NOT exposed for security reasons.
 type WorkerHealth struct {
-	Status    string    `json:"status"` // "healthy" or "failed"
-	LastCheck time.Time `json:"last_check"`
+	Status string `json:"status"` // "healthy" or "failed"
 }
 
 // HealthTracker tracks the health status of all workers.
@@ -37,8 +36,7 @@ func (h *HealthTracker) MarkHealthy(name string) {
 	defer h.mu.Unlock()
 
 	h.workers[name] = WorkerHealth{
-		Status:    WorkerStatusHealthy,
-		LastCheck: time.Now(),
+		Status: WorkerStatusHealthy,
 	}
 }
 
@@ -49,8 +47,7 @@ func (h *HealthTracker) MarkFailed(name string) {
 	defer h.mu.Unlock()
 
 	h.workers[name] = WorkerHealth{
-		Status:    WorkerStatusFailed,
-		LastCheck: time.Now(),
+		Status: WorkerStatusFailed,
 	}
 }
 
@@ -83,8 +80,9 @@ func (h *HealthTracker) GetStatus() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"status":  status,
-		"workers": workers,
+		"status":    status,
+		"timestamp": time.Now(),
+		"workers":   workers,
 	}
 }
 

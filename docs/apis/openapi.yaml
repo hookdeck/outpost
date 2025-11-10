@@ -1693,11 +1693,11 @@ paths:
 
         The response includes:
         - `status`: Overall health status ("healthy" or "failed")
+        - `timestamp`: When this health check was performed (ISO 8601 format)
         - `workers`: Map of worker names to their individual health status
 
         Each worker reports:
         - `status`: Worker health ("healthy" or "failed")
-        - `last_check`: ISO 8601 timestamp of last health check
 
         Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
       operationId: healthCheck
@@ -1711,37 +1711,37 @@ paths:
                 type: object
                 required:
                   - status
+                  - timestamp
                   - workers
                 properties:
                   status:
                     type: string
                     enum: [healthy]
                     example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+                    description: When this health check was performed
+                    example: "2025-11-11T10:30:00Z"
                   workers:
                     type: object
                     additionalProperties:
                       type: object
                       required:
                         - status
-                        - last_check
                       properties:
                         status:
                           type: string
                           enum: [healthy]
                           example: healthy
-                        last_check:
-                          type: string
-                          format: date-time
-                          example: "2025-11-11T10:30:00Z"
               example:
                 status: healthy
+                timestamp: "2025-11-11T10:30:00Z"
                 workers:
                   http-server:
                     status: healthy
-                    last_check: "2025-11-11T10:30:00Z"
                   retry-scheduler:
                     status: healthy
-                    last_check: "2025-11-11T10:30:00Z"
         "503":
           description: Service is unhealthy - one or more workers have failed.
           content:
@@ -1750,37 +1750,37 @@ paths:
                 type: object
                 required:
                   - status
+                  - timestamp
                   - workers
                 properties:
                   status:
                     type: string
                     enum: [failed]
                     example: failed
+                  timestamp:
+                    type: string
+                    format: date-time
+                    description: When this health check was performed
+                    example: "2025-11-11T10:30:15Z"
                   workers:
                     type: object
                     additionalProperties:
                       type: object
                       required:
                         - status
-                        - last_check
                       properties:
                         status:
                           type: string
                           enum: [healthy, failed]
                           example: failed
-                        last_check:
-                          type: string
-                          format: date-time
-                          example: "2025-11-11T10:30:10Z"
               example:
                 status: failed
+                timestamp: "2025-11-11T10:30:15Z"
                 workers:
                   http-server:
                     status: healthy
-                    last_check: "2025-11-11T10:30:15Z"
                   retry-scheduler:
                     status: failed
-                    last_check: "2025-11-11T10:30:10Z"
   # Tenants
   /{tenant_id}:
     parameters:
