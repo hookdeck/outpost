@@ -123,14 +123,9 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	logger.Debug("building services")
 	builder := services.NewServiceBuilder(ctx, cfg, logger, telemetry)
 
-	if err := builder.BuildWorkers(); err != nil {
-		logger.Error("failed to build workers", zap.Error(err))
-		return err
-	}
-
-	supervisor, err := builder.Build()
+	supervisor, err := builder.BuildWorkers()
 	if err != nil {
-		logger.Error("failed to build worker supervisor", zap.Error(err))
+		logger.Error("failed to build workers", zap.Error(err))
 		return err
 	}
 

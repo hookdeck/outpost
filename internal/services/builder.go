@@ -21,6 +21,7 @@ import (
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/scheduler"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/worker"
 	"github.com/mikestefanello/batcher"
@@ -39,10 +40,20 @@ type ServiceBuilder struct {
 	services []*serviceInstance
 }
 
-// serviceInstance represents a single service with its cleanup functions
+// serviceInstance represents a single service with its cleanup functions and common dependencies
 type serviceInstance struct {
 	name         string
 	cleanupFuncs []func(context.Context, *logging.LoggerWithCtx)
+
+	// Common infrastructure
+	redisClient    redis.Client
+	logStore       logstore.LogStore
+	entityStore    models.EntityStore
+	destRegistry   destregistry.Registry
+	eventTracer    eventtracer.EventTracer
+	deliveryMQ     *deliverymq.DeliveryMQ
+	logMQ          *logmq.LogMQ
+	retryScheduler scheduler.Scheduler
 }
 
 // NewServiceBuilder creates a new ServiceBuilder.
@@ -54,6 +65,44 @@ func NewServiceBuilder(ctx context.Context, cfg *config.Config, logger *logging.
 		telemetry:  telemetry,
 		supervisor: worker.NewWorkerSupervisor(logger),
 		services:   []*serviceInstance{},
+	}
+}
+
+// BuildWorkers builds workers based on the configured service type and returns the supervisor.
+func (b *ServiceBuilder) BuildWorkers() (*worker.WorkerSupervisor, error) {
+	serviceType := b.cfg.MustGetService()
+	b.logger.Debug("building workers for service type", zap.String("service_type", serviceType.String()))
+
+	if serviceType == config.ServiceTypeAPI || serviceType == config.ServiceTypeAll {
+		if err := b.BuildAPIWorkers(); err != nil {
+			b.logger.Error("failed to build API workers", zap.Error(err))
+			return nil, err
+		}
+	}
+	if serviceType == config.ServiceTypeDelivery || serviceType == config.ServiceTypeAll {
+		if err := b.BuildDeliveryWorker(); err != nil {
+			b.logger.Error("failed to build delivery worker", zap.Error(err))
+			return nil, err
+		}
+	}
+	if serviceType == config.ServiceTypeLog || serviceType == config.ServiceTypeAll {
+		if err := b.BuildLogWorker(); err != nil {
+			b.logger.Error("failed to build log worker", zap.Error(err))
+			return nil, err
+		}
+	}
+
+	return b.supervisor, nil
+}
+
+// Cleanup runs all registered cleanup functions for all services.
+func (b *ServiceBuilder) Cleanup(ctx context.Context) {
+	logger := b.logger.Ctx(ctx)
+	for _, svc := range b.services {
+		logger.Debug("cleaning up service", zap.String("service", svc.name))
+		for _, cleanupFunc := range svc.cleanupFuncs {
+			cleanupFunc(ctx, &logger)
+		}
 	}
 }
 
@@ -72,121 +121,56 @@ func (b *ServiceBuilder) BuildAPIWorkers() error {
 	}
 	b.services = append(b.services, svc)
 
-	// Initialize destination registry
-	b.logger.Debug("initializing destination registry")
-	registry := destregistry.NewRegistry(&destregistry.Config{
-		DestinationMetadataPath: b.cfg.Destinations.MetadataPath,
-		DeliveryTimeout:         time.Duration(b.cfg.DeliveryTimeoutSeconds) * time.Second,
-	}, b.logger)
-	if err := destregistrydefault.RegisterDefault(registry, b.cfg.Destinations.ToConfig(b.cfg)); err != nil {
-		b.logger.Error("destination registry setup failed", zap.Error(err))
+	// Initialize common infrastructure
+	if err := svc.initDestRegistry(b.cfg, b.logger); err != nil {
+		return err
+	}
+	if err := svc.initDeliveryMQ(b.ctx, b.cfg, b.logger); err != nil {
+		return err
+	}
+	if err := svc.initRedis(b.ctx, b.cfg, b.logger); err != nil {
+		return err
+	}
+	if err := svc.initLogStore(b.ctx, b.cfg, b.logger); err != nil {
+		return err
+	}
+	if err := svc.initEventTracer(b.cfg, b.logger); err != nil {
+		return err
+	}
+	if err := svc.initEntityStore(b.cfg, b.logger); err != nil {
 		return err
 	}
 
-	// Initialize delivery MQ
-	b.logger.Debug("configuring delivery message queue")
-	deliveryQueueConfig, err := b.cfg.MQs.ToQueueConfig(b.ctx, "deliverymq")
-	if err != nil {
-		b.logger.Error("delivery queue configuration failed", zap.Error(err))
+	// Initialize retry scheduler
+	if err := svc.initRetryScheduler(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
-
-	b.logger.Debug("initializing delivery MQ connection", zap.String("mq_type", b.cfg.MQs.GetInfraType()))
-	deliveryMQ := deliverymq.New(deliverymq.WithQueue(deliveryQueueConfig))
-	cleanupDeliveryMQ, err := deliveryMQ.Init(b.ctx)
-	if err != nil {
-		b.logger.Error("delivery MQ initialization failed", zap.Error(err))
-		return err
-	}
-	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) { cleanupDeliveryMQ() })
-
-	// Initialize Redis
-	b.logger.Debug("initializing Redis client for API service")
-	redisClient, err := redis.New(b.ctx, b.cfg.Redis.ToConfig())
-	if err != nil {
-		b.logger.Error("Redis client initialization failed in API service", zap.Error(err))
-		return err
-	}
-
-	// Initialize log store
-	b.logger.Debug("configuring log store driver")
-	logStoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
-		Postgres: &b.cfg.PostgresURL,
-	})
-	if err != nil {
-		b.logger.Error("log store driver configuration failed", zap.Error(err))
-		return err
-	}
-	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
-		logStoreDriverOpts.Close()
-	})
-
-	b.logger.Debug("creating log store")
-	logStore, err := logstore.NewLogStore(b.ctx, logStoreDriverOpts)
-	if err != nil {
-		b.logger.Error("log store creation failed", zap.Error(err))
-		return err
-	}
-
-	// Initialize event tracer
-	b.logger.Debug("setting up event tracer")
-	var eventTracer eventtracer.EventTracer
-	if b.cfg.OpenTelemetry.ToConfig() == nil {
-		eventTracer = eventtracer.NewNoopEventTracer()
-	} else {
-		eventTracer = eventtracer.NewEventTracer()
-	}
-
-	// Initialize entity store
-	b.logger.Debug("creating entity store with Redis client")
-	entityStore := models.NewEntityStore(redisClient,
-		models.WithCipher(models.NewAESCipher(b.cfg.AESEncryptionSecret)),
-		models.WithAvailableTopics(b.cfg.Topics),
-		models.WithMaxDestinationsPerTenant(b.cfg.MaxDestinationsPerTenant),
-		models.WithDeploymentID(b.cfg.DeploymentID),
-	)
 
 	// Initialize event handler and router
 	b.logger.Debug("creating event handler and router")
-	publishIdempotence := idempotence.New(redisClient,
+	publishIdempotence := idempotence.New(svc.redisClient,
 		idempotence.WithTimeout(5*time.Second),
 		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.PublishIdempotencyKeyTTL)*time.Second),
 	)
-	eventHandler := publishmq.NewEventHandler(b.logger, deliveryMQ, entityStore, eventTracer, b.cfg.Topics, publishIdempotence)
+	eventHandler := publishmq.NewEventHandler(b.logger, svc.deliveryMQ, svc.entityStore, svc.eventTracer, b.cfg.Topics, publishIdempotence)
 	router := apirouter.NewRouter(
 		apirouter.RouterConfig{
 			ServiceName:  b.cfg.OpenTelemetry.GetServiceName(),
 			APIKey:       b.cfg.APIKey,
 			JWTSecret:    b.cfg.APIJWTSecret,
 			Topics:       b.cfg.Topics,
-			Registry:     registry,
+			Registry:     svc.destRegistry,
 			PortalConfig: b.cfg.GetPortalConfig(),
 			GinMode:      b.cfg.GinMode,
 		},
 		b.logger,
-		redisClient,
-		deliveryMQ,
-		entityStore,
-		logStore,
+		svc.redisClient,
+		svc.deliveryMQ,
+		svc.entityStore,
+		svc.logStore,
 		eventHandler,
 		b.telemetry,
 	)
-
-	// Initialize retry scheduler
-	b.logger.Debug("creating delivery MQ retry scheduler")
-	deliverymqRetryScheduler, err := deliverymq.NewRetryScheduler(deliveryMQ, b.cfg.Redis.ToConfig(), b.cfg.DeploymentID, b.logger)
-	if err != nil {
-		b.logger.Error("failed to create delivery MQ retry scheduler", zap.Error(err))
-		return err
-	}
-	b.logger.Debug("initializing delivery MQ retry scheduler")
-	if err := deliverymqRetryScheduler.Init(b.ctx); err != nil {
-		b.logger.Error("delivery MQ retry scheduler initialization failed", zap.Error(err))
-		return err
-	}
-	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
-		deliverymqRetryScheduler.Shutdown()
-	})
 
 	// Create HTTP server
 	b.logger.Debug("creating HTTP server")
@@ -206,7 +190,7 @@ func (b *ServiceBuilder) BuildAPIWorkers() error {
 	b.supervisor.Register(httpWorker)
 
 	// Worker 2: Retry Scheduler
-	retryWorker := NewRetrySchedulerWorker(deliverymqRetryScheduler, b.logger)
+	retryWorker := NewRetrySchedulerWorker(svc.retryScheduler, b.logger)
 	b.supervisor.Register(retryWorker)
 
 	// Worker 3: PublishMQ Consumer (optional)
@@ -236,112 +220,31 @@ func (b *ServiceBuilder) BuildDeliveryWorker() error {
 	}
 	b.services = append(b.services, svc)
 
-	// Initialize Redis
-	b.logger.Debug("initializing Redis client for delivery service")
-	redisClient, err := redis.New(b.ctx, b.cfg.Redis.ToConfig())
-	if err != nil {
-		b.logger.Error("Redis client initialization failed in delivery service", zap.Error(err))
+	// Initialize common infrastructure
+	if err := svc.initRedis(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
-
-	// Initialize LogMQ
-	b.logger.Debug("configuring log message queue")
-	logQueueConfig, err := b.cfg.MQs.ToQueueConfig(b.ctx, "logmq")
-	if err != nil {
-		b.logger.Error("log queue configuration failed", zap.Error(err))
+	if err := svc.initLogMQ(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
-
-	b.logger.Debug("initializing log MQ connection", zap.String("mq_type", b.cfg.MQs.GetInfraType()))
-	logMQ := logmq.New(logmq.WithQueue(logQueueConfig))
-	cleanupLogMQ, err := logMQ.Init(b.ctx)
-	if err != nil {
-		b.logger.Error("log MQ initialization failed", zap.Error(err))
+	if err := svc.initDeliveryMQ(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
-	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) { cleanupLogMQ() })
-
-	// Initialize DeliveryMQ
-	b.logger.Debug("configuring delivery message queue")
-	deliveryQueueConfig, err := b.cfg.MQs.ToQueueConfig(b.ctx, "deliverymq")
-	if err != nil {
-		b.logger.Error("delivery queue configuration failed", zap.Error(err))
+	if err := svc.initDestRegistry(b.cfg, b.logger); err != nil {
 		return err
 	}
-
-	b.logger.Debug("initializing delivery MQ connection", zap.String("mq_type", b.cfg.MQs.GetInfraType()))
-	deliveryMQ := deliverymq.New(deliverymq.WithQueue(deliveryQueueConfig))
-	cleanupDeliveryMQ, err := deliveryMQ.Init(b.ctx)
-	if err != nil {
-		b.logger.Error("delivery MQ initialization failed", zap.Error(err))
+	if err := svc.initEventTracer(b.cfg, b.logger); err != nil {
 		return err
 	}
-	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) { cleanupDeliveryMQ() })
-
-	// Initialize destination registry
-	b.logger.Debug("initializing destination registry")
-	registry := destregistry.NewRegistry(&destregistry.Config{
-		DestinationMetadataPath: b.cfg.Destinations.MetadataPath,
-		DeliveryTimeout:         time.Duration(b.cfg.DeliveryTimeoutSeconds) * time.Second,
-	}, b.logger)
-	if err := destregistrydefault.RegisterDefault(registry, b.cfg.Destinations.ToConfig(b.cfg)); err != nil {
-		b.logger.Error("destination registry setup failed", zap.Error(err))
+	if err := svc.initEntityStore(b.cfg, b.logger); err != nil {
 		return err
 	}
-
-	// Initialize event tracer
-	b.logger.Debug("setting up event tracer")
-	var eventTracer eventtracer.EventTracer
-	if b.cfg.OpenTelemetry.ToConfig() == nil {
-		eventTracer = eventtracer.NewNoopEventTracer()
-	} else {
-		eventTracer = eventtracer.NewEventTracer()
-	}
-
-	// Initialize entity store
-	b.logger.Debug("creating entity store with Redis client")
-	entityStore := models.NewEntityStore(redisClient,
-		models.WithCipher(models.NewAESCipher(b.cfg.AESEncryptionSecret)),
-		models.WithAvailableTopics(b.cfg.Topics),
-		models.WithMaxDestinationsPerTenant(b.cfg.MaxDestinationsPerTenant),
-		models.WithDeploymentID(b.cfg.DeploymentID),
-	)
-
-	// Initialize log store
-	b.logger.Debug("configuring log store driver")
-	logStoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
-		Postgres: &b.cfg.PostgresURL,
-	})
-	if err != nil {
-		b.logger.Error("log store driver configuration failed", zap.Error(err))
+	if err := svc.initLogStore(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
-	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
-		logStoreDriverOpts.Close()
-	})
-
-	b.logger.Debug("creating log store")
-	logStore, err := logstore.NewLogStore(b.ctx, logStoreDriverOpts)
-	if err != nil {
-		b.logger.Error("log store creation failed", zap.Error(err))
+	if err := svc.initRetryScheduler(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
-
-	// Initialize retry scheduler
-	b.logger.Debug("creating delivery MQ retry scheduler")
-	retryScheduler, err := deliverymq.NewRetryScheduler(deliveryMQ, b.cfg.Redis.ToConfig(), b.cfg.DeploymentID, b.logger)
-	if err != nil {
-		b.logger.Error("failed to create delivery MQ retry scheduler", zap.Error(err))
-		return err
-	}
-	b.logger.Debug("initializing delivery MQ retry scheduler")
-	if err := retryScheduler.Init(b.ctx); err != nil {
-		b.logger.Error("delivery MQ retry scheduler initialization failed", zap.Error(err))
-		return err
-	}
-	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
-		retryScheduler.Shutdown()
-	})
 
 	// Initialize alert monitor
 	var alertNotifier alert.AlertNotifier
@@ -350,11 +253,11 @@ func (b *ServiceBuilder) BuildDeliveryWorker() error {
 		alertNotifier = alert.NewHTTPAlertNotifier(b.cfg.Alert.CallbackURL, alert.NotifierWithBearerToken(b.cfg.APIKey))
 	}
 	if b.cfg.Alert.AutoDisableDestination {
-		destinationDisabler = newDestinationDisabler(entityStore)
+		destinationDisabler = newDestinationDisabler(svc.entityStore)
 	}
 	alertMonitor := alert.NewAlertMonitor(
 		b.logger,
-		redisClient,
+		svc.redisClient,
 		alert.WithNotifier(alertNotifier),
 		alert.WithDisabler(destinationDisabler),
 		alert.WithAutoDisableFailureCount(b.cfg.Alert.ConsecutiveFailureCount),
@@ -362,7 +265,7 @@ func (b *ServiceBuilder) BuildDeliveryWorker() error {
 	)
 
 	// Initialize delivery idempotence
-	deliveryIdempotence := idempotence.New(redisClient,
+	deliveryIdempotence := idempotence.New(svc.redisClient,
 		idempotence.WithTimeout(5*time.Second),
 		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.DeliveryIdempotencyKeyTTL)*time.Second),
 	)
@@ -373,12 +276,12 @@ func (b *ServiceBuilder) BuildDeliveryWorker() error {
 	// Create delivery handler
 	handler := deliverymq.NewMessageHandler(
 		b.logger,
-		logMQ,
-		entityStore,
-		logStore,
-		registry,
-		eventTracer,
-		retryScheduler,
+		svc.logMQ,
+		svc.entityStore,
+		svc.logStore,
+		svc.destRegistry,
+		svc.eventTracer,
+		svc.retryScheduler,
 		retryBackoff,
 		retryMaxLimit,
 		alertMonitor,
@@ -387,7 +290,7 @@ func (b *ServiceBuilder) BuildDeliveryWorker() error {
 
 	// Create DeliveryMQ worker
 	deliveryWorker := NewDeliveryMQWorker(
-		deliveryMQ,
+		svc.deliveryMQ,
 		handler,
 		b.cfg.DeliveryMaxConcurrency,
 		b.logger,
@@ -409,23 +312,8 @@ func (b *ServiceBuilder) BuildLogWorker() error {
 	}
 	b.services = append(b.services, svc)
 
-	// Initialize log store
-	b.logger.Debug("configuring log store driver")
-	logStoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
-		Postgres: &b.cfg.PostgresURL,
-	})
-	if err != nil {
-		b.logger.Error("log store driver configuration failed", zap.Error(err))
-		return err
-	}
-	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
-		logStoreDriverOpts.Close()
-	})
-
-	b.logger.Debug("creating log store")
-	logStore, err := logstore.NewLogStore(b.ctx, logStoreDriverOpts)
-	if err != nil {
-		b.logger.Error("log store creation failed", zap.Error(err))
+	// Initialize common infrastructure
+	if err := svc.initLogStore(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
 
@@ -439,7 +327,7 @@ func (b *ServiceBuilder) BuildLogWorker() error {
 	}
 
 	b.logger.Debug("creating log batcher")
-	batcher, err := b.makeBatcher(logStore, batcherCfg.ItemCountThreshold, batcherCfg.DelayThreshold)
+	batcher, err := b.makeBatcher(svc.logStore, batcherCfg.ItemCountThreshold, batcherCfg.DelayThreshold)
 	if err != nil {
 		b.logger.Error("failed to create batcher", zap.Error(err))
 		return err
@@ -472,49 +360,6 @@ func (b *ServiceBuilder) BuildLogWorker() error {
 
 	b.logger.Info("log service worker built successfully")
 	return nil
-}
-
-// BuildWorkers builds workers based on the configured service type.
-func (b *ServiceBuilder) BuildWorkers() error {
-	serviceType := b.cfg.MustGetService()
-	b.logger.Debug("building workers for service type", zap.String("service_type", serviceType.String()))
-
-	if serviceType == config.ServiceTypeAPI || serviceType == config.ServiceTypeAll {
-		if err := b.BuildAPIWorkers(); err != nil {
-			b.logger.Error("failed to build API workers", zap.Error(err))
-			return err
-		}
-	}
-	if serviceType == config.ServiceTypeDelivery || serviceType == config.ServiceTypeAll {
-		if err := b.BuildDeliveryWorker(); err != nil {
-			b.logger.Error("failed to build delivery worker", zap.Error(err))
-			return err
-		}
-	}
-	if serviceType == config.ServiceTypeLog || serviceType == config.ServiceTypeAll {
-		if err := b.BuildLogWorker(); err != nil {
-			b.logger.Error("failed to build log worker", zap.Error(err))
-			return err
-		}
-	}
-
-	return nil
-}
-
-// Build returns the configured WorkerSupervisor.
-func (b *ServiceBuilder) Build() (*worker.WorkerSupervisor, error) {
-	return b.supervisor, nil
-}
-
-// Cleanup runs all registered cleanup functions for all services.
-func (b *ServiceBuilder) Cleanup(ctx context.Context) {
-	logger := b.logger.Ctx(ctx)
-	for _, svc := range b.services {
-		logger.Debug("cleaning up service", zap.String("service", svc.name))
-		for _, cleanupFunc := range svc.cleanupFuncs {
-			cleanupFunc(ctx, &logger)
-		}
-	}
 }
 
 // destinationDisabler implements alert.DestinationDisabler
@@ -600,5 +445,141 @@ type handlerBatcherImpl struct {
 
 func (hb *handlerBatcherImpl) Add(ctx context.Context, msg *mqs.Message) error {
 	hb.batcher.Add("", msg)
+	return nil
+}
+
+// Helper methods for serviceInstance to initialize common dependencies
+
+func (s *serviceInstance) initRedis(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
+	logger.Debug("initializing Redis client", zap.String("service", s.name))
+	redisClient, err := redis.New(ctx, cfg.Redis.ToConfig())
+	if err != nil {
+		logger.Error("Redis client initialization failed", zap.String("service", s.name), zap.Error(err))
+		return err
+	}
+	s.redisClient = redisClient
+	return nil
+}
+
+func (s *serviceInstance) initLogStore(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
+	logger.Debug("configuring log store driver", zap.String("service", s.name))
+	logStoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
+		Postgres: &cfg.PostgresURL,
+	})
+	if err != nil {
+		logger.Error("log store driver configuration failed", zap.String("service", s.name), zap.Error(err))
+		return err
+	}
+	s.cleanupFuncs = append(s.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+		logStoreDriverOpts.Close()
+	})
+
+	logger.Debug("creating log store", zap.String("service", s.name))
+	logStore, err := logstore.NewLogStore(ctx, logStoreDriverOpts)
+	if err != nil {
+		logger.Error("log store creation failed", zap.String("service", s.name), zap.Error(err))
+		return err
+	}
+	s.logStore = logStore
+	return nil
+}
+
+func (s *serviceInstance) initEntityStore(cfg *config.Config, logger *logging.Logger) error {
+	if s.redisClient == nil {
+		return fmt.Errorf("redis client must be initialized before entity store")
+	}
+	logger.Debug("creating entity store", zap.String("service", s.name))
+	s.entityStore = models.NewEntityStore(s.redisClient,
+		models.WithCipher(models.NewAESCipher(cfg.AESEncryptionSecret)),
+		models.WithAvailableTopics(cfg.Topics),
+		models.WithMaxDestinationsPerTenant(cfg.MaxDestinationsPerTenant),
+		models.WithDeploymentID(cfg.DeploymentID),
+	)
+	return nil
+}
+
+func (s *serviceInstance) initDestRegistry(cfg *config.Config, logger *logging.Logger) error {
+	logger.Debug("initializing destination registry", zap.String("service", s.name))
+	registry := destregistry.NewRegistry(&destregistry.Config{
+		DestinationMetadataPath: cfg.Destinations.MetadataPath,
+		DeliveryTimeout:         time.Duration(cfg.DeliveryTimeoutSeconds) * time.Second,
+	}, logger)
+	if err := destregistrydefault.RegisterDefault(registry, cfg.Destinations.ToConfig(cfg)); err != nil {
+		logger.Error("destination registry setup failed", zap.String("service", s.name), zap.Error(err))
+		return err
+	}
+	s.destRegistry = registry
+	return nil
+}
+
+func (s *serviceInstance) initEventTracer(cfg *config.Config, logger *logging.Logger) error {
+	logger.Debug("setting up event tracer", zap.String("service", s.name))
+	if cfg.OpenTelemetry.ToConfig() == nil {
+		s.eventTracer = eventtracer.NewNoopEventTracer()
+	} else {
+		s.eventTracer = eventtracer.NewEventTracer()
+	}
+	return nil
+}
+
+func (s *serviceInstance) initDeliveryMQ(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
+	logger.Debug("configuring delivery message queue", zap.String("service", s.name))
+	deliveryQueueConfig, err := cfg.MQs.ToQueueConfig(ctx, "deliverymq")
+	if err != nil {
+		logger.Error("delivery queue configuration failed", zap.String("service", s.name), zap.Error(err))
+		return err
+	}
+
+	logger.Debug("initializing delivery MQ connection", zap.String("service", s.name), zap.String("mq_type", cfg.MQs.GetInfraType()))
+	deliveryMQ := deliverymq.New(deliverymq.WithQueue(deliveryQueueConfig))
+	cleanupDeliveryMQ, err := deliveryMQ.Init(ctx)
+	if err != nil {
+		logger.Error("delivery MQ initialization failed", zap.String("service", s.name), zap.Error(err))
+		return err
+	}
+	s.cleanupFuncs = append(s.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) { cleanupDeliveryMQ() })
+	s.deliveryMQ = deliveryMQ
+	return nil
+}
+
+func (s *serviceInstance) initLogMQ(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
+	logger.Debug("configuring log message queue", zap.String("service", s.name))
+	logQueueConfig, err := cfg.MQs.ToQueueConfig(ctx, "logmq")
+	if err != nil {
+		logger.Error("log queue configuration failed", zap.String("service", s.name), zap.Error(err))
+		return err
+	}
+
+	logger.Debug("initializing log MQ connection", zap.String("service", s.name), zap.String("mq_type", cfg.MQs.GetInfraType()))
+	logMQ := logmq.New(logmq.WithQueue(logQueueConfig))
+	cleanupLogMQ, err := logMQ.Init(ctx)
+	if err != nil {
+		logger.Error("log MQ initialization failed", zap.String("service", s.name), zap.Error(err))
+		return err
+	}
+	s.cleanupFuncs = append(s.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) { cleanupLogMQ() })
+	s.logMQ = logMQ
+	return nil
+}
+
+func (s *serviceInstance) initRetryScheduler(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
+	if s.deliveryMQ == nil {
+		return fmt.Errorf("delivery MQ must be initialized before retry scheduler")
+	}
+	logger.Debug("creating delivery MQ retry scheduler", zap.String("service", s.name))
+	retryScheduler, err := deliverymq.NewRetryScheduler(s.deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, logger)
+	if err != nil {
+		logger.Error("failed to create delivery MQ retry scheduler", zap.String("service", s.name), zap.Error(err))
+		return err
+	}
+	logger.Debug("initializing delivery MQ retry scheduler", zap.String("service", s.name))
+	if err := retryScheduler.Init(ctx); err != nil {
+		logger.Error("delivery MQ retry scheduler initialization failed", zap.String("service", s.name), zap.Error(err))
+		return err
+	}
+	s.cleanupFuncs = append(s.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+		retryScheduler.Shutdown()
+	})
+	s.retryScheduler = retryScheduler
 	return nil
 }
