@@ -20,7 +20,7 @@ func TestPublicRouter(t *testing.T) {
 	t.Run("should accept requests without a token", func(t *testing.T) {
 		t.Parallel()
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/healthz", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenant-id/topics", nil)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
@@ -28,7 +28,7 @@ func TestPublicRouter(t *testing.T) {
 	t.Run("should accept requests with an invalid authorization token", func(t *testing.T) {
 		t.Parallel()
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/healthz", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenant-id/topics", nil)
 		req.Header.Set("Authorization", "invalid key")
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -37,7 +37,7 @@ func TestPublicRouter(t *testing.T) {
 	t.Run("should accept requests with a valid authorization token", func(t *testing.T) {
 		t.Parallel()
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/healthz", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenant-id/topics", nil)
 		req.Header.Set("Authorization", "Bearer key")
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)

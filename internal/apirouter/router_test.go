@@ -94,16 +94,6 @@ func TestRouterWithAPIKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("healthcheck should work", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/healthz", nil)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-
 	t.Run("should block unauthenticated request to admin routes", func(t *testing.T) {
 		t.Parallel()
 
@@ -206,16 +196,6 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	t.Run("healthcheck should work", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/healthz", nil)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
 
 	t.Run("should allow unauthenticated request to admin routes", func(t *testing.T) {
 		t.Parallel()

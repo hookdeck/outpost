@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/alert"
 	apirouter "github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/config"
@@ -54,6 +55,9 @@ type serviceInstance struct {
 	deliveryMQ     *deliverymq.DeliveryMQ
 	logMQ          *logmq.LogMQ
 	retryScheduler scheduler.Scheduler
+
+	// HTTP server and router
+	router http.Handler
 }
 
 // NewServiceBuilder creates a new ServiceBuilder.
@@ -73,26 +77,79 @@ func (b *ServiceBuilder) BuildWorkers() (*worker.WorkerSupervisor, error) {
 	serviceType := b.cfg.MustGetService()
 	b.logger.Debug("building workers for service type", zap.String("service_type", serviceType.String()))
 
+	// Create base router with health check that all services will extend
+	b.logger.Debug("creating base router with health check")
+	baseRouter := NewBaseRouter(b.supervisor, b.cfg.GinMode)
+
 	if serviceType == config.ServiceTypeAPI || serviceType == config.ServiceTypeAll {
-		if err := b.BuildAPIWorkers(); err != nil {
+		if err := b.BuildAPIWorkers(baseRouter); err != nil {
 			b.logger.Error("failed to build API workers", zap.Error(err))
 			return nil, err
 		}
 	}
 	if serviceType == config.ServiceTypeDelivery || serviceType == config.ServiceTypeAll {
-		if err := b.BuildDeliveryWorker(); err != nil {
+		if err := b.BuildDeliveryWorker(baseRouter); err != nil {
 			b.logger.Error("failed to build delivery worker", zap.Error(err))
 			return nil, err
 		}
 	}
 	if serviceType == config.ServiceTypeLog || serviceType == config.ServiceTypeAll {
-		if err := b.BuildLogWorker(); err != nil {
+		if err := b.BuildLogWorker(baseRouter); err != nil {
 			b.logger.Error("failed to build log worker", zap.Error(err))
 			return nil, err
 		}
 	}
 
+	// Create HTTP server with the base router
+	if err := b.createHTTPServer(baseRouter); err != nil {
+		b.logger.Error("failed to create HTTP server", zap.Error(err))
+		return nil, err
+	}
+
 	return b.supervisor, nil
+}
+
+// createHTTPServer creates and registers the HTTP server worker with the given router
+func (b *ServiceBuilder) createHTTPServer(router http.Handler) error {
+	// Create HTTP server
+	b.logger.Debug("creating HTTP server")
+	httpServer := &http.Server{
+		Addr:    fmt.Sprintf(":%d", b.cfg.APIPort),
+		Handler: router,
+	}
+
+	// Add cleanup for HTTP server to the first service (or API service for service=all)
+	serviceType := b.cfg.MustGetService()
+	var targetSvc *serviceInstance
+	if serviceType == config.ServiceTypeAll {
+		// For service=all, prefer API service for cleanup
+		for _, svc := range b.services {
+			if svc.name == "api" {
+				targetSvc = svc
+				break
+			}
+		}
+	}
+	if targetSvc == nil && len(b.services) > 0 {
+		// Fallback to first service
+		targetSvc = b.services[0]
+	}
+
+	if targetSvc != nil {
+		targetSvc.cleanupFuncs = append(targetSvc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+			if err := httpServer.Shutdown(ctx); err != nil {
+				logger.Error("error shutting down http server", zap.Error(err))
+			}
+			logger.Info("http server shut down")
+		})
+	}
+
+	// Register HTTP server worker
+	httpWorker := NewHTTPServerWorker(httpServer, b.logger)
+	b.supervisor.Register(httpWorker)
+
+	b.logger.Info("HTTP server created", zap.String("addr", httpServer.Addr))
+	return nil
 }
 
 // Cleanup runs all registered cleanup functions for all services.
@@ -106,12 +163,12 @@ func (b *ServiceBuilder) Cleanup(ctx context.Context) {
 	}
 }
 
-// BuildAPIWorkers creates and registers all workers for the API service.
-// This sets up the infrastructure and creates 3 workers:
-// 1. HTTP server
-// 2. Retry scheduler
-// 3. PublishMQ consumer (optional)
-func (b *ServiceBuilder) BuildAPIWorkers() error {
+// BuildAPIWorkers creates the API router and registers workers for the API service.
+// This sets up the infrastructure, creates the API router, and registers workers:
+// 1. Retry scheduler
+// 2. PublishMQ consumer (optional)
+// The baseRouter parameter is extended with API routes (apirouter already has health check)
+func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	b.logger.Debug("building API service workers")
 
 	// Create a new service instance for API
@@ -146,14 +203,16 @@ func (b *ServiceBuilder) BuildAPIWorkers() error {
 		return err
 	}
 
-	// Initialize event handler and router
-	b.logger.Debug("creating event handler and router")
+	// Initialize event handler and create API router
+	b.logger.Debug("creating event handler and API router")
 	publishIdempotence := idempotence.New(svc.redisClient,
 		idempotence.WithTimeout(5*time.Second),
 		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.PublishIdempotencyKeyTTL)*time.Second),
 	)
 	eventHandler := publishmq.NewEventHandler(b.logger, svc.deliveryMQ, svc.entityStore, svc.eventTracer, b.cfg.Topics, publishIdempotence)
-	router := apirouter.NewRouter(
+
+	// Create API router as separate handler
+	apiHandler := apirouter.NewRouter(
 		apirouter.RouterConfig{
 			ServiceName:  b.cfg.OpenTelemetry.GetServiceName(),
 			APIKey:       b.cfg.APIKey,
@@ -172,28 +231,16 @@ func (b *ServiceBuilder) BuildAPIWorkers() error {
 		b.telemetry,
 	)
 
-	// Create HTTP server
-	b.logger.Debug("creating HTTP server")
-	httpServer := &http.Server{
-		Addr:    fmt.Sprintf(":%d", b.cfg.APIPort),
-		Handler: router,
-	}
-	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
-		if err := httpServer.Shutdown(ctx); err != nil {
-			logger.Error("error shutting down http server", zap.Error(err))
-		}
-		logger.Info("http server shut down")
-	})
+	// Mount API handler onto base router (everything except /healthz goes to apiHandler)
+	baseRouter.NoRoute(gin.WrapH(apiHandler))
 
-	// Worker 1: HTTP Server
-	httpWorker := NewHTTPServerWorker(httpServer, b.logger)
-	b.supervisor.Register(httpWorker)
+	svc.router = baseRouter
 
-	// Worker 2: Retry Scheduler
+	// Worker 1: Retry Scheduler
 	retryWorker := NewRetrySchedulerWorker(svc.retryScheduler, b.logger)
 	b.supervisor.Register(retryWorker)
 
-	// Worker 3: PublishMQ Consumer (optional)
+	// Worker 2: PublishMQ Consumer (optional)
 	if b.cfg.PublishMQ.GetQueueConfig() != nil {
 		publishMQ := publishmq.New(publishmq.WithQueue(b.cfg.PublishMQ.GetQueueConfig()))
 		publishMQWorker := NewPublishMQWorker(
@@ -210,7 +257,7 @@ func (b *ServiceBuilder) BuildAPIWorkers() error {
 }
 
 // BuildDeliveryWorker creates and registers the delivery worker.
-func (b *ServiceBuilder) BuildDeliveryWorker() error {
+func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	b.logger.Debug("building delivery service worker")
 
 	// Create a new service instance for Delivery
@@ -288,6 +335,9 @@ func (b *ServiceBuilder) BuildDeliveryWorker() error {
 		deliveryIdempotence,
 	)
 
+	// Store reference to the base router
+	svc.router = baseRouter
+
 	// Create DeliveryMQ worker
 	deliveryWorker := NewDeliveryMQWorker(
 		svc.deliveryMQ,
@@ -302,7 +352,7 @@ func (b *ServiceBuilder) BuildDeliveryWorker() error {
 }
 
 // BuildLogWorker creates and registers the log worker.
-func (b *ServiceBuilder) BuildLogWorker() error {
+func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	b.logger.Debug("building log service worker")
 
 	// Create a new service instance for Log
@@ -348,6 +398,9 @@ func (b *ServiceBuilder) BuildLogWorker() error {
 	}
 
 	logMQ := logmq.New(logmq.WithQueue(logQueueConfig))
+
+	// Store reference to the base router
+	svc.router = baseRouter
 
 	// Create LogMQ worker
 	logWorker := NewLogMQWorker(
