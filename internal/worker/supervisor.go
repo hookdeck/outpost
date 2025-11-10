@@ -62,7 +62,7 @@ func (r *WorkerSupervisor) Register(w Worker) {
 		panic(fmt.Sprintf("worker %s already registered", w.Name()))
 	}
 	r.workers[w.Name()] = w
-	r.logger.Debug("worker registered", zap.String("worker", w.Name()))
+	r.logger.Info("worker registered", zap.String("worker", w.Name()))
 }
 
 // GetHealthTracker returns the health tracker for this supervisor.
@@ -100,7 +100,7 @@ func (r *WorkerSupervisor) Run(ctx context.Context) error {
 		go func(name string, w Worker) {
 			defer wg.Done()
 
-			r.logger.Info("worker starting", zap.String("worker", name))
+			r.logger.Debug("worker starting", zap.String("worker", name))
 			r.health.MarkHealthy(name)
 
 			// Run the worker
