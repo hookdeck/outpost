@@ -101,6 +101,7 @@ func (r *WorkerSupervisor) Run(ctx context.Context) error {
 			defer wg.Done()
 
 			r.logger.Info("worker starting", zap.String("worker", name))
+			r.health.MarkHealthy(name)
 
 			// Run the worker
 			if err := w.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
@@ -110,7 +111,6 @@ func (r *WorkerSupervisor) Run(ctx context.Context) error {
 				r.health.MarkFailed(name)
 			} else {
 				r.logger.Info("worker stopped gracefully", zap.String("worker", name))
-				r.health.MarkHealthy(name)
 			}
 		}(name, worker)
 	}

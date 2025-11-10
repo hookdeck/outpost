@@ -230,8 +230,19 @@ func TestWorkerSupervisor_Run_HealthyWorkers(t *testing.T) {
 	assert.True(t, worker1.WasStarted())
 	assert.True(t, worker2.WasStarted())
 
-	// Verify health
-	assert.True(t, supervisor.GetHealthTracker().IsHealthy())
+	// Verify health while workers are running
+	tracker := supervisor.GetHealthTracker()
+	assert.True(t, tracker.IsHealthy(), "all workers should be healthy while running")
+
+	status := tracker.GetStatus()
+	assert.Equal(t, "healthy", status["status"])
+
+	workers := status["workers"].(map[string]WorkerHealth)
+	assert.Len(t, workers, 2, "should have 2 workers in health status")
+	assert.Equal(t, WorkerStatusHealthy, workers["worker-1"].Status, "worker-1 should be healthy")
+	assert.Equal(t, WorkerStatusHealthy, workers["worker-2"].Status, "worker-2 should be healthy")
+	assert.NotZero(t, workers["worker-1"].LastCheck, "worker-1 should have last_check timestamp")
+	assert.NotZero(t, workers["worker-2"].LastCheck, "worker-2 should have last_check timestamp")
 
 	// Cancel context and verify graceful shutdown
 	cancel()
