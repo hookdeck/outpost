@@ -236,8 +236,8 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 
 	svc.router = baseRouter
 
-	// Worker 1: Retry Scheduler
-	retryWorker := NewRetrySchedulerWorker(svc.retryScheduler, b.logger)
+	// Worker 1: RetryMQ Consumer
+	retryWorker := NewRetryMQWorker(svc.retryScheduler, b.logger)
 	b.supervisor.Register(retryWorker)
 
 	// Worker 2: PublishMQ Consumer (optional)

@@ -1740,7 +1740,7 @@ paths:
                 workers:
                   http-server:
                     status: healthy
-                  retry-scheduler:
+                  retrymq-consumer:
                     status: healthy
         "503":
           description: Service is unhealthy - one or more workers have failed.
@@ -1779,7 +1779,7 @@ paths:
                 workers:
                   http-server:
                     status: healthy
-                  retry-scheduler:
+                  retrymq-consumer:
                     status: failed
   # Tenants
   /{tenant_id}:

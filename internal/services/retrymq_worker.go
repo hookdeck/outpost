@@ -9,27 +9,27 @@ import (
 	"go.uber.org/zap"
 )
 
-// RetrySchedulerWorker wraps a retry scheduler as a worker.
-type RetrySchedulerWorker struct {
+// RetryMQWorker wraps a retry scheduler as a worker.
+type RetryMQWorker struct {
 	scheduler scheduler.Scheduler
 	logger    *logging.Logger
 }
 
-// NewRetrySchedulerWorker creates a new retry scheduler worker.
-func NewRetrySchedulerWorker(scheduler scheduler.Scheduler, logger *logging.Logger) worker.Worker {
-	return &RetrySchedulerWorker{
+// NewRetryMQWorker creates a new retry scheduler worker.
+func NewRetryMQWorker(scheduler scheduler.Scheduler, logger *logging.Logger) worker.Worker {
+	return &RetryMQWorker{
 		scheduler: scheduler,
 		logger:    logger,
 	}
 }
 
 // Name returns the worker name.
-func (w *RetrySchedulerWorker) Name() string {
-	return "retry-scheduler"
+func (w *RetryMQWorker) Name() string {
+	return "retrymq-consumer"
 }
 
 // Run starts the retry scheduler monitor and blocks until context is cancelled or it fails.
-func (w *RetrySchedulerWorker) Run(ctx context.Context) error {
+func (w *RetryMQWorker) Run(ctx context.Context) error {
 	logger := w.logger.Ctx(ctx)
 	logger.Info("retry scheduler monitor running")
 

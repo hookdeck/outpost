@@ -10,7 +10,7 @@ import "context"
 // - Return nil or context.Canceled for graceful shutdown
 // - Return non-nil error only for fatal failures
 type Worker interface {
-	// Name returns a unique identifier for this worker (e.g., "http-server", "retry-scheduler")
+	// Name returns a unique identifier for this worker (e.g., "http-server", "retrymq-consumer")
 	Name() string
 
 	// Run executes the worker and blocks until context is cancelled or error occurs.
