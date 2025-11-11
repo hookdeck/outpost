@@ -1686,17 +1686,101 @@ paths:
     get:
       tags: [Health]
       summary: Health Check
-      description: Simple health check endpoint.
+      description: |
+        Health check endpoint that reports the status of all workers.
+
+        Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
+
+        The response includes:
+        - `status`: Overall health status ("healthy" or "failed")
+        - `timestamp`: When this health check was performed (ISO 8601 format)
+        - `workers`: Map of worker names to their individual health status
+
+        Each worker reports:
+        - `status`: Worker health ("healthy" or "failed")
+
+        Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
       operationId: healthCheck
       security: []
       responses:
         "200":
-          description: Service is healthy.
+          description: Service is healthy - all workers are operational.
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-                example: OK
+                type: object
+                required:
+                  - status
+                  - timestamp
+                  - workers
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy]
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+                    description: When this health check was performed
+                    example: "2025-11-11T10:30:00Z"
+                  workers:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      required:
+                        - status
+                      properties:
+                        status:
+                          type: string
+                          enum: [healthy]
+                          example: healthy
+              example:
+                status: healthy
+                timestamp: "2025-11-11T10:30:00Z"
+                workers:
+                  http-server:
+                    status: healthy
+                  retrymq-consumer:
+                    status: healthy
+        "503":
+          description: Service is unhealthy - one or more workers have failed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - timestamp
+                  - workers
+                properties:
+                  status:
+                    type: string
+                    enum: [failed]
+                    example: failed
+                  timestamp:
+                    type: string
+                    format: date-time
+                    description: When this health check was performed
+                    example: "2025-11-11T10:30:15Z"
+                  workers:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      required:
+                        - status
+                      properties:
+                        status:
+                          type: string
+                          enum: [healthy, failed]
+                          example: failed
+              example:
+                status: failed
+                timestamp: "2025-11-11T10:30:15Z"
+                workers:
+                  http-server:
+                    status: healthy
+                  retrymq-consumer:
+                    status: failed
   # Tenants
   /{tenant_id}:
     parameters:

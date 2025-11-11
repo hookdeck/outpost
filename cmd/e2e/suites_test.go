@@ -30,14 +30,17 @@ type e2eSuite struct {
 	mockServerInfra   *testinfra.MockServerInfra
 	cleanup           func()
 	client            httpclient.Client
+	appDone           chan struct{}
 }
 
 func (suite *e2eSuite) SetupSuite() {
 	ctx, cancel := context.WithCancel(context.Background())
 	suite.ctx = ctx
 	suite.cancel = cancel
+	suite.appDone = make(chan struct{})
 	suite.client = httpclient.New(fmt.Sprintf("http://localhost:%d/api/v1", suite.config.APIPort), suite.config.APIKey)
 	go func() {
+		defer close(suite.appDone)
 		application := app.New(&suite.config)
 		if err := application.Run(suite.ctx); err != nil {
 			log.Println("Application failed to run", err)
@@ -48,6 +51,8 @@ func (suite *e2eSuite) SetupSuite() {
 func (s *e2eSuite) TearDownSuite() {
 	if s.cancel != nil {
 		s.cancel()
+		// Wait for application to fully shut down before cleaning up resources
+		<-s.appDone
 	}
 	s.cleanup()
 }

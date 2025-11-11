@@ -23,6 +23,20 @@ func (suite *basicSuite) TestHealthzAPI() {
 				Match: &httpclient.Response{
 					StatusCode: http.StatusOK,
 				},
+				Validate: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"status": map[string]interface{}{
+							"type": "string",
+						},
+						"timestamp": map[string]interface{}{
+							"type": "string",
+						},
+						"workers": map[string]interface{}{
+							"type": "object",
+						},
+					},
+				},
 			},
 		},
 	}

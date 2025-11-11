@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/deliverymq"
@@ -128,8 +129,8 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 		idempotence.WithSuccessfulTTL(time.Duration(cfg.PublishIdempotencyKeyTTL)*time.Second),
 	)
 	eventHandler := publishmq.NewEventHandler(logger, deliveryMQ, entityStore, eventTracer, cfg.Topics, publishIdempotence)
-	router := NewRouter(
-		RouterConfig{
+	router := apirouter.NewRouter(
+		apirouter.RouterConfig{
 			ServiceName:  cfg.OpenTelemetry.GetServiceName(),
 			APIKey:       cfg.APIKey,
 			JWTSecret:    cfg.APIJWTSecret,

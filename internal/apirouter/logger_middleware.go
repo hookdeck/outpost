@@ -1,4 +1,4 @@
-package api
+package apirouter
 
 import (
 	"fmt"
@@ -60,11 +60,7 @@ func LoggerMiddlewareWithSanitizer(logger *logging.Logger, sanitizer *RequestBod
 				hub.CaptureException(getErrorWithStackTrace(c.Errors.Last().Err))
 			}
 		} else {
-			if strings.HasPrefix(c.Request.URL.Path, "/api") && strings.HasSuffix(c.Request.URL.Path, "/healthz") {
-				logger.Debug("healthz request completed", fields...)
-			} else {
-				logger.Info("request completed", fields...)
-			}
+			logger.Info("request completed", fields...)
 		}
 	}
 }

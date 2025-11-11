@@ -1,4 +1,4 @@
-package api
+package apirouter
 
 import (
 	"errors"
@@ -147,10 +147,6 @@ func NewRouter(
 
 	apiRouter := r.Group("/api/v1")
 	apiRouter.Use(SetTenantIDMiddleware())
-
-	apiRouter.GET("/healthz", func(c *gin.Context) {
-		c.String(http.StatusOK, "OK")
-	})
 
 	tenantHandlers := NewTenantHandlers(logger, telemetry, cfg.JWTSecret, entityStore)
 	destinationHandlers := NewDestinationHandlers(logger, telemetry, entityStore, cfg.Topics, cfg.Registry)

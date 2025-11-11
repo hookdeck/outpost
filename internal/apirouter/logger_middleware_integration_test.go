@@ -1,4 +1,4 @@
-package api_test
+package apirouter_test
 
 import (
 	"bytes"
@@ -11,11 +11,11 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/hookdeck/outpost/internal/services/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
@@ -134,9 +134,9 @@ func setupTestEnvironment(t *testing.T) (*gin.Engine, *observer.ObservedLogs, de
 	registry := &mockRegistry{loader: metadataLoader}
 
 	// Create sanitizer and router
-	sanitizer := api.NewRequestBodySanitizer(registry)
+	sanitizer := apirouter.NewRequestBodySanitizer(registry)
 	router := gin.New()
-	router.Use(api.LoggerMiddlewareWithSanitizer(testLogger, sanitizer))
+	router.Use(apirouter.LoggerMiddlewareWithSanitizer(testLogger, sanitizer))
 
 	return router, logs, registry
 }
