@@ -259,7 +259,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.Equal(t, event.ID, result.EventID)
 		require.Equal(t, 3, result.MatchedCount)
 		require.Equal(t, 3, result.QueuedCount)
-		require.Nil(t, result.Destinations)
+		require.Nil(t, result.DestinationStatus)
 	})
 
 	t.Run("no destinations matched", func(t *testing.T) {
@@ -274,7 +274,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.Equal(t, event.ID, result.EventID)
 		require.Equal(t, 0, result.MatchedCount)
 		require.Equal(t, 0, result.QueuedCount)
-		require.Nil(t, result.Destinations)
+		require.Nil(t, result.DestinationStatus)
 	})
 
 	t.Run("duplicate event - idempotency", func(t *testing.T) {
@@ -320,9 +320,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, result.MatchedCount)
 		require.Equal(t, 1, result.QueuedCount)
-		require.Len(t, result.Destinations, 1)
-		require.Equal(t, dest.ID, result.Destinations[0].ID)
-		require.Equal(t, publishmq.DestinationStatusQueued, result.Destinations[0].Status)
+		require.Nil(t, result.DestinationStatus, "no status when successfully queued")
 	})
 
 	t.Run("with destination_id - disabled", func(t *testing.T) {
@@ -344,9 +342,8 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, result.MatchedCount)
 		require.Equal(t, 0, result.QueuedCount)
-		require.Len(t, result.Destinations, 1)
-		require.Equal(t, dest.ID, result.Destinations[0].ID)
-		require.Equal(t, publishmq.DestinationStatusDisabled, result.Destinations[0].Status)
+		require.NotNil(t, result.DestinationStatus, "status provided when not queued")
+		require.Equal(t, publishmq.DestinationStatusDisabled, *result.DestinationStatus)
 	})
 
 	t.Run("with destination_id - not found", func(t *testing.T) {
@@ -360,9 +357,8 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, result.MatchedCount)
 		require.Equal(t, 0, result.QueuedCount)
-		require.Len(t, result.Destinations, 1)
-		require.Equal(t, "dest_not_found", result.Destinations[0].ID)
-		require.Equal(t, publishmq.DestinationStatusNotFound, result.Destinations[0].Status)
+		require.NotNil(t, result.DestinationStatus, "status provided when not queued")
+		require.Equal(t, publishmq.DestinationStatusNotFound, *result.DestinationStatus)
 	})
 
 	t.Run("with destination_id - topic mismatch", func(t *testing.T) {
@@ -382,8 +378,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, result.MatchedCount)
 		require.Equal(t, 0, result.QueuedCount)
-		require.Len(t, result.Destinations, 1)
-		require.Equal(t, dest.ID, result.Destinations[0].ID)
-		require.Equal(t, publishmq.DestinationStatusTopicMismatch, result.Destinations[0].Status)
+		require.NotNil(t, result.DestinationStatus, "status provided when not queued")
+		require.Equal(t, publishmq.DestinationStatusTopicMismatch, *result.DestinationStatus)
 	})
 }
