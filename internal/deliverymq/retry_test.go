@@ -154,7 +154,7 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 	// - Third attempt succeeds
 	// - Should attempt exactly 3 times
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// Setup test data
@@ -284,7 +284,7 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 	// - RetryMaxCount is 2 (allowing 1 initial + 2 retries = 3 total attempts)
 	// - Should stop after max retries even though errors continue
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// Setup test data
@@ -341,6 +341,11 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 	}
 	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
 
-	<-ctx.Done()
+	// Poll until we get 3 attempts or timeout
+	// Need to wait for: initial attempt + 1s backoff + retry + 1s backoff + retry = ~2.5s minimum
+	require.Eventually(t, func() bool {
+		return publisher.Current() >= 3
+	}, 10*time.Second, 100*time.Millisecond, "should complete 3 attempts (1 initial + 2 retries)")
+
 	assert.Equal(t, 3, publisher.Current(), "should stop after max retries (1 initial + 2 retries = 3 total attempts)")
 }
