@@ -466,6 +466,9 @@ func (s *entityStoreImpl) matchEventWithDestination(ctx context.Context, event E
 	if destination == nil {
 		return []DestinationSummary{}, nil
 	}
+	if destination.DisabledAt != nil {
+		return []DestinationSummary{}, nil
+	}
 	if event.Topic == "" || destination.Topics[0] == "*" || slices.Contains(destination.Topics, event.Topic) {
 		return []DestinationSummary{*destination.ToSummary()}, nil
 	}
