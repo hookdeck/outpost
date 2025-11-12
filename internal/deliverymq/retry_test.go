@@ -97,7 +97,6 @@ func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
 	// - Event is not eligible for retry
 	// - Publish fails with a publish error (not system error)
 	// - Should only attempt to publish once and not retry
-	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -154,7 +153,6 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 	// - First two publish attempts fail with publish errors
 	// - Third attempt succeeds
 	// - Should attempt exactly 3 times
-	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -234,7 +232,6 @@ func TestDeliveryMQRetry_SystemError(t *testing.T) {
 	// - But we get a system error (not a publish error)
 	// - System errors should always trigger retry regardless of retry eligibility
 	// - Should attempt multiple times (measured by handler executions)
-	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -286,7 +283,6 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 	// - Publishing continuously fails with publish errors
 	// - RetryMaxCount is 2 (allowing 1 initial + 2 retries = 3 total attempts)
 	// - Should stop after max retries even though errors continue
-	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
