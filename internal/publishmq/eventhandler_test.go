@@ -18,7 +18,6 @@ import (
 )
 
 func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
-	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 
 	exporter := tracetest.NewInMemoryExporter()
@@ -77,7 +76,6 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 }
 
 func TestEventHandler_WildcardTopic(t *testing.T) {
-	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 
 	exporter := tracetest.NewInMemoryExporter()
@@ -213,7 +211,6 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 }
 
 func TestEventHandler_HandleResult(t *testing.T) {
-	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 
 	ctx := context.Background()

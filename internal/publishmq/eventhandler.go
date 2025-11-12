@@ -91,29 +91,40 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	logger.Audit("processing event",
 		zap.String("event_id", event.ID),
 		zap.String("tenant_id", event.TenantID),
-		zap.String("topic", event.Topic))
+		zap.String("topic", event.Topic),
+		zap.String("destination_id", event.DestinationID))
 
-	// Step 1: Match destinations (OUTSIDE idempotency)
-	matchedDestinations, err := h.entityStore.MatchEvent(ctx, *event)
-	if err != nil {
-		logger.Error("failed to match event destinations",
-			zap.Error(err),
-			zap.String("event_id", event.ID),
-			zap.String("tenant_id", event.TenantID))
-		return nil, err
+	var matchedDestinations []models.DestinationSummary
+	var destStatus *DestinationStatus
+	var err error
+
+	// Branch: specific destination vs topic-based matching
+	if event.DestinationID != "" {
+		// Specific destination path
+		matchedDestinations, destStatus, err = h.matchSpecificDestination(ctx, event)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Topic-based matching path
+		matchedDestinations, err = h.entityStore.MatchEvent(ctx, *event)
+		if err != nil {
+			logger.Error("failed to match event destinations",
+				zap.Error(err),
+				zap.String("event_id", event.ID),
+				zap.String("tenant_id", event.TenantID))
+			return nil, err
+		}
 	}
 
-	// Step 2: Build result
 	result := &HandleResult{
 		EventID:      event.ID,
 		MatchedCount: len(matchedDestinations),
 		QueuedCount:  0,
 	}
 
-	// Add destination status if destination_id specified
-	if event.DestinationID != "" {
-		destStatus := h.getDestinationStatus(ctx, event, matchedDestinations)
-		result.Destinations = []DestinationStatus{destStatus}
+	if destStatus != nil {
+		result.Destinations = []DestinationStatus{*destStatus}
 	}
 
 	// Early return if no destinations matched
@@ -124,7 +135,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		return result, nil
 	}
 
-	// Step 3: Publish deliveries (INSIDE idempotency)
+	// Publish deliveries (INSIDE idempotency)
 	executed := false
 	err = h.idempotence.Exec(ctx, idempotencyKeyFromEvent(event), func(ctx context.Context) error {
 		executed = true
@@ -135,7 +146,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		return nil, err
 	}
 
-	// Step 4: Set queued count only if actually executed
+	// Set queued count only if actually executed
 	if executed {
 		result.QueuedCount = len(matchedDestinations)
 	}
@@ -163,50 +174,53 @@ func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, match
 	return nil
 }
 
-// getDestinationStatus determines the status of a specific destination.
-// This is only called when event.DestinationID is specified in the request.
-// Returns one of: queued, disabled, not_found, topic_mismatch
-func (h *eventHandler) getDestinationStatus(ctx context.Context, event *models.Event, matchedDestinations []models.DestinationSummary) DestinationStatus {
-	// Check if destination was matched
-	for _, dest := range matchedDestinations {
-		if dest.ID == event.DestinationID {
-			return DestinationStatus{
-				ID:     event.DestinationID,
-				Status: DestinationStatusQueued,
-			}
-		}
-	}
-
-	// Destination not matched - determine why
+// matchSpecificDestination handles the case where a specific destination_id is provided.
+// It retrieves the destination and validates it, returning both the matched destinations
+// and the status for the API response.
+func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *models.Event) ([]models.DestinationSummary, *DestinationStatus, error) {
 	destination, err := h.entityStore.RetrieveDestination(ctx, event.TenantID, event.DestinationID)
 	if err != nil {
-		h.logger.Ctx(ctx).Warn("failed to retrieve destination for status check",
+		h.logger.Ctx(ctx).Warn("failed to retrieve destination",
 			zap.Error(err),
 			zap.String("destination_id", event.DestinationID))
-		return DestinationStatus{
+		status := DestinationStatus{
 			ID:     event.DestinationID,
 			Status: DestinationStatusNotFound,
 		}
+		return []models.DestinationSummary{}, &status, nil
 	}
 
 	if destination == nil {
-		return DestinationStatus{
+		status := DestinationStatus{
 			ID:     event.DestinationID,
 			Status: DestinationStatusNotFound,
 		}
+		return []models.DestinationSummary{}, &status, nil
 	}
 
 	if destination.DisabledAt != nil {
-		return DestinationStatus{
+		status := DestinationStatus{
 			ID:     event.DestinationID,
 			Status: DestinationStatusDisabled,
 		}
+		return []models.DestinationSummary{}, &status, nil
 	}
 
-	return DestinationStatus{
-		ID:     event.DestinationID,
-		Status: DestinationStatusTopicMismatch,
+	// Check topic match
+	if event.Topic != "" && event.Topic != "*" && destination.Topics[0] != "*" && !slices.Contains(destination.Topics, event.Topic) {
+		status := DestinationStatus{
+			ID:     event.DestinationID,
+			Status: DestinationStatusTopicMismatch,
+		}
+		return []models.DestinationSummary{}, &status, nil
 	}
+
+	// Matched!
+	status := DestinationStatus{
+		ID:     event.DestinationID,
+		Status: DestinationStatusQueued,
+	}
+	return []models.DestinationSummary{*destination.ToSummary()}, &status, nil
 }
 
 func (h *eventHandler) enqueueDeliveryEvent(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
