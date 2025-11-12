@@ -35,7 +35,8 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 		return
 	}
 	event := publishedEvent.toEvent()
-	if err := h.eventHandler.Handle(c.Request.Context(), &event); err != nil {
+	result, err := h.eventHandler.Handle(c.Request.Context(), &event)
+	if err != nil {
 		if errors.Is(err, idempotence.ErrConflict) {
 			c.Status(http.StatusConflict)
 		} else if errors.Is(err, publishmq.ErrRequiredTopic) {
@@ -61,7 +62,7 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 		}
 		return
 	}
-	c.JSON(http.StatusAccepted, gin.H{"id": event.ID})
+	c.JSON(http.StatusAccepted, result)
 }
 
 type PublishedEvent struct {
