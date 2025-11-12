@@ -773,6 +773,33 @@ func (s *EntityTestSuite) TestMultiSuiteDisableAndMatch() {
 			require.Contains(s.T(), []string{data.destinations[0].ID, data.destinations[3].ID}, summary.ID)
 		}
 	})
+
+	t.Run("should not match disabled destination when publishing with destination_id", func(t *testing.T) {
+		// Disable destination
+		destination := data.destinations[1]
+		now := time.Now()
+		destination.DisabledAt = &now
+		require.NoError(s.T(), s.entityStore.UpsertDestination(s.ctx, destination))
+
+		// Publish event with specific destination_id to the disabled destination
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithTenantID(data.tenant.ID),
+			testutil.EventFactory.WithTopic("user.created"),
+			testutil.EventFactory.WithDestinationID(data.destinations[1].ID),
+		)
+		matchedDestinationSummaryList, err := s.entityStore.MatchEvent(s.ctx, event)
+		require.NoError(s.T(), err)
+		require.Len(s.T(), matchedDestinationSummaryList, 0, "disabled destination should not match even when specified by destination_id")
+
+		// Re-enable and verify it matches again
+		destination.DisabledAt = nil
+		require.NoError(s.T(), s.entityStore.UpsertDestination(s.ctx, destination))
+
+		matchedDestinationSummaryList, err = s.entityStore.MatchEvent(s.ctx, event)
+		require.NoError(s.T(), err)
+		require.Len(s.T(), matchedDestinationSummaryList, 1)
+		require.Equal(s.T(), data.destinations[1].ID, matchedDestinationSummaryList[0].ID)
+	})
 }
 
 func (s *EntityTestSuite) TestDeleteDestination() {
