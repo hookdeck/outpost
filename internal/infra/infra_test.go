@@ -262,4 +262,3 @@ func TestInfra_Verify_ExistCheckError(t *testing.T) {
 	// Verify no declaration happened
 	assert.Equal(t, int32(0), mockProvider.declareCount.Load())
 }
-
