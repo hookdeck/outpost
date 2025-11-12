@@ -78,6 +78,7 @@ type Config struct {
 	RetrySchedule        []int `yaml:"retry_schedule" env:"RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h." required:"N"`
 	RetryIntervalSeconds int   `yaml:"retry_interval_seconds" env:"RETRY_INTERVAL_SECONDS" desc:"Interval in seconds for exponential backoff retry strategy (base 2). Ignored if retry_schedule is provided." required:"N"`
 	RetryMaxLimit        int   `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided." required:"N"`
+	RetryPollBackoffMs   int   `yaml:"retry_poll_backoff_ms" env:"RETRY_POLL_BACKOFF_MS" desc:"Backoff time in milliseconds when the retry monitor finds no messages to process. When a retry message is found, the monitor immediately polls for the next message without delay. Lower values provide faster retry processing but increase Redis load. For serverless Redis providers (Upstash, ElastiCache Serverless), consider increasing to 5000-10000ms to reduce costs. Default: 100" required:"N"`
 
 	// Event Delivery
 	MaxDestinationsPerTenant int `yaml:"max_destinations_per_tenant" env:"MAX_DESTINATIONS_PER_TENANT" desc:"Maximum number of destinations allowed per tenant/organization." required:"N"`
@@ -162,6 +163,7 @@ func (c *Config) InitDefaults() {
 	c.RetrySchedule = []int{} // Empty by default, falls back to exponential backoff
 	c.RetryIntervalSeconds = 30
 	c.RetryMaxLimit = 10
+	c.RetryPollBackoffMs = 100
 	c.MaxDestinationsPerTenant = 20
 	c.DeliveryTimeoutSeconds = 5
 	c.PublishIdempotencyKeyTTL = 3600  // 1 hour

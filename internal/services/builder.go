@@ -605,7 +605,8 @@ func (s *serviceInstance) initRetryScheduler(ctx context.Context, cfg *config.Co
 		return fmt.Errorf("delivery MQ must be initialized before retry scheduler")
 	}
 	logger.Debug("creating delivery MQ retry scheduler", zap.String("service", s.name))
-	retryScheduler, err := deliverymq.NewRetryScheduler(s.deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, logger)
+	pollBackoff := time.Duration(cfg.RetryPollBackoffMs) * time.Millisecond
+	retryScheduler, err := deliverymq.NewRetryScheduler(s.deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, pollBackoff, logger)
 	if err != nil {
 		logger.Error("failed to create delivery MQ retry scheduler", zap.String("service", s.name), zap.Error(err))
 		return err

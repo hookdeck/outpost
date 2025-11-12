@@ -150,7 +150,8 @@ func NewService(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, log
 
 	// deliverymqRetryScheduler
 	logger.Debug("creating delivery MQ retry scheduler")
-	deliverymqRetryScheduler, err := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, logger)
+	pollBackoff := time.Duration(cfg.RetryPollBackoffMs) * time.Millisecond
+	deliverymqRetryScheduler, err := deliverymq.NewRetryScheduler(deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, pollBackoff, logger)
 	if err != nil {
 		logger.Error("failed to create delivery MQ retry scheduler", zap.Error(err))
 		return nil, err
