@@ -22,6 +22,7 @@ type RetryDeliveryMQSuite struct {
 	ctx           context.Context
 	mqConfig      *mqs.QueueConfig
 	retryMaxCount int
+	retryBackoff  backoff.Backoff
 	publisher     deliverymq.Publisher
 	eventGetter   deliverymq.EventGetter
 	logPublisher  deliverymq.LogPublisher
@@ -52,6 +53,11 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 	go retryScheduler.Monitor(s.ctx)
 
 	// Setup message handler
+	// Use provided backoff or default to 1 second
+	retryBackoff := s.retryBackoff
+	if retryBackoff == nil {
+		retryBackoff = &backoff.ConstantBackoff{Interval: 1 * time.Second}
+	}
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		s.logPublisher,
@@ -60,7 +66,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 		s.publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
-		&backoff.ConstantBackoff{Interval: 1 * time.Second},
+		retryBackoff,
 		s.retryMaxCount,
 		s.alertMonitor,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
@@ -132,6 +138,7 @@ func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
 		destGetter:    &mockDestinationGetter{dest: &destination},
 		alertMonitor:  newMockAlertMonitor(),
 		retryMaxCount: 10,
+		retryBackoff:  &backoff.ConstantBackoff{Interval: 50 * time.Millisecond},
 	}
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
@@ -193,6 +200,7 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 		destGetter:    &mockDestinationGetter{dest: &destination},
 		alertMonitor:  newMockAlertMonitor(),
 		retryMaxCount: 10,
+		retryBackoff:  &backoff.ConstantBackoff{Interval: 50 * time.Millisecond},
 	}
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
@@ -204,24 +212,10 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 	}
 	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
 
-	// Wait for all attempts to complete
-	done := make(chan struct{})
-	go func() {
-		for {
-			if publisher.Current() >= 3 {
-				close(done)
-				return
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		t.Fatal("test timed out waiting for attempts to complete")
-	case <-done:
-		// Continue with assertions
-	}
+	// Wait for all attempts to complete (3 attempts with 50ms backoff = ~150ms)
+	require.Eventually(t, func() bool {
+		return publisher.Current() >= 3
+	}, 3*time.Second, 10*time.Millisecond, "should complete 3 attempts (2 failures + 1 success)")
 
 	assert.Equal(t, 3, publisher.Current(), "should retry until success (2 failures + 1 success)")
 }
@@ -262,6 +256,7 @@ func TestDeliveryMQRetry_SystemError(t *testing.T) {
 		destGetter:    destGetter,
 		alertMonitor:  newMockAlertMonitor(),
 		retryMaxCount: 10,
+		retryBackoff:  &backoff.ConstantBackoff{Interval: 50 * time.Millisecond},
 	}
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
@@ -330,6 +325,7 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 		destGetter:    &mockDestinationGetter{dest: &destination},
 		alertMonitor:  newMockAlertMonitor(),
 		retryMaxCount: 2, // 1 initial + 2 retries = 3 total attempts
+		retryBackoff:  &backoff.ConstantBackoff{Interval: 50 * time.Millisecond}, // Fast backoff for testing
 	}
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
@@ -342,10 +338,10 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
 
 	// Poll until we get 3 attempts or timeout
-	// Need to wait for: initial attempt + 1s backoff + retry + 1s backoff + retry = ~2.5s minimum
+	// With 50ms backoff: initial + 50ms + retry + 50ms + retry = ~150ms minimum
 	require.Eventually(t, func() bool {
 		return publisher.Current() >= 3
-	}, 10*time.Second, 100*time.Millisecond, "should complete 3 attempts (1 initial + 2 retries)")
+	}, 3*time.Second, 10*time.Millisecond, "should complete 3 attempts (1 initial + 2 retries)")
 
 	assert.Equal(t, 3, publisher.Current(), "should stop after max retries (1 initial + 2 retries = 3 total attempts)")
 }
