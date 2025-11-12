@@ -73,8 +73,9 @@ type Config struct {
 	LogMaxConcurrency      int `yaml:"log_max_concurrency" env:"LOG_MAX_CONCURRENCY" desc:"Maximum number of log writing operations to process concurrently." required:"N"`
 
 	// Delivery Retry
-	RetryIntervalSeconds int `yaml:"retry_interval_seconds" env:"RETRY_INTERVAL_SECONDS" desc:"Interval in seconds between delivery retry attempts for failed webhooks." required:"N"`
-	RetryMaxLimit        int `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up." required:"N"`
+	RetryIntervalSeconds   int `yaml:"retry_interval_seconds" env:"RETRY_INTERVAL_SECONDS" desc:"Interval in seconds between delivery retry attempts for failed webhooks." required:"N"`
+	RetryMaxLimit          int `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up." required:"N"`
+	RetryPollingIntervalMs int `yaml:"retry_polling_interval_ms" env:"RETRY_POLLING_INTERVAL_MS" desc:"Interval in milliseconds for polling Redis for retry messages. Higher values reduce Redis load for serverless/pay-as-you-go providers." required:"N"`
 
 	// Event Delivery
 	MaxDestinationsPerTenant int `yaml:"max_destinations_per_tenant" env:"MAX_DESTINATIONS_PER_TENANT" desc:"Maximum number of destinations allowed per tenant/organization." required:"N"`
@@ -151,6 +152,7 @@ func (c *Config) InitDefaults() {
 	c.LogMaxConcurrency = 1
 	c.RetryIntervalSeconds = 30
 	c.RetryMaxLimit = 10
+	c.RetryPollingIntervalMs = 100
 	c.MaxDestinationsPerTenant = 20
 	c.DeliveryTimeoutSeconds = 5
 	c.LogBatchThresholdSeconds = 10
