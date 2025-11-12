@@ -203,3 +203,62 @@ func TestInfra_LockExpiry(t *testing.T) {
 	// Declaration should have succeeded
 	assert.Equal(t, int32(1), mockProvider.declareCount.Load())
 }
+
+func TestInfra_Verify_InfrastructureExists(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mockProvider := &mockInfraProvider{}
+	mockProvider.exists.Store(true) // Infrastructure exists
+	lockKey := "test:lock:" + idgen.String()
+
+	infra := newTestInfra(t, mockProvider, lockKey)
+
+	// Verify should succeed when infrastructure exists
+	err := infra.Verify(ctx)
+	require.NoError(t, err)
+
+	// Verify no declaration happened
+	assert.Equal(t, int32(0), mockProvider.declareCount.Load())
+	assert.Equal(t, int32(1), mockProvider.existCallCount.Load())
+}
+
+func TestInfra_Verify_InfrastructureDoesNotExist(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mockProvider := &mockInfraProvider{}
+	mockProvider.exists.Store(false) // Infrastructure does not exist
+	lockKey := "test:lock:" + idgen.String()
+
+	infraInstance := newTestInfra(t, mockProvider, lockKey)
+
+	// Verify should fail with ErrInfraNotFound
+	err := infraInstance.Verify(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, infra.ErrInfraNotFound)
+
+	// Verify no declaration happened
+	assert.Equal(t, int32(0), mockProvider.declareCount.Load())
+	assert.Equal(t, int32(1), mockProvider.existCallCount.Load())
+}
+
+func TestInfra_Verify_ExistCheckError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mockProvider := &mockInfraProvider{
+		existError: assert.AnError,
+	}
+	lockKey := "test:lock:" + idgen.String()
+
+	infra := newTestInfra(t, mockProvider, lockKey)
+
+	// Verify should fail with wrapped error
+	err := infra.Verify(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to verify infrastructure exists")
+
+	// Verify no declaration happened
+	assert.Equal(t, int32(0), mockProvider.declareCount.Load())
+}
