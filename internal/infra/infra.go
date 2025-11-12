@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,6 +15,11 @@ const (
 	lockAttempts = 5
 	lockDelay    = 5 * time.Second
 	lockTTL      = 10 * time.Second
+)
+
+var (
+	// ErrInfraNotFound is returned when infrastructure does not exist and auto provisioning is disabled
+	ErrInfraNotFound = errors.New("infrastructure does not exist and auto provisioning is disabled (MQS_SHOULD_MANAGE=false). Please create the required message queues manually or set MQS_SHOULD_MANAGE=true to enable auto provisioning")
 )
 
 type Infra struct {
@@ -148,6 +154,19 @@ func (infra *Infra) Declare(ctx context.Context) error {
 	}
 
 	return fmt.Errorf("failed to acquire lock after %d attempts", lockAttempts)
+}
+
+// Verify checks if the infrastructure exists and returns an error if it doesn't.
+// This is useful when infrastructure management is disabled to fail fast with a clear error.
+func (infra *Infra) Verify(ctx context.Context) error {
+	exists, err := infra.provider.Exist(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to verify infrastructure exists: %w", err)
+	}
+	if !exists {
+		return ErrInfraNotFound
+	}
+	return nil
 }
 
 func (infra *Infra) Teardown(ctx context.Context) error {

@@ -19,6 +19,7 @@ type MQsConfig struct {
 	AzureServiceBus AzureServiceBusConfig `yaml:"azure_servicebus" desc:"Configuration for using Azure Service Bus as the message queue. Only one MQ provider should be configured." required:"N"`
 	GCPPubSub       GCPPubSubConfig       `yaml:"gcp_pubsub" desc:"Configuration for using GCP Pub/Sub as the message queue. Only one MQ provider should be configured." required:"N"`
 	RabbitMQ        RabbitMQConfig        `yaml:"rabbitmq" desc:"Configuration for using RabbitMQ as the message queue. Only one MQ provider should be configured." required:"N"`
+	ShouldManage    *bool                 `yaml:"should_manage" env:"MQS_SHOULD_MANAGE" desc:"Whether Outpost should create and manage message queue infrastructure. Set to false if you manage infrastructure externally (e.g., via Terraform). Defaults to true for backward compatibility." required:"N" default:"true"`
 
 	adapter MQConfigAdapter
 }
