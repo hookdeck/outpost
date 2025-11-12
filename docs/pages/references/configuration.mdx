@@ -80,6 +80,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `LOG_MAX_CONCURRENCY` | Maximum number of log writing operations to process concurrently. | `1` | No |
 | `MAX_DESTINATIONS_PER_TENANT` | Maximum number of destinations allowed per tenant/organization. | `20` | No |
 | `MAX_RETRY_LIMIT` | Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided. | `10` | No |
+| `MQS_SHOULD_MANAGE` | Whether Outpost should create and manage message queue infrastructure. Set to false if you manage infrastructure externally (e.g., via Terraform). Defaults to true for backward compatibility. | `nil` | No |
 | `ORGANIZATION_NAME` | Name of the organization, used for display purposes and potentially in user agent strings. | `nil` | No |
 | `OTEL_EXPORTER` | Specifies the OTLP exporter to use for this telemetry type (e.g., 'otlp'). Typically used with environment variables like OTEL_EXPORTER_OTLP_TRACES_ENDPOINT. | `nil` | Conditional |
 | `OTEL_PROTOCOL` | Specifies the OTLP protocol ('grpc' or 'http') for this telemetry type. Typically used with environment variables like OTEL_EXPORTER_OTLP_TRACES_PROTOCOL. | `nil` | Conditional |
@@ -376,6 +377,9 @@ mqs:
     # Required: Conditional
     server_url: ""
 
+
+  # Whether Outpost should create and manage message queue infrastructure. Set to false if you manage infrastructure externally (e.g., via Terraform). Defaults to true for backward compatibility.
+  should_manage: # <*bool>
 
 
 # Maximum number of destinations allowed per tenant/organization.
