@@ -84,27 +84,14 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	logger.Debug("creating Outpost infrastructure")
-	outpostInfra := infra.NewInfra(infra.Config{
-		DeliveryMQ: cfg.MQs.ToInfraConfig("deliverymq"),
-		LogMQ:      cfg.MQs.ToInfraConfig("logmq"),
-	}, redisClient)
-
-	// Only declare infrastructure if should_manage is true (default)
-	shouldManage := cfg.MQs.ShouldManage == nil || *cfg.MQs.ShouldManage
-	if shouldManage {
-		logger.Debug("infrastructure management enabled, declaring infrastructure")
-		if err := outpostInfra.Declare(mainContext); err != nil {
-			logger.Error("infrastructure declaration failed", zap.Error(err))
-			return err
-		}
-	} else {
-		logger.Info("infrastructure management disabled, verifying infrastructure exists")
-		if err := outpostInfra.Verify(mainContext); err != nil {
-			logger.Error("infrastructure verification failed", zap.Error(err))
-			return err
-		}
-		logger.Info("infrastructure verification successful")
+	logger.Debug("initializing infrastructure")
+	if err := infra.Init(mainContext, infra.Config{
+		DeliveryMQ:   cfg.MQs.ToInfraConfig("deliverymq"),
+		LogMQ:        cfg.MQs.ToInfraConfig("logmq"),
+		ShouldManage: cfg.MQs.ShouldManage,
+	}, redisClient); err != nil {
+		logger.Error("infrastructure initialization failed", zap.Error(err))
+		return err
 	}
 
 	installationID, err := getInstallation(mainContext, redisClient, cfg.Telemetry.ToTelemetryConfig())

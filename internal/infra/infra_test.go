@@ -60,20 +60,20 @@ func (m *mockInfraProvider) Teardown(ctx context.Context) error {
 }
 
 // Helper to create test infra with custom provider
-func newTestInfra(t *testing.T, provider infra.InfraProvider, lockKey string) *infra.Infra {
+func newTestInfra(t *testing.T, provider infra.InfraProvider, lockKey string, shouldManage bool) *infra.Infra {
 	redisConfig := testutil.CreateTestRedisConfig(t)
 
 	ctx := context.Background()
 	client, err := redis.New(ctx, redisConfig)
 	require.NoError(t, err)
 
-	return newTestInfraWithRedis(t, provider, lockKey, client)
+	return newTestInfraWithRedis(t, provider, lockKey, client, shouldManage)
 }
 
 // Helper to create test infra with specific Redis client
-func newTestInfraWithRedis(t *testing.T, provider infra.InfraProvider, lockKey string, client redis.Cmdable) *infra.Infra {
+func newTestInfraWithRedis(t *testing.T, provider infra.InfraProvider, lockKey string, client redis.Cmdable, shouldManage bool) *infra.Infra {
 	lock := infra.NewRedisLock(client, infra.LockWithKey(lockKey))
-	return infra.NewInfraWithProvider(lock, provider)
+	return infra.NewInfraWithProvider(lock, provider, shouldManage)
 }
 
 func TestInfra_SingleNode(t *testing.T) {
@@ -83,7 +83,7 @@ func TestInfra_SingleNode(t *testing.T) {
 	mockProvider := &mockInfraProvider{}
 	lockKey := "test:lock:" + idgen.String()
 
-	infra := newTestInfra(t, mockProvider, lockKey)
+	infra := newTestInfra(t, mockProvider, lockKey, true)
 
 	// Infrastructure doesn't exist initially
 	assert.False(t, mockProvider.exists.Load())
@@ -105,7 +105,7 @@ func TestInfra_InfrastructureAlreadyExists(t *testing.T) {
 	mockProvider.exists.Store(true) // Infrastructure already exists
 	lockKey := "test:lock:" + idgen.String()
 
-	infra := newTestInfra(t, mockProvider, lockKey)
+	infra := newTestInfra(t, mockProvider, lockKey, true)
 
 	// Declare should succeed without acquiring lock
 	err := infra.Declare(ctx)
@@ -140,7 +140,7 @@ func TestInfra_ConcurrentNodes(t *testing.T) {
 			defer wg.Done()
 
 			// Each node gets its own Infra instance but shares the provider and Redis client
-			nodeInfra := newTestInfraWithRedis(t, mockProvider, lockKey, client)
+			nodeInfra := newTestInfraWithRedis(t, mockProvider, lockKey, client, true)
 			errors[idx] = nodeInfra.Declare(ctx)
 		}(i)
 	}
@@ -196,7 +196,7 @@ func TestInfra_LockExpiry(t *testing.T) {
 
 	// Now another node should be able to acquire and declare
 	// Use the same Redis client
-	nodeInfra := newTestInfraWithRedis(t, mockProvider, lockKey, client)
+	nodeInfra := newTestInfraWithRedis(t, mockProvider, lockKey, client, true)
 	err = nodeInfra.Declare(ctx)
 	require.NoError(t, err)
 
@@ -212,9 +212,9 @@ func TestInfra_Verify_InfrastructureExists(t *testing.T) {
 	mockProvider.exists.Store(true) // Infrastructure exists
 	lockKey := "test:lock:" + idgen.String()
 
-	infra := newTestInfra(t, mockProvider, lockKey)
+	infra := newTestInfra(t, mockProvider, lockKey, false)
 
-	// Verify should succeed when infrastructure exists
+	// Verify should succeed when infrastructure exists (shouldManage=false)
 	err := infra.Verify(ctx)
 	require.NoError(t, err)
 
@@ -231,9 +231,9 @@ func TestInfra_Verify_InfrastructureDoesNotExist(t *testing.T) {
 	mockProvider.exists.Store(false) // Infrastructure does not exist
 	lockKey := "test:lock:" + idgen.String()
 
-	infraInstance := newTestInfra(t, mockProvider, lockKey)
+	infraInstance := newTestInfra(t, mockProvider, lockKey, false)
 
-	// Verify should fail with ErrInfraNotFound
+	// Verify should fail with ErrInfraNotFound when shouldManage=false
 	err := infraInstance.Verify(ctx)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, infra.ErrInfraNotFound)
@@ -252,9 +252,9 @@ func TestInfra_Verify_ExistCheckError(t *testing.T) {
 	}
 	lockKey := "test:lock:" + idgen.String()
 
-	infra := newTestInfra(t, mockProvider, lockKey)
+	infra := newTestInfra(t, mockProvider, lockKey, false)
 
-	// Verify should fail with wrapped error
+	// Verify should fail with wrapped error when shouldManage=false
 	err := infra.Verify(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to verify infrastructure exists")
@@ -262,3 +262,4 @@ func TestInfra_Verify_ExistCheckError(t *testing.T) {
 	// Verify no declaration happened
 	assert.Equal(t, int32(0), mockProvider.declareCount.Load())
 }
+
