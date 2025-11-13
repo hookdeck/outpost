@@ -118,33 +118,8 @@ func (b *ServiceBuilder) createHTTPServer(router http.Handler) error {
 		Handler: router,
 	}
 
-	// Add cleanup for HTTP server to the first service (or API service for service=all)
-	serviceType := b.cfg.MustGetService()
-	var targetSvc *serviceInstance
-	if serviceType == config.ServiceTypeAll {
-		// For service=all, prefer API service for cleanup
-		for _, svc := range b.services {
-			if svc.name == "api" {
-				targetSvc = svc
-				break
-			}
-		}
-	}
-	if targetSvc == nil && len(b.services) > 0 {
-		// Fallback to first service
-		targetSvc = b.services[0]
-	}
-
-	if targetSvc != nil {
-		targetSvc.cleanupFuncs = append(targetSvc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
-			if err := httpServer.Shutdown(ctx); err != nil {
-				logger.Error("error shutting down http server", zap.Error(err))
-			}
-			logger.Info("http server shut down")
-		})
-	}
-
 	// Register HTTP server worker
+	// Note: HTTP server shutdown is handled by HTTPServerWorker, not in cleanup functions
 	httpWorker := NewHTTPServerWorker(httpServer, b.logger)
 	b.supervisor.Register(httpWorker)
 
