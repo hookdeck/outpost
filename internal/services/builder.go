@@ -128,12 +128,18 @@ func (b *ServiceBuilder) createHTTPServer(router http.Handler) error {
 }
 
 // Cleanup runs all registered cleanup functions for all services.
+// Cleanup is performed in LIFO (last-in-first-out) order to ensure that
+// resources created later (which may depend on earlier resources) are
+// cleaned up before their dependencies.
 func (b *ServiceBuilder) Cleanup(ctx context.Context) {
 	logger := b.logger.Ctx(ctx)
-	for _, svc := range b.services {
+	// Clean up services in reverse order (LIFO)
+	for i := len(b.services) - 1; i >= 0; i-- {
+		svc := b.services[i]
 		logger.Debug("cleaning up service", zap.String("service", svc.name))
-		for _, cleanupFunc := range svc.cleanupFuncs {
-			cleanupFunc(ctx, &logger)
+		// Clean up functions within each service in reverse order
+		for j := len(svc.cleanupFuncs) - 1; j >= 0; j-- {
+			svc.cleanupFuncs[j](ctx, &logger)
 		}
 	}
 }
