@@ -598,53 +598,61 @@ func (s *EntityTestSuite) TestMultiDestinationMatchEvent() {
 		}
 	})
 
-	t.Run("match by topic & destination", func(t *testing.T) {
+	// MatchEvent IGNORES destination_id and only matches by topic.
+	// These tests verify that destination_id in the event is intentionally ignored.
+	// Specific destination matching is handled at a higher level (publishmq package).
+	t.Run("ignores destination_id and matches by topic only", func(t *testing.T) {
 		event := models.Event{
 			ID:            idgen.Event(),
 			Topic:         "user.created",
 			Time:          time.Now(),
 			TenantID:      data.tenant.ID,
-			DestinationID: data.destinations[1].ID,
+			DestinationID: data.destinations[1].ID, // This should be IGNORED
 			Metadata:      map[string]string{},
 			Data:          map[string]interface{}{},
 		}
 		matchedDestinationSummaryList, err := s.entityStore.MatchEvent(s.ctx, event)
 		require.NoError(s.T(), err)
 
-		require.Len(s.T(), matchedDestinationSummaryList, 1)
-		require.Equal(s.T(), data.destinations[1].ID, matchedDestinationSummaryList[0].ID)
+		// Should match all destinations with "user.created" topic, not just the specified destination_id
+		require.Len(s.T(), matchedDestinationSummaryList, 3)
+		for _, summary := range matchedDestinationSummaryList {
+			require.Contains(s.T(), []string{data.destinations[0].ID, data.destinations[1].ID, data.destinations[4].ID}, summary.ID)
+		}
 	})
 
-	t.Run("destination not found", func(t *testing.T) {
+	t.Run("ignores non-existent destination_id", func(t *testing.T) {
 		event := models.Event{
 			ID:            idgen.Event(),
 			Topic:         "user.created",
 			Time:          time.Now(),
 			TenantID:      data.tenant.ID,
-			DestinationID: "not-found",
+			DestinationID: "not-found", // This should be IGNORED
 			Metadata:      map[string]string{},
 			Data:          map[string]interface{}{},
 		}
 		matchedDestinationSummaryList, err := s.entityStore.MatchEvent(s.ctx, event)
 		require.NoError(s.T(), err)
 
-		require.Len(s.T(), matchedDestinationSummaryList, 0)
+		// Should still match all destinations with "user.created" topic
+		require.Len(s.T(), matchedDestinationSummaryList, 3)
 	})
 
-	t.Run("destination topic is invalid", func(t *testing.T) {
+	t.Run("ignores destination_id with mismatched topic", func(t *testing.T) {
 		event := models.Event{
 			ID:            idgen.Event(),
 			Topic:         "user.created",
 			Time:          time.Now(),
 			TenantID:      data.tenant.ID,
-			DestinationID: data.destinations[3].ID, // "user-deleted" destination
+			DestinationID: data.destinations[3].ID, // "user.deleted" destination - should be IGNORED
 			Metadata:      map[string]string{},
 			Data:          map[string]interface{}{},
 		}
 		matchedDestinationSummaryList, err := s.entityStore.MatchEvent(s.ctx, event)
 		require.NoError(s.T(), err)
 
-		require.Len(s.T(), matchedDestinationSummaryList, 0)
+		// Should match all destinations with "user.created" topic, not the specified "user.deleted" destination
+		require.Len(s.T(), matchedDestinationSummaryList, 3)
 	})
 
 	t.Run("match after destination is updated", func(t *testing.T) {
@@ -773,6 +781,7 @@ func (s *EntityTestSuite) TestMultiSuiteDisableAndMatch() {
 			require.Contains(s.T(), []string{data.destinations[0].ID, data.destinations[3].ID}, summary.ID)
 		}
 	})
+
 }
 
 func (s *EntityTestSuite) TestDeleteDestination() {

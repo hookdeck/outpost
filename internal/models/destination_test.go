@@ -178,3 +178,80 @@ func TestDestination_JSONUnmarshalEmptyMaps(t *testing.T) {
 	assert.NotNil(t, destination.Metadata)
 	assert.Empty(t, destination.Metadata)
 }
+
+func TestTopics_MatchTopic(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name       string
+		topics     models.Topics
+		eventTopic string
+		expected   bool
+	}
+
+	testCases := []testCase{
+		// Event topic is empty string (matches all)
+		{
+			name:       "empty event topic matches any destination",
+			topics:     []string{"user.created"},
+			eventTopic: "",
+			expected:   true,
+		},
+		// Event topic is wildcard (matches all)
+		{
+			name:       "wildcard event topic matches any destination",
+			topics:     []string{"user.created"},
+			eventTopic: "*",
+			expected:   true,
+		},
+		// Destination has wildcard topic (matches all)
+		{
+			name:       "destination with wildcard matches any event topic",
+			topics:     []string{"*"},
+			eventTopic: "user.created",
+			expected:   true,
+		},
+		// Exact match
+		{
+			name:       "exact topic match",
+			topics:     []string{"user.created", "user.updated"},
+			eventTopic: "user.created",
+			expected:   true,
+		},
+		// No match
+		{
+			name:       "no topic match",
+			topics:     []string{"user.created", "user.updated"},
+			eventTopic: "user.deleted",
+			expected:   false,
+		},
+		// Empty destination topics (edge case)
+		{
+			name:       "empty destination topics does not match",
+			topics:     []string{},
+			eventTopic: "user.created",
+			expected:   false,
+		},
+		// Empty destination topics with wildcard event
+		{
+			name:       "empty destination topics matches wildcard event",
+			topics:     []string{},
+			eventTopic: "*",
+			expected:   true,
+		},
+		// Empty destination topics with empty event
+		{
+			name:       "empty destination topics matches empty event",
+			topics:     []string{},
+			eventTopic: "",
+			expected:   true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.expected, tc.topics.MatchTopic(tc.eventTopic))
+		})
+	}
+}
