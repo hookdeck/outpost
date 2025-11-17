@@ -169,6 +169,11 @@ const config: ZudokuConfig = {
           },
           {
             type: "doc",
+            label: "Bring Your Own MQs",
+            id: "guides/byo-mqs",
+          },
+          {
+            type: "doc",
             label: "Redis Troubleshooting",
             id: "guides/troubleshooting-redis",
           },
