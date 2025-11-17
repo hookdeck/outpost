@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -17,9 +16,7 @@ import (
 	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/otel"
 	"github.com/hookdeck/outpost/internal/redis"
-	"github.com/hookdeck/outpost/internal/services/api"
-	"github.com/hookdeck/outpost/internal/services/delivery"
-	"github.com/hookdeck/outpost/internal/services/log"
+	"github.com/hookdeck/outpost/internal/services"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"go.uber.org/zap"
 )
@@ -106,14 +103,14 @@ func run(mainContext context.Context, cfg *config.Config) error {
 	telemetry.Init(mainContext)
 	telemetry.ApplicationStarted(mainContext, cfg.ToTelemetryApplicationInfo())
 
-	// Set up cancellation context and waitgroup
+	// Set up cancellation context
 	ctx, cancel := context.WithCancel(mainContext)
+	defer cancel()
 
 	// Set up OpenTelemetry.
 	if cfg.OpenTelemetry.ToConfig() != nil {
 		otelShutdown, err := otel.SetupOTelSDK(ctx, cfg.OpenTelemetry.ToConfig())
 		if err != nil {
-			cancel()
 			return err
 		}
 		// Handle shutdown properly so nothing leaks.
@@ -122,98 +119,56 @@ func run(mainContext context.Context, cfg *config.Config) error {
 		}()
 	}
 
-	// Initialize waitgroup
-	// Once all services are done, we can exit.
-	// Each service will wait for the context to be cancelled before shutting down.
-	wg := &sync.WaitGroup{}
+	// Build services using ServiceBuilder
+	logger.Debug("building services")
+	builder := services.NewServiceBuilder(ctx, cfg, logger, telemetry)
 
-	// Construct services based on config
-	logger.Debug("constructing services")
-	services, err := constructServices(
-		ctx,
-		cfg,
-		wg,
-		logger,
-		telemetry,
-	)
+	supervisor, err := builder.BuildWorkers()
 	if err != nil {
-		logger.Error("service construction failed", zap.Error(err))
-		cancel()
+		logger.Error("failed to build workers", zap.Error(err))
 		return err
-	}
-
-	// Start services
-	logger.Info("starting services", zap.Int("count", len(services)))
-	for _, service := range services {
-		go service.Run(ctx)
 	}
 
 	// Handle sigterm and await termChan signal
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Wait for either context cancellation or termination signal
+	// Run workers in goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- supervisor.Run(ctx)
+	}()
+
+	// Wait for either termination signal or worker failure
+	var exitErr error
 	select {
 	case <-termChan:
-		logger.Ctx(ctx).Info("shutdown signal received")
-	case <-ctx.Done():
-		logger.Ctx(ctx).Info("context cancelled")
+		logger.Info("shutdown signal received")
+		cancel() // Cancel context to trigger graceful shutdown
+		err := <-errChan
+		// context.Canceled is expected during graceful shutdown
+		if err != nil && !errors.Is(err, context.Canceled) {
+			logger.Error("error during graceful shutdown", zap.Error(err))
+			exitErr = err
+		}
+	case err := <-errChan:
+		// Workers exited unexpectedly
+		if err != nil {
+			logger.Error("workers exited unexpectedly", zap.Error(err))
+			exitErr = err
+		}
 	}
 
 	telemetry.Flush()
 
-	// Handle shutdown
-	cancel()  // Signal cancellation to context.Context
-	wg.Wait() // Block here until all workers are done
+	// Run cleanup functions
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	builder.Cleanup(shutdownCtx)
 
-	logger.Ctx(ctx).Info("outpost shutdown complete")
+	logger.Info("outpost shutdown complete")
 
-	return nil
-}
-
-type Service interface {
-	Run(ctx context.Context) error
-}
-
-func constructServices(
-	ctx context.Context,
-	cfg *config.Config,
-	wg *sync.WaitGroup,
-	logger *logging.Logger,
-	telemetry telemetry.Telemetry,
-) ([]Service, error) {
-	serviceType := cfg.MustGetService()
-	services := []Service{}
-
-	if serviceType == config.ServiceTypeAPI || serviceType == config.ServiceTypeAll {
-		logger.Debug("creating API service")
-		service, err := api.NewService(ctx, wg, cfg, logger, telemetry)
-		if err != nil {
-			logger.Error("API service creation failed", zap.Error(err))
-			return nil, err
-		}
-		services = append(services, service)
-	}
-	if serviceType == config.ServiceTypeDelivery || serviceType == config.ServiceTypeAll {
-		logger.Debug("creating delivery service")
-		service, err := delivery.NewService(ctx, wg, cfg, logger, nil)
-		if err != nil {
-			logger.Error("delivery service creation failed", zap.Error(err))
-			return nil, err
-		}
-		services = append(services, service)
-	}
-	if serviceType == config.ServiceTypeLog || serviceType == config.ServiceTypeAll {
-		logger.Debug("creating log service")
-		service, err := log.NewService(ctx, wg, cfg, logger, nil)
-		if err != nil {
-			logger.Error("log service creation failed", zap.Error(err))
-			return nil, err
-		}
-		services = append(services, service)
-	}
-
-	return services, nil
+	return exitErr
 }
 
 // runMigration handles database schema migrations with retry logic for lock conflicts.
