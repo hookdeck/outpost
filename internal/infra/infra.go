@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -16,9 +17,15 @@ const (
 	lockTTL      = 10 * time.Second
 )
 
+var (
+	// ErrInfraNotFound is returned when infrastructure does not exist and auto provisioning is disabled
+	ErrInfraNotFound = errors.New("required message queues do not exist. Either create them manually or set MQS_AUTO_PROVISION=true to enable auto-provisioning")
+)
+
 type Infra struct {
-	lock     Lock
-	provider InfraProvider
+	lock         Lock
+	provider     InfraProvider
+	shouldManage bool
 }
 
 // InfraProvider handles the actual infrastructure operations
@@ -29,8 +36,9 @@ type InfraProvider interface {
 }
 
 type Config struct {
-	DeliveryMQ *mqinfra.MQInfraConfig
-	LogMQ      *mqinfra.MQInfraConfig
+	DeliveryMQ    *mqinfra.MQInfraConfig
+	LogMQ         *mqinfra.MQInfraConfig
+	AutoProvision *bool
 }
 
 func (cfg *Config) SetSensiblePolicyDefaults() {
@@ -97,17 +105,46 @@ func NewInfra(cfg Config, redisClient redis.Cmdable) Infra {
 		logMQ:      mqinfra.New(cfg.LogMQ),
 	}
 
+	// Default shouldManage to true if not set (backward compatible)
+	shouldManage := true
+	if cfg.AutoProvision != nil {
+		shouldManage = *cfg.AutoProvision
+	}
+
 	return Infra{
-		lock:     NewRedisLock(redisClient),
-		provider: provider,
+		lock:         NewRedisLock(redisClient),
+		provider:     provider,
+		shouldManage: shouldManage,
 	}
 }
 
+// Init initializes and verifies infrastructure based on configuration.
+// If AutoProvision is true (default), it will create infrastructure if needed.
+// If AutoProvision is false, it will only verify infrastructure exists.
+func Init(ctx context.Context, cfg Config, redisClient redis.Cmdable) error {
+	infra := NewInfra(cfg, redisClient)
+
+	if infra.shouldManage {
+		return infra.Declare(ctx)
+	}
+
+	// shouldManage is false, only verify existence
+	exists, err := infra.provider.Exist(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to verify infrastructure exists: %w", err)
+	}
+	if !exists {
+		return ErrInfraNotFound
+	}
+	return nil
+}
+
 // NewInfraWithProvider creates an Infra instance with custom lock and provider (for testing)
-func NewInfraWithProvider(lock Lock, provider InfraProvider) *Infra {
+func NewInfraWithProvider(lock Lock, provider InfraProvider, shouldManage bool) *Infra {
 	return &Infra{
-		lock:     lock,
-		provider: provider,
+		lock:         lock,
+		provider:     provider,
+		shouldManage: shouldManage,
 	}
 }
 
@@ -148,6 +185,18 @@ func (infra *Infra) Declare(ctx context.Context) error {
 	}
 
 	return fmt.Errorf("failed to acquire lock after %d attempts", lockAttempts)
+}
+
+// Verify checks if infrastructure exists and returns an error if it doesn't.
+func (infra *Infra) Verify(ctx context.Context) error {
+	exists, err := infra.provider.Exist(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to verify infrastructure exists: %w", err)
+	}
+	if !exists {
+		return ErrInfraNotFound
+	}
+	return nil
 }
 
 func (infra *Infra) Teardown(ctx context.Context) error {
