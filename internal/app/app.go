@@ -53,19 +53,14 @@ func (a *App) PreRun(ctx context.Context) error {
 	if err := a.setupLogger(); err != nil {
 		return err
 	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			a.logger.Error("panic during PreRun", zap.Any("panic", r))
 		}
 	}()
 
-	a.logger.Info("starting outpost",
-		zap.String("config_path", a.config.ConfigFilePath()),
-		zap.String("service", a.config.MustGetService().String()))
-
-	if a.config.DeploymentID != "" {
-		a.logger.Info("deployment configured", zap.String("deployment_id", a.config.DeploymentID))
-	}
+	a.logger.Info("starting outpost", a.config.LogConfigurationSummary()...)
 
 	if err := a.configureIDGenerators(); err != nil {
 		return err
