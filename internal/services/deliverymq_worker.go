@@ -55,9 +55,12 @@ func (w *DeliveryMQWorker) Run(ctx context.Context) error {
 		consumer.WithConcurrency(w.concurrency),
 	)
 
-	if err := csm.Run(ctx); !errors.Is(err, ctx.Err()) {
-		logger.Error("error running deliverymq consumer", zap.Error(err))
-		return err
+	if err := csm.Run(ctx); err != nil {
+		// Only report as failure if it's not a graceful shutdown
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			logger.Error("error running deliverymq consumer", zap.Error(err))
+			return err
+		}
 	}
 
 	return nil
