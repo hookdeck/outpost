@@ -212,9 +212,9 @@ func (a *App) initializeRedis(ctx context.Context) error {
 func (a *App) initializeInfrastructure(ctx context.Context) error {
 	a.logger.Debug("initializing infrastructure")
 	if err := infra.Init(ctx, infra.Config{
-		DeliveryMQ:   a.config.MQs.ToInfraConfig("deliverymq"),
-		LogMQ:        a.config.MQs.ToInfraConfig("logmq"),
-		ShouldManage: a.config.MQs.ShouldManage,
+		DeliveryMQ:    a.config.MQs.ToInfraConfig("deliverymq"),
+		LogMQ:         a.config.MQs.ToInfraConfig("logmq"),
+		AutoProvision: a.config.MQs.AutoProvision,
 	}, a.redisClient); err != nil {
 		a.logger.Error("infrastructure initialization failed", zap.Error(err))
 		return err

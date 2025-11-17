@@ -19,7 +19,7 @@ const (
 
 var (
 	// ErrInfraNotFound is returned when infrastructure does not exist and auto provisioning is disabled
-	ErrInfraNotFound = errors.New("infrastructure does not exist and auto provisioning is disabled (MQS_SHOULD_MANAGE=false). Please create the required message queues manually or set MQS_SHOULD_MANAGE=true to enable auto provisioning")
+	ErrInfraNotFound = errors.New("infrastructure does not exist and auto provisioning is disabled (MQS_AUTO_PROVISION=false). Please create the required message queues manually or set MQS_AUTO_PROVISION=true to enable auto provisioning")
 )
 
 type Infra struct {
@@ -36,9 +36,9 @@ type InfraProvider interface {
 }
 
 type Config struct {
-	DeliveryMQ   *mqinfra.MQInfraConfig
-	LogMQ        *mqinfra.MQInfraConfig
-	ShouldManage *bool
+	DeliveryMQ    *mqinfra.MQInfraConfig
+	LogMQ         *mqinfra.MQInfraConfig
+	AutoProvision *bool
 }
 
 func (cfg *Config) SetSensiblePolicyDefaults() {
@@ -107,8 +107,8 @@ func NewInfra(cfg Config, redisClient redis.Cmdable) Infra {
 
 	// Default shouldManage to true if not set (backward compatible)
 	shouldManage := true
-	if cfg.ShouldManage != nil {
-		shouldManage = *cfg.ShouldManage
+	if cfg.AutoProvision != nil {
+		shouldManage = *cfg.AutoProvision
 	}
 
 	return Infra{
@@ -119,8 +119,8 @@ func NewInfra(cfg Config, redisClient redis.Cmdable) Infra {
 }
 
 // Init initializes and verifies infrastructure based on configuration.
-// If ShouldManage is true (default), it will create infrastructure if needed.
-// If ShouldManage is false, it will only verify infrastructure exists.
+// If AutoProvision is true (default), it will create infrastructure if needed.
+// If AutoProvision is false, it will only verify infrastructure exists.
 func Init(ctx context.Context, cfg Config, redisClient redis.Cmdable) error {
 	infra := NewInfra(cfg, redisClient)
 
