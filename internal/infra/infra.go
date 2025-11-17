@@ -19,7 +19,7 @@ const (
 
 var (
 	// ErrInfraNotFound is returned when infrastructure does not exist and auto provisioning is disabled
-	ErrInfraNotFound = errors.New("infrastructure does not exist and auto provisioning is disabled (MQS_AUTO_PROVISION=false). Please create the required message queues manually or set MQS_AUTO_PROVISION=true to enable auto provisioning")
+	ErrInfraNotFound = errors.New("required message queues do not exist. Either create them manually or set MQS_AUTO_PROVISION=true to enable auto-provisioning")
 )
 
 type Infra struct {
