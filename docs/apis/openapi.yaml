@@ -1492,11 +1492,16 @@ components:
       type: object
       required:
         - id
+        - duplicate
       properties:
         id:
           type: string
           description: The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated UUID.
           example: "evt_abc123xyz789"
+        duplicate:
+          type: boolean
+          description: Whether this event was already processed (idempotency hit). If true, the event was not queued again.
+          example: false
     Event:
       type: object
       properties:
