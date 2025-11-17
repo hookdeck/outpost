@@ -26,8 +26,7 @@ type EventHandler interface {
 
 type HandleResult struct {
 	EventID           string                  `json:"id"`
-	MatchedCount      int                     `json:"matched_count"`
-	QueuedCount       int                     `json:"queued_count"`
+	Duplicate         bool                    `json:"duplicate"`
 	DestinationStatus *DestinationMatchStatus `json:"destination_status,omitempty"`
 }
 
@@ -112,9 +111,8 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	}
 
 	result := &HandleResult{
-		EventID:      event.ID,
-		MatchedCount: len(matchedDestinations),
-		QueuedCount:  0,
+		EventID:   event.ID,
+		Duplicate: false,
 	}
 
 	// Early return if no destinations matched
@@ -140,9 +138,9 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		return nil, err
 	}
 
-	// Set queued count only if actually executed
-	if executed {
-		result.QueuedCount = len(matchedDestinations)
+	// Set duplicate flag if not executed (idempotency hit)
+	if !executed {
+		result.Duplicate = true
 	}
 
 	return result, nil

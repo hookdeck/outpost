@@ -257,8 +257,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.Equal(t, event.ID, result.EventID)
-		require.Equal(t, 3, result.MatchedCount)
-		require.Equal(t, 3, result.QueuedCount)
+		require.False(t, result.Duplicate)
 		require.Nil(t, result.DestinationStatus)
 	})
 
@@ -272,8 +271,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.Equal(t, event.ID, result.EventID)
-		require.Equal(t, 0, result.MatchedCount)
-		require.Equal(t, 0, result.QueuedCount)
+		require.False(t, result.Duplicate)
 		require.Nil(t, result.DestinationStatus)
 	})
 
@@ -293,14 +291,12 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		// First request
 		result1, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
-		require.Equal(t, 1, result1.MatchedCount)
-		require.Equal(t, 1, result1.QueuedCount)
+		require.False(t, result1.Duplicate)
 
 		// Duplicate request
 		result2, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
-		require.Equal(t, 1, result2.MatchedCount)
-		require.Equal(t, 0, result2.QueuedCount) // Not queued due to idempotency
+		require.True(t, result2.Duplicate) // Duplicate due to idempotency
 	})
 
 	t.Run("with destination_id - queued", func(t *testing.T) {
@@ -318,8 +314,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 
 		result, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
-		require.Equal(t, 1, result.MatchedCount)
-		require.Equal(t, 1, result.QueuedCount)
+		require.False(t, result.Duplicate)
 		require.Nil(t, result.DestinationStatus, "no status when successfully queued")
 	})
 
@@ -340,8 +335,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 
 		result, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
-		require.Equal(t, 0, result.MatchedCount)
-		require.Equal(t, 0, result.QueuedCount)
+		require.False(t, result.Duplicate)
 		require.NotNil(t, result.DestinationStatus, "status provided when not queued")
 		require.Equal(t, publishmq.DestinationStatusDisabled, *result.DestinationStatus)
 	})
@@ -355,8 +349,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 
 		result, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
-		require.Equal(t, 0, result.MatchedCount)
-		require.Equal(t, 0, result.QueuedCount)
+		require.False(t, result.Duplicate)
 		require.NotNil(t, result.DestinationStatus, "status provided when not queued")
 		require.Equal(t, publishmq.DestinationStatusNotFound, *result.DestinationStatus)
 	})
@@ -376,8 +369,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 
 		result, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
-		require.Equal(t, 0, result.MatchedCount)
-		require.Equal(t, 0, result.QueuedCount)
+		require.False(t, result.Duplicate)
 		require.NotNil(t, result.DestinationStatus, "status provided when not queued")
 		require.Equal(t, publishmq.DestinationStatusTopicMismatch, *result.DestinationStatus)
 	})
