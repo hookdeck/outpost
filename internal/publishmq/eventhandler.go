@@ -190,7 +190,7 @@ func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *mode
 	}
 
 	// Check topic match
-	if event.Topic != "" && event.Topic != "*" && destination.Topics[0] != "*" && !slices.Contains(destination.Topics, event.Topic) {
+	if !destination.Topics.MatchTopic(event.Topic) {
 		status := DestinationStatusTopicMismatch
 		return []models.DestinationSummary{}, &status, nil
 	}

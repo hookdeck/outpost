@@ -442,7 +442,7 @@ func (s *entityStoreImpl) MatchEvent(ctx context.Context, event Event) ([]Destin
 		}
 		// If event topic is "*", match all destinations
 		// Otherwise, match if destination has "*" topic or matches the event topic
-		if event.Topic == "*" || destinationSummary.Topics.MatchesAll() || slices.Contains(destinationSummary.Topics, event.Topic) {
+		if destinationSummary.Topics.MatchTopic(event.Topic) {
 			matchedDestinationSummaryList = append(matchedDestinationSummaryList, destinationSummary)
 		}
 	}
