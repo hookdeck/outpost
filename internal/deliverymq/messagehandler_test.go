@@ -26,7 +26,6 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 	// - Should be nacked (let system retry)
 	// - Should NOT use retry scheduler
 	// - Should NOT call alert monitor (no destination)
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -89,7 +88,6 @@ func TestMessageHandler_DestinationNotFound(t *testing.T) {
 	// - Should return error
 	// - Message should be nacked (no retry)
 	// - No retry should be scheduled
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -150,7 +148,6 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 	// - Destination lookup returns ErrDestinationDeleted
 	// - Should return error but ack message (no retry needed)
 	// - No retry should be scheduled
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -211,7 +208,6 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	// - Publish fails with a publish error
 	// - Event is eligible for retry and under max attempts
 	// - Should schedule retry and ack
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -285,7 +281,6 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 	// - Publish returns ErrDestinationPublishAttempt
 	// - Event is NOT eligible for retry
 	// - Should ack (no retry, no nack)
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -358,7 +353,6 @@ func TestMessageHandler_EventGetterError(t *testing.T) {
 	// - Event getter fails to retrieve event during retry
 	// - Should be treated as system error
 	// - Should nack for retry
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -425,7 +419,6 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 	// - Message is a retry attempt (Attempt > 1)
 	// - Event getter successfully retrieves full event data
 	// - Message is processed normally
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -493,7 +486,6 @@ func TestMessageHandler_Idempotency(t *testing.T) {
 	// - Message with same ID is processed twice
 	// - Second attempt should be idempotent
 	// - Should ack without publishing
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -560,7 +552,6 @@ func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 	// - First attempt fails with system error (event getter error)
 	// - Second attempt with same message ID succeeds after error is cleared
 	// - Should demonstrate that system errors don't affect idempotency
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -636,7 +627,6 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 	// - Destination is disabled
 	// - Should be treated as a destination error (not system error)
 	// - Should ack without retry or publish attempt
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -702,7 +692,6 @@ func TestMessageHandler_LogPublisherError(t *testing.T) {
 	// - Publish succeeds but log publisher fails
 	// - Should be treated as system error
 	// - Should nack for retry
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -764,7 +753,6 @@ func TestMessageHandler_PublishAndLogError(t *testing.T) {
 	// - Should join both errors
 	// - Should be treated as system error
 	// - Should nack for retry
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -826,7 +814,6 @@ func TestManualDelivery_Success(t *testing.T) {
 	// - Manual delivery succeeds
 	// - Should cancel any pending retries
 	// - Should be acked
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -892,7 +879,6 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	// - Manual delivery fails with publish error
 	// - Should not schedule retry (manual delivery never retries)
 	// - Should be acked
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -965,7 +951,6 @@ func TestManualDelivery_CancelError(t *testing.T) {
 	// - Manual delivery succeeds but retry cancellation fails
 	// - Should be treated as post-delivery error
 	// - Should nack for retry
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -1033,7 +1018,6 @@ func TestManualDelivery_DestinationDisabled(t *testing.T) {
 	// - Manual delivery to disabled destination
 	// - Should be treated as pre-delivery error
 	// - Should ack without attempting publish or retry cancellation
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -1098,7 +1082,6 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 	// Test scenario:
 	// - Publish succeeds
 	// - Should call alert monitor with successful attempt
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -1167,7 +1150,6 @@ func TestMessageHandler_AlertMonitorError(t *testing.T) {
 	// - Publish succeeds
 	// - Alert monitor fails
 	// - Should still succeed overall (alert errors don't affect main flow)
-	t.Parallel()
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}

@@ -135,6 +135,10 @@ func (t *Topics) MatchesAll() bool {
 	return len(*t) == 1 && (*t)[0] == "*"
 }
 
+func (t *Topics) MatchTopic(eventTopic string) bool {
+	return eventTopic == "" || eventTopic == "*" || t.MatchesAll() || slices.Contains(*t, eventTopic)
+}
+
 func (t *Topics) Validate(availableTopics []string) error {
 	if len(*t) == 0 {
 		return ErrInvalidTopics

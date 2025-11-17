@@ -18,7 +18,6 @@ import (
 )
 
 func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
-	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 
 	exporter := tracetest.NewInMemoryExporter()
@@ -51,7 +50,7 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 		entityStore.UpsertDestination(ctx, destFactory.Any(destFactory.WithTenantID(tenant.ID)))
 	}
 
-	err = eventHandler.Handle(ctx, testutil.EventFactory.AnyPointer(
+	_, err = eventHandler.Handle(ctx, testutil.EventFactory.AnyPointer(
 		testutil.EventFactory.WithTenantID(tenant.ID),
 	))
 	require.Nil(t, err)
@@ -77,7 +76,6 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 }
 
 func TestEventHandler_WildcardTopic(t *testing.T) {
-	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 
 	exporter := tracetest.NewInMemoryExporter()
@@ -147,7 +145,7 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 		testutil.EventFactory.WithTenantID(tenant.ID),
 		testutil.EventFactory.WithTopic("*"),
 	)
-	err = eventHandler.Handle(ctx, event)
+	_, err = eventHandler.Handle(ctx, event)
 	require.NoError(t, err)
 
 	// Verify that the event was delivered to all enabled destinations
@@ -210,4 +208,184 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 	msg, err := subscription.Receive(shortCtx)
 	require.Error(t, err, "context deadline exceeded")
 	require.Nil(t, msg)
+}
+
+func TestEventHandler_HandleResult(t *testing.T) {
+	t.Cleanup(testinfra.Start(t))
+
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	redisClient := testutil.CreateTestRedisClient(t)
+	entityStore := models.NewEntityStore(redisClient, models.WithAvailableTopics(testutil.TestTopics))
+	mqConfig := testinfra.NewMQAWSConfig(t, nil)
+	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
+	cleanup, err := deliveryMQ.Init(ctx)
+	require.NoError(t, err)
+	defer cleanup()
+
+	eventHandler := publishmq.NewEventHandler(
+		logger,
+		deliveryMQ,
+		entityStore,
+		testutil.NewMockEventTracer(tracetest.NewInMemoryExporter()),
+		testutil.TestTopics,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
+	)
+
+	tenant := models.Tenant{
+		ID:        idgen.String(),
+		CreatedAt: time.Now(),
+	}
+	require.NoError(t, entityStore.UpsertTenant(ctx, tenant))
+
+	t.Run("normal publish with matches", func(t *testing.T) {
+		// Create 3 destinations
+		destFactory := testutil.DestinationFactory
+		for i := 0; i < 3; i++ {
+			require.NoError(t, entityStore.UpsertDestination(ctx, destFactory.Any(
+				destFactory.WithTenantID(tenant.ID),
+				destFactory.WithTopics([]string{"user.created"}),
+			)))
+		}
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithTopic("user.created"),
+		)
+
+		result, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, event.ID, result.EventID)
+		require.False(t, result.Duplicate)
+	})
+
+	t.Run("no destinations matched", func(t *testing.T) {
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithTopic("user.updated"), // Topic exists but no destinations match
+		)
+
+		result, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, event.ID, result.EventID)
+		require.False(t, result.Duplicate)
+	})
+
+	t.Run("duplicate event - idempotency", func(t *testing.T) {
+		// Create destination
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.deleted"}),
+		)
+		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithTopic("user.deleted"),
+		)
+
+		// First request
+		result1, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.False(t, result1.Duplicate)
+
+		// Duplicate request
+		result2, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.True(t, result2.Duplicate) // Duplicate due to idempotency
+	})
+
+	t.Run("with destination_id - queued", func(t *testing.T) {
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.updated"}),
+		)
+		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithDestinationID(dest.ID),
+			testutil.EventFactory.WithTopic("user.updated"),
+		)
+
+		result, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.False(t, result.Duplicate)
+	})
+
+	t.Run("with destination_id - duplicate event", func(t *testing.T) {
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.created"}),
+		)
+		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithDestinationID(dest.ID),
+			testutil.EventFactory.WithTopic("user.created"),
+		)
+
+		// First request
+		result1, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.False(t, result1.Duplicate)
+
+		// Duplicate request
+		result2, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.True(t, result2.Duplicate) // Duplicate due to idempotency
+	})
+
+	t.Run("with destination_id - disabled", func(t *testing.T) {
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.deleted"}),
+		)
+		now := time.Now()
+		dest.DisabledAt = &now
+		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithDestinationID(dest.ID),
+			testutil.EventFactory.WithTopic("user.deleted"),
+		)
+
+		result, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.False(t, result.Duplicate)
+	})
+
+	t.Run("with destination_id - not found", func(t *testing.T) {
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithDestinationID("dest_not_found"),
+			testutil.EventFactory.WithTopic("user.created"),
+		)
+
+		result, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.False(t, result.Duplicate)
+	})
+
+	t.Run("with destination_id - topic mismatch", func(t *testing.T) {
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"order.created"}),
+		)
+		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithDestinationID(dest.ID),
+			testutil.EventFactory.WithTopic("user.created"), // Different topic
+		)
+
+		result, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.False(t, result.Duplicate)
+	})
 }
