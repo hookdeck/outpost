@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 
 	"go.uber.org/zap"
@@ -87,7 +86,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Bool("telemetry_disabled", c.Telemetry.Disabled || c.DisableTelemetry),
 
 		// Alert
-		zap.String("alert_callback_url", c.Alert.CallbackURL),
+		zap.String("alert_callback_url", maskURL(c.Alert.CallbackURL)),
 		zap.Int("alert_consecutive_failure_count", c.Alert.ConsecutiveFailureCount),
 		zap.Bool("alert_auto_disable_destination", c.Alert.AutoDisableDestination),
 
@@ -185,146 +184,3 @@ func maskPostgresURLHost(url string) string {
 	}
 	return "not configured"
 }
-
-// LogEnvironmentVariables logs all Outpost-related environment variables
-func LogEnvironmentVariables(getenv func(string) string, environ func() []string) []zap.Field {
-	envVars := make(map[string]string)
-	
-	// Get all environment variables
-	for _, env := range environ() {
-		parts := strings.SplitN(env, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		
-		key := parts[0]
-		value := parts[1]
-		
-		// Only include Outpost-related env vars (those that are used in config)
-		if isOutpostEnvVar(key) {
-			// Mask sensitive values
-			if isSensitiveEnvVar(key) {
-				if value != "" {
-					envVars[key] = "***configured***"
-				} else {
-					envVars[key] = ""
-				}
-			} else {
-				envVars[key] = value
-			}
-		}
-	}
-	
-	// Convert to zap fields
-	fields := []zap.Field{}
-	for key, value := range envVars {
-		fields = append(fields, zap.String(key, value))
-	}
-	
-	return fields
-}
-
-// isOutpostEnvVar checks if an environment variable is related to Outpost configuration
-func isOutpostEnvVar(key string) bool {
-	outpostPrefixes := []string{
-		"SERVICE",
-		"LOG_LEVEL",
-		"AUDIT_LOG",
-		"API_",
-		"CONFIG",
-		"DEPLOYMENT_ID",
-		"AES_ENCRYPTION_SECRET",
-		"TOPICS",
-		"ORGANIZATION_NAME",
-		"HTTP_USER_AGENT",
-		"REDIS_",
-		"POSTGRES_",
-		"CLICKHOUSE_",
-		"RABBITMQ_",
-		"AWS_",
-		"GCP_",
-		"GOOGLE_",
-		"AZURE_",
-		"PUBLISH_",
-		"DELIVERY_",
-		"LOG_",
-		"RETRY_",
-		"MAX_",
-		"DESTINATION_",
-		"IDEMPOTENCY_",
-		"TELEMETRY_",
-		"DISABLE_TELEMETRY",
-		"ALERT_",
-		"OTEL_",
-		"GIN_MODE",
-		"PORTAL_",
-		"IDGEN_",
-	}
-	
-	for _, prefix := range outpostPrefixes {
-		if strings.HasPrefix(key, prefix) {
-			return true
-		}
-	}
-	
-	// Special case for AWS credentials without prefix
-	if key == "AWS_ACCESS_KEY_ID" || key == "AWS_SECRET_ACCESS_KEY" || key == "AWS_REGION" {
-		return true
-	}
-	
-	return false
-}
-
-// isSensitiveEnvVar checks if an environment variable contains sensitive data
-func isSensitiveEnvVar(key string) bool {
-	sensitiveKeywords := []string{
-		"SECRET",
-		"PASSWORD",
-		"KEY",
-		"TOKEN",
-		"CREDENTIALS",
-		"DSN",
-		"URL", // URLs often contain credentials
-		"CONNECTION_STRING",
-		"RABBITMQ_", // RabbitMQ URL contains credentials
-	}
-	
-	keyUpper := strings.ToUpper(key)
-	for _, keyword := range sensitiveKeywords {
-		if strings.Contains(keyUpper, keyword) {
-			return true
-		}
-	}
-	
-	return false
-}
-
-// Helper to get field value using reflection
-func getFieldValue(v reflect.Value, name string) interface{} {
-	field := v.FieldByName(name)
-	if !field.IsValid() {
-		return nil
-	}
-	return field.Interface()
-}
-
-// Helper to format value, masking if it's a secret field
-func formatValue(value interface{}, isSecret bool) string {
-	if value == nil {
-		return "<nil>"
-	}
-	
-	if isSecret {
-		// For string secrets, show if configured or not
-		if strVal, ok := value.(string); ok {
-			if strVal == "" {
-				return "<not configured>"
-			}
-			return "***configured***"
-		}
-		return "***configured***"
-	}
-	
-	return fmt.Sprintf("%v", value)
-}
-

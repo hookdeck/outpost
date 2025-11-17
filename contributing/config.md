@@ -70,20 +70,6 @@ func (c *Config) getMQSpecificFields(mqType string) []zap.Field {
 }
 ```
 
-#### For Sensitive Environment Variables
-
-If your field contains sensitive data (passwords, secrets, API keys, tokens, URLs with credentials), update `isSensitiveEnvVar()`:
-
-```go
-func isSensitiveEnvVar(key string) bool {
-    sensitiveKeywords := []string{
-        // ... existing keywords ...
-        "MY_SENSITIVE_KEYWORD", // Add if needed
-    }
-    // ... rest of function ...
-}
-```
-
 ### 4. Guidelines for Sensitive Data
 
 **Always mask sensitive data in logs:**
@@ -129,8 +115,6 @@ When adding or modifying configuration fields, use this checklist:
 - [ ] **Field added to `LogConfigurationSummary()` in `internal/config/logging.go`**
 - [ ] **Sensitive fields are masked (showing only if configured, not actual value)**
 - [ ] MQ-specific fields added to `getMQSpecificFields()` (if applicable)
-- [ ] Environment variable keywords added to `isOutpostEnvVar()` (if new prefix)
-- [ ] Sensitive keywords added to `isSensitiveEnvVar()` (if contains secrets)
 - [ ] Validation added (if required)
 - [ ] Documentation regenerated with `go generate`
 - [ ] Changes tested with `LOG_LEVEL=info` to verify logs appear correctly
