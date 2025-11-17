@@ -25,18 +25,9 @@ type EventHandler interface {
 }
 
 type HandleResult struct {
-	EventID           string                  `json:"id"`
-	Duplicate         bool                    `json:"duplicate"`
-	DestinationStatus *DestinationMatchStatus `json:"destination_status,omitempty"`
+	EventID   string `json:"id"`
+	Duplicate bool   `json:"duplicate"`
 }
-
-type DestinationMatchStatus string
-
-const (
-	DestinationStatusDisabled      DestinationMatchStatus = "disabled"
-	DestinationStatusNotFound      DestinationMatchStatus = "not_found"
-	DestinationStatusTopicMismatch DestinationMatchStatus = "topic_mismatch"
-)
 
 type eventHandler struct {
 	emeter      emetrics.OutpostMetrics
@@ -88,13 +79,12 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		zap.String("destination_id", event.DestinationID))
 
 	var matchedDestinations []models.DestinationSummary
-	var destStatus *DestinationMatchStatus
 	var err error
 
 	// Branch: specific destination vs topic-based matching
 	if event.DestinationID != "" {
 		// Specific destination path
-		matchedDestinations, destStatus, err = h.matchSpecificDestination(ctx, event)
+		matchedDestinations, err = h.matchSpecificDestination(ctx, event)
 		if err != nil {
 			return nil, err
 		}
@@ -117,10 +107,6 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 
 	// Early return if no destinations matched
 	if len(matchedDestinations) == 0 {
-		// Only set destination_status if destination_id was specified and nothing matched
-		if event.DestinationID != "" && destStatus != nil {
-			result.DestinationStatus = destStatus
-		}
 		logger.Info("no matching destinations",
 			zap.String("event_id", event.ID),
 			zap.String("tenant_id", event.TenantID))
@@ -167,36 +153,30 @@ func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, match
 }
 
 // matchSpecificDestination handles the case where a specific destination_id is provided.
-// It retrieves the destination and validates it, returning both the matched destinations
-// and the status (only set when nothing matched - disabled/not_found/topic_mismatch).
-func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *models.Event) ([]models.DestinationSummary, *DestinationMatchStatus, error) {
+// It retrieves the destination and validates it, returning the matched destinations.
+func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *models.Event) ([]models.DestinationSummary, error) {
 	destination, err := h.entityStore.RetrieveDestination(ctx, event.TenantID, event.DestinationID)
 	if err != nil {
 		h.logger.Ctx(ctx).Warn("failed to retrieve destination",
 			zap.Error(err),
 			zap.String("destination_id", event.DestinationID))
-		status := DestinationStatusNotFound
-		return []models.DestinationSummary{}, &status, nil
+		return []models.DestinationSummary{}, nil
 	}
 
 	if destination == nil {
-		status := DestinationStatusNotFound
-		return []models.DestinationSummary{}, &status, nil
+		return []models.DestinationSummary{}, nil
 	}
 
 	if destination.DisabledAt != nil {
-		status := DestinationStatusDisabled
-		return []models.DestinationSummary{}, &status, nil
+		return []models.DestinationSummary{}, nil
 	}
 
 	// Check topic match
 	if !destination.Topics.MatchTopic(event.Topic) {
-		status := DestinationStatusTopicMismatch
-		return []models.DestinationSummary{}, &status, nil
+		return []models.DestinationSummary{}, nil
 	}
 
-	// Matched! Return nil status since it will be queued
-	return []models.DestinationSummary{*destination.ToSummary()}, nil, nil
+	return []models.DestinationSummary{*destination.ToSummary()}, nil
 }
 
 func (h *eventHandler) enqueueDeliveryEvent(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
