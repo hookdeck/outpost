@@ -9,6 +9,17 @@ import (
 )
 
 // LogConfigurationSummary returns zap fields with configuration summary, masking sensitive data
+//
+// ⚠️ IMPORTANT: When adding new configuration fields, you MUST update this function
+// to include them in the startup logs. This helps with troubleshooting and ensures
+// configuration visibility.
+//
+// Guidelines:
+//   - For non-sensitive fields: use zap.String(), zap.Int(), zap.Bool(), etc.
+//   - For sensitive fields (secrets, passwords, keys): use zap.Bool("field_configured", value != "")
+//   - For URLs with credentials: use helper functions like maskURL() or maskPostgresURLHost()
+//
+// See contributing/config.md for detailed guidelines on configuration logging.
 func (c *Config) LogConfigurationSummary() []zap.Field {
 	fields := []zap.Field{
 		// General
@@ -93,6 +104,9 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 }
 
 // getMQSpecificFields returns MQ-specific configuration fields
+//
+// ⚠️ IMPORTANT: When adding new MQ configuration fields, update the appropriate case
+// in this function to include them in startup logs.
 func (c *Config) getMQSpecificFields(mqType string) []zap.Field {
 	switch mqType {
 	case "rabbitmq":
