@@ -36,6 +36,7 @@ type schedulerImpl struct {
 
 type config struct {
 	visibilityTimeout uint
+	pollBackoff       time.Duration
 }
 
 func WithVisibilityTimeout(vt uint) func(*config) {
@@ -44,9 +45,16 @@ func WithVisibilityTimeout(vt uint) func(*config) {
 	}
 }
 
+func WithPollBackoff(backoff time.Duration) func(*config) {
+	return func(c *config) {
+		c.pollBackoff = backoff
+	}
+}
+
 func New(name string, rsmqClient *rsmq.RedisSMQ, exec func(context.Context, string) error, opts ...func(*config)) Scheduler {
 	config := &config{
 		visibilityTimeout: rsmq.UnsetVt,
+		pollBackoff:       100 * time.Millisecond,
 	}
 	for _, opt := range opts {
 		opt(config)
@@ -100,7 +108,7 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 				return err
 			}
 			if msg == nil {
-				time.Sleep(time.Second / 10)
+				time.Sleep(s.config.pollBackoff)
 				continue
 			}
 			// TODO: consider using a worker pool to limit the number of concurrent executions

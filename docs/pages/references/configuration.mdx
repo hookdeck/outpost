@@ -80,6 +80,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `LOG_MAX_CONCURRENCY` | Maximum number of log writing operations to process concurrently. | `1` | No |
 | `MAX_DESTINATIONS_PER_TENANT` | Maximum number of destinations allowed per tenant/organization. | `20` | No |
 | `MAX_RETRY_LIMIT` | Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided. | `10` | No |
+| `MQS_AUTO_PROVISION` | Whether Outpost should create and manage message queue infrastructure. Set to false if you manage infrastructure externally (e.g., via Terraform). Defaults to true for backward compatibility. | `nil` | No |
 | `ORGANIZATION_NAME` | Name of the organization, used for display purposes and potentially in user agent strings. | `nil` | No |
 | `OTEL_EXPORTER` | Specifies the OTLP exporter to use for this telemetry type (e.g., 'otlp'). Typically used with environment variables like OTEL_EXPORTER_OTLP_TRACES_ENDPOINT. | `nil` | Conditional |
 | `OTEL_PROTOCOL` | Specifies the OTLP protocol ('grpc' or 'http') for this telemetry type. Typically used with environment variables like OTEL_EXPORTER_OTLP_TRACES_PROTOCOL. | `nil` | Conditional |
@@ -123,6 +124,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `REDIS_PORT` | Port number for the Redis server. | `6379` | Yes |
 | `REDIS_TLS_ENABLED` | Enable TLS encryption for Redis connection. | `false` | No |
 | `RETRY_INTERVAL_SECONDS` | Interval in seconds for exponential backoff retry strategy (base 2). Ignored if retry_schedule is provided. | `30` | No |
+| `RETRY_POLL_BACKOFF_MS` | Backoff time in milliseconds when the retry monitor finds no messages to process. When a retry message is found, the monitor immediately polls for the next message without delay. Lower values provide faster retry processing but increase Redis load. For serverless Redis providers (Upstash, ElastiCache Serverless), consider increasing to 5000-10000ms to reduce costs. Default: 100 | `100` | No |
 | `RETRY_SCHEDULE` | Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h. | `[]` | No |
 | `SERVICE` | Specifies the service type to run. Valid values: 'api', 'log', 'delivery', or empty/all for singular mode (runs all services). | `nil` | No |
 | `TELEMETRY_BATCH_INTERVAL` | Maximum time in seconds to wait before sending a batch of telemetry events if batch size is not reached. | `5` | No |
@@ -295,6 +297,9 @@ mqs:
     # Required: Conditional
     secret_access_key: ""
 
+
+  # Whether Outpost should create and manage message queue infrastructure. Set to false if you manage infrastructure externally (e.g., via Terraform). Defaults to true for backward compatibility.
+  auto_provision: # <*bool>
 
   # Configuration for using Azure Service Bus as the message queue. Only one MQ provider should be configured.
   azure_servicebus:
@@ -566,6 +571,9 @@ retry_interval_seconds: 30
 
 # Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided.
 retry_max_limit: 10
+
+# Backoff time in milliseconds when the retry monitor finds no messages to process. When a retry message is found, the monitor immediately polls for the next message without delay. Lower values provide faster retry processing but increase Redis load. For serverless Redis providers (Upstash, ElastiCache Serverless), consider increasing to 5000-10000ms to reduce costs. Default: 100
+retry_poll_backoff_ms: 100
 
 # Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h.
 retry_schedule: []

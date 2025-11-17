@@ -30,7 +30,8 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 		return err
 	}
 	event := publishedEvent.toEvent()
-	if err := h.eventHandler.Handle(ctx, &event); err != nil {
+	_, err := h.eventHandler.Handle(ctx, &event)
+	if err != nil {
 		msg.Nack()
 		return err
 	}

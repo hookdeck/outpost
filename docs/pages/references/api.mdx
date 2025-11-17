@@ -373,7 +373,15 @@ Publish an event.
 
 #### Response
 
-Empty body
+```json
+{
+  "id": "evt_abc123xyz789",
+  "duplicate": false
+}
+```
+
+- `id`: The ID of the event (provided in request or server-generated)
+- `duplicate`: Whether this event was already processed (idempotency hit)
 
 #### Example
 

@@ -173,7 +173,7 @@ Check the services are running:
 curl $OUTPOST_URL/api/v1/healthz
 ```
 
-Wait until you get a `OK%` response.
+Wait until you get a 200 response.
 
 Create a tenant with the following command, replacing `$TENANT_ID` with a unique identifier such as "your_org_name", and the `$API_KEY` with the value you set in your `.env`:
 
