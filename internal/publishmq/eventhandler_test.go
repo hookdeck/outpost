@@ -318,6 +318,32 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.Nil(t, result.DestinationStatus, "no status when successfully queued")
 	})
 
+	t.Run("with destination_id - duplicate event", func(t *testing.T) {
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.created"}),
+		)
+		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithDestinationID(dest.ID),
+			testutil.EventFactory.WithTopic("user.created"),
+		)
+
+		// First request
+		result1, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.False(t, result1.Duplicate)
+		require.Nil(t, result1.DestinationStatus)
+
+		// Duplicate request
+		result2, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.True(t, result2.Duplicate) // Duplicate due to idempotency
+		require.Nil(t, result2.DestinationStatus)
+	})
+
 	t.Run("with destination_id - disabled", func(t *testing.T) {
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithTenantID(tenant.ID),
