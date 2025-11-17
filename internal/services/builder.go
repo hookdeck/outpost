@@ -218,9 +218,11 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	// Worker 2: PublishMQ Consumer (optional)
 	if b.cfg.PublishMQ.GetQueueConfig() != nil {
 		publishMQ := publishmq.New(publishmq.WithQueue(b.cfg.PublishMQ.GetQueueConfig()))
-		publishMQWorker := NewPublishMQWorker(
-			publishMQ,
-			eventHandler,
+		messageHandler := publishmq.NewMessageHandler(eventHandler)
+		publishMQWorker := NewConsumerWorker(
+			"publishmq-consumer",
+			publishMQ.Subscribe,
+			messageHandler,
 			b.cfg.PublishMaxConcurrency,
 			b.logger,
 		)
@@ -314,8 +316,9 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	svc.router = baseRouter
 
 	// Create DeliveryMQ worker
-	deliveryWorker := NewDeliveryMQWorker(
-		svc.deliveryMQ,
+	deliveryWorker := NewConsumerWorker(
+		"deliverymq-consumer",
+		svc.deliveryMQ.Subscribe,
 		handler,
 		b.cfg.DeliveryMaxConcurrency,
 		b.logger,
@@ -378,8 +381,9 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	svc.router = baseRouter
 
 	// Create LogMQ worker
-	logWorker := NewLogMQWorker(
-		logMQ,
+	logWorker := NewConsumerWorker(
+		"logmq-consumer",
+		logMQ.Subscribe,
 		handler,
 		b.cfg.DeliveryMaxConcurrency,
 		b.logger,
