@@ -2,7 +2,17 @@ openapi: 3.1.0
 info:
   title: Outpost API
   version: "0.0.1"
-  description: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
+  description: >
+    The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
+
+    ### Admin API Key
+
+    The API uses bearer token authentication with a token of your choice configured through the `API_KEY` environment variable. 
+
+    #### JWT Token
+
+    The API can also be authenticated using a per-tenant token that's valid for 24 hours. When using a JWT token, the `/:tenant_id` for each API endpoint is inferred from the authenticated token, and providing it in the path is not necessary.
+
   contact:
     name: Outpost Support
     email: support@hookdeck.com
@@ -333,7 +343,17 @@ components:
     DestinationWebhook:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
       properties:
         id:
           type: string
@@ -408,7 +428,17 @@ components:
     DestinationAWSSQS:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
       properties:
         id:
           type: string
@@ -483,7 +513,17 @@ components:
     DestinationRabbitMQ:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
       properties:
         id:
           type: string
@@ -630,7 +670,17 @@ components:
     DestinationAWSKinesis:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
       properties:
         id:
           type: string
@@ -779,7 +829,17 @@ components:
     DestinationAWSS3:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
       properties:
         id:
           type: string
@@ -854,7 +914,17 @@ components:
     DestinationGCPPubSub:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
       properties:
         id:
           type: string
