@@ -41,9 +41,8 @@ const config: ZudokuConfig = {
     "head-navigation-start": HeadNavigation,
     "zudoku-before-navigation": ApiAuthSideNav,
   },
-  page: {
-    pageTitle: "",
-    logoUrl: "/",
+  site: {
+    title: "",
     showPoweredBy: false,
     logo: {
       src: {
@@ -62,154 +61,160 @@ const config: ZudokuConfig = {
   //     YamlConfig,
   //   },
   // },
-  topNavigation: [
-    { id: "docs", label: "Documentation", default: "overview" },
-    { label: "API Reference", id: "api/authentication" },
+  navigation: [
+    {
+      type: "category",
+      label: "Documentation",
+      items: [
+        {
+          type: "doc",
+          label: "Overview",
+          file: "overview",
+        },
+        {
+          type: "doc",
+          label: "Concepts",
+          file: "concepts",
+        },
+        {
+          type: "category",
+          label: "Quickstarts",
+          link: "quickstarts",
+          collapsed: false,
+          collapsible: false,
+          items: [
+            {
+              type: "doc",
+              label: "Docker",
+              file: "quickstarts/docker",
+            },
+            {
+              type: "doc",
+              label: "Kubernetes",
+              file: "quickstarts/kubernetes",
+            },
+            {
+              type: "doc",
+              label: "Railway",
+              file: "quickstarts/railway",
+            },
+          ],
+        },
+        {
+          type: "category",
+          label: "Features",
+          link: "features",
+          collapsed: false,
+          collapsible: false,
+          items: [
+            "features/multi-tenant-support",
+            "features/destinations",
+            "features/topics",
+            "features/publish-events",
+            "features/event-delivery",
+            "features/alerts",
+            "features/tenant-user-portal",
+            "features/opentelemetry",
+            "features/logging",
+            {
+              type: "doc",
+              label: "SDKs",
+              file: "sdks",
+            },
+          ],
+        },
+        {
+          type: "category",
+          label: "Guides",
+          collapsed: false,
+          collapsible: false,
+          link: "guides",
+          items: [
+            {
+              type: "doc",
+              label: "Deployment",
+              file: "guides/deployment",
+            },
+            {
+              type: "doc",
+              label: "Migrate to Outpost",
+              file: "guides/migrate-to-outpost",
+            },
+            {
+              type: "doc",
+              label: "Publish from RabbitMQ",
+              file: "guides/publish-from-rabbitmq",
+            },
+            {
+              type: "doc",
+              label: "Publish from SQS",
+              file: "guides/publish-from-sqs",
+            },
+            {
+              type: "doc",
+              label: "Publish from GCP Pub/Sub",
+              file: "guides/publish-from-gcp-pubsub",
+            },
+            {
+              type: "doc",
+              label: "Using Azure Service Bus as an Internal MQ",
+              file: "guides/service-bus-internal-mq",
+            },
+            {
+              type: "doc",
+              label: "Building Your Own UI",
+              file: "guides/building-your-own-ui",
+            },
+            {
+              type: "doc",
+              label: "Redis Troubleshooting",
+              file: "guides/troubleshooting-redis",
+            },
+            {
+              type: "doc",
+              label: "Schema Migration",
+              file: "guides/migration",
+            },
+          ],
+        },
+        {
+          type: "category",
+          label: "References",
+          link: "references",
+          collapsed: false,
+          collapsible: false,
+          items: [
+            {
+              type: "doc",
+              label: "Configuration",
+              file: "references/configuration",
+            },
+            {
+              type: "doc",
+              label: "Roadmap",
+              file: "references/roadmap",
+            },
+            {
+              type: "link",
+              label: "API",
+              to: "api/authentication",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      type: "link",
+      label: "API Reference",
+      to: "api/health",
+    },
   ],
-  sidebar: {
-    docs: [
-      {
-        type: "doc",
-        label: "Overview",
-        id: "overview",
-      },
-      {
-        type: "doc",
-        label: "Concepts",
-        id: "concepts",
-      },
-      {
-        type: "category",
-        label: "Quickstarts",
-        link: "quickstarts",
-        collapsed: false,
-        collapsible: false,
-        items: [
-          {
-            type: "doc",
-            label: "Docker",
-            id: "quickstarts/docker",
-          },
-          {
-            type: "doc",
-            label: "Kubernetes",
-            id: "quickstarts/kubernetes",
-          },
-          {
-            type: "doc",
-            label: "Railway",
-            id: "quickstarts/railway",
-          },
-        ],
-      },
-      {
-        type: "category",
-        label: "Features",
-        link: "features",
-        collapsed: false,
-        collapsible: false,
-        items: [
-          { type: "doc", id: "features/multi-tenant-support" },
-          { type: "doc", id: "features/destinations" },
-          { type: "doc", id: "features/topics" },
-          { type: "doc", id: "features/publish-events" },
-          { type: "doc", id: "features/event-delivery" },
-          { type: "doc", id: "features/alerts" },
-          { type: "doc", id: "features/tenant-user-portal" },
-          { type: "doc", id: "features/opentelemetry" },
-          { type: "doc", id: "features/logging" },
-          {
-            type: "doc",
-            label: "SDKs",
-            id: "sdks",
-          },
-        ],
-      },
-      {
-        type: "category",
-        label: "Guides",
-        collapsed: false,
-        collapsible: false,
-        link: "guides",
-        items: [
-          {
-            type: "doc",
-            label: "Deployment",
-            id: "guides/deployment",
-          },
-          {
-            type: "doc",
-            label: "Migrate to Outpost",
-            id: "guides/migrate-to-outpost",
-          },
-          {
-            type: "doc",
-            label: "Publish from RabbitMQ",
-            id: "guides/publish-from-rabbitmq",
-          },
-          {
-            type: "doc",
-            label: "Publish from SQS",
-            id: "guides/publish-from-sqs",
-          },
-          {
-            type: "doc",
-            label: "Publish from GCP Pub/Sub",
-            id: "guides/publish-from-gcp-pubsub",
-          },
-          {
-            type: "doc",
-            label: "Using Azure Service Bus as an Internal MQ",
-            id: "guides/service-bus-internal-mq",
-          },
-          {
-            type: "doc",
-            label: "Building Your Own UI",
-            id: "guides/building-your-own-ui",
-          },
-          {
-            type: "doc",
-            label: "Redis Troubleshooting",
-            id: "guides/troubleshooting-redis",
-          },
-          {
-            type: "doc",
-            label: "Schema Migration",
-            id: "guides/migration",
-          },
-        ],
-      },
-      {
-        type: "category",
-        label: "References",
-        link: "references",
-        collapsed: false,
-        collapsible: false,
-        items: [
-          {
-            type: "doc",
-            label: "Configuration",
-            id: "references/configuration",
-          },
-          {
-            type: "doc",
-            label: "Roadmap",
-            id: "references/roadmap",
-          },
-          {
-            type: "link",
-            label: "API",
-            href: "api/authentication",
-          },
-        ],
-      },
-    ],
-  },
   apis: {
     type: "file",
     input: "./apis/openapi.yaml",
-    navigationId: "/api",
+    path: "/api",
     options: {
+      expandApiInformation: true,
       disablePlayground: true,
     },
   },
