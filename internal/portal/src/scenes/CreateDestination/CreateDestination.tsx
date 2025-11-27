@@ -244,8 +244,10 @@ export default function CreateDestination() {
       </div>
 
       <div className="create-destination__step">
-        <h1 className="title-xl">{currentStep.title}</h1>
-        <p className="body-m muted">{currentStep.description}</p>
+        <div className="create-destination__step__header">
+          <h1 className="title-xl">{currentStep.title}</h1>
+          <p className="body-m muted">{currentStep.description}</p>
+        </div>
         <form
           key={currentStepIndex}
           onChange={(e) => {
