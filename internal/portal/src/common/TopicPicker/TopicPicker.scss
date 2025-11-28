@@ -4,6 +4,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  max-height: 100%;
 
   &__header {
     border-bottom: 1px solid var(--colors-outline-neutral);

@@ -88,8 +88,6 @@
 
     &__fields {
       flex: 0 1 auto;
-      overflow-x: visible;
-      overflow-y: auto;
       min-height: 0;
     }
 
@@ -103,25 +101,33 @@
 }
 
 .destination-types {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.destination-type-card {
-  cursor: pointer;
-  position: relative;
   border: 1px solid var(--colors-outline-neutral);
   border-radius: var(--radius-m);
+  overflow: hidden;
+  height: 100%;
+
+  &__container {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.destination-type-option {
+  cursor: pointer;
+  position: relative;
+  border-bottom: 1px solid var(--colors-outline-neutral);
+
+  &:last-child {
+    border-bottom: none;
+  }
 
   &:has(input[type="radio"]:checked) {
-    border-color: var(--colors-outline-primary-focus);
-    outline: 1px solid var(--colors-outline-primary-focus);
+    background-color: var(--colors-background-hover);
   }
 
   &:hover {
-    border-color: var(--colors-outline-primary-focus);
-    outline: 1px solid var(--colors-outline-primary-focus);
+    background-color: var(--colors-background-hover);
   }
 
   input[type="radio"] {
