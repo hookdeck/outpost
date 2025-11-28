@@ -33,8 +33,21 @@
     }
 
     &:disabled ~ .checkbox__checkmark {
-      background-color: var(--disabled-bg);
-      border-color: var(--disabled-border);
+      background-color: var(
+        --disabled-bg,
+        var(--colors-background-neutral-subtle)
+      );
+      border-color: var(--disabled-border, var(--colors-border-neutral-subtle));
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    &:checked:disabled ~ .checkbox__checkmark {
+      background-color: var(--colors-background-primary);
+      opacity: 0.6;
+    }
+
+    &:disabled {
       cursor: not-allowed;
     }
   }
@@ -84,6 +97,14 @@
       font-size: var(--font-size-s);
       line-height: var(--line-height-s);
       letter-spacing: 0.065px;
+    }
+  }
+
+  &:has(input:disabled) {
+    cursor: not-allowed;
+
+    .checkbox__label {
+      opacity: 0.6;
     }
   }
 
