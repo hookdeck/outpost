@@ -12,12 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// func TestConformance(t *testing.T) {
-// 	testutil.CheckIntegrationTest(t)
-// 	t.Parallel()
+func TestConformance(t *testing.T) {
+	t.Parallel()
 
-// 	drivertest.RunConformanceTests(t, newHarness)
-// }
+	drivertest.RunConformanceTests(t, newHarness)
+}
 
 type harness struct {
 	chDB   clickhouse.DB
