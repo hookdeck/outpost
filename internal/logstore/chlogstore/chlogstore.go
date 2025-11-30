@@ -481,10 +481,6 @@ func (s *logStoreImpl) InsertManyEvent(ctx context.Context, events []*models.Eve
 		return err
 	}
 
-	// Decision: Force ClickHouse to merge data immediately for testing
-	// NOT production-ready, but ensures data is immediately visible
-	_ = s.chDB.Exec(ctx, "OPTIMIZE TABLE events FINAL")
-
 	return nil
 }
 
@@ -516,10 +512,6 @@ func (s *logStoreImpl) InsertManyDelivery(ctx context.Context, deliveries []*mod
 	if err := batch.Send(); err != nil {
 		return err
 	}
-
-	// Decision: Force ClickHouse to merge data immediately for testing
-	// NOT production-ready, but ensures data is immediately visible
-	_ = s.chDB.Exec(ctx, "OPTIMIZE TABLE deliveries FINAL")
 
 	return nil
 }
