@@ -159,6 +159,7 @@ func (h *LogHandlers) ListDeliveryByEvent(c *gin.Context) {
 		return
 	}
 	deliveries, err := h.logStore.ListDelivery(c.Request.Context(), logstore.ListDeliveryRequest{
+		TenantID:      event.TenantID,
 		EventID:       event.ID,
 		DestinationID: c.Query("destination_id"),
 	})

@@ -413,12 +413,13 @@ func (s *logStoreImpl) ListDelivery(ctx context.Context, request driver.ListDeli
 			code,
 			response_data
 		FROM event_log
-		WHERE event_id = ?
+		WHERE tenant_id = ?
+			AND event_id = ?
 			AND delivery_id != ''
 		ORDER BY delivery_time DESC
 	`
 
-	rows, err := s.chDB.Query(ctx, query, request.EventID)
+	rows, err := s.chDB.Query(ctx, query, request.TenantID, request.EventID)
 	if err != nil {
 		return nil, err
 	}
