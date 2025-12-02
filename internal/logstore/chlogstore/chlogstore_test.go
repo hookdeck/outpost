@@ -2,6 +2,7 @@ package chlogstore
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
@@ -75,12 +76,66 @@ func (h *harness) MakeDriver(ctx context.Context) (driver.LogStore, error) {
 	return NewLogStore(h.chDB, "")
 }
 
-func TestNewLogStore_DeploymentIDNotSupported(t *testing.T) {
+func TestConformance_WithDeploymentID(t *testing.T) {
 	t.Parallel()
 
-	chDB := setupClickHouseConnection(t)
-	defer chDB.Close()
+	drivertest.RunConformanceTests(t, newHarnessWithDeploymentID)
+}
 
-	_, err := NewLogStore(chDB, "some-deployment-id")
-	require.ErrorIs(t, err, ErrDeploymentIDNotSupported)
+func newHarnessWithDeploymentID(_ context.Context, t *testing.T) (drivertest.Harness, error) {
+	t.Helper()
+
+	chDB := setupClickHouseConnection(t)
+	deploymentID := "test_deployment"
+
+	// Create the deployment-specific table
+	createTableSQL := fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS event_log_%s (
+			event_id String,
+			tenant_id String,
+			destination_id String,
+			topic String,
+			eligible_for_retry Bool,
+			event_time DateTime64(3),
+			metadata String,
+			data String,
+			delivery_id String,
+			delivery_event_id String,
+			status String,
+			delivery_time DateTime64(3),
+			code String,
+			response_data String,
+			INDEX idx_topic topic TYPE bloom_filter GRANULARITY 4,
+			INDEX idx_status status TYPE set(100) GRANULARITY 4
+		) ENGINE = MergeTree
+		PARTITION BY toYYYYMMDD(event_time)
+		ORDER BY (tenant_id, destination_id, event_time, event_id, delivery_time)
+	`, deploymentID)
+
+	err := chDB.Exec(context.Background(), createTableSQL)
+	require.NoError(t, err)
+
+	return &harnessWithDeployment{
+		chDB:         chDB,
+		deploymentID: deploymentID,
+		closer: func() {
+			// Drop the deployment-specific table
+			chDB.Exec(context.Background(), fmt.Sprintf("DROP TABLE IF EXISTS event_log_%s", deploymentID))
+			chDB.Close()
+		},
+	}, nil
+}
+
+type harnessWithDeployment struct {
+	chDB         clickhouse.DB
+	deploymentID string
+	closer       func()
+}
+
+func (h *harnessWithDeployment) Close() {
+	h.closer()
+}
+
+func (h *harnessWithDeployment) MakeDriver(ctx context.Context) (driver.LogStore, error) {
+	return NewLogStore(h.chDB, h.deploymentID)
 }
