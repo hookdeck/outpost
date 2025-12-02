@@ -133,12 +133,18 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 		}
 
 		var delivery *models.Delivery
+		// Use explicit delivery times to ensure proper ordering.
+		// The "init" delivery (for retry cases) should have an earlier time than the "final" delivery.
+		initDeliveryTime := time.Now()
+		finalDeliveryTime := initDeliveryTime.Add(time.Millisecond) // Ensure final is always later
+
 		if shouldRetry {
 			delivery = testutil.DeliveryFactory.AnyPointer(
 				testutil.DeliveryFactory.WithID(fmt.Sprintf("del_%02d_init", i)),
 				testutil.DeliveryFactory.WithEventID(event.ID),
 				testutil.DeliveryFactory.WithDestinationID(destinationID),
 				testutil.DeliveryFactory.WithStatus("failed"),
+				testutil.DeliveryFactory.WithTime(initDeliveryTime),
 			)
 			deliveryEvents = append(deliveryEvents, &models.DeliveryEvent{
 				ID:            fmt.Sprintf("de_%02d_init", i),
@@ -159,6 +165,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 				testutil.DeliveryFactory.WithEventID(event.ID),
 				testutil.DeliveryFactory.WithDestinationID(destinationID),
 				testutil.DeliveryFactory.WithStatus("success"),
+				testutil.DeliveryFactory.WithTime(finalDeliveryTime),
 			)
 		} else {
 			statusEvents["failed"] = append(statusEvents["failed"], event)
@@ -168,6 +175,7 @@ func testIntegrationLogStore_EventCRUD(t *testing.T, newHarness HarnessMaker) {
 				testutil.DeliveryFactory.WithEventID(event.ID),
 				testutil.DeliveryFactory.WithDestinationID(destinationID),
 				testutil.DeliveryFactory.WithStatus("failed"),
+				testutil.DeliveryFactory.WithTime(finalDeliveryTime),
 			)
 		}
 
@@ -622,6 +630,7 @@ func testIntegrationLogStore_DeliveryCRUD(t *testing.T, newHarness HarnessMaker)
 
 	t.Run("list delivery empty", func(t *testing.T) {
 		queriedDeliveries, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+			TenantID:      event.TenantID,
 			EventID:       "unknown",
 			DestinationID: "",
 		})
@@ -631,6 +640,7 @@ func testIntegrationLogStore_DeliveryCRUD(t *testing.T, newHarness HarnessMaker)
 
 	t.Run("list delivery", func(t *testing.T) {
 		queriedDeliveries, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+			TenantID:      event.TenantID,
 			EventID:       event.ID,
 			DestinationID: destinationID,
 		})

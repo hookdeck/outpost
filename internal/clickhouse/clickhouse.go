@@ -29,7 +29,7 @@ func New(config *ClickHouseConfig) (DB, error) {
 
 		// Debug: true,
 		// Debugf: func(format string, v ...any) {
-		// 	fmt.Printf(format+"\n", v...)
+		// 	fmt.Printf("[CH DEBUG] "+format+"\n", v...)
 		// },
 	})
 	return conn, err

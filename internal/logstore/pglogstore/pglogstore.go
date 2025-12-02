@@ -326,13 +326,16 @@ func (s *logStore) RetrieveEventByDestination(ctx context.Context, tenantID, des
 
 func (s *logStore) ListDelivery(ctx context.Context, req driver.ListDeliveryRequest) ([]*models.Delivery, error) {
 	query := `
-		SELECT id, event_id, destination_id, status, time, code, response_data
-		FROM deliveries
-		WHERE event_id = $1
-		AND ($2 = '' OR destination_id = $2)
-		ORDER BY time DESC`
+		SELECT d.id, d.event_id, d.destination_id, d.status, d.time, d.code, d.response_data
+		FROM deliveries d
+		JOIN events e ON d.event_id = e.id
+		WHERE e.tenant_id = $1
+		AND d.event_id = $2
+		AND ($3 = '' OR d.destination_id = $3)
+		ORDER BY d.time DESC`
 
 	rows, err := s.db.Query(ctx, query,
+		req.TenantID,
 		req.EventID,
 		req.DestinationID)
 	if err != nil {

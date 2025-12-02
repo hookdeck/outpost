@@ -36,6 +36,7 @@ type ListEventByDestinationRequest struct {
 }
 
 type ListDeliveryRequest struct {
+	TenantID      string // required - always filter by tenant for security
 	EventID       string
 	DestinationID string
 }

@@ -19,18 +19,18 @@ import (
 )
 
 type RetryDeliveryMQSuite struct {
-	ctx                 context.Context
-	mqConfig            *mqs.QueueConfig
-	retryMaxCount       int
-	retryBackoff        backoff.Backoff
+	ctx                  context.Context
+	mqConfig             *mqs.QueueConfig
+	retryMaxCount        int
+	retryBackoff         backoff.Backoff
 	schedulerPollBackoff time.Duration
-	publisher           deliverymq.Publisher
-	eventGetter         deliverymq.EventGetter
-	logPublisher        deliverymq.LogPublisher
-	destGetter          deliverymq.DestinationGetter
-	alertMonitor        deliverymq.AlertMonitor
-	deliveryMQ          *deliverymq.DeliveryMQ
-	teardown            func()
+	publisher            deliverymq.Publisher
+	eventGetter          deliverymq.EventGetter
+	logPublisher         deliverymq.LogPublisher
+	destGetter           deliverymq.DestinationGetter
+	alertMonitor         deliverymq.AlertMonitor
+	deliveryMQ           *deliverymq.DeliveryMQ
+	teardown             func()
 }
 
 func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
@@ -136,15 +136,15 @@ func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
 	eventGetter.registerEvent(&event)
 
 	suite := &RetryDeliveryMQSuite{
-		ctx:                 ctx,
-		mqConfig:            &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
-		publisher:           publisher,
-		eventGetter:         eventGetter,
-		logPublisher:        newMockLogPublisher(nil),
-		destGetter:          &mockDestinationGetter{dest: &destination},
-		alertMonitor:        newMockAlertMonitor(),
-		retryMaxCount:       10,
-		retryBackoff:        &backoff.ConstantBackoff{Interval: 50 * time.Millisecond},
+		ctx:                  ctx,
+		mqConfig:             &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
+		publisher:            publisher,
+		eventGetter:          eventGetter,
+		logPublisher:         newMockLogPublisher(nil),
+		destGetter:           &mockDestinationGetter{dest: &destination},
+		alertMonitor:         newMockAlertMonitor(),
+		retryMaxCount:        10,
+		retryBackoff:         &backoff.ConstantBackoff{Interval: 50 * time.Millisecond},
 		schedulerPollBackoff: 10 * time.Millisecond,
 	}
 	suite.SetupTest(t)
@@ -199,15 +199,15 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 	eventGetter.registerEvent(&event)
 
 	suite := &RetryDeliveryMQSuite{
-		ctx:                 ctx,
-		mqConfig:            &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
-		publisher:           publisher,
-		eventGetter:         eventGetter,
-		logPublisher:        newMockLogPublisher(nil),
-		destGetter:          &mockDestinationGetter{dest: &destination},
-		alertMonitor:        newMockAlertMonitor(),
-		retryMaxCount:       10,
-		retryBackoff:        &backoff.ConstantBackoff{Interval: 50 * time.Millisecond},
+		ctx:                  ctx,
+		mqConfig:             &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
+		publisher:            publisher,
+		eventGetter:          eventGetter,
+		logPublisher:         newMockLogPublisher(nil),
+		destGetter:           &mockDestinationGetter{dest: &destination},
+		alertMonitor:         newMockAlertMonitor(),
+		retryMaxCount:        10,
+		retryBackoff:         &backoff.ConstantBackoff{Interval: 50 * time.Millisecond},
 		schedulerPollBackoff: 10 * time.Millisecond,
 	}
 	suite.SetupTest(t)
@@ -257,15 +257,15 @@ func TestDeliveryMQRetry_SystemError(t *testing.T) {
 	eventGetter.registerEvent(&event)
 
 	suite := &RetryDeliveryMQSuite{
-		ctx:                 ctx,
-		mqConfig:            &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
-		publisher:           newMockPublisher(nil), // publisher won't be called due to early error
-		eventGetter:         eventGetter,
-		logPublisher:        newMockLogPublisher(nil),
-		destGetter:          destGetter,
-		alertMonitor:        newMockAlertMonitor(),
-		retryMaxCount:       10,
-		retryBackoff:        &backoff.ConstantBackoff{Interval: 50 * time.Millisecond},
+		ctx:                  ctx,
+		mqConfig:             &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
+		publisher:            newMockPublisher(nil), // publisher won't be called due to early error
+		eventGetter:          eventGetter,
+		logPublisher:         newMockLogPublisher(nil),
+		destGetter:           destGetter,
+		alertMonitor:         newMockAlertMonitor(),
+		retryMaxCount:        10,
+		retryBackoff:         &backoff.ConstantBackoff{Interval: 50 * time.Millisecond},
 		schedulerPollBackoff: 10 * time.Millisecond,
 	}
 	suite.SetupTest(t)
@@ -327,15 +327,15 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 	eventGetter.registerEvent(&event)
 
 	suite := &RetryDeliveryMQSuite{
-		ctx:                 ctx,
-		mqConfig:            &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
-		publisher:           publisher,
-		eventGetter:         eventGetter,
-		logPublisher:        newMockLogPublisher(nil),
-		destGetter:          &mockDestinationGetter{dest: &destination},
-		alertMonitor:        newMockAlertMonitor(),
-		retryMaxCount:       2, // 1 initial + 2 retries = 3 total attempts
-		retryBackoff:        &backoff.ConstantBackoff{Interval: 50 * time.Millisecond},
+		ctx:                  ctx,
+		mqConfig:             &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
+		publisher:            publisher,
+		eventGetter:          eventGetter,
+		logPublisher:         newMockLogPublisher(nil),
+		destGetter:           &mockDestinationGetter{dest: &destination},
+		alertMonitor:         newMockAlertMonitor(),
+		retryMaxCount:        2, // 1 initial + 2 retries = 3 total attempts
+		retryBackoff:         &backoff.ConstantBackoff{Interval: 50 * time.Millisecond},
 		schedulerPollBackoff: 10 * time.Millisecond,
 	}
 	suite.SetupTest(t)

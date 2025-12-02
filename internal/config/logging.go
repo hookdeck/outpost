@@ -167,7 +167,7 @@ func maskPostgresURLHost(url string) string {
 	if url == "" {
 		return ""
 	}
-	
+
 	// postgres://user:password@host:port/database?params
 	if idx := strings.Index(url, "@"); idx != -1 {
 		rest := url[idx+1:]
