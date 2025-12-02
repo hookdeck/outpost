@@ -9,6 +9,7 @@ import (
 
 	"github.com/caarlos0/env/v9"
 	"github.com/hookdeck/outpost/internal/backoff"
+	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
@@ -61,10 +62,10 @@ type Config struct {
 	HTTPUserAgent       string   `yaml:"http_user_agent" env:"HTTP_USER_AGENT" desc:"Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, a default (OrganizationName/Version) is used." required:"N"`
 
 	// Infrastructure
-	Redis RedisConfig `yaml:"redis"`
-	// ClickHouse  ClickHouseConfig `yaml:"clickhouse"`
-	PostgresURL string     `yaml:"postgres" env:"POSTGRES_URL" desc:"Connection URL for PostgreSQL, used for log storage. Example: 'postgres://user:pass@host:port/dbname?sslmode=disable'." required:"Y"`
-	MQs         *MQsConfig `yaml:"mqs"`
+	Redis       RedisConfig      `yaml:"redis"`
+	ClickHouse  ClickHouseConfig `yaml:"clickhouse"`
+	PostgresURL string           `yaml:"postgres" env:"POSTGRES_URL" desc:"Connection URL for PostgreSQL, used for log storage. Example: 'postgres://user:pass@host:port/dbname?sslmode=disable'." required:"N"`
+	MQs         *MQsConfig       `yaml:"mqs"`
 
 	// PublishMQ
 	PublishMQ PublishMQConfig `yaml:"publishmq"`
@@ -131,9 +132,9 @@ func (c *Config) InitDefaults() {
 		Host: "127.0.0.1",
 		Port: 6379,
 	}
-	// c.ClickHouse = ClickHouseConfig{
-	// 	Database: "outpost",
-	// }
+	c.ClickHouse = ClickHouseConfig{
+		Database: "outpost",
+	}
 	c.MQs = &MQsConfig{
 		RabbitMQ: RabbitMQConfig{
 			Exchange:      "outpost",
@@ -378,24 +379,24 @@ func (c *RedisConfig) ToConfig() *redis.RedisConfig {
 	}
 }
 
-// type ClickHouseConfig struct {
-// 	Addr     string `yaml:"addr" env:"CLICKHOUSE_ADDR" desc:"Address (host:port) of the ClickHouse server. Example: 'localhost:9000'. Required if ClickHouse is used for log storage." required:"C"`
-// 	Username string `yaml:"username" env:"CLICKHOUSE_USERNAME" desc:"Username for ClickHouse authentication." required:"N"`
-// 	Password string `yaml:"password" env:"CLICKHOUSE_PASSWORD" desc:"Password for ClickHouse authentication." required:"N"`
-// 	Database string `yaml:"database" env:"CLICKHOUSE_DATABASE" desc:"Database name in ClickHouse to use." required:"N"`
-// }
+type ClickHouseConfig struct {
+	Addr     string `yaml:"addr" env:"CLICKHOUSE_ADDR" desc:"Address (host:port) of the ClickHouse server. Example: 'localhost:9000'." required:"N"`
+	Username string `yaml:"username" env:"CLICKHOUSE_USERNAME" desc:"Username for ClickHouse authentication." required:"N"`
+	Password string `yaml:"password" env:"CLICKHOUSE_PASSWORD" desc:"Password for ClickHouse authentication." required:"N"`
+	Database string `yaml:"database" env:"CLICKHOUSE_DATABASE" desc:"Database name in ClickHouse to use." required:"N"`
+}
 
-// func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
-// 	if c.Addr == "" {
-// 		return nil
-// 	}
-// 	return &clickhouse.ClickHouseConfig{
-// 		Addr:     c.Addr,
-// 		Username: c.Username,
-// 		Password: c.Password,
-// 		Database: c.Database,
-// 	}
-// }
+func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
+	if c.Addr == "" {
+		return nil
+	}
+	return &clickhouse.ClickHouseConfig{
+		Addr:     c.Addr,
+		Username: c.Username,
+		Password: c.Password,
+		Database: c.Database,
+	}
+}
 
 type AlertConfig struct {
 	CallbackURL             string `yaml:"callback_url" env:"ALERT_CALLBACK_URL" desc:"URL to which Outpost will send a POST request when an alert is triggered (e.g., for destination failures)." required:"N"`
@@ -447,10 +448,10 @@ func (c *Config) ToTelemetryApplicationInfo() telemetry.ApplicationInfo {
 	portalEnabled := c.APIKey != "" && c.APIJWTSecret != ""
 
 	entityStore := "redis"
-	logStore := "TODO"
-	// if c.ClickHouse.Addr != "" {
-	// 	logStore = "clickhouse"
-	// }
+	logStore := ""
+	if c.ClickHouse.Addr != "" {
+		logStore = "clickhouse"
+	}
 	if c.PostgresURL != "" {
 		logStore = "postgres"
 	}
@@ -471,11 +472,11 @@ func (c *Config) ToMigratorOpts() migrator.MigrationOpts {
 		PG: migrator.MigrationOptsPG{
 			URL: c.PostgresURL,
 		},
-		// CH: migrator.MigrationOptsCH{
-		// 	Addr:     c.ClickHouse.Addr,
-		// 	Username: c.ClickHouse.Username,
-		// 	Password: c.ClickHouse.Password,
-		// 	Database: c.ClickHouse.Database,
-		// },
+		CH: migrator.MigrationOptsCH{
+			Addr:     c.ClickHouse.Addr,
+			Username: c.ClickHouse.Username,
+			Password: c.ClickHouse.Password,
+			Database: c.ClickHouse.Database,
+		},
 	}
 }
