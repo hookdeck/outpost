@@ -2,6 +2,7 @@ package pglogstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,16 +12,22 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// ErrDeploymentIDNotSupported is returned when deployment_id is provided but not supported.
+var ErrDeploymentIDNotSupported = errors.New("postgres logstore does not support deployment_id")
+
 type logStore struct {
 	db           *pgxpool.Pool
 	cursorParser eventCursorParser
 }
 
-func NewLogStore(db *pgxpool.Pool) driver.LogStore {
+func NewLogStore(db *pgxpool.Pool, deploymentID string) (driver.LogStore, error) {
+	if deploymentID != "" {
+		return nil, ErrDeploymentIDNotSupported
+	}
 	return &logStore{
 		db:           db,
 		cursorParser: newEventCursorParser(),
-	}
+	}, nil
 }
 
 func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {

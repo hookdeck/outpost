@@ -3,6 +3,7 @@ package chlogstore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,14 +13,20 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
+// ErrDeploymentIDNotSupported is returned when deployment_id is provided but not supported.
+var ErrDeploymentIDNotSupported = errors.New("clickhouse logstore does not support deployment_id")
+
 type logStoreImpl struct {
 	chDB clickhouse.DB
 }
 
 var _ driver.LogStore = (*logStoreImpl)(nil)
 
-func NewLogStore(chDB clickhouse.DB) driver.LogStore {
-	return &logStoreImpl{chDB: chDB}
+func NewLogStore(chDB clickhouse.DB, deploymentID string) (driver.LogStore, error) {
+	if deploymentID != "" {
+		return nil, ErrDeploymentIDNotSupported
+	}
+	return &logStoreImpl{chDB: chDB}, nil
 }
 
 func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRequest) (driver.ListEventResponse, error) {

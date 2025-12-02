@@ -72,5 +72,15 @@ func (h *harness) Close() {
 }
 
 func (h *harness) MakeDriver(ctx context.Context) (driver.LogStore, error) {
-	return NewLogStore(h.chDB), nil
+	return NewLogStore(h.chDB, "")
+}
+
+func TestNewLogStore_DeploymentIDNotSupported(t *testing.T) {
+	t.Parallel()
+
+	chDB := setupClickHouseConnection(t)
+	defer chDB.Close()
+
+	_, err := NewLogStore(chDB, "some-deployment-id")
+	require.ErrorIs(t, err, ErrDeploymentIDNotSupported)
 }
