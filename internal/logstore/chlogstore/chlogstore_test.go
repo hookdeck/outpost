@@ -72,5 +72,62 @@ func (h *harness) Close() {
 }
 
 func (h *harness) MakeDriver(ctx context.Context) (driver.LogStore, error) {
-	return NewLogStore(h.chDB), nil
+	return NewLogStore(h.chDB, "")
+}
+
+func TestConformance_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+
+	drivertest.RunConformanceTests(t, newHarnessWithDeploymentID)
+}
+
+func newHarnessWithDeploymentID(_ context.Context, t *testing.T) (drivertest.Harness, error) {
+	t.Helper()
+
+	t.Cleanup(testinfra.Start(t))
+
+	chConfig := testinfra.NewClickHouseConfig(t)
+	deploymentID := "test_deployment"
+
+	chDB, err := clickhouse.New(&chConfig)
+	require.NoError(t, err)
+
+	// Use the migrator with DeploymentID to create deployment-specific tables
+	ctx := context.Background()
+	m, err := migrator.New(migrator.MigrationOpts{
+		CH: migrator.MigrationOptsCH{
+			Addr:         chConfig.Addr,
+			Username:     chConfig.Username,
+			Password:     chConfig.Password,
+			Database:     chConfig.Database,
+			DeploymentID: deploymentID,
+		},
+	})
+	require.NoError(t, err)
+	_, _, err = m.Up(ctx, -1)
+	require.NoError(t, err)
+
+	return &harnessWithDeployment{
+		chDB:         chDB,
+		deploymentID: deploymentID,
+		migrator:     m,
+	}, nil
+}
+
+type harnessWithDeployment struct {
+	chDB         clickhouse.DB
+	deploymentID string
+	migrator     *migrator.Migrator
+}
+
+func (h *harnessWithDeployment) Close() {
+	ctx := context.Background()
+	// Roll back migrations (drops deployment-specific tables)
+	h.migrator.Down(ctx, -1)
+	h.migrator.Close(ctx)
+	h.chDB.Close()
+}
+
+func (h *harnessWithDeployment) MakeDriver(ctx context.Context) (driver.LogStore, error) {
+	return NewLogStore(h.chDB, h.deploymentID)
 }

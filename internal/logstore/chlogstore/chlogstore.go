@@ -13,13 +13,21 @@ import (
 )
 
 type logStoreImpl struct {
-	chDB clickhouse.DB
+	chDB      clickhouse.DB
+	tableName string
 }
 
 var _ driver.LogStore = (*logStoreImpl)(nil)
 
-func NewLogStore(chDB clickhouse.DB) driver.LogStore {
-	return &logStoreImpl{chDB: chDB}
+// NewLogStore creates a new ClickHouse log store.
+// If deploymentID is provided, it uses a deployment-specific table ({deploymentID}_event_log).
+// Otherwise, it uses the default "event_log" table.
+func NewLogStore(chDB clickhouse.DB, deploymentID string) (driver.LogStore, error) {
+	tableName := "event_log"
+	if deploymentID != "" {
+		tableName = fmt.Sprintf("%s_event_log", deploymentID)
+	}
+	return &logStoreImpl{chDB: chDB, tableName: tableName}, nil
 }
 
 func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRequest) (driver.ListEventResponse, error) {
@@ -120,7 +128,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRe
 			any(e.metadata) as metadata,
 			any(e.data) as data,
 			argMax(e.status, e.delivery_time) as status
-		FROM event_log AS e
+		FROM %s AS e
 		WHERE e.tenant_id = ?
 			AND e.event_time >= fromUnixTimestamp64Milli(?)
 			AND e.event_time <= fromUnixTimestamp64Milli(?)
@@ -130,7 +138,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRe
 		%s
 		%s
 		LIMIT %d
-	`, destFilter, topicFilter, havingClause, orderBy, limit+1)
+	`, s.tableName, destFilter, topicFilter, havingClause, orderBy, limit+1)
 
 	// Append having args after the main args
 	args = append(args, havingArgs...)
@@ -239,7 +247,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRe
 		countQuery = fmt.Sprintf(`
 			SELECT count(*) FROM (
 				SELECT event_id
-				FROM event_log
+				FROM %s
 				WHERE tenant_id = ?
 					AND event_time >= fromUnixTimestamp64Milli(?)
 					AND event_time <= fromUnixTimestamp64Milli(?)
@@ -248,17 +256,17 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, request driver.ListEventRe
 				GROUP BY event_id
 				HAVING argMax(status, delivery_time) = ?
 			)
-		`, countDestFilter, countTopicFilter)
+		`, s.tableName, countDestFilter, countTopicFilter)
 	} else {
 		countQuery = fmt.Sprintf(`
 			SELECT count(DISTINCT event_id)
-			FROM event_log
+			FROM %s
 			WHERE tenant_id = ?
 				AND event_time >= fromUnixTimestamp64Milli(?)
 				AND event_time <= fromUnixTimestamp64Milli(?)
 				%s
 				%s
-		`, countDestFilter, countTopicFilter)
+		`, s.tableName, countDestFilter, countTopicFilter)
 	}
 
 	var totalCount uint64
@@ -294,7 +302,7 @@ func parseCursor(cursor string) (time.Time, string, error) {
 }
 
 func (s *logStoreImpl) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT
 			event_id,
 			tenant_id,
@@ -305,11 +313,11 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, tenantID, eventID stri
 			metadata,
 			data,
 			argMax(status, delivery_time) as status
-		FROM event_log
+		FROM %s
 		WHERE tenant_id = ? AND event_id = ?
 		GROUP BY event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data
 		LIMIT 1
-	`
+	`, s.tableName)
 
 	row := s.chDB.QueryRow(ctx, query, tenantID, eventID)
 
@@ -348,7 +356,7 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, tenantID, eventID stri
 }
 
 func (s *logStoreImpl) RetrieveEventByDestination(ctx context.Context, tenantID, destinationID, eventID string) (*models.Event, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT
 			event_id,
 			tenant_id,
@@ -359,11 +367,11 @@ func (s *logStoreImpl) RetrieveEventByDestination(ctx context.Context, tenantID,
 			metadata,
 			data,
 			argMax(status, delivery_time) as status
-		FROM event_log
+		FROM %s
 		WHERE tenant_id = ? AND destination_id = ? AND event_id = ?
 		GROUP BY event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data
 		LIMIT 1
-	`
+	`, s.tableName)
 
 	row := s.chDB.QueryRow(ctx, query, tenantID, destinationID, eventID)
 
@@ -402,7 +410,7 @@ func (s *logStoreImpl) RetrieveEventByDestination(ctx context.Context, tenantID,
 }
 
 func (s *logStoreImpl) ListDelivery(ctx context.Context, request driver.ListDeliveryRequest) ([]*models.Delivery, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT
 			delivery_id,
 			delivery_event_id,
@@ -412,12 +420,12 @@ func (s *logStoreImpl) ListDelivery(ctx context.Context, request driver.ListDeli
 			delivery_time,
 			code,
 			response_data
-		FROM event_log
+		FROM %s
 		WHERE tenant_id = ?
 			AND event_id = ?
 			AND delivery_id != ''
 		ORDER BY delivery_time DESC
-	`
+	`, s.tableName)
 
 	rows, err := s.chDB.Query(ctx, query, request.TenantID, request.EventID)
 	if err != nil {
@@ -460,10 +468,10 @@ func (s *logStoreImpl) InsertManyDeliveryEvent(ctx context.Context, deliveryEven
 	}
 
 	batch, err := s.chDB.PrepareBatch(ctx,
-		`INSERT INTO event_log (
+		fmt.Sprintf(`INSERT INTO %s (
 			event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
 			delivery_id, delivery_event_id, status, delivery_time, code, response_data
-		)`,
+		)`, s.tableName),
 	)
 	if err != nil {
 		return err

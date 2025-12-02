@@ -1861,3 +1861,295 @@ func makeDestinationDisabledValidator(id string, disabled bool) map[string]any {
 		},
 	}
 }
+
+func (suite *basicSuite) TestLogStoreAPI() {
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
+	eventID := idgen.Event()
+
+	tests := []APITest{
+		// Setup: Create tenant
+		{
+			Name: "PUT /:tenantID - Create tenant",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+		// Setup: Configure mock server destination
+		{
+			Name: "PUT mockserver/destinations",
+			Request: httpclient.Request{
+				Method:  httpclient.MethodPUT,
+				BaseURL: suite.mockServerBaseURL,
+				Path:    "/destinations",
+				Body: map[string]interface{}{
+					"id":   destinationID,
+					"type": "webhook",
+					"config": map[string]interface{}{
+						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
+					},
+				},
+			},
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		// Setup: Create destination in Outpost
+		{
+			Name: "POST /:tenantID/destinations",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
+				Body: map[string]interface{}{
+					"id":     destinationID,
+					"type":   "webhook",
+					"topics": "*",
+					"config": map[string]interface{}{
+						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+		// Publish an event
+		{
+			Name: "POST /publish - Publish event",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/publish",
+				Body: map[string]interface{}{
+					"tenant_id":          tenantID,
+					"topic":              "user.created",
+					"eligible_for_retry": true,
+					"id":                 eventID,
+					"metadata": map[string]any{
+						"source": "test",
+					},
+					"data": map[string]any{
+						"user_id": "123",
+						"email":   "test@example.com",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusAccepted,
+				},
+			},
+		},
+		// Wait for event to be processed and logged, then list events
+		{
+			Name:  "GET /:tenantID/events - List events (with delay)",
+			Delay: 3 * time.Second,
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/events",
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+				Validate: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"statusCode": map[string]interface{}{
+							"type":  "integer",
+							"const": 200,
+						},
+						"body": map[string]interface{}{
+							"type": "object",
+							"properties": map[string]interface{}{
+								"data": map[string]interface{}{
+									"type":     "array",
+									"minItems": 1,
+								},
+								"count": map[string]interface{}{
+									"type":    "integer",
+									"minimum": 1,
+								},
+							},
+							"required": []any{"data", "count"},
+						},
+					},
+					"required": []any{"statusCode", "body"},
+				},
+			},
+		},
+		// Retrieve specific event
+		{
+			Name: "GET /:tenantID/events/:eventID - Retrieve event",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/events/" + eventID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+				Validate: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"statusCode": map[string]interface{}{
+							"type":  "integer",
+							"const": 200,
+						},
+						"body": map[string]interface{}{
+							"type": "object",
+							"properties": map[string]interface{}{
+								"id": map[string]interface{}{
+									"type":  "string",
+									"const": eventID,
+								},
+								"tenant_id": map[string]interface{}{
+									"type":  "string",
+									"const": tenantID,
+								},
+								"topic": map[string]interface{}{
+									"type":  "string",
+									"const": "user.created",
+								},
+								"status": map[string]interface{}{
+									"type": "string",
+									"enum": []any{"pending", "success", "failed"},
+								},
+							},
+							"required": []any{"id", "tenant_id", "topic"},
+						},
+					},
+					"required": []any{"statusCode", "body"},
+				},
+			},
+		},
+		// List deliveries for the event
+		{
+			Name: "GET /:tenantID/events/:eventID/deliveries - List deliveries",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/events/" + eventID + "/deliveries",
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+				Validate: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"statusCode": map[string]interface{}{
+							"type":  "integer",
+							"const": 200,
+						},
+						"body": map[string]interface{}{
+							"type":     "array",
+							"minItems": 1,
+							"items": map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"id": map[string]interface{}{
+										"type": "string",
+									},
+									"status": map[string]interface{}{
+										"type": "string",
+										"enum": []any{"pending", "success", "failed"},
+									},
+									"delivered_at": map[string]interface{}{
+										"type": "string",
+									},
+								},
+								"required": []any{"id", "status", "delivered_at"},
+							},
+						},
+					},
+					"required": []any{"statusCode", "body"},
+				},
+			},
+		},
+		// List events by destination
+		{
+			Name: "GET /:tenantID/destinations/:destinationID/events - List events by destination",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations/" + destinationID + "/events",
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+				Validate: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"statusCode": map[string]interface{}{
+							"type":  "integer",
+							"const": 200,
+						},
+						"body": map[string]interface{}{
+							"type": "object",
+							"properties": map[string]interface{}{
+								"data": map[string]interface{}{
+									"type":     "array",
+									"minItems": 1,
+								},
+								"count": map[string]interface{}{
+									"type":    "integer",
+									"minimum": 1,
+								},
+							},
+							"required": []any{"data", "count"},
+						},
+					},
+					"required": []any{"statusCode", "body"},
+				},
+			},
+		},
+		// Retrieve event by destination
+		{
+			Name: "GET /:tenantID/destinations/:destinationID/events/:eventID - Retrieve event by destination",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations/" + destinationID + "/events/" + eventID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+				Validate: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"statusCode": map[string]interface{}{
+							"type":  "integer",
+							"const": 200,
+						},
+						"body": map[string]interface{}{
+							"type": "object",
+							"properties": map[string]interface{}{
+								"id": map[string]interface{}{
+									"type":  "string",
+									"const": eventID,
+								},
+								"destination_id": map[string]interface{}{
+									"type":  "string",
+									"const": destinationID,
+								},
+							},
+							"required": []any{"id", "destination_id"},
+						},
+					},
+					"required": []any{"statusCode", "body"},
+				},
+			},
+		},
+	}
+
+	suite.RunAPITests(suite.T(), tests)
+}

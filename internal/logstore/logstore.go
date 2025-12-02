@@ -25,8 +25,9 @@ type LogStore interface {
 }
 
 type DriverOpts struct {
-	CH clickhouse.DB
-	PG *pgxpool.Pool
+	CH           clickhouse.DB
+	PG           *pgxpool.Pool
+	DeploymentID string
 }
 
 func (d *DriverOpts) Close() error {
@@ -41,22 +42,25 @@ func (d *DriverOpts) Close() error {
 
 func NewLogStore(ctx context.Context, driverOpts DriverOpts) (LogStore, error) {
 	if driverOpts.CH != nil {
-		return chlogstore.NewLogStore(driverOpts.CH), nil
+		return chlogstore.NewLogStore(driverOpts.CH, driverOpts.DeploymentID)
 	}
 	if driverOpts.PG != nil {
-		return pglogstore.NewLogStore(driverOpts.PG), nil
+		return pglogstore.NewLogStore(driverOpts.PG, driverOpts.DeploymentID)
 	}
 
 	return nil, errors.New("no driver provided")
 }
 
 type Config struct {
-	ClickHouse *clickhouse.ClickHouseConfig
-	Postgres   *string
+	ClickHouse   *clickhouse.ClickHouseConfig
+	Postgres     *string
+	DeploymentID string
 }
 
 func MakeDriverOpts(cfg Config) (DriverOpts, error) {
-	driverOpts := DriverOpts{}
+	driverOpts := DriverOpts{
+		DeploymentID: cfg.DeploymentID,
+	}
 
 	if cfg.ClickHouse != nil {
 		chDB, err := clickhouse.New(cfg.ClickHouse)

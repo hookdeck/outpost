@@ -473,10 +473,11 @@ func (c *Config) ToMigratorOpts() migrator.MigrationOpts {
 			URL: c.PostgresURL,
 		},
 		CH: migrator.MigrationOptsCH{
-			Addr:     c.ClickHouse.Addr,
-			Username: c.ClickHouse.Username,
-			Password: c.ClickHouse.Password,
-			Database: c.ClickHouse.Database,
+			Addr:         c.ClickHouse.Addr,
+			Username:     c.ClickHouse.Username,
+			Password:     c.ClickHouse.Password,
+			Database:     c.ClickHouse.Database,
+			DeploymentID: c.DeploymentID,
 		},
 	}
 }
