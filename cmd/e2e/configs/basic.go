@@ -171,12 +171,12 @@ func setLogStorage(t *testing.T, c *config.Config, logStorage LogStorageType) er
 	case LogStorageTypePostgres:
 		postgresURL := testinfra.NewPostgresConfig(t)
 		c.PostgresURL = postgresURL
-	// case LogStorageTypeClickHouse:
-	// 	clickHouseConfig := testinfra.NewClickHouseConfig(t)
-	// 	c.ClickHouse.Addr = clickHouseConfig.Addr
-	// 	c.ClickHouse.Username = clickHouseConfig.Username
-	// 	c.ClickHouse.Password = clickHouseConfig.Password
-	// 	c.ClickHouse.Database = clickHouseConfig.Database
+	case LogStorageTypeClickHouse:
+		clickHouseConfig := testinfra.NewClickHouseConfig(t)
+		c.ClickHouse.Addr = clickHouseConfig.Addr
+		c.ClickHouse.Username = clickHouseConfig.Username
+		c.ClickHouse.Password = clickHouseConfig.Password
+		c.ClickHouse.Database = clickHouseConfig.Database
 	default:
 		return fmt.Errorf("invalid log storage type: %s", logStorage)
 	}
