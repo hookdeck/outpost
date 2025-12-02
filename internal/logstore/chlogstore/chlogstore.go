@@ -20,12 +20,12 @@ type logStoreImpl struct {
 var _ driver.LogStore = (*logStoreImpl)(nil)
 
 // NewLogStore creates a new ClickHouse log store.
-// If deploymentID is provided, it uses a deployment-specific table (event_log_{deploymentID}).
+// If deploymentID is provided, it uses a deployment-specific table ({deploymentID}_event_log).
 // Otherwise, it uses the default "event_log" table.
 func NewLogStore(chDB clickhouse.DB, deploymentID string) (driver.LogStore, error) {
 	tableName := "event_log"
 	if deploymentID != "" {
-		tableName = fmt.Sprintf("event_log_%s", deploymentID)
+		tableName = fmt.Sprintf("%s_event_log", deploymentID)
 	}
 	return &logStoreImpl{chDB: chDB, tableName: tableName}, nil
 }

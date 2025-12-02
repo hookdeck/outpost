@@ -166,7 +166,7 @@ func (opts *MigrationOpts) getDriver() (source.Driver, error) {
 	}
 
 	if opts.CH.Addr != "" {
-		// Always use deployment source to handle {deployment_suffix} placeholder
+		// Always use deployment source to handle {deployment_prefix} placeholder
 		d, err := newDeploymentSource(chMigrations, "migrations/clickhouse", opts.CH.DeploymentID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create clickhouse deployment migration source: %w", err)
@@ -190,7 +190,7 @@ func (opts *MigrationOpts) databaseURL() string {
 		url := fmt.Sprintf("clickhouse://%s:%s@%s/%s?x-multi-statement=true", opts.CH.Username, opts.CH.Password, opts.CH.Addr, opts.CH.Database)
 		// Use deployment-specific migrations table to avoid conflicts between deployments
 		if opts.CH.DeploymentID != "" {
-			url += fmt.Sprintf("&x-migrations-table=schema_migrations_%s", opts.CH.DeploymentID)
+			url += fmt.Sprintf("&x-migrations-table=%s_schema_migrations", opts.CH.DeploymentID)
 		}
 		return url
 	}

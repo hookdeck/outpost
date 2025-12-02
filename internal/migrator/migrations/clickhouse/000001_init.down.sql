@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS event_log{deployment_suffix};
+DROP TABLE IF EXISTS {deployment_prefix}event_log;

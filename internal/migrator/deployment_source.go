@@ -10,8 +10,8 @@ import (
 	"github.com/golang-migrate/migrate/v4/source"
 )
 
-// deploymentSource wraps an embed.FS and replaces {deployment_suffix} placeholders
-// with deployment-specific suffixes. It implements the source.Driver interface for golang-migrate.
+// deploymentSource wraps an embed.FS and replaces {deployment_prefix} placeholders
+// with deployment-specific prefixes. It implements the source.Driver interface for golang-migrate.
 type deploymentSource struct {
 	fs           fs.FS
 	path         string
@@ -20,9 +20,9 @@ type deploymentSource struct {
 }
 
 // newDeploymentSource creates a new deployment source driver.
-// It reads migrations from the embedded FS and replaces "{deployment_suffix}" placeholder:
-// - If deploymentID is set: {deployment_suffix} -> _{deploymentID}
-// - If deploymentID is empty: {deployment_suffix} -> "" (empty string)
+// It reads migrations from the embedded FS and replaces "{deployment_prefix}" placeholder:
+// - If deploymentID is set: {deployment_prefix} -> {deploymentID}_
+// - If deploymentID is empty: {deployment_prefix} -> "" (empty string)
 func newDeploymentSource(fsys fs.FS, path string, deploymentID string) (source.Driver, error) {
 	ds := &deploymentSource{
 		fs:           fsys,
@@ -138,17 +138,17 @@ func (ds *deploymentSource) readAndTransform(filename string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to read migration file %s: %w", filepath, err)
 	}
 
-	// Replace {deployment_suffix} with actual suffix (or empty string)
-	transformed := ds.replaceDeploymentSuffix(string(content))
+	// Replace {deployment_prefix} with actual prefix (or empty string)
+	transformed := ds.replaceDeploymentPrefix(string(content))
 	return []byte(transformed), nil
 }
 
-// replaceDeploymentSuffix replaces "{deployment_suffix}" placeholder with the actual suffix.
-// If deploymentID is set, it becomes "_{deploymentID}". Otherwise, it becomes empty string.
-func (ds *deploymentSource) replaceDeploymentSuffix(sql string) string {
-	suffix := ""
+// replaceDeploymentPrefix replaces "{deployment_prefix}" placeholder with the actual prefix.
+// If deploymentID is set, it becomes "{deploymentID}_". Otherwise, it becomes empty string.
+func (ds *deploymentSource) replaceDeploymentPrefix(sql string) string {
+	prefix := ""
 	if ds.deploymentID != "" {
-		suffix = fmt.Sprintf("_%s", ds.deploymentID)
+		prefix = fmt.Sprintf("%s_", ds.deploymentID)
 	}
-	return strings.ReplaceAll(sql, "{deployment_suffix}", suffix)
+	return strings.ReplaceAll(sql, "{deployment_prefix}", prefix)
 }
