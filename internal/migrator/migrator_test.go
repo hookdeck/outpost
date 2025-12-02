@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hookdeck/outpost/internal/clickhouse"
+	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -301,4 +303,147 @@ func sanitizeURLForTesting(dbURL string) string {
 		}
 	}
 	return dbURL
+}
+
+// TestMigrator_ClickHouse_DeploymentSuffix tests that ClickHouse migrations
+// correctly create tables with or without the deployment suffix.
+func TestMigrator_ClickHouse_DeploymentSuffix(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	t.Cleanup(testinfra.Start(t))
+
+	chConfig := testinfra.NewClickHouseConfig(t)
+
+	tests := []struct {
+		name          string
+		deploymentID  string
+		expectedTable string
+	}{
+		{
+			name:          "without deployment ID creates event_log table",
+			deploymentID:  "",
+			expectedTable: "event_log",
+		},
+		{
+			name:          "with deployment ID creates event_log_{deploymentID} table",
+			deploymentID:  "test_deployment",
+			expectedTable: "event_log_test_deployment",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Create migrator with optional deployment ID
+			m, err := New(MigrationOpts{
+				CH: MigrationOptsCH{
+					Addr:         chConfig.Addr,
+					Username:     chConfig.Username,
+					Password:     chConfig.Password,
+					Database:     chConfig.Database,
+					DeploymentID: tt.deploymentID,
+				},
+			})
+			require.NoError(t, err)
+
+			// Run migrations up
+			version, applied, err := m.Up(ctx, -1)
+			require.NoError(t, err)
+			assert.Equal(t, 1, version, "should be at version 1")
+			assert.Equal(t, 1, applied, "should have applied 1 migration")
+
+			// Verify the correct table was created
+			chDB, err := clickhouse.New(&chConfig)
+			require.NoError(t, err)
+			defer chDB.Close()
+
+			// Check table exists by querying it
+			var count uint64
+			err = chDB.QueryRow(ctx, "SELECT count() FROM "+tt.expectedTable).Scan(&count)
+			require.NoError(t, err, "table %s should exist", tt.expectedTable)
+
+			// Roll back migrations
+			version, rolledBack, err := m.Down(ctx, -1)
+			require.NoError(t, err)
+			assert.Equal(t, 0, version, "should be at version 0 after rollback")
+			assert.Equal(t, 1, rolledBack, "should have rolled back 1 migration")
+
+			// Verify table was dropped
+			err = chDB.QueryRow(ctx, "SELECT count() FROM "+tt.expectedTable).Scan(&count)
+			require.Error(t, err, "table %s should not exist after rollback", tt.expectedTable)
+
+			m.Close(ctx)
+		})
+	}
+}
+
+// TestMigrator_ClickHouse_DeploymentSuffix_Isolation tests that different deployments
+// have isolated tables and migrations tracking.
+func TestMigrator_ClickHouse_DeploymentSuffix_Isolation(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	t.Cleanup(testinfra.Start(t))
+
+	chConfig := testinfra.NewClickHouseConfig(t)
+	ctx := context.Background()
+
+	// Create two migrators with different deployment IDs
+	m1, err := New(MigrationOpts{
+		CH: MigrationOptsCH{
+			Addr:         chConfig.Addr,
+			Username:     chConfig.Username,
+			Password:     chConfig.Password,
+			Database:     chConfig.Database,
+			DeploymentID: "deployment_a",
+		},
+	})
+	require.NoError(t, err)
+	defer m1.Close(ctx)
+
+	m2, err := New(MigrationOpts{
+		CH: MigrationOptsCH{
+			Addr:         chConfig.Addr,
+			Username:     chConfig.Username,
+			Password:     chConfig.Password,
+			Database:     chConfig.Database,
+			DeploymentID: "deployment_b",
+		},
+	})
+	require.NoError(t, err)
+	defer m2.Close(ctx)
+
+	// Run migrations for deployment_a
+	_, _, err = m1.Up(ctx, -1)
+	require.NoError(t, err)
+
+	// Run migrations for deployment_b
+	_, _, err = m2.Up(ctx, -1)
+	require.NoError(t, err)
+
+	// Verify both tables exist independently
+	chDB, err := clickhouse.New(&chConfig)
+	require.NoError(t, err)
+	defer chDB.Close()
+
+	var count uint64
+	err = chDB.QueryRow(ctx, "SELECT count() FROM event_log_deployment_a").Scan(&count)
+	require.NoError(t, err, "event_log_deployment_a should exist")
+
+	err = chDB.QueryRow(ctx, "SELECT count() FROM event_log_deployment_b").Scan(&count)
+	require.NoError(t, err, "event_log_deployment_b should exist")
+
+	// Roll back deployment_a - should not affect deployment_b
+	_, _, err = m1.Down(ctx, -1)
+	require.NoError(t, err)
+
+	// deployment_a table should be gone
+	err = chDB.QueryRow(ctx, "SELECT count() FROM event_log_deployment_a").Scan(&count)
+	require.Error(t, err, "event_log_deployment_a should not exist after rollback")
+
+	// deployment_b table should still exist
+	err = chDB.QueryRow(ctx, "SELECT count() FROM event_log_deployment_b").Scan(&count)
+	require.NoError(t, err, "event_log_deployment_b should still exist")
+
+	// Clean up deployment_b
+	_, _, err = m2.Down(ctx, -1)
+	require.NoError(t, err)
 }

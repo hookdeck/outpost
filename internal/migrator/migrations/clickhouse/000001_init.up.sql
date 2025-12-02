@@ -1,8 +1,9 @@
 -- Single denormalized table for events and deliveries
 -- Each row represents a delivery attempt (or pending state) for an event
 -- This avoids JOINs and leverages ClickHouse's columnar storage efficiently
+-- Note: {deployment_suffix} is replaced with _{deployment_id} when running migrations with a deployment ID
 
-CREATE TABLE IF NOT EXISTS event_log (
+CREATE TABLE IF NOT EXISTS event_log{deployment_suffix} (
   -- Event fields
   event_id String,
   tenant_id String,

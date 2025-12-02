@@ -91,8 +91,6 @@ func (m *Migrator) Up(ctx context.Context, n int) (int, int, error) {
 // Down migrates the database down by n migrations. It returns the updated version,
 // the number of migrations rolled back, and an error.
 func (m *Migrator) Down(ctx context.Context, n int) (int, int, error) {
-	fmt.Println("down", n)
-
 	initVersion, err := m.Version(ctx)
 	if err != nil {
 		return 0, 0, err
@@ -134,10 +132,11 @@ type MigrationOptsPG struct {
 }
 
 type MigrationOptsCH struct {
-	Addr     string
-	Username string
-	Password string
-	Database string
+	Addr         string
+	Username     string
+	Password     string
+	Database     string
+	DeploymentID string // If set, creates deployment-specific tables (e.g., event_log_{deploymentID})
 }
 
 type MigrationOpts struct {
@@ -167,9 +166,10 @@ func (opts *MigrationOpts) getDriver() (source.Driver, error) {
 	}
 
 	if opts.CH.Addr != "" {
-		d, err := iofs.New(chMigrations, "migrations/clickhouse")
+		// Always use deployment source to handle {deployment_suffix} placeholder
+		d, err := newDeploymentSource(chMigrations, "migrations/clickhouse", opts.CH.DeploymentID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create clickhouse migration source: %w", err)
+			return nil, fmt.Errorf("failed to create clickhouse deployment migration source: %w", err)
 		}
 		return d, nil
 	}
@@ -187,7 +187,12 @@ func (opts *MigrationOpts) databaseURL() string {
 	}
 
 	if opts.CH.Addr != "" {
-		return fmt.Sprintf("clickhouse://%s:%s@%s/%s?x-multi-statement=true", opts.CH.Username, opts.CH.Password, opts.CH.Addr, opts.CH.Database)
+		url := fmt.Sprintf("clickhouse://%s:%s@%s/%s?x-multi-statement=true", opts.CH.Username, opts.CH.Password, opts.CH.Addr, opts.CH.Database)
+		// Use deployment-specific migrations table to avoid conflicts between deployments
+		if opts.CH.DeploymentID != "" {
+			url += fmt.Sprintf("&x-migrations-table=schema_migrations_%s", opts.CH.DeploymentID)
+		}
+		return url
 	}
 
 	return ""

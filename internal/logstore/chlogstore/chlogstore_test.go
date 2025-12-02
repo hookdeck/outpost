@@ -2,7 +2,6 @@ package chlogstore
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
@@ -85,55 +84,48 @@ func TestConformance_WithDeploymentID(t *testing.T) {
 func newHarnessWithDeploymentID(_ context.Context, t *testing.T) (drivertest.Harness, error) {
 	t.Helper()
 
-	chDB := setupClickHouseConnection(t)
+	t.Cleanup(testinfra.Start(t))
+
+	chConfig := testinfra.NewClickHouseConfig(t)
 	deploymentID := "test_deployment"
 
-	// Create the deployment-specific table
-	createTableSQL := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS event_log_%s (
-			event_id String,
-			tenant_id String,
-			destination_id String,
-			topic String,
-			eligible_for_retry Bool,
-			event_time DateTime64(3),
-			metadata String,
-			data String,
-			delivery_id String,
-			delivery_event_id String,
-			status String,
-			delivery_time DateTime64(3),
-			code String,
-			response_data String,
-			INDEX idx_topic topic TYPE bloom_filter GRANULARITY 4,
-			INDEX idx_status status TYPE set(100) GRANULARITY 4
-		) ENGINE = MergeTree
-		PARTITION BY toYYYYMMDD(event_time)
-		ORDER BY (tenant_id, destination_id, event_time, event_id, delivery_time)
-	`, deploymentID)
+	chDB, err := clickhouse.New(&chConfig)
+	require.NoError(t, err)
 
-	err := chDB.Exec(context.Background(), createTableSQL)
+	// Use the migrator with DeploymentID to create deployment-specific tables
+	ctx := context.Background()
+	m, err := migrator.New(migrator.MigrationOpts{
+		CH: migrator.MigrationOptsCH{
+			Addr:         chConfig.Addr,
+			Username:     chConfig.Username,
+			Password:     chConfig.Password,
+			Database:     chConfig.Database,
+			DeploymentID: deploymentID,
+		},
+	})
+	require.NoError(t, err)
+	_, _, err = m.Up(ctx, -1)
 	require.NoError(t, err)
 
 	return &harnessWithDeployment{
 		chDB:         chDB,
 		deploymentID: deploymentID,
-		closer: func() {
-			// Drop the deployment-specific table
-			chDB.Exec(context.Background(), fmt.Sprintf("DROP TABLE IF EXISTS event_log_%s", deploymentID))
-			chDB.Close()
-		},
+		migrator:     m,
 	}, nil
 }
 
 type harnessWithDeployment struct {
 	chDB         clickhouse.DB
 	deploymentID string
-	closer       func()
+	migrator     *migrator.Migrator
 }
 
 func (h *harnessWithDeployment) Close() {
-	h.closer()
+	ctx := context.Background()
+	// Roll back migrations (drops deployment-specific tables)
+	h.migrator.Down(ctx, -1)
+	h.migrator.Close(ctx)
+	h.chDB.Close()
 }
 
 func (h *harnessWithDeployment) MakeDriver(ctx context.Context) (driver.LogStore, error) {
