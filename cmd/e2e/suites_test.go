@@ -219,7 +219,7 @@ func TestBasicSuiteWithDeploymentID(t *testing.T) {
 	}
 
 	suite.Run(t, &basicSuite{
-		logStorageType: configs.LogStorageTypePostgres,
+		logStorageType: configs.LogStorageTypeClickHouse,
 		deploymentID:   "dp_e2e_test",
 	})
 }
