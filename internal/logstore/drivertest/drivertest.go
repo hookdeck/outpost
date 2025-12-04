@@ -2,6 +2,7 @@ package drivertest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/logstore/cursor"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -46,6 +48,9 @@ func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 	})
 	t.Run("TestEdgeCases", func(t *testing.T) {
 		testEdgeCases(t, newHarness)
+	})
+	t.Run("TestCursorValidation", func(t *testing.T) {
+		testCursorValidation(t, newHarness)
 	})
 }
 
@@ -1090,10 +1095,17 @@ func compareByEventTime(a, b *models.DeliveryEvent, desc bool) bool {
 		return a.Event.ID < b.Event.ID
 	}
 	// Tertiary: delivery_time
-	if desc {
-		return a.Delivery.Time.After(b.Delivery.Time)
+	if !a.Delivery.Time.Equal(b.Delivery.Time) {
+		if desc {
+			return a.Delivery.Time.After(b.Delivery.Time)
+		}
+		return a.Delivery.Time.Before(b.Delivery.Time)
 	}
-	return a.Delivery.Time.Before(b.Delivery.Time)
+	// Quaternary: delivery_id (for deterministic ordering when all above are equal)
+	if desc {
+		return a.Delivery.ID > b.Delivery.ID
+	}
+	return a.Delivery.ID < b.Delivery.ID
 }
 
 func sortDeliveryEvents(events []*models.DeliveryEvent, sortBy string, desc bool) []*models.DeliveryEvent {
@@ -2283,4 +2295,294 @@ func extractDeliveryIDs(des []*models.DeliveryEvent) []string {
 		ids[i] = de.Delivery.ID
 	}
 	return ids
+}
+
+// =============================================================================
+// Cursor Validation Tests
+// =============================================================================
+// These tests verify that cursors encode sort parameters and that using a cursor
+// with different sort parameters returns an error. This prevents confusing
+// behavior when changing query params mid-pagination.
+// =============================================================================
+
+func testCursorValidation(t *testing.T, newHarness HarnessMaker) {
+	t.Helper()
+
+	t.Run("cursor with mismatched sortBy returns error", func(t *testing.T) {
+		testCursorMismatchedSortBy(t, newHarness)
+	})
+	t.Run("cursor with mismatched sortOrder returns error", func(t *testing.T) {
+		testCursorMismatchedSortOrder(t, newHarness)
+	})
+	t.Run("malformed cursor returns error", func(t *testing.T) {
+		testMalformedCursor(t, newHarness)
+	})
+	t.Run("cursor works with matching sort params", func(t *testing.T) {
+		testCursorMatchingSortParams(t, newHarness)
+	})
+}
+
+// testCursorMismatchedSortBy verifies that using a cursor generated with one
+// sortBy value with a different sortBy value returns ErrInvalidCursor.
+func testCursorMismatchedSortBy(t *testing.T, newHarness HarnessMaker) {
+	t.Helper()
+
+	ctx := context.Background()
+	h, err := newHarness(ctx, t)
+	require.NoError(t, err)
+	t.Cleanup(h.Close)
+
+	logStore, err := h.MakeDriver(ctx)
+	require.NoError(t, err)
+
+	tenantID := uuid.New().String()
+	destinationID := uuid.New().String()
+	baseTime := time.Now().Truncate(time.Second)
+	startTime := baseTime.Add(-48 * time.Hour)
+
+	// Insert enough data to get a next cursor
+	var deliveryEvents []*models.DeliveryEvent
+	for i := 0; i < 5; i++ {
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID(fmt.Sprintf("evt_cursor_%d", i)),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(destinationID),
+			testutil.EventFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
+		)
+		delivery := testutil.DeliveryFactory.AnyPointer(
+			testutil.DeliveryFactory.WithID(fmt.Sprintf("del_cursor_%d", i)),
+			testutil.DeliveryFactory.WithEventID(event.ID),
+			testutil.DeliveryFactory.WithDestinationID(destinationID),
+			testutil.DeliveryFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
+		)
+		deliveryEvents = append(deliveryEvents, &models.DeliveryEvent{
+			ID:            fmt.Sprintf("de_cursor_%d", i),
+			DestinationID: destinationID,
+			Event:         *event,
+			Delivery:      delivery,
+		})
+	}
+	require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, deliveryEvents))
+
+	// Get a cursor with sortBy=delivery_time
+	response1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+		TenantID:   tenantID,
+		SortBy:     "delivery_time",
+		SortOrder:  "desc",
+		EventStart: &startTime,
+		Limit:      2,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, response1.Next, "expected next cursor")
+
+	// Try to use the cursor with sortBy=event_time - should fail
+	_, err = logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+		TenantID:   tenantID,
+		SortBy:     "event_time", // Different from cursor
+		SortOrder:  "desc",
+		EventStart: &startTime,
+		Next:       response1.Next,
+		Limit:      2,
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, driver.ErrInvalidCursor),
+		"expected ErrInvalidCursor, got: %v", err)
+}
+
+// testCursorMismatchedSortOrder verifies that using a cursor generated with one
+// sortOrder value with a different sortOrder value returns ErrInvalidCursor.
+func testCursorMismatchedSortOrder(t *testing.T, newHarness HarnessMaker) {
+	t.Helper()
+
+	ctx := context.Background()
+	h, err := newHarness(ctx, t)
+	require.NoError(t, err)
+	t.Cleanup(h.Close)
+
+	logStore, err := h.MakeDriver(ctx)
+	require.NoError(t, err)
+
+	tenantID := uuid.New().String()
+	destinationID := uuid.New().String()
+	baseTime := time.Now().Truncate(time.Second)
+	startTime := baseTime.Add(-48 * time.Hour)
+
+	// Insert enough data to get a next cursor
+	var deliveryEvents []*models.DeliveryEvent
+	for i := 0; i < 5; i++ {
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID(fmt.Sprintf("evt_order_%d", i)),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(destinationID),
+			testutil.EventFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
+		)
+		delivery := testutil.DeliveryFactory.AnyPointer(
+			testutil.DeliveryFactory.WithID(fmt.Sprintf("del_order_%d", i)),
+			testutil.DeliveryFactory.WithEventID(event.ID),
+			testutil.DeliveryFactory.WithDestinationID(destinationID),
+			testutil.DeliveryFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
+		)
+		deliveryEvents = append(deliveryEvents, &models.DeliveryEvent{
+			ID:            fmt.Sprintf("de_order_%d", i),
+			DestinationID: destinationID,
+			Event:         *event,
+			Delivery:      delivery,
+		})
+	}
+	require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, deliveryEvents))
+
+	// Get a cursor with sortOrder=desc
+	response1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+		TenantID:   tenantID,
+		SortBy:     "delivery_time",
+		SortOrder:  "desc",
+		EventStart: &startTime,
+		Limit:      2,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, response1.Next, "expected next cursor")
+
+	// Try to use the cursor with sortOrder=asc - should fail
+	_, err = logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+		TenantID:   tenantID,
+		SortBy:     "delivery_time",
+		SortOrder:  "asc", // Different from cursor
+		EventStart: &startTime,
+		Next:       response1.Next,
+		Limit:      2,
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, driver.ErrInvalidCursor),
+		"expected ErrInvalidCursor, got: %v", err)
+}
+
+// testMalformedCursor verifies that a malformed cursor string returns ErrInvalidCursor.
+func testMalformedCursor(t *testing.T, newHarness HarnessMaker) {
+	t.Helper()
+
+	ctx := context.Background()
+	h, err := newHarness(ctx, t)
+	require.NoError(t, err)
+	t.Cleanup(h.Close)
+
+	logStore, err := h.MakeDriver(ctx)
+	require.NoError(t, err)
+
+	tenantID := uuid.New().String()
+	startTime := time.Now().Add(-1 * time.Hour)
+
+	testCases := []struct {
+		name   string
+		cursor string
+	}{
+		{"completely invalid base62", "!!!invalid!!!"},
+		{"random string", "abcdef123456"},
+		{"empty after decode", cursor.Encode(cursor.Cursor{})}, // Empty cursor should be fine, but let's test edge cases
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+				TenantID:   tenantID,
+				SortBy:     "delivery_time",
+				SortOrder:  "desc",
+				EventStart: &startTime,
+				Next:       tc.cursor,
+				Limit:      10,
+			})
+			// Some of these might not error (e.g., if cursor decodes to valid format)
+			// but completely invalid base62 should error
+			if tc.name == "completely invalid base62" {
+				require.Error(t, err)
+				assert.True(t, errors.Is(err, driver.ErrInvalidCursor),
+					"expected ErrInvalidCursor for %s, got: %v", tc.name, err)
+			}
+		})
+	}
+}
+
+// testCursorMatchingSortParams verifies that cursors work correctly when
+// sort parameters match between cursor generation and usage.
+func testCursorMatchingSortParams(t *testing.T, newHarness HarnessMaker) {
+	t.Helper()
+
+	ctx := context.Background()
+	h, err := newHarness(ctx, t)
+	require.NoError(t, err)
+	t.Cleanup(h.Close)
+
+	logStore, err := h.MakeDriver(ctx)
+	require.NoError(t, err)
+
+	tenantID := uuid.New().String()
+	destinationID := uuid.New().String()
+	baseTime := time.Now().Truncate(time.Second)
+	startTime := baseTime.Add(-48 * time.Hour)
+
+	// Insert data
+	var deliveryEvents []*models.DeliveryEvent
+	for i := 0; i < 5; i++ {
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID(fmt.Sprintf("evt_match_%d", i)),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(destinationID),
+			testutil.EventFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
+		)
+		delivery := testutil.DeliveryFactory.AnyPointer(
+			testutil.DeliveryFactory.WithID(fmt.Sprintf("del_match_%d", i)),
+			testutil.DeliveryFactory.WithEventID(event.ID),
+			testutil.DeliveryFactory.WithDestinationID(destinationID),
+			testutil.DeliveryFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
+		)
+		deliveryEvents = append(deliveryEvents, &models.DeliveryEvent{
+			ID:            fmt.Sprintf("de_match_%d", i),
+			DestinationID: destinationID,
+			Event:         *event,
+			Delivery:      delivery,
+		})
+	}
+	require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, deliveryEvents))
+
+	sortConfigs := []struct {
+		sortBy    string
+		sortOrder string
+	}{
+		{"delivery_time", "desc"},
+		{"delivery_time", "asc"},
+		{"event_time", "desc"},
+		{"event_time", "asc"},
+	}
+
+	for _, sc := range sortConfigs {
+		t.Run(fmt.Sprintf("%s_%s", sc.sortBy, sc.sortOrder), func(t *testing.T) {
+			// Get first page with cursor
+			response1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+				TenantID:   tenantID,
+				SortBy:     sc.sortBy,
+				SortOrder:  sc.sortOrder,
+				EventStart: &startTime,
+				Limit:      2,
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, response1.Next, "expected next cursor for %s %s", sc.sortBy, sc.sortOrder)
+
+			// Use cursor with same sort params - should succeed
+			response2, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+				TenantID:   tenantID,
+				SortBy:     sc.sortBy,
+				SortOrder:  sc.sortOrder,
+				EventStart: &startTime,
+				Next:       response1.Next,
+				Limit:      2,
+			})
+			require.NoError(t, err, "cursor should work with matching sort params for %s %s", sc.sortBy, sc.sortOrder)
+			require.NotEmpty(t, response2.Data, "should return data for second page")
+
+			// Verify we got different data (not the same page)
+			if len(response1.Data) > 0 && len(response2.Data) > 0 {
+				assert.NotEqual(t, response1.Data[0].ID, response2.Data[0].ID,
+					"second page should have different data")
+			}
+		})
+	}
 }
