@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logstore/cursor"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
@@ -66,8 +66,8 @@ func testInsertManyDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	startTime := time.Now().Add(-1 * time.Hour)
 
 	t.Run("insert single delivery event", func(t *testing.T) {
@@ -81,7 +81,7 @@ func testInsertManyDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 			testutil.DeliveryFactory.WithStatus("success"),
 		)
 		de := &models.DeliveryEvent{
-			ID:            uuid.New().String(),
+			ID:            idgen.String(),
 			DestinationID: destinationID,
 			Event:         *event,
 			Delivery:      delivery,
@@ -104,7 +104,7 @@ func testInsertManyDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 	})
 
 	t.Run("insert multiple delivery events", func(t *testing.T) {
-		eventID := uuid.New().String()
+		eventID := idgen.Event()
 		baseDeliveryTime := time.Now().Truncate(time.Second)
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithID(eventID),
@@ -152,6 +152,57 @@ func testInsertManyDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 		err := logStore.InsertManyDeliveryEvent(ctx, []*models.DeliveryEvent{})
 		require.NoError(t, err)
 	})
+
+	t.Run("duplicate insert is idempotent", func(t *testing.T) {
+		// Create unique tenant to isolate this test
+		idempotentTenantID := idgen.String()
+		idempotentDestID := idgen.Destination()
+		eventTime := time.Now().Add(-30 * time.Minute).Truncate(time.Second)
+		deliveryTime := eventTime.Add(1 * time.Second)
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(idempotentTenantID),
+			testutil.EventFactory.WithDestinationID(idempotentDestID),
+			testutil.EventFactory.WithTime(eventTime),
+		)
+		delivery := testutil.DeliveryFactory.AnyPointer(
+			testutil.DeliveryFactory.WithEventID(event.ID),
+			testutil.DeliveryFactory.WithDestinationID(idempotentDestID),
+			testutil.DeliveryFactory.WithStatus("success"),
+			testutil.DeliveryFactory.WithTime(deliveryTime),
+		)
+		de := &models.DeliveryEvent{
+			ID:            idgen.String(),
+			DestinationID: idempotentDestID,
+			Event:         *event,
+			Delivery:      delivery,
+		}
+		batch := []*models.DeliveryEvent{de}
+
+		// First insert
+		err := logStore.InsertManyDeliveryEvent(ctx, batch)
+		require.NoError(t, err)
+
+		// Second insert (duplicate) - should not error
+		err = logStore.InsertManyDeliveryEvent(ctx, batch)
+		require.NoError(t, err)
+
+		// Third insert (duplicate) - should not error
+		err = logStore.InsertManyDeliveryEvent(ctx, batch)
+		require.NoError(t, err)
+
+		// Verify only 1 record exists (no duplicates)
+		queryStart := eventTime.Add(-1 * time.Hour)
+		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			TenantID:   idempotentTenantID,
+			Limit:      100,
+			EventStart: &queryStart,
+		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, 1, "duplicate inserts should not create multiple records")
+		assert.Equal(t, event.ID, response.Data[0].Event.ID)
+		assert.Equal(t, delivery.ID, response.Data[0].Delivery.ID)
+	})
 }
 
 // testListDeliveryEvent tests the ListDeliveryEvent method with various filters and pagination
@@ -166,11 +217,11 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenantID := uuid.New().String()
+	tenantID := idgen.String()
 	destinationIDs := []string{
-		uuid.New().String(),
-		uuid.New().String(),
-		uuid.New().String(),
+		idgen.Destination(),
+		idgen.Destination(),
+		idgen.Destination(),
 	}
 
 	// Track events by various dimensions for assertions
@@ -539,9 +590,9 @@ func testRetrieveEvent(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
-	eventID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
+	eventID := idgen.Event()
 	eventTime := time.Now().Truncate(time.Millisecond)
 
 	event := testutil.EventFactory.AnyPointer(
@@ -568,7 +619,7 @@ func testRetrieveEvent(t *testing.T, newHarness HarnessMaker) {
 	)
 
 	de := &models.DeliveryEvent{
-		ID:            uuid.New().String(),
+		ID:            idgen.String(),
 		DestinationID: destinationID,
 		Event:         *event,
 		Delivery:      delivery,
@@ -650,9 +701,9 @@ func testTenantIsolation(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenant1ID := uuid.New().String()
-	tenant2ID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenant1ID := idgen.String()
+	tenant2ID := idgen.String()
+	destinationID := idgen.Destination()
 
 	// Create events for tenant1
 	event1 := testutil.EventFactory.AnyPointer(
@@ -677,8 +728,8 @@ func testTenantIsolation(t *testing.T, newHarness HarnessMaker) {
 	)
 
 	require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, []*models.DeliveryEvent{
-		{ID: uuid.New().String(), DestinationID: destinationID, Event: *event1, Delivery: delivery1},
-		{ID: uuid.New().String(), DestinationID: destinationID, Event: *event2, Delivery: delivery2},
+		{ID: idgen.DeliveryEvent(), DestinationID: destinationID, Event: *event1, Delivery: delivery1},
+		{ID: idgen.DeliveryEvent(), DestinationID: destinationID, Event: *event2, Delivery: delivery2},
 	}))
 
 	startTime := time.Now().Add(-1 * time.Hour)
@@ -759,8 +810,8 @@ func testPaginationSimple(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	baseTime := time.Now().Truncate(time.Second)
 
 	// Create 5 delivery events with distinct times
@@ -1120,10 +1171,10 @@ func generateRealisticTimestampData(t *testing.T, logStore driver.LogStore) *Pag
 	t.Helper()
 
 	ctx := context.Background()
-	tenantID := uuid.New().String()
+	tenantID := idgen.String()
 	destinationIDs := []string{
-		uuid.New().String(),
-		uuid.New().String(),
+		idgen.Destination(),
+		idgen.Destination(),
 	}
 	baseTime := time.Now().Truncate(time.Second)
 
@@ -1316,8 +1367,8 @@ func generateIdenticalTimestampData(t *testing.T, logStore driver.LogStore) *Pag
 	t.Helper()
 
 	ctx := context.Background()
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 
 	// All events and deliveries share the SAME timestamp
 	sameTime := time.Now().Truncate(time.Second)
@@ -1716,8 +1767,8 @@ func testInvalidSortValues(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	baseTime := time.Now().Truncate(time.Second)
 
 	// Insert test data with distinct delivery times
@@ -1804,8 +1855,8 @@ func testEmptyVsNilFilters(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	startTime := time.Now().Add(-1 * time.Hour)
 
 	// Insert test data
@@ -1819,7 +1870,7 @@ func testEmptyVsNilFilters(t *testing.T, newHarness HarnessMaker) {
 		testutil.DeliveryFactory.WithDestinationID(destinationID),
 	)
 	require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, []*models.DeliveryEvent{
-		{ID: uuid.New().String(), DestinationID: destinationID, Event: *event, Delivery: delivery},
+		{ID: idgen.DeliveryEvent(), DestinationID: destinationID, Event: *event, Delivery: delivery},
 	}))
 
 	t.Run("nil DestinationIDs equals empty DestinationIDs", func(t *testing.T) {
@@ -1902,8 +1953,8 @@ func testTimeBoundaryPrecision(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 
 	// Create events at precise times
 	boundaryTime := time.Now().Truncate(time.Second)
@@ -2052,8 +2103,8 @@ func testEventIDPagination(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	eventID := "evt_with_many_deliveries"
 	baseTime := time.Now().Truncate(time.Second)
 
@@ -2184,8 +2235,8 @@ func testDataImmutability(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	eventID := "immutable_event"
 	startTime := time.Now().Add(-1 * time.Hour)
 
@@ -2323,8 +2374,8 @@ func testCursorMismatchedSortBy(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	baseTime := time.Now().Truncate(time.Second)
 	startTime := baseTime.Add(-48 * time.Hour)
 
@@ -2390,8 +2441,8 @@ func testCursorMismatchedSortOrder(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	baseTime := time.Now().Truncate(time.Second)
 	startTime := baseTime.Add(-48 * time.Hour)
 
@@ -2456,7 +2507,7 @@ func testMalformedCursor(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenantID := uuid.New().String()
+	tenantID := idgen.String()
 	startTime := time.Now().Add(-1 * time.Hour)
 
 	testCases := []struct {
@@ -2502,8 +2553,8 @@ func testCursorMatchingSortParams(t *testing.T, newHarness HarnessMaker) {
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
 
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	baseTime := time.Now().Truncate(time.Second)
 	startTime := baseTime.Add(-48 * time.Hour)
 
