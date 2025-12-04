@@ -3,6 +3,7 @@ package logstore
 import (
 	"context"
 
+	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
 )
 
@@ -12,19 +13,13 @@ func NewNoopLogStore() LogStore {
 
 type noopLogStore struct{}
 
-func (l *noopLogStore) ListEvent(ctx context.Context, request ListEventRequest) (ListEventResponse, error) {
-	return ListEventResponse{}, nil
+var _ LogStore = (*noopLogStore)(nil)
+
+func (l *noopLogStore) ListDeliveryEvent(ctx context.Context, request driver.ListDeliveryEventRequest) (driver.ListDeliveryEventResponse, error) {
+	return driver.ListDeliveryEventResponse{}, nil
 }
 
-func (l *noopLogStore) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {
-	return nil, nil
-}
-
-func (l *noopLogStore) RetrieveEventByDestination(ctx context.Context, tenantID, destinationID, eventID string) (*models.Event, error) {
-	return nil, nil
-}
-
-func (l *noopLogStore) ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*models.Delivery, error) {
+func (l *noopLogStore) RetrieveEvent(ctx context.Context, request driver.RetrieveEventRequest) (*models.Event, error) {
 	return nil, nil
 }
 
