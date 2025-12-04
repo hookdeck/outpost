@@ -12,15 +12,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type ListEventRequest = driver.ListEventRequest
-type ListEventResponse = driver.ListEventResponse
-type ListDeliveryRequest = driver.ListDeliveryRequest
+type ListDeliveryEventRequest = driver.ListDeliveryEventRequest
+type ListDeliveryEventResponse = driver.ListDeliveryEventResponse
+type RetrieveEventRequest = driver.RetrieveEventRequest
 
 type LogStore interface {
-	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
-	RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error)
-	RetrieveEventByDestination(ctx context.Context, tenantID, destinationID, eventID string) (*models.Event, error)
-	ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*models.Delivery, error)
+	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
+	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
 	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
 }
 
