@@ -29,15 +29,30 @@ func (s *memLogStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvent
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Deep copy to avoid external mutation
 	for _, de := range deliveryEvents {
+		// Deep copy to avoid external mutation
 		copied := &models.DeliveryEvent{
 			ID:            de.ID,
 			DestinationID: de.DestinationID,
 			Event:         de.Event,
 			Delivery:      de.Delivery,
 		}
-		s.deliveryEvents = append(s.deliveryEvents, copied)
+
+		// Check for existing entry and update (idempotent upsert)
+		found := false
+		for i, existing := range s.deliveryEvents {
+			// Match on event_id + delivery_id (same as pglogstore index key)
+			if existing.Event.ID == de.Event.ID && existing.Delivery != nil && de.Delivery != nil && existing.Delivery.ID == de.Delivery.ID {
+				// Update existing entry (like ON CONFLICT DO UPDATE)
+				s.deliveryEvents[i] = copied
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			s.deliveryEvents = append(s.deliveryEvents, copied)
+		}
 	}
 	return nil
 }
