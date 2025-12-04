@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logstore/cursor"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/jackc/pgx/v5"
@@ -12,311 +13,383 @@ import (
 )
 
 type logStore struct {
-	db           *pgxpool.Pool
-	cursorParser eventCursorParser
+	db *pgxpool.Pool
 }
 
 func NewLogStore(db *pgxpool.Pool) driver.LogStore {
 	return &logStore{
-		db:           db,
-		cursorParser: newEventCursorParser(),
+		db: db,
 	}
 }
 
-func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
-	// TODO: validate only one of next or prev is set
-
-	var decodedNext, decodedPrev string
-	if req.Next != "" {
-		var err error
-		decodedNext, err = s.cursorParser.Parse(req.Next)
-		if err != nil {
-			return driver.ListEventResponse{}, fmt.Errorf("invalid cursor: %v", err)
-		}
+// ListDeliveryEvent returns delivery events matching the filter criteria.
+// It joins event_delivery_index with events and deliveries tables to return
+// complete DeliveryEvent records.
+//
+// Sorting uses multi-column ordering for deterministic pagination:
+// - delivery_time: ORDER BY delivery_time, delivery_id
+// - event_time: ORDER BY event_time, event_id, delivery_time
+func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliveryEventRequest) (driver.ListDeliveryEventResponse, error) {
+	// Validate and set defaults
+	sortBy := req.SortBy
+	if sortBy != "event_time" && sortBy != "delivery_time" {
+		sortBy = "delivery_time"
 	}
-	if req.Prev != "" {
-		var err error
-		decodedPrev, err = s.cursorParser.Parse(req.Prev)
-		if err != nil {
-			return driver.ListEventResponse{}, fmt.Errorf("invalid cursor: %v", err)
-		}
+	sortOrder := req.SortOrder
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = "desc"
 	}
 
-	// Step 1: Query the index to get relevant event IDs and their status
-	indexQuery := `
-		-- Step 1: Apply some filters & dedup index table to get event with status
-		WITH latest_status AS (
-			SELECT DISTINCT ON (event_id, destination_id) 
-				event_id,
-				destination_id,
-				delivery_time,
-				event_time,
-				time_event_id,
-				status
-			FROM event_delivery_index
-			WHERE tenant_id = $6  -- tenant_id
-			AND event_time >= COALESCE($4, COALESCE($5, NOW()) - INTERVAL '1 hour')
-			AND event_time <= COALESCE($5, NOW())
-			AND (array_length($7::text[], 1) IS NULL OR destination_id = ANY($7))  -- destination_ids
-			AND (array_length($8::text[], 1) IS NULL OR topic = ANY($8))  -- topics
-			ORDER BY event_id, destination_id, delivery_time DESC
-		),
-		-- Step 2: Apply status filter
-		filtered_before_cursor AS (
-			SELECT *
-			FROM latest_status
-			WHERE ($9 = '' OR status = $9)  -- status filter
-		),
-		-- Step 3: Apply pagination (cursor & limit)
-		filtered AS (
-			SELECT 
-				event_id,
-				destination_id,
-				delivery_time,
-				event_time,
-				time_event_id,
-				status,
-				(SELECT COUNT(*) FROM filtered_before_cursor) as total_count
-			FROM filtered_before_cursor
-			WHERE ($1 = '' OR time_event_id < $1) AND ($2 = '' OR time_event_id > $2)  -- cursor pagination
-			ORDER BY 
-				CASE WHEN $2 != '' THEN time_event_id END ASC, -- prev cursor: sort ascending to get right window
-				time_event_id DESC -- default sort and next cursor sort
-			LIMIT CASE WHEN $3 = 0 THEN NULL ELSE $3 + 1 END
-		),
-		-- Step 4: Re-sort for consistent response
-		final AS (
-			SELECT *
-			FROM filtered
-			ORDER BY time_event_id DESC
-		)
-		SELECT * FROM final`
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 100
+	}
 
-	indexRows, err := s.db.Query(ctx, indexQuery,
-		decodedNext,
-		decodedPrev,
-		req.Limit,
-		req.Start,
-		req.End,
-		req.TenantID,
-		req.DestinationIDs,
-		req.Topics,
-		req.Status,
-	)
+	// Decode and validate cursors
+	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, sortBy, sortOrder)
 	if err != nil {
-		return driver.ListEventResponse{}, err
-	}
-	defer indexRows.Close()
-
-	// Collect event IDs and their status
-	type eventInfo struct {
-		eventID       string
-		destinationID string
-		deliveryTime  time.Time
-		eventTime     time.Time
-		timeEventID   string
-		status        string
-	}
-	eventInfos := []eventInfo{}
-	var totalCount int64
-	for indexRows.Next() {
-		var info eventInfo
-		err := indexRows.Scan(&info.eventID, &info.destinationID, &info.deliveryTime, &info.eventTime, &info.timeEventID, &info.status, &totalCount)
-		if err != nil {
-			return driver.ListEventResponse{}, err
-		}
-		eventInfos = append(eventInfos, info)
+		return driver.ListDeliveryEventResponse{}, err
 	}
 
-	if len(eventInfos) == 0 {
-		return driver.ListEventResponse{
-			Data:  []*models.Event{},
-			Next:  "",
-			Prev:  "",
-			Count: 0,
-		}, nil
+	// Build the cursor column expression
+	// For event_time sort, we need a cursor that captures the full sort key
+	// since multiple deliveries for the same event share time_event_id.
+	// We concatenate time_event_id with time_delivery_id to ensure uniqueness.
+	cursorCol := "time_delivery_id"
+	if sortBy == "event_time" {
+		// Composite cursor: time_event_id || '_' || time_delivery_id
+		// This ensures uniqueness while maintaining lexicographic sort order
+		cursorCol = "(time_event_id || '_' || time_delivery_id)"
 	}
 
-	// Handle pagination
-	var hasNext, hasPrev bool
-	if req.Prev != "" {
-		hasNext = true                                          // We came backwards, so definitely more ahead
-		hasPrev = len(eventInfos) > req.Limit || req.Limit == 0 // Check if more behind
-		if len(eventInfos) > req.Limit && req.Limit > 0 {
-			eventInfos = eventInfos[1:] // Trim first item (newest) when going backward
-		}
-	} else if req.Next != "" {
-		hasPrev = true                                          // We came forwards, so definitely more behind
-		hasNext = len(eventInfos) > req.Limit || req.Limit == 0 // Check if more ahead
-		if len(eventInfos) > req.Limit && req.Limit > 0 {
-			eventInfos = eventInfos[:len(eventInfos)-1] // Trim last item when going forward
+	// Determine if we're going backward (using prev cursor)
+	goingBackward := !prevCursor.IsEmpty()
+
+	// Build ORDER BY clause with tiebreakers for deterministic pagination
+	// When going backward, we flip the order in the query and reverse results after
+	// For event_time sort: ORDER BY event_time, event_id, delivery_time, delivery_id
+	// For delivery_time sort: ORDER BY delivery_time, delivery_id
+	var orderByClause, finalOrderByClause string
+	if sortBy == "event_time" {
+		if sortOrder == "desc" {
+			if goingBackward {
+				orderByClause = "event_time ASC, event_id ASC, delivery_time ASC, delivery_id ASC"
+			} else {
+				orderByClause = "event_time DESC, event_id DESC, delivery_time DESC, delivery_id DESC"
+			}
+			finalOrderByClause = "event_time DESC, event_id DESC, delivery_time DESC, delivery_id DESC"
+		} else {
+			if goingBackward {
+				orderByClause = "event_time DESC, event_id DESC, delivery_time DESC, delivery_id DESC"
+			} else {
+				orderByClause = "event_time ASC, event_id ASC, delivery_time ASC, delivery_id ASC"
+			}
+			finalOrderByClause = "event_time ASC, event_id ASC, delivery_time ASC, delivery_id ASC"
 		}
 	} else {
-		// First page
-		hasPrev = false
-		hasNext = len(eventInfos) > req.Limit || req.Limit == 0
-		if len(eventInfos) > req.Limit && req.Limit > 0 {
-			eventInfos = eventInfos[:len(eventInfos)-1] // Trim last item on first page
+		if sortOrder == "desc" {
+			if goingBackward {
+				orderByClause = "delivery_time ASC, delivery_id ASC"
+			} else {
+				orderByClause = "delivery_time DESC, delivery_id DESC"
+			}
+			finalOrderByClause = "delivery_time DESC, delivery_id DESC"
+		} else {
+			if goingBackward {
+				orderByClause = "delivery_time DESC, delivery_id DESC"
+			} else {
+				orderByClause = "delivery_time ASC, delivery_id ASC"
+			}
+			finalOrderByClause = "delivery_time ASC, delivery_id ASC"
 		}
 	}
 
-	// Step 2: Get full event data
-	eventIDs := make([]string, len(eventInfos))
-	for i, info := range eventInfos {
-		eventIDs[i] = info.eventID
+	// Build cursor conditions - always include both conditions but use empty string check
+	// This ensures PostgreSQL can infer types for both parameters
+	// For next cursor (going forward in display order): get items that come AFTER in sort order
+	// For prev cursor (going backward in display order): get items that come BEFORE in sort order
+	// Since we flip the query order for prev, we use the same comparison direction
+	var cursorCondition string
+	if sortOrder == "desc" {
+		// DESC: next means smaller values, prev means larger values (but we query with flipped order)
+		cursorCondition = fmt.Sprintf("AND ($10::text = '' OR %s < $10::text) AND ($11::text = '' OR %s > $11::text)", cursorCol, cursorCol)
+	} else {
+		// ASC: next means larger values, prev means smaller values (but we query with flipped order)
+		cursorCondition = fmt.Sprintf("AND ($10::text = '' OR %s > $10::text) AND ($11::text = '' OR %s < $11::text)", cursorCol, cursorCol)
 	}
 
-	eventQuery := `
-		SELECT
-			id,
-			tenant_id,
-			time,
-			topic,
-			eligible_for_retry,
-			data,
-			metadata
-		FROM events e
-		WHERE id = ANY($1)`
-
-	eventRows, err := s.db.Query(ctx, eventQuery, eventIDs)
-	if err != nil {
-		return driver.ListEventResponse{}, err
-	}
-	defer eventRows.Close()
-
-	// Build map of events
-	eventMap := make(map[string]*models.Event)
-	for eventRows.Next() {
-		event := &models.Event{}
-		err := eventRows.Scan(
-			&event.ID,
-			&event.TenantID,
-			&event.Time,
-			&event.Topic,
-			&event.EligibleForRetry,
-			&event.Data,
-			&event.Metadata,
-		)
-		if err != nil {
-			return driver.ListEventResponse{}, err
-		}
-		eventMap[event.ID] = event
-	}
-
-	// Combine events with their status in correct order
-	events := make([]*models.Event, 0, len(eventInfos))
-	for _, info := range eventInfos {
-		if baseEvent, ok := eventMap[info.eventID]; ok {
-			// Create new event for each destination
-			event := *baseEvent // Make copy
-			event.DestinationID = info.destinationID
-			event.Status = info.status
-			events = append(events, &event)
-		}
-	}
-
-	var nextCursor, prevCursor string
-	if len(events) > 0 {
-		lastItem := eventInfos[len(eventInfos)-1].timeEventID
-		firstItem := eventInfos[0].timeEventID
-
-		if hasNext {
-			nextCursor = s.cursorParser.Format(lastItem)
-		}
-		if hasPrev {
-			prevCursor = s.cursorParser.Format(firstItem)
-		}
-	}
-
-	return driver.ListEventResponse{
-		Data:  events,
-		Next:  nextCursor,
-		Prev:  prevCursor,
-		Count: totalCount,
-	}, nil
-}
-
-func (s *logStore) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {
-	query := `
-		SELECT
-			id,
-			tenant_id,
-			time,
-			topic,
-			eligible_for_retry,
-			data,
-			metadata,
-			CASE
-				WHEN EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id AND d.status = 'success') THEN 'success'
-				WHEN EXISTS (SELECT 1 FROM deliveries d WHERE d.event_id = e.id) THEN 'failed'
-				ELSE 'pending'
-			END as status
-		FROM events e
-		WHERE tenant_id = $1 AND id = $2`
-
-	row := s.db.QueryRow(ctx, query, tenantID, eventID)
-
-	event := &models.Event{}
-	err := row.Scan(
-		&event.ID,
-		&event.TenantID,
-		&event.Time,
-		&event.Topic,
-		&event.EligibleForRetry,
-		&event.Data,
-		&event.Metadata,
-		&event.Status,
-	)
-	if err == pgx.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	return event, nil
-}
-
-func (s *logStore) RetrieveEventByDestination(ctx context.Context, tenantID, destinationID, eventID string) (*models.Event, error) {
-	query := `
-		WITH latest_status AS (
-			SELECT DISTINCT ON (event_id, destination_id) status
-			FROM event_delivery_index
-			WHERE tenant_id = $1 AND destination_id = $2 AND event_id = $3
-			ORDER BY event_id, destination_id, delivery_time DESC
+	query := fmt.Sprintf(`
+		WITH filtered AS (
+			SELECT
+				idx.event_id,
+				idx.delivery_id,
+				idx.tenant_id,
+				idx.destination_id,
+				idx.event_time,
+				idx.delivery_time,
+				idx.topic,
+				idx.status,
+				idx.time_event_id,
+				idx.time_delivery_id
+			FROM event_delivery_index idx
+			WHERE idx.tenant_id = $1
+			AND ($2::text = '' OR idx.event_id = $2)
+			AND (array_length($3::text[], 1) IS NULL OR idx.destination_id = ANY($3))
+			AND ($4::text = '' OR idx.status = $4)
+			AND (array_length($5::text[], 1) IS NULL OR idx.topic = ANY($5))
+			AND ($6::timestamptz IS NULL OR idx.event_time >= $6)
+			AND ($7::timestamptz IS NULL OR idx.event_time <= $7)
+			AND ($8::timestamptz IS NULL OR idx.delivery_time >= $8)
+			AND ($9::timestamptz IS NULL OR idx.delivery_time <= $9)
+			%s
+			ORDER BY %s
+			LIMIT $12
 		)
 		SELECT
-			e.id,
+			f.event_id,
+			f.delivery_id,
+			f.destination_id,
+			f.event_time,
+			f.delivery_time,
+			f.topic,
+			f.status,
+			f.time_event_id,
+			f.time_delivery_id,
 			e.tenant_id,
-			e.time,
-			e.topic,
 			e.eligible_for_retry,
 			e.data,
 			e.metadata,
-			$2 as destination_id,
-			COALESCE(s.status, 'pending') as status
-		FROM events e
-		LEFT JOIN latest_status s ON true
-		WHERE e.tenant_id = $1 AND e.id = $3`
+			d.code,
+			d.response_data
+		FROM filtered f
+		JOIN events e ON e.id = f.event_id AND e.time = f.event_time
+		JOIN deliveries d ON d.id = f.delivery_id AND d.time = f.delivery_time
+		ORDER BY %s
+	`, cursorCondition, orderByClause, finalOrderByClause)
 
-	row := s.db.QueryRow(ctx, query, tenantID, destinationID, eventID)
+	rows, err := s.db.Query(ctx, query,
+		req.TenantID,        // $1
+		req.EventID,         // $2
+		req.DestinationIDs,  // $3
+		req.Status,          // $4
+		req.Topics,          // $5
+		req.EventStart,      // $6
+		req.EventEnd,        // $7
+		req.DeliveryStart,   // $8
+		req.DeliveryEnd,     // $9
+		nextCursor.Position, // $10
+		prevCursor.Position, // $11
+		limit+1,             // $12 - fetch one extra to detect if there's more
+	)
+	if err != nil {
+		return driver.ListDeliveryEventResponse{}, fmt.Errorf("query failed: %w", err)
+	}
+	defer rows.Close()
+
+	type rowData struct {
+		de             *models.DeliveryEvent
+		timeEventID    string
+		timeDeliveryID string
+	}
+	var results []rowData
+
+	for rows.Next() {
+		var (
+			eventID          string
+			deliveryID       string
+			destinationID    string
+			eventTime        time.Time
+			deliveryTime     time.Time
+			topic            string
+			status           string
+			timeEventID      string
+			timeDeliveryID   string
+			tenantID         string
+			eligibleForRetry bool
+			data             map[string]interface{}
+			metadata         map[string]string
+			code             string
+			responseData     map[string]interface{}
+		)
+
+		err := rows.Scan(
+			&eventID,
+			&deliveryID,
+			&destinationID,
+			&eventTime,
+			&deliveryTime,
+			&topic,
+			&status,
+			&timeEventID,
+			&timeDeliveryID,
+			&tenantID,
+			&eligibleForRetry,
+			&data,
+			&metadata,
+			&code,
+			&responseData,
+		)
+		if err != nil {
+			return driver.ListDeliveryEventResponse{}, fmt.Errorf("scan failed: %w", err)
+		}
+
+		de := &models.DeliveryEvent{
+			ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
+			DestinationID: destinationID,
+			Event: models.Event{
+				ID:               eventID,
+				TenantID:         tenantID,
+				DestinationID:    destinationID,
+				Topic:            topic,
+				EligibleForRetry: eligibleForRetry,
+				Time:             eventTime,
+				Data:             data,
+				Metadata:         metadata,
+			},
+			Delivery: &models.Delivery{
+				ID:            deliveryID,
+				EventID:       eventID,
+				DestinationID: destinationID,
+				Status:        status,
+				Time:          deliveryTime,
+				Code:          code,
+				ResponseData:  responseData,
+			},
+		}
+
+		results = append(results, rowData{de: de, timeEventID: timeEventID, timeDeliveryID: timeDeliveryID})
+	}
+
+	if err := rows.Err(); err != nil {
+		return driver.ListDeliveryEventResponse{}, fmt.Errorf("rows error: %w", err)
+	}
+
+	// Handle pagination cursors
+	// When going backward, the extra item (if any) is at the BEGINNING after re-sort
+	// When going forward, the extra item is at the END
+	var hasMore bool
+	if len(results) > limit {
+		hasMore = true
+		if goingBackward {
+			// Trim from beginning - the extra item is now first after DESC re-sort
+			results = results[1:]
+		} else {
+			// Trim from end - the extra item is last
+			results = results[:limit]
+		}
+	}
+
+	// Build response
+	data := make([]*models.DeliveryEvent, len(results))
+	for i, r := range results {
+		data[i] = r.de
+	}
+
+	var nextEncoded, prevEncoded string
+	if len(results) > 0 {
+		// Position value depends on sortBy
+		// Must match the cursorCol expression used in the query
+		getPosition := func(r rowData) string {
+			if sortBy == "event_time" {
+				// Composite cursor matching the SQL expression
+				return r.timeEventID + "_" + r.timeDeliveryID
+			}
+			return r.timeDeliveryID
+		}
+
+		encodeCursor := func(position string) string {
+			return cursor.Encode(cursor.Cursor{
+				SortBy:    sortBy,
+				SortOrder: sortOrder,
+				Position:  position,
+			})
+		}
+
+		if !prevCursor.IsEmpty() {
+			// Came from prev, so there's definitely more "next"
+			nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
+			if hasMore {
+				prevEncoded = encodeCursor(getPosition(results[0]))
+			}
+		} else if !nextCursor.IsEmpty() {
+			// Came from next, so there's definitely more "prev"
+			prevEncoded = encodeCursor(getPosition(results[0]))
+			if hasMore {
+				nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
+			}
+		} else {
+			// First page
+			if hasMore {
+				nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
+			}
+			// No prev on first page
+		}
+	}
+
+	return driver.ListDeliveryEventResponse{
+		Data: data,
+		Next: nextEncoded,
+		Prev: prevEncoded,
+	}, nil
+}
+
+// RetrieveEvent retrieves a single event by ID.
+// If DestinationID is provided, it scopes the query to that destination.
+func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRequest) (*models.Event, error) {
+	var query string
+	var args []interface{}
+
+	if req.DestinationID != "" {
+		// Scope to specific destination - get status from index
+		query = `
+			SELECT
+				e.id,
+				e.tenant_id,
+				$3 as destination_id,
+				e.time,
+				e.topic,
+				e.eligible_for_retry,
+				e.data,
+				e.metadata
+			FROM events e
+			WHERE e.tenant_id = $1 AND e.id = $2
+			AND EXISTS (
+				SELECT 1 FROM event_delivery_index idx
+				WHERE idx.tenant_id = $1 AND idx.event_id = $2 AND idx.destination_id = $3
+			)`
+		args = []interface{}{req.TenantID, req.EventID, req.DestinationID}
+	} else {
+		query = `
+			SELECT
+				e.id,
+				e.tenant_id,
+				e.destination_id,
+				e.time,
+				e.topic,
+				e.eligible_for_retry,
+				e.data,
+				e.metadata
+			FROM events e
+			WHERE e.tenant_id = $1 AND e.id = $2`
+		args = []interface{}{req.TenantID, req.EventID}
+	}
+
+	row := s.db.QueryRow(ctx, query, args...)
 
 	event := &models.Event{}
 	err := row.Scan(
 		&event.ID,
 		&event.TenantID,
+		&event.DestinationID,
 		&event.Time,
 		&event.Topic,
 		&event.EligibleForRetry,
 		&event.Data,
 		&event.Metadata,
-		&event.DestinationID,
-		&event.Status,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
-
 	if err != nil {
 		return nil, err
 	}
@@ -324,44 +397,11 @@ func (s *logStore) RetrieveEventByDestination(ctx context.Context, tenantID, des
 	return event, nil
 }
 
-func (s *logStore) ListDelivery(ctx context.Context, req driver.ListDeliveryRequest) ([]*models.Delivery, error) {
-	query := `
-		SELECT id, event_id, destination_id, status, time, code, response_data
-		FROM deliveries
-		WHERE event_id = $1
-		AND ($2 = '' OR destination_id = $2)
-		ORDER BY time DESC`
-
-	rows, err := s.db.Query(ctx, query,
-		req.EventID,
-		req.DestinationID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var deliveries []*models.Delivery
-	for rows.Next() {
-		delivery := &models.Delivery{}
-		err := rows.Scan(
-			&delivery.ID,
-			&delivery.EventID,
-			&delivery.DestinationID,
-			&delivery.Status,
-			&delivery.Time,
-			&delivery.Code,
-			&delivery.ResponseData,
-		)
-		if err != nil {
-			return nil, err
-		}
-		deliveries = append(deliveries, delivery)
-	}
-
-	return deliveries, nil
-}
-
 func (s *logStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents []*models.DeliveryEvent) error {
+	if len(deliveryEvents) == 0 {
+		return nil
+	}
+
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return err
@@ -413,7 +453,7 @@ func (s *logStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents [
 	// Insert into index
 	_, err = tx.Exec(ctx, `
 		INSERT INTO event_delivery_index (
-			event_id, delivery_id, tenant_id, destination_id, 
+			event_id, delivery_id, tenant_id, destination_id,
 			event_time, delivery_time, topic, status
 		)
 		SELECT * FROM unnest(
@@ -442,7 +482,11 @@ func eventDeliveryIndexArrays(deliveryEvents []*models.DeliveryEvent) []interfac
 
 	for i, de := range deliveryEvents {
 		eventIDs[i] = de.Event.ID
-		deliveryIDs[i] = de.ID
+		if de.Delivery != nil {
+			deliveryIDs[i] = de.Delivery.ID
+		} else {
+			deliveryIDs[i] = de.ID
+		}
 		tenantIDs[i] = de.Event.TenantID
 		destinationIDs[i] = de.DestinationID
 		eventTimes[i] = de.Event.Time
