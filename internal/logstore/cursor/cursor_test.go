@@ -58,7 +58,7 @@ func TestDecode(t *testing.T) {
 		assert.True(t, c.IsEmpty())
 	})
 
-	t.Run("decodes valid cursor", func(t *testing.T) {
+	t.Run("decodes v1 cursor", func(t *testing.T) {
 		original := Cursor{
 			SortBy:    "delivery_time",
 			SortOrder: "desc",
@@ -92,15 +92,7 @@ func TestDecode(t *testing.T) {
 		assert.True(t, errors.Is(err, driver.ErrInvalidCursor))
 	})
 
-	t.Run("invalid format returns error", func(t *testing.T) {
-		// Encode something that's not in the right format
-		_, err := Decode("abc123")
-		require.Error(t, err)
-		assert.True(t, errors.Is(err, driver.ErrInvalidCursor))
-	})
-
-	t.Run("invalid sortBy returns error", func(t *testing.T) {
-		// Manually create a cursor with invalid sortBy by encoding raw bytes
+	t.Run("v1 invalid sortBy returns error", func(t *testing.T) {
 		raw := "v1:invalid_sort:desc:position"
 		encoded := encodeRaw(raw)
 
@@ -109,7 +101,7 @@ func TestDecode(t *testing.T) {
 		assert.True(t, errors.Is(err, driver.ErrInvalidCursor))
 	})
 
-	t.Run("invalid sortOrder returns error", func(t *testing.T) {
+	t.Run("v1 invalid sortOrder returns error", func(t *testing.T) {
 		raw := "v1:event_time:invalid_order:position"
 		encoded := encodeRaw(raw)
 
@@ -118,14 +110,92 @@ func TestDecode(t *testing.T) {
 		assert.True(t, errors.Is(err, driver.ErrInvalidCursor))
 	})
 
-	t.Run("unsupported version returns error", func(t *testing.T) {
-		raw := "v99:event_time:desc:position"
+	t.Run("v1 empty position returns error", func(t *testing.T) {
+		raw := "v1:event_time:desc:"
 		encoded := encodeRaw(raw)
 
 		_, err := Decode(encoded)
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, driver.ErrInvalidCursor))
-		assert.Contains(t, err.Error(), "unsupported cursor version")
+	})
+
+	t.Run("v1 missing parts returns error", func(t *testing.T) {
+		raw := "v1:event_time:desc" // missing position
+		encoded := encodeRaw(raw)
+
+		_, err := Decode(encoded)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, driver.ErrInvalidCursor))
+	})
+}
+
+func TestDecodeV0BackwardCompatibility(t *testing.T) {
+	t.Run("decodes v0 cursor with defaults", func(t *testing.T) {
+		// v0 format: just position, no version prefix
+		position := "1704067200_evt_abc"
+		encoded := encodeRaw(position)
+
+		decoded, err := Decode(encoded)
+		require.NoError(t, err)
+		assert.Equal(t, position, decoded.Position)
+		assert.Equal(t, "event_time", decoded.SortBy, "v0 defaults to event_time")
+		assert.Equal(t, "desc", decoded.SortOrder, "v0 defaults to desc")
+	})
+
+	t.Run("decodes v0 composite cursor", func(t *testing.T) {
+		// v0 composite cursor for event_time sort
+		position := "1704067200_evt_abc_1704067500_del_xyz"
+		encoded := encodeRaw(position)
+
+		decoded, err := Decode(encoded)
+		require.NoError(t, err)
+		assert.Equal(t, position, decoded.Position)
+		assert.Equal(t, "event_time", decoded.SortBy)
+		assert.Equal(t, "desc", decoded.SortOrder)
+	})
+
+	t.Run("v0 cursor validates with matching defaults", func(t *testing.T) {
+		position := "1704067200_evt_abc"
+		encoded := encodeRaw(position)
+
+		// Should work with default sort params
+		next, _, err := DecodeAndValidate(encoded, "", "event_time", "desc")
+		require.NoError(t, err)
+		assert.Equal(t, position, next.Position)
+	})
+
+	t.Run("v0 cursor fails validation with non-default sort params", func(t *testing.T) {
+		position := "1704067200_del_xyz"
+		encoded := encodeRaw(position)
+
+		// Should fail because v0 defaults to event_time, not delivery_time
+		_, _, err := DecodeAndValidate(encoded, "", "delivery_time", "desc")
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, driver.ErrInvalidCursor))
+		assert.Contains(t, err.Error(), "sortBy")
+	})
+
+	t.Run("v0 cursor fails validation with different sort order", func(t *testing.T) {
+		position := "1704067200_evt_abc"
+		encoded := encodeRaw(position)
+
+		// Should fail because v0 defaults to desc, not asc
+		_, _, err := DecodeAndValidate(encoded, "", "event_time", "asc")
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, driver.ErrInvalidCursor))
+		assert.Contains(t, err.Error(), "sortOrder")
+	})
+
+	t.Run("random string treated as v0 position", func(t *testing.T) {
+		// Any valid base62 that doesn't start with "v1:" is treated as v0
+		position := "some_random_position_string"
+		encoded := encodeRaw(position)
+
+		decoded, err := Decode(encoded)
+		require.NoError(t, err)
+		assert.Equal(t, position, decoded.Position)
+		assert.Equal(t, "event_time", decoded.SortBy)
+		assert.Equal(t, "desc", decoded.SortOrder)
 	})
 }
 
@@ -240,7 +310,7 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-// encodeRaw is a helper to encode raw strings for testing invalid formats
+// encodeRaw is a helper to encode raw strings for testing
 func encodeRaw(raw string) string {
 	num := new(big.Int)
 	num.SetBytes([]byte(raw))
