@@ -20,6 +20,11 @@ func (h *memLogStoreHarness) Close() {
 	// No-op for in-memory store
 }
 
+func (h *memLogStoreHarness) FlushWrites(ctx context.Context) error {
+	// In-memory store is immediately consistent
+	return nil
+}
+
 func newHarness(ctx context.Context, t *testing.T) (drivertest.Harness, error) {
 	return &memLogStoreHarness{
 		logStore: NewLogStore(),
