@@ -8,41 +8,36 @@ import (
 )
 
 type LogStore interface {
-	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
-	RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error)
-	RetrieveEventByDestination(ctx context.Context, tenantID, destinationID, eventID string) (*models.Event, error)
-	ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*models.Delivery, error)
+	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
+	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
 	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
 }
 
-type ListEventRequest struct {
+type ListDeliveryEventRequest struct {
 	Next           string
 	Prev           string
 	Limit          int
-	Start          *time.Time // optional - lower bound, default End - 1h
-	End            *time.Time // optional - upper bound, default now()
+	EventStart     *time.Time // optional - filter events created after this time
+	EventEnd       *time.Time // optional - filter events created before this time
+	DeliveryStart  *time.Time // optional - filter deliveries after this time
+	DeliveryEnd    *time.Time // optional - filter deliveries before this time
 	TenantID       string     // required
+	EventID        string     // optional - filter for specific event
 	DestinationIDs []string   // optional
-	Status         string     // optional, "success", "failed"
+	Status         string     // optional: "success", "failed"
 	Topics         []string   // optional
+	SortBy         string     // optional: "event_time", "delivery_time" (default: "delivery_time")
+	SortOrder      string     // optional: "asc", "desc" (default: "desc")
 }
 
-type ListEventByDestinationRequest struct {
+type ListDeliveryEventResponse struct {
+	Data []*models.DeliveryEvent
+	Next string
+	Prev string
+}
+
+type RetrieveEventRequest struct {
 	TenantID      string // required
-	DestinationID string // required
-	Status        string // optional, "success", "failed"
-	Cursor        string
-	Limit         int
-}
-
-type ListDeliveryRequest struct {
-	EventID       string
-	DestinationID string
-}
-
-type ListEventResponse struct {
-	Data  []*models.Event
-	Next  string
-	Prev  string
-	Count int64
+	EventID       string // required
+	DestinationID string // optional - if provided, scopes to that destination
 }
