@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logstore/cursor"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
 )
@@ -46,6 +47,22 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	// Validate and set defaults for sort parameters
+	sortBy := req.SortBy
+	if sortBy != "event_time" && sortBy != "delivery_time" {
+		sortBy = "delivery_time"
+	}
+	sortOrder := req.SortOrder
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = "desc"
+	}
+
+	// Decode and validate cursors
+	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, sortBy, sortOrder)
+	if err != nil {
+		return driver.ListDeliveryEventResponse{}, err
+	}
+
 	// Apply default time range if not specified
 	now := time.Now()
 	if req.EventStart == nil && req.EventEnd == nil && req.DeliveryStart == nil && req.DeliveryEnd == nil {
@@ -72,14 +89,6 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 	//
 	// The secondary/tertiary columns ensure deterministic ordering when
 	// primary sort values are identical (e.g., multiple deliveries for same event).
-	sortBy := req.SortBy
-	if sortBy != "event_time" && sortBy != "delivery_time" {
-		sortBy = "delivery_time"
-	}
-	sortOrder := req.SortOrder
-	if sortOrder != "asc" && sortOrder != "desc" {
-		sortOrder = "desc"
-	}
 	isDesc := sortOrder == "desc"
 
 	sort.Slice(filtered, func(i, j int) bool {
@@ -99,10 +108,17 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 				return filtered[i].Event.ID < filtered[j].Event.ID
 			}
 			// Tertiary: delivery_time
-			if isDesc {
-				return filtered[i].Delivery.Time.After(filtered[j].Delivery.Time)
+			if !filtered[i].Delivery.Time.Equal(filtered[j].Delivery.Time) {
+				if isDesc {
+					return filtered[i].Delivery.Time.After(filtered[j].Delivery.Time)
+				}
+				return filtered[i].Delivery.Time.Before(filtered[j].Delivery.Time)
 			}
-			return filtered[i].Delivery.Time.Before(filtered[j].Delivery.Time)
+			// Quaternary: delivery_id (for deterministic ordering when all above are equal)
+			if isDesc {
+				return filtered[i].Delivery.ID > filtered[j].Delivery.ID
+			}
+			return filtered[i].Delivery.ID < filtered[j].Delivery.ID
 		}
 
 		// Default: delivery_time
@@ -127,19 +143,20 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 	}
 
 	// Find start index based on cursor
+	// The cursor position is the DeliveryEvent.ID
 	startIdx := 0
-	if req.Next != "" {
-		// Next cursor contains the index to start from
+	if !nextCursor.IsEmpty() {
+		// Next cursor: find the item and start from there
 		for i, de := range filtered {
-			if de.ID == req.Next {
+			if de.ID == nextCursor.Position {
 				startIdx = i
 				break
 			}
 		}
-	} else if req.Prev != "" {
+	} else if !prevCursor.IsEmpty() {
 		// Prev cursor: find the item and go back by limit
 		for i, de := range filtered {
-			if de.ID == req.Prev {
+			if de.ID == prevCursor.Position {
 				startIdx = i - limit
 				if startIdx < 0 {
 					startIdx = 0
@@ -161,19 +178,27 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 		data[i] = copyDeliveryEvent(de)
 	}
 
-	// Build cursors
-	var next, prev string
+	// Build cursors with sort parameters encoded
+	var nextEncoded, prevEncoded string
 	if endIdx < len(filtered) {
-		next = filtered[endIdx].ID
+		nextEncoded = cursor.Encode(cursor.Cursor{
+			SortBy:    sortBy,
+			SortOrder: sortOrder,
+			Position:  filtered[endIdx].ID,
+		})
 	}
 	if startIdx > 0 {
-		prev = filtered[startIdx].ID
+		prevEncoded = cursor.Encode(cursor.Cursor{
+			SortBy:    sortBy,
+			SortOrder: sortOrder,
+			Position:  filtered[startIdx].ID,
+		})
 	}
 
 	return driver.ListDeliveryEventResponse{
 		Data: data,
-		Next: next,
-		Prev: prev,
+		Next: nextEncoded,
+		Prev: prevEncoded,
 	}, nil
 }
 
