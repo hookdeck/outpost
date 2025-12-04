@@ -21,6 +21,7 @@ type Step = {
   FormFields: (props: {
     defaultValue: Record<string, any>;
     onChange: (value: Record<string, any>) => void;
+    destinations?: DestinationTypeReference[];
   }) => React.ReactNode;
   action: string;
 };
@@ -84,35 +85,39 @@ const DESTINATION_TYPE_STEP: Step = {
   FormFields: ({
     destinations,
     defaultValue,
+    onChange,
   }: {
-    destinations: DestinationTypeReference[];
+    destinations?: DestinationTypeReference[];
     defaultValue: Record<string, any>;
+    onChange?: (value: Record<string, any>) => void;
   }) => (
     <div className="destination-types">
-      {destinations?.map((destination) => (
-        <label key={destination.type} className="destination-type-card">
-          <input
-            type="radio"
-            name="type"
-            value={destination.type}
-            required
-            className="destination-type-radio"
-            defaultChecked={
-              defaultValue ? defaultValue.type === destination.type : undefined
-            }
-          />
-          <div className="destination-type-content">
-            <h3 className="subtitle-l">
-              <span
-                className="destination-type-content__icon"
-                dangerouslySetInnerHTML={{ __html: destination.icon }}
-              />{" "}
-              {destination.label}
-            </h3>
-            <p className="body-m muted">{destination.description}</p>
-          </div>
-        </label>
-      ))}
+      <div className="destination-types__container">
+        {destinations?.map((destination) => (
+          <label key={destination.type} className="destination-type-option">
+            <input
+              type="radio"
+              name="type"
+              value={destination.type}
+              required
+              className="destination-type-radio"
+              defaultChecked={
+                defaultValue ? defaultValue.type === destination.type : undefined
+              }
+            />
+            <div className="destination-type-content">
+              <h3 className="subtitle-l">
+                <span
+                  className="destination-type-content__icon"
+                  dangerouslySetInnerHTML={{ __html: destination.icon }}
+                />{" "}
+                {destination.label}
+              </h3>
+              <p className="body-m muted">{destination.description}</p>
+            </div>
+          </label>
+        ))}
+      </div>
     </div>
   ),
   action: "Next",
@@ -122,12 +127,18 @@ const CONFIGURATION_STEP: Step = {
   title: "Configure destination",
   sidebar_shortname: "Configure destination",
   description: "Configure the destination you want to send to your destination",
+  isValid: (values: Record<string, any>) => {
+    // Form validation will be handled by the form's native validation
+    return true;
+  },
   FormFields: ({
     defaultValue,
     destinations,
+    onChange,
   }: {
     defaultValue: Record<string, any>;
-    destinations: DestinationTypeReference[];
+    destinations?: DestinationTypeReference[];
+    onChange?: (value: Record<string, any>) => void;
   }) => {
     const destinationType = destinations?.find(
       (d) => d.type === defaultValue.type
@@ -163,6 +174,15 @@ export default function CreateDestination() {
 
   const currentStep = steps[currentStepIndex];
   const nextStep = steps[currentStepIndex + 1] || null;
+
+  // Validate the current step when it changes or stepValues change
+  useEffect(() => {
+    if (currentStep.isValid) {
+      setIsValid(currentStep.isValid(stepValues));
+    } else {
+      setIsValid(false);
+    }
+  }, [currentStepIndex, stepValues, currentStep]);
 
   const createDestination = (values: Record<string, any>) => {
     setIsCreating(true);
@@ -244,16 +264,19 @@ export default function CreateDestination() {
       </div>
 
       <div className="create-destination__step">
-        <h1 className="title-xl">{currentStep.title}</h1>
-        <p className="body-m muted">{currentStep.description}</p>
+        <div className="create-destination__step__header">
+          <h1 className="title-xl">{currentStep.title}</h1>
+          <p className="body-m muted">{currentStep.description}</p>
+        </div>
         <form
           key={currentStepIndex}
           onChange={(e) => {
             const formData = new FormData(e.currentTarget);
             const values = Object.fromEntries(formData.entries());
+            const allValues = { ...stepValues, ...values };
 
             if (currentStep.isValid) {
-              setIsValid(currentStep.isValid(values));
+              setIsValid(currentStep.isValid(allValues));
             } else {
               setIsValid(e.currentTarget.checkValidity());
             }
