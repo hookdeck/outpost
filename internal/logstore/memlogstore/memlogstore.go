@@ -4,7 +4,6 @@ import (
 	"context"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/hookdeck/outpost/internal/logstore/cursor"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
@@ -61,14 +60,6 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, sortBy, sortOrder)
 	if err != nil {
 		return driver.ListDeliveryEventResponse{}, err
-	}
-
-	// Apply default time range if not specified
-	now := time.Now()
-	if req.EventStart == nil && req.EventEnd == nil && req.DeliveryStart == nil && req.DeliveryEnd == nil {
-		// Default to last hour based on event time
-		defaultStart := now.Add(-1 * time.Hour)
-		req.EventStart = &defaultStart
 	}
 
 	// Filter

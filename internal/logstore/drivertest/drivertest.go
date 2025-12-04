@@ -440,28 +440,16 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 	})
 
 	t.Run("time range filtering", func(t *testing.T) {
-		t.Run("default time range (last hour)", func(t *testing.T) {
-			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID: tenantID,
-				Limit:    100,
-				// No Start/End - defaults to last hour
-			})
-			require.NoError(t, err)
-			require.Len(t, response.Data, len(timeDeliveryEvents["1h"]))
+		sevenHoursAgo := baseTime.Add(-7 * time.Hour)
+		fiveHoursAgo := baseTime.Add(-5 * time.Hour)
+		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			TenantID:   tenantID,
+			EventStart: &sevenHoursAgo,
+			EventEnd:   &fiveHoursAgo,
+			Limit:      100,
 		})
-
-		t.Run("explicit time window", func(t *testing.T) {
-			sevenHoursAgo := baseTime.Add(-7 * time.Hour)
-			fiveHoursAgo := baseTime.Add(-5 * time.Hour)
-			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID:   tenantID,
-				EventStart: &sevenHoursAgo,
-				EventEnd:   &fiveHoursAgo,
-				Limit:      100,
-			})
-			require.NoError(t, err)
-			require.Len(t, response.Data, len(timeDeliveryEvents["6h"]))
-		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, len(timeDeliveryEvents["6h"]))
 	})
 
 	t.Run("combined filters", func(t *testing.T) {
