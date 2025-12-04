@@ -70,6 +70,11 @@ func (h *harness) Close() {
 	h.closer()
 }
 
+func (h *harness) FlushWrites(ctx context.Context) error {
+	// PostgreSQL is immediately consistent, no flush needed
+	return nil
+}
+
 func (h *harness) MakeDriver(ctx context.Context) (driver.LogStore, error) {
 	return NewLogStore(h.db), nil
 }

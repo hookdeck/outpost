@@ -20,6 +20,11 @@ import (
 
 type Harness interface {
 	MakeDriver(ctx context.Context) (driver.LogStore, error)
+	// FlushWrites ensures all writes are fully persisted and visible.
+	// For eventually consistent stores (e.g., ClickHouse ReplacingMergeTree),
+	// this forces merge/compaction. For immediately consistent stores (e.g., PostgreSQL),
+	// this is a no-op.
+	FlushWrites(ctx context.Context) error
 	Close()
 }
 
@@ -189,6 +194,10 @@ func testInsertManyDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 
 		// Third insert (duplicate) - should not error
 		err = logStore.InsertManyDeliveryEvent(ctx, batch)
+		require.NoError(t, err)
+
+		// Flush writes to ensure deduplication is visible (for eventually consistent stores)
+		err = h.FlushWrites(ctx)
 		require.NoError(t, err)
 
 		// Verify only 1 record exists (no duplicates)
