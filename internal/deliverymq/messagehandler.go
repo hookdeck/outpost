@@ -12,6 +12,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
+	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/scheduler"
@@ -96,7 +97,7 @@ type DestinationGetter interface {
 }
 
 type EventGetter interface {
-	RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error)
+	RetrieveEvent(ctx context.Context, request logstore.RetrieveEventRequest) (*models.Event, error)
 }
 
 type DeliveryTracer interface {
@@ -417,7 +418,10 @@ func (h *messageHandler) ensureDeliveryEvent(ctx context.Context, deliveryEvent 
 		return nil
 	}
 
-	event, err := h.logStore.RetrieveEvent(ctx, deliveryEvent.Event.TenantID, deliveryEvent.Event.ID)
+	event, err := h.logStore.RetrieveEvent(ctx, logstore.RetrieveEventRequest{
+		TenantID: deliveryEvent.Event.TenantID,
+		EventID:  deliveryEvent.Event.ID,
+	})
 	if err != nil {
 		return err
 	}
