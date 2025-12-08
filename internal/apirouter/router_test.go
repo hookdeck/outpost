@@ -28,7 +28,20 @@ import (
 
 const baseAPIPath = "/api/v1"
 
+type testRouterResult struct {
+	router      http.Handler
+	logger      *logging.Logger
+	redisClient redis.Client
+	entityStore models.EntityStore
+	logStore    logstore.LogStore
+}
+
 func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *testing.T) clickhouse.DB) (http.Handler, *logging.Logger, redis.Client) {
+	result := setupTestRouterFull(t, apiKey, jwtSecret, funcs...)
+	return result.router, result.logger, result.redisClient
+}
+
+func setupTestRouterFull(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *testing.T) clickhouse.DB) testRouterResult {
 	gin.SetMode(gin.TestMode)
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
@@ -53,7 +66,13 @@ func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *te
 		eventHandler,
 		&telemetry.NoopTelemetry{},
 	)
-	return router, logger, redisClient
+	return testRouterResult{
+		router:      router,
+		logger:      logger,
+		redisClient: redisClient,
+		entityStore: entityStore,
+		logStore:    logStore,
+	}
 }
 
 func setupTestLogStore(t *testing.T, funcs ...func(t *testing.T) clickhouse.DB) logstore.LogStore {
@@ -62,7 +81,7 @@ func setupTestLogStore(t *testing.T, funcs ...func(t *testing.T) clickhouse.DB) 
 		chDB = f(t)
 	}
 	if chDB == nil {
-		return logstore.NewNoopLogStore()
+		return logstore.NewMemLogStore()
 	}
 	logStore, err := logstore.NewLogStore(context.Background(), logstore.DriverOpts{
 		CH: chDB,

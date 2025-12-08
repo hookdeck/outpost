@@ -7,6 +7,7 @@ import (
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/logstore/chlogstore"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
+	"github.com/hookdeck/outpost/internal/logstore/memlogstore"
 	"github.com/hookdeck/outpost/internal/logstore/pglogstore"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -48,6 +49,11 @@ func NewLogStore(ctx context.Context, driverOpts DriverOpts) (LogStore, error) {
 	}
 
 	return nil, errors.New("no driver provided")
+}
+
+// NewMemLogStore returns an in-memory log store for testing.
+func NewMemLogStore() LogStore {
+	return memlogstore.NewLogStore()
 }
 
 type Config struct {

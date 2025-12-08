@@ -26,20 +26,126 @@ func NewLogHandlers(
 	}
 }
 
-func (h *LogHandlers) ListEvent(c *gin.Context) {
-	h.listEvent(c, c.QueryArray("destination_id"))
+// ExpandOptions represents which fields to expand in the response
+type ExpandOptions struct {
+	Event       bool
+	EventData   bool
+	Destination bool
 }
 
-func (h *LogHandlers) ListEventByDestination(c *gin.Context) {
-	h.listEvent(c, []string{c.Param("destinationID")})
+func parseExpandOptions(c *gin.Context) ExpandOptions {
+	opts := ExpandOptions{}
+	for _, e := range c.QueryArray("expand") {
+		switch e {
+		case "event":
+			opts.Event = true
+		case "event.data":
+			opts.Event = true
+			opts.EventData = true
+		case "destination":
+			opts.Destination = true
+		}
+	}
+	return opts
 }
 
-func (h *LogHandlers) listEvent(c *gin.Context, destinationIDs []string) {
+// API Response types
+
+// APIDelivery is the API response for a delivery
+type APIDelivery struct {
+	ID           string                 `json:"id"`
+	Status       string                 `json:"status"`
+	DeliveredAt  time.Time              `json:"delivered_at"`
+	Code         string                 `json:"code,omitempty"`
+	ResponseData map[string]interface{} `json:"response_data,omitempty"`
+	Attempt      int                    `json:"attempt"`
+
+	// Expandable fields - string (ID) or object depending on expand
+	Event       interface{} `json:"event"`
+	Destination string      `json:"destination"`
+}
+
+// APIEventSummary is the event object when expand=event (without data)
+type APIEventSummary struct {
+	ID               string            `json:"id"`
+	Topic            string            `json:"topic"`
+	Time             time.Time         `json:"time"`
+	EligibleForRetry bool              `json:"eligible_for_retry"`
+	Metadata         map[string]string `json:"metadata,omitempty"`
+}
+
+// APIEventFull is the event object when expand=event.data
+type APIEventFull struct {
+	ID               string                 `json:"id"`
+	Topic            string                 `json:"topic"`
+	Time             time.Time              `json:"time"`
+	EligibleForRetry bool                   `json:"eligible_for_retry"`
+	Metadata         map[string]string      `json:"metadata,omitempty"`
+	Data             map[string]interface{} `json:"data,omitempty"`
+}
+
+// ListDeliveriesResponse is the response for ListDeliveries
+type ListDeliveriesResponse struct {
+	Data []APIDelivery `json:"data"`
+	Next string        `json:"next,omitempty"`
+	Prev string        `json:"prev,omitempty"`
+}
+
+// toAPIDelivery converts a DeliveryEvent to APIDelivery with expand options
+func toAPIDelivery(de *models.DeliveryEvent, opts ExpandOptions) APIDelivery {
+	api := APIDelivery{
+		ID:          de.Delivery.ID,
+		Attempt:     de.Attempt,
+		Destination: de.DestinationID,
+	}
+
+	// Set delivery fields if delivery exists
+	if de.Delivery != nil {
+		api.Status = de.Delivery.Status
+		api.DeliveredAt = de.Delivery.Time
+		api.Code = de.Delivery.Code
+		api.ResponseData = de.Delivery.ResponseData
+	}
+
+	// Handle event expansion
+	if opts.EventData {
+		api.Event = APIEventFull{
+			ID:               de.Event.ID,
+			Topic:            de.Event.Topic,
+			Time:             de.Event.Time,
+			EligibleForRetry: de.Event.EligibleForRetry,
+			Metadata:         de.Event.Metadata,
+			Data:             de.Event.Data,
+		}
+	} else if opts.Event {
+		api.Event = APIEventSummary{
+			ID:               de.Event.ID,
+			Topic:            de.Event.Topic,
+			Time:             de.Event.Time,
+			EligibleForRetry: de.Event.EligibleForRetry,
+			Metadata:         de.Event.Metadata,
+		}
+	} else {
+		api.Event = de.Event.ID
+	}
+
+	// TODO: Handle destination expansion
+	// This would require injecting EntityStore into LogHandlers and batch-fetching
+	// destinations by ID. Consider if this is needed - clients can fetch destination
+	// details separately via GET /destinations/:id if needed.
+
+	return api
+}
+
+// ListDeliveries handles GET /:tenantID/deliveries
+// Query params: event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[]
+func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 	if tenant == nil {
 		return
 	}
 
+	// Parse time filters
 	var start, end *time.Time
 	if startStr := c.Query("start"); startStr != "" {
 		t, err := time.Parse(time.RFC3339, startStr)
@@ -70,137 +176,102 @@ func (h *LogHandlers) listEvent(c *gin.Context, destinationIDs []string) {
 		end = &t
 	}
 
-	limitStr := c.Query("limit")
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = 100
+	// Parse limit
+	limit := 100
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
 	}
-	response, err := h.logStore.ListEvent(c.Request.Context(), logstore.ListEventRequest{
+
+	// Parse destination_id (single value for now)
+	var destinationIDs []string
+	if destID := c.Query("destination_id"); destID != "" {
+		destinationIDs = []string{destID}
+	}
+
+	// Build request
+	req := logstore.ListDeliveryEventRequest{
+		TenantID:       tenant.ID,
+		EventID:        c.Query("event_id"),
+		DestinationIDs: destinationIDs,
+		Status:         c.Query("status"),
+		Topics:         c.QueryArray("topic"),
+		DeliveryStart:  start,
+		DeliveryEnd:    end,
+		Limit:          limit,
 		Next:           c.Query("next"),
 		Prev:           c.Query("prev"),
-		Limit:          limit,
-		Start:          start,
-		End:            end,
-		TenantID:       tenant.ID,
-		DestinationIDs: destinationIDs,
-		Topics:         c.QueryArray("topic"),
-		Status:         c.Query("status"),
-	})
+	}
+
+	// Call logstore
+	response, err := h.logStore.ListDeliveryEvent(c.Request.Context(), req)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if len(response.Data) == 0 {
-		// Return an empty array instead of null
-		c.JSON(http.StatusOK, gin.H{
-			"data":  []models.Event{},
-			"next":  "",
-			"prev":  "",
-			"count": 0,
-		})
-		return
+
+	// Parse expand options
+	expandOpts := parseExpandOptions(c)
+
+	// Transform to API response
+	apiDeliveries := make([]APIDelivery, len(response.Data))
+	for i, de := range response.Data {
+		apiDeliveries[i] = toAPIDelivery(de, expandOpts)
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"data":  response.Data,
-		"next":  response.Next,
-		"prev":  response.Prev,
-		"count": response.Count,
+
+	c.JSON(http.StatusOK, ListDeliveriesResponse{
+		Data: apiDeliveries,
+		Next: response.Next,
+		Prev: response.Prev,
 	})
 }
 
+// RetrieveEvent handles GET /:tenantID/events/:eventID
 func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 	if tenant == nil {
 		return
 	}
 	eventID := c.Param("eventID")
-	event, err := h.logStore.RetrieveEvent(c.Request.Context(), tenant.ID, eventID)
-	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-		return
-	}
-	if event == nil {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	c.JSON(http.StatusOK, event)
-}
-
-func (h *LogHandlers) RetrieveEventByDestination(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
-	destinationID := c.Param("destinationID")
-	eventID := c.Param("eventID")
-	event, err := h.logStore.RetrieveEventByDestination(c.Request.Context(), tenant.ID, destinationID, eventID)
-	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-		return
-	}
-	if event == nil {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	c.JSON(http.StatusOK, event)
-}
-
-type DeliveryResponse struct {
-	ID           string                 `json:"id"`
-	DeliveredAt  string                 `json:"delivered_at"`
-	Status       string                 `json:"status"`
-	Code         string                 `json:"code"`
-	ResponseData map[string]interface{} `json:"response_data"`
-}
-
-func (h *LogHandlers) ListDeliveryByEvent(c *gin.Context) {
-	event := h.mustEventWithTenant(c, c.Param("eventID"))
-	if event == nil {
-		return
-	}
-	deliveries, err := h.logStore.ListDelivery(c.Request.Context(), logstore.ListDeliveryRequest{
-		EventID:       event.ID,
-		DestinationID: c.Query("destination_id"),
+	event, err := h.logStore.RetrieveEvent(c.Request.Context(), logstore.RetrieveEventRequest{
+		TenantID: tenant.ID,
+		EventID:  eventID,
 	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if len(deliveries) == 0 {
-		// Return an empty array instead of null
-		c.JSON(http.StatusOK, []DeliveryResponse{})
+	if event == nil {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("event"))
 		return
 	}
-	deliveryData := make([]DeliveryResponse, len(deliveries))
-	for i, delivery := range deliveries {
-		deliveryData[i] = DeliveryResponse{
-			ID:           delivery.ID,
-			DeliveredAt:  delivery.Time.UTC().Format(time.RFC3339),
-			Status:       delivery.Status,
-			Code:         delivery.Code,
-			ResponseData: delivery.ResponseData,
-		}
-	}
-	c.JSON(http.StatusOK, deliveryData)
+	c.JSON(http.StatusOK, event)
 }
 
-func (h *LogHandlers) mustEventWithTenant(c *gin.Context, eventID string) *models.Event {
+// RetrieveDelivery handles GET /:tenantID/deliveries/:deliveryID
+func (h *LogHandlers) RetrieveDelivery(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 	if tenant == nil {
-		return nil
+		return
 	}
-	event, err := h.logStore.RetrieveEvent(c.Request.Context(), tenant.ID, eventID)
+	deliveryID := c.Param("deliveryID")
+
+	deliveryEvent, err := h.logStore.RetrieveDeliveryEvent(c.Request.Context(), logstore.RetrieveDeliveryEventRequest{
+		TenantID:   tenant.ID,
+		DeliveryID: deliveryID,
+	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-		return nil
+		return
 	}
-	if event == nil {
-		c.Status(http.StatusNotFound)
-		return nil
+	if deliveryEvent == nil {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("delivery"))
+		return
 	}
-	if event.TenantID != tenant.ID {
-		c.Status(http.StatusForbidden)
-		return nil
-	}
-	return event
+
+	// Parse expand options
+	expandOpts := parseExpandOptions(c)
+
+	c.JSON(http.StatusOK, toAPIDelivery(deliveryEvent, expandOpts))
 }
