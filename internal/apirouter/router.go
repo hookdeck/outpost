@@ -151,8 +151,8 @@ func NewRouter(
 	tenantHandlers := NewTenantHandlers(logger, telemetry, cfg.JWTSecret, entityStore)
 	destinationHandlers := NewDestinationHandlers(logger, telemetry, entityStore, cfg.Topics, cfg.Registry)
 	publishHandlers := NewPublishHandlers(logger, publishmqEventHandler)
-	retryHandlers := NewRetryHandlers(logger, entityStore, logStore, deliveryMQ)
 	logHandlers := NewLogHandlers(logger, logStore)
+	retryHandlers := NewRetryHandlers(logger, entityStore, logStore, deliveryMQ)
 	topicHandlers := NewTopicHandlers(logger, cfg.Topics)
 
 	// Admin routes
@@ -334,11 +334,11 @@ func NewRouter(
 			},
 		},
 
-		// Event routes
+		// Delivery routes (new API)
 		{
 			Method:             http.MethodGet,
-			Path:               "/:tenantID/events",
-			Handler:            logHandlers.ListEvent,
+			Path:               "/:tenantID/deliveries",
+			Handler:            logHandlers.ListDeliveries,
 			AuthScope:          AuthScopeAdminOrTenant,
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
@@ -346,6 +346,30 @@ func NewRouter(
 				RequireTenantMiddleware(entityStore),
 			},
 		},
+		{
+			Method:             http.MethodGet,
+			Path:               "/:tenantID/deliveries/:deliveryID",
+			Handler:            logHandlers.RetrieveDelivery,
+			AuthScope:          AuthScopeAdminOrTenant,
+			Mode:               RouteModeAlways,
+			AllowTenantFromJWT: true,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+		{
+			Method:             http.MethodPost,
+			Path:               "/:tenantID/deliveries/:deliveryID/retry",
+			Handler:            retryHandlers.RetryDelivery,
+			AuthScope:          AuthScopeAdminOrTenant,
+			Mode:               RouteModeAlways,
+			AllowTenantFromJWT: true,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+
+		// Event routes
 		{
 			Method:             http.MethodGet,
 			Path:               "/:tenantID/events/:eventID",
@@ -356,49 +380,6 @@ func NewRouter(
 			Middlewares: []gin.HandlerFunc{
 				RequireTenantMiddleware(entityStore),
 			},
-		},
-		{
-			Method:             http.MethodGet,
-			Path:               "/:tenantID/events/:eventID/deliveries",
-			Handler:            logHandlers.ListDeliveryByEvent,
-			AuthScope:          AuthScopeAdminOrTenant,
-			Mode:               RouteModeAlways,
-			AllowTenantFromJWT: true,
-			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
-			},
-		},
-		{
-			Method:             http.MethodGet,
-			Path:               "/:tenantID/destinations/:destinationID/events",
-			Handler:            logHandlers.ListEventByDestination,
-			AuthScope:          AuthScopeAdminOrTenant,
-			Mode:               RouteModeAlways,
-			AllowTenantFromJWT: true,
-			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
-			},
-		},
-		{
-			Method:             http.MethodGet,
-			Path:               "/:tenantID/destinations/:destinationID/events/:eventID",
-			Handler:            logHandlers.RetrieveEventByDestination,
-			AuthScope:          AuthScopeAdminOrTenant,
-			Mode:               RouteModeAlways,
-			AllowTenantFromJWT: true,
-			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
-			},
-		},
-
-		// Retry routes
-		{
-			Method:             http.MethodPost,
-			Path:               "/:tenantID/destinations/:destinationID/events/:eventID/retry",
-			Handler:            retryHandlers.Retry,
-			AuthScope:          AuthScopeAdminOrTenant,
-			Mode:               RouteModeAlways,
-			AllowTenantFromJWT: true,
 		},
 	}
 
