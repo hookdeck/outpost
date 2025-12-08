@@ -154,6 +154,7 @@ func NewRouter(
 	logHandlers := NewLogHandlers(logger, logStore)
 	retryHandlers := NewRetryHandlers(logger, entityStore, logStore, deliveryMQ)
 	topicHandlers := NewTopicHandlers(logger, cfg.Topics)
+	legacyHandlers := NewLegacyHandlers(logger, entityStore, logStore, deliveryMQ)
 
 	// Admin routes
 	adminRoutes := []RouteDefinition{
@@ -383,12 +384,61 @@ func NewRouter(
 		},
 	}
 
+	// Legacy routes (deprecated, for backward compatibility)
+	legacyRoutes := []RouteDefinition{
+		{
+			Method:             http.MethodPost,
+			Path:               "/:tenantID/destinations/:destinationID/events/:eventID/retry",
+			Handler:            legacyHandlers.RetryByEventDestination,
+			AuthScope:          AuthScopeAdminOrTenant,
+			Mode:               RouteModeAlways,
+			AllowTenantFromJWT: true,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+		{
+			Method:             http.MethodGet,
+			Path:               "/:tenantID/destinations/:destinationID/events",
+			Handler:            legacyHandlers.ListEventsByDestination,
+			AuthScope:          AuthScopeAdminOrTenant,
+			Mode:               RouteModeAlways,
+			AllowTenantFromJWT: true,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+		{
+			Method:             http.MethodGet,
+			Path:               "/:tenantID/destinations/:destinationID/events/:eventID",
+			Handler:            legacyHandlers.RetrieveEventByDestination,
+			AuthScope:          AuthScopeAdminOrTenant,
+			Mode:               RouteModeAlways,
+			AllowTenantFromJWT: true,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+		{
+			Method:             http.MethodGet,
+			Path:               "/:tenantID/events/:eventID/deliveries",
+			Handler:            legacyHandlers.ListDeliveriesByEvent,
+			AuthScope:          AuthScopeAdminOrTenant,
+			Mode:               RouteModeAlways,
+			AllowTenantFromJWT: true,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+	}
+
 	// Register all routes to a single router
 	apiRoutes := []RouteDefinition{} // combine all routes
 	apiRoutes = append(apiRoutes, adminRoutes...)
 	apiRoutes = append(apiRoutes, portalRoutes...)
 	apiRoutes = append(apiRoutes, tenantAgnosticRoutes...)
 	apiRoutes = append(apiRoutes, tenantSpecificRoutes...)
+	apiRoutes = append(apiRoutes, legacyRoutes...)
 
 	registerRoutes(apiRouter, cfg, apiRoutes)
 
