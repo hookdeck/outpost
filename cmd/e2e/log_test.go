@@ -90,9 +90,9 @@ func (suite *basicSuite) TestLogAPI() {
 				Method: httpclient.MethodPOST,
 				Path:   "/publish",
 				Body: map[string]interface{}{
-					"id":               eventID,
-					"tenant_id":        tenantID,
-					"topic":            "user.created",
+					"id":                 eventID,
+					"tenant_id":          tenantID,
+					"topic":              "user.created",
 					"eligible_for_retry": true,
 					"data": map[string]interface{}{
 						"user_id": "123",
@@ -136,10 +136,10 @@ func (suite *basicSuite) TestLogAPI() {
 										"type":     "object",
 										"required": []interface{}{"id", "event", "destination", "status", "delivered_at"},
 										"properties": map[string]interface{}{
-											"id":          map[string]interface{}{"type": "string"},
-											"event":       map[string]interface{}{"type": "string"}, // Event ID when not expanded
-											"destination": map[string]interface{}{"const": destinationID},
-											"status":      map[string]interface{}{"type": "string"},
+											"id":           map[string]interface{}{"type": "string"},
+											"event":        map[string]interface{}{"type": "string"}, // Event ID when not expanded
+											"destination":  map[string]interface{}{"const": destinationID},
+											"status":       map[string]interface{}{"type": "string"},
 											"delivered_at": map[string]interface{}{"type": "string"},
 										},
 									},
@@ -452,9 +452,9 @@ func (suite *basicSuite) TestRetryAPI() {
 				Method: httpclient.MethodPOST,
 				Path:   "/publish",
 				Body: map[string]interface{}{
-					"id":               eventID,
-					"tenant_id":        tenantID,
-					"topic":            "user.created",
+					"id":                 eventID,
+					"tenant_id":          tenantID,
+					"topic":              "user.created",
 					"eligible_for_retry": false, // Disable auto-retry
 					"data": map[string]interface{}{
 						"user_id": "456",
@@ -727,9 +727,9 @@ func (suite *basicSuite) TestLegacyLogAPI() {
 				Method: httpclient.MethodPOST,
 				Path:   "/publish",
 				Body: map[string]interface{}{
-					"id":               eventID,
-					"tenant_id":        tenantID,
-					"topic":            "user.created",
+					"id":                 eventID,
+					"tenant_id":          tenantID,
+					"topic":              "user.created",
 					"eligible_for_retry": true,
 					"data": map[string]interface{}{
 						"user_id": "789",
