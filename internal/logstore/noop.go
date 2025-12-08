@@ -23,6 +23,10 @@ func (l *noopLogStore) RetrieveEvent(ctx context.Context, request driver.Retriev
 	return nil, nil
 }
 
+func (l *noopLogStore) RetrieveDeliveryEvent(ctx context.Context, request driver.RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error) {
+	return nil, nil
+}
+
 func (l *noopLogStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents []*models.DeliveryEvent) error {
 	return nil
 }

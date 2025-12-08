@@ -15,10 +15,12 @@ import (
 type ListDeliveryEventRequest = driver.ListDeliveryEventRequest
 type ListDeliveryEventResponse = driver.ListDeliveryEventResponse
 type RetrieveEventRequest = driver.RetrieveEventRequest
+type RetrieveDeliveryEventRequest = driver.RetrieveDeliveryEventRequest
 
 type LogStore interface {
 	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
+	RetrieveDeliveryEvent(ctx context.Context, request RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error)
 	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
 }
 

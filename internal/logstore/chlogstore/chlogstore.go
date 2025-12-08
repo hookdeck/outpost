@@ -410,6 +410,121 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 	return event, nil
 }
 
+// RetrieveDeliveryEvent retrieves a single delivery event by delivery ID.
+func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error) {
+	query := `
+		SELECT
+			event_id,
+			tenant_id,
+			destination_id,
+			topic,
+			eligible_for_retry,
+			event_time,
+			metadata,
+			data,
+			delivery_id,
+			delivery_event_id,
+			status,
+			delivery_time,
+			code,
+			response_data
+		FROM event_log
+		WHERE tenant_id = ? AND delivery_id = ?
+		LIMIT 1`
+
+	rows, err := s.chDB.Query(ctx, query, req.TenantID, req.DeliveryID)
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return nil, nil
+	}
+
+	var (
+		eventID          string
+		tenantID         string
+		destinationID    string
+		topic            string
+		eligibleForRetry bool
+		eventTime        time.Time
+		metadataStr      string
+		dataStr          string
+		deliveryID       string
+		deliveryEventID  string
+		status           string
+		deliveryTime     time.Time
+		code             string
+		responseDataStr  string
+	)
+
+	err = rows.Scan(
+		&eventID,
+		&tenantID,
+		&destinationID,
+		&topic,
+		&eligibleForRetry,
+		&eventTime,
+		&metadataStr,
+		&dataStr,
+		&deliveryID,
+		&deliveryEventID,
+		&status,
+		&deliveryTime,
+		&code,
+		&responseDataStr,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("scan failed: %w", err)
+	}
+
+	// Parse JSON fields
+	var metadata map[string]string
+	var data map[string]interface{}
+	var responseData map[string]interface{}
+
+	if metadataStr != "" {
+		if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		}
+	}
+	if dataStr != "" {
+		if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal data: %w", err)
+		}
+	}
+	if responseDataStr != "" {
+		if err := json.Unmarshal([]byte(responseDataStr), &responseData); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal response_data: %w", err)
+		}
+	}
+
+	return &models.DeliveryEvent{
+		ID:            deliveryEventID,
+		DestinationID: destinationID,
+		Event: models.Event{
+			ID:               eventID,
+			TenantID:         tenantID,
+			DestinationID:    destinationID,
+			Topic:            topic,
+			EligibleForRetry: eligibleForRetry,
+			Time:             eventTime,
+			Data:             data,
+			Metadata:         metadata,
+		},
+		Delivery: &models.Delivery{
+			ID:            deliveryID,
+			EventID:       eventID,
+			DestinationID: destinationID,
+			Status:        status,
+			Time:          deliveryTime,
+			Code:          code,
+			ResponseData:  responseData,
+		},
+	}, nil
+}
+
 func (s *logStoreImpl) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents []*models.DeliveryEvent) error {
 	if len(deliveryEvents) == 0 {
 		return nil
