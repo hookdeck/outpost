@@ -224,6 +224,19 @@ func (s *memLogStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEven
 	return nil, nil
 }
 
+// RetrieveDeliveryEvent retrieves a single delivery event by delivery ID.
+func (s *memLogStore) RetrieveDeliveryEvent(ctx context.Context, req driver.RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, de := range s.deliveryEvents {
+		if de.Event.TenantID == req.TenantID && de.Delivery != nil && de.Delivery.ID == req.DeliveryID {
+			return copyDeliveryEvent(de), nil
+		}
+	}
+	return nil, nil
+}
+
 func (s *memLogStore) matchesFilter(de *models.DeliveryEvent, req driver.ListDeliveryEventRequest) bool {
 	// Tenant filter (required)
 	if de.Event.TenantID != req.TenantID {

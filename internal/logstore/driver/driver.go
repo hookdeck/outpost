@@ -15,6 +15,7 @@ var ErrInvalidCursor = errors.New("invalid cursor")
 type LogStore interface {
 	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
+	RetrieveDeliveryEvent(ctx context.Context, request RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error)
 	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
 }
 
@@ -45,4 +46,9 @@ type RetrieveEventRequest struct {
 	TenantID      string // required
 	EventID       string // required
 	DestinationID string // optional - if provided, scopes to that destination
+}
+
+type RetrieveDeliveryEventRequest struct {
+	TenantID   string // required
+	DeliveryID string // required
 }

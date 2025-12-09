@@ -42,6 +42,9 @@ func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 	t.Run("TestRetrieveEvent", func(t *testing.T) {
 		testRetrieveEvent(t, newHarness)
 	})
+	t.Run("TestRetrieveDeliveryEvent", func(t *testing.T) {
+		testRetrieveDeliveryEvent(t, newHarness)
+	})
 	t.Run("TestTenantIsolation", func(t *testing.T) {
 		testTenantIsolation(t, newHarness)
 	})
@@ -695,6 +698,169 @@ func testRetrieveEvent(t *testing.T, newHarness HarnessMaker) {
 		})
 		require.NoError(t, err)
 		assert.Nil(t, retrieved, "should not return event for wrong destination")
+	})
+}
+
+// testRetrieveDeliveryEvent tests the RetrieveDeliveryEvent method
+func testRetrieveDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
+	t.Helper()
+
+	ctx := context.Background()
+	h, err := newHarness(ctx, t)
+	require.NoError(t, err)
+	t.Cleanup(h.Close)
+
+	logStore, err := h.MakeDriver(ctx)
+	require.NoError(t, err)
+
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
+	eventID := idgen.Event()
+	deliveryID := idgen.Delivery()
+	eventTime := time.Now().Truncate(time.Millisecond)
+	deliveryTime := eventTime.Add(100 * time.Millisecond)
+
+	event := testutil.EventFactory.AnyPointer(
+		testutil.EventFactory.WithID(eventID),
+		testutil.EventFactory.WithTenantID(tenantID),
+		testutil.EventFactory.WithDestinationID(destinationID),
+		testutil.EventFactory.WithTopic("order.created"),
+		testutil.EventFactory.WithTime(eventTime),
+		testutil.EventFactory.WithEligibleForRetry(true),
+		testutil.EventFactory.WithMetadata(map[string]string{
+			"source": "api",
+		}),
+		testutil.EventFactory.WithData(map[string]interface{}{
+			"order_id": "ord_456",
+			"amount":   99.99,
+		}),
+	)
+
+	delivery := testutil.DeliveryFactory.AnyPointer(
+		testutil.DeliveryFactory.WithID(deliveryID),
+		testutil.DeliveryFactory.WithEventID(eventID),
+		testutil.DeliveryFactory.WithDestinationID(destinationID),
+		testutil.DeliveryFactory.WithStatus("success"),
+		testutil.DeliveryFactory.WithTime(deliveryTime),
+	)
+	delivery.Code = "200"
+	delivery.ResponseData = map[string]interface{}{
+		"latency_ms": 42,
+	}
+
+	de := &models.DeliveryEvent{
+		ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
+		DestinationID: destinationID,
+		Event:         *event,
+		Delivery:      delivery,
+	}
+
+	require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, []*models.DeliveryEvent{de}))
+	require.NoError(t, h.FlushWrites(ctx))
+
+	t.Run("retrieve existing delivery with all fields", func(t *testing.T) {
+		retrieved, err := logStore.RetrieveDeliveryEvent(ctx, driver.RetrieveDeliveryEventRequest{
+			TenantID:   tenantID,
+			DeliveryID: deliveryID,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, retrieved)
+
+		// Verify delivery event ID
+		assert.Equal(t, de.ID, retrieved.ID)
+		assert.Equal(t, destinationID, retrieved.DestinationID)
+
+		// Verify event fields
+		assert.Equal(t, eventID, retrieved.Event.ID)
+		assert.Equal(t, tenantID, retrieved.Event.TenantID)
+		assert.Equal(t, destinationID, retrieved.Event.DestinationID)
+		assert.Equal(t, "order.created", retrieved.Event.Topic)
+		assert.Equal(t, true, retrieved.Event.EligibleForRetry)
+		assert.WithinDuration(t, eventTime, retrieved.Event.Time, time.Second)
+		assert.Equal(t, "api", retrieved.Event.Metadata["source"])
+		assert.Equal(t, "ord_456", retrieved.Event.Data["order_id"])
+
+		// Verify delivery fields
+		require.NotNil(t, retrieved.Delivery)
+		assert.Equal(t, deliveryID, retrieved.Delivery.ID)
+		assert.Equal(t, eventID, retrieved.Delivery.EventID)
+		assert.Equal(t, destinationID, retrieved.Delivery.DestinationID)
+		assert.Equal(t, "success", retrieved.Delivery.Status)
+		assert.WithinDuration(t, deliveryTime, retrieved.Delivery.Time, time.Second)
+		assert.Equal(t, "200", retrieved.Delivery.Code)
+		// Note: JSON unmarshaling converts integers to float64, but in-memory stores keep them as int
+		latencyMs := retrieved.Delivery.ResponseData["latency_ms"]
+		switch v := latencyMs.(type) {
+		case int:
+			assert.Equal(t, 42, v)
+		case float64:
+			assert.Equal(t, float64(42), v)
+		default:
+			t.Errorf("unexpected type for latency_ms: %T", latencyMs)
+		}
+	})
+
+	t.Run("retrieve non-existent delivery", func(t *testing.T) {
+		retrieved, err := logStore.RetrieveDeliveryEvent(ctx, driver.RetrieveDeliveryEventRequest{
+			TenantID:   tenantID,
+			DeliveryID: "non-existent",
+		})
+		require.NoError(t, err)
+		assert.Nil(t, retrieved)
+	})
+
+	t.Run("retrieve with wrong tenant", func(t *testing.T) {
+		retrieved, err := logStore.RetrieveDeliveryEvent(ctx, driver.RetrieveDeliveryEventRequest{
+			TenantID:   "wrong-tenant",
+			DeliveryID: deliveryID,
+		})
+		require.NoError(t, err)
+		assert.Nil(t, retrieved, "should not return delivery for wrong tenant")
+	})
+
+	t.Run("retrieve multiple deliveries for same event", func(t *testing.T) {
+		// Insert another delivery for the same event (simulating a retry)
+		secondDeliveryID := idgen.Delivery()
+		secondDeliveryTime := deliveryTime.Add(time.Second)
+
+		secondDelivery := testutil.DeliveryFactory.AnyPointer(
+			testutil.DeliveryFactory.WithID(secondDeliveryID),
+			testutil.DeliveryFactory.WithEventID(eventID),
+			testutil.DeliveryFactory.WithDestinationID(destinationID),
+			testutil.DeliveryFactory.WithStatus("failed"),
+			testutil.DeliveryFactory.WithTime(secondDeliveryTime),
+		)
+		secondDelivery.Code = "500"
+
+		secondDE := &models.DeliveryEvent{
+			ID:            fmt.Sprintf("%s_%s", eventID, secondDeliveryID),
+			DestinationID: destinationID,
+			Event:         *event,
+			Delivery:      secondDelivery,
+		}
+
+		require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, []*models.DeliveryEvent{secondDE}))
+		require.NoError(t, h.FlushWrites(ctx))
+
+		// Retrieve first delivery - should get first delivery
+		first, err := logStore.RetrieveDeliveryEvent(ctx, driver.RetrieveDeliveryEventRequest{
+			TenantID:   tenantID,
+			DeliveryID: deliveryID,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, first)
+		assert.Equal(t, deliveryID, first.Delivery.ID)
+		assert.Equal(t, "success", first.Delivery.Status)
+
+		// Retrieve second delivery - should get second delivery
+		second, err := logStore.RetrieveDeliveryEvent(ctx, driver.RetrieveDeliveryEventRequest{
+			TenantID:   tenantID,
+			DeliveryID: secondDeliveryID,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, second)
+		assert.Equal(t, secondDeliveryID, second.Delivery.ID)
+		assert.Equal(t, "failed", second.Delivery.Status)
 	})
 }
 

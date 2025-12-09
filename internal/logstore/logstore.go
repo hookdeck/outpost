@@ -7,6 +7,7 @@ import (
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/logstore/chlogstore"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
+	"github.com/hookdeck/outpost/internal/logstore/memlogstore"
 	"github.com/hookdeck/outpost/internal/logstore/pglogstore"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,10 +16,12 @@ import (
 type ListDeliveryEventRequest = driver.ListDeliveryEventRequest
 type ListDeliveryEventResponse = driver.ListDeliveryEventResponse
 type RetrieveEventRequest = driver.RetrieveEventRequest
+type RetrieveDeliveryEventRequest = driver.RetrieveDeliveryEventRequest
 
 type LogStore interface {
 	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
+	RetrieveDeliveryEvent(ctx context.Context, request RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error)
 	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
 }
 
@@ -46,6 +49,11 @@ func NewLogStore(ctx context.Context, driverOpts DriverOpts) (LogStore, error) {
 	}
 
 	return nil, errors.New("no driver provided")
+}
+
+// NewMemLogStore returns an in-memory log store for testing.
+func NewMemLogStore() LogStore {
+	return memlogstore.NewLogStore()
 }
 
 type Config struct {

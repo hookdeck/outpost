@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS event_log (
 
     -- Indexes for filtering (bloom filters help skip granules)
     INDEX idx_event_id event_id TYPE bloom_filter GRANULARITY 4,
+    INDEX idx_delivery_id delivery_id TYPE bloom_filter GRANULARITY 4,
     INDEX idx_topic topic TYPE bloom_filter GRANULARITY 4,
     INDEX idx_status status TYPE set(100) GRANULARITY 4
 ) ENGINE = ReplacingMergeTree

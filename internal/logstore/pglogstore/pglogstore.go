@@ -397,6 +397,94 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 	return event, nil
 }
 
+// RetrieveDeliveryEvent retrieves a single delivery event by delivery ID.
+func (s *logStore) RetrieveDeliveryEvent(ctx context.Context, req driver.RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error) {
+	query := `
+		SELECT
+			idx.event_id,
+			idx.delivery_id,
+			idx.destination_id,
+			idx.event_time,
+			idx.delivery_time,
+			idx.topic,
+			idx.status,
+			e.tenant_id,
+			e.eligible_for_retry,
+			e.data,
+			e.metadata,
+			d.code,
+			d.response_data
+		FROM event_delivery_index idx
+		JOIN events e ON e.id = idx.event_id AND e.time = idx.event_time
+		JOIN deliveries d ON d.id = idx.delivery_id AND d.time = idx.delivery_time
+		WHERE idx.tenant_id = $1 AND idx.delivery_id = $2
+		LIMIT 1`
+
+	row := s.db.QueryRow(ctx, query, req.TenantID, req.DeliveryID)
+
+	var (
+		eventID          string
+		deliveryID       string
+		destinationID    string
+		eventTime        time.Time
+		deliveryTime     time.Time
+		topic            string
+		status           string
+		tenantID         string
+		eligibleForRetry bool
+		data             map[string]interface{}
+		metadata         map[string]string
+		code             string
+		responseData     map[string]interface{}
+	)
+
+	err := row.Scan(
+		&eventID,
+		&deliveryID,
+		&destinationID,
+		&eventTime,
+		&deliveryTime,
+		&topic,
+		&status,
+		&tenantID,
+		&eligibleForRetry,
+		&data,
+		&metadata,
+		&code,
+		&responseData,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("scan failed: %w", err)
+	}
+
+	return &models.DeliveryEvent{
+		ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
+		DestinationID: destinationID,
+		Event: models.Event{
+			ID:               eventID,
+			TenantID:         tenantID,
+			DestinationID:    destinationID,
+			Topic:            topic,
+			EligibleForRetry: eligibleForRetry,
+			Time:             eventTime,
+			Data:             data,
+			Metadata:         metadata,
+		},
+		Delivery: &models.Delivery{
+			ID:            deliveryID,
+			EventID:       eventID,
+			DestinationID: destinationID,
+			Status:        status,
+			Time:          deliveryTime,
+			Code:          code,
+			ResponseData:  responseData,
+		},
+	}, nil
+}
+
 func (s *logStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents []*models.DeliveryEvent) error {
 	if len(deliveryEvents) == 0 {
 		return nil
