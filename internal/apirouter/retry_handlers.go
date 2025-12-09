@@ -52,7 +52,10 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 		return
 	}
 
-	event, err := h.logStore.RetrieveEvent(c, tenantID, eventID)
+	event, err := h.logStore.RetrieveEvent(c, logstore.RetrieveEventRequest{
+		TenantID: tenantID,
+		EventID:  eventID,
+	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return

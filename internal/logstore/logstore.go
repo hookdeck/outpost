@@ -12,15 +12,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type ListEventRequest = driver.ListEventRequest
-type ListEventResponse = driver.ListEventResponse
-type ListDeliveryRequest = driver.ListDeliveryRequest
+type ListDeliveryEventRequest = driver.ListDeliveryEventRequest
+type ListDeliveryEventResponse = driver.ListDeliveryEventResponse
+type RetrieveEventRequest = driver.RetrieveEventRequest
 
 type LogStore interface {
-	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
-	RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error)
-	RetrieveEventByDestination(ctx context.Context, tenantID, destinationID, eventID string) (*models.Event, error)
-	ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*models.Delivery, error)
+	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
+	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
 	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
 }
 
@@ -51,20 +49,20 @@ func NewLogStore(ctx context.Context, driverOpts DriverOpts) (LogStore, error) {
 }
 
 type Config struct {
-	// ClickHouse *clickhouse.ClickHouseConfig
-	Postgres *string
+	ClickHouse *clickhouse.ClickHouseConfig
+	Postgres   *string
 }
 
 func MakeDriverOpts(cfg Config) (DriverOpts, error) {
 	driverOpts := DriverOpts{}
 
-	// if cfg.ClickHouse != nil {
-	// 	chDB, err := clickhouse.New(cfg.ClickHouse)
-	// 	if err != nil {
-	// 		return DriverOpts{}, err
-	// 	}
-	// 	driverOpts.CH = chDB
-	// }
+	if cfg.ClickHouse != nil {
+		chDB, err := clickhouse.New(cfg.ClickHouse)
+		if err != nil {
+			return DriverOpts{}, err
+		}
+		driverOpts.CH = chDB
+	}
 
 	if cfg.Postgres != nil && *cfg.Postgres != "" {
 		pgDB, err := pgxpool.New(context.Background(), *cfg.Postgres)
