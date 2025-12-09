@@ -239,6 +239,12 @@ export default Destination;
 
 const TRUNCATION_LENGTH = 32;
 
+// Fallback safety check: treat values with 3+ consecutive asterisks as obfuscated.
+// This catches cases where the API obfuscated the value but metadata doesn't indicate sensitivity.
+function looksObfuscated(value: string | JSX.Element): boolean {
+  return typeof value === "string" && /\*{3,}/.test(value);
+}
+
 function DestinationDetailsField(props: {
   type: DestinationTypeReference;
   fieldType: "config" | "credentials";
@@ -248,6 +254,7 @@ function DestinationDetailsField(props: {
   let label = "";
   let isSensitive = false;
   let shouldCopy = false;
+
   if (props.fieldType === "config") {
     const field = props.type.config_fields.find(
       (field) => field.key === props.fieldKey
@@ -259,8 +266,14 @@ function DestinationDetailsField(props: {
       (field) => field.key === props.fieldKey
     );
     label = field?.label || "";
-    shouldCopy = field?.type === "text" && !field?.sensitive;
-    isSensitive = Boolean(field?.sensitive);
+
+    // Only hide copy button if field is explicitly marked as sensitive in metadata.
+    // Fields not in metadata (e.g., webhook.credentials.secret) are auto-generated,
+    // and we default to allowing copy since we can't determine sensitivity from metadata.
+    const isExplicitlySensitive = field?.sensitive === true;
+    const isObfuscated = looksObfuscated(props.value);
+    shouldCopy = !isExplicitlySensitive && !isObfuscated;
+    isSensitive = isExplicitlySensitive || isObfuscated;
   }
   if (label === "") {
     label = props.fieldKey
