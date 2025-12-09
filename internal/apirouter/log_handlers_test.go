@@ -362,10 +362,11 @@ func TestRetrieveEvent(t *testing.T) {
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
 		assert.Equal(t, eventID, response["id"])
-		assert.Equal(t, tenantID, response["tenant_id"])
 		assert.Equal(t, "payment.processed", response["topic"])
 		assert.Equal(t, "stripe", response["metadata"].(map[string]interface{})["source"])
 		assert.Equal(t, 100.50, response["data"].(map[string]interface{})["amount"])
+		// tenant_id is not included in API response (tenant-scoped via URL)
+		assert.Nil(t, response["tenant_id"])
 	})
 
 	t.Run("should return 404 for non-existent event", func(t *testing.T) {
