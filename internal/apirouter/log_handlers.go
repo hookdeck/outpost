@@ -84,6 +84,16 @@ type APIEventFull struct {
 	Data             map[string]interface{} `json:"data,omitempty"`
 }
 
+// APIEvent is the API response for retrieving a single event
+type APIEvent struct {
+	ID               string                 `json:"id"`
+	Topic            string                 `json:"topic"`
+	Time             time.Time              `json:"time"`
+	EligibleForRetry bool                   `json:"eligible_for_retry"`
+	Metadata         map[string]string      `json:"metadata,omitempty"`
+	Data             map[string]interface{} `json:"data,omitempty"`
+}
+
 // ListDeliveriesResponse is the response for ListDeliveries
 type ListDeliveriesResponse struct {
 	Data []APIDelivery `json:"data"`
@@ -246,7 +256,14 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 		AbortWithError(c, http.StatusNotFound, NewErrNotFound("event"))
 		return
 	}
-	c.JSON(http.StatusOK, event)
+	c.JSON(http.StatusOK, APIEvent{
+		ID:               event.ID,
+		Topic:            event.Topic,
+		Time:             event.Time,
+		EligibleForRetry: event.EligibleForRetry,
+		Metadata:         event.Metadata,
+		Data:             event.Data,
+	})
 }
 
 // RetrieveDelivery handles GET /:tenantID/deliveries/:deliveryID
