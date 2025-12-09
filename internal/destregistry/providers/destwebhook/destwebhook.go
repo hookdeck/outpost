@@ -35,8 +35,8 @@ var reservedHeaders = map[string]bool{
 // Valid header name pattern (RFC 7230 token)
 var headerNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
 
-// validateCustomHeaders validates custom header names and values
-func validateCustomHeaders(headers map[string]string) error {
+// ValidateCustomHeaders validates custom header names and values
+func ValidateCustomHeaders(headers map[string]string) error {
 	if len(headers) == 0 {
 		return nil
 	}
@@ -321,7 +321,7 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 				Type:  "invalid",
 			}})
 		}
-		if err := validateCustomHeaders(config.CustomHeaders); err != nil {
+		if err := ValidateCustomHeaders(config.CustomHeaders); err != nil {
 			return nil, nil, err
 		}
 	}
