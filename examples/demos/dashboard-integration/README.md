@@ -184,7 +184,7 @@ For detailed implementation guidance with code examples, see **[INTEGRATION_DETA
 | `RABBITMQ_SERVER_URL`      | RabbitMQ connection                                   | `amqp://guest:guest@rabbitmq:5672`                 |
 | `TOPICS`                   | Available event topics (comma-separated)             | `user.created,order.completed,payment.processed`   |
 | `PORTAL_ORGANIZATION_NAME` | Portal branding                                       | `API Platform Demo`                                |
-| `PORTAL_REFERER_URL`       | The URL were the user is redirected when the JWT token is expired or when the user clicks 'back'. Required if the Outpost Portal is enabled/used. | `http://localhost:3000`                            |
+| `PORTAL_REFERER_URL`       | The URL where the user is redirected when the JWT token is expired or when the user clicks 'back'. Required if the Outpost Portal is enabled/used. | `http://localhost:3000`                            |
 
 ## Docker Services
 

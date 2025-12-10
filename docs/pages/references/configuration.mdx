@@ -93,7 +93,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `PORTAL_LOGO_DARK` | URL for the dark-mode logo to be displayed in the Outpost Portal. | `nil` | No |
 | `PORTAL_ORGANIZATION_NAME` | Organization name displayed in the Outpost Portal. | `nil` | No |
 | `PORTAL_PROXY_URL` | URL to proxy the Outpost Portal through. If set, Outpost serves the portal assets, and this URL is used as the base. Must be a valid URL. | `nil` | No |
-| `PORTAL_REFERER_URL` | The URL were the user is redirected when the JWT token is expired or when the user clicks 'back'. Required if the Outpost Portal is enabled/used. | `nil` | Conditional |
+| `PORTAL_REFERER_URL` | The URL where the user is redirected when the JWT token is expired or when the user clicks 'back'. Required if the Outpost Portal is enabled/used. | `nil` | Conditional |
 | `POSTGRES_URL` | Connection URL for PostgreSQL, used for log storage. Example: 'postgres://user:pass@host:port/dbname?sslmode=disable'. | `nil` | Yes |
 | `PUBLISH_AWS_SQS_ACCESS_KEY_ID` | AWS Access Key ID for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider. | `nil` | Conditional |
 | `PUBLISH_AWS_SQS_ENDPOINT` | Custom AWS SQS endpoint URL for the publish queue. Optional. | `nil` | No |
