@@ -85,17 +85,17 @@ You can customize the following webhook features and behaviors. The full path to
 
 Templates use the [Go template syntax](https://pkg.go.dev/text/template).
 
-| YAML                               | Environment Variable                                    | Default Value                                          |
-| ---------------------------------- | ------------------------------------------------------- | ------------------------------------------------------ |
-| `header_prefix`                    | `DESTINATIONS_WEBHOOK_HEADER_PREFIX`                    | `x-outpost`                                            |
-| `disable_default_event_id_header`  | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`  | `false`                                                |
-| `disable_default_signature_header` | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | `false`                                                |
-| `disable_default_timestamp_header` | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | `false`                                                |
-| `disable_default_topic_header`     | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER`     | `false`                                                |
-| `signature_content_template`       | `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`       | `{{.Timestamp.Unix}}.{{.Body}}`                        |
-| `signature_header_template`        | `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`        | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` |
-| `signature_encoding`               | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`               | `hex`                                                  |
-| `signature_algorithm`              | `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`              | `hmac-sha256`                                          |
+| YAML                               | Environment Variable                                    | Default Value                    |
+| ---------------------------------- | ------------------------------------------------------- | -------------------------------- |
+| `header_prefix`                    | `DESTINATIONS_WEBHOOK_HEADER_PREFIX`                    | `x-outpost`                      |
+| `disable_default_event_id_header`  | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`  | `false`                          |
+| `disable_default_signature_header` | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | `false`                          |
+| `disable_default_timestamp_header` | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | `false`                          |
+| `disable_default_topic_header`     | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER`     | `false`                          |
+| `signature_content_template`       | `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`       | `{{.Body}}`                      |
+| `signature_header_template`        | `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`        | `v0={{.Signatures \| join ","}}` |
+| `signature_encoding`               | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`               | `hex`                            |
+| `signature_algorithm`              | `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`              | `hmac-sha256`                    |
 
 ### Migration Process
 

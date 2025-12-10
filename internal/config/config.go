@@ -176,8 +176,8 @@ func (c *Config) InitDefaults() {
 		MetadataPath: "config/outpost/destinations",
 		Webhook: DestinationWebhookConfig{
 			HeaderPrefix:             "x-outpost-",
-			SignatureContentTemplate: "{{.Timestamp.Unix}}.{{.Body}}",
-			SignatureHeaderTemplate:  "t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}",
+			SignatureContentTemplate: "{{.Body}}",
+			SignatureHeaderTemplate:  "v0={{.Signatures | join \",\"}}",
 			SignatureEncoding:        "hex",
 			SignatureAlgorithm:       "hmac-sha256",
 		},
