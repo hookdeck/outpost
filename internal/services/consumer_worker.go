@@ -57,6 +57,7 @@ func (w *ConsumerWorker) Run(ctx context.Context) error {
 	csm := consumer.New(subscription, w.handler,
 		consumer.WithName(w.name),
 		consumer.WithConcurrency(w.concurrency),
+		consumer.WithLogger(w.logger),
 	)
 
 	if err := csm.Run(ctx); err != nil {
