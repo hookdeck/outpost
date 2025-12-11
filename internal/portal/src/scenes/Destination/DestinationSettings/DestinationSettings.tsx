@@ -16,8 +16,10 @@ import { showToast } from "../../../common/Toast/Toast";
 import {
   Destination,
   DestinationTypeReference,
+  Filter,
 } from "../../../typings/Destination";
 import DestinationConfigFields from "../../../common/DestinationConfigFields/DestinationConfigFields";
+import FilterField from "../../../common/FilterField/FilterField";
 import CONFIGS from "../../../config";
 import { getFormValues } from "../../../utils/formHelper";
 
@@ -29,11 +31,13 @@ const DestinationSettings = ({
   type: DestinationTypeReference;
 }) => {
   const [selectedTopics, setSelectedTopics] = useState(destination.topics);
+  const [filter, setFilter] = useState<Filter>(destination.filter || null);
   const apiClient = useContext(ApiContext);
   const navigate = useNavigate();
 
   const [isDisabling, setIsDisabling] = useState(false);
   const [isTopicsSaving, setIsTopicsSaving] = useState(false);
+  const [isFilterSaving, setIsFilterSaving] = useState(false);
   const [isConfigSaving, setIsConfigSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRotatingSecret, setIsRotatingSecret] = useState(false);
@@ -140,6 +144,43 @@ const DestinationSettings = ({
       });
   };
 
+  const handleFilterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsFilterSaving(true);
+
+    apiClient
+      .fetch(`destinations/${destination.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          // Use empty object {} to unset filter (API doesn't accept null for PATCH)
+          filter: filter && Object.keys(filter).length > 0 ? filter : {},
+        }),
+      })
+      .then((data) => {
+        showToast("success", "Event filter updated.");
+        mutate(`destinations/${destination.id}`, data, false);
+      })
+      .catch((error) => {
+        showToast(
+          "error",
+          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`
+        );
+      })
+      .finally(() => {
+        setIsFilterSaving(false);
+      });
+  };
+
+  const isFilterChanged = () => {
+    const currentFilter =
+      filter && Object.keys(filter).length > 0 ? filter : null;
+    const originalFilter =
+      destination.filter && Object.keys(destination.filter).length > 0
+        ? destination.filter
+        : null;
+    return JSON.stringify(currentFilter) !== JSON.stringify(originalFilter);
+  };
+
   const handleRotateSecret = () => {
     setIsRotatingSecret(true);
     apiClient
@@ -242,6 +283,27 @@ const DestinationSettings = ({
             primary
             disabled={!isConfigFormValid}
             loading={isConfigSaving}
+          >
+            <SaveIcon /> Save
+          </Button>
+        </form>
+      </div>
+      <hr />
+      <div className="destination-settings__filter">
+        <h2 className="title-l">Event Filter</h2>
+        <p className="body-m muted">
+          Filter events based on their content. Only events matching the filter
+          will be delivered. Leave empty to receive all events matching the
+          selected topics.
+        </p>
+        <form onSubmit={handleFilterSubmit}>
+          <FilterField value={filter} onChange={setFilter} />
+          <Button
+            className="destination-settings__submit-button"
+            type="submit"
+            primary
+            disabled={!isFilterChanged()}
+            loading={isFilterSaving}
           >
             <SaveIcon /> Save
           </Button>
