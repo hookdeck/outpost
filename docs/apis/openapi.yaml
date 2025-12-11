@@ -99,6 +99,23 @@ components:
       description: '"*" or an array of enabled topics.'
       example: "*"
 
+    Filter:
+      type: object
+      nullable: true
+      additionalProperties: true
+      description: |
+        Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+        Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+        If null or empty, all events matching the topic filter will be delivered.
+      example:
+        data:
+          type:
+            $in: ["order.created", "order.updated"]
+          amount:
+            $gte: 100
+          customer:
+            tier: "premium"
+
     PaginatedResponse:
       type: object
       required: [count, data, next, prev]
@@ -346,6 +363,8 @@ components:
           example: "webhook"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -421,6 +440,8 @@ components:
           example: "aws_sqs"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -496,6 +517,8 @@ components:
           example: "rabbitmq"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -572,6 +595,8 @@ components:
           example: "hookdeck"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -643,6 +668,8 @@ components:
           example: "aws_kinesis"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -718,6 +745,8 @@ components:
           example: "azure_servicebus"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -792,6 +821,8 @@ components:
           example: "aws_s3"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -867,6 +898,8 @@ components:
           example: "gcp_pubsub"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -963,6 +996,8 @@ components:
           enum: [webhook]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/WebhookConfig"
         credentials:
@@ -996,6 +1031,8 @@ components:
           enum: [aws_sqs]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AWSSQSConfig"
         credentials:
@@ -1028,6 +1065,8 @@ components:
           enum: [rabbitmq]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/RabbitMQConfig"
         credentials:
@@ -1060,6 +1099,8 @@ components:
           enum: [hookdeck]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config: {}
         credentials:
           $ref: "#/components/schemas/HookdeckCredentials"
@@ -1091,6 +1132,8 @@ components:
           enum: [aws_kinesis]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AWSKinesisConfig"
         credentials:
@@ -1124,6 +1167,8 @@ components:
           enum: [azure_servicebus]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AzureServiceBusConfig"
         credentials:
@@ -1157,6 +1202,8 @@ components:
           enum: [aws_s3]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AWSS3Config"
         credentials:
@@ -1189,6 +1236,8 @@ components:
           enum: [gcp_pubsub]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/GCPPubSubConfig"
         credentials:
@@ -1254,6 +1303,8 @@ components:
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/WebhookConfig" # URL is required here, but PATCH means it's optional in the request
         credentials:
@@ -1278,6 +1329,8 @@ components:
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AWSSQSConfig" # queue_url is required here, but PATCH means it's optional
         credentials:
@@ -1302,6 +1355,8 @@ components:
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/RabbitMQConfig" # server_url/exchange required here, but PATCH means optional
         credentials:
@@ -1326,6 +1381,8 @@ components:
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config: {} # Empty config, cannot be updated
         credentials:
           $ref: "#/components/schemas/HookdeckCredentials" # token required here, but PATCH means optional
@@ -1349,6 +1406,8 @@ components:
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AWSKinesisConfig" # stream_name/region required here, but PATCH means optional
         credentials:
@@ -1373,6 +1432,8 @@ components:
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AzureServiceBusConfig" # name required here, but PATCH means optional
         credentials:
@@ -1398,6 +1459,8 @@ components:
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AWSS3Config" # bucket/region required here, but PATCH means optional
         credentials:
@@ -1422,6 +1485,8 @@ components:
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/GCPPubSubConfig" # project_id/topic required here, but PATCH means optional
         credentials:
