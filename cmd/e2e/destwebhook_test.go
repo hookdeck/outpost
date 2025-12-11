@@ -1205,3 +1205,186 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 	}
 	suite.RunAPITests(suite.T(), cleanupTests)
 }
+
+func (suite *basicSuite) TestDestwebhookFilter() {
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
+	eventMatchID := idgen.Event()
+	eventNoMatchID := idgen.Event()
+	secret := "testsecret1234567890abcdefghijklmnop"
+
+	tests := []APITest{
+		{
+			Name: "PUT /:tenantID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+		{
+			Name: "PUT mockserver/destinations",
+			Request: httpclient.Request{
+				Method:  httpclient.MethodPUT,
+				BaseURL: suite.mockServerBaseURL,
+				Path:    "/destinations",
+				Body: map[string]interface{}{
+					"id":   destinationID,
+					"type": "webhook",
+					"config": map[string]interface{}{
+						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
+					},
+					"credentials": map[string]interface{}{
+						"secret": secret,
+					},
+				},
+			},
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Name: "POST /:tenantID/destinations - create destination with filter using $gte operator",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
+				Body: map[string]interface{}{
+					"id":     destinationID,
+					"type":   "webhook",
+					"topics": "*",
+					"filter": map[string]interface{}{
+						"data": map[string]interface{}{
+							"amount": map[string]interface{}{
+								"$gte": 100,
+							},
+						},
+					},
+					"config": map[string]interface{}{
+						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
+					},
+					"credentials": map[string]interface{}{
+						"secret": secret,
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+		{
+			Name: "POST /publish - event matches filter (amount >= 100)",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/publish",
+				Body: map[string]interface{}{
+					"tenant_id":          tenantID,
+					"topic":              "user.created",
+					"eligible_for_retry": false,
+					"data": map[string]any{
+						"event_id": eventMatchID,
+						"amount":   150, // >= 100, matches filter
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusAccepted,
+				},
+			},
+		},
+		{
+			Delay: 1 * time.Second,
+			Name:  "GET mockserver - verify event was delivered",
+			Request: httpclient.Request{
+				Method:  httpclient.MethodGET,
+				BaseURL: suite.mockServerBaseURL,
+				Path:    "/destinations/" + destinationID + "/events",
+			},
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: []interface{}{
+						map[string]interface{}{
+							"success":  true,
+							"verified": true,
+							"payload": map[string]interface{}{
+								"event_id": eventMatchID,
+								"amount":   float64(150),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "DELETE mockserver events - clear for next test",
+			Request: httpclient.Request{
+				Method:  httpclient.MethodDELETE,
+				BaseURL: suite.mockServerBaseURL,
+				Path:    "/destinations/" + destinationID + "/events",
+			},
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Name: "POST /publish - event does NOT match filter (amount < 100)",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/publish",
+				Body: map[string]interface{}{
+					"tenant_id":          tenantID,
+					"topic":              "user.created",
+					"eligible_for_retry": false,
+					"data": map[string]any{
+						"event_id": eventNoMatchID,
+						"amount":   50, // < 100, doesn't match filter
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusAccepted,
+				},
+			},
+		},
+		{
+			Delay: 1 * time.Second,
+			Name:  "GET mockserver - verify event was NOT delivered (filter mismatch)",
+			Request: httpclient.Request{
+				Method:  httpclient.MethodGET,
+				BaseURL: suite.mockServerBaseURL,
+				Path:    "/destinations/" + destinationID + "/events",
+			},
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body:       []interface{}{}, // empty - no events delivered
+				},
+			},
+		},
+		{
+			Name: "DELETE /:tenantID to clean up",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodDELETE,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+	}
+	suite.RunAPITests(suite.T(), tests)
+}
