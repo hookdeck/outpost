@@ -133,10 +133,28 @@ func (d *Destination) ToSummary() *DestinationSummary {
 	}
 }
 
+// MatchEvent checks if the destination matches the given event.
+// Returns true if the destination is enabled, topic matches, and filter matches.
+func (d *Destination) MatchEvent(event Event) bool {
+	if d.DisabledAt != nil {
+		return false
+	}
+	if !d.Topics.MatchTopic(event.Topic) {
+		return false
+	}
+	return matchFilter(d.Filter, event)
+}
+
 // MatchFilter checks if the given event matches the destination's filter.
 // Returns true if no filter is set (nil or empty) or if the event matches the filter.
 func (ds *DestinationSummary) MatchFilter(event Event) bool {
-	if ds.Filter == nil || len(ds.Filter) == 0 {
+	return matchFilter(ds.Filter, event)
+}
+
+// matchFilter is the shared implementation for filter matching.
+// Returns true if no filter is set (nil or empty) or if the event matches the filter.
+func matchFilter(filter Filter, event Event) bool {
+	if filter == nil || len(filter) == 0 {
 		return true
 	}
 	// Build the filter input from the event
@@ -159,7 +177,7 @@ func (ds *DestinationSummary) MatchFilter(event Event) bool {
 	if event.Data != nil {
 		filterInput["data"] = map[string]any(event.Data)
 	}
-	return simplejsonmatch.Match(filterInput, map[string]any(ds.Filter))
+	return simplejsonmatch.Match(filterInput, map[string]any(filter))
 }
 
 // ============================== Types ==============================
