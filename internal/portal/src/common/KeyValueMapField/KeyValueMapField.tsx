@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CloseIcon, PlusIcon } from "../Icons";
 import "./KeyValueMapField.scss";
 
@@ -13,6 +13,7 @@ interface KeyValueMapFieldProps {
   disabled?: boolean;
   keyPlaceholder?: string;
   valuePlaceholder?: string;
+  onChange?: (value: string) => void;
 }
 
 const KeyValueMapField: React.FC<KeyValueMapFieldProps> = ({
@@ -21,6 +22,7 @@ const KeyValueMapField: React.FC<KeyValueMapFieldProps> = ({
   disabled,
   keyPlaceholder = "Key",
   valuePlaceholder = "Value",
+  onChange,
 }) => {
   const [pairs, setPairs] = useState<KeyValuePair[]>(() => {
     if (defaultValue) {
@@ -50,6 +52,25 @@ const KeyValueMapField: React.FC<KeyValueMapFieldProps> = ({
       return acc;
     }, {} as Record<string, string>)
   );
+
+  // Track previous value to detect actual changes (not initial render)
+  const prevSerializedValueRef = useRef<string | null>(null);
+
+  // Call onChange callback only when serialized value actually changes
+  useEffect(() => {
+    // On first render, just store the initial value without calling onChange
+    if (prevSerializedValueRef.current === null) {
+      prevSerializedValueRef.current = serializedValue;
+      return;
+    }
+
+    // Only call onChange if value actually changed
+    if (prevSerializedValueRef.current !== serializedValue) {
+      prevSerializedValueRef.current = serializedValue;
+      onChange?.(serializedValue);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serializedValue]);
 
   const updatePair = (
     index: number,
@@ -98,7 +119,7 @@ const KeyValueMapField: React.FC<KeyValueMapFieldProps> = ({
                 type="button"
                 onClick={() => removePair(index)}
                 disabled={disabled}
-                className="key-value-map-field__remove"
+                className="button button__minimal key-value-map-field__remove"
                 aria-label="Remove row"
               >
                 <CloseIcon />
@@ -111,7 +132,7 @@ const KeyValueMapField: React.FC<KeyValueMapFieldProps> = ({
         type="button"
         onClick={addPair}
         disabled={disabled}
-        className="key-value-map-field__add"
+        className="button key-value-map-field__add"
       >
         <PlusIcon /> Add header
       </button>

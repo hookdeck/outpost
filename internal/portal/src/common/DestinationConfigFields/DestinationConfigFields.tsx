@@ -15,9 +15,11 @@ import { isCheckedValue } from "../../utils/formHelper";
 const DestinationConfigFields = ({
   destination,
   type,
+  onChange,
 }: {
   destination?: Destination;
   type: DestinationTypeReference;
+  onChange?: () => void;
 }) => {
   const [unlockedSensitiveFields, setUnlockedSensitiveFields] = useState<
     Record<string, boolean>
@@ -174,6 +176,17 @@ const DestinationConfigFields = ({
               required={field.required}
             />
           )}
+          {field.description && (
+            <p
+              className="description"
+              style={{
+                marginBottom:
+                  field.type === "key_value_map" ? "var(--spacing-2)" : "var(--spacing-4)",
+              }}
+            >
+              {field.description}
+            </p>
+          )}
           {field.type === "key_value_map" && (
             <KeyValueMapField
               name={field.key}
@@ -185,10 +198,8 @@ const DestinationConfigFields = ({
               disabled={field.disabled}
               keyPlaceholder={field.key_placeholder}
               valuePlaceholder={field.value_placeholder}
+              onChange={onChange}
             />
-          )}
-          {field.description && (
-            <p className="description">{field.description}</p>
           )}
         </div>
       ))}

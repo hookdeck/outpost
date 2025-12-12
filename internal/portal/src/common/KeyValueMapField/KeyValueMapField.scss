@@ -1,4 +1,6 @@
 .key-value-map-field {
+  margin-bottom: var(--spacing-4);
+  
   &__rows {
     display: flex;
     flex-direction: column;
@@ -22,28 +24,12 @@
 
   &__remove {
     padding: var(--spacing-2);
-    border: none;
-    background: none;
-    cursor: pointer;
     line-height: 0;
-    border-radius: var(--radius-s);
 
     svg {
       width: 16px;
       height: 16px;
       fill: var(--colors-foreground-neutral-3);
-    }
-
-    &:hover:not(:disabled) {
-      background: var(--colors-background-neutral-2);
-      svg {
-        fill: var(--colors-foreground-neutral);
-      }
-    }
-
-    &:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
     }
   }
 
@@ -52,27 +38,12 @@
     align-items: center;
     gap: var(--spacing-1);
     padding: var(--spacing-1) var(--spacing-2);
-    border: 1px solid var(--colors-outline-neutral);
-    background: none;
-    cursor: pointer;
     font-size: var(--font-size-s);
-    color: var(--colors-foreground-neutral-2);
-    border-radius: var(--radius-m);
 
     svg {
-      width: 14px;
-      height: 14px;
-      fill: currentColor;
-    }
-
-    &:hover:not(:disabled) {
-      background: var(--colors-background-neutral-2);
-      color: var(--colors-foreground-neutral);
-    }
-
-    &:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
+      width: 16px;
+      height: 16px;
+      fill: var(--colors-foreground-neutral-2);
     }
   }
 }

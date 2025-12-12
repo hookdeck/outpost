@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useRef } from "react";
 import Button from "../../../common/Button/Button";
 import TopicPicker from "../../../common/TopicPicker/TopicPicker";
 import { useNavigate } from "react-router-dom";
@@ -128,6 +128,7 @@ const DestinationSettings = ({
       .then((data) => {
         showToast("success", "Destination configuration updated.");
         mutate(`destinations/${destination.id}`, data, false);
+        setIsConfigFormValid(false);
       })
       .catch((error) => {
         showToast(
@@ -167,9 +168,14 @@ const DestinationSettings = ({
   };
 
   const [isConfigFormValid, setIsConfigFormValid] = useState(false);
+  const configFormRef = useRef<HTMLFormElement>(null);
 
-  const handleConfigFormValidation = (e: React.FormEvent<HTMLFormElement>) => {
-    setIsConfigFormValid(e.currentTarget.checkValidity());
+  const handleConfigFormValidation = (e?: React.FormEvent<HTMLFormElement>) => {
+    console.log("whut", e?.currentTarget?.checkValidity());
+    const form = e?.currentTarget || configFormRef.current;
+    if (form) {
+      setIsConfigFormValid(form.checkValidity());
+    }
   };
 
   const handleDelete = () => {
@@ -233,10 +239,15 @@ const DestinationSettings = ({
       <div>
         <h2 className="title-l">Configuration & Credentials</h2>
         <form
+          ref={configFormRef}
           onSubmit={handleConfigSubmit}
           onChange={handleConfigFormValidation}
         >
-          <DestinationConfigFields destination={destination} type={type} />
+          <DestinationConfigFields
+            destination={destination}
+            type={type}
+            onChange={() => handleConfigFormValidation()}
+          />
           <Button
             type="submit"
             primary
