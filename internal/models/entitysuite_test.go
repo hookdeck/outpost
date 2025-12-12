@@ -20,6 +20,7 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assert.Equal(t, expected.ID, actual.ID)
 	assert.Equal(t, expected.Type, actual.Type)
 	assert.Equal(t, expected.Topics, actual.Topics)
+	assert.Equal(t, expected.Filter, actual.Filter)
 	assert.Equal(t, expected.Config, actual.Config)
 	assert.Equal(t, expected.Credentials, actual.Credentials)
 	assert.Equal(t, expected.DeliveryMetadata, actual.DeliveryMetadata)
@@ -836,6 +837,231 @@ func (s *EntityTestSuite) TestMultiSuiteDeleteAndMatch() {
 		require.Len(s.T(), matchedDestinationSummaryList, 2)
 		for _, summary := range matchedDestinationSummaryList {
 			require.Contains(s.T(), []string{data.destinations[1].ID, data.destinations[4].ID}, summary.ID)
+		}
+	})
+}
+
+func (s *EntityTestSuite) TestDestinationFilterPersistence() {
+	t := s.T()
+	tenant := models.Tenant{ID: idgen.String()}
+	require.NoError(s.T(), s.entityStore.UpsertTenant(s.ctx, tenant))
+
+	t.Run("stores and retrieves destination with filter", func(t *testing.T) {
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"*"}),
+			testutil.DestinationFactory.WithFilter(models.Filter{
+				"data": map[string]any{
+					"type": "order.created",
+				},
+			}),
+		)
+
+		require.NoError(s.T(), s.entityStore.CreateDestination(s.ctx, destination))
+
+		retrieved, err := s.entityStore.RetrieveDestination(s.ctx, tenant.ID, destination.ID)
+		require.NoError(s.T(), err)
+		assert.NotNil(s.T(), retrieved.Filter)
+		assert.Equal(s.T(), "order.created", retrieved.Filter["data"].(map[string]any)["type"])
+	})
+
+	t.Run("stores destination with nil filter", func(t *testing.T) {
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"*"}),
+		)
+
+		require.NoError(s.T(), s.entityStore.CreateDestination(s.ctx, destination))
+
+		retrieved, err := s.entityStore.RetrieveDestination(s.ctx, tenant.ID, destination.ID)
+		require.NoError(s.T(), err)
+		assert.Nil(s.T(), retrieved.Filter)
+	})
+
+	t.Run("updates destination filter", func(t *testing.T) {
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"*"}),
+			testutil.DestinationFactory.WithFilter(models.Filter{
+				"data": map[string]any{"type": "order.created"},
+			}),
+		)
+
+		require.NoError(s.T(), s.entityStore.CreateDestination(s.ctx, destination))
+
+		// Update filter
+		destination.Filter = models.Filter{
+			"data": map[string]any{"type": "order.updated"},
+		}
+		require.NoError(s.T(), s.entityStore.UpsertDestination(s.ctx, destination))
+
+		retrieved, err := s.entityStore.RetrieveDestination(s.ctx, tenant.ID, destination.ID)
+		require.NoError(s.T(), err)
+		assert.Equal(s.T(), "order.updated", retrieved.Filter["data"].(map[string]any)["type"])
+	})
+
+	t.Run("removes destination filter", func(t *testing.T) {
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"*"}),
+			testutil.DestinationFactory.WithFilter(models.Filter{
+				"data": map[string]any{"type": "order.created"},
+			}),
+		)
+
+		require.NoError(s.T(), s.entityStore.CreateDestination(s.ctx, destination))
+
+		// Remove filter
+		destination.Filter = nil
+		require.NoError(s.T(), s.entityStore.UpsertDestination(s.ctx, destination))
+
+		retrieved, err := s.entityStore.RetrieveDestination(s.ctx, tenant.ID, destination.ID)
+		require.NoError(s.T(), err)
+		assert.Nil(s.T(), retrieved.Filter)
+	})
+}
+
+func (s *EntityTestSuite) TestMatchEventWithFilter() {
+	t := s.T()
+	tenant := models.Tenant{ID: idgen.String()}
+	require.NoError(s.T(), s.entityStore.UpsertTenant(s.ctx, tenant))
+
+	// Create destinations with different filters
+	destNoFilter := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID("dest_no_filter"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+		testutil.DestinationFactory.WithTopics([]string{"*"}),
+	)
+
+	destFilterOrderCreated := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID("dest_filter_order_created"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+		testutil.DestinationFactory.WithTopics([]string{"*"}),
+		testutil.DestinationFactory.WithFilter(models.Filter{
+			"data": map[string]any{
+				"type": "order.created",
+			},
+		}),
+	)
+
+	destFilterOrderUpdated := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID("dest_filter_order_updated"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+		testutil.DestinationFactory.WithTopics([]string{"*"}),
+		testutil.DestinationFactory.WithFilter(models.Filter{
+			"data": map[string]any{
+				"type": "order.updated",
+			},
+		}),
+	)
+
+	destFilterPremiumCustomer := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID("dest_filter_premium"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+		testutil.DestinationFactory.WithTopics([]string{"*"}),
+		testutil.DestinationFactory.WithFilter(models.Filter{
+			"data": map[string]any{
+				"customer": map[string]any{
+					"tier": "premium",
+				},
+			},
+		}),
+	)
+
+	require.NoError(s.T(), s.entityStore.CreateDestination(s.ctx, destNoFilter))
+	require.NoError(s.T(), s.entityStore.CreateDestination(s.ctx, destFilterOrderCreated))
+	require.NoError(s.T(), s.entityStore.CreateDestination(s.ctx, destFilterOrderUpdated))
+	require.NoError(s.T(), s.entityStore.CreateDestination(s.ctx, destFilterPremiumCustomer))
+
+	t.Run("event without filter field matches only destinations with matching filter", func(t *testing.T) {
+		event := models.Event{
+			ID:       idgen.Event(),
+			TenantID: tenant.ID,
+			Topic:    "order",
+			Time:     time.Now(),
+			Metadata: map[string]string{},
+			Data: map[string]interface{}{
+				"type": "order.created",
+			},
+		}
+
+		matchedDestinations, err := s.entityStore.MatchEvent(s.ctx, event)
+		require.NoError(s.T(), err)
+
+		// Should match: destNoFilter (no filter), destFilterOrderCreated (matches type)
+		// Should NOT match: destFilterOrderUpdated (wrong type), destFilterPremiumCustomer (missing customer.tier)
+		assert.Len(s.T(), matchedDestinations, 2)
+		ids := []string{}
+		for _, dest := range matchedDestinations {
+			ids = append(ids, dest.ID)
+		}
+		assert.Contains(s.T(), ids, "dest_no_filter")
+		assert.Contains(s.T(), ids, "dest_filter_order_created")
+	})
+
+	t.Run("event with nested data matches nested filter", func(t *testing.T) {
+		event := models.Event{
+			ID:       idgen.Event(),
+			TenantID: tenant.ID,
+			Topic:    "order",
+			Time:     time.Now(),
+			Metadata: map[string]string{},
+			Data: map[string]interface{}{
+				"type": "order.created",
+				"customer": map[string]interface{}{
+					"id":   "cust_123",
+					"tier": "premium",
+				},
+			},
+		}
+
+		matchedDestinations, err := s.entityStore.MatchEvent(s.ctx, event)
+		require.NoError(s.T(), err)
+
+		// Should match: destNoFilter, destFilterOrderCreated, destFilterPremiumCustomer
+		// Should NOT match: destFilterOrderUpdated (wrong type)
+		assert.Len(s.T(), matchedDestinations, 3)
+		ids := []string{}
+		for _, dest := range matchedDestinations {
+			ids = append(ids, dest.ID)
+		}
+		assert.Contains(s.T(), ids, "dest_no_filter")
+		assert.Contains(s.T(), ids, "dest_filter_order_created")
+		assert.Contains(s.T(), ids, "dest_filter_premium")
+	})
+
+	t.Run("topic filter takes precedence before content filter", func(t *testing.T) {
+		// Create a destination with specific topic AND filter
+		destTopicAndFilter := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithID("dest_topic_and_filter"),
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.created"}), // Specific topic
+			testutil.DestinationFactory.WithFilter(models.Filter{
+				"data": map[string]any{
+					"type": "order.created",
+				},
+			}),
+		)
+		require.NoError(s.T(), s.entityStore.CreateDestination(s.ctx, destTopicAndFilter))
+
+		// Event with matching filter but wrong topic
+		event := models.Event{
+			ID:       idgen.Event(),
+			TenantID: tenant.ID,
+			Topic:    "order",
+			Time:     time.Now(),
+			Metadata: map[string]string{},
+			Data: map[string]interface{}{
+				"type": "order.created",
+			},
+		}
+
+		matchedDestinations, err := s.entityStore.MatchEvent(s.ctx, event)
+		require.NoError(s.T(), err)
+
+		// Should NOT match destTopicAndFilter because topic doesn't match
+		for _, dest := range matchedDestinations {
+			assert.NotEqual(s.T(), "dest_topic_and_filter", dest.ID)
 		}
 	})
 }

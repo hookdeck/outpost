@@ -498,6 +498,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 	tenantID := idgen.String()
 	sampleDestinationID := idgen.Destination()
 	destinationWithMetadataID := idgen.Destination()
+	destinationWithFilterID := idgen.Destination()
 	tests := []APITest{
 		{
 			Name: "PUT /:tenantID",
@@ -833,6 +834,133 @@ func (suite *basicSuite) TestDestinationsAPI() {
 				},
 			},
 		},
+		// Filter tests: create, update, and unset
+		{
+			Name: "POST /:tenantID/destinations with filter",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
+				Body: map[string]interface{}{
+					"id":     destinationWithFilterID,
+					"type":   "webhook",
+					"topics": []string{"user.created"},
+					"filter": map[string]interface{}{
+						"data": map[string]interface{}{
+							"amount": map[string]interface{}{
+								"$gte": 100,
+							},
+						},
+					},
+					"config": map[string]interface{}{
+						"url": "http://host.docker.internal:4444",
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+					Body: map[string]interface{}{
+						"id": destinationWithFilterID,
+						"filter": map[string]interface{}{
+							"data": map[string]interface{}{
+								"amount": map[string]interface{}{
+									"$gte": float64(100),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations/:destinationID verify filter",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations/" + destinationWithFilterID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id": destinationWithFilterID,
+						"filter": map[string]interface{}{
+							"data": map[string]interface{}{
+								"amount": map[string]interface{}{
+									"$gte": float64(100),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "PATCH /:tenantID/destinations/:destinationID update filter",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPATCH,
+				Path:   "/" + tenantID + "/destinations/" + destinationWithFilterID,
+				Body: map[string]interface{}{
+					"filter": map[string]interface{}{
+						"data": map[string]interface{}{
+							"status": "active",
+						},
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: map[string]interface{}{
+						"id": destinationWithFilterID,
+						"filter": map[string]interface{}{
+							"data": map[string]interface{}{
+								"status": "active",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "PATCH /:tenantID/destinations/:destinationID unset filter with empty object",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPATCH,
+				Path:   "/" + tenantID + "/destinations/" + destinationWithFilterID,
+				Body: map[string]interface{}{
+					"filter": map[string]interface{}{},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Name: "GET /:tenantID/destinations/:destinationID verify filter unset",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/" + tenantID + "/destinations/" + destinationWithFilterID,
+			}),
+			Expected: APITestExpectation{
+				// Use JSON schema validation to verify filter is NOT present
+				Validate: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"statusCode": map[string]interface{}{
+							"const": 200,
+						},
+						"body": map[string]interface{}{
+							"type":     "object",
+							"required": []interface{}{"id", "type", "topics"},
+							"not": map[string]interface{}{
+								"required": []interface{}{"filter"},
+							},
+						},
+					},
+				},
+			},
+		},
 		{
 			Name: "POST /:tenantID/destinations with duplicate ID",
 			Request: suite.AuthRequest(httpclient.Request{
@@ -863,7 +991,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 				Path:   "/" + tenantID + "/destinations",
 			}),
 			Expected: APITestExpectation{
-				Validate: makeDestinationListValidator(3),
+				Validate: makeDestinationListValidator(4), // 3 original + 1 with filter
 			},
 		},
 		{
@@ -1016,7 +1144,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 				Path:   "/" + tenantID + "/destinations",
 			}),
 			Expected: APITestExpectation{
-				Validate: makeDestinationListValidator(2),
+				Validate: makeDestinationListValidator(3), // 4 - 1 deleted = 3
 			},
 		},
 		{

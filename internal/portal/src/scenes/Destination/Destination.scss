@@ -98,6 +98,25 @@
   }
 }
 
+.filter-container {
+  margin-top: var(--spacing-12);
+
+  h2 {
+    margin-top: 0;
+    margin-bottom: var(--spacing-4);
+  }
+
+  .filter-json {
+    margin: 0;
+    padding: var(--spacing-4);
+    background: var(--colors-background-neutral-2);
+    border-radius: var(--radius-m);
+    border: 1px solid var(--colors-outline-neutral);
+    overflow-x: auto;
+    white-space: pre;
+  }
+}
+
 .metrics-container {
   margin-top: var(--spacing-14);
   margin-bottom: var(--spacing-14);

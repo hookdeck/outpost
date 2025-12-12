@@ -16,14 +16,17 @@ const ConfigurationModal = ({
   const [portalRef, setPortalRef] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    // Create portal container
+    // Create portal container for sidebar
     const portal = document.createElement("div");
     portal.id = "sidebar";
     document.body.appendChild(portal);
+
+    // Add class to body to adjust main content
     document.body.classList.add("sidebar-open");
+
     setPortalRef(portal);
+
     return () => {
-      // Cleanup on unmount
       portal.remove();
       document.body.classList.remove("sidebar-open");
     };
