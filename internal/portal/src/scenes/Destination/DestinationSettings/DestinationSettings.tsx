@@ -171,7 +171,6 @@ const DestinationSettings = ({
   const configFormRef = useRef<HTMLFormElement>(null);
 
   const handleConfigFormValidation = (e?: React.FormEvent<HTMLFormElement>) => {
-    console.log("whut", e?.currentTarget?.checkValidity());
     const form = e?.currentTarget || configFormRef.current;
     if (form) {
       setIsConfigFormValid(form.checkValidity());
