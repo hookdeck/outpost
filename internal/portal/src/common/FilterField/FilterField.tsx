@@ -92,15 +92,6 @@ const FilterField = ({
         className="filter-field__textarea"
       />
       {error && <p className="filter-field__error">{error}</p>}
-      <p className="filter-field__help">
-        Supported operators: <code>$eq</code> <code>$neq</code> <code>$gt</code>{" "}
-        <code>$gte</code> <code>$lt</code> <code>$lte</code> <code>$in</code>{" "}
-        <code>$nin</code> <code>$startsWith</code> <code>$endsWith</code>{" "}
-        <code>$exist</code> <code>$or</code> <code>$and</code> <code>$not</code>
-      </p>
-      <p className="filter-field__help">
-        Use <code>{"{}"}</code> to remove filter.
-      </p>
     </div>
   );
 };

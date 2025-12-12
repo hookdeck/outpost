@@ -110,8 +110,6 @@ components:
         To remove an existing filter when updating a destination, set filter to an empty object `{}`.
       example:
         data:
-          type:
-            $in: ["order.created", "order.updated"]
           amount:
             $gte: 100
           customer:

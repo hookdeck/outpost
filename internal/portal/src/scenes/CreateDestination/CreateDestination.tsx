@@ -1,6 +1,12 @@
 import "./CreateDestination.scss";
 import Button from "../../common/Button/Button";
-import { CloseIcon, Loading } from "../../common/Icons";
+import {
+  AddIcon,
+  CloseIcon,
+  DropdownIcon,
+  HelpIcon,
+  Loading,
+} from "../../common/Icons";
 import Badge from "../../common/Badge/Badge";
 import { useNavigate } from "react-router-dom";
 import { useContext, useEffect, useState } from "react";
@@ -11,6 +17,7 @@ import TopicPicker from "../../common/TopicPicker/TopicPicker";
 import { DestinationTypeReference, Filter } from "../../typings/Destination";
 import DestinationConfigFields from "../../common/DestinationConfigFields/DestinationConfigFields";
 import FilterField from "../../common/FilterField/FilterField";
+import FilterSyntaxModal from "../../common/FilterSyntaxModal/FilterSyntaxModal";
 import { getFormValues } from "../../utils/formHelper";
 import CONFIGS from "../../config";
 
@@ -107,7 +114,9 @@ const DESTINATION_TYPE_STEP: Step = {
               required
               className="destination-type-radio"
               defaultChecked={
-                defaultValue ? defaultValue.type === destination.type : undefined
+                defaultValue
+                  ? defaultValue.type === destination.type
+                  : undefined
               }
             />
             <div className="destination-type-content">
@@ -154,6 +163,7 @@ const CONFIGURATION_STEP: Step = {
     const [filter, setFilter] = useState<Filter>(defaultValue.filter || null);
     const [showFilter, setShowFilter] = useState(!!defaultValue.filter);
     const [filterValid, setFilterValid] = useState(true);
+    const [showFilterSyntaxModal, setShowFilterSyntaxModal] = useState(false);
 
     useEffect(() => {
       if (onChange) {
@@ -168,22 +178,49 @@ const CONFIGURATION_STEP: Step = {
           destination={undefined}
         />
         <div className="filter-section">
-          <button
-            type="button"
-            className="filter-section__toggle"
-            onClick={() => setShowFilter(!showFilter)}
-          >
-            <span className={`filter-section__arrow ${showFilter ? "expanded" : ""}`}>
-              &#9654;
-            </span>
-            <span className="filter-section__label">Event Filter (Optional)</span>
-          </button>
+          <div className="filter-section__toggle-container">
+            {showFilter ? (
+              <>
+                <p className="subtitle-s">Event Filter</p>
+                <button
+                  type="button"
+                  className="filter-section__toggle"
+                  onClick={() => setShowFilter(!showFilter)}
+                >
+                  {showFilter ? <CloseIcon /> : <AddIcon />}
+                  <span className="filter-section__label">
+                    {showFilter ? "Remove" : "Add Event Filter"}
+                  </span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="filter-section__toggle"
+                onClick={() => setShowFilter(!showFilter)}
+              >
+                <AddIcon />
+                <span className="filter-section__label">
+                  {showFilter ? "Remove Event Filter" : "Add Event Filter"}
+                </span>
+              </button>
+            )}
+          </div>
           {showFilter && (
             <div className="filter-section__content">
               <p className="body-m muted">
-                Add a filter to only receive events that match specific criteria.
-                Leave empty to receive all events matching the selected topics.
+                Add a filter to only receive events that match specific
+                criteria. Leave empty to receive all events matching the
+                selected topics.
               </p>
+              <Button
+                type="button"
+                onClick={() => setShowFilterSyntaxModal(!showFilterSyntaxModal)}
+                className="filter-section__guide-button"
+              >
+                <HelpIcon />
+                Filter Syntax Guide
+              </Button>
               <FilterField
                 value={filter}
                 onChange={setFilter}
@@ -197,6 +234,9 @@ const CONFIGURATION_STEP: Step = {
             </div>
           )}
         </div>
+        {showFilterSyntaxModal && (
+          <FilterSyntaxModal onClose={() => setShowFilterSyntaxModal(false)} />
+        )}
       </>
     );
   },
@@ -255,7 +295,10 @@ export default function CreateDestination() {
     let filter: Filter = null;
     if (values.filter) {
       try {
-        filter = typeof values.filter === "string" ? JSON.parse(values.filter) : values.filter;
+        filter =
+          typeof values.filter === "string"
+            ? JSON.parse(values.filter)
+            : values.filter;
       } catch (e) {
         // Invalid JSON, ignore filter
       }
@@ -364,7 +407,9 @@ export default function CreateDestination() {
                 onChange={(values) => {
                   setStepValues((prev) => ({ ...prev, ...values }));
                   if (currentStep.isValid) {
-                    setIsValid(currentStep.isValid({ ...stepValues, ...values }));
+                    setIsValid(
+                      currentStep.isValid({ ...stepValues, ...values })
+                    );
                   }
                 }}
               />

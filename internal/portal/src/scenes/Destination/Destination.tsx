@@ -212,6 +212,15 @@ const Destination = () => {
                       </li>
                     </ul>
                   </div>
+                  {destination.filter &&
+                    Object.keys(destination.filter).length > 0 && (
+                      <div className="filter-container">
+                        <h2 className="title-l">Event Filter</h2>
+                        <pre className="filter-json mono-s">
+                          {JSON.stringify(destination.filter, null, 2)}
+                        </pre>
+                      </div>
+                    )}
                   {/* 
                   TODO: Uncomment when metrics are implemented
                   <div className="metrics-container">

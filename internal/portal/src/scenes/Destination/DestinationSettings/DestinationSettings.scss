@@ -29,10 +29,23 @@
   }
 
   &__filter {
+    h2 {
+      margin-bottom: 0;
+    }
     p {
       margin-top: 0;
       margin-bottom: var(--spacing-4);
     }
+  }
+
+  &__filter-guide-button {
+    margin-bottom: var(--spacing-4);
+  }
+
+  &__filter-actions {
+    display: flex;
+    gap: var(--spacing-3);
+    margin-top: var(--spacing-4);
   }
 
   &__actions {
