@@ -498,6 +498,179 @@ func TestWebhookPublisher_DeliveryMetadata(t *testing.T) {
 	}
 }
 
+func TestWebhookPublisher_CustomHeaders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should include custom headers in request", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
+		require.NoError(t, err)
+
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url":            "http://example.com/webhook",
+				"custom_headers": `{"x-api-key":"secret123","x-tenant-id":"tenant-abc"}`,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "test-secret",
+			}),
+		)
+
+		publisher, err := provider.CreatePublisher(context.Background(), &destination)
+		require.NoError(t, err)
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+		)
+
+		req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
+		require.NoError(t, err)
+
+		assert.Equal(t, "secret123", req.Header.Get("x-api-key"))
+		assert.Equal(t, "tenant-abc", req.Header.Get("x-tenant-id"))
+	})
+
+	t.Run("should allow metadata to override custom headers", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
+		require.NoError(t, err)
+
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url":            "http://example.com/webhook",
+				"custom_headers": `{"x-outpost-source":"custom-value"}`,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "test-secret",
+			}),
+			testutil.DestinationFactory.WithDeliveryMetadata(map[string]string{
+				"source": "delivery-metadata-value",
+			}),
+		)
+
+		publisher, err := provider.CreatePublisher(context.Background(), &destination)
+		require.NoError(t, err)
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+		)
+
+		req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
+		require.NoError(t, err)
+
+		// Metadata should override custom headers (metadata adds prefix x-outpost-)
+		assert.Equal(t, "delivery-metadata-value", req.Header.Get("x-outpost-source"))
+	})
+
+	t.Run("should work with empty custom_headers", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
+		require.NoError(t, err)
+
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url":            "http://example.com/webhook",
+				"custom_headers": `{}`,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "test-secret",
+			}),
+		)
+
+		publisher, err := provider.CreatePublisher(context.Background(), &destination)
+		require.NoError(t, err)
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+		)
+
+		req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
+		require.NoError(t, err)
+
+		// Should still have standard headers
+		assert.NotEmpty(t, req.Header.Get("x-outpost-event-id"))
+		assert.NotEmpty(t, req.Header.Get("x-outpost-timestamp"))
+	})
+
+	t.Run("should work without custom_headers field", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
+		require.NoError(t, err)
+
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "http://example.com/webhook",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "test-secret",
+			}),
+		)
+
+		publisher, err := provider.CreatePublisher(context.Background(), &destination)
+		require.NoError(t, err)
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+		)
+
+		req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
+		require.NoError(t, err)
+
+		// Should still have standard headers
+		assert.NotEmpty(t, req.Header.Get("x-outpost-event-id"))
+		assert.NotEmpty(t, req.Header.Get("x-outpost-timestamp"))
+	})
+
+	t.Run("should work with disabled system headers", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := destwebhook.New(
+			testutil.Registry.MetadataLoader(),
+			nil,
+			destwebhook.WithDisableDefaultTimestampHeader(true),
+			destwebhook.WithDisableDefaultTopicHeader(true),
+		)
+		require.NoError(t, err)
+
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url":            "http://example.com/webhook",
+				"custom_headers": `{"x-api-key":"secret123"}`,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "test-secret",
+			}),
+		)
+
+		publisher, err := provider.CreatePublisher(context.Background(), &destination)
+		require.NoError(t, err)
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+		)
+
+		req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
+		require.NoError(t, err)
+
+		// Custom header should be present
+		assert.Equal(t, "secret123", req.Header.Get("x-api-key"))
+		// Disabled headers should be absent
+		assert.Empty(t, req.Header.Get("x-outpost-timestamp"))
+		assert.Empty(t, req.Header.Get("x-outpost-topic"))
+		// Other system headers should still work
+		assert.NotEmpty(t, req.Header.Get("x-outpost-event-id"))
+	})
+}
+
 func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),

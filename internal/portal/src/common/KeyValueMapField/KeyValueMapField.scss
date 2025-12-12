@@ -1,0 +1,49 @@
+.key-value-map-field {
+  margin-bottom: var(--spacing-4);
+  
+  &__rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    margin-bottom: var(--spacing-2);
+  }
+
+  &__row {
+    display: flex;
+    gap: var(--spacing-2);
+    align-items: center;
+  }
+
+  &__key {
+    flex: 1;
+  }
+
+  &__value {
+    flex: 2;
+  }
+
+  &__remove {
+    padding: var(--spacing-2);
+    line-height: 0;
+
+    svg {
+      width: 16px;
+      height: 16px;
+      fill: var(--colors-foreground-neutral-3);
+    }
+  }
+
+  &__add {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-1) var(--spacing-2);
+    font-size: var(--font-size-s);
+
+    svg {
+      width: 16px;
+      height: 16px;
+      fill: var(--colors-foreground-neutral-2);
+    }
+  }
+}

@@ -74,7 +74,8 @@ type StandardWebhookDestination struct {
 }
 
 type StandardWebhookDestinationConfig struct {
-	URL string `json:"url"`
+	URL           string            `json:"url"`
+	CustomHeaders map[string]string `json:"custom_headers,omitempty"`
 }
 
 type StandardWebhookDestinationCredentials struct {
@@ -229,6 +230,7 @@ func (d *StandardWebhookDestination) CreatePublisher(ctx context.Context, destin
 		secrets:       secrets,
 		sm:            sm,
 		headerPrefix:  d.headerPrefix,
+		customHeaders: config.CustomHeaders,
 	}, nil
 }
 
@@ -239,6 +241,19 @@ func (d *StandardWebhookDestination) resolveConfig(ctx context.Context, destinat
 
 	config := &StandardWebhookDestinationConfig{
 		URL: destination.Config["url"],
+	}
+
+	// Parse custom headers from config
+	if headersJSON, ok := destination.Config["custom_headers"]; ok && headersJSON != "" {
+		if err := json.Unmarshal([]byte(headersJSON), &config.CustomHeaders); err != nil {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+				Field: "config.custom_headers",
+				Type:  "invalid",
+			}})
+		}
+		if err := destwebhook.ValidateCustomHeaders(config.CustomHeaders); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// Parse credentials
@@ -500,11 +515,12 @@ func (d *StandardWebhookDestination) Preprocess(newDestination *models.Destinati
 
 type StandardWebhookPublisher struct {
 	*destregistry.BasePublisher
-	httpClient   *http.Client
-	url          string
-	secrets      []destwebhook.WebhookSecret
-	sm           *destwebhook.SignatureManager
-	headerPrefix string
+	httpClient    *http.Client
+	url           string
+	secrets       []destwebhook.WebhookSecret
+	sm            *destwebhook.SignatureManager
+	headerPrefix  string
+	customHeaders map[string]string
 }
 
 func (p *StandardWebhookPublisher) Close() error {
@@ -586,6 +602,11 @@ func (p *StandardWebhookPublisher) Format(ctx context.Context, event *models.Eve
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+
+	// Add custom headers FIRST (so metadata can override if there's a conflict)
+	for key, value := range p.customHeaders {
+		req.Header.Set(key, value)
+	}
 
 	// Use event ID directly as the message ID
 	// This ensures the same message ID is used across retry attempts

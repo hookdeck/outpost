@@ -8,6 +8,15 @@
       "description": "The URL to send webhook events to via HTTP POST (Standard Webhooks compliant)",
       "required": true,
       "pattern": "^https?:\\/\\/[\\w\\-]+(?:\\.[\\w\\-]+)*(?::\\d{1,5})?(?:\\/[\\w\\-\\/\\.~:?#\\[\\]@!$&'\\(\\)*+,;=]*)?$"
+    },
+    {
+      "key": "custom_headers",
+      "type": "key_value_map",
+      "label": "Custom Headers",
+      "description": "Additional HTTP headers to include with every webhook request",
+      "required": false,
+      "key_placeholder": "Header name",
+      "value_placeholder": "Header value"
     }
   ],
   "credential_fields": [],

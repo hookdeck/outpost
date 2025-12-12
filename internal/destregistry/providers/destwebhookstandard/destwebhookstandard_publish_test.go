@@ -432,3 +432,175 @@ func TestStandardWebhookPublisher_CustomHeaderPrefix(t *testing.T) {
 		t.Fatal("timeout waiting for message")
 	}
 }
+
+func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should include custom headers in request", func(t *testing.T) {
+		t.Parallel()
+
+		consumer := NewStandardWebhookConsumer()
+		defer consumer.Close()
+
+		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
+		require.NoError(t, err)
+
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url":            consumer.server.URL + "/webhook",
+				"custom_headers": `{"x-api-key":"secret123","x-tenant-id":"tenant-abc"}`,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+			}),
+		)
+
+		publisher, err := provider.CreatePublisher(context.Background(), &dest)
+		require.NoError(t, err)
+		defer publisher.Close()
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+		)
+
+		_, err = publisher.Publish(context.Background(), &event)
+		require.NoError(t, err)
+
+		select {
+		case msg := <-consumer.Consume():
+			req := msg.Raw.(*http.Request)
+			assert.Equal(t, "secret123", req.Header.Get("x-api-key"))
+			assert.Equal(t, "tenant-abc", req.Header.Get("x-tenant-id"))
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for message")
+		}
+	})
+
+	t.Run("should allow metadata to override custom headers", func(t *testing.T) {
+		t.Parallel()
+
+		consumer := NewStandardWebhookConsumer()
+		defer consumer.Close()
+
+		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
+		require.NoError(t, err)
+
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url":            consumer.server.URL + "/webhook",
+				"custom_headers": `{"webhook-source":"custom-value"}`,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+			}),
+			testutil.DestinationFactory.WithDeliveryMetadata(map[string]string{
+				"source": "delivery-metadata-value",
+			}),
+		)
+
+		publisher, err := provider.CreatePublisher(context.Background(), &dest)
+		require.NoError(t, err)
+		defer publisher.Close()
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+		)
+
+		_, err = publisher.Publish(context.Background(), &event)
+		require.NoError(t, err)
+
+		select {
+		case msg := <-consumer.Consume():
+			req := msg.Raw.(*http.Request)
+			// Metadata should override custom headers (metadata adds prefix webhook-)
+			assert.Equal(t, "delivery-metadata-value", req.Header.Get("webhook-source"))
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for message")
+		}
+	})
+
+	t.Run("should work with empty custom_headers", func(t *testing.T) {
+		t.Parallel()
+
+		consumer := NewStandardWebhookConsumer()
+		defer consumer.Close()
+
+		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
+		require.NoError(t, err)
+
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url":            consumer.server.URL + "/webhook",
+				"custom_headers": `{}`,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+			}),
+		)
+
+		publisher, err := provider.CreatePublisher(context.Background(), &dest)
+		require.NoError(t, err)
+		defer publisher.Close()
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+		)
+
+		_, err = publisher.Publish(context.Background(), &event)
+		require.NoError(t, err)
+
+		select {
+		case msg := <-consumer.Consume():
+			req := msg.Raw.(*http.Request)
+			// Should still have standard headers
+			assert.NotEmpty(t, req.Header.Get("webhook-id"))
+			assert.NotEmpty(t, req.Header.Get("webhook-timestamp"))
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for message")
+		}
+	})
+
+	t.Run("should work without custom_headers field", func(t *testing.T) {
+		t.Parallel()
+
+		consumer := NewStandardWebhookConsumer()
+		defer consumer.Close()
+
+		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
+		require.NoError(t, err)
+
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": consumer.server.URL + "/webhook",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+			}),
+		)
+
+		publisher, err := provider.CreatePublisher(context.Background(), &dest)
+		require.NoError(t, err)
+		defer publisher.Close()
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+		)
+
+		_, err = publisher.Publish(context.Background(), &event)
+		require.NoError(t, err)
+
+		select {
+		case msg := <-consumer.Consume():
+			req := msg.Raw.(*http.Request)
+			// Should still have standard headers
+			assert.NotEmpty(t, req.Header.Get("webhook-id"))
+			assert.NotEmpty(t, req.Header.Get("webhook-timestamp"))
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for message")
+		}
+	})
+}

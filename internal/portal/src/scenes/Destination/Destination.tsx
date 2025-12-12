@@ -245,6 +245,22 @@ function looksObfuscated(value: string | JSX.Element): boolean {
   return typeof value === "string" && /\*{3,}/.test(value);
 }
 
+function parseKeyValueMap(value: string): [string, string][] | null {
+  try {
+    const parsed = JSON.parse(value);
+    if (typeof parsed === "object" && parsed !== null) {
+      const entries = Object.entries(parsed) as [string, string][];
+      if (entries.length === 0) {
+        return null;
+      }
+      return entries;
+    }
+  } catch {
+    // Not valid JSON
+  }
+  return null;
+}
+
 function DestinationDetailsField(props: {
   type: DestinationTypeReference;
   fieldType: "config" | "credentials";
@@ -254,18 +270,21 @@ function DestinationDetailsField(props: {
   let label = "";
   let isSensitive = false;
   let shouldCopy = false;
+  let fieldType: string | undefined;
 
   if (props.fieldType === "config") {
     const field = props.type.config_fields.find(
       (field) => field.key === props.fieldKey
     );
     label = field?.label || "";
+    fieldType = field?.type;
     shouldCopy = field?.type === "text";
   } else {
     const field = props.type.credential_fields.find(
       (field) => field.key === props.fieldKey
     );
     label = field?.label || "";
+    fieldType = field?.type;
 
     // Only hide copy button if field is explicitly marked as sensitive in metadata.
     // Fields not in metadata (e.g., webhook.credentials.secret) are auto-generated,
@@ -284,6 +303,26 @@ function DestinationDetailsField(props: {
 
   if (!props.value) {
     return null;
+  }
+
+  // Render key_value_map fields as a multi-line list
+  if (fieldType === "key_value_map" && typeof props.value === "string") {
+    const entries = parseKeyValueMap(props.value);
+    if (!entries) {
+      return null; // Empty map, don't show
+    }
+    return (
+      <li className="key-value-field">
+        <span className="body-m">{label}</span>
+        <span className="key-value-field__values">
+          {entries.map(([k, v]) => (
+            <span key={k} className="mono-s key-value-field__entry">
+              {k}: {v}
+            </span>
+          ))}
+        </span>
+      </li>
+    );
   }
 
   return (
