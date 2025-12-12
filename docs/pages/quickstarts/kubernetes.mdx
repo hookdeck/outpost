@@ -35,7 +35,7 @@ Local Kubernetes setup for Outpost using Minikube. This setup includes:
 3. Install dependencies:
 
    ```sh
-   cd outpost/deployments/kubernetes
+   cd outpost/examples/kubernetes
    ./setup-dependencies.sh
    ```
 
@@ -48,7 +48,7 @@ Local Kubernetes setup for Outpost using Minikube. This setup includes:
    :::
 
    ```sh
-   helm install outpost ../../deployments/kubernetes/charts/outpost -f values.yaml
+   helm install outpost ../../deployments/kubernetes/charts/outpost -f outpost.yaml
    ```
 
 ## Verify Installation
