@@ -10,12 +10,24 @@ spec:
   selector:
     app: outpost-postgresql
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: outpost-postgresql-headless
+spec:
+  clusterIP: None
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: outpost-postgresql
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: outpost-postgresql
 spec:
-  serviceName: outpost-postgresql
+  serviceName: outpost-postgresql-headless
   replicas: 1
   selector:
     matchLabels:
