@@ -3,6 +3,29 @@ set -e  # Exit on any error
 
 echo "🚀 Setting up Outpost dependencies..."
 
+# Helper function to print pod diagnostics
+print_pod_diagnostics() {
+    local pod_name=$1
+    local resource_name=$2
+    local cleanup_commands=$3
+    
+    echo ""
+    echo "❌ $resource_name pod failed to become ready!"
+    echo ""
+    echo "Pod status:"
+    kubectl get pod "$pod_name"
+    echo ""
+    echo "Recent events:"
+    kubectl describe pod "$pod_name" | grep -A 10 "Events:" || true
+    echo ""
+    echo "Container logs (last 20 lines):"
+    kubectl logs "$pod_name" --tail=20 2>/dev/null || echo "  (no logs available)"
+    echo ""
+    echo "⚠️  To fix this issue, clean up and re-run:"
+    echo "$cleanup_commands"
+    echo ""
+}
+
 # Helper function to check if pod is healthy
 pod_is_healthy() {
     local pod_name=$1
@@ -63,7 +86,7 @@ wait_for_pod_ready() {
     return 1
 }
 
-echo "🚀 Using official Docker images (Bitnami images are not available)"
+echo "🚀 Using official Docker images for improved reliability"
 echo ""
 
 # Get the directory where this script is located
@@ -74,7 +97,7 @@ if ! kubectl get statefulset outpost-postgresql >/dev/null 2>&1; then
     echo "🐘 Installing PostgreSQL (using official postgres:16-alpine image)..."
     
     # Generate a random password
-    POSTGRES_PASSWORD=$(openssl rand -hex 16)
+    POSTGRES_PASSWORD=$(openssl rand -base64 24)
     
     # Create PostgreSQL secret
     kubectl create secret generic outpost-postgresql \
@@ -86,42 +109,17 @@ if ! kubectl get statefulset outpost-postgresql >/dev/null 2>&1; then
     
     echo "⏳ Waiting for PostgreSQL to be ready (timeout: 120s)..."
     if ! wait_for_pod_ready "outpost-postgresql-0" 120; then
-        echo ""
-        echo "❌ PostgreSQL pod failed to become ready!"
-        echo ""
-        echo "Pod status:"
-        kubectl get pod outpost-postgresql-0
-        echo ""
-        echo "Recent events:"
-        kubectl describe pod outpost-postgresql-0 | grep -A 10 "Events:" || true
-        echo ""
-        echo "Container logs (last 20 lines):"
-        kubectl logs outpost-postgresql-0 --tail=20 2>/dev/null || echo "  (no logs available)"
-        echo ""
-        echo "⚠️  To fix this issue, clean up and re-run:"
-        echo "     kubectl delete -f $SCRIPT_DIR/postgresql.yaml"
-        echo "     kubectl delete pvc data-outpost-postgresql-0"
-        echo "     kubectl delete secret outpost-postgresql"
-        echo ""
+        print_pod_diagnostics "outpost-postgresql-0" "PostgreSQL" \
+"     kubectl delete -f $SCRIPT_DIR/postgresql.yaml
+     kubectl delete pvc data-outpost-postgresql-0
+     kubectl delete secret outpost-postgresql"
         exit 1
     fi
 elif ! pod_is_healthy "outpost-postgresql-0"; then
-    echo "❌ PostgreSQL pod is unhealthy!"
-    echo ""
-    echo "Pod status:"
-    kubectl get pod outpost-postgresql-0
-    echo ""
-    echo "Recent events:"
-    kubectl describe pod outpost-postgresql-0 | grep -A 10 "Events:" || true
-    echo ""
-    echo "Container logs (last 20 lines):"
-    kubectl logs outpost-postgresql-0 --tail=20 2>/dev/null || echo "  (no logs available)"
-    echo ""
-    echo "⚠️  To fix this issue, clean up and re-run:"
-    echo "     kubectl delete -f $SCRIPT_DIR/postgresql.yaml"
-    echo "     kubectl delete pvc data-outpost-postgresql-0"
-    echo "     kubectl delete secret outpost-postgresql"
-    echo ""
+    print_pod_diagnostics "outpost-postgresql-0" "PostgreSQL" \
+"     kubectl delete -f $SCRIPT_DIR/postgresql.yaml
+     kubectl delete pvc data-outpost-postgresql-0
+     kubectl delete secret outpost-postgresql"
     exit 1
 else
     echo "🐘 PostgreSQL already installed and healthy, skipping..."
@@ -134,7 +132,7 @@ if ! kubectl get statefulset outpost-redis >/dev/null 2>&1; then
     echo "🔴 Installing Redis (using official redis:7-alpine image)..."
     
     # Generate a random password
-    REDIS_PASSWORD=$(openssl rand -hex 16)
+    REDIS_PASSWORD=$(openssl rand -base64 24)
     
     # Create Redis secret
     kubectl create secret generic outpost-redis \
@@ -146,42 +144,17 @@ if ! kubectl get statefulset outpost-redis >/dev/null 2>&1; then
     
     echo "⏳ Waiting for Redis to be ready (timeout: 120s)..."
     if ! wait_for_pod_ready "outpost-redis-0" 120; then
-        echo ""
-        echo "❌ Redis pod failed to become ready!"
-        echo ""
-        echo "Pod status:"
-        kubectl get pod outpost-redis-0
-        echo ""
-        echo "Recent events:"
-        kubectl describe pod outpost-redis-0 | grep -A 10 "Events:" || true
-        echo ""
-        echo "Container logs (last 20 lines):"
-        kubectl logs outpost-redis-0 --tail=20 2>/dev/null || echo "  (no logs available)"
-        echo ""
-        echo "⚠️  To fix this issue, clean up and re-run:"
-        echo "     kubectl delete -f $SCRIPT_DIR/redis.yaml"
-        echo "     kubectl delete pvc data-outpost-redis-0"
-        echo "     kubectl delete secret outpost-redis"
-        echo ""
+        print_pod_diagnostics "outpost-redis-0" "Redis" \
+"     kubectl delete -f $SCRIPT_DIR/redis.yaml
+     kubectl delete pvc data-outpost-redis-0
+     kubectl delete secret outpost-redis"
         exit 1
     fi
 elif ! pod_is_healthy "outpost-redis-0"; then
-    echo "❌ Redis pod is unhealthy!"
-    echo ""
-    echo "Pod status:"
-    kubectl get pod outpost-redis-0
-    echo ""
-    echo "Recent events:"
-    kubectl describe pod outpost-redis-0 | grep -A 10 "Events:" || true
-    echo ""
-    echo "Container logs (last 20 lines):"
-    kubectl logs outpost-redis-0 --tail=20 2>/dev/null || echo "  (no logs available)"
-    echo ""
-    echo "⚠️  To fix this issue, clean up and re-run:"
-    echo "     kubectl delete -f $SCRIPT_DIR/redis.yaml"
-    echo "     kubectl delete pvc data-outpost-redis-0"
-    echo "     kubectl delete secret outpost-redis"
-    echo ""
+    print_pod_diagnostics "outpost-redis-0" "Redis" \
+"     kubectl delete -f $SCRIPT_DIR/redis.yaml
+     kubectl delete pvc data-outpost-redis-0
+     kubectl delete secret outpost-redis"
     exit 1
 else
     echo "🔴 Redis already installed and healthy, skipping..."
@@ -193,8 +166,8 @@ if ! kubectl get statefulset outpost-rabbitmq >/dev/null 2>&1; then
     echo "🐰 Installing RabbitMQ (using official rabbitmq:3.13-management-alpine image)..."
     
     # Generate passwords
-    RABBITMQ_PASSWORD=$(openssl rand -hex 16)
-    RABBITMQ_ERLANG_COOKIE=$(openssl rand -hex 32)
+    RABBITMQ_PASSWORD=$(openssl rand -base64 24)
+    RABBITMQ_ERLANG_COOKIE=$(openssl rand -base64 48)
     
     # Create RabbitMQ secret
     kubectl create secret generic outpost-rabbitmq \
@@ -207,42 +180,17 @@ if ! kubectl get statefulset outpost-rabbitmq >/dev/null 2>&1; then
     
     echo "⏳ Waiting for RabbitMQ to be ready (timeout: 120s)..."
     if ! wait_for_pod_ready "outpost-rabbitmq-0" 120; then
-        echo ""
-        echo "❌ RabbitMQ pod failed to become ready!"
-        echo ""
-        echo "Pod status:"
-        kubectl get pod outpost-rabbitmq-0
-        echo ""
-        echo "Recent events:"
-        kubectl describe pod outpost-rabbitmq-0 | grep -A 10 "Events:" || true
-        echo ""
-        echo "Container logs (last 20 lines):"
-        kubectl logs outpost-rabbitmq-0 --tail=20 2>/dev/null || echo "  (no logs available)"
-        echo ""
-        echo "⚠️  To fix this issue, clean up and re-run:"
-        echo "     kubectl delete -f $SCRIPT_DIR/rabbitmq.yaml"
-        echo "     kubectl delete pvc data-outpost-rabbitmq-0"
-        echo "     kubectl delete secret outpost-rabbitmq"
-        echo ""
+        print_pod_diagnostics "outpost-rabbitmq-0" "RabbitMQ" \
+"     kubectl delete -f $SCRIPT_DIR/rabbitmq.yaml
+     kubectl delete pvc data-outpost-rabbitmq-0
+     kubectl delete secret outpost-rabbitmq"
         exit 1
     fi
 elif ! pod_is_healthy "outpost-rabbitmq-0"; then
-    echo "❌ RabbitMQ pod is unhealthy!"
-    echo ""
-    echo "Pod status:"
-    kubectl get pod outpost-rabbitmq-0
-    echo ""
-    echo "Recent events:"
-    kubectl describe pod outpost-rabbitmq-0 | grep -A 10 "Events:" || true
-    echo ""
-    echo "Container logs (last 20 lines):"
-    kubectl logs outpost-rabbitmq-0 --tail=20 2>/dev/null || echo "  (no logs available)"
-    echo ""
-    echo "⚠️  To fix this issue, clean up and re-run:"
-    echo "     kubectl delete -f $SCRIPT_DIR/rabbitmq.yaml"
-    echo "     kubectl delete pvc data-outpost-rabbitmq-0"
-    echo "     kubectl delete secret outpost-rabbitmq"
-    echo ""
+    print_pod_diagnostics "outpost-rabbitmq-0" "RabbitMQ" \
+"     kubectl delete -f $SCRIPT_DIR/rabbitmq.yaml
+     kubectl delete pvc data-outpost-rabbitmq-0
+     kubectl delete secret outpost-rabbitmq"
     exit 1
 else
     echo "🐰 RabbitMQ already installed and healthy, skipping..."
@@ -252,9 +200,9 @@ RABBITMQ_SERVER_URL="amqp://outpost:${RABBITMQ_PASSWORD}@outpost-rabbitmq:5672"
 
 # Generate application secrets
 echo "🔑 Generating application secrets..."
-API_KEY=$(openssl rand -hex 16)
-API_JWT_SECRET=$(openssl rand -hex 32)
-AES_ENCRYPTION_SECRET=$(openssl rand -hex 32)
+API_KEY=$(openssl rand -base64 24)
+API_JWT_SECRET=$(openssl rand -base64 48)
+AES_ENCRYPTION_SECRET=$(openssl rand -base64 48)
 
 # Create or update Kubernetes secret
 echo "🔒 Creating/updating Kubernetes secrets..."
