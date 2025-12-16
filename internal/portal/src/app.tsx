@@ -20,25 +20,27 @@ export const ApiContext = createContext<ApiClient>({} as ApiClient);
 
 function NotFound() {
   return (
-    <div style={{ 
-      textAlign: 'center', 
-      padding: '2rem',
-      maxWidth: '500px',
-      margin: '0 auto'
-    }}>
-      <h1 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#374151' }}>
+    <div
+      style={{
+        textAlign: "center",
+        padding: "2rem",
+        maxWidth: "500px",
+        margin: "0 auto",
+      }}
+    >
+      <h1 style={{ fontSize: "2rem", marginBottom: "1rem", color: "#374151" }}>
         Page Not Found
       </h1>
-      <p style={{ fontSize: '1rem', marginBottom: '2rem', color: '#6b7280' }}>
+      <p style={{ fontSize: "1rem", marginBottom: "2rem", color: "#6b7280" }}>
         The page you're looking for doesn't exist.
       </p>
-      <Link 
-        to="/" 
-        style={{ 
-          color: '#3b82f6', 
-          textDecoration: 'none',
-          fontSize: '1rem',
-          fontWeight: '500'
+      <Link
+        to="/"
+        style={{
+          color: "#3b82f6",
+          textDecoration: "none",
+          fontSize: "1rem",
+          fontWeight: "500",
         }}
       >
         ← Back to Destinations
@@ -138,7 +140,7 @@ function useToken() {
     if (token) {
       setToken(token);
       sessionStorage.setItem("token", token);
-      
+
       // Preserve the current path from the browser
       const currentPath = window.location.pathname;
       window.location.replace(currentPath);

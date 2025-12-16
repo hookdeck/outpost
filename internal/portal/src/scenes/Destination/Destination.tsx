@@ -165,7 +165,10 @@ const Destination = () => {
                       {Object.entries(destination.config)
                         .filter(([key]) => {
                           // Filter out custom_headers if the feature flag is not enabled
-                          if (key === "custom_headers" && CONFIGS.ENABLE_WEBHOOK_CUSTOM_HEADERS !== "true") {
+                          if (
+                            key === "custom_headers" &&
+                            CONFIGS.ENABLE_WEBHOOK_CUSTOM_HEADERS !== "true"
+                          ) {
                             return false;
                           }
                           return true;

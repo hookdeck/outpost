@@ -218,7 +218,9 @@ const CONFIGURATION_STEP: Step = {
                 </p>
                 <Button
                   type="button"
-                  onClick={() => setShowFilterSyntaxModal(!showFilterSyntaxModal)}
+                  onClick={() =>
+                    setShowFilterSyntaxModal(!showFilterSyntaxModal)
+                  }
                   className="filter-section__guide-button"
                 >
                   <HelpIcon />

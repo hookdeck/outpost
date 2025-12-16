@@ -2,7 +2,7 @@ const hexToHSL = (hex: string) => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (!result) {
     throw new Error("Invalid hex color");
-  };
+  }
 
   let r = parseInt(result[1], 16);
   let g = parseInt(result[2], 16);

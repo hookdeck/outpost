@@ -80,14 +80,17 @@ const TopicPicker = ({
       topic.id.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    return filtered.reduce((acc, topic) => {
-      const category = topic.category;
-      if (!acc[category]) {
-        acc[category] = [];
-      }
-      acc[category].push(topic);
-      return acc;
-    }, {} as Record<string, Topic[]>);
+    return filtered.reduce(
+      (acc, topic) => {
+        const category = topic.category;
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push(topic);
+        return acc;
+      },
+      {} as Record<string, Topic[]>
+    );
   }, [topics, searchQuery]);
 
   const toggleCategory = (category: string) => {

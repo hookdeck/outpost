@@ -344,15 +344,17 @@ const DestinationSettings = ({
           <div className="destination-settings__filter">
             <h2 className="title-l">Event Filter</h2>
             <p className="body-m muted">
-              Filter events based on their content. Only events matching the filter
-              will be delivered. Leave empty to receive all events matching the
-              selected topics.
+              Filter events based on their content. Only events matching the
+              filter will be delivered. Leave empty to receive all events
+              matching the selected topics.
             </p>
             {isFilterEnabled ? (
               <form onSubmit={handleFilterSubmit}>
                 <Button
                   type="button"
-                  onClick={() => setShowFilterSyntaxModal(!showFilterSyntaxModal)}
+                  onClick={() =>
+                    setShowFilterSyntaxModal(!showFilterSyntaxModal)
+                  }
                   className="destination-settings__filter-guide-button"
                 >
                   <HelpIcon />
@@ -379,14 +381,14 @@ const DestinationSettings = ({
                 </div>
               </form>
             ) : (
-              <Button
-                onClick={() => setIsFilterEnabled(true)}
-              >
+              <Button onClick={() => setIsFilterEnabled(true)}>
                 <FilterIcon /> Add filter
               </Button>
             )}
             {showFilterSyntaxModal && (
-              <FilterSyntaxModal onClose={() => setShowFilterSyntaxModal(false)} />
+              <FilterSyntaxModal
+                onClose={() => setShowFilterSyntaxModal(false)}
+              />
             )}
           </div>
         </>

@@ -45,12 +45,15 @@ const KeyValueMapField: React.FC<KeyValueMapFieldProps> = ({
   });
 
   const serializedValue = JSON.stringify(
-    pairs.reduce((acc, pair) => {
-      if (pair.key.trim()) {
-        acc[pair.key.trim()] = pair.value;
-      }
-      return acc;
-    }, {} as Record<string, string>)
+    pairs.reduce(
+      (acc, pair) => {
+        if (pair.key.trim()) {
+          acc[pair.key.trim()] = pair.value;
+        }
+        return acc;
+      },
+      {} as Record<string, string>
+    )
   );
 
   // Track previous value to detect actual changes (not initial render)
@@ -69,7 +72,6 @@ const KeyValueMapField: React.FC<KeyValueMapFieldProps> = ({
       prevSerializedValueRef.current = serializedValue;
       onChange?.(serializedValue);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serializedValue]);
 
   const updatePair = (
