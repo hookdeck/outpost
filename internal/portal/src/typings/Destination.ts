@@ -1,5 +1,5 @@
 interface ConfigField {
-  type: "text" | "checkbox";
+  type: "text" | "checkbox" | "key_value_map";
   label: string;
   description: string;
   key: string;
@@ -12,6 +12,8 @@ interface ConfigField {
   minlength?: number;
   maxlength?: number;
   pattern?: string;
+  key_placeholder?: string;
+  value_placeholder?: string;
 }
 
 interface CredentialField extends ConfigField {

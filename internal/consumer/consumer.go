@@ -2,10 +2,11 @@ package consumer
 
 import (
 	"context"
-	"log"
 
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"go.opentelemetry.io/otel"
+	"go.uber.org/zap"
 )
 
 type Consumer interface {
@@ -19,6 +20,7 @@ type MessageHandler interface {
 type consumerImplOptions struct {
 	name        string
 	concurrency int
+	logger      *logging.Logger
 }
 
 func WithName(name string) func(*consumerImplOptions) {
@@ -30,6 +32,12 @@ func WithName(name string) func(*consumerImplOptions) {
 func WithConcurrency(concurrency int) func(*consumerImplOptions) {
 	return func(c *consumerImplOptions) {
 		c.concurrency = concurrency
+	}
+}
+
+func WithLogger(logger *logging.Logger) func(*consumerImplOptions) {
+	return func(c *consumerImplOptions) {
+		c.logger = logger
 	}
 }
 
@@ -86,10 +94,11 @@ recvLoop:
 			defer span.End()
 
 			err = c.handler.Handle(handlerCtx, msg)
-			// TODO: error handling?
 			if err != nil {
 				span.RecordError(err)
-				log.Printf("consumer handler error: %v", err)
+				if c.logger != nil {
+					c.logger.Ctx(handlerCtx).Error("consumer handler error", zap.String("name", c.name), zap.Error(err))
+				}
 			}
 		}()
 	}

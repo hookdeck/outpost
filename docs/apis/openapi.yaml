@@ -146,6 +146,10 @@ components:
           format: url
           description: The URL to send the webhook events to.
           example: "https://example.com/webhooks/user"
+        custom_headers:
+          type: string
+          description: JSON string of custom HTTP headers to include with every webhook request. Header names must be valid HTTP header tokens (alphanumeric, hyphens, underscores). Reserved headers (Content-Type, Host, etc.) cannot be overridden.
+          example: "{\"x-api-key\":\"secret123\",\"x-tenant-id\":\"customer-456\"}"
     WebhookCredentials:
       type: object
       properties:
