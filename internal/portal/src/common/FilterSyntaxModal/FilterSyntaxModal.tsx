@@ -231,4 +231,3 @@ const FilterSyntaxModal = ({ onClose }: { onClose: () => void }) => {
 };
 
 export default FilterSyntaxModal;
-
