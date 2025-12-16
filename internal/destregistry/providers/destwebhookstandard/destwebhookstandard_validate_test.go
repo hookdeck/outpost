@@ -158,6 +158,152 @@ func TestStandardWebhookDestination_Validate(t *testing.T) {
 	})
 }
 
+func TestStandardWebhookDestination_ValidateCustomHeaders(t *testing.T) {
+	t.Parallel()
+
+	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+
+	t.Run("should accept valid header names", func(t *testing.T) {
+		t.Parallel()
+		validHeaders := []string{
+			"x-api-key",
+			"X-Custom-Header",
+			"Authorization",
+			"x-tenant-id",
+			"X_Custom_Header",
+			"x123-header",
+		}
+		for _, header := range validHeaders {
+			t.Run(header, func(t *testing.T) {
+				t.Parallel()
+				destination := testutil.DestinationFactory.Any(
+					testutil.DestinationFactory.WithType("webhook"),
+					testutil.DestinationFactory.WithConfig(map[string]string{
+						"url":            "https://example.com/webhook",
+						"custom_headers": `{"` + header + `":"value"}`,
+					}),
+					testutil.DestinationFactory.WithCredentials(map[string]string{
+						"secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+					}),
+				)
+
+				err := provider.Validate(context.Background(), &destination)
+				assert.NoError(t, err, "header name %q should be valid", header)
+			})
+		}
+	})
+
+	t.Run("should reject invalid header names", func(t *testing.T) {
+		t.Parallel()
+		invalidHeaders := []struct {
+			name         string
+			expectedType string
+		}{
+			{"header with space", "pattern"},
+			{"header:colon", "pattern"},
+			{"-starts-with-dash", "pattern"},
+			{"_starts_with_underscore", "pattern"},
+		}
+		for _, tc := range invalidHeaders {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				destination := testutil.DestinationFactory.Any(
+					testutil.DestinationFactory.WithType("webhook"),
+					testutil.DestinationFactory.WithConfig(map[string]string{
+						"url":            "https://example.com/webhook",
+						"custom_headers": `{"` + tc.name + `":"value"}`,
+					}),
+					testutil.DestinationFactory.WithCredentials(map[string]string{
+						"secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+					}),
+				)
+
+				err := provider.Validate(context.Background(), &destination)
+				assert.Error(t, err, "header name %q should be invalid", tc.name)
+				var validationErr *destregistry.ErrDestinationValidation
+				assert.ErrorAs(t, err, &validationErr)
+				assert.Equal(t, tc.expectedType, validationErr.Errors[0].Type)
+			})
+		}
+	})
+
+	t.Run("should reject reserved header names", func(t *testing.T) {
+		t.Parallel()
+		reservedHeaders := []string{
+			"Content-Type",
+			"content-type",
+			"Content-Length",
+			"Host",
+			"Connection",
+			"User-Agent",
+		}
+		for _, header := range reservedHeaders {
+			t.Run(header, func(t *testing.T) {
+				t.Parallel()
+				destination := testutil.DestinationFactory.Any(
+					testutil.DestinationFactory.WithType("webhook"),
+					testutil.DestinationFactory.WithConfig(map[string]string{
+						"url":            "https://example.com/webhook",
+						"custom_headers": `{"` + header + `":"value"}`,
+					}),
+					testutil.DestinationFactory.WithCredentials(map[string]string{
+						"secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+					}),
+				)
+
+				err := provider.Validate(context.Background(), &destination)
+				assert.Error(t, err, "reserved header %q should be rejected", header)
+				var validationErr *destregistry.ErrDestinationValidation
+				assert.ErrorAs(t, err, &validationErr)
+				assert.Equal(t, "forbidden", validationErr.Errors[0].Type)
+			})
+		}
+	})
+
+	t.Run("should reject empty header values", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url":            "https://example.com/webhook",
+				"custom_headers": `{"x-api-key":""}`,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+			}),
+		)
+
+		err := provider.Validate(context.Background(), &destination)
+		assert.Error(t, err)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.custom_headers.x-api-key", validationErr.Errors[0].Field)
+		assert.Equal(t, "required", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should collect multiple validation errors", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url":            "https://example.com/webhook",
+				"custom_headers": `{"Content-Type":"application/xml","x-valid":"ok","Host":"example.com"}`,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+			}),
+		)
+
+		err := provider.Validate(context.Background(), &destination)
+		assert.Error(t, err)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		// Should have errors for both Content-Type and Host (reserved headers)
+		assert.GreaterOrEqual(t, len(validationErr.Errors), 2)
+	})
+}
+
 func TestStandardWebhookDestination_ComputeTarget(t *testing.T) {
 	t.Parallel()
 

@@ -9,14 +9,17 @@ import Tooltip from "../Tooltip/Tooltip";
 import Button from "../Button/Button";
 import ConfigurationModal from "../ConfigurationModal/ConfigurationModal";
 import { Checkbox } from "../Checkbox/Checkbox";
+import KeyValueMapField from "../KeyValueMapField/KeyValueMapField";
 import { isCheckedValue } from "../../utils/formHelper";
 
 const DestinationConfigFields = ({
   destination,
   type,
+  onChange,
 }: {
   destination?: Destination;
   type: DestinationTypeReference;
+  onChange?: () => void;
 }) => {
   const [unlockedSensitiveFields, setUnlockedSensitiveFields] = useState<
     Record<string, boolean>
@@ -127,7 +130,10 @@ const DestinationConfigFields = ({
                 field.sensitive &&
                 destination?.credentials[field.key] &&
                 !unlockedSensitiveFields[field.key] && (
-                  <button type="button" onClick={() => unlockSensitiveField(field.key)}>
+                  <button
+                    type="button"
+                    onClick={() => unlockSensitiveField(field.key)}
+                  >
                     <Tooltip content="Edit secret value" align="end">
                       <EditIcon />
                     </Tooltip>
@@ -138,7 +144,10 @@ const DestinationConfigFields = ({
               {"sensitive" in field &&
                 field.sensitive &&
                 unlockedSensitiveFields[field.key] && (
-                  <button type="button" onClick={() => lockSensitiveField(field.key)}>
+                  <button
+                    type="button"
+                    onClick={() => lockSensitiveField(field.key)}
+                  >
                     <Tooltip content="Cancel editing" align="end">
                       <CloseIcon />
                     </Tooltip>
@@ -168,7 +177,29 @@ const DestinationConfigFields = ({
             />
           )}
           {field.description && (
-            <p className="description">{field.description}</p>
+            <p
+              className="description"
+              style={{
+                marginBottom:
+                  field.type === "key_value_map" ? "var(--spacing-2)" : "var(--spacing-4)",
+              }}
+            >
+              {field.description}
+            </p>
+          )}
+          {field.type === "key_value_map" && (
+            <KeyValueMapField
+              name={field.key}
+              defaultValue={
+                destination?.config[field.key] ||
+                destination?.credentials[field.key] ||
+                field.default
+              }
+              disabled={field.disabled}
+              keyPlaceholder={field.key_placeholder}
+              valuePlaceholder={field.value_placeholder}
+              onChange={onChange}
+            />
           )}
         </div>
       ))}
