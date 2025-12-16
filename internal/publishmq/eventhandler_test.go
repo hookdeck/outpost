@@ -389,3 +389,206 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.False(t, result.Duplicate)
 	})
 }
+
+func TestEventHandler_Filter(t *testing.T) {
+	t.Cleanup(testinfra.Start(t))
+
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	redisClient := testutil.CreateTestRedisClient(t)
+	entityStore := models.NewEntityStore(redisClient, models.WithAvailableTopics(testutil.TestTopics))
+	mqConfig := testinfra.NewMQAWSConfig(t, nil)
+	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
+	cleanup, err := deliveryMQ.Init(ctx)
+	require.NoError(t, err)
+	defer cleanup()
+
+	// Create a subscription to receive delivery events
+	subscription, err := deliveryMQ.Subscribe(ctx)
+	require.NoError(t, err)
+
+	eventHandler := publishmq.NewEventHandler(
+		logger,
+		deliveryMQ,
+		entityStore,
+		testutil.NewMockEventTracer(tracetest.NewInMemoryExporter()),
+		testutil.TestTopics,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
+	)
+
+	tenant := models.Tenant{
+		ID:        idgen.String(),
+		CreatedAt: time.Now(),
+	}
+	require.NoError(t, entityStore.UpsertTenant(ctx, tenant))
+
+	t.Run("topic-based matching with filter - event matches", func(t *testing.T) {
+		// Create destination with filter
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.created"}),
+			testutil.DestinationFactory.WithFilter(models.Filter{
+				"data": map[string]any{
+					"amount": map[string]any{"$gte": float64(100)},
+				},
+			}),
+		)
+		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+
+		// Event that matches the filter
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithTopic("user.created"),
+			testutil.EventFactory.WithData(map[string]interface{}{"amount": float64(150)}),
+		)
+
+		result, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, event.ID, result.EventID)
+
+		// Verify delivery was queued
+		receiveCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		msg, err := subscription.Receive(receiveCtx)
+		require.NoError(t, err)
+		require.NotNil(t, msg)
+
+		var deliveryEvent models.DeliveryEvent
+		require.NoError(t, deliveryEvent.FromMessage(msg))
+		require.Equal(t, dest.ID, deliveryEvent.DestinationID)
+		msg.Ack()
+	})
+
+	t.Run("topic-based matching with filter - event does not match", func(t *testing.T) {
+		// Create destination with filter requiring amount >= 100
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.updated"}),
+			testutil.DestinationFactory.WithFilter(models.Filter{
+				"data": map[string]any{
+					"amount": map[string]any{"$gte": float64(100)},
+				},
+			}),
+		)
+		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+
+		// Event that does NOT match the filter (amount < 100)
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithTopic("user.updated"),
+			testutil.EventFactory.WithData(map[string]interface{}{"amount": float64(50)}),
+		)
+
+		result, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		// Verify no delivery was queued
+		receiveCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		defer cancel()
+		msg, err := subscription.Receive(receiveCtx)
+		require.Error(t, err) // Should timeout - no message
+		require.Nil(t, msg)
+	})
+
+	t.Run("with destination_id - filter matches", func(t *testing.T) {
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.deleted"}),
+			testutil.DestinationFactory.WithFilter(models.Filter{
+				"data": map[string]any{
+					"status": "cancelled",
+				},
+			}),
+		)
+		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithDestinationID(dest.ID),
+			testutil.EventFactory.WithTopic("user.deleted"),
+			testutil.EventFactory.WithData(map[string]interface{}{"status": "cancelled"}),
+		)
+
+		result, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		// Verify delivery was queued
+		receiveCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		msg, err := subscription.Receive(receiveCtx)
+		require.NoError(t, err)
+		require.NotNil(t, msg)
+
+		var deliveryEvent models.DeliveryEvent
+		require.NoError(t, deliveryEvent.FromMessage(msg))
+		require.Equal(t, dest.ID, deliveryEvent.DestinationID)
+		msg.Ack()
+	})
+
+	t.Run("with destination_id - filter does not match", func(t *testing.T) {
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.created"}),
+			testutil.DestinationFactory.WithFilter(models.Filter{
+				"data": map[string]any{
+					"currency": "USD",
+				},
+			}),
+		)
+		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+
+		// Event with different currency - should NOT match
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithDestinationID(dest.ID),
+			testutil.EventFactory.WithTopic("user.created"),
+			testutil.EventFactory.WithData(map[string]interface{}{"currency": "EUR"}),
+		)
+
+		result, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		// Verify no delivery was queued
+		receiveCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		defer cancel()
+		msg, err := subscription.Receive(receiveCtx)
+		require.Error(t, err) // Should timeout - no message
+		require.Nil(t, msg)
+	})
+
+	t.Run("destination without filter matches all events", func(t *testing.T) {
+		// Create destination WITHOUT filter
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.updated"}),
+			// No filter
+		)
+		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithTopic("user.updated"),
+			testutil.EventFactory.WithData(map[string]interface{}{"anything": "goes"}),
+		)
+
+		result, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		// Verify delivery was queued (no filter = match all)
+		receiveCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		msg, err := subscription.Receive(receiveCtx)
+		require.NoError(t, err)
+		require.NotNil(t, msg)
+
+		var deliveryEvent models.DeliveryEvent
+		require.NoError(t, deliveryEvent.FromMessage(msg))
+		require.Equal(t, dest.ID, deliveryEvent.DestinationID)
+		msg.Ack()
+	})
+}

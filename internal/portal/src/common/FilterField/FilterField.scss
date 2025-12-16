@@ -1,0 +1,26 @@
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+
+  &--error &__textarea {
+    outline: 2px solid var(--colors-outline-danger);
+    outline-offset: 2px;
+  }
+
+  &__textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: var(--spacing-3);
+    font-family: var(--font-family-monospace);
+    font-size: var(--font-size-s);
+    resize: vertical;
+    box-sizing: border-box;
+  }
+
+  &__error {
+    color: var(--colors-foreground-danger);
+    font-size: var(--font-size-s);
+    margin: 0 !important;
+  }
+}

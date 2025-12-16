@@ -100,3 +100,9 @@ func (f *mockDestinationFactory) WithMetadata(metadata map[string]string) func(*
 		destination.Metadata = metadata
 	}
 }
+
+func (f *mockDestinationFactory) WithFilter(filter models.Filter) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.Filter = filter
+	}
+}
