@@ -87,6 +87,8 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `OTEL_SERVICE_NAME` | The service name reported to OpenTelemetry. If set, OpenTelemetry will be enabled. | `nil` | No |
 | `PORTAL_BRAND_COLOR` | Primary brand color (hex code) for theming the Outpost Portal (e.g., '#6122E7'). Also referred to as Accent Color in some contexts. | `nil` | No |
 | `PORTAL_DISABLE_OUTPOST_BRANDING` | If true, disables Outpost branding in the portal. | `false` | No |
+| `PORTAL_ENABLE_DESTINATION_FILTER` | If true, enables destination filter UI in the portal. | `false` | No |
+| `PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS` | If true, enables custom headers UI for webhook destinations in the portal. | `false` | No |
 | `PORTAL_FAVICON_URL` | URL for the favicon to be used in the Outpost Portal. | `nil` | No |
 | `PORTAL_FORCE_THEME` | Force a specific theme for the Outpost Portal (e.g., 'light', 'dark'). | `nil` | No |
 | `PORTAL_LOGO` | URL for the light-mode logo to be displayed in the Outpost Portal. | `nil` | No |
@@ -433,6 +435,12 @@ portal:
 
   # If true, disables Outpost branding in the portal.
   disable_outpost_branding: false
+
+  # If true, enables destination filter UI in the portal.
+  enable_destination_filter: false
+
+  # If true, enables custom headers UI for webhook destinations in the portal.
+  enable_webhook_custom_headers: false
 
   # URL for the favicon to be used in the Outpost Portal.
   favicon_url: ""

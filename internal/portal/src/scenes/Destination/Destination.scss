@@ -8,11 +8,8 @@
     align-items: center;
     justify-content: center;
     padding: var(--spacing-4);
-    background: linear-gradient(
-        180deg,
-        rgba(0, 0, 0, 0) 0%,
-        rgba(0, 0, 0, 0.08) 100%
-      ),
+    background:
+      linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.08) 100%),
       var(--colors-background-neutral-2);
     background-color: var(--colors-background-neutral-2);
     border-radius: var(--radius-m);
