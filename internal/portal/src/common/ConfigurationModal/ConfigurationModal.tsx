@@ -1,9 +1,6 @@
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useRef } from "react";
 import { DestinationTypeReference } from "../../typings/Destination";
-import { CollapseIcon } from "../Icons";
-import Button from "../Button/Button";
-import "./ConfigurationModal.scss";
+import { useSidebar } from "../Sidebar/Sidebar";
 import Markdown from "react-markdown";
 
 const ConfigurationModal = ({
@@ -13,38 +10,19 @@ const ConfigurationModal = ({
   type: DestinationTypeReference;
   onClose: () => void;
 }) => {
-  const [portalRef, setPortalRef] = useState<HTMLDivElement | null>(null);
+  const { open, close } = useSidebar("configuration");
+  const initialized = useRef(false);
 
   useEffect(() => {
-    // Create portal container for sidebar
-    const portal = document.createElement("div");
-    portal.id = "sidebar";
-    document.body.appendChild(portal);
-
-    // Add class to body to adjust main content
-    document.body.classList.add("sidebar-open");
-
-    setPortalRef(portal);
-
-    return () => {
-      portal.remove();
-      document.body.classList.remove("sidebar-open");
-    };
+    if (!initialized.current) {
+      initialized.current = true;
+      open(<Markdown>{type.instructions}</Markdown>, onClose);
+    }
+    return () => close();
+     
   }, []);
 
-  if (!portalRef) {
-    return null;
-  }
-
-  return createPortal(
-    <>
-      <Button minimal onClick={onClose} className="close-button">
-        <CollapseIcon />
-      </Button>
-      <Markdown>{type.instructions}</Markdown>
-    </>,
-    portalRef
-  );
+  return null;
 };
 
 export default ConfigurationModal;

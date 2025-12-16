@@ -1,8 +1,5 @@
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
-import { CollapseIcon } from "../Icons";
-import Button from "../Button/Button";
-import "../ConfigurationModal/ConfigurationModal.scss";
+import { useEffect, useRef } from "react";
+import { useSidebar } from "../Sidebar/Sidebar";
 import Markdown from "react-markdown";
 
 const FILTER_SYNTAX_GUIDE = `# Filter Syntax Guide
@@ -196,38 +193,19 @@ Check if a field exists (or doesn't):
 `;
 
 const FilterSyntaxModal = ({ onClose }: { onClose: () => void }) => {
-  const [portalRef, setPortalRef] = useState<HTMLDivElement | null>(null);
+  const { open, close } = useSidebar("filter-syntax");
+  const initialized = useRef(false);
 
   useEffect(() => {
-    // Create portal container for sidebar
-    const portal = document.createElement("div");
-    portal.id = "sidebar";
-    document.body.appendChild(portal);
-
-    // Add class to body to adjust main content
-    document.body.classList.add("sidebar-open");
-
-    setPortalRef(portal);
-
-    return () => {
-      portal.remove();
-      document.body.classList.remove("sidebar-open");
-    };
+    if (!initialized.current) {
+      initialized.current = true;
+      open(<Markdown>{FILTER_SYNTAX_GUIDE}</Markdown>, onClose);
+    }
+    return () => close();
+     
   }, []);
 
-  if (!portalRef) {
-    return null;
-  }
-
-  return createPortal(
-    <>
-      <Button minimal onClick={onClose} className="close-button">
-        <CollapseIcon />
-      </Button>
-      <Markdown>{FILTER_SYNTAX_GUIDE}</Markdown>
-    </>,
-    portalRef
-  );
+  return null;
 };
 
 export default FilterSyntaxModal;
