@@ -168,3 +168,71 @@ func TestAlertMonitor_ConsecutiveFailures_Reset(t *testing.T) {
 	// Verify the destination was never disabled
 	disabler.AssertNotCalled(t, "DisableDestination")
 }
+
+func TestAlertMonitor_ConsecutiveFailures_AboveThreshold(t *testing.T) {
+	// Tests that failures above the 100% threshold still trigger disable.
+	// This ensures we don't miss the disable if concurrent processing
+	// causes us to skip over the exact threshold count.
+	t.Parallel()
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	redisClient := testutil.CreateTestRedisClient(t)
+	notifier := &mockAlertNotifier{}
+	notifier.On("Notify", mock.Anything, mock.Anything).Return(nil)
+	disabler := &mockDestinationDisabler{}
+	disabler.On("DisableDestination", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	monitor := alert.NewAlertMonitor(
+		logger,
+		redisClient,
+		alert.WithNotifier(notifier),
+		alert.WithDisabler(disabler),
+		alert.WithAutoDisableFailureCount(20),
+		alert.WithAlertThresholds([]int{50, 70, 90, 100}),
+	)
+
+	dest := &alert.AlertDestination{ID: "dest_above", TenantID: "tenant_above"}
+	event := &models.Event{Topic: "test.event"}
+	deliveryEvent := &models.DeliveryEvent{Event: *event}
+	attempt := alert.DeliveryAttempt{
+		Success:       false,
+		DeliveryEvent: deliveryEvent,
+		Destination:   dest,
+		DeliveryResponse: map[string]interface{}{
+			"status": "500",
+		},
+		Timestamp: time.Now(),
+	}
+
+	// Send 25 consecutive failures (5 more than the threshold)
+	for i := 1; i <= 25; i++ {
+		require.NoError(t, monitor.HandleAttempt(ctx, attempt))
+	}
+
+	// Verify notifications at 50%, 70%, 90%, and 100% thresholds
+	// Plus additional notifications for failures 21-25 (all at 100% level)
+	var notifyCallCount int
+	var disableNotifyCount int
+	for _, call := range notifier.Calls {
+		if call.Method == "Notify" {
+			notifyCallCount++
+			alertData := call.Arguments.Get(1).(alert.ConsecutiveFailureAlert)
+			if alertData.Data.ConsecutiveFailures >= 20 {
+				disableNotifyCount++
+				require.True(t, alertData.Data.WillDisable, "WillDisable should be true at and above 100%")
+			}
+		}
+	}
+	// 4 alerts at thresholds (10, 14, 18, 20) + 5 alerts for 21-25
+	require.Equal(t, 9, notifyCallCount, "Should have sent 9 notifications (4 at thresholds + 5 above)")
+	require.Equal(t, 6, disableNotifyCount, "Should have 6 notifications with WillDisable=true (20-25)")
+
+	// Verify destination was disabled multiple times (once per failure >= 20)
+	var disableCallCount int
+	for _, call := range disabler.Calls {
+		if call.Method == "DisableDestination" {
+			disableCallCount++
+		}
+	}
+	require.Equal(t, 6, disableCallCount, "Should have called disable 6 times (for failures 20-25)")
+}

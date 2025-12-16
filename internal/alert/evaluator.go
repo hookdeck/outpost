@@ -69,9 +69,21 @@ func (e *alertEvaluator) ShouldAlert(failures int) (int, bool) {
 	}
 
 	// Get current alert level
+	// Iterate from highest to lowest threshold
 	for i := len(e.thresholds) - 1; i >= 0; i-- {
-		if failures == e.thresholds[i].failures {
-			return e.thresholds[i].percentage, true
+		threshold := e.thresholds[i]
+
+		// For the 100% threshold (auto-disable), use >= to ensure we don't miss it
+		// if concurrent processing causes us to skip over the exact count.
+		// For other thresholds, use exact match to avoid duplicate alerts.
+		if threshold.percentage == 100 {
+			if failures >= threshold.failures {
+				return threshold.percentage, true
+			}
+		} else {
+			if failures == threshold.failures {
+				return threshold.percentage, true
+			}
 		}
 	}
 
