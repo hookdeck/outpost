@@ -5,19 +5,25 @@ import { useNavigate } from "react-router-dom";
 
 import "./DestinationSettings.scss";
 import {
+  CloseIcon,
   DeleteIcon,
   DisableIcon,
+  FilterIcon,
+  HelpIcon,
   RotateIcon,
   SaveIcon,
 } from "../../../common/Icons";
+import FilterSyntaxModal from "../../../common/FilterSyntaxModal/FilterSyntaxModal";
 import { ApiContext } from "../../../app";
 import { mutate } from "swr";
 import { showToast } from "../../../common/Toast/Toast";
 import {
   Destination,
   DestinationTypeReference,
+  Filter,
 } from "../../../typings/Destination";
 import DestinationConfigFields from "../../../common/DestinationConfigFields/DestinationConfigFields";
+import FilterField from "../../../common/FilterField/FilterField";
 import CONFIGS from "../../../config";
 import { getFormValues } from "../../../utils/formHelper";
 
@@ -29,14 +35,20 @@ const DestinationSettings = ({
   type: DestinationTypeReference;
 }) => {
   const [selectedTopics, setSelectedTopics] = useState(destination.topics);
+  const [filter, setFilter] = useState<Filter>(destination.filter || null);
+  const [isFilterEnabled, setIsFilterEnabled] = useState(
+    !!(destination.filter && Object.keys(destination.filter).length > 0)
+  );
   const apiClient = useContext(ApiContext);
   const navigate = useNavigate();
 
   const [isDisabling, setIsDisabling] = useState(false);
   const [isTopicsSaving, setIsTopicsSaving] = useState(false);
+  const [isFilterSaving, setIsFilterSaving] = useState(false);
   const [isConfigSaving, setIsConfigSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRotatingSecret, setIsRotatingSecret] = useState(false);
+  const [showFilterSyntaxModal, setShowFilterSyntaxModal] = useState(false);
 
   const handleToggleEnabled = () => {
     if (!destination.disabled_at) {
@@ -138,6 +150,75 @@ const DestinationSettings = ({
       })
       .finally(() => {
         setIsConfigSaving(false);
+      });
+  };
+
+  const handleFilterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsFilterSaving(true);
+
+    apiClient
+      .fetch(`destinations/${destination.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          // Use empty object {} to unset filter (API doesn't accept null for PATCH)
+          filter:
+            isFilterEnabled && filter && Object.keys(filter).length > 0
+              ? filter
+              : {},
+        }),
+      })
+      .then((data) => {
+        showToast("success", "Event filter updated.");
+        mutate(`destinations/${destination.id}`, data, false);
+      })
+      .catch((error) => {
+        showToast(
+          "error",
+          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`
+        );
+      })
+      .finally(() => {
+        setIsFilterSaving(false);
+      });
+  };
+
+  const isFilterChanged = () => {
+    const currentFilter =
+      isFilterEnabled && filter && Object.keys(filter).length > 0
+        ? filter
+        : null;
+    const originalFilter =
+      destination.filter && Object.keys(destination.filter).length > 0
+        ? destination.filter
+        : null;
+    return JSON.stringify(currentFilter) !== JSON.stringify(originalFilter);
+  };
+
+  const handleRemoveFilter = () => {
+    setIsFilterSaving(true);
+
+    apiClient
+      .fetch(`destinations/${destination.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          filter: {},
+        }),
+      })
+      .then((data) => {
+        showToast("success", "Event filter removed.");
+        mutate(`destinations/${destination.id}`, data, false);
+        setIsFilterEnabled(false);
+        setFilter(null);
+      })
+      .catch((error) => {
+        showToast(
+          "error",
+          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`
+        );
+      })
+      .finally(() => {
+        setIsFilterSaving(false);
       });
   };
 
@@ -256,6 +337,55 @@ const DestinationSettings = ({
             <SaveIcon /> Save
           </Button>
         </form>
+      </div>
+      <hr />
+      <div className="destination-settings__filter">
+        <h2 className="title-l">Event Filter</h2>
+        <p className="body-m muted">
+          Filter events based on their content. Only events matching the filter
+          will be delivered. Leave empty to receive all events matching the
+          selected topics.
+        </p>
+        {isFilterEnabled ? (
+          <form onSubmit={handleFilterSubmit}>
+            <Button
+              type="button"
+              onClick={() => setShowFilterSyntaxModal(!showFilterSyntaxModal)}
+              className="destination-settings__filter-guide-button"
+            >
+              <HelpIcon />
+              Filter Syntax Guide
+            </Button>
+            <FilterField value={filter} onChange={setFilter} />
+            <div className="destination-settings__filter-actions">
+              <Button
+                type="submit"
+                primary
+                disabled={!isFilterChanged()}
+                loading={isFilterSaving}
+              >
+                <SaveIcon /> Save
+              </Button>
+              <Button
+                type="button"
+                onClick={handleRemoveFilter}
+                loading={isFilterSaving}
+                danger
+              >
+                <CloseIcon /> Remove filter
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <Button
+            onClick={() => setIsFilterEnabled(true)}
+          >
+            <FilterIcon /> Add filter
+          </Button>
+        )}
+        {showFilterSyntaxModal && (
+          <FilterSyntaxModal onClose={() => setShowFilterSyntaxModal(false)} />
+        )}
       </div>
 
       {type.type === "webhook" && (

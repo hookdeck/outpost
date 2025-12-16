@@ -167,12 +167,7 @@ func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *mode
 		return []models.DestinationSummary{}, nil
 	}
 
-	if destination.DisabledAt != nil {
-		return []models.DestinationSummary{}, nil
-	}
-
-	// Check topic match
-	if !destination.Topics.MatchTopic(event.Topic) {
+	if !destination.MatchEvent(*event) {
 		return []models.DestinationSummary{}, nil
 	}
 
