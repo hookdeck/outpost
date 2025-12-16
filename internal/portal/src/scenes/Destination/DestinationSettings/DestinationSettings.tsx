@@ -338,55 +338,59 @@ const DestinationSettings = ({
           </Button>
         </form>
       </div>
-      <hr />
-      <div className="destination-settings__filter">
-        <h2 className="title-l">Event Filter</h2>
-        <p className="body-m muted">
-          Filter events based on their content. Only events matching the filter
-          will be delivered. Leave empty to receive all events matching the
-          selected topics.
-        </p>
-        {isFilterEnabled ? (
-          <form onSubmit={handleFilterSubmit}>
-            <Button
-              type="button"
-              onClick={() => setShowFilterSyntaxModal(!showFilterSyntaxModal)}
-              className="destination-settings__filter-guide-button"
-            >
-              <HelpIcon />
-              Filter Syntax Guide
-            </Button>
-            <FilterField value={filter} onChange={setFilter} />
-            <div className="destination-settings__filter-actions">
+      {CONFIGS.ENABLE_DESTINATION_FILTER === "true" && (
+        <>
+          <hr />
+          <div className="destination-settings__filter">
+            <h2 className="title-l">Event Filter</h2>
+            <p className="body-m muted">
+              Filter events based on their content. Only events matching the filter
+              will be delivered. Leave empty to receive all events matching the
+              selected topics.
+            </p>
+            {isFilterEnabled ? (
+              <form onSubmit={handleFilterSubmit}>
+                <Button
+                  type="button"
+                  onClick={() => setShowFilterSyntaxModal(!showFilterSyntaxModal)}
+                  className="destination-settings__filter-guide-button"
+                >
+                  <HelpIcon />
+                  Filter Syntax Guide
+                </Button>
+                <FilterField value={filter} onChange={setFilter} />
+                <div className="destination-settings__filter-actions">
+                  <Button
+                    type="submit"
+                    primary
+                    disabled={!isFilterChanged()}
+                    loading={isFilterSaving}
+                  >
+                    <SaveIcon /> Save
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleRemoveFilter}
+                    loading={isFilterSaving}
+                    danger
+                  >
+                    <CloseIcon /> Remove filter
+                  </Button>
+                </div>
+              </form>
+            ) : (
               <Button
-                type="submit"
-                primary
-                disabled={!isFilterChanged()}
-                loading={isFilterSaving}
+                onClick={() => setIsFilterEnabled(true)}
               >
-                <SaveIcon /> Save
+                <FilterIcon /> Add filter
               </Button>
-              <Button
-                type="button"
-                onClick={handleRemoveFilter}
-                loading={isFilterSaving}
-                danger
-              >
-                <CloseIcon /> Remove filter
-              </Button>
-            </div>
-          </form>
-        ) : (
-          <Button
-            onClick={() => setIsFilterEnabled(true)}
-          >
-            <FilterIcon /> Add filter
-          </Button>
-        )}
-        {showFilterSyntaxModal && (
-          <FilterSyntaxModal onClose={() => setShowFilterSyntaxModal(false)} />
-        )}
-      </div>
+            )}
+            {showFilterSyntaxModal && (
+              <FilterSyntaxModal onClose={() => setShowFilterSyntaxModal(false)} />
+            )}
+          </div>
+        </>
+      )}
 
       {type.type === "webhook" && (
         <>

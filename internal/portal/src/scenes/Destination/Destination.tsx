@@ -162,8 +162,15 @@ const Destination = () => {
                           </span>
                         </li>
                       )}
-                      {Object.entries(destination.config).map(
-                        ([key, value]) => (
+                      {Object.entries(destination.config)
+                        .filter(([key]) => {
+                          // Filter out custom_headers if the feature flag is not enabled
+                          if (key === "custom_headers" && CONFIGS.ENABLE_WEBHOOK_CUSTOM_HEADERS !== "true") {
+                            return false;
+                          }
+                          return true;
+                        })
+                        .map(([key, value]) => (
                           <DestinationDetailsField
                             key={key}
                             fieldType="config"
@@ -171,8 +178,7 @@ const Destination = () => {
                             type={type}
                             value={value}
                           />
-                        )
-                      )}
+                        ))}
                       {Object.entries(destination.credentials).map(
                         ([key, value]) => (
                           <DestinationDetailsField
@@ -212,7 +218,8 @@ const Destination = () => {
                       </li>
                     </ul>
                   </div>
-                  {destination.filter &&
+                  {CONFIGS.ENABLE_DESTINATION_FILTER === "true" &&
+                    destination.filter &&
                     Object.keys(destination.filter).length > 0 && (
                       <div className="filter-container">
                         <h2 className="title-l">Event Filter</h2>

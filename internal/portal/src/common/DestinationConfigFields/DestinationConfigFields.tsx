@@ -11,6 +11,7 @@ import ConfigurationModal from "../ConfigurationModal/ConfigurationModal";
 import { Checkbox } from "../Checkbox/Checkbox";
 import KeyValueMapField from "../KeyValueMapField/KeyValueMapField";
 import { isCheckedValue } from "../../utils/formHelper";
+import CONFIGS from "../../config";
 
 const DestinationConfigFields = ({
   destination,
@@ -87,7 +88,15 @@ const DestinationConfigFields = ({
           </a>
         </div>
       )}
-      {[...type.config_fields, ...type.credential_fields].map((field) => (
+      {[...type.config_fields, ...type.credential_fields]
+        .filter((field) => {
+          // Filter out custom_headers if the feature flag is not enabled
+          if (field.key === "custom_headers" && CONFIGS.ENABLE_WEBHOOK_CUSTOM_HEADERS !== "true") {
+            return false;
+          }
+          return true;
+        })
+        .map((field) => (
         <div key={field.key} className="destination-config-field">
           <label htmlFor={field.key}>
             {field.label}

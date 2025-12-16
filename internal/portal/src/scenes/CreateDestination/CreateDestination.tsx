@@ -165,6 +165,8 @@ const CONFIGURATION_STEP: Step = {
     const [filterValid, setFilterValid] = useState(true);
     const [showFilterSyntaxModal, setShowFilterSyntaxModal] = useState(false);
 
+    const isFilterEnabled = CONFIGS.ENABLE_DESTINATION_FILTER === "true";
+
     useEffect(() => {
       if (onChange) {
         onChange({ ...defaultValue, filter, filterValid });
@@ -177,63 +179,65 @@ const CONFIGURATION_STEP: Step = {
           type={destinationType!}
           destination={undefined}
         />
-        <div className="filter-section">
-          <div className="filter-section__toggle-container">
-            {showFilter ? (
-              <>
-                <p className="subtitle-s">Event Filter</p>
+        {isFilterEnabled && (
+          <div className="filter-section">
+            <div className="filter-section__toggle-container">
+              {showFilter ? (
+                <>
+                  <p className="subtitle-s">Event Filter</p>
+                  <button
+                    type="button"
+                    className="filter-section__toggle"
+                    onClick={() => setShowFilter(!showFilter)}
+                  >
+                    {showFilter ? <CloseIcon /> : <AddIcon />}
+                    <span className="filter-section__label">
+                      {showFilter ? "Remove" : "Add Event Filter"}
+                    </span>
+                  </button>
+                </>
+              ) : (
                 <button
                   type="button"
                   className="filter-section__toggle"
                   onClick={() => setShowFilter(!showFilter)}
                 >
-                  {showFilter ? <CloseIcon /> : <AddIcon />}
+                  <AddIcon />
                   <span className="filter-section__label">
-                    {showFilter ? "Remove" : "Add Event Filter"}
+                    {showFilter ? "Remove Event Filter" : "Add Event Filter"}
                   </span>
                 </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                className="filter-section__toggle"
-                onClick={() => setShowFilter(!showFilter)}
-              >
-                <AddIcon />
-                <span className="filter-section__label">
-                  {showFilter ? "Remove Event Filter" : "Add Event Filter"}
-                </span>
-              </button>
+              )}
+            </div>
+            {showFilter && (
+              <div className="filter-section__content">
+                <p className="body-m muted">
+                  Add a filter to only receive events that match specific
+                  criteria. Leave empty to receive all events matching the
+                  selected topics.
+                </p>
+                <Button
+                  type="button"
+                  onClick={() => setShowFilterSyntaxModal(!showFilterSyntaxModal)}
+                  className="filter-section__guide-button"
+                >
+                  <HelpIcon />
+                  Filter Syntax Guide
+                </Button>
+                <FilterField
+                  value={filter}
+                  onChange={setFilter}
+                  onValidChange={setFilterValid}
+                />
+                <input
+                  type="hidden"
+                  name="filter"
+                  value={filter ? JSON.stringify(filter) : ""}
+                />
+              </div>
             )}
           </div>
-          {showFilter && (
-            <div className="filter-section__content">
-              <p className="body-m muted">
-                Add a filter to only receive events that match specific
-                criteria. Leave empty to receive all events matching the
-                selected topics.
-              </p>
-              <Button
-                type="button"
-                onClick={() => setShowFilterSyntaxModal(!showFilterSyntaxModal)}
-                className="filter-section__guide-button"
-              >
-                <HelpIcon />
-                Filter Syntax Guide
-              </Button>
-              <FilterField
-                value={filter}
-                onChange={setFilter}
-                onValidChange={setFilterValid}
-              />
-              <input
-                type="hidden"
-                name="filter"
-                value={filter ? JSON.stringify(filter) : ""}
-              />
-            </div>
-          )}
-        </div>
+        )}
         {showFilterSyntaxModal && (
           <FilterSyntaxModal onClose={() => setShowFilterSyntaxModal(false)} />
         )}
