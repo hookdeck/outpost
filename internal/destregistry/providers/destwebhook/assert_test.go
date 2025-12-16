@@ -3,34 +3,14 @@ package destwebhook_test
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
-	"testing"
 
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// Helper function to assert webhook request content
-func assertRequestContent(t *testing.T, rawBody []byte, expectedData map[string]interface{}, expectedMetadata map[string]string, headerPrefix string, request *http.Request) {
-	t.Helper()
-
-	// Verify body content
-	var actualBody map[string]interface{}
-	err := json.Unmarshal(rawBody, &actualBody)
-	require.NoError(t, err, "body should be valid JSON")
-	assert.Equal(t, expectedData, actualBody, "request body should match expected data")
-
-	// Verify metadata in headers
-	for key, value := range expectedMetadata {
-		assert.Equal(t, value, request.Header.Get(headerPrefix+key),
-			"metadata header %s should match expected value", key)
-	}
-}
 
 // Helper function to assert signature format
 func assertSignatureFormat(t testsuite.TestingT, signatureHeader string, expectedSignatureCount int) {
