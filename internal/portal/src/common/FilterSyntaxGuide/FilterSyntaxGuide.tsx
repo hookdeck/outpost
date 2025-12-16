@@ -1,5 +1,3 @@
-import { useEffect, useRef } from "react";
-import { useSidebar } from "../Sidebar/Sidebar";
 import Markdown from "react-markdown";
 
 const FILTER_SYNTAX_GUIDE = `# Filter Syntax Guide
@@ -192,20 +190,8 @@ Check if a field exists (or doesn't):
 \`\`\`
 `;
 
-const FilterSyntaxModal = ({ onClose }: { onClose: () => void }) => {
-  const { open, close } = useSidebar("filter-syntax");
-  const initialized = useRef(false);
-
-  useEffect(() => {
-    if (!initialized.current) {
-      initialized.current = true;
-      open(<Markdown>{FILTER_SYNTAX_GUIDE}</Markdown>, onClose);
-    }
-    return () => close();
-     
-  }, []);
-
-  return null;
+export const FilterSyntaxGuide = () => {
+  return <Markdown>{FILTER_SYNTAX_GUIDE}</Markdown>;
 };
 
-export default FilterSyntaxModal;
+export default FilterSyntaxGuide;

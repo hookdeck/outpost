@@ -3,7 +3,6 @@ import {
   useContext,
   useState,
   useEffect,
-  useRef,
   ReactNode,
   useCallback,
 } from "react";
@@ -12,68 +11,62 @@ import { CollapseIcon } from "../Icons";
 import Button from "../Button/Button";
 import "./Sidebar.scss";
 
+type SidebarState = {
+  id: string;
+  content: ReactNode;
+} | null;
+
 type SidebarContextType = {
-  open: (id: string, content: ReactNode, onClose: () => void) => void;
+  open: (id: string, content: ReactNode) => void;
   close: (id: string) => void;
+  toggle: (id: string, content: ReactNode) => void;
 };
 
 const SidebarContext = createContext<SidebarContextType | null>(null);
 
 export const SidebarProvider = ({ children }: { children: ReactNode }) => {
-  const [currentId, setCurrentId] = useState<string | null>(null);
-  const [content, setContent] = useState<ReactNode | null>(null);
-  const onCloseCallbackRef = useRef<(() => void) | null>(null);
+  const [state, setState] = useState<SidebarState>(null);
 
-  const open = useCallback(
-    (id: string, newContent: ReactNode, onClose: () => void) => {
-      // If there's a different sidebar open, call its onClose first
-      if (currentId && currentId !== id && onCloseCallbackRef.current) {
-        onCloseCallbackRef.current();
-      }
-      setCurrentId(id);
-      setContent(newContent);
-      onCloseCallbackRef.current = onClose;
-    },
-    [currentId]
-  );
+  const open = useCallback((id: string, content: ReactNode) => {
+    setState({ id, content });
+  }, []);
 
-  const close = useCallback(
-    (id: string) => {
-      // Only close if this id owns the current sidebar
-      if (currentId === id) {
-        setContent(null);
-        setCurrentId(null);
-        onCloseCallbackRef.current = null;
-      }
+  const close = useCallback((id: string) => {
+    setState((current) => (current?.id === id ? null : current));
+  }, []);
+
+  const toggle = useCallback(
+    (id: string, content: ReactNode) => {
+      setState((current) => {
+        if (current?.id === id) {
+          return null;
+        }
+        return { id, content };
+      });
     },
-    [currentId]
+    []
   );
 
   const handleClose = useCallback(() => {
-    if (onCloseCallbackRef.current) {
-      onCloseCallbackRef.current();
-    }
-    setContent(null);
-    setCurrentId(null);
-    onCloseCallbackRef.current = null;
+    setState(null);
   }, []);
 
   return (
-    <SidebarContext.Provider value={{ open, close }}>
+    <SidebarContext.Provider value={{ open, close, toggle }}>
       {children}
-      <SidebarPortal content={content} onClose={handleClose} />
+      <SidebarPortal state={state} onClose={handleClose} />
     </SidebarContext.Provider>
   );
 };
 
 const SidebarPortal = ({
-  content,
+  state,
   onClose,
 }: {
-  content: ReactNode | null;
+  state: SidebarState;
   onClose: () => void;
 }) => {
-  const isOpen = content !== null;
+  const isOpen = state !== null;
 
   useEffect(() => {
     if (isOpen) {
@@ -83,7 +76,7 @@ const SidebarPortal = ({
     }
   }, [isOpen]);
 
-  if (!content) {
+  if (!state) {
     return null;
   }
 
@@ -92,28 +85,16 @@ const SidebarPortal = ({
       <Button minimal onClick={onClose} className="close-button">
         <CollapseIcon />
       </Button>
-      {content}
+      {state.content}
     </div>,
     document.body
   );
 };
 
-export const useSidebar = (id: string) => {
+export const useSidebar = () => {
   const context = useContext(SidebarContext);
   if (!context) {
     throw new Error("useSidebar must be used within a SidebarProvider");
   }
-
-  const open = useCallback(
-    (content: ReactNode, onClose: () => void) => {
-      context.open(id, content, onClose);
-    },
-    [context, id]
-  );
-
-  const close = useCallback(() => {
-    context.close(id);
-  }, [context, id]);
-
-  return { open, close };
+  return context;
 };
