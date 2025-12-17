@@ -6,17 +6,21 @@ Only events matching the filter will be delivered. Filters use JSON to define ma
 
 ## Event Structure
 
-Events contain two top-level properties that can be filtered:
+Events have five top-level properties that can be filtered:
 
-- \`data\` — The event payload
+- \`id\` — The event ID
+- \`topic\` — The event topic
+- \`time\` — Event timestamp (RFC3339 format)
 - \`metadata\` — Additional event information
+- \`data\` — The event payload
 
-Your filter should specify one or both of these at the top level:
+Your filter should specify one or more of these at the top level:
 
 \`\`\`json
 {
+  "topic": "order.created",
   "data": {
-    "type": "order.created"
+    "status": "paid"
   },
   "metadata": {
     "source": "api"
@@ -112,6 +116,17 @@ Use operators for complex matching:
 {
   "data": {
     "email": { "$endsWith": "@example.com" }
+  }
+}
+\`\`\`
+
+**Example:** Match events within a time range
+
+\`\`\`json
+{
+  "time": {
+    "$gte": "2025-01-01T00:00:00Z",
+    "$lt": "2025-02-01T00:00:00Z"
   }
 }
 \`\`\`
