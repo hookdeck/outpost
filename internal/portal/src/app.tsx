@@ -10,6 +10,7 @@ import ErrorBoundary from "./common/ErrorBoundary/ErrorBoundary";
 import CONFIGS from "./config";
 import Destination from "./scenes/Destination/Destination";
 import { ToastProvider } from "./common/Toast/Toast";
+import { SidebarProvider } from "./common/Sidebar/Sidebar";
 import CreateDestination from "./scenes/CreateDestination/CreateDestination";
 
 type ApiClient = {
@@ -87,45 +88,47 @@ export function App() {
       }}
     >
       <ToastProvider>
-        <div className="layout">
-          <ErrorBoundary>
-            {tenant ? (
-              <ApiContext.Provider value={apiClient}>
-                <SWRConfig
-                  value={{
-                    fetcher: (path: string) => apiClient.fetch(path),
-                  }}
-                >
-                  <Routes>
-                    <Route path="/" Component={DestinationList} />
-                    <Route path="/new/*" Component={CreateDestination} />
-                    <Route
-                      path="/destinations/:destination_id/*"
-                      Component={Destination}
-                    />
-                    <Route path="*" Component={NotFound} />
-                  </Routes>
-                </SWRConfig>
-              </ApiContext.Provider>
-            ) : (
-              <div>
-                <Loading />
-              </div>
-            )}
-          </ErrorBoundary>
-        </div>
-        {!CONFIGS.DISABLE_OUTPOST_BRANDING && (
-          <div className="powered-by subtitle-s">
-            Powered by{" "}
-            <a
-              href="https://github.com/hookdeck/outpost"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Outpost
-            </a>
+        <SidebarProvider>
+          <div className="layout">
+            <ErrorBoundary>
+              {tenant ? (
+                <ApiContext.Provider value={apiClient}>
+                  <SWRConfig
+                    value={{
+                      fetcher: (path: string) => apiClient.fetch(path),
+                    }}
+                  >
+                    <Routes>
+                      <Route path="/" Component={DestinationList} />
+                      <Route path="/new/*" Component={CreateDestination} />
+                      <Route
+                        path="/destinations/:destination_id/*"
+                        Component={Destination}
+                      />
+                      <Route path="*" Component={NotFound} />
+                    </Routes>
+                  </SWRConfig>
+                </ApiContext.Provider>
+              ) : (
+                <div>
+                  <Loading />
+                </div>
+              )}
+            </ErrorBoundary>
           </div>
-        )}
+          {!CONFIGS.DISABLE_OUTPOST_BRANDING && (
+            <div className="powered-by subtitle-s">
+              Powered by{" "}
+              <a
+                href="https://github.com/hookdeck/outpost"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Outpost
+              </a>
+            </div>
+          )}
+        </SidebarProvider>
       </ToastProvider>
     </BrowserRouter>
   );

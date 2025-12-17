@@ -7,7 +7,8 @@ import "./DestinationConfigFields.scss";
 import { EditIcon, HelpIcon, CloseIcon } from "../Icons";
 import Tooltip from "../Tooltip/Tooltip";
 import Button from "../Button/Button";
-import ConfigurationModal from "../ConfigurationModal/ConfigurationModal";
+import { useSidebar } from "../Sidebar/Sidebar";
+import { ConfigurationGuide } from "../ConfigurationGuide/ConfigurationGuide";
 import { Checkbox } from "../Checkbox/Checkbox";
 import KeyValueMapField from "../KeyValueMapField/KeyValueMapField";
 import { isCheckedValue } from "../../utils/formHelper";
@@ -28,7 +29,7 @@ const DestinationConfigFields = ({
   const [lastUnlockedSensitiveField, setLastUnlockedSensitiveField] = useState<
     string | null
   >(null);
-  const [showConfigModal, setShowConfigModal] = useState(false);
+  const sidebar = useSidebar();
 
   const inputRefs = useRef<Record<string, HTMLInputElement>>({});
 
@@ -69,7 +70,9 @@ const DestinationConfigFields = ({
     <>
       {type.instructions && (
         <Button
-          onClick={() => setShowConfigModal(!showConfigModal)}
+          onClick={() =>
+            sidebar.toggle("configuration", <ConfigurationGuide type={type} />)
+          }
           className="config-guide-button"
         >
           <HelpIcon />
@@ -220,12 +223,6 @@ const DestinationConfigFields = ({
           </div>
         ))}
 
-      {showConfigModal && (
-        <ConfigurationModal
-          type={type}
-          onClose={() => setShowConfigModal(false)}
-        />
-      )}
     </>
   );
 };
