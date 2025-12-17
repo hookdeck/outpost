@@ -17,28 +17,3 @@ Manual retries can be triggered for any given event via the [Event API](/docs/ap
 ## Disabled destinations
 
 If the destination for an event is disabled—through the API, user portal, or automatically because a [failure threshold](/docs/features/alerts) has been reached—the event will be discarded and cannot be retried.
-
-## Webhook signature & headers
-
-For the `webhook` destination type, Outpost will automatically add the following headers to the webhook request:
-
-- `X-Event-ID`: The unique ID of the event.
-- `X-Event-Timestamp`: The timestamp of the event in ISO 8601 format.
-- `X-Event-Topic`: The topic of the event.
-- `X-Event-Signature`: A HMAC-SHA256 signature of the event.
-
-For backward compatibility with your existing webhook implementation, you can change the header prefix, disable headers, or customize the signature algorithm and logic. You can refer to the [migration guide](/docs/guides/migrate-to-outpost#webhook-customization) to learn more.
-
-The following environment variables can be used to customize the webhook behavior:
-
-| Environment Variable                             | Default Value                                          | Required |
-| ------------------------------------------------ | ------------------------------------------------------ | -------- |
-| `DESTINATIONS_WEBHOOK_HEADER_PREFIX`             | `x-outpost-`                                                   | No       |
-| `DESTINATIONS_WEBHOOK_DISABLE_EVENT_ID_HEADER`   | `false`                                                | No       |
-| `DESTINATIONS_WEBHOOK_DISABLE_SIGNATURE_HEADER`  | `false`                                                | No       |
-| `DESTINATIONS_WEBHOOK_DISABLE_TIMESTAMP_HEADER`  | `false`                                                | No       |
-| `DESTINATIONS_WEBHOOK_DISABLE_TOPIC_HEADER`      | `false`                                                | No       |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_VALUE_TEMPLATE`  | `{{.Timestamp.Unix}}.{{.Body}}`                        | No       |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` | No       |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`        | `hex`                                                  | No       |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`       | `hmac-sha256`                                          | No       |

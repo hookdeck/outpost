@@ -2,42 +2,38 @@
 title: Destinations
 ---
 
-Outpost supports multiple event destination types. Each tenant can have multiple destinations, up to a maximum set by the `MAX_DESTINATIONS_PER_TENANT` environment variable (defaulting to `20`). Destinations can be registered either through the tenant-facing portal or with the API. The current supported destination types are:
-
-- Webhooks
-- Hookdeck Event Gateway
-- AWS Kinesis
-- AWS SQS
-- AWS S3
-- Azure Service Bus
-- GCP Pub/Sub
-- RabbitMQ (AMQP)
-
-Plans for additional event destination types include:
-
-- Amazon EventBridge
-- Kafka
+Outpost supports multiple event destination types. Each tenant can have multiple destinations, up to a maximum set by the `MAX_DESTINATIONS_PER_TENANT` environment variable (defaulting to `20`).
 
 > We recommend setting the `MAX_DESTINATIONS_PER_TENANT` value as low as is appropriate for your use case to prevent abuse and performance degradation. Updating the value to a lower value later will not delete existing destinations.
 
-See the [roadmap](/docs/references/roadmap) for more information on planned destination types. To be eligible as a destination type, it must be asynchronous in nature and not run any business logic.
+## Supported Destinations
 
-## Creating a destination
+| Destination | Description |
+| ----------- | ----------- |
+| [Webhook](/docs/destinations/webhook) | Send events via HTTP POST to a URL |
+| [Hookdeck](/docs/destinations/hookdeck) | Route events through Hookdeck Event Gateway |
+| [AWS Kinesis](/docs/destinations/aws-kinesis) | Stream events to Amazon Kinesis |
+| [AWS SQS](/docs/destinations/aws-sqs) | Send events to an Amazon SQS queue |
+| [AWS S3](/docs/destinations/aws-s3) | Store events in an Amazon S3 bucket |
+| [Azure Service Bus](/docs/destinations/azure-service-bus) | Send events to Azure Service Bus |
+| [GCP Pub/Sub](/docs/destinations/gcp-pubsub) | Publish events to Google Cloud Pub/Sub |
+| [RabbitMQ](/docs/destinations/rabbitmq) | Send events to a RabbitMQ exchange |
 
-Destinations can be registered either through the tenant-facing portal or with the API. Since each destination type uses its own credentials and configuration, the required fields are different. Refer to the [Create Destination API](/docs/api/destinations#create-destination) for the required `config` and `credentials` fields for each destination type.
+See the [roadmap](/docs/references/roadmap) for planned destination types. To be eligible as a destination type, it must be asynchronous in nature and not run any business logic.
 
-For example, creating a "Webhook" destination requires the `config.url` field.
+## Creating a Destination
+
+Destinations can be registered through the tenant portal or via the API. Each destination type has its own configuration and credentials. Refer to the [Create Destination API](/docs/api/destinations#create-destination) for the required `config` and `credentials` fields for each destination type.
 
 ```sh
-curl --location 'localhost:3333/api/v1/<TENANT_ID>/destinations' \
+curl --location 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
- "type": "<TYPE>",
- "topics": ["<TOPIC>"],
- "config": {
-    "url": "https://example.test/webhooks"
- }
+  "type": "<TYPE>",
+  "topics": ["<TOPIC>"],
+  "config": { ... },
+  "credentials": { ... }
 }'
 ```
 
@@ -90,9 +86,9 @@ Some destinations will require instructions to configure. For instance, with Pub
 
 Some destinations may have OAuth flow or other managed setup flow that can be triggered with a link. If a `remote_setup_url` is set, then the user should be prompted to follow the link to configure the destination.
 
-See the [building your own UI guide](../../guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
+See the [building your own UI guide](/docs/guides/building-your-own-ui) for recommended UI patterns and wireframes for implementation in your own app.
 
-## Customizing destination type definitions & instructions
+## Customizing Destination Type Definitions & Instructions
 
 The destination type definitions (label, description, icon, etc) and instructions can be customized by setting the `DESTINATIONS_METADATA_PATH` environment variable to a path on disk containing the destination type definitions and instructions. Outpost will load both the default destination type definitions and any custom destination type definitions and merge them.
 
