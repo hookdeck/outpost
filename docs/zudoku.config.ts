@@ -112,6 +112,7 @@ const config: ZudokuConfig = {
           { type: "doc", id: "features/multi-tenant-support" },
           { type: "doc", id: "features/destinations" },
           { type: "doc", id: "features/topics" },
+          { type: "doc", id: "features/filter" },
           { type: "doc", id: "features/publish-events" },
           { type: "doc", id: "features/event-delivery" },
           { type: "doc", id: "features/alerts" },

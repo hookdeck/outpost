@@ -41,6 +41,12 @@ curl --location 'localhost:3333/api/v1/<TENANT_ID>/destinations' \
 }'
 ```
 
+## Destination Filtering
+
+Destinations can be configured with filters to selectively receive only events matching specific criteria. This allows tenants to create fine-grained routing rules based on event properties.
+
+See the [Filters](/docs/features/filter) documentation for the complete filter syntax and examples.
+
 ## Getting Destination Types & Schemas
 
 When using the API, you may want to build your own UI to capture user input on the destination configuration. Since each destination requires a specific configuration, the `GET /destination-types` endpoint provides a JSON schema for standardized input fields for each destination type.
