@@ -151,9 +151,10 @@ func NewRouter(
 	tenantHandlers := NewTenantHandlers(logger, telemetry, cfg.JWTSecret, entityStore)
 	destinationHandlers := NewDestinationHandlers(logger, telemetry, entityStore, cfg.Topics, cfg.Registry)
 	publishHandlers := NewPublishHandlers(logger, publishmqEventHandler)
-	retryHandlers := NewRetryHandlers(logger, entityStore, logStore, deliveryMQ)
 	logHandlers := NewLogHandlers(logger, logStore)
+	retryHandlers := NewRetryHandlers(logger, entityStore, logStore, deliveryMQ)
 	topicHandlers := NewTopicHandlers(logger, cfg.Topics)
+	legacyHandlers := NewLegacyHandlers(logger, entityStore, logStore, deliveryMQ)
 
 	// Admin routes
 	adminRoutes := []RouteDefinition{
@@ -334,11 +335,11 @@ func NewRouter(
 			},
 		},
 
-		// Event routes
+		// Delivery routes (new API)
 		{
 			Method:             http.MethodGet,
-			Path:               "/:tenantID/events",
-			Handler:            logHandlers.ListEvent,
+			Path:               "/:tenantID/deliveries",
+			Handler:            logHandlers.ListDeliveries,
 			AuthScope:          AuthScopeAdminOrTenant,
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
@@ -346,6 +347,30 @@ func NewRouter(
 				RequireTenantMiddleware(entityStore),
 			},
 		},
+		{
+			Method:             http.MethodGet,
+			Path:               "/:tenantID/deliveries/:deliveryID",
+			Handler:            logHandlers.RetrieveDelivery,
+			AuthScope:          AuthScopeAdminOrTenant,
+			Mode:               RouteModeAlways,
+			AllowTenantFromJWT: true,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+		{
+			Method:             http.MethodPost,
+			Path:               "/:tenantID/deliveries/:deliveryID/retry",
+			Handler:            retryHandlers.RetryDelivery,
+			AuthScope:          AuthScopeAdminOrTenant,
+			Mode:               RouteModeAlways,
+			AllowTenantFromJWT: true,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+
+		// Event routes
 		{
 			Method:             http.MethodGet,
 			Path:               "/:tenantID/events/:eventID",
@@ -357,10 +382,14 @@ func NewRouter(
 				RequireTenantMiddleware(entityStore),
 			},
 		},
+	}
+
+	// Legacy routes (deprecated, for backward compatibility)
+	legacyRoutes := []RouteDefinition{
 		{
-			Method:             http.MethodGet,
-			Path:               "/:tenantID/events/:eventID/deliveries",
-			Handler:            logHandlers.ListDeliveryByEvent,
+			Method:             http.MethodPost,
+			Path:               "/:tenantID/destinations/:destinationID/events/:eventID/retry",
+			Handler:            legacyHandlers.RetryByEventDestination,
 			AuthScope:          AuthScopeAdminOrTenant,
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
@@ -371,7 +400,7 @@ func NewRouter(
 		{
 			Method:             http.MethodGet,
 			Path:               "/:tenantID/destinations/:destinationID/events",
-			Handler:            logHandlers.ListEventByDestination,
+			Handler:            legacyHandlers.ListEventsByDestination,
 			AuthScope:          AuthScopeAdminOrTenant,
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
@@ -382,7 +411,7 @@ func NewRouter(
 		{
 			Method:             http.MethodGet,
 			Path:               "/:tenantID/destinations/:destinationID/events/:eventID",
-			Handler:            logHandlers.RetrieveEventByDestination,
+			Handler:            legacyHandlers.RetrieveEventByDestination,
 			AuthScope:          AuthScopeAdminOrTenant,
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
@@ -390,15 +419,16 @@ func NewRouter(
 				RequireTenantMiddleware(entityStore),
 			},
 		},
-
-		// Retry routes
 		{
-			Method:             http.MethodPost,
-			Path:               "/:tenantID/destinations/:destinationID/events/:eventID/retry",
-			Handler:            retryHandlers.Retry,
+			Method:             http.MethodGet,
+			Path:               "/:tenantID/events/:eventID/deliveries",
+			Handler:            legacyHandlers.ListDeliveriesByEvent,
 			AuthScope:          AuthScopeAdminOrTenant,
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: true,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
 		},
 	}
 
@@ -408,6 +438,7 @@ func NewRouter(
 	apiRoutes = append(apiRoutes, portalRoutes...)
 	apiRoutes = append(apiRoutes, tenantAgnosticRoutes...)
 	apiRoutes = append(apiRoutes, tenantSpecificRoutes...)
+	apiRoutes = append(apiRoutes, legacyRoutes...)
 
 	registerRoutes(apiRouter, cfg, apiRoutes)
 
