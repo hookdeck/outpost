@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -595,53 +594,8 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) (*d
 		return nil, err
 	}
 
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, destregistry.NewErrDestinationPublishAttempt(err, "webhook", map[string]interface{}{
-			"error":   "request_failed",
-			"message": err.Error(),
-		})
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		delivery := &destregistry.Delivery{
-			Status: "failed",
-			Code:   fmt.Sprintf("%d", resp.StatusCode),
-		}
-		parseResponse(delivery, resp)
-
-		// Extract body from delivery.Response for error details
-		var bodyStr string
-		if delivery.Response != nil {
-			if body, ok := delivery.Response["body"]; ok {
-				switch v := body.(type) {
-				case string:
-					bodyStr = v
-				case map[string]interface{}:
-					if jsonBytes, err := json.Marshal(v); err == nil {
-						bodyStr = string(jsonBytes)
-					}
-				}
-			}
-		}
-
-		return delivery, destregistry.NewErrDestinationPublishAttempt(
-			fmt.Errorf("request failed with status %d: %s", resp.StatusCode, bodyStr),
-			"webhook",
-			map[string]interface{}{
-				"status": resp.StatusCode,
-				"body":   bodyStr,
-			})
-	}
-
-	delivery := &destregistry.Delivery{
-		Status: "success",
-		Code:   fmt.Sprintf("%d", resp.StatusCode),
-	}
-	parseResponse(delivery, resp)
-
-	return delivery, nil
+	result := ExecuteHTTPRequest(ctx, p.httpClient, httpReq, "webhook")
+	return result.Delivery, result.Error
 }
 
 // Format is a helper function to format the event data into an HTTP request.
@@ -746,28 +700,5 @@ func isTruthy(value string) bool {
 		return true
 	default:
 		return false
-	}
-}
-
-func parseResponse(delivery *destregistry.Delivery, resp *http.Response) {
-	if strings.Contains(resp.Header.Get("Content-Type"), "application/json") {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		var response map[string]interface{}
-		if err := json.Unmarshal(bodyBytes, &response); err != nil {
-			delivery.Response = map[string]interface{}{
-				"status": resp.StatusCode,
-				"body":   string(bodyBytes),
-			}
-		}
-		delivery.Response = map[string]interface{}{
-			"status": resp.StatusCode,
-			"body":   response,
-		}
-	} else {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		delivery.Response = map[string]interface{}{
-			"status": resp.StatusCode,
-			"body":   string(bodyBytes),
-		}
 	}
 }
