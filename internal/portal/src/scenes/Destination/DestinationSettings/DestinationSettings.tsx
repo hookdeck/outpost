@@ -13,7 +13,8 @@ import {
   RotateIcon,
   SaveIcon,
 } from "../../../common/Icons";
-import FilterSyntaxModal from "../../../common/FilterSyntaxModal/FilterSyntaxModal";
+import { FilterSyntaxGuide } from "../../../common/FilterSyntaxGuide/FilterSyntaxGuide";
+import { useSidebar } from "../../../common/Sidebar/Sidebar";
 import { ApiContext } from "../../../app";
 import { mutate } from "swr";
 import { showToast } from "../../../common/Toast/Toast";
@@ -48,7 +49,7 @@ const DestinationSettings = ({
   const [isConfigSaving, setIsConfigSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRotatingSecret, setIsRotatingSecret] = useState(false);
-  const [showFilterSyntaxModal, setShowFilterSyntaxModal] = useState(false);
+  const sidebar = useSidebar();
 
   const handleToggleEnabled = () => {
     if (!destination.disabled_at) {
@@ -353,7 +354,7 @@ const DestinationSettings = ({
                 <Button
                   type="button"
                   onClick={() =>
-                    setShowFilterSyntaxModal(!showFilterSyntaxModal)
+                    sidebar.toggle("filter-syntax", <FilterSyntaxGuide />)
                   }
                   className="destination-settings__filter-guide-button"
                 >
@@ -384,11 +385,6 @@ const DestinationSettings = ({
               <Button onClick={() => setIsFilterEnabled(true)}>
                 <FilterIcon /> Add filter
               </Button>
-            )}
-            {showFilterSyntaxModal && (
-              <FilterSyntaxModal
-                onClose={() => setShowFilterSyntaxModal(false)}
-              />
             )}
           </div>
         </>

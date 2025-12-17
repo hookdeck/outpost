@@ -17,7 +17,8 @@ import TopicPicker from "../../common/TopicPicker/TopicPicker";
 import { DestinationTypeReference, Filter } from "../../typings/Destination";
 import DestinationConfigFields from "../../common/DestinationConfigFields/DestinationConfigFields";
 import FilterField from "../../common/FilterField/FilterField";
-import FilterSyntaxModal from "../../common/FilterSyntaxModal/FilterSyntaxModal";
+import { FilterSyntaxGuide } from "../../common/FilterSyntaxGuide/FilterSyntaxGuide";
+import { useSidebar } from "../../common/Sidebar/Sidebar";
 import { getFormValues } from "../../utils/formHelper";
 import CONFIGS from "../../config";
 
@@ -163,7 +164,7 @@ const CONFIGURATION_STEP: Step = {
     const [filter, setFilter] = useState<Filter>(defaultValue.filter || null);
     const [showFilter, setShowFilter] = useState(!!defaultValue.filter);
     const [filterValid, setFilterValid] = useState(true);
-    const [showFilterSyntaxModal, setShowFilterSyntaxModal] = useState(false);
+    const sidebar = useSidebar();
 
     const isFilterEnabled = CONFIGS.ENABLE_DESTINATION_FILTER === "true";
 
@@ -219,7 +220,7 @@ const CONFIGURATION_STEP: Step = {
                 <Button
                   type="button"
                   onClick={() =>
-                    setShowFilterSyntaxModal(!showFilterSyntaxModal)
+                    sidebar.toggle("filter-syntax", <FilterSyntaxGuide />)
                   }
                   className="filter-section__guide-button"
                 >
@@ -239,9 +240,6 @@ const CONFIGURATION_STEP: Step = {
               </div>
             )}
           </div>
-        )}
-        {showFilterSyntaxModal && (
-          <FilterSyntaxModal onClose={() => setShowFilterSyntaxModal(false)} />
         )}
       </>
     );
