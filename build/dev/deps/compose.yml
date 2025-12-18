@@ -1,7 +1,10 @@
 name: "outpost-deps"
 
 services:
+  # ============================== Redis ==============================
+  # Use `make up/deps` for Redis (default) or `make up/deps/dragonfly` for Dragonfly
   redis:
+    profiles: ["redis"]
     image: redis:7.4-alpine
     restart: always
     ports:
@@ -9,9 +12,25 @@ services:
     command: >
       redis-server
         --save 20 1
-        --requirepass ${REDIS_PASSWORD}
+        --requirepass password
     volumes:
       - redis:/data
+
+  dragonfly:
+    profiles: ["dragonfly"]
+    image: docker.dragonflydb.io/dragonflydb/dragonfly
+    restart: always
+    ports:
+      - "16379:6379"
+    command: >
+      dragonfly
+        --requirepass password
+    volumes:
+      - dragonfly:/data
+    networks:
+      default:
+        aliases:
+          - redis
 
   # ============================== Log Store ==============================
   # clickhouse:
@@ -98,6 +117,8 @@ services:
 
 volumes:
   redis:
+    driver: local
+  dragonfly:
     driver: local
   # clickhouse:
   #   driver: local
