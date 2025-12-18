@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	RabbitMQServerURL    = "amqp://guest:guest@localhost:5672"
+	RabbitMQServerURL    = "amqp://guest:guest@localhost:15672"
 	RabbitMQPublishQueue = "publish"
 )
 
