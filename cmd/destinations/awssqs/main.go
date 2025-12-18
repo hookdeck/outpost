@@ -21,7 +21,7 @@ func main() {
 
 const (
 	AWSRegion            = "eu-central-1"
-	AWSEndpoint          = "http://localhost:4566"
+	AWSEndpoint          = "http://localhost:14566"
 	AWSCredentials       = "test:test:"
 	DestinationQueueName = "destination_sqs_queue"
 )

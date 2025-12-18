@@ -5,7 +5,7 @@ services:
     image: redis:7.4-alpine
     restart: always
     ports:
-      - "${REDIS_PORT}:${REDIS_PORT}"
+      - "16379:6379"
     command: >
       redis-server
         --save 20 1
@@ -55,7 +55,7 @@ services:
       - POSTGRES_PASSWORD=outpost
       - POSTGRES_DB=outpost
     ports:
-      - 5432:5432
+      - 15432:5432
     volumes:
       - postgres:/var/lib/postgresql/data
 
@@ -63,10 +63,8 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     ports:
-      # Reserve 5672 for AzureSB Emulator which doens't support custom ports.
-      # We may not need to expose 5672 at all if we run the full local dev env with Docker Compose.
-      # - 5673:5672
-      - 15672:15672
+      - 15672:5672   # AMQP
+      - 25672:15672  # Management UI
     volumes:
       - rabbitmq:/var/lib/rabbitmq
 
@@ -75,8 +73,8 @@ services:
     environment:
       - SERVICES=s3,sns,sts,sqs,kinesis
     ports:
-      - 4566:4566
-      - 4571:4571
+      - 14566:4566
+      - 14571:4571
     volumes:
       - aws:/var/lib/localstack
 
@@ -93,7 +91,7 @@ services:
         "--project=test",
       ]
     ports:
-      - "8085:8085"
+      - "18085:8085"
     volumes:
       - gcp-config:/root/.config
       - gcp-kube:/root/.kube
