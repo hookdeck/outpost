@@ -1,8 +1,8 @@
 name: "outpost-deps"
 
 services:
-  # ============================== Redis ==============================
-  # Use `make up/deps` for Redis (default) or `make up/deps/dragonfly` for Dragonfly
+  # ============================== Cache ==============================
+  # LOCAL_DEV_REDIS=1 (default) or LOCAL_DEV_DRAGONFLY=1
   redis:
     profiles: ["redis"]
     image: redis:7.4-alpine
@@ -33,41 +33,33 @@ services:
           - redis
 
   # ============================== Log Store ==============================
-  # clickhouse:
-  #   image: clickhouse/clickhouse-server:24-alpine
-  #   environment:
-  #     CLICKHOUSE_DB: outpost
-  #   ports:
-  #     # tcp
-  #     - 9000:9000
-  #     # # http
-  #     # - 8123:8123
-  #     # # postgresql
-  #     # - 9005:9005
-  #   volumes:
-  #     # optional to persist data locally
-  #     - clickhouse:/var/lib/clickhouse/
-  #     # optional to add own config
-  #     # - ./extra-config.xml:/etc/clickhouse-server/config.d/extra-config.xml
-  #     # optional to add users or enable settings for a default user
-  #     # - ./user.xml:/etc/clickhouse-server/users.d/user.xml
-  #     # qol to mount own sql scripts to run them from inside container with
-  #     # clickhouse client < /sql/myquery.sql
-  #     # - ./sql:/sql
-  #   # adjust mem_limit and cpus to machine
-  #   # mem_limit: 12G
-  #   # cpus: 4
-  #   ulimits:
-  #     nofile:
-  #       soft: 262144
-  #       hard: 262144
-  #   healthcheck:
-  #     test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
-  #     interval: 1s
-  #     timeout: 1s
-  #     retries: 30
+  # LOCAL_DEV_CLICKHOUSE=1, LOCAL_DEV_POSTGRES=1 (can enable both)
+  clickhouse:
+    profiles: ["clickhouse"]
+    image: clickhouse/clickhouse-server:24-alpine
+    environment:
+      CLICKHOUSE_DB: outpost
+      CLICKHOUSE_USER: outpost
+      CLICKHOUSE_PASSWORD: outpost
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - 19000:9000  # TCP
+      - 18123:8123  # HTTP
+    volumes:
+      - clickhouse:/var/lib/clickhouse/
+      - ./clickhouse/cors.xml:/etc/clickhouse-server/config.d/cors.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
 
   postgres:
+    profiles: ["postgres"]
     image: postgres:16-alpine
     environment:
       - POSTGRES_USER=outpost
@@ -79,7 +71,9 @@ services:
       - postgres:/var/lib/postgresql/data
 
   # ============================== MQs ==============================
+  # LOCAL_DEV_RABBITMQ=1, LOCAL_DEV_LOCALSTACK=1, LOCAL_DEV_GCP=1
   rabbitmq:
+    profiles: ["rabbitmq"]
     image: rabbitmq:3-management
     ports:
       - 15672:5672   # AMQP
@@ -87,7 +81,8 @@ services:
     volumes:
       - rabbitmq:/var/lib/rabbitmq
 
-  aws:
+  localstack:
+    profiles: ["localstack"]
     image: localstack/localstack:latest
     environment:
       - SERVICES=s3,sns,sts,sqs,kinesis
@@ -95,9 +90,10 @@ services:
       - 14566:4566
       - 14571:4571
     volumes:
-      - aws:/var/lib/localstack
+      - localstack:/var/lib/localstack
 
   gcp:
+    profiles: ["gcp"]
     image: google/cloud-sdk:latest
     command:
       [
@@ -120,13 +116,13 @@ volumes:
     driver: local
   dragonfly:
     driver: local
-  # clickhouse:
-  #   driver: local
+  clickhouse:
+    driver: local
   postgres:
     driver: local
   rabbitmq:
     driver: local
-  aws:
+  localstack:
     driver: local
   gcp-config:
     driver: local

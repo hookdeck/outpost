@@ -1,0 +1,85 @@
+# Outpost Development Configuration
+# Copy this file to .outpost.yaml to get started. See docs for all available options.
+
+log_level: debug
+
+# Infrastructure
+redis:
+  host: "redis"
+  port: 6379
+  password: "password"
+  database: 0
+
+mqs:
+  rabbitmq:
+    server_url: "amqp://guest:guest@rabbitmq:5672"
+  # aws_sqs:
+  #   endpoint: "http://aws:4566"
+  #   region: "us-east-1"
+  #   access_key_id: "test"
+  #   secret_access_key: "test"
+  # gcp_pubsub:
+  #   project: "test"
+  #   credentials: ""
+  # azure_servicebus:
+  #   connection_string: "Endpoint=sb://azuresb;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+
+# Publish MQ (optional, for ingesting events from external sources)
+# publishmq:
+#   rabbitmq:
+#     server_url: "amqp://guest:guest@rabbitmq:5672"
+#     exchange: "outpost"
+#     queue: "publish"
+#   aws_sqs:
+#     endpoint: "http://aws:4566"
+#     region: "us-east-1"
+#     access_key_id: "test"
+#     secret_access_key: "test"
+#     queue: "publish"
+#   gcp_pubsub:
+#     project: "test"
+#     credentials: ""
+#     topic: "outpost-publish"
+#     subscription: "outpost-publish-sub"
+#   azure_servicebus:
+#     connection_string: "Endpoint=sb://azuresb;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+#     topic: "outpost-publish"
+#     subscription: "outpost-publish-sub"
+
+# Log Store (uncomment one)
+postgres: "postgres://outpost:outpost@postgres:5432/outpost?sslmode=disable"
+# clickhouse:
+#   addr: "clickhouse:9000"
+#   username: "outpost"
+#   password: "outpost"
+#   database: "outpost"
+
+# Application
+api_key: "apikey"
+api_jwt_secret: "jwtsecret"
+aes_encryption_secret: "encryptionsecret"
+
+topics:
+  - user.created
+  - user.updated
+  - user.deleted
+
+portal:
+  proxy_url: "http://portal:3334"
+
+# ID Generation
+idgen:
+  type: "nanoid"
+  event_prefix: "evt"
+  destination_prefix: "des"
+  delivery_prefix: "dlv"
+  delivery_event_prefix: "dev"
+
+# Concurrency
+publish_max_concurrency: 1
+delivery_max_concurrency: 100
+log_max_concurrency: 1
+
+# Telemetry (disabled for local dev)
+telemetry:
+  disabled: true

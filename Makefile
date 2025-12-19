@@ -47,13 +47,10 @@ down/outpost:
 	docker-compose -f build/dev/compose.yml --env-file .env down
 
 up/deps:
-	docker compose --profile redis -f build/dev/deps/compose.yml up -d
-
-up/deps/dragonfly:
-	docker compose --profile dragonfly -f build/dev/deps/compose.yml up -d
+	COMPOSE_PROFILES=$$(./build/dev/deps/profiles.sh) docker compose --env-file .env -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml up -d
 
 down/deps:
-	docker compose --profile redis --profile dragonfly -f build/dev/deps/compose.yml down
+	COMPOSE_PROFILES=$$(./build/dev/deps/profiles.sh --all) docker compose -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml down
 
 up/mqs:
 	docker-compose -f build/dev/mqs/compose.yml up -d
