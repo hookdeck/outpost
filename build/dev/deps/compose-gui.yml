@@ -10,7 +10,7 @@ services:
     image: rediscommander/redis-commander:latest
     restart: always
     ports:
-      - "${LOCAL_DEV_REDIS_COMMANDER:-18081}:8081"
+      - "${LOCAL_DEV_REDIS_COMMANDER:-28081}:8081"
     environment:
       - REDIS_HOSTS=local:redis:6379:0:password
 
@@ -19,7 +19,7 @@ services:
     image: dpage/pgadmin4
     restart: always
     ports:
-      - "${LOCAL_DEV_PGADMIN:-18082}:80"
+      - "${LOCAL_DEV_PGADMIN:-28082}:80"
     environment:
       - PGADMIN_DEFAULT_EMAIL=admin@admin.com
       - PGADMIN_DEFAULT_PASSWORD=admin
@@ -34,7 +34,7 @@ services:
     image: spoonest/clickhouse-tabix-web-client
     restart: always
     ports:
-      - "${LOCAL_DEV_TABIX:-18083}:80"
+      - "${LOCAL_DEV_TABIX:-28083}:80"
 
 volumes:
   pgadmin:

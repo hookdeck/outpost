@@ -8,7 +8,7 @@ services:
     image: redis:7.4-alpine
     restart: always
     ports:
-      - "16379:6379"
+      - "26379:6379"
     command: >
       redis-server
         --save 20 1
@@ -21,7 +21,7 @@ services:
     image: docker.dragonflydb.io/dragonflydb/dragonfly
     restart: always
     ports:
-      - "16379:6379"
+      - "26379:6379"
     command: >
       dragonfly
         --requirepass password
@@ -43,8 +43,8 @@ services:
       CLICKHOUSE_PASSWORD: outpost
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ports:
-      - 19000:9000  # TCP
-      - 18123:8123  # HTTP
+      - 29000:9000  # TCP
+      - 28123:8123  # HTTP
     volumes:
       - clickhouse:/var/lib/clickhouse/
       - ./clickhouse/cors.xml:/etc/clickhouse-server/config.d/cors.xml:ro
@@ -66,7 +66,7 @@ services:
       - POSTGRES_PASSWORD=outpost
       - POSTGRES_DB=outpost
     ports:
-      - 15432:5432
+      - 25432:5432
     volumes:
       - postgres:/var/lib/postgresql/data
 
@@ -76,8 +76,8 @@ services:
     profiles: ["rabbitmq"]
     image: rabbitmq:3-management
     ports:
-      - 15672:5672   # AMQP
-      - 25672:15672  # Management UI
+      - 25672:5672   # AMQP
+      - 25673:15672  # Management UI
     volumes:
       - rabbitmq:/var/lib/rabbitmq
 
@@ -87,8 +87,8 @@ services:
     environment:
       - SERVICES=s3,sns,sts,sqs,kinesis
     ports:
-      - 14566:4566
-      - 14571:4571
+      - 24566:4566
+      - 24571:4571
     volumes:
       - localstack:/var/lib/localstack
 
@@ -106,7 +106,7 @@ services:
         "--project=test",
       ]
     ports:
-      - "18085:8085"
+      - "28085:8085"
     volumes:
       - gcp-config:/root/.config
       - gcp-kube:/root/.kube
