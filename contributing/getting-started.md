@@ -94,9 +94,9 @@ LOCAL_DEV_RABBITMQ=1
 # LOCAL_DEV_GCP=1
 
 # Optional: GUI tools (set port to enable)
-# LOCAL_DEV_REDIS_COMMANDER=18081
-# LOCAL_DEV_PGADMIN=18082
-# LOCAL_DEV_TABIX=18083
+# LOCAL_DEV_REDIS_COMMANDER=28081
+# LOCAL_DEV_PGADMIN=28082
+# LOCAL_DEV_TABIX=28083
 ```
 
 | Variable | Description |
@@ -124,14 +124,14 @@ make up/deps
 
 | Service | Host Port | Credentials |
 |---------|-----------|-------------|
-| Redis/Dragonfly | localhost:16379 | password: password |
-| PostgreSQL | localhost:15432 | outpost:outpost |
-| ClickHouse TCP | localhost:19000 | outpost:outpost |
-| ClickHouse HTTP | localhost:18123 | outpost:outpost |
-| RabbitMQ AMQP | localhost:15672 | guest:guest |
-| RabbitMQ UI | localhost:25672 | guest:guest |
-| LocalStack (AWS) | localhost:14566 | test:test |
-| GCP PubSub | localhost:18085 | - |
+| Redis/Dragonfly | localhost:26379 | password: password |
+| PostgreSQL | localhost:25432 | outpost:outpost |
+| ClickHouse TCP | localhost:29000 | outpost:outpost |
+| ClickHouse HTTP | localhost:28123 | outpost:outpost |
+| RabbitMQ AMQP | localhost:25672 | guest:guest |
+| RabbitMQ UI | localhost:25673 | guest:guest |
+| LocalStack (AWS) | localhost:24566 | test:test |
+| GCP PubSub | localhost:28085 | - |
 
 ## Viewing Logs
 
