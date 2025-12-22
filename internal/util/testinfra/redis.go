@@ -12,15 +12,25 @@ import (
 )
 
 var (
-	redisOnce       sync.Once
-	dragonflyOnce   sync.Once
+	redisOnce     sync.Once
+	dragonflyOnce sync.Once
+
+	// DB 0 is reserved for Redis Stack (RediSearch requires DB 0)
+	// Tests needing Redis Stack serialize via this mutex
+	redisStackMu sync.Mutex
+
+	// DB 1-15 are for regular Redis tests (can run in parallel)
 	redisDBMu       sync.Mutex
 	dragonflyDBMu   sync.Mutex
 	redisDBUsed     = make(map[int]bool)
 	dragonflyDBUsed = make(map[int]bool)
 )
 
-const maxRedisDBs = 16
+const (
+	redisStackDB = 0 // Reserved for Redis Stack (RediSearch)
+	minRegularDB = 1 // Regular tests use DB 1-15
+	maxRegularDB = 15
+)
 
 // RedisConfig holds the connection info for a test Redis database.
 type RedisConfig struct {
@@ -28,11 +38,12 @@ type RedisConfig struct {
 	DB   int
 }
 
-// NewRedisConfig allocates a Redis database (0-15) for the test.
+// NewRedisConfig allocates a Redis database (1-15) for the test.
+// Use this for tests that don't need RediSearch.
 // The database is flushed on cleanup.
 func NewRedisConfig(t *testing.T) RedisConfig {
 	addr := EnsureRedis()
-	db := allocateDB(&redisDBMu, redisDBUsed)
+	db := allocateRegularDB()
 
 	cfg := RedisConfig{
 		Addr: addr,
@@ -41,7 +52,29 @@ func NewRedisConfig(t *testing.T) RedisConfig {
 
 	t.Cleanup(func() {
 		flushRedisDB(addr, db)
-		releaseDB(&redisDBMu, redisDBUsed, db)
+		releaseRegularDB(db)
+	})
+
+	return cfg
+}
+
+// NewRedisStackConfig returns DB 0 for tests requiring RediSearch.
+// Tests using this are serialized (one at a time) since RediSearch only works on DB 0.
+// The database is flushed on cleanup.
+func NewRedisStackConfig(t *testing.T) RedisConfig {
+	addr := EnsureRedis()
+
+	// Acquire exclusive access to DB 0
+	redisStackMu.Lock()
+
+	cfg := RedisConfig{
+		Addr: addr,
+		DB:   redisStackDB,
+	}
+
+	t.Cleanup(func() {
+		flushRedisDB(addr, redisStackDB)
+		redisStackMu.Unlock()
 	})
 
 	return cfg
@@ -51,7 +84,7 @@ func NewRedisConfig(t *testing.T) RedisConfig {
 // The database is flushed on cleanup.
 func NewDragonflyConfig(t *testing.T) RedisConfig {
 	addr := EnsureDragonfly()
-	db := allocateDB(&dragonflyDBMu, dragonflyDBUsed)
+	db := allocateDragonflyDB()
 
 	cfg := RedisConfig{
 		Addr: addr,
@@ -60,29 +93,48 @@ func NewDragonflyConfig(t *testing.T) RedisConfig {
 
 	t.Cleanup(func() {
 		flushRedisDB(addr, db)
-		releaseDB(&dragonflyDBMu, dragonflyDBUsed, db)
+		releaseDragonflyDB(db)
 	})
 
 	return cfg
 }
 
-func allocateDB(mu *sync.Mutex, used map[int]bool) int {
-	mu.Lock()
-	defer mu.Unlock()
+func allocateRegularDB() int {
+	redisDBMu.Lock()
+	defer redisDBMu.Unlock()
 
-	for i := 0; i < maxRedisDBs; i++ {
-		if !used[i] {
-			used[i] = true
+	for i := minRegularDB; i <= maxRegularDB; i++ {
+		if !redisDBUsed[i] {
+			redisDBUsed[i] = true
 			return i
 		}
 	}
-	panic(fmt.Sprintf("no available databases (max %d)", maxRedisDBs))
+	panic(fmt.Sprintf("no available Redis databases (DB %d-%d all in use)", minRegularDB, maxRegularDB))
 }
 
-func releaseDB(mu *sync.Mutex, used map[int]bool, db int) {
-	mu.Lock()
-	defer mu.Unlock()
-	delete(used, db)
+func releaseRegularDB(db int) {
+	redisDBMu.Lock()
+	defer redisDBMu.Unlock()
+	delete(redisDBUsed, db)
+}
+
+func allocateDragonflyDB() int {
+	dragonflyDBMu.Lock()
+	defer dragonflyDBMu.Unlock()
+
+	for i := 0; i <= maxRegularDB; i++ {
+		if !dragonflyDBUsed[i] {
+			dragonflyDBUsed[i] = true
+			return i
+		}
+	}
+	panic(fmt.Sprintf("no available Dragonfly databases (DB 0-%d all in use)", maxRegularDB))
+}
+
+func releaseDragonflyDB(db int) {
+	dragonflyDBMu.Lock()
+	defer dragonflyDBMu.Unlock()
+	delete(dragonflyDBUsed, db)
 }
 
 func flushRedisDB(addr string, db int) {

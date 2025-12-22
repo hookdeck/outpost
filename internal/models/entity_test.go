@@ -7,22 +7,94 @@ import (
 	"testing"
 	"time"
 
+	goredis "github.com/redis/go-redis/v9"
+
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
-func TestEntityStore_WithoutDeploymentID(t *testing.T) {
-	t.Parallel()
-	suite.Run(t, &EntityTestSuite{deploymentID: ""})
+// miniredisClientFactory creates a miniredis client (in-memory, no RediSearch)
+func miniredisClientFactory(t *testing.T) redis.Cmdable {
+	return testutil.CreateTestRedisClient(t)
 }
 
-func TestEntityStore_WithDeploymentID(t *testing.T) {
+// redisStackClientFactory creates a Redis Stack client on DB 0 (RediSearch works)
+// Tests using this are serialized since RediSearch only works on DB 0.
+func redisStackClientFactory(t *testing.T) redis.Cmdable {
+	testinfra.Start(t)
+	redisCfg := testinfra.NewRedisStackConfig(t)
+	client := goredis.NewClient(&goredis.Options{
+		Addr: redisCfg.Addr,
+		DB:   redisCfg.DB,
+	})
+	t.Cleanup(func() { client.Close() })
+	return client
+}
+
+// =============================================================================
+// EntityTestSuite with miniredis (in-memory, no RediSearch)
+// =============================================================================
+
+func TestEntityStore_Miniredis_WithoutDeploymentID(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, &EntityTestSuite{deploymentID: "dp_test_001"})
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: miniredisClientFactory,
+		deploymentID:       "",
+	})
+}
+
+func TestEntityStore_Miniredis_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: miniredisClientFactory,
+		deploymentID:       "dp_test_001",
+	})
+}
+
+// =============================================================================
+// EntityTestSuite with Redis Stack (real Redis with RediSearch)
+// =============================================================================
+
+func TestEntityStore_RedisStack_WithoutDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: redisStackClientFactory,
+		deploymentID:       "",
+	})
+}
+
+func TestEntityStore_RedisStack_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: redisStackClientFactory,
+		deploymentID:       "dp_test_001",
+	})
+}
+
+// =============================================================================
+// ListTenantTestSuite - only runs with Redis Stack (requires RediSearch)
+// =============================================================================
+
+func TestListTenant_RedisStack_WithoutDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &ListTenantTestSuite{
+		RedisClientFactory: redisStackClientFactory,
+		deploymentID:       "",
+	})
+}
+
+func TestListTenant_RedisStack_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &ListTenantTestSuite{
+		RedisClientFactory: redisStackClientFactory,
+		deploymentID:       "dp_test_001",
+	})
 }
 
 // TestDestinationCredentialsEncryption verifies that credentials and delivery_metadata

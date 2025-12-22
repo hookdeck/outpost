@@ -30,18 +30,26 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assert.True(t, cmp.Equal(expected.DisabledAt, actual.DisabledAt))
 }
 
-// EntityTestSuite contains all entity store tests
+// RedisClientFactory creates a Redis client for testing.
+// Required - each test suite must explicitly provide one.
+type RedisClientFactory func(t *testing.T) redis.Cmdable
+
+// EntityTestSuite contains all entity store tests.
+// Requires a RedisClientFactory to be set before running.
 type EntityTestSuite struct {
 	suite.Suite
-	ctx          context.Context
-	redisClient  redis.Cmdable
-	entityStore  models.EntityStore
-	deploymentID string
+	ctx                context.Context
+	redisClient        redis.Cmdable
+	entityStore        models.EntityStore
+	deploymentID       string
+	RedisClientFactory RedisClientFactory // Required - must be set
 }
 
 func (s *EntityTestSuite) SetupTest() {
 	s.ctx = context.Background()
-	s.redisClient = testutil.CreateTestRedisClient(s.T())
+
+	require.NotNil(s.T(), s.RedisClientFactory, "RedisClientFactory must be set")
+	s.redisClient = s.RedisClientFactory(s.T())
 
 	opts := []models.EntityStoreOption{
 		models.WithCipher(models.NewAESCipher("secret")),
@@ -51,6 +59,34 @@ func (s *EntityTestSuite) SetupTest() {
 		opts = append(opts, models.WithDeploymentID(s.deploymentID))
 	}
 	s.entityStore = models.NewEntityStore(s.redisClient, opts...)
+
+	// Initialize entity store (probes for RediSearch)
+	err := s.entityStore.Init(s.ctx)
+	require.NoError(s.T(), err)
+}
+
+func (s *EntityTestSuite) TestInitIdempotency() {
+	// Calling Init multiple times should not fail (index already exists is handled gracefully)
+	for i := 0; i < 3; i++ {
+		err := s.entityStore.Init(s.ctx)
+		require.NoError(s.T(), err, "Init call %d should not fail", i+1)
+	}
+}
+
+func (s *EntityTestSuite) TestListTenantNotSupported() {
+	// This test verifies behavior when RediSearch is NOT available (miniredis case)
+	// When running with Redis Stack, this test will pass but ListTenant will work
+	// When running with miniredis, ListTenant should return ErrListTenantNotSupported
+
+	_, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{})
+
+	// Check if we're on miniredis (no RediSearch support)
+	// We can detect this by checking if the error is ErrListTenantNotSupported
+	if err != nil {
+		assert.ErrorIs(s.T(), err, models.ErrListTenantNotSupported,
+			"ListTenant should return ErrListTenantNotSupported when RediSearch is not available")
+	}
+	// If err is nil, we're on Redis Stack and ListTenant works - that's fine too
 }
 
 func (s *EntityTestSuite) TestTenantCRUD() {
@@ -1064,4 +1100,259 @@ func (s *EntityTestSuite) TestMatchEventWithFilter() {
 			assert.NotEqual(s.T(), "dest_topic_and_filter", dest.ID)
 		}
 	})
+}
+
+// =============================================================================
+// ListTenantTestSuite - Tests for ListTenant functionality (requires RediSearch)
+// =============================================================================
+
+// ListTenantTestSuite tests ListTenant functionality.
+// Only runs with Redis Stack since it requires RediSearch.
+type ListTenantTestSuite struct {
+	suite.Suite
+	ctx                context.Context
+	redisClient        redis.Cmdable
+	entityStore        models.EntityStore
+	deploymentID       string
+	RedisClientFactory RedisClientFactory // Required - must be set
+}
+
+func (s *ListTenantTestSuite) SetupTest() {
+	s.ctx = context.Background()
+
+	require.NotNil(s.T(), s.RedisClientFactory, "RedisClientFactory must be set")
+	s.redisClient = s.RedisClientFactory(s.T())
+
+	opts := []models.EntityStoreOption{
+		models.WithCipher(models.NewAESCipher("secret")),
+		models.WithAvailableTopics(testutil.TestTopics),
+	}
+	if s.deploymentID != "" {
+		opts = append(opts, models.WithDeploymentID(s.deploymentID))
+	}
+	s.entityStore = models.NewEntityStore(s.redisClient, opts...)
+
+	// Initialize entity store (probes for RediSearch)
+	err := s.entityStore.Init(s.ctx)
+	require.NoError(s.T(), err)
+}
+
+func (s *ListTenantTestSuite) TestInitIdempotency() {
+	// Calling Init multiple times should not fail
+	for i := 0; i < 3; i++ {
+		err := s.entityStore.Init(s.ctx)
+		require.NoError(s.T(), err, "Init call %d should not fail", i+1)
+	}
+}
+
+func (s *ListTenantTestSuite) TestListTenantEmpty() {
+	resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{})
+	require.NoError(s.T(), err)
+	assert.Empty(s.T(), resp.Data)
+	assert.Empty(s.T(), resp.Next)
+	assert.Empty(s.T(), resp.Prev)
+}
+
+func (s *ListTenantTestSuite) TestListTenantBasic() {
+	// Create some tenants
+	tenants := make([]models.Tenant, 5)
+	for i := 0; i < 5; i++ {
+		tenants[i] = models.Tenant{
+			ID:        idgen.String(),
+			CreatedAt: time.Now().Add(time.Duration(i) * time.Second),
+			UpdatedAt: time.Now().Add(time.Duration(i) * time.Second),
+		}
+		require.NoError(s.T(), s.entityStore.UpsertTenant(s.ctx, tenants[i]))
+	}
+
+	// Wait a bit for indexing
+	time.Sleep(100 * time.Millisecond)
+
+	s.T().Run("lists all tenants", func(t *testing.T) {
+		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{})
+		require.NoError(t, err)
+		assert.Len(t, resp.Data, 5)
+	})
+
+	s.T().Run("respects limit", func(t *testing.T) {
+		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 2})
+		require.NoError(t, err)
+		assert.Len(t, resp.Data, 2)
+		assert.NotEmpty(t, resp.Next, "should have next cursor")
+		assert.Empty(t, resp.Prev, "should not have prev cursor on first page")
+	})
+
+	s.T().Run("orders by created_at desc by default", func(t *testing.T) {
+		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{})
+		require.NoError(t, err)
+		require.Len(t, resp.Data, 5)
+
+		// Most recent first (desc order)
+		for i := 1; i < len(resp.Data); i++ {
+			assert.True(t, resp.Data[i-1].CreatedAt.After(resp.Data[i].CreatedAt) ||
+				resp.Data[i-1].CreatedAt.Equal(resp.Data[i].CreatedAt),
+				"tenant %d should have created_at >= tenant %d", i-1, i)
+		}
+	})
+
+	s.T().Run("orders by created_at asc", func(t *testing.T) {
+		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Order: "asc"})
+		require.NoError(t, err)
+		require.Len(t, resp.Data, 5)
+
+		// Oldest first (asc order)
+		for i := 1; i < len(resp.Data); i++ {
+			assert.True(t, resp.Data[i-1].CreatedAt.Before(resp.Data[i].CreatedAt) ||
+				resp.Data[i-1].CreatedAt.Equal(resp.Data[i].CreatedAt),
+				"tenant %d should have created_at <= tenant %d", i-1, i)
+		}
+	})
+}
+
+func (s *ListTenantTestSuite) TestListTenantPagination() {
+	// Create 25 tenants with distinct timestamps
+	tenants := make([]models.Tenant, 25)
+	baseTime := time.Now()
+	for i := 0; i < 25; i++ {
+		tenants[i] = models.Tenant{
+			ID:        idgen.String(),
+			CreatedAt: baseTime.Add(time.Duration(i) * time.Second),
+			UpdatedAt: baseTime.Add(time.Duration(i) * time.Second),
+		}
+		require.NoError(s.T(), s.entityStore.UpsertTenant(s.ctx, tenants[i]))
+	}
+
+	// Wait a bit for indexing
+	time.Sleep(100 * time.Millisecond)
+
+	s.T().Run("paginate forward through all pages", func(t *testing.T) {
+		var allTenants []models.Tenant
+		cursor := ""
+		pageCount := 0
+		var firstResp, lastResp *models.ListTenantResponse
+
+		for {
+			resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+				Limit: 10,
+				Next:  cursor,
+			})
+			require.NoError(t, err)
+			allTenants = append(allTenants, resp.Data...)
+			pageCount++
+			if firstResp == nil {
+				firstResp = resp
+			}
+			lastResp = resp
+
+			if resp.Next == "" {
+				break
+			}
+			cursor = resp.Next
+
+			// Safety check to prevent infinite loop
+			require.Less(t, pageCount, 10, "too many pages")
+		}
+
+		assert.Equal(t, 25, len(allTenants), "should have retrieved all tenants")
+		assert.Equal(t, 3, pageCount, "should have 3 pages (10+10+5)")
+		assert.Empty(t, firstResp.Prev, "first page should have no prev cursor")
+		assert.Empty(t, lastResp.Next, "last page should have no next cursor")
+	})
+
+	s.T().Run("paginate backward with prev cursor", func(t *testing.T) {
+		// First, traverse all the way forward collecting cursors
+		var forwardIDs []string
+		var cursors []string // Store Next cursors at each page
+		cursor := ""
+
+		for {
+			resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+				Limit: 10,
+				Next:  cursor,
+			})
+			require.NoError(t, err)
+			for _, tenant := range resp.Data {
+				forwardIDs = append(forwardIDs, tenant.ID)
+			}
+
+			if resp.Next == "" {
+				break
+			}
+			cursors = append(cursors, resp.Next)
+			cursor = resp.Next
+		}
+		require.Equal(t, 25, len(forwardIDs), "should have all tenants going forward")
+
+		// Now traverse all the way backward from the last page
+		var backwardIDs []string
+		// Start from page 3 (last page), use the last Next cursor to get there
+		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Limit: 10,
+			Next:  cursors[len(cursors)-1], // Go to last page
+		})
+		require.NoError(t, err)
+		for _, tenant := range resp.Data {
+			backwardIDs = append(backwardIDs, tenant.ID)
+		}
+
+		// Traverse backward
+		for resp.Prev != "" {
+			resp, err = s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+				Limit: 10,
+				Prev:  resp.Prev,
+			})
+			require.NoError(t, err)
+			for _, tenant := range resp.Data {
+				backwardIDs = append(backwardIDs, tenant.ID)
+			}
+		}
+
+		require.Equal(t, 25, len(backwardIDs), "should have all tenants going backward")
+		assert.Empty(t, resp.Prev, "first page should have no prev cursor")
+
+		// Verify we got the same set of tenants (order differs due to page traversal order)
+		forwardSet := make(map[string]bool)
+		for _, id := range forwardIDs {
+			forwardSet[id] = true
+		}
+		for _, id := range backwardIDs {
+			assert.True(t, forwardSet[id], "backward traversal should contain same tenant IDs")
+		}
+	})
+}
+
+func (s *ListTenantTestSuite) TestListTenantExcludesDeleted() {
+	// Create tenants
+	tenant1 := models.Tenant{
+		ID:        idgen.String(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	tenant2 := models.Tenant{
+		ID:        idgen.String(),
+		CreatedAt: time.Now().Add(time.Second),
+		UpdatedAt: time.Now().Add(time.Second),
+	}
+	require.NoError(s.T(), s.entityStore.UpsertTenant(s.ctx, tenant1))
+	require.NoError(s.T(), s.entityStore.UpsertTenant(s.ctx, tenant2))
+
+	// Wait for indexing
+	time.Sleep(100 * time.Millisecond)
+
+	// List should show both
+	resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{})
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), resp.Data, 2)
+
+	// Delete one
+	require.NoError(s.T(), s.entityStore.DeleteTenant(s.ctx, tenant1.ID))
+
+	// Wait for index update
+	time.Sleep(100 * time.Millisecond)
+
+	// List should show only one
+	resp, err = s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{})
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), resp.Data, 1)
+	assert.Equal(s.T(), tenant2.ID, resp.Data[0].ID)
 }
