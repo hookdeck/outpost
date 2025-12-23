@@ -47,7 +47,7 @@ func (s *RSMQSuite) TestNewRedisSMQ() {
 
 	rsmq := NewRedisSMQ(s.client, ns)
 	assert.NotNil(t, rsmq, "rsmq is nil")
-	assert.NotNil(t, rsmq.client, "clint in rsmq is nil")
+	assert.NotNil(t, rsmq.client, "client in rsmq is nil")
 	assert.Equal(t, ns+":", rsmq.ns, "namespace is not as expected")
 
 	t.Run("client with empty namespace", func(t *testing.T) {
