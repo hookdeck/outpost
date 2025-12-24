@@ -2,6 +2,7 @@ package models_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -1355,4 +1356,154 @@ func (s *ListTenantTestSuite) TestListTenantExcludesDeleted() {
 	require.NoError(s.T(), err)
 	assert.Len(s.T(), resp.Data, 1)
 	assert.Equal(s.T(), tenant2.ID, resp.Data[0].ID)
+}
+
+// TestListTenantPaginationEdgeCases demonstrates the limitations of offset-based pagination.
+// These tests document known edge cases, not bugs to fix.
+func (s *ListTenantTestSuite) TestListTenantPaginationEdgeCases() {
+	s.T().Run("delete during traversal may cause skipped tenant", func(t *testing.T) {
+		// This test documents a known limitation of offset-based pagination:
+		// If a tenant is deleted from an already-fetched page, subsequent pages
+		// may shift, causing one tenant to be skipped.
+		//
+		// Example with limit=5, sorted DESC (newest first):
+		//   Initial order by created_at DESC: [14, 13, 12, 11, 10, 09, 08, ...]
+		//   Page 1 (offset 0): [14, 13, 12, 11, 10] - fetched, cursor = offset 5
+		//   Delete tenant 12 (position 2 on page 1)
+		//   After deletion, positions shift: [14, 13, 11, 10, 09, 08, ...]
+		//   Page 2 (offset 5): [08, 07, 06, ...] - tenant 09 shifted to position 4, SKIPPED!
+		//
+		// Note: This behavior depends on RediSearch index update timing, which is async.
+		// The test documents the scenario but doesn't hard-assert since timing varies.
+
+		// Create 15 tenants with unique prefix and timestamps far in the future
+		prefix := fmt.Sprintf("del_edge_%d_", time.Now().UnixNano())
+		tenantIDs := make([]string, 15)
+		baseTime := time.Now().Add(10 * time.Hour)
+		for i := 0; i < 15; i++ {
+			tenantIDs[i] = fmt.Sprintf("%s%02d", prefix, i)
+			tenant := models.Tenant{
+				ID:        tenantIDs[i],
+				CreatedAt: baseTime.Add(time.Duration(i) * time.Second),
+				UpdatedAt: baseTime,
+			}
+			require.NoError(t, s.entityStore.UpsertTenant(s.ctx, tenant))
+		}
+		time.Sleep(100 * time.Millisecond)
+
+		// With DESC order: position 0 = tenantIDs[14], ..., position 5 = tenantIDs[9]
+		expectedSkippedTenant := tenantIDs[9]
+
+		// Fetch page 1
+		resp1, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 5})
+		require.NoError(t, err)
+		require.Len(t, resp1.Data, 5, "page 1 should have 5 items")
+
+		// Verify we got our test tenants
+		for _, tenant := range resp1.Data {
+			require.Contains(t, tenant.ID, prefix, "page 1 should contain our test tenants")
+		}
+
+		// Delete a tenant from the middle of page 1
+		deletedID := resp1.Data[2].ID
+		require.NoError(t, s.entityStore.DeleteTenant(s.ctx, deletedID))
+		time.Sleep(500 * time.Millisecond)
+
+		// Fetch page 2 using the cursor from page 1
+		resp2, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Limit: 5,
+			Next:  resp1.Next,
+		})
+		require.NoError(t, err)
+
+		// Collect all seen IDs
+		seenIDs := make(map[string]bool)
+		for _, tenant := range resp1.Data {
+			seenIDs[tenant.ID] = true
+		}
+		for _, tenant := range resp2.Data {
+			seenIDs[tenant.ID] = true
+		}
+
+		// Document what happened (informational, not a hard assertion)
+		if !seenIDs[expectedSkippedTenant] {
+			t.Logf("EDGE CASE MANIFESTED: tenant %s was skipped due to offset shift after deletion", expectedSkippedTenant)
+		} else {
+			t.Logf("Note: tenant %s was NOT skipped (RediSearch index update timing may vary)", expectedSkippedTenant)
+		}
+
+		// Cleanup
+		for _, id := range tenantIDs {
+			_ = s.entityStore.DeleteTenant(s.ctx, id)
+		}
+	})
+
+	s.T().Run("add during traversal causes duplicate tenant", func(t *testing.T) {
+		// NOTE: This scenario is UNEXPECTED in normal usage. Typically, users paginate
+		// through existing data and don't add new items mid-traversal. This test
+		// documents what would happen if it did occur.
+		//
+		// With DESC sort (newest first), a new tenant appears at the top,
+		// pushing everything down. The tenant at the page boundary appears twice.
+
+		// Create 15 tenants with unique prefix and timestamps far in the future
+		prefix := fmt.Sprintf("add_edge_%d_", time.Now().UnixNano())
+		tenantIDs := make([]string, 15)
+		baseTime := time.Now().Add(20 * time.Hour) // Even further future
+		for i := 0; i < 15; i++ {
+			tenantIDs[i] = fmt.Sprintf("%s%02d", prefix, i)
+			tenant := models.Tenant{
+				ID:        tenantIDs[i],
+				CreatedAt: baseTime.Add(time.Duration(i) * time.Second),
+				UpdatedAt: baseTime,
+			}
+			require.NoError(t, s.entityStore.UpsertTenant(s.ctx, tenant))
+		}
+		time.Sleep(100 * time.Millisecond)
+
+		// Fetch page 1
+		resp1, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 5})
+		require.NoError(t, err)
+		require.Len(t, resp1.Data, 5, "page 1 should have 5 items")
+
+		// Remember the last item on page 1
+		lastOnPage1 := resp1.Data[4].ID
+
+		// Verify we got our test tenants
+		for _, tenant := range resp1.Data {
+			require.Contains(t, tenant.ID, prefix, "page 1 should contain our test tenants")
+		}
+
+		// Add a new tenant that will sort BEFORE all existing ones (newest)
+		newTenantID := prefix + "NEW"
+		newTenant := models.Tenant{
+			ID:        newTenantID,
+			CreatedAt: baseTime.Add(time.Hour), // Definitely newest in our set
+			UpdatedAt: baseTime,
+		}
+		require.NoError(t, s.entityStore.UpsertTenant(s.ctx, newTenant))
+		tenantIDs = append(tenantIDs, newTenantID)
+
+		// Wait for RediSearch index to update
+		time.Sleep(500 * time.Millisecond)
+
+		// Fetch page 2 using cursor from page 1
+		// The new tenant pushed everything down by 1 position
+		// So what was at position 4 (last on page 1) is now at position 5 (first on page 2)
+		resp2, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Limit: 5,
+			Next:  resp1.Next,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, resp2.Data, "page 2 should have items")
+
+		// The tenant that was last on page 1 should now appear first on page 2 (duplicate!)
+		assert.Equal(t, lastOnPage1, resp2.Data[0].ID,
+			"offset pagination: add causes duplicate - last item from page 1 appears again as first on page 2")
+
+		// Cleanup
+		for _, id := range tenantIDs {
+			_ = s.entityStore.DeleteTenant(s.ctx, id)
+		}
+	})
 }
