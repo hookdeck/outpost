@@ -1507,3 +1507,150 @@ func (s *ListTenantTestSuite) TestListTenantPaginationEdgeCases() {
 		}
 	})
 }
+
+// TestListTenantInputValidation tests input validation and error handling.
+func (s *ListTenantTestSuite) TestListTenantInputValidation() {
+	s.T().Run("invalid order returns error", func(t *testing.T) {
+		_, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Order: "invalid",
+		})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrInvalidOrder)
+	})
+
+	s.T().Run("conflicting cursors returns error", func(t *testing.T) {
+		_, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Next: "somecursor",
+			Prev: "anothercursor",
+		})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrConflictingCursors)
+	})
+
+	s.T().Run("invalid next cursor returns error", func(t *testing.T) {
+		_, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Next: "not-valid-base62!!!",
+		})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrInvalidCursor)
+	})
+
+	s.T().Run("invalid prev cursor returns error", func(t *testing.T) {
+		_, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Prev: "not-valid-base62!!!",
+		})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrInvalidCursor)
+	})
+
+	s.T().Run("malformed cursor format returns error", func(t *testing.T) {
+		// Valid base62 but wrong format (missing version prefix)
+		_, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Next: "abc123",
+		})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrInvalidCursor)
+	})
+
+	s.T().Run("limit zero uses default", func(t *testing.T) {
+		// Create some tenants
+		for i := 0; i < 5; i++ {
+			tenant := models.Tenant{
+				ID:        fmt.Sprintf("limit_test_%d", i),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			require.NoError(t, s.entityStore.UpsertTenant(s.ctx, tenant))
+		}
+		time.Sleep(100 * time.Millisecond)
+
+		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Limit: 0, // Should use default (20)
+		})
+		require.NoError(t, err)
+		// Should return all 5 (default limit is 20, we only have 5)
+		assert.GreaterOrEqual(t, len(resp.Data), 5)
+
+		// Cleanup
+		for i := 0; i < 5; i++ {
+			_ = s.entityStore.DeleteTenant(s.ctx, fmt.Sprintf("limit_test_%d", i))
+		}
+	})
+
+	s.T().Run("limit negative uses default", func(t *testing.T) {
+		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Limit: -5, // Should use default (20)
+		})
+		require.NoError(t, err)
+		// Should succeed, not error
+		assert.NotNil(t, resp)
+	})
+
+	s.T().Run("limit exceeding max is capped", func(t *testing.T) {
+		// Create 5 tenants for testing
+		tenantIDs := make([]string, 5)
+		for i := 0; i < 5; i++ {
+			tenantIDs[i] = fmt.Sprintf("maxlimit_test_%d", i)
+			tenant := models.Tenant{
+				ID:        tenantIDs[i],
+				CreatedAt: time.Now().Add(time.Duration(i) * time.Second),
+				UpdatedAt: time.Now(),
+			}
+			require.NoError(t, s.entityStore.UpsertTenant(s.ctx, tenant))
+		}
+		time.Sleep(100 * time.Millisecond)
+
+		// Request with limit > max (100)
+		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Limit: 1000, // Should be capped to 100
+		})
+		require.NoError(t, err)
+		// Should succeed and return data (capped, not error)
+		assert.NotNil(t, resp)
+		assert.GreaterOrEqual(t, len(resp.Data), 5)
+
+		// Cleanup
+		for _, id := range tenantIDs {
+			_ = s.entityStore.DeleteTenant(s.ctx, id)
+		}
+	})
+
+	s.T().Run("empty order uses default desc", func(t *testing.T) {
+		// Create tenants with known order
+		tenant1 := models.Tenant{
+			ID:        "order_test_1",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		tenant2 := models.Tenant{
+			ID:        "order_test_2",
+			CreatedAt: time.Now().Add(time.Second),
+			UpdatedAt: time.Now(),
+		}
+		require.NoError(t, s.entityStore.UpsertTenant(s.ctx, tenant1))
+		require.NoError(t, s.entityStore.UpsertTenant(s.ctx, tenant2))
+		time.Sleep(100 * time.Millisecond)
+
+		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Order: "", // Should default to "desc"
+		})
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(resp.Data), 2)
+
+		// Find our test tenants and verify order (newer first = desc)
+		var foundOrder []string
+		for _, tenant := range resp.Data {
+			if tenant.ID == "order_test_1" || tenant.ID == "order_test_2" {
+				foundOrder = append(foundOrder, tenant.ID)
+			}
+		}
+		if len(foundOrder) >= 2 {
+			assert.Equal(t, "order_test_2", foundOrder[0], "default order should be desc (newer first)")
+			assert.Equal(t, "order_test_1", foundOrder[1])
+		}
+
+		// Cleanup
+		_ = s.entityStore.DeleteTenant(s.ctx, "order_test_1")
+		_ = s.entityStore.DeleteTenant(s.ctx, "order_test_2")
+	})
+}

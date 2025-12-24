@@ -36,6 +36,9 @@ var (
 	ErrDestinationDeleted              = errors.New("destination has been deleted")
 	ErrMaxDestinationsPerTenantReached = errors.New("maximum number of destinations per tenant reached")
 	ErrListTenantNotSupported          = errors.New("list tenant feature is not enabled")
+	ErrInvalidCursor                   = errors.New("invalid cursor")
+	ErrInvalidOrder                    = errors.New("invalid order: must be 'asc' or 'desc'")
+	ErrConflictingCursors              = errors.New("cannot specify both next and prev cursors")
 )
 
 // ListTenantRequest contains parameters for listing tenants.
@@ -308,7 +311,12 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		return nil, ErrListTenantNotSupported
 	}
 
-	// Apply defaults
+	// Validate: cannot specify both Next and Prev
+	if req.Next != "" && req.Prev != "" {
+		return nil, ErrConflictingCursors
+	}
+
+	// Apply defaults and validate limit
 	limit := req.Limit
 	if limit <= 0 {
 		limit = defaultListTenantLimit
@@ -317,9 +325,13 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		limit = maxListTenantLimit
 	}
 
+	// Validate and apply order
 	order := req.Order
 	if order == "" {
 		order = "desc"
+	}
+	if order != "asc" && order != "desc" {
+		return nil, ErrInvalidOrder
 	}
 
 	// Determine sort direction
@@ -335,13 +347,13 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		var err error
 		offset, err = decodeCursor(req.Next)
 		if err != nil {
-			return nil, fmt.Errorf("invalid next cursor: %w", err)
+			return nil, fmt.Errorf("%w: %v", ErrInvalidCursor, err)
 		}
 	} else if req.Prev != "" {
 		var err error
 		offset, err = decodeCursor(req.Prev)
 		if err != nil {
-			return nil, fmt.Errorf("invalid prev cursor: %w", err)
+			return nil, fmt.Errorf("%w: %v", ErrInvalidCursor, err)
 		}
 	}
 
