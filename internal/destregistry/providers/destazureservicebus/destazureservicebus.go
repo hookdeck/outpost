@@ -158,7 +158,16 @@ func (p *AzureServiceBusPublisher) Publish(ctx context.Context, event *models.Ev
 
 	sender, err := p.ensureSender()
 	if err != nil {
-		return nil, err
+		return &destregistry.Delivery{
+				Status: "failed",
+				Code:   "ERR",
+				Response: map[string]interface{}{
+					"error": err.Error(),
+				},
+			}, destregistry.NewErrDestinationPublishAttempt(err, "azure_servicebus", map[string]interface{}{
+				"error":   "sender_failed",
+				"message": err.Error(),
+			})
 	}
 
 	if err := sender.SendMessage(ctx, message, nil); err != nil {
@@ -169,7 +178,8 @@ func (p *AzureServiceBusPublisher) Publish(ctx context.Context, event *models.Ev
 					"error": err.Error(),
 				},
 			}, destregistry.NewErrDestinationPublishAttempt(err, "azure_servicebus", map[string]interface{}{
-				"error": err.Error(),
+				"error":   "send_failed",
+				"message": err.Error(),
 			})
 	}
 
