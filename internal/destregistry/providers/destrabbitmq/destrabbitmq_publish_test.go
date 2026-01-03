@@ -1,6 +1,7 @@
 package destrabbitmq_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
@@ -220,4 +221,84 @@ func toStringMap(table amqp091.Table) map[string]string {
 		}
 	}
 	return result
+}
+
+// TestRabbitMQPublisher_ConnectionErrors tests that connection errors (connection refused, DNS failures)
+// return a Delivery object alongside the error, NOT nil.
+//
+// This is important because the messagehandler uses the presence of a Delivery object to distinguish
+// between "pre-delivery errors" (system issues) and "delivery errors" (destination issues):
+// - nil delivery + error → PreDeliveryError → nack → DLQ
+// - delivery + error → DeliveryError → ack + retry
+//
+// Connection errors are destination-level failures and should trigger retries, not go to DLQ.
+// See: https://github.com/hookdeck/outpost/issues/571
+func TestRabbitMQPublisher_ConnectionErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		serverURL    string
+		description  string
+		expectedCode string
+	}{
+		{
+			name:         "connection refused",
+			serverURL:    "127.0.0.1:1", // Port 1 is typically not listening
+			description:  "simulates a server that is not running",
+			expectedCode: "connection_refused",
+		},
+		{
+			name:         "DNS failure",
+			serverURL:    "this-domain-does-not-exist-abc123xyz.invalid:5672",
+			description:  "simulates an invalid/non-existent domain",
+			expectedCode: "dns_error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader(), nil)
+			require.NoError(t, err)
+
+			destination := testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithType("rabbitmq"),
+				testutil.DestinationFactory.WithConfig(map[string]string{
+					"server_url": tt.serverURL,
+					"exchange":   "test-exchange",
+				}),
+				testutil.DestinationFactory.WithCredentials(map[string]string{
+					"username": "guest",
+					"password": "guest",
+				}),
+			)
+
+			publisher, err := provider.CreatePublisher(context.Background(), &destination)
+			require.NoError(t, err)
+			defer publisher.Close()
+
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+			)
+
+			// Attempt to publish to unreachable endpoint
+			delivery, err := publisher.Publish(context.Background(), &event)
+
+			// Should return an error
+			require.Error(t, err, "should return error for %s", tt.description)
+
+			// CRITICAL: Should return a Delivery object, NOT nil
+			// This ensures the error is treated as a DeliveryError (retryable)
+			// rather than a PreDeliveryError (goes to DLQ)
+			require.NotNil(t, delivery, "delivery should NOT be nil for connection errors - "+
+				"returning nil causes messagehandler to treat this as PreDeliveryError (nack → DLQ) "+
+				"instead of DeliveryError (ack + retry)")
+
+			// Verify the delivery has appropriate status and code
+			assert.Equal(t, "failed", delivery.Status, "delivery status should be 'failed'")
+			assert.Equal(t, tt.expectedCode, delivery.Code, "delivery code should indicate error type")
+		})
+	}
 }
