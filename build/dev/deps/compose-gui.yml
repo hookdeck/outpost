@@ -1,0 +1,46 @@
+name: "outpost-deps"
+
+services:
+  # ============================== GUI Tools ==============================
+  # Enable via LOCAL_DEV_* env vars in .env
+  # Set to 1 for default port, or specify custom port (e.g., LOCAL_DEV_PGADMIN=15433)
+
+  redis-commander:
+    profiles: ["redis-commander"]
+    image: rediscommander/redis-commander:latest
+    restart: always
+    ports:
+      - "${LOCAL_DEV_REDIS_COMMANDER:-28081}:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:password
+
+  pgadmin:
+    profiles: ["pgadmin"]
+    image: dpage/pgadmin4
+    restart: always
+    ports:
+      - "${LOCAL_DEV_PGADMIN:-28082}:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@admin.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+      - PGADMIN_CONFIG_SERVER_MODE=False
+      - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+
+  tabix:
+    profiles: ["tabix"]
+    image: spoonest/clickhouse-tabix-web-client
+    restart: always
+    ports:
+      - "${LOCAL_DEV_TABIX:-28083}:80"
+
+volumes:
+  pgadmin:
+    driver: local
+
+networks:
+  default:
+    name: outpost
+    external: true

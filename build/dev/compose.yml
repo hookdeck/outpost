@@ -10,7 +10,7 @@ services:
       - ../../:/app
       - go_mod_cache:/go/pkg
     ports:
-      - "${PORT}:${PORT}"
+      - "3333:3333"
     env_file: ../../.env
     environment:
       SERVICE: api

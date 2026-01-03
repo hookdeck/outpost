@@ -13,7 +13,7 @@ import (
 
 const (
 	AWSRegion        = "eu-central-1"
-	AWSEndpoint      = "http://localhost:4566"
+	AWSEndpoint      = "http://localhost:14566"
 	AWSCredentials   = "test:test:"
 	PublishQueueName = "publish_sqs_queue"
 )
