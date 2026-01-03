@@ -140,15 +140,15 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 
 	if err := p.ensureConnection(ctx); err != nil {
 		return &destregistry.Delivery{
-			Status: "failed",
-			Code:   ClassifyRabbitMQError(err),
-			Response: map[string]interface{}{
-				"error": err.Error(),
-			},
-		}, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
-			"error":   "connection_failed",
-			"message": err.Error(),
-		})
+				Status: "failed",
+				Code:   ClassifyRabbitMQError(err),
+				Response: map[string]interface{}{
+					"error": err.Error(),
+				},
+			}, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
+				"error":   "connection_failed",
+				"message": err.Error(),
+			})
 	}
 
 	dataBytes, err := json.Marshal(event.Data)
@@ -174,15 +174,15 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 		},
 	); err != nil {
 		return &destregistry.Delivery{
-			Status: "failed",
-			Code:   ClassifyRabbitMQError(err),
-			Response: map[string]interface{}{
-				"error": err.Error(),
-			},
-		}, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
-			"error":   "publish_failed",
-			"message": err.Error(),
-		})
+				Status: "failed",
+				Code:   ClassifyRabbitMQError(err),
+				Response: map[string]interface{}{
+					"error": err.Error(),
+				},
+			}, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
+				"error":   "publish_failed",
+				"message": err.Error(),
+			})
 	}
 
 	return &destregistry.Delivery{
