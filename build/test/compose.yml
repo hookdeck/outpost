@@ -33,7 +33,7 @@ services:
       - 34566:4566
       - 34571:4571
   gcp:
-    image: google/cloud-sdk:latest
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
     command:
       [
         "gcloud",

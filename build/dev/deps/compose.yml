@@ -94,7 +94,7 @@ services:
 
   gcp:
     profiles: ["gcp"]
-    image: google/cloud-sdk:latest
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
     command:
       [
         "gcloud",
