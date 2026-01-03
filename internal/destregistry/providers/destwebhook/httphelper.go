@@ -3,7 +3,6 @@ package destwebhook
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,9 +12,8 @@ import (
 )
 
 // HTTPRequestResult contains the result of an HTTP request execution.
-// It handles the classification of errors into system errors vs delivery errors.
 type HTTPRequestResult struct {
-	// Delivery is the delivery result. Will be nil for system errors (context.Canceled).
+	// Delivery is the delivery result.
 	Delivery *destregistry.Delivery
 	// Error is the error that occurred, if any.
 	Error error
@@ -24,33 +22,11 @@ type HTTPRequestResult struct {
 }
 
 // ExecuteHTTPRequest executes an HTTP request and classifies the result.
-//
-// Error classification:
-//   - context.Canceled: System error (service shutdown) → returns nil Delivery
-//     so messagehandler treats it as PreDeliveryError (nack → requeue)
-//   - Other network errors: Delivery error → returns Delivery with classified code
-//     so messagehandler treats it as DeliveryError (ack + retry)
-//   - HTTP 4xx/5xx: Delivery error → returns Delivery with status code
-//   - HTTP 2xx/3xx: Success → returns Delivery with success status
-//
+// All errors return a Delivery object with a classified error code.
 // See: https://github.com/hookdeck/outpost/issues/571
 func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Request, provider string) *HTTPRequestResult {
 	resp, err := client.Do(req)
 	if err != nil {
-		// Context canceled is a system error (e.g., service shutdown) - return nil
-		// so it's treated as PreDeliveryError (nack → requeue for another instance).
-		if errors.Is(err, context.Canceled) {
-			return &HTTPRequestResult{
-				Delivery: nil,
-				Error: destregistry.NewErrDestinationPublishAttempt(err, provider, map[string]interface{}{
-					"error":   "canceled",
-					"message": err.Error(),
-				}),
-				Response: nil,
-			}
-		}
-
-		// All other errors are destination-level failures (DeliveryError → ack + retry)
 		return &HTTPRequestResult{
 			Delivery: &destregistry.Delivery{
 				Status: "failed",
@@ -126,8 +102,6 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 //   - tls_error:          TLS/SSL certificate or handshake failure
 //   - redirect_error:     Too many redirects
 //   - network_error:      Other network-related failures (catch-all)
-//
-// Note: context.Canceled is handled separately as a system error (nack → requeue).
 func ClassifyNetworkError(err error) string {
 	if err == nil {
 		return "unknown"

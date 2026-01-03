@@ -138,19 +138,7 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 	}
 	defer p.BasePublisher.FinishPublish()
 
-	// Ensure we have a valid connection
 	if err := p.ensureConnection(ctx); err != nil {
-		// Context canceled is a system error (e.g., service shutdown) - return nil
-		// so it's treated as PreDeliveryError (nack → requeue for another instance).
-		// See: https://github.com/hookdeck/outpost/issues/571
-		if errors.Is(err, context.Canceled) {
-			return nil, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
-				"error":   "canceled",
-				"message": err.Error(),
-			})
-		}
-
-		// All other connection errors are destination-level failures (DeliveryError → ack + retry)
 		return &destregistry.Delivery{
 			Status: "failed",
 			Code:   ClassifyRabbitMQError(err),
@@ -185,25 +173,16 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 			Body:        []byte(dataBytes),
 		},
 	); err != nil {
-		// Context canceled is a system error (e.g., service shutdown) - return nil
-		// so it's treated as PreDeliveryError (nack → requeue for another instance).
-		if errors.Is(err, context.Canceled) {
-			return nil, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
-				"error":   "canceled",
-				"message": err.Error(),
-			})
-		}
-
 		return &destregistry.Delivery{
-				Status: "failed",
-				Code:   ClassifyRabbitMQError(err),
-				Response: map[string]interface{}{
-					"error": err.Error(),
-				},
-			}, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
-				"error":   "publish_failed",
-				"message": err.Error(),
-			})
+			Status: "failed",
+			Code:   ClassifyRabbitMQError(err),
+			Response: map[string]interface{}{
+				"error": err.Error(),
+			},
+		}, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
+			"error":   "publish_failed",
+			"message": err.Error(),
+		})
 	}
 
 	return &destregistry.Delivery{
@@ -268,8 +247,6 @@ func rabbitURL(config *RabbitMQDestinationConfig, credentials *RabbitMQDestinati
 //   - timeout:             Connection or operation timed out
 //   - tls_error:           TLS/SSL certificate or handshake failure
 //   - rabbitmq_error:      Other RabbitMQ-related failures (catch-all)
-//
-// Note: context.Canceled is handled separately as a system error (nack → requeue).
 func ClassifyRabbitMQError(err error) string {
 	if err == nil {
 		return "unknown"
