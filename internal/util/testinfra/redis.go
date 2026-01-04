@@ -12,9 +12,12 @@ import (
 )
 
 var (
-	redisOnce   sync.Once
-	redisDBMu   sync.Mutex
-	redisDBUsed = make(map[int]bool)
+	redisOnce      sync.Once
+	dragonflyOnce  sync.Once
+	redisDBMu      sync.Mutex
+	dragonflyDBMu  sync.Mutex
+	redisDBUsed     = make(map[int]bool)
+	dragonflyDBUsed = make(map[int]bool)
 )
 
 const maxRedisDBs = 16
@@ -29,7 +32,7 @@ type RedisConfig struct {
 // The database is flushed on cleanup.
 func NewRedisConfig(t *testing.T) RedisConfig {
 	addr := EnsureRedis()
-	db := allocateRedisDB()
+	db := allocateDB(&redisDBMu, redisDBUsed)
 
 	cfg := RedisConfig{
 		Addr: addr,
@@ -38,29 +41,48 @@ func NewRedisConfig(t *testing.T) RedisConfig {
 
 	t.Cleanup(func() {
 		flushRedisDB(addr, db)
-		releaseRedisDB(db)
+		releaseDB(&redisDBMu, redisDBUsed, db)
 	})
 
 	return cfg
 }
 
-func allocateRedisDB() int {
-	redisDBMu.Lock()
-	defer redisDBMu.Unlock()
+// NewDragonflyConfig allocates a Dragonfly database (0-15) for the test.
+// The database is flushed on cleanup.
+func NewDragonflyConfig(t *testing.T) RedisConfig {
+	addr := EnsureDragonfly()
+	db := allocateDB(&dragonflyDBMu, dragonflyDBUsed)
+
+	cfg := RedisConfig{
+		Addr: addr,
+		DB:   db,
+	}
+
+	t.Cleanup(func() {
+		flushRedisDB(addr, db)
+		releaseDB(&dragonflyDBMu, dragonflyDBUsed, db)
+	})
+
+	return cfg
+}
+
+func allocateDB(mu *sync.Mutex, used map[int]bool) int {
+	mu.Lock()
+	defer mu.Unlock()
 
 	for i := 0; i < maxRedisDBs; i++ {
-		if !redisDBUsed[i] {
-			redisDBUsed[i] = true
+		if !used[i] {
+			used[i] = true
 			return i
 		}
 	}
-	panic(fmt.Sprintf("no available Redis databases (max %d)", maxRedisDBs))
+	panic(fmt.Sprintf("no available databases (max %d)", maxRedisDBs))
 }
 
-func releaseRedisDB(db int) {
-	redisDBMu.Lock()
-	defer redisDBMu.Unlock()
-	delete(redisDBUsed, db)
+func releaseDB(mu *sync.Mutex, used map[int]bool, db int) {
+	mu.Lock()
+	defer mu.Unlock()
+	delete(used, db)
 }
 
 func flushRedisDB(addr string, db int) {
@@ -86,6 +108,16 @@ func EnsureRedis() string {
 	return cfg.RedisURL
 }
 
+func EnsureDragonfly() string {
+	cfg := ReadConfig()
+	if cfg.DragonflyURL == "" {
+		dragonflyOnce.Do(func() {
+			startDragonflyTestContainer(cfg)
+		})
+	}
+	return cfg.DragonflyURL
+}
+
 func startRedisTestContainer(cfg *Config) {
 	ctx := context.Background()
 
@@ -104,6 +136,30 @@ func startRedisTestContainer(cfg *Config) {
 	cfg.RedisURL = endpoint
 	cfg.cleanupFns = append(cfg.cleanupFns, func() {
 		if err := redisContainer.Terminate(ctx); err != nil {
+			log.Printf("failed to terminate container: %s", err)
+		}
+	})
+}
+
+func startDragonflyTestContainer(cfg *Config) {
+	ctx := context.Background()
+
+	// Use the redis module with Dragonfly image
+	dragonflyContainer, err := redis.Run(ctx,
+		"docker.dragonflydb.io/dragonflydb/dragonfly:latest",
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	endpoint, err := dragonflyContainer.PortEndpoint(ctx, "6379/tcp", "")
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("Dragonfly running at %s", endpoint)
+	cfg.DragonflyURL = endpoint
+	cfg.cleanupFns = append(cfg.cleanupFns, func() {
+		if err := dragonflyContainer.Terminate(ctx); err != nil {
 			log.Printf("failed to terminate container: %s", err)
 		}
 	})

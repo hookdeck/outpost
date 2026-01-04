@@ -21,6 +21,7 @@ type Config struct {
 	TestInfra         bool
 	TestAzure         bool
 	RedisURL          string
+	DragonflyURL      string
 	ClickHouseURL     string
 	PostgresURL       string
 	LocalStackURL     string
@@ -69,6 +70,7 @@ func initConfig() {
 			TestInfra:         v.GetBool("TESTINFRA"),
 			TestAzure:         v.GetBool("TESTAZURE"),
 			RedisURL:          v.GetString("TEST_REDIS_URL"),
+			DragonflyURL:      v.GetString("TEST_DRAGONFLY_URL"),
 			ClickHouseURL:     v.GetString("TEST_CLICKHOUSE_URL"),
 			PostgresURL:       v.GetString("TEST_POSTGRES_URL"),
 			LocalStackURL:     localstackURL,
@@ -84,6 +86,7 @@ func initConfig() {
 		TestInfra:         v.GetBool("TESTINFRA"),
 		TestAzure:         v.GetBool("TESTAZURE"),
 		RedisURL:          "",
+		DragonflyURL:      "",
 		ClickHouseURL:     "",
 		PostgresURL:       "",
 		LocalStackURL:     "",
