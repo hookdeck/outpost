@@ -3,6 +3,7 @@ package destrabbitmq
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -137,12 +138,17 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 	}
 	defer p.BasePublisher.FinishPublish()
 
-	// Ensure we have a valid connection
 	if err := p.ensureConnection(ctx); err != nil {
-		return nil, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
-			"error":   "connection_failed",
-			"message": err.Error(),
-		})
+		return &destregistry.Delivery{
+				Status: "failed",
+				Code:   ClassifyRabbitMQError(err),
+				Response: map[string]interface{}{
+					"error": err.Error(),
+				},
+			}, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
+				"error":   "connection_failed",
+				"message": err.Error(),
+			})
 	}
 
 	dataBytes, err := json.Marshal(event.Data)
@@ -169,7 +175,7 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 	); err != nil {
 		return &destregistry.Delivery{
 				Status: "failed",
-				Code:   "ERR",
+				Code:   ClassifyRabbitMQError(err),
 				Response: map[string]interface{}{
 					"error": err.Error(),
 				},
@@ -226,6 +232,66 @@ func rabbitURL(config *RabbitMQDestinationConfig, credentials *RabbitMQDestinati
 		scheme = "amqps"
 	}
 	return fmt.Sprintf("%s://%s:%s@%s", scheme, credentials.Username, credentials.Password, config.ServerURL)
+}
+
+// ClassifyRabbitMQError returns a descriptive error code based on the error type.
+// All errors classified here are destination-level failures (DeliveryError → ack + retry).
+//
+// Error codes and their meanings:
+//   - dns_error:           Domain doesn't exist or DNS lookup failed
+//   - connection_refused:  Server not running or rejecting connections
+//   - connection_reset:    Connection was dropped by the server
+//   - auth_failed:         Authentication/authorization failure
+//   - channel_error:       Channel-level error (closed, etc.)
+//   - exchange_not_found:  Exchange doesn't exist
+//   - timeout:             Connection or operation timed out
+//   - tls_error:           TLS/SSL certificate or handshake failure
+//   - rabbitmq_error:      Other RabbitMQ-related failures (catch-all)
+func ClassifyRabbitMQError(err error) string {
+	if err == nil {
+		return "unknown"
+	}
+
+	errStr := err.Error()
+
+	// Check for AMQP-specific errors first
+	var amqpErr *amqp091.Error
+	if errors.As(err, &amqpErr) {
+		switch amqpErr.Code {
+		case amqp091.AccessRefused:
+			return "access_denied"
+		case amqp091.NotFound:
+			return "exchange_not_found"
+		case amqp091.ChannelError:
+			return "channel_error"
+		case amqp091.ConnectionForced:
+			return "connection_forced"
+		default:
+			return "rabbitmq_error"
+		}
+	}
+
+	// Fall back to string matching for network-level errors
+	switch {
+	case strings.Contains(errStr, "no such host"):
+		return "dns_error"
+	case strings.Contains(errStr, "connection refused"):
+		return "connection_refused"
+	case strings.Contains(errStr, "connection reset"):
+		return "connection_reset"
+	case strings.Contains(errStr, "i/o timeout"):
+		return "timeout"
+	case strings.Contains(errStr, "context deadline exceeded"):
+		return "timeout"
+	case strings.Contains(errStr, "tls:") || strings.Contains(errStr, "x509:"):
+		return "tls_error"
+	case strings.Contains(errStr, "PLAIN") || strings.Contains(errStr, "auth") || strings.Contains(errStr, "ACCESS_REFUSED"):
+		return "auth_failed"
+	case strings.Contains(errStr, "channel"):
+		return "channel_error"
+	default:
+		return "rabbitmq_error"
+	}
 }
 
 // ===== TEST HELPERS =====
