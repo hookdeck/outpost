@@ -12,6 +12,10 @@ services:
     image: redis/redis-stack-server:latest
     ports:
       - 36379:6379
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly
+    ports:
+      - 37379:6379
   clickhouse:
     image: clickhouse/clickhouse-server:24-alpine
     ports:
