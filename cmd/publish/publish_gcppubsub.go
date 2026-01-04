@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	GCPEndpoint         = "localhost:8085"
+	GCPEndpoint         = "localhost:18085"
 	GCPProjectID        = "test"
 	GCPPublishTopicName = "outpost-publish"
 	GCPPublishSubName   = "outpost-publish-sub"

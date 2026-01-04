@@ -1,115 +1,15 @@
 package rsmq
 
 import (
-	"context"
-	"fmt"
-	"log"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-type redisContainer struct {
-	testcontainers.Container
-	address string
-}
-
-func setupRedis(ctx context.Context) (*redisContainer, error) {
-	req := testcontainers.ContainerRequest{
-		Image:        "redis:6.2.6-alpine",
-		ExposedPorts: []string{"6379/tcp"},
-		WaitingFor:   wait.ForLog("* Ready to accept connections"),
-	}
-
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	mappedPort, err := container.MappedPort(ctx, "6379")
-	if err != nil {
-		return nil, err
-	}
-
-	hostIP, err := container.Host(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	address := fmt.Sprintf("%s:%d", hostIP, mappedPort.Int())
-
-	return &redisContainer{Container: container, address: address}, nil
-}
-
-var redisCnt *redisContainer
-var ctx context.Context
-
-func setup() error {
-	ctx = context.Background()
-	rc, err := setupRedis(ctx)
-	redisCnt = rc
-
-	return err
-}
-
-func shutdown() error {
-	if redisCnt != nil {
-		return redisCnt.Container.Terminate(ctx)
-	}
-
-	return nil
-}
-
-func TestMain(m *testing.M) {
-	err := setup()
-	if err != nil {
-		log.Print(err)
-	}
-
-	code := m.Run()
-
-	err = shutdown()
-	if err != nil {
-		log.Print(err)
-	}
-
-	os.Exit(code)
-}
-
-func preIntegrationTest(t *testing.T) RedisClient {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
-	}
-
-	if redisCnt == nil || ctx == nil {
-		t.Error("env cannot be set correctly")
-		t.FailNow()
-	}
-
-	client := redis.NewClient(&redis.Options{
-		Addr: redisCnt.address,
-	})
-
-	t.Cleanup(func() {
-		client.FlushAll(ctx)
-		client.ScriptFlush(ctx)
-		client.FlushDB(ctx)
-	})
-
-	// Wrap the v9 client with the adapter
-	return NewRedisAdapter(client)
-}
-
 func TestNewRedisSMQ(t *testing.T) {
-	client := preIntegrationTest(t)
+	client := NewRedisAdapter(testutil.CreateTestRedisClient(t))
 
 	ns := "test"
 
@@ -132,7 +32,7 @@ func TestNewRedisSMQ(t *testing.T) {
 }
 
 func TestRedisSMQ_CreateQueue(t *testing.T) {
-	client := preIntegrationTest(t)
+	client := NewRedisAdapter(testutil.CreateTestRedisClient(t))
 
 	rsmq := NewRedisSMQ(client, "test")
 	qname := "que"
@@ -175,7 +75,7 @@ func TestRedisSMQ_CreateQueue(t *testing.T) {
 }
 
 func TestRedisSMQ_ListQueues(t *testing.T) {
-	client := preIntegrationTest(t)
+	client := NewRedisAdapter(testutil.CreateTestRedisClient(t))
 
 	rsmq := NewRedisSMQ(client, "test")
 	qname1 := "que1"
@@ -200,7 +100,7 @@ func TestRedisSMQ_ListQueues(t *testing.T) {
 }
 
 func TestRedisSMQ_GetQueueAttributes(t *testing.T) {
-	client := preIntegrationTest(t)
+	client := NewRedisAdapter(testutil.CreateTestRedisClient(t))
 
 	rsmq := NewRedisSMQ(client, "test")
 	qname := "que"
@@ -294,7 +194,7 @@ func TestRedisSMQ_GetQueueAttributes(t *testing.T) {
 }
 
 func TestRedisSMQ_SetQueueAttributes(t *testing.T) {
-	client := preIntegrationTest(t)
+	client := NewRedisAdapter(testutil.CreateTestRedisClient(t))
 
 	rsmq := NewRedisSMQ(client, "test")
 	qname := "que"
@@ -388,7 +288,7 @@ func TestRedisSMQ_SetQueueAttributes(t *testing.T) {
 }
 
 func TestRedisSMQ_Quit(t *testing.T) {
-	client := preIntegrationTest(t)
+	client := NewRedisAdapter(testutil.CreateTestRedisClient(t))
 
 	rsmq := NewRedisSMQ(client, "test")
 	err := rsmq.Quit()
@@ -396,7 +296,7 @@ func TestRedisSMQ_Quit(t *testing.T) {
 }
 
 func TestRedisSMQ_DeleteQueue(t *testing.T) {
-	client := preIntegrationTest(t)
+	client := NewRedisAdapter(testutil.CreateTestRedisClient(t))
 
 	rsmq := NewRedisSMQ(client, "test")
 	qname := "que"
@@ -425,7 +325,7 @@ func TestRedisSMQ_DeleteQueue(t *testing.T) {
 }
 
 func TestRedisSMQ_SendMessage(t *testing.T) {
-	client := preIntegrationTest(t)
+	client := NewRedisAdapter(testutil.CreateTestRedisClient(t))
 
 	rsmq := NewRedisSMQ(client, "test")
 	qname1 := "que1"
@@ -475,7 +375,7 @@ func TestRedisSMQ_SendMessage(t *testing.T) {
 }
 
 func TestRedisSMQ_ReceiveMessage(t *testing.T) {
-	client := preIntegrationTest(t)
+	client := NewRedisAdapter(testutil.CreateTestRedisClient(t))
 
 	rsmq := NewRedisSMQ(client, "test")
 	qname := "que"
@@ -523,7 +423,7 @@ func TestRedisSMQ_ReceiveMessage(t *testing.T) {
 }
 
 func TestRedisSMQ_PopMessage(t *testing.T) {
-	client := preIntegrationTest(t)
+	client := NewRedisAdapter(testutil.CreateTestRedisClient(t))
 
 	rsmq := NewRedisSMQ(client, "test")
 	qname := "que"
@@ -564,7 +464,7 @@ func TestRedisSMQ_PopMessage(t *testing.T) {
 }
 
 func TestRedisSMQ_ChangeMessageVisibility(t *testing.T) {
-	client := preIntegrationTest(t)
+	client := NewRedisAdapter(testutil.CreateTestRedisClient(t))
 
 	rsmq := NewRedisSMQ(client, "test")
 	qname := "que"
@@ -630,7 +530,7 @@ func TestRedisSMQ_ChangeMessageVisibility(t *testing.T) {
 }
 
 func TestRedisSMQ_DeleteMessage(t *testing.T) {
-	client := preIntegrationTest(t)
+	client := NewRedisAdapter(testutil.CreateTestRedisClient(t))
 
 	rsmq := NewRedisSMQ(client, "test")
 	qname := "que"
@@ -676,7 +576,7 @@ func TestRedisSMQ_DeleteMessage(t *testing.T) {
 }
 
 func TestRedisSMQ_SendMessage_WithCustomID(t *testing.T) {
-	client := preIntegrationTest(t)
+	client := NewRedisAdapter(testutil.CreateTestRedisClient(t))
 
 	rsmq := NewRedisSMQ(client, "test")
 	qname := "myqueue"

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	RABBIT_SERVER_URL = "amqp://guest:guest@localhost:5672"
+	RABBIT_SERVER_URL = "amqp://guest:guest@localhost:15672"
 	RABBIT_EXCHANGE   = "destination_exchange"
 	RABBIT_QUEUE      = "destination_queue"
 )

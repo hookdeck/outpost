@@ -1,106 +1,177 @@
 # Outpost
 
-## Development
-
-### 0. Environment
-
-Copy `.env.example` to `.env` to use the default environment variables.
+## Quick Start
 
 ```sh
-$ cp .env.example .env
+# Clone and setup
+git clone https://github.com/hookdeck/outpost.git
+cd outpost
+cp .env.dev .env
+cp .outpost.yaml.dev .outpost.yaml
+
+# Create Docker network (one-time setup)
+make network
+
+# Start everything
+make up/deps
+make up/outpost
 ```
 
-### 1. Start services
+The API is now available at `http://localhost:3333`.
 
-**Option 1**: Using Docker
+**Default setup includes:**
+- Redis (cache and state)
+- PostgreSQL (log store)
+- RabbitMQ (message queue)
 
-You can use Docker to manage your development environment. Here are the 2 `make` commands you can use:
+See [Configuration](#configuration) to customize with ClickHouse, AWS SQS, GCP PubSub, Azure ServiceBus, and more.
+
+## Day-to-Day Development
 
 ```sh
-# Create the required `outpost` Docker network used by different Docker stacks
-$ make network
+# Start
+make up/deps
+make up/outpost
 
-# start development
-$ make up
+# Stop
+make down/outpost
+make down/deps
 
-# stop
-$ make down
+# Or use shortcuts
+make up    # starts deps + outpost
+make down  # stops outpost + deps
 ```
 
-The Docker environment is configured with live reload along with all the infra dependencies (Redis) you need, so you can start coding right away.
+## Running Tests
 
-_Note_: For more in-depth guide on setting up with Docker, here's a [step by step guide](step-by-step.md) walking you through setting up your environment all the way to you first delivered event.
+```sh
+# Start test infrastructure
+make up/test
 
-**Option 2**: Manual
+# Run tests
+make test TESTINFRA=1
 
-As Outpost has dependency on Redis, please make sure you have a running instance ready. The `.env.example` is set up for Docker usage. When running Outpost services directly, please make sure your `.env` is configured correctly.
+# Run specific package
+make test TESTINFRA=1 TEST=./internal/config
 
-To start Outpost services:
+# Run specific test
+make test TESTINFRA=1 TEST=./internal/config RUN=TestValidateService
+
+# With verbose output
+make test TESTINFRA=1 TEST=./internal/config RUN=TestValidateService TESTARGS="-v"
+
+# Stop test infrastructure
+make down/test
+```
+
+See the [Test](test.md) documentation for more details.
+
+## Configuration
+
+Outpost can be configured via environment variables (`.env`) or a YAML file (`.outpost.yaml`). See [Configuration](config.md) for all options.
+
+> **Tip:** For smoother local DX, consider using `.outpost.yaml` for Outpost settings. Air detects changes to `.outpost.yaml` and automatically restarts the services, whereas `.env` changes require `make down/outpost && make up/outpost`.
+
+### Local Dependencies (.env)
+
+The `.env` file controls which services `make up/deps` starts. Add or remove `LOCAL_DEV_*` variables to customize your stack:
+
+```sh
+# .env
+
+# Cache (Redis is default, uncomment to use Dragonfly instead)
+# LOCAL_DEV_DRAGONFLY=1
+
+# Log store
+LOCAL_DEV_POSTGRES=1
+
+# Message queue
+LOCAL_DEV_RABBITMQ=1
+
+# Optional: Additional services
+# LOCAL_DEV_CLICKHOUSE=1
+# LOCAL_DEV_LOCALSTACK=1
+# LOCAL_DEV_GCP=1
+
+# Optional: GUI tools (set port to enable)
+# LOCAL_DEV_REDIS_COMMANDER=28081
+# LOCAL_DEV_PGADMIN=28082
+# LOCAL_DEV_TABIX=28083
+```
+
+| Variable | Description |
+|----------|-------------|
+| `LOCAL_DEV_DRAGONFLY=1` | Use Dragonfly instead of Redis |
+| `LOCAL_DEV_POSTGRES=1` | Enable PostgreSQL |
+| `LOCAL_DEV_CLICKHOUSE=1` | Enable ClickHouse |
+| `LOCAL_DEV_RABBITMQ=1` | Enable RabbitMQ |
+| `LOCAL_DEV_LOCALSTACK=1` | Enable LocalStack (AWS SQS) |
+| `LOCAL_DEV_GCP=1` | Enable GCP PubSub emulator |
+| `LOCAL_DEV_REDIS_COMMANDER=<port>` | Enable Redis Commander |
+| `LOCAL_DEV_PGADMIN=<port>` | Enable pgAdmin |
+| `LOCAL_DEV_TABIX=<port>` | Enable Tabix (ClickHouse UI) |
+
+After changing `.env`, restart dependencies:
+
+```sh
+make down/deps
+make up/deps
+```
+
+> **Note:** Azure ServiceBus has its own stack (`make up/azure`) because it's shared between dev and test environments.
+
+### Host Ports Reference
+
+| Service | Host Port | Credentials |
+|---------|-----------|-------------|
+| Redis/Dragonfly | localhost:26379 | password: password |
+| PostgreSQL | localhost:25432 | outpost:outpost |
+| ClickHouse TCP | localhost:29000 | outpost:outpost |
+| ClickHouse HTTP | localhost:28123 | outpost:outpost |
+| RabbitMQ AMQP | localhost:25672 | guest:guest |
+| RabbitMQ UI | localhost:25673 | guest:guest |
+| LocalStack (AWS) | localhost:24566 | test:test |
+| GCP PubSub | localhost:28085 | - |
+
+## Viewing Logs
+
+```sh
+SERVICE=api make logs
+SERVICE=delivery make logs
+SERVICE=log make logs
+
+# With options
+SERVICE=api ARGS="--tail 50" make logs
+```
+
+## Development Options
+
+### Option 1: Docker (Recommended)
+
+The Docker setup includes live reload via Air, so code changes are automatically reflected.
+
+### Option 2: Manual
+
+Run Outpost services directly:
 
 ```sh
 # Start all services
-$ go run cmd/outpost/main.go
+go run cmd/outpost/main.go
 
-# You can specify which service you want to run
-$ go run cmd/outpost/main.go --service api
-$ go run cmd/outpost/main.go --service delivery
-$ go run cmd/outpost/main.go --service log
+# Or specific services
+go run cmd/outpost/main.go --service api
+go run cmd/outpost/main.go --service delivery
+go run cmd/outpost/main.go --service log
 ```
 
-For live reload, you can use [`air`](https://github.com/air-verse/air) or a similar tool. We are currently using Air within the Docker Compose setup.
+Note: You'll need to configure `.outpost.yaml` or `.env` with correct host addresses (e.g., `localhost` instead of `redis`).
 
-### Logs
+## Optional Tools
 
-When running Outpost with Docker, you may want to tail the log in your terminal for local development. There's a command to help tailing the log of Outpost's containers.
+### OpenTelemetry
 
-```sh
-$ SERVICE=api make logs
-# docker logs $(docker ps -f name=outpost-api --format "{{.ID}}") -f
-$ SERVICE=delivery make logs
-# docker logs $(docker ps -f name=outpost-delivery --format "{{.ID}}") -f
-$ SERVICE=log make logs
-# docker logs $(docker ps -f name=outpost-log --format "{{.ID}}") -f
-```
+OTEL is disabled by default. To enable, see the [Uptrace setup](https://github.com/hookdeck/outpost/tree/main/build/dev/uptrace).
 
-You can also add more options to this command like so:
+### Kubernetes
 
-```sh
-$ SERVICE=api ARGS="--tail 50" make logs
-# docker logs $(docker ps -f name=outpost-api --format "{{.ID}}") -f --tail 50
-```
-
-### Tests
-
-Some basic commands:
-
-```sh
-# Run all tests
-$ make test
-
-# Run unit / integration tests
-$ make test/unit
-$ make test/integration
-
-# Run test coverage
-$ make test/coverage
-# then visualize it
-$ make test/coverage/html
-
-# Run specific test suite / package
-$ TEST=./internal/model make test
-$ TEST=./internal/model TESTARGS='-v -run "TestDestinationModel"' make test
-```
-
-See the [Test](test.md) documentation for further information.
-
-### Others
-
-**(Optional) OpenTelemetry**
-
-Currently, Outpost OpenTelemetry configuration is handled via environemnt variables. You can you any OpenTelemetry backend you'd like. OTEL is off by default. Feel free to customize your configuration accordingly.
-
-There's a sample [Uptrace](https://uptrace.dev/) Docker set up you can use in [this repository](https://github.com/hookdeck/outpost/tree/main/build/dev/uptrace). Please follow the instruction there if you'd like to use Uptrace for your OTEL backend.
-
-**(Optional) Kubernetes**
-
-If you want to deploy Outpost to your local Kubernetes (for some reason), there's a [guide](https://github.com/hookdeck/outpost/tree/main/deployments/kubernetes) for that too. Enjoy!
+For local Kubernetes deployment, see the [Kubernetes guide](https://github.com/hookdeck/outpost/tree/main/deployments/kubernetes).

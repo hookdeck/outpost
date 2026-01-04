@@ -47,10 +47,10 @@ down/outpost:
 	docker-compose -f build/dev/compose.yml --env-file .env down
 
 up/deps:
-	docker-compose -f build/dev/deps/compose.yml --env-file .env up -d
+	COMPOSE_PROFILES=$$(./build/dev/deps/profiles.sh) docker-compose --env-file .env -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml up -d
 
 down/deps:
-	docker-compose -f build/dev/deps/compose.yml --env-file .env down
+	COMPOSE_PROFILES=$$(./build/dev/deps/profiles.sh --all) docker-compose -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml down
 
 up/mqs:
 	docker-compose -f build/dev/mqs/compose.yml up -d
@@ -74,10 +74,10 @@ up/portal:
 	cd internal/portal && npm install && npm run dev
 
 up/azure:
-	docker compose -f build/dev/azure/compose.yml up -d
+	docker-compose -f build/dev/azure/compose.yml up -d
 
 down/azure:
-	docker compose -f build/dev/azure/compose.yml down --volumes
+	docker-compose -f build/dev/azure/compose.yml down --volumes
 
 up/test:
 	docker-compose -f build/test/compose.yml up -d
