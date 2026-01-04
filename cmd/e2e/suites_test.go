@@ -212,6 +212,24 @@ func TestRedisClusterBasicSuite(t *testing.T) {
 	})
 }
 
+func TestDragonflyBasicSuite(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+
+	// Get Dragonfly config from testinfra
+	dragonflyConfig := configs.CreateDragonflyConfig(t)
+	if dragonflyConfig == nil {
+		t.Skip("skipping Dragonfly test (TEST_DRAGONFLY_URL not set)")
+	}
+
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypePostgres,
+		redisConfig:    dragonflyConfig,
+	})
+}
+
 func TestBasicSuiteWithDeploymentID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
