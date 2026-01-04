@@ -12,10 +12,10 @@ import (
 )
 
 var (
-	redisOnce      sync.Once
-	dragonflyOnce  sync.Once
-	redisDBMu      sync.Mutex
-	dragonflyDBMu  sync.Mutex
+	redisOnce       sync.Once
+	dragonflyOnce   sync.Once
+	redisDBMu       sync.Mutex
+	dragonflyDBMu   sync.Mutex
 	redisDBUsed     = make(map[int]bool)
 	dragonflyDBUsed = make(map[int]bool)
 )
