@@ -20,6 +20,7 @@ var (
 type Config struct {
 	TestInfra         bool
 	TestAzure         bool
+	RedisURL          string
 	ClickHouseURL     string
 	PostgresURL       string
 	LocalStackURL     string
@@ -67,6 +68,7 @@ func initConfig() {
 		cfg = &Config{
 			TestInfra:         v.GetBool("TESTINFRA"),
 			TestAzure:         v.GetBool("TESTAZURE"),
+			RedisURL:          v.GetString("TEST_REDIS_URL"),
 			ClickHouseURL:     v.GetString("TEST_CLICKHOUSE_URL"),
 			PostgresURL:       v.GetString("TEST_POSTGRES_URL"),
 			LocalStackURL:     localstackURL,
@@ -79,18 +81,16 @@ func initConfig() {
 	}
 
 	cfg = &Config{
-		TestInfra: v.GetBool("TESTINFRA"),
-		TestAzure: v.GetBool("TESTAZURE"),
-		// dbs
-		ClickHouseURL: "",
-		PostgresURL:   "",
-		// mq
-		RabbitMQURL:       "",
+		TestInfra:         v.GetBool("TESTINFRA"),
+		TestAzure:         v.GetBool("TESTAZURE"),
+		RedisURL:          "",
+		ClickHouseURL:     "",
+		PostgresURL:       "",
 		LocalStackURL:     "",
 		GCPURL:            "",
 		AzureSBConnString: "",
-		// misc
-		MockServerURL: "",
+		RabbitMQURL:       "",
+		MockServerURL:     "",
 	}
 }
 

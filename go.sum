@@ -906,6 +906,8 @@ github.com/go-playground/validator/v10 v10.22.0 h1:k6HsTZ0sTnROkhS//R0O+55JgM8C4
 github.com/go-playground/validator/v10 v10.22.0/go.mod h1:dbuPbCMFw/DrkbEynArYaCwl3amGuJotoKCe95atGMM=
 github.com/go-redis/redis v6.15.9+incompatible h1:K0pv1D7EQUjfyoMql+r/jZqCLizCGKFlFgcHWWmHQjg=
 github.com/go-redis/redis v6.15.9+incompatible/go.mod h1:NAIEuMOZ/fxfXJIrKDQDz8wamY7mA7PouImQ2Jvg6kA=
+github.com/go-redis/redis/v8 v8.11.5 h1:AcZZR7igkdvfVmQTPnu9WE37LRrO/YrBH5zWyjDC0oI=
+github.com/go-redis/redis/v8 v8.11.5/go.mod h1:gREzHqY1hg6oD9ngVRbLStwAWKhA0FEgq8Jd4h5lpwo=
 github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0/go.mod h1:fyg7847qk6SyHyPtNmDHnmrv/HOrqktSC+C9fM+CJOE=
 github.com/goccy/go-json v0.9.11/go.mod h1:6MelG93GURQebXPDq3khkgXZkazVtN9CRI+MGFi0w8I=
 github.com/goccy/go-json v0.10.3 h1:KZ5WoDbxAIgm2HNbYckL0se1fHD6rz5j4ywS6ebzDqA=
@@ -1286,6 +1288,8 @@ github.com/testcontainers/testcontainers-go/modules/postgres v0.36.0 h1:xTGNNsOD
 github.com/testcontainers/testcontainers-go/modules/postgres v0.36.0/go.mod h1:WKS3MGq1lzbVibIRnL08TOaf5bKWPxJe5frzyQfV4oY=
 github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.36.0 h1:gobSVNvTsiJTcGTlVJMpeUfAcz85HAMMwo8xEVQZItE=
 github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.36.0/go.mod h1:rLtFlrLEWcU/Ud52FiGk57QvUqoAHvR380hZo+tkBaI=
+github.com/testcontainers/testcontainers-go/modules/redis v0.36.0 h1:Z+6APQ0DjQP8Kj5Fu+lkAlH2v7f5QkAQyyjnf1Kq8sw=
+github.com/testcontainers/testcontainers-go/modules/redis v0.36.0/go.mod h1:LV66RJhSMikZrxJRc6O0nKcRqykmjQSyX82S93haE2w=
 github.com/tidwall/pretty v1.0.0/go.mod h1:XNkn88O1ChpSDQmQeStsy+sBenx6DDtFZJxhVysOjyk=
 github.com/tklauser/go-sysconf v0.3.14 h1:g5vzr9iPFFz24v2KZXs/pvpvh8/V9Fw6vQK5ZZb78yU=
 github.com/tklauser/go-sysconf v0.3.14/go.mod h1:1ym4lWMLUOhuBOPGtRcJm7tEGX4SCYNEEEtghGG/8uY=

@@ -8,6 +8,10 @@ services:
       dockerfile: ./build/test/Dockerfile.mock
     ports:
       - 35555:5555
+  redis:
+    image: redis/redis-stack-server:latest
+    ports:
+      - 36379:6379
   clickhouse:
     image: clickhouse/clickhouse-server:24-alpine
     ports:
