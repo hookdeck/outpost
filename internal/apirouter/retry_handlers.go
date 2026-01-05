@@ -72,7 +72,9 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 
 	h.logger.Ctx(c).Audit("manual retry initiated",
 		zap.String("event_id", event.ID),
-		zap.String("destination_id", destination.ID))
+		zap.String("tenant_id", tenantID),
+		zap.String("destination_id", destination.ID),
+		zap.String("destination_type", destination.Type))
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"success": true,
