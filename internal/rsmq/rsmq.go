@@ -526,11 +526,12 @@ func (rsmq *RedisSMQ) ReceiveMessage(qname string, vt uint) (*QueueMessage, erro
 	}
 
 	key := rsmq.ns + qname
+	hashKey := key + q // key + ":Q"
 
 	qvt := strconv.FormatUint(queue.ts+uint64(vt)*1000, 10)
 	ct := strconv.FormatUint(queue.ts, 10)
 
-	evalCmd := rsmq.client.EvalSha(hashReceiveMessage, []string{key}, ct, qvt)
+	evalCmd := rsmq.client.EvalSha(hashReceiveMessage, []string{key, hashKey}, ct, qvt)
 	return rsmq.createQueueMessage(evalCmd)
 }
 
@@ -546,10 +547,11 @@ func (rsmq *RedisSMQ) PopMessage(qname string) (*QueueMessage, error) {
 	}
 
 	key := rsmq.ns + qname
+	hashKey := key + q // key + ":Q"
 
 	t := strconv.FormatUint(queue.ts, 10)
 
-	evalCmd := rsmq.client.EvalSha(hashPopMessage, []string{key}, t)
+	evalCmd := rsmq.client.EvalSha(hashPopMessage, []string{key, hashKey}, t)
 	return rsmq.createQueueMessage(evalCmd)
 }
 
