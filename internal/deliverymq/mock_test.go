@@ -91,6 +91,29 @@ func (m *mockDestinationGetter) RetrieveDestination(ctx context.Context, tenantI
 	return m.dest, m.err
 }
 
+// mockMultiDestinationGetter supports multiple destinations keyed by destination ID
+type mockMultiDestinationGetter struct {
+	destinations map[string]*models.Destination
+	err          error
+}
+
+func newMockMultiDestinationGetter() *mockMultiDestinationGetter {
+	return &mockMultiDestinationGetter{
+		destinations: make(map[string]*models.Destination),
+	}
+}
+
+func (m *mockMultiDestinationGetter) registerDestination(dest *models.Destination) {
+	m.destinations[dest.ID] = dest
+}
+
+func (m *mockMultiDestinationGetter) RetrieveDestination(ctx context.Context, tenantID, destID string) (*models.Destination, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.destinations[destID], nil
+}
+
 type mockEventGetter struct {
 	events          map[string]*models.Event
 	err             error
