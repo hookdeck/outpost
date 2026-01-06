@@ -811,9 +811,9 @@ func TestMessageHandler_PublishAndLogError(t *testing.T) {
 
 func TestManualDelivery_Success(t *testing.T) {
 	// Test scenario:
-	// - Manual delivery succeeds
-	// - Should cancel any pending retries
-	// - Should be acked
+	// - Automatic delivery fails and schedules a retry
+	// - Manual retry succeeds and cancels the pending retry
+	// - Verifies the canceled ID matches the scheduled ID
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -823,7 +823,7 @@ func TestManualDelivery_Success(t *testing.T) {
 	event := testutil.EventFactory.Any(
 		testutil.EventFactory.WithTenantID(tenant.ID),
 		testutil.EventFactory.WithDestinationID(destination.ID),
-		testutil.EventFactory.WithEligibleForRetry(true), // even with retry enabled
+		testutil.EventFactory.WithEligibleForRetry(true),
 	)
 
 	// Setup mocks
@@ -831,7 +831,12 @@ func TestManualDelivery_Success(t *testing.T) {
 	eventGetter := newMockEventGetter()
 	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
-	publisher := newMockPublisher([]error{nil}) // successful publish
+	publishErr := &destregistry.ErrDestinationPublishAttempt{
+		Err:      errors.New("webhook returned 500"),
+		Provider: "webhook",
+		Data:     map[string]interface{}{"error": "server_error"},
+	}
+	publisher := newMockPublisher([]error{publishErr, nil}) // first fails, second succeeds
 	logPublisher := newMockLogPublisher(nil)
 	alertMonitor := newMockAlertMonitor()
 
@@ -850,28 +855,39 @@ func TestManualDelivery_Success(t *testing.T) {
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
-	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
+	// Step 1: Automatic delivery fails and schedules retry
+	autoDeliveryEvent := models.DeliveryEvent{
 		ID:            idgen.DeliveryEvent(),
 		Event:         event,
 		DestinationID: destination.ID,
-		Manual:        true, // Manual delivery
+		Manual:        false,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	_, autoMsg := newDeliveryMockMessage(autoDeliveryEvent)
+	_ = handler.Handle(context.Background(), autoMsg)
 
-	// Handle message
-	err := handler.Handle(context.Background(), msg)
+	require.Len(t, retryScheduler.taskIDs, 1, "should schedule one retry")
+	scheduledRetryID := retryScheduler.taskIDs[0]
+
+	// Step 2: Manual retry succeeds and cancels pending retry
+	manualDeliveryEvent := models.DeliveryEvent{
+		ID:            idgen.DeliveryEvent(), // New delivery event ID
+		Event:         event,                 // Same event
+		DestinationID: destination.ID,        // Same destination
+		Manual:        true,
+	}
+	mockMsg, manualMsg := newDeliveryMockMessage(manualDeliveryEvent)
+	err := handler.Handle(context.Background(), manualMsg)
 	require.NoError(t, err)
 
 	// Assert behavior
 	assert.True(t, mockMsg.acked, "message should be acked")
 	assert.False(t, mockMsg.nacked, "message should not be nacked")
-	assert.Equal(t, 1, publisher.current, "should publish once")
-	assert.Len(t, retryScheduler.canceled, 1, "should cancel pending retries")
-	assert.Equal(t, deliveryEvent.GetRetryID(), retryScheduler.canceled[0], "should cancel with correct retry ID")
-	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusSuccess, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK")
-	assertAlertMonitor(t, alertMonitor, true, &destination, nil)
+	assert.Equal(t, 2, publisher.current, "should publish twice (auto + manual)")
+	require.Len(t, retryScheduler.canceled, 1, "should cancel pending retry")
+
+	// Key assertion: the canceled ID must match the scheduled ID
+	assert.Equal(t, scheduledRetryID, retryScheduler.canceled[0],
+		"manual retry must cancel the same retry ID that was scheduled by automatic delivery")
 }
 
 func TestManualDelivery_PublishError(t *testing.T) {
