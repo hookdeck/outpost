@@ -1243,3 +1243,87 @@ func assertAlertMonitor(t *testing.T, m *mockAlertMonitor, success bool, destina
 		assert.Nil(t, attempt.DeliveryResponse, "alert attempt should not have data")
 	}
 }
+
+func TestMessageHandler_RetryID_MultipleDestinations(t *testing.T) {
+	// Test scenario:
+	// - One event is delivered to TWO different destinations
+	// - Both deliveries fail with retryable errors
+	// - Each should schedule a retry with a UNIQUE task ID
+	//
+	// This verifies that retry scheduling works correctly when one event fans out to multiple
+	// destinations. Each destination must get its own retry with a unique task ID, otherwise
+	// retries overwrite each other in the scheduler and only the last destination gets retried.
+
+	// Setup test data
+	tenant := models.Tenant{ID: idgen.String()}
+	destination1 := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	destination2 := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithEligibleForRetry(true),
+	)
+
+	// Setup mocks
+	destGetter := newMockMultiDestinationGetter()
+	destGetter.registerDestination(&destination1)
+	destGetter.registerDestination(&destination2)
+	eventGetter := newMockEventGetter()
+	eventGetter.registerEvent(&event)
+	retryScheduler := newMockRetryScheduler()
+	publishErr := &destregistry.ErrDestinationPublishAttempt{
+		Err:      errors.New("webhook returned 500"),
+		Provider: "webhook",
+		Data:     map[string]interface{}{"error": "server_error"},
+	}
+	publisher := newMockPublisher([]error{publishErr, publishErr}) // Both fail
+	logPublisher := newMockLogPublisher(nil)
+	alertMonitor := newMockAlertMonitor()
+
+	// Setup message handler
+	handler := deliverymq.NewMessageHandler(
+		testutil.CreateTestLogger(t),
+		logPublisher,
+		destGetter,
+		eventGetter,
+		publisher,
+		testutil.NewMockEventTracer(nil),
+		retryScheduler,
+		&backoff.ConstantBackoff{Interval: 1 * time.Second},
+		10,
+		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
+	)
+
+	// Create delivery events for SAME event to DIFFERENT destinations
+	deliveryEvent1 := models.DeliveryEvent{
+		ID:            idgen.DeliveryEvent(),
+		Event:         event,
+		DestinationID: destination1.ID,
+	}
+	deliveryEvent2 := models.DeliveryEvent{
+		ID:            idgen.DeliveryEvent(),
+		Event:         event,
+		DestinationID: destination2.ID,
+	}
+
+	// Handle both messages
+	_, msg1 := newDeliveryMockMessage(deliveryEvent1)
+	_, msg2 := newDeliveryMockMessage(deliveryEvent2)
+
+	_ = handler.Handle(context.Background(), msg1)
+	_ = handler.Handle(context.Background(), msg2)
+
+	// Assert: Both retries should be scheduled
+	require.Len(t, retryScheduler.taskIDs, 2, "should schedule 2 retries")
+
+	// Assert: Task IDs should be UNIQUE (this is the bug - currently they are the same)
+	assert.NotEqual(t, retryScheduler.taskIDs[0], retryScheduler.taskIDs[1],
+		"BUG: retry task IDs should be unique per destination, but both are: %s",
+		retryScheduler.taskIDs[0])
+}
