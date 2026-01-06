@@ -1,18 +1,16 @@
 name: "outpost-deps"
 
 services:
-  # ============================== Cache ==============================
+  # ============================== Redis ==============================
   # LOCAL_DEV_REDIS=1 (default) or LOCAL_DEV_DRAGONFLY=1
   redis:
     profiles: ["redis"]
-    image: redis:7.4-alpine
+    image: redis/redis-stack-server:latest
     restart: always
     ports:
       - "26379:6379"
-    command: >
-      redis-server
-        --save 20 1
-        --requirepass password
+    environment:
+      - REDIS_ARGS=--requirepass password
     volumes:
       - redis:/data
 
