@@ -22,18 +22,22 @@ import (
 // - Are NOT using DEPLOYMENT_ID configuration
 // - Have keys in the old format: tenant:ID:* (without curly braces)
 type HashTagsMigration struct {
-	client redis.Client
-	logger migratorredis.Logger
+	client       redis.Client
+	logger       migratorredis.Logger
+	deploymentID string // stored but not used - this migration only handles non-deployment keys
 }
 
 // Ensure HashTagsMigration implements the Migration interface
 var _ migratorredis.Migration = (*HashTagsMigration)(nil)
 
-// New creates a new HashTagsMigration instance
-func New(client redis.Client, logger migratorredis.Logger) *HashTagsMigration {
+// New creates a new HashTagsMigration instance.
+// deploymentID is accepted for interface consistency but not used - this migration
+// only handles non-deployment-prefixed keys (tenant:* pattern).
+func New(client redis.Client, logger migratorredis.Logger, deploymentID string) *HashTagsMigration {
 	return &HashTagsMigration{
-		client: client,
-		logger: logger,
+		client:       client,
+		logger:       logger,
+		deploymentID: deploymentID,
 	}
 }
 

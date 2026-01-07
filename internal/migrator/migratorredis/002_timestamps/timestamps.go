@@ -23,8 +23,9 @@ import (
 //   - Lazy migration handles it: reads accept both formats, and any disable/enable
 //     action will write the new Unix format automatically
 type TimestampsMigration struct {
-	client redis.Client
-	logger migratorredis.Logger
+	client    redis.Client
+	logger    migratorredis.Logger
+	keyPrefix string // deployment prefix for SCAN patterns (empty for single-tenant)
 }
 
 // timestampUpdates holds the pre-computed updates for Apply phase.
@@ -34,11 +35,17 @@ type timestampUpdates map[string]map[string]int64
 // Ensure TimestampsMigration implements the Migration interface
 var _ migratorredis.Migration = (*TimestampsMigration)(nil)
 
-// New creates a new TimestampsMigration instance
-func New(client redis.Client, logger migratorredis.Logger) *TimestampsMigration {
+// New creates a new TimestampsMigration instance.
+// deploymentID is optional - pass empty string for single-tenant deployments.
+func New(client redis.Client, logger migratorredis.Logger, deploymentID string) *TimestampsMigration {
+	keyPrefix := ""
+	if deploymentID != "" {
+		keyPrefix = deploymentID + ":"
+	}
 	return &TimestampsMigration{
-		client: client,
-		logger: logger,
+		client:    client,
+		logger:    logger,
+		keyPrefix: keyPrefix,
 	}
 }
 
@@ -67,9 +74,13 @@ func (m *TimestampsMigration) AutoRunnable() bool {
 func (m *TimestampsMigration) Plan(ctx context.Context) (*migratorredis.Plan, error) {
 	updates := make(timestampUpdates)
 
+	// Build patterns scoped to deployment (or all if no deployment ID)
+	tenantPattern := m.keyPrefix + "tenant:*:tenant"
+	destPattern := m.keyPrefix + "tenant:*:destination:*"
+
 	// Collect tenant updates
 	m.logger.LogInfo("Scanning tenant records...")
-	if err := m.collectUpdates(ctx, "*tenant:*:tenant", []string{"created_at", "updated_at"}, updates); err != nil {
+	if err := m.collectUpdates(ctx, tenantPattern, []string{"created_at", "updated_at"}, updates); err != nil {
 		return nil, fmt.Errorf("failed to scan tenant keys: %w", err)
 	}
 
@@ -83,7 +94,7 @@ func (m *TimestampsMigration) Plan(ctx context.Context) (*migratorredis.Plan, er
 
 	// Collect destination updates (same fields as tenant - disabled_at handled by lazy migration)
 	m.logger.LogInfo("Scanning destination records...")
-	if err := m.collectUpdates(ctx, "*tenant:*:destination:*", []string{"created_at", "updated_at"}, updates); err != nil {
+	if err := m.collectUpdates(ctx, destPattern, []string{"created_at", "updated_at"}, updates); err != nil {
 		return nil, fmt.Errorf("failed to scan destination keys: %w", err)
 	}
 
@@ -190,17 +201,21 @@ func (m *TimestampsMigration) Verify(ctx context.Context, state *migratorredis.S
 		Details: make(map[string]string),
 	}
 
+	// Build patterns scoped to deployment (or all if no deployment ID)
+	tenantPattern := m.keyPrefix + "tenant:*:tenant"
+	destPattern := m.keyPrefix + "tenant:*:destination:*"
+
 	// Check for any remaining unmigrated records
 	updates := make(timestampUpdates)
 
 	// Check tenant keys
-	if err := m.collectUpdates(ctx, "*tenant:*:tenant", []string{"created_at", "updated_at"}, updates); err != nil {
+	if err := m.collectUpdates(ctx, tenantPattern, []string{"created_at", "updated_at"}, updates); err != nil {
 		return nil, fmt.Errorf("failed to scan tenant keys: %w", err)
 	}
 	tenantsNeedMigration := len(updates)
 
 	// Check destination keys (disabled_at handled by lazy migration)
-	if err := m.collectUpdates(ctx, "*tenant:*:destination:*", []string{"created_at", "updated_at"}, updates); err != nil {
+	if err := m.collectUpdates(ctx, destPattern, []string{"created_at", "updated_at"}, updates); err != nil {
 		return nil, fmt.Errorf("failed to scan destination keys: %w", err)
 	}
 	destsNeedMigration := len(updates) - tenantsNeedMigration

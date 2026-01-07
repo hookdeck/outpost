@@ -63,7 +63,8 @@ func NewMigrator(cfg *config.Config, logger MigrationLogger) (*Migrator, error) 
 	}
 
 	// Get all migrations from the central registry
-	allMigrations := migrations.AllRedisMigrations(client, logger)
+	// Pass deployment ID to scope migrations to this deployment's keys
+	allMigrations := migrations.AllRedisMigrations(client, logger, cfg.DeploymentID)
 
 	// Build map by name for lookup
 	migrationMap := make(map[string]migratorredis.Migration)

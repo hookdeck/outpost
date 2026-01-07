@@ -19,7 +19,9 @@ import (
 // - Retries on lock conflicts (another instance is migrating)
 // - Marks all migrations as applied on fresh installations
 // - Only runs migrations that are marked as AutoRunnable
-func runRedisMigrations(ctx context.Context, redisClient redis.Cmdable, logger *logging.Logger) error {
+//
+// deploymentID is optional - pass empty string for single-tenant deployments.
+func runRedisMigrations(ctx context.Context, redisClient redis.Cmdable, logger *logging.Logger, deploymentID string) error {
 	const (
 		maxRetries = 3
 		retryDelay = 5 * time.Second
@@ -28,7 +30,7 @@ func runRedisMigrations(ctx context.Context, redisClient redis.Cmdable, logger *
 	var lastErr error
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		err := executeRedisMigrations(ctx, redisClient, logger)
+		err := executeRedisMigrations(ctx, redisClient, logger, deploymentID)
 		if err == nil {
 			return nil
 		}
@@ -67,7 +69,7 @@ func runRedisMigrations(ctx context.Context, redisClient redis.Cmdable, logger *
 }
 
 // executeRedisMigrations creates the runner and executes migrations
-func executeRedisMigrations(ctx context.Context, redisClient redis.Cmdable, logger *logging.Logger) error {
+func executeRedisMigrations(ctx context.Context, redisClient redis.Cmdable, logger *logging.Logger, deploymentID string) error {
 	// Create runner
 	client, ok := redisClient.(redis.Client)
 	if !ok {
@@ -78,7 +80,8 @@ func executeRedisMigrations(ctx context.Context, redisClient redis.Cmdable, logg
 	runner := migratorredis.NewRunner(client, logger)
 
 	// Register all migrations from the central registry
-	for _, m := range migrations.AllRedisMigrationsWithLogging(client, logger, false) {
+	// Pass deployment ID to scope migrations to this deployment's keys
+	for _, m := range migrations.AllRedisMigrationsWithLogging(client, logger, false, deploymentID) {
 		runner.RegisterMigration(m)
 	}
 

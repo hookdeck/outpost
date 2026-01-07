@@ -96,9 +96,15 @@ Scans all tenant and destination records, identifies those with RFC3339 timestam
 
 **Redis commands:**
 ```
-SCAN 0 MATCH *tenant:*:tenant COUNT 100      # Iterate tenant keys
-SCAN 0 MATCH *tenant:*:destination:* COUNT 100  # Iterate destination keys
-HMGET <key> created_at updated_at            # Read timestamp fields (pipelined)
+SCAN 0 MATCH tenant:*:tenant COUNT 100           # Iterate tenant keys
+SCAN 0 MATCH tenant:*:destination:* COUNT 100    # Iterate destination keys
+HMGET <key> created_at updated_at                # Read timestamp fields (pipelined)
+```
+
+With deployment ID (e.g., `dp_001`):
+```
+SCAN 0 MATCH dp_001:tenant:*:tenant COUNT 100
+SCAN 0 MATCH dp_001:tenant:*:destination:* COUNT 100
 ```
 
 - Counts tenants needing migration
@@ -122,8 +128,8 @@ Checks for any remaining RFC3339 timestamps.
 
 **Redis commands:**
 ```
-SCAN 0 MATCH *tenant:*:tenant COUNT 100      # Same as Plan
-HMGET <key> created_at updated_at            # Check if still RFC3339
+SCAN 0 MATCH tenant:*:tenant COUNT 100    # Same as Plan
+HMGET <key> created_at updated_at         # Check if still RFC3339
 ```
 
 - Reports count of records still needing migration
