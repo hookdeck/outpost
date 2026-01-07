@@ -12,6 +12,7 @@ import (
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/redislock"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,7 +73,7 @@ func newTestInfra(t *testing.T, provider infra.InfraProvider, lockKey string, sh
 
 // Helper to create test infra with specific Redis client
 func newTestInfraWithRedis(t *testing.T, provider infra.InfraProvider, lockKey string, client redis.Cmdable, shouldManage bool) *infra.Infra {
-	lock := infra.NewRedisLock(client, infra.LockWithKey(lockKey))
+	lock := redislock.New(client, redislock.WithKey(lockKey))
 	return infra.NewInfraWithProvider(lock, provider, shouldManage)
 }
 
@@ -183,9 +184,9 @@ func TestInfra_LockExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create and acquire lock with 1 second TTL
-	shortLock := infra.NewRedisLock(client,
-		infra.LockWithKey(lockKey),
-		infra.LockWithTTL(1*time.Second),
+	shortLock := redislock.New(client,
+		redislock.WithKey(lockKey),
+		redislock.WithTTL(1*time.Second),
 	)
 	locked, err := shortLock.AttemptLock(ctx)
 	require.NoError(t, err)

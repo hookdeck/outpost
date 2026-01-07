@@ -8,6 +8,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/mqinfra"
 	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/redislock"
 )
 
 const (
@@ -23,7 +24,7 @@ var (
 )
 
 type Infra struct {
-	lock         Lock
+	lock         redislock.Lock
 	provider     InfraProvider
 	shouldManage bool
 }
@@ -44,11 +45,6 @@ type Config struct {
 func (cfg *Config) SetSensiblePolicyDefaults() {
 	cfg.DeliveryMQ.Policy.RetryLimit = 5
 	cfg.LogMQ.Policy.RetryLimit = 5
-}
-
-type Lock interface {
-	AttemptLock(ctx context.Context) (bool, error)
-	Unlock(ctx context.Context) (bool, error)
 }
 
 // infraProvider implements InfraProvider using real MQ infrastructure
@@ -112,7 +108,7 @@ func NewInfra(cfg Config, redisClient redis.Cmdable) Infra {
 	}
 
 	return Infra{
-		lock:         NewRedisLock(redisClient),
+		lock:         redislock.New(redisClient, redislock.WithKey(lockKey), redislock.WithTTL(lockTTL)),
 		provider:     provider,
 		shouldManage: shouldManage,
 	}
@@ -140,7 +136,7 @@ func Init(ctx context.Context, cfg Config, redisClient redis.Cmdable) error {
 }
 
 // NewInfraWithProvider creates an Infra instance with custom lock and provider (for testing)
-func NewInfraWithProvider(lock Lock, provider InfraProvider, shouldManage bool) *Infra {
+func NewInfraWithProvider(lock redislock.Lock, provider InfraProvider, shouldManage bool) *Infra {
 	return &Infra{
 		lock:         lock,
 		provider:     provider,
