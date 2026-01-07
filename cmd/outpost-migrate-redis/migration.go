@@ -309,7 +309,7 @@ func (m *Migrator) Plan(ctx context.Context) error {
 	}
 
 	// Display the plan
-	m.logger.LogMigrationPlan(mig.Name(), plan)
+	m.logger.LogMigrationPlan(mig.Name(), plan, false)
 
 	return nil
 }
@@ -429,16 +429,38 @@ func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 	return nil
 }
 
-// Apply executes the migration
-func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
-	// Get the next unapplied migration
-	mig, err := m.getNextMigration(ctx)
-	if err != nil {
-		if err.Error() == "all migrations have been applied" {
-			m.logger.LogAllMigrationsApplied()
+// Apply executes a migration
+// If migrationName is empty, applies the next unapplied migration.
+// If migrationName is specified, applies that specific migration.
+// If rerun is true, re-runs the migration even if already applied.
+func (m *Migrator) Apply(ctx context.Context, autoApprove, rerun bool, migrationName string) error {
+	var mig migratorredis.Migration
+	var alreadyApplied bool
+
+	if migrationName != "" {
+		// Find specific migration by name
+		var ok bool
+		mig, ok = m.migrations[migrationName]
+		if !ok {
+			return fmt.Errorf("migration not found: %s", migrationName)
+		}
+		alreadyApplied = isApplied(ctx, m.client, migrationName)
+
+		if alreadyApplied && !rerun {
+			m.logger.LogInfo(fmt.Sprintf("migration %s already applied (use --rerun to re-run)", migrationName))
 			return nil
 		}
-		return err
+	} else {
+		// Get the next unapplied migration
+		var err error
+		mig, err = m.getNextMigration(ctx)
+		if err != nil {
+			if err.Error() == "all migrations have been applied" {
+				m.logger.LogAllMigrationsApplied()
+				return nil
+			}
+			return err
+		}
 	}
 
 	// First show the plan
@@ -448,7 +470,7 @@ func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
 		return err
 	}
 
-	m.logger.LogMigrationPlan(mig.Name(), plan)
+	m.logger.LogMigrationPlan(mig.Name(), plan, alreadyApplied && rerun)
 
 	// Confirm if not auto-approved
 	if !autoApprove {
@@ -471,22 +493,30 @@ func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
 	defer m.releaseLock(ctx)
 
 	// Apply the migration
+	startTime := time.Now()
 	m.logger.LogMigrationStart(mig.Name())
 	state, err := mig.Apply(ctx, plan)
 	if err != nil {
 		return err
 	}
+	duration := time.Since(startTime)
 
-	// Mark migration as applied
+	// Mark migration as applied (or update applied_at if re-running)
 	if err := setMigrationAsApplied(ctx, m.client, mig.Name()); err != nil {
 		return fmt.Errorf("failed to mark migration as applied: %w", err)
+	}
+
+	// Record run history
+	if err := recordMigrationRun(ctx, m.client, mig.Name(), state, rerun, duration); err != nil {
+		m.logger.LogWarning(fmt.Sprintf("failed to record run history: %v", err))
+		// Don't fail the migration for history recording errors
 	}
 
 	stats := MigrationStats{
 		ProcessedItems: state.Progress.ProcessedItems,
 		FailedItems:    state.Progress.FailedItems,
 		SkippedItems:   state.Progress.SkippedItems,
-		Duration:       "", // TODO: Add duration tracking
+		Duration:       duration.String(),
 	}
 	m.logger.LogMigrationComplete(mig.Name(), stats)
 	return nil
@@ -555,11 +585,27 @@ func (m *Migrator) getLastAppliedMigration(ctx context.Context) (migratorredis.M
 // setMigrationAsApplied marks a migration as applied
 func setMigrationAsApplied(ctx context.Context, client *redisClientWrapper, name string) error {
 	key := fmt.Sprintf("outpost:migration:%s", name)
+	now := time.Now().Unix()
 
 	// Use Redis hash to store migration state
 	return client.HSet(ctx, key,
 		"status", "applied",
-		"applied_at", time.Now().Format(time.RFC3339),
+		"applied_at", fmt.Sprintf("%d", now),
+	).Err()
+}
+
+// recordMigrationRun records a migration run in the history
+// Key format: outpost:migration:{name}:run:{timestamp}
+func recordMigrationRun(ctx context.Context, client *redisClientWrapper, name string, state *migratorredis.State, rerun bool, duration time.Duration) error {
+	now := time.Now().Unix()
+	key := fmt.Sprintf("outpost:migration:%s:run:%d", name, now)
+
+	return client.HSet(ctx, key,
+		"processed", state.Progress.ProcessedItems,
+		"skipped", state.Progress.SkippedItems,
+		"failed", state.Progress.FailedItems,
+		"rerun", rerun,
+		"duration_ms", duration.Milliseconds(),
 	).Err()
 }
 

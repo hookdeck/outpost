@@ -84,8 +84,12 @@ func (l *CLILogger) LogMigrationStart(name string) {
 	fmt.Println("Applying migration...")
 }
 
-func (l *CLILogger) LogMigrationPlan(name string, plan *migratorredis.Plan) {
-	fmt.Printf("\nNext Migration: %s\n", name)
+func (l *CLILogger) LogMigrationPlan(name string, plan *migratorredis.Plan, isRerun bool) {
+	if isRerun {
+		fmt.Printf("\nMigration: %s (re-run)\n", name)
+	} else {
+		fmt.Printf("\nNext Migration: %s\n", name)
+	}
 	fmt.Printf("  Description: %s\n", plan.Description)
 	fmt.Printf("  Estimated items: %d\n", plan.EstimatedItems)
 	if l.verbose && len(plan.Scope) > 0 {

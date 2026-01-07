@@ -3,9 +3,9 @@ package main
 import (
 	"errors"
 
-	"github.com/hookdeck/outpost/internal/migrator/migratorredis"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/logging"
+	"github.com/hookdeck/outpost/internal/migrator/migratorredis"
 	"github.com/urfave/cli/v3"
 )
 
@@ -33,7 +33,7 @@ type MigrationLogger interface {
 	LogMigrationList(migrations map[string]string) // name -> description
 	LogMigrationStatus(applied, pending int)
 	LogMigrationStart(name string)
-	LogMigrationPlan(name string, plan *migratorredis.Plan)
+	LogMigrationPlan(name string, plan *migratorredis.Plan, isRerun bool)
 	LogMigrationProgress(name string, current, total int, tenant string)
 	LogMigrationComplete(name string, stats MigrationStats)
 	LogMigrationCancelled()
