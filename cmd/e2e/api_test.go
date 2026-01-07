@@ -1216,8 +1216,8 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	require.NoError(t, err)
 	require.WithinDuration(t, createdTime, updatedTime, time.Second, "created_at and updated_at should be close on creation")
 
-	// Wait a bit to ensure different timestamp
-	time.Sleep(10 * time.Millisecond)
+	// Wait to ensure different timestamp (Unix timestamps have second precision)
+	time.Sleep(1100 * time.Millisecond)
 
 	// Update tenant
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
@@ -1285,8 +1285,8 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	require.NoError(t, err)
 	require.WithinDuration(t, createdTime, updatedTime, time.Second, "created_at and updated_at should be close on creation")
 
-	// Wait a bit to ensure different timestamp
-	time.Sleep(10 * time.Millisecond)
+	// Wait to ensure different timestamp (Unix timestamps have second precision)
+	time.Sleep(1100 * time.Millisecond)
 
 	// Update destination
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{

@@ -60,7 +60,8 @@ func TestDestinationUpsertHandler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		assert.True(t, existingResource.CreatedAt.Equal(createdAt))
+		// Compare at second precision since Redis stores Unix timestamps
+		assert.Equal(t, existingResource.CreatedAt.Unix(), createdAt.Unix())
 
 		// Cleanup
 		entityStore.DeleteTenant(context.Background(), existingResource.ID)
@@ -107,7 +108,8 @@ func TestTenantRetrieveHandler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		assert.True(t, existingResource.CreatedAt.Equal(createdAt))
+		// Compare at second precision since Redis stores Unix timestamps
+		assert.Equal(t, existingResource.CreatedAt.Unix(), createdAt.Unix())
 
 		// Cleanup
 		entityStore.DeleteTenant(context.Background(), existingResource.ID)
