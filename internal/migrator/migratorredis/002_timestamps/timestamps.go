@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration"
+	"github.com/hookdeck/outpost/internal/migrator/migratorredis"
 	"github.com/hookdeck/outpost/internal/redis"
 )
 
@@ -24,7 +24,7 @@ import (
 //     action will write the new Unix format automatically
 type TimestampsMigration struct {
 	client redis.Client
-	logger migration.Logger
+	logger migratorredis.Logger
 }
 
 // timestampUpdates holds the pre-computed updates for Apply phase.
@@ -32,10 +32,10 @@ type TimestampsMigration struct {
 type timestampUpdates map[string]map[string]int64
 
 // Ensure TimestampsMigration implements the Migration interface
-var _ migration.Migration = (*TimestampsMigration)(nil)
+var _ migratorredis.Migration = (*TimestampsMigration)(nil)
 
 // New creates a new TimestampsMigration instance
-func New(client redis.Client, logger migration.Logger) *TimestampsMigration {
+func New(client redis.Client, logger migratorredis.Logger) *TimestampsMigration {
 	return &TimestampsMigration{
 		client: client,
 		logger: logger,
@@ -54,7 +54,7 @@ func (m *TimestampsMigration) Description() string {
 	return "Convert timestamp fields from RFC3339 strings to Unix timestamps for timezone-agnostic sorting"
 }
 
-func (m *TimestampsMigration) Plan(ctx context.Context) (*migration.Plan, error) {
+func (m *TimestampsMigration) Plan(ctx context.Context) (*migratorredis.Plan, error) {
 	updates := make(timestampUpdates)
 
 	// Collect tenant updates
@@ -80,7 +80,7 @@ func (m *TimestampsMigration) Plan(ctx context.Context) (*migration.Plan, error)
 	// Count destination stats
 	destsNeedMigration := len(updates) - tenantsNeedMigration
 
-	plan := &migration.Plan{
+	plan := &migratorredis.Plan{
 		MigrationName: m.Name(),
 		Description:   m.Description(),
 		Version:       "v2",
@@ -104,12 +104,12 @@ func (m *TimestampsMigration) Plan(ctx context.Context) (*migration.Plan, error)
 	return plan, nil
 }
 
-func (m *TimestampsMigration) Apply(ctx context.Context, plan *migration.Plan) (*migration.State, error) {
-	state := &migration.State{
+func (m *TimestampsMigration) Apply(ctx context.Context, plan *migratorredis.Plan) (*migratorredis.State, error) {
+	state := &migratorredis.State{
 		MigrationName: m.Name(),
 		Phase:         "applied",
 		StartedAt:     time.Now(),
-		Progress: migration.Progress{
+		Progress: migratorredis.Progress{
 			TotalItems: plan.EstimatedItems,
 		},
 		Metadata: make(map[string]interface{}),
@@ -174,8 +174,8 @@ func (m *TimestampsMigration) Apply(ctx context.Context, plan *migration.Plan) (
 	return state, nil
 }
 
-func (m *TimestampsMigration) Verify(ctx context.Context, state *migration.State) (*migration.VerificationResult, error) {
-	result := &migration.VerificationResult{
+func (m *TimestampsMigration) Verify(ctx context.Context, state *migratorredis.State) (*migratorredis.VerificationResult, error) {
+	result := &migratorredis.VerificationResult{
 		Valid:   true,
 		Details: make(map[string]string),
 	}
@@ -214,7 +214,7 @@ func (m *TimestampsMigration) PlanCleanup(ctx context.Context) (int, error) {
 	return 0, nil
 }
 
-func (m *TimestampsMigration) Cleanup(ctx context.Context, state *migration.State) error {
+func (m *TimestampsMigration) Cleanup(ctx context.Context, state *migratorredis.State) error {
 	// No cleanup needed - timestamps are converted in place
 	m.logger.LogInfo("No cleanup needed for timestamps migration")
 	return nil

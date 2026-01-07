@@ -7,9 +7,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration"
-	migration_001 "github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration/001_hash_tags"
-	migration_002 "github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration/002_timestamps"
+	"github.com/hookdeck/outpost/internal/migrator/migratorredis"
+	migration_001 "github.com/hookdeck/outpost/internal/migrator/migratorredis/001_hash_tags"
+	migration_002 "github.com/hookdeck/outpost/internal/migrator/migratorredis/002_timestamps"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/redis"
 )
@@ -22,7 +22,7 @@ const (
 type Migrator struct {
 	client     *redisClientWrapper
 	logger     MigrationLogger
-	migrations map[string]migration.Migration // All available migrations
+	migrations map[string]migratorredis.Migration // All available migrations
 }
 
 // Close cleans up resources (logger sync, redis connection, etc)
@@ -64,10 +64,10 @@ func NewMigrator(cfg *config.Config, logger MigrationLogger) (*Migrator, error) 
 	}
 
 	// Initialize all migrations
-	migrations := make(map[string]migration.Migration)
+	migrations := make(map[string]migratorredis.Migration)
 
 	// Helper to register a migration by its name
-	registerMigration := func(m migration.Migration) {
+	registerMigration := func(m migratorredis.Migration) {
 		migrations[m.Name()] = m
 	}
 
@@ -330,7 +330,7 @@ func (m *Migrator) Verify(ctx context.Context) error {
 
 	// Run verification
 	// Note: We're passing a minimal state object since the full state isn't stored yet
-	verifyState := &migration.State{
+	verifyState := &migratorredis.State{
 		MigrationName: mig.Name(),
 		Phase:         "applied",
 	}
@@ -361,7 +361,7 @@ func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 	// First verify the migration if not forced
 	if !force {
 		m.logger.LogInfo("verifying migration before cleanup")
-		verifyState := &migration.State{
+		verifyState := &migratorredis.State{
 			MigrationName: mig.Name(),
 			Phase:         "applied",
 		}
@@ -417,7 +417,7 @@ func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 
 	// Run cleanup
 	// Note: We're passing a minimal state object since the full state isn't stored yet
-	cleanupState := &migration.State{
+	cleanupState := &migratorredis.State{
 		MigrationName: mig.Name(),
 		Phase:         "applied",
 	}
@@ -507,11 +507,11 @@ func isApplied(ctx context.Context, client *redisClientWrapper, name string) boo
 }
 
 // getNextMigration finds the next unapplied migration
-func (m *Migrator) getNextMigration(ctx context.Context) (migration.Migration, error) {
+func (m *Migrator) getNextMigration(ctx context.Context) (migratorredis.Migration, error) {
 	// Sort migrations by version
 	type migrationEntry struct {
 		name      string
-		migration migration.Migration
+		migration migratorredis.Migration
 	}
 	var sorted []migrationEntry
 	for name, mig := range m.migrations {
@@ -532,11 +532,11 @@ func (m *Migrator) getNextMigration(ctx context.Context) (migration.Migration, e
 }
 
 // getLastAppliedMigration finds the most recently applied migration
-func (m *Migrator) getLastAppliedMigration(ctx context.Context) (migration.Migration, error) {
+func (m *Migrator) getLastAppliedMigration(ctx context.Context) (migratorredis.Migration, error) {
 	// Sort migrations by version (descending)
 	type migrationEntry struct {
 		name      string
-		migration migration.Migration
+		migration migratorredis.Migration
 	}
 	var sorted []migrationEntry
 	for name, mig := range m.migrations {

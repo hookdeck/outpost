@@ -3,7 +3,7 @@ package main
 import (
 	"strings"
 
-	"github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration"
+	"github.com/hookdeck/outpost/internal/migrator/migratorredis"
 	"github.com/hookdeck/outpost/internal/logging"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -77,7 +77,7 @@ func (l *ServerLogger) LogMigrationStart(name string) {
 	)
 }
 
-func (l *ServerLogger) LogMigrationPlan(name string, plan *migration.Plan) {
+func (l *ServerLogger) LogMigrationPlan(name string, plan *migratorredis.Plan) {
 	fields := []zap.Field{
 		zap.String("migration", name),
 		zap.String("description", plan.Description),
@@ -138,7 +138,7 @@ func (l *ServerLogger) LogVerificationStart(name string) {
 	)
 }
 
-func (l *ServerLogger) LogVerificationResult(name string, result *migration.VerificationResult) {
+func (l *ServerLogger) LogVerificationResult(name string, result *migratorredis.VerificationResult) {
 	fields := []zap.Field{
 		zap.String("migration", name),
 		zap.Bool("valid", result.Valid),

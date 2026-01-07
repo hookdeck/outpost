@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration"
+	"github.com/hookdeck/outpost/internal/migrator/migratorredis"
 )
 
 // CLILogger implements MigrationLogger for interactive CLI usage
@@ -84,7 +84,7 @@ func (l *CLILogger) LogMigrationStart(name string) {
 	fmt.Println("Applying migration...")
 }
 
-func (l *CLILogger) LogMigrationPlan(name string, plan *migration.Plan) {
+func (l *CLILogger) LogMigrationPlan(name string, plan *migratorredis.Plan) {
 	fmt.Printf("\nNext Migration: %s\n", name)
 	fmt.Printf("  Description: %s\n", plan.Description)
 	fmt.Printf("  Estimated items: %d\n", plan.EstimatedItems)
@@ -132,7 +132,7 @@ func (l *CLILogger) LogVerificationStart(name string) {
 	fmt.Printf("Verifying migration %s...\n", name)
 }
 
-func (l *CLILogger) LogVerificationResult(name string, result *migration.VerificationResult) {
+func (l *CLILogger) LogVerificationResult(name string, result *migratorredis.VerificationResult) {
 	if result.Valid {
 		fmt.Println("✅ Migration verified successfully")
 		if l.verbose {

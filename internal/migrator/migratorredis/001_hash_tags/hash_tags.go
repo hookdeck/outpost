@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration"
+	"github.com/hookdeck/outpost/internal/migrator/migratorredis"
 	"github.com/hookdeck/outpost/internal/redis"
 )
 
@@ -23,14 +23,14 @@ import (
 // - Have keys in the old format: tenant:ID:* (without curly braces)
 type HashTagsMigration struct {
 	client redis.Client
-	logger migration.Logger
+	logger migratorredis.Logger
 }
 
 // Ensure HashTagsMigration implements the Migration interface
-var _ migration.Migration = (*HashTagsMigration)(nil)
+var _ migratorredis.Migration = (*HashTagsMigration)(nil)
 
 // New creates a new HashTagsMigration instance
-func New(client redis.Client, logger migration.Logger) *HashTagsMigration {
+func New(client redis.Client, logger migratorredis.Logger) *HashTagsMigration {
 	return &HashTagsMigration{
 		client: client,
 		logger: logger,
@@ -49,7 +49,7 @@ func (m *HashTagsMigration) Description() string {
 	return "Migrate from legacy format (tenant:*) to hash-tagged format (tenant:{id}:*) for Redis Cluster support"
 }
 
-func (m *HashTagsMigration) Plan(ctx context.Context) (*migration.Plan, error) {
+func (m *HashTagsMigration) Plan(ctx context.Context) (*migratorredis.Plan, error) {
 	// Find all legacy tenants
 	legacyKeys, err := m.client.Keys(ctx, "tenant:*").Result()
 	if err != nil {
@@ -80,7 +80,7 @@ func (m *HashTagsMigration) Plan(ctx context.Context) (*migration.Plan, error) {
 	}
 
 	if len(tenants) == 0 {
-		return &migration.Plan{
+		return &migratorredis.Plan{
 			MigrationName:  m.Name(),
 			Description:    m.Description(),
 			Version:        "v2",
@@ -96,7 +96,7 @@ func (m *HashTagsMigration) Plan(ctx context.Context) (*migration.Plan, error) {
 		tenantList = append(tenantList, id)
 	}
 
-	plan := &migration.Plan{
+	plan := &migratorredis.Plan{
 		MigrationName: m.Name(),
 		Description:   m.Description(),
 		Version:       "v2",
@@ -125,12 +125,12 @@ func (m *HashTagsMigration) Plan(ctx context.Context) (*migration.Plan, error) {
 	return plan, nil
 }
 
-func (m *HashTagsMigration) Apply(ctx context.Context, plan *migration.Plan) (*migration.State, error) {
-	state := &migration.State{
+func (m *HashTagsMigration) Apply(ctx context.Context, plan *migratorredis.Plan) (*migratorredis.State, error) {
+	state := &migratorredis.State{
 		MigrationName: m.Name(),
 		Phase:         "applied",
 		StartedAt:     time.Now(),
-		Progress: migration.Progress{
+		Progress: migratorredis.Progress{
 			TotalItems: plan.Scope["tenants"],
 		},
 		Metadata: make(map[string]interface{}),
@@ -180,8 +180,8 @@ func (m *HashTagsMigration) Apply(ctx context.Context, plan *migration.Plan) (*m
 	return state, nil
 }
 
-func (m *HashTagsMigration) Verify(ctx context.Context, state *migration.State) (*migration.VerificationResult, error) {
-	result := &migration.VerificationResult{
+func (m *HashTagsMigration) Verify(ctx context.Context, state *migratorredis.State) (*migratorredis.VerificationResult, error) {
+	result := &migratorredis.VerificationResult{
 		Valid:   true,
 		Details: make(map[string]string),
 	}
@@ -341,7 +341,7 @@ func (m *HashTagsMigration) PlanCleanup(ctx context.Context) (int, error) {
 	return len(legacyKeys), nil
 }
 
-func (m *HashTagsMigration) Cleanup(ctx context.Context, state *migration.State) error {
+func (m *HashTagsMigration) Cleanup(ctx context.Context, state *migratorredis.State) error {
 	// Get legacy keys to clean up
 	legacyKeys, err := m.getLegacyKeys(ctx)
 	if err != nil {
