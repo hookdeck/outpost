@@ -172,14 +172,14 @@ func (s *entityStoreImpl) ensureTenantIndex(ctx context.Context) error {
 	indexName := s.tenantIndexName()
 	prefix := s.tenantKeyPrefix()
 
-	// FT.CREATE index ON HASH PREFIX 1 prefix SCHEMA id TAG created_at TAG SORTABLE
-	// Note: created_at is RFC3339 format which sorts correctly as strings
+	// FT.CREATE index ON HASH PREFIX 1 prefix SCHEMA id TAG created_at NUMERIC SORTABLE
+	// Note: created_at is stored as Unix timestamp for timezone-agnostic sorting
 	_, err := s.doCmd(ctx, "FT.CREATE", indexName,
 		"ON", "HASH",
 		"PREFIX", "1", prefix,
 		"SCHEMA",
 		"id", "TAG",
-		"created_at", "TAG", "SORTABLE",
+		"created_at", "NUMERIC", "SORTABLE",
 	).Result()
 
 	if err != nil {
@@ -246,8 +246,12 @@ func (s *entityStoreImpl) UpsertTenant(ctx context.Context, tenant Tenant) error
 		tenant.UpdatedAt = now
 	}
 
-	// Set tenant data (basic fields)
-	if err := s.redisClient.HSet(ctx, key, tenant).Err(); err != nil {
+	// Set tenant data - store timestamps as Unix integers for timezone-agnostic sorting
+	if err := s.redisClient.HSet(ctx, key,
+		"id", tenant.ID,
+		"created_at", tenant.CreatedAt.Unix(),
+		"updated_at", tenant.UpdatedAt.Unix(),
+	).Err(); err != nil {
 		return err
 	}
 
@@ -717,16 +721,17 @@ func (s *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 		pipe.HDel(ctx, key, "deleted_at")
 
 		// Set all destination fields atomically
+		// Store timestamps as Unix integers for timezone-agnostic handling
 		pipe.HSet(ctx, key, "id", destination.ID)
 		pipe.HSet(ctx, key, "type", destination.Type)
 		pipe.HSet(ctx, key, "topics", &destination.Topics)
 		pipe.HSet(ctx, key, "config", &destination.Config)
 		pipe.HSet(ctx, key, "credentials", encryptedCredentials)
-		pipe.HSet(ctx, key, "created_at", destination.CreatedAt)
-		pipe.HSet(ctx, key, "updated_at", destination.UpdatedAt)
+		pipe.HSet(ctx, key, "created_at", destination.CreatedAt.Unix())
+		pipe.HSet(ctx, key, "updated_at", destination.UpdatedAt.Unix())
 
 		if destination.DisabledAt != nil {
-			pipe.HSet(ctx, key, "disabled_at", *destination.DisabledAt)
+			pipe.HSet(ctx, key, "disabled_at", destination.DisabledAt.Unix())
 		} else {
 			pipe.HDel(ctx, key, "disabled_at")
 		}

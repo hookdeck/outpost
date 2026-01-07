@@ -18,6 +18,7 @@ const (
 type (
 	Cmdable            = r.Cmdable
 	MapStringStringCmd = r.MapStringStringCmd
+	SliceCmd           = r.SliceCmd
 	Pipeliner          = r.Pipeliner
 	Tx                 = r.Tx
 	Cmd                = r.Cmd

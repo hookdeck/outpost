@@ -9,6 +9,7 @@ import (
 
 	"github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration"
 	migration_001 "github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration/001_hash_tags"
+	migration_002 "github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration/002_timestamps"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/redis"
 )
@@ -72,9 +73,7 @@ func NewMigrator(cfg *config.Config, logger MigrationLogger) (*Migrator, error) 
 
 	// Register all migrations
 	registerMigration(migration_001.New(client, logger))
-
-	// Future migrations would be added here:
-	// registerMigration(migration_002.New(client, logger))
+	registerMigration(migration_002.New(client, logger))
 
 	return &Migrator{
 		client:     client,

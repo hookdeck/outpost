@@ -44,6 +44,9 @@ type Plan struct {
 	Scope          map[string]int    `json:"scope"` // e.g., {"tenants": 100, "destinations": 500}
 	EstimatedItems int               `json:"estimated_items"`
 	Metadata       map[string]string `json:"metadata,omitempty"`
+	// Data holds migration-specific data collected during Plan phase.
+	// Apply phase can use this to avoid re-reading from Redis.
+	Data interface{} `json:"-"`
 }
 
 // State represents the current state of a migration
