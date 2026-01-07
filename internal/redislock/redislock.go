@@ -7,11 +7,11 @@
 // acquire the lock under extreme circumstances (see the Redis documentation for details).
 // We accept these edge cases because our primary use cases can tolerate occasional races:
 //
-// 1. Infrastructure provisioning - infrequent, cloud providers handle concurrent attempts gracefully
-// 2. Migration coordination - prevents multiple nodes from running migrations simultaneously at
-//    startup; if a race occurs, the migration runner re-checks "already applied" status after
-//    acquiring the lock
-// 3. Initialization tasks - typically have "already exists" checks after acquiring lock
+//  1. Infrastructure provisioning - infrequent, cloud providers handle concurrent attempts gracefully
+//  2. Migration coordination - prevents multiple nodes from running migrations simultaneously at
+//     startup; if a race occurs, the migration runner re-checks "already applied" status after
+//     acquiring the lock
+//  3. Initialization tasks - typically have "already exists" checks after acquiring lock
 //
 // In the worst case, if an operation fails due to a lock race, the node will fail its
 // health check and another node can take over. This is acceptable for startup-time

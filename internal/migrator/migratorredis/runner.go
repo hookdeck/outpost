@@ -130,8 +130,8 @@ func (r *Runner) handleFreshInstallation(ctx context.Context) error {
 
 // PendingMigration contains info about a pending migration
 type PendingMigration struct {
-	Name        string
-	Description string
+	Name         string
+	Description  string
 	AutoRunnable bool
 }
 
