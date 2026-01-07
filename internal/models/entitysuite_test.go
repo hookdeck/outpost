@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/redis"
@@ -26,9 +25,33 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assert.Equal(t, expected.Credentials, actual.Credentials)
 	assert.Equal(t, expected.DeliveryMetadata, actual.DeliveryMetadata)
 	assert.Equal(t, expected.Metadata, actual.Metadata)
-	assert.True(t, cmp.Equal(expected.CreatedAt, actual.CreatedAt))
-	assert.True(t, cmp.Equal(expected.UpdatedAt, actual.UpdatedAt))
-	assert.True(t, cmp.Equal(expected.DisabledAt, actual.DisabledAt))
+	// Use time.Time.Equal() to compare instants (ignores timezone/nanoseconds)
+	// Timestamps are stored as Unix seconds, so nanoseconds are lost and times return as UTC
+	assertEqualTime(t, expected.CreatedAt, actual.CreatedAt, "CreatedAt")
+	assertEqualTime(t, expected.UpdatedAt, actual.UpdatedAt, "UpdatedAt")
+	assertEqualTimePtr(t, expected.DisabledAt, actual.DisabledAt, "DisabledAt")
+}
+
+// assertEqualTime compares two times by truncating to second precision
+// since timestamps are stored as Unix seconds.
+func assertEqualTime(t *testing.T, expected, actual time.Time, field string) {
+	t.Helper()
+	// Truncate to seconds since Unix timestamps lose sub-second precision
+	expectedTrunc := expected.Truncate(time.Second)
+	actualTrunc := actual.Truncate(time.Second)
+	assert.True(t, expectedTrunc.Equal(actualTrunc),
+		"expected %s %v, got %v", field, expectedTrunc, actualTrunc)
+}
+
+// assertEqualTimePtr compares two optional times by truncating to second precision.
+func assertEqualTimePtr(t *testing.T, expected, actual *time.Time, field string) {
+	t.Helper()
+	if expected == nil {
+		assert.Nil(t, actual, "%s should be nil", field)
+		return
+	}
+	require.NotNil(t, actual, "%s should not be nil", field)
+	assertEqualTime(t, *expected, *actual, field)
 }
 
 // RedisClientFactory creates a Redis client for testing.
@@ -112,14 +135,14 @@ func (s *EntityTestSuite) TestTenantCRUD() {
 		retrieved, err := s.entityStore.RetrieveTenant(s.ctx, input.ID)
 		require.NoError(s.T(), err)
 		assert.Equal(s.T(), input.ID, retrieved.ID)
-		assert.True(s.T(), input.CreatedAt.Equal(retrieved.CreatedAt))
+		assertEqualTime(t, input.CreatedAt, retrieved.CreatedAt, "CreatedAt")
 	})
 
 	t.Run("gets", func(t *testing.T) {
 		actual, err := s.entityStore.RetrieveTenant(s.ctx, input.ID)
 		require.NoError(s.T(), err)
 		assert.Equal(s.T(), input.ID, actual.ID)
-		assert.True(s.T(), input.CreatedAt.Equal(actual.CreatedAt))
+		assertEqualTime(t, input.CreatedAt, actual.CreatedAt, "CreatedAt")
 	})
 
 	t.Run("overrides", func(t *testing.T) {
@@ -131,7 +154,7 @@ func (s *EntityTestSuite) TestTenantCRUD() {
 		actual, err := s.entityStore.RetrieveTenant(s.ctx, input.ID)
 		require.NoError(s.T(), err)
 		assert.Equal(s.T(), input.ID, actual.ID)
-		assert.True(s.T(), input.CreatedAt.Equal(actual.CreatedAt))
+		assertEqualTime(t, input.CreatedAt, actual.CreatedAt, "CreatedAt")
 	})
 
 	t.Run("clears", func(t *testing.T) {
@@ -156,7 +179,7 @@ func (s *EntityTestSuite) TestTenantCRUD() {
 		actual, err := s.entityStore.RetrieveTenant(s.ctx, input.ID)
 		require.NoError(s.T(), err)
 		assert.Equal(s.T(), input.ID, actual.ID)
-		assert.True(s.T(), input.CreatedAt.Equal(actual.CreatedAt))
+		assertEqualTime(t, input.CreatedAt, actual.CreatedAt, "CreatedAt")
 	})
 
 	t.Run("upserts with metadata", func(t *testing.T) {
@@ -213,17 +236,19 @@ func (s *EntityTestSuite) TestTenantCRUD() {
 	})
 
 	t.Run("updates updated_at on upsert", func(t *testing.T) {
+		// Use explicit timestamps 1 second apart (Unix timestamps have second precision)
+		originalTime := time.Now().Add(-2 * time.Second).Truncate(time.Second)
+		updatedTime := originalTime.Add(1 * time.Second)
+
 		original := testutil.TenantFactory.Any()
+		original.UpdatedAt = originalTime
 
 		err := s.entityStore.UpsertTenant(s.ctx, original)
 		require.NoError(s.T(), err)
 
-		// Wait a bit to ensure different timestamp
-		time.Sleep(10 * time.Millisecond)
-
-		// Update the tenant
+		// Update the tenant with a later timestamp
 		updated := original
-		updated.UpdatedAt = time.Now()
+		updated.UpdatedAt = updatedTime
 
 		err = s.entityStore.UpsertTenant(s.ctx, updated)
 		require.NoError(s.T(), err)
@@ -231,8 +256,8 @@ func (s *EntityTestSuite) TestTenantCRUD() {
 		retrieved, err := s.entityStore.RetrieveTenant(s.ctx, updated.ID)
 		require.NoError(s.T(), err)
 
-		// updated_at should be newer than original
-		assert.True(s.T(), retrieved.UpdatedAt.After(original.UpdatedAt))
+		// updated_at should be newer than original (comparing truncated times)
+		assert.True(s.T(), retrieved.UpdatedAt.After(originalTime))
 		assert.True(s.T(), updated.UpdatedAt.Unix() == retrieved.UpdatedAt.Unix())
 	})
 
@@ -375,17 +400,19 @@ func (s *EntityTestSuite) TestDestinationCRUD() {
 	})
 
 	t.Run("updates updated_at on upsert", func(t *testing.T) {
+		// Use explicit timestamps 1 second apart (Unix timestamps have second precision)
+		originalTime := time.Now().Add(-2 * time.Second).Truncate(time.Second)
+		updatedTime := originalTime.Add(1 * time.Second)
+
 		original := testutil.DestinationFactory.Any()
+		original.UpdatedAt = originalTime
 
 		err := s.entityStore.CreateDestination(s.ctx, original)
 		require.NoError(s.T(), err)
 
-		// Wait a bit to ensure different timestamp
-		time.Sleep(10 * time.Millisecond)
-
-		// Update the destination
+		// Update the destination with a later timestamp
 		updated := original
-		updated.UpdatedAt = time.Now()
+		updated.UpdatedAt = updatedTime
 		updated.Topics = []string{"updated.topic"}
 
 		err = s.entityStore.UpsertDestination(s.ctx, updated)
@@ -394,8 +421,8 @@ func (s *EntityTestSuite) TestDestinationCRUD() {
 		retrieved, err := s.entityStore.RetrieveDestination(s.ctx, updated.TenantID, updated.ID)
 		require.NoError(s.T(), err)
 
-		// updated_at should be newer than original
-		assert.True(s.T(), retrieved.UpdatedAt.After(original.UpdatedAt))
+		// updated_at should be newer than original (comparing truncated times)
+		assert.True(s.T(), retrieved.UpdatedAt.After(originalTime))
 		assert.True(s.T(), updated.UpdatedAt.Unix() == retrieved.UpdatedAt.Unix())
 
 		// cleanup
@@ -477,12 +504,16 @@ func (s *EntityTestSuite) setupMultiDestination() multiDestinationData {
 		{"user.deleted"},
 		{"user.created", "user.updated"},
 	}
+	// Use explicit timestamps 1 second apart to ensure deterministic sort order
+	// (Unix timestamps have second precision)
+	baseTime := time.Now().Add(-10 * time.Second).Truncate(time.Second)
 	for i := 0; i < 5; i++ {
 		id := idgen.Destination()
 		data.destinations[i] = testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithID(id),
 			testutil.DestinationFactory.WithTenantID(data.tenant.ID),
 			testutil.DestinationFactory.WithTopics(destinationTopicList[i]),
+			testutil.DestinationFactory.WithCreatedAt(baseTime.Add(time.Duration(i)*time.Second)),
 		)
 		require.NoError(s.T(), s.entityStore.UpsertDestination(s.ctx, data.destinations[i]))
 	}
@@ -751,7 +782,7 @@ func (s *EntityTestSuite) TestDestinationEnableDisable() {
 		actual, err := s.entityStore.RetrieveDestination(s.ctx, input.TenantID, input.ID)
 		require.NoError(s.T(), err)
 		assert.Equal(s.T(), expected.ID, actual.ID)
-		assert.True(s.T(), cmp.Equal(expected.DisabledAt, actual.DisabledAt), "expected %v, got %v", expected.DisabledAt, actual.DisabledAt)
+		assertEqualTimePtr(t, expected.DisabledAt, actual.DisabledAt, "DisabledAt")
 	}
 
 	t.Run("should disable", func(t *testing.T) {
