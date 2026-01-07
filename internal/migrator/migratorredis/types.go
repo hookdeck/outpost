@@ -17,6 +17,11 @@ type Migration interface {
 	// Description returns a human-readable description
 	Description() string
 
+	// AutoRunnable returns true if this migration can be safely run automatically
+	// at startup without manual intervention. Migrations that are destructive,
+	// require confirmation, or have complex rollback scenarios should return false.
+	AutoRunnable() bool
+
 	// Plan analyzes the current state and returns a migration plan
 	Plan(ctx context.Context) (*Plan, error)
 

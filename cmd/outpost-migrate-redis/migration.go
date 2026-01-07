@@ -7,10 +7,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/migrator/migratorredis"
-	migration_001 "github.com/hookdeck/outpost/internal/migrator/migratorredis/001_hash_tags"
-	migration_002 "github.com/hookdeck/outpost/internal/migrator/migratorredis/002_timestamps"
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/migrator/migrations"
+	"github.com/hookdeck/outpost/internal/migrator/migratorredis"
 	"github.com/hookdeck/outpost/internal/redis"
 )
 
@@ -63,22 +62,19 @@ func NewMigrator(cfg *config.Config, logger MigrationLogger) (*Migrator, error) 
 		Cmdable: redisClient,
 	}
 
-	// Initialize all migrations
-	migrations := make(map[string]migratorredis.Migration)
+	// Get all migrations from the central registry
+	allMigrations := migrations.AllRedisMigrations(client, logger)
 
-	// Helper to register a migration by its name
-	registerMigration := func(m migratorredis.Migration) {
-		migrations[m.Name()] = m
+	// Build map by name for lookup
+	migrationMap := make(map[string]migratorredis.Migration)
+	for _, m := range allMigrations {
+		migrationMap[m.Name()] = m
 	}
-
-	// Register all migrations
-	registerMigration(migration_001.New(client, logger))
-	registerMigration(migration_002.New(client, logger))
 
 	return &Migrator{
 		client:     client,
 		logger:     logger,
-		migrations: migrations,
+		migrations: migrationMap,
 	}, nil
 }
 

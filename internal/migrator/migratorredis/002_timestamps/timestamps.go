@@ -54,6 +54,16 @@ func (m *TimestampsMigration) Description() string {
 	return "Convert timestamp fields from RFC3339 strings to Unix timestamps for timezone-agnostic sorting"
 }
 
+func (m *TimestampsMigration) AutoRunnable() bool {
+	// Auto-runnable because:
+	// - In-place conversion, idempotent, non-destructive
+	// - Uses SCAN (non-blocking) and updates fields without key changes
+	// - Lazy migration fallback: parseTimestamp() reads both Unix and RFC3339 formats,
+	//   so any records not converted during auto-migration will still work correctly
+	//   and get converted on next write
+	return true
+}
+
 func (m *TimestampsMigration) Plan(ctx context.Context) (*migratorredis.Plan, error) {
 	updates := make(timestampUpdates)
 

@@ -49,6 +49,12 @@ func (m *HashTagsMigration) Description() string {
 	return "Migrate from legacy format (tenant:*) to hash-tagged format (tenant:{id}:*) for Redis Cluster support"
 }
 
+func (m *HashTagsMigration) AutoRunnable() bool {
+	// Not auto-runnable: involves key renaming which is more invasive
+	// and requires manual verification for production systems
+	return false
+}
+
 func (m *HashTagsMigration) Plan(ctx context.Context) (*migratorredis.Plan, error) {
 	// Find all legacy tenants
 	legacyKeys, err := m.client.Keys(ctx, "tenant:*").Result()
