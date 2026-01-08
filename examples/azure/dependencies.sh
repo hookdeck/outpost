@@ -167,7 +167,9 @@ if ! az redisenterprise show --cluster-name "$REDIS_NAME" --resource-group "$RES
     --resource-group "$RESOURCE_GROUP" \
     --location "$LOCATION" \
     --sku Enterprise_E1 \
-    --minimum-tls-version "1.2"
+    --minimum-tls-version "1.2" \
+    --public-network-access "Enabled" \
+    --access-keys-auth "Enabled"
   
   echo "⏳ Waiting for cluster to be ready..."
   az redisenterprise wait --cluster-name "$REDIS_NAME" --resource-group "$RESOURCE_GROUP" --created
