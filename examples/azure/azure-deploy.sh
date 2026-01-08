@@ -35,7 +35,7 @@ az containerapp up \
   --resource-group $RESOURCE_GROUP \
   --location $LOCATION \
   --environment outpost-environment \
-  --image hookdeck/outpost:v0.4.0 \
+  --image hookdeck/outpost:v0.11.0 \
   --target-port 3333 \
   --ingress external \
   --env-vars "SERVICE=api" $ENV_VARS_STRING
@@ -47,7 +47,7 @@ az containerapp up \
   --resource-group $RESOURCE_GROUP \
   --location $LOCATION \
   --environment outpost-environment \
-  --image hookdeck/outpost:v0.4.0 \
+  --image hookdeck/outpost:v0.11.0 \
   --ingress internal \
   --env-vars "SERVICE=delivery" $ENV_VARS_STRING
 
@@ -58,7 +58,7 @@ az containerapp up \
   --resource-group $RESOURCE_GROUP \
   --location $LOCATION \
   --environment outpost-environment \
-  --image hookdeck/outpost:v0.4.0 \
+  --image hookdeck/outpost:v0.11.0 \
   --ingress internal \
   --env-vars "SERVICE=log" $ENV_VARS_STRING
 
