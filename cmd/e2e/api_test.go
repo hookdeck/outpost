@@ -507,9 +507,13 @@ func (suite *basicSuite) TestListTenantsAPI() {
 	}
 
 	// With RediSearch, test full list functionality
-	// Create some tenants first
+	// Create some tenants first, with 1 second apart to ensure distinct timestamps
+	// (Dragonfly's FT.SEARCH SORTBY + LIMIT has issues with duplicate sort keys)
 	tenantIDs := make([]string, 3)
 	for i := 0; i < 3; i++ {
+		if i > 0 {
+			time.Sleep(time.Second)
+		}
 		tenantIDs[i] = idgen.String()
 		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 			Method: httpclient.MethodPUT,

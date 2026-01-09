@@ -17,11 +17,12 @@ var (
 	redisOnce     sync.Once
 	dragonflyOnce sync.Once
 
-	// DB 0 is reserved for Redis Stack (RediSearch requires DB 0)
-	// Tests needing Redis Stack serialize via this mutex
-	redisStackMu sync.Mutex
+	// DB 0 is reserved for Redis Stack / Dragonfly Stack (RediSearch requires DB 0)
+	// Tests needing RediSearch serialize via these mutexes
+	redisStackMu     sync.Mutex
+	dragonflyStackMu sync.Mutex
 
-	// DB 1-15 are for regular Redis tests (can run in parallel)
+	// DB 1-15 are for regular Redis/Dragonfly tests (can run in parallel)
 	redisDBMu       sync.Mutex
 	dragonflyDBMu   sync.Mutex
 	redisDBUsed     = make(map[int]bool)
@@ -70,7 +71,8 @@ func NewRedisStackConfig(t *testing.T) *redis.RedisConfig {
 	return cfg
 }
 
-// NewDragonflyConfig allocates a Dragonfly database (0-15) for the test.
+// NewDragonflyConfig allocates a Dragonfly database (1-15) for the test.
+// Use NewDragonflyStackConfig for tests requiring RediSearch.
 // The database is flushed on cleanup.
 func NewDragonflyConfig(t *testing.T) *redis.RedisConfig {
 	addr := EnsureDragonfly()
@@ -81,6 +83,25 @@ func NewDragonflyConfig(t *testing.T) *redis.RedisConfig {
 	t.Cleanup(func() {
 		flushRedisDB(addr, db)
 		releaseDragonflyDB(db)
+	})
+
+	return cfg
+}
+
+// NewDragonflyStackConfig returns DB 0 for tests requiring RediSearch on Dragonfly.
+// Tests using this are serialized (one at a time) since RediSearch only works on DB 0.
+// The database is flushed on cleanup.
+func NewDragonflyStackConfig(t *testing.T) *redis.RedisConfig {
+	addr := EnsureDragonfly()
+
+	// Acquire exclusive access to DB 0
+	dragonflyStackMu.Lock()
+
+	cfg := parseAddrToConfig(addr, redisStackDB)
+
+	t.Cleanup(func() {
+		flushRedisDB(addr, redisStackDB)
+		dragonflyStackMu.Unlock()
 	})
 
 	return cfg
@@ -125,13 +146,14 @@ func allocateDragonflyDB() int {
 	dragonflyDBMu.Lock()
 	defer dragonflyDBMu.Unlock()
 
-	for i := 0; i <= maxRegularDB; i++ {
+	// Start from DB 1; DB 0 is reserved for DragonflyStack (RediSearch)
+	for i := minRegularDB; i <= maxRegularDB; i++ {
 		if !dragonflyDBUsed[i] {
 			dragonflyDBUsed[i] = true
 			return i
 		}
 	}
-	panic(fmt.Sprintf("no available Dragonfly databases (DB 0-%d all in use)", maxRegularDB))
+	panic(fmt.Sprintf("no available Dragonfly databases (DB %d-%d all in use)", minRegularDB, maxRegularDB))
 }
 
 func releaseDragonflyDB(db int) {

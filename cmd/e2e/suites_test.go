@@ -219,10 +219,11 @@ func TestDragonflyBasicSuite(t *testing.T) {
 		t.Skip("skipping e2e test")
 	}
 
+	// Use NewDragonflyStackConfig (DB 0) for RediSearch support
 	suite.Run(t, &basicSuite{
 		logStorageType: configs.LogStorageTypePostgres,
-		redisConfig:    testinfra.NewDragonflyConfig(t),
-		// Note: Dragonfly passes FT._LIST probe but FT.SEARCH doesn't work correctly
+		redisConfig:    testinfra.NewDragonflyStackConfig(t),
+		hasRediSearch:  true,
 	})
 }
 

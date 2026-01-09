@@ -163,8 +163,15 @@ func (s *entityStoreImpl) Init(ctx context.Context) error {
 		return nil
 	}
 
+	// Try to create the tenant index, gracefully disable if it fails
+	// TODO: consider logging this error, but we don't have a logger in this context
+	if err := s.ensureTenantIndex(ctx); err != nil {
+		s.listTenantSupported = false
+		return nil
+	}
+
 	s.listTenantSupported = true
-	return s.ensureTenantIndex(ctx)
+	return nil
 }
 
 // ensureTenantIndex creates the RediSearch index for tenants if it doesn't exist.
@@ -432,20 +439,40 @@ func (s *entityStoreImpl) parseSearchResult(ctx context.Context, result interfac
 			break
 		}
 
-		// arr[i] is the document key, arr[i+1] is the fields array
-		fields, ok := arr[i+1].([]interface{})
-		if !ok {
-			continue
-		}
-
-		// Parse fields into a map
+		// arr[i] is the document key, arr[i+1] is the fields
+		// Fields can be either:
+		// - []interface{} array (Redis Stack RESP2): [field1, val1, field2, val2, ...]
+		// - map[interface{}]interface{} (Dragonfly): {field1: val1, field2: val2, ...}
 		hash := make(map[string]string)
-		for j := 0; j < len(fields)-1; j += 2 {
-			key, keyOk := fields[j].(string)
-			val, valOk := fields[j+1].(string)
-			if keyOk && valOk {
-				hash[key] = val
+
+		switch fields := arr[i+1].(type) {
+		case []interface{}:
+			// Redis Stack RESP2 format: array of alternating key/value
+			for j := 0; j < len(fields)-1; j += 2 {
+				key, keyOk := fields[j].(string)
+				val, valOk := fields[j+1].(string)
+				if keyOk && valOk {
+					hash[key] = val
+				}
 			}
+		case map[interface{}]interface{}:
+			// Dragonfly format: map of key/value pairs
+			for k, v := range fields {
+				key, keyOk := k.(string)
+				if !keyOk {
+					continue
+				}
+				switch val := v.(type) {
+				case string:
+					hash[key] = val
+				case float64:
+					hash[key] = fmt.Sprintf("%.0f", val)
+				case int64:
+					hash[key] = fmt.Sprintf("%d", val)
+				}
+			}
+		default:
+			continue
 		}
 
 		// Skip deleted tenants

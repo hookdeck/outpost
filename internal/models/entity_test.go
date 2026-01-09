@@ -35,6 +35,32 @@ func redisStackClientFactory(t *testing.T) redis.Cmdable {
 	return client
 }
 
+// dragonflyClientFactory creates a Dragonfly client (DB 1-15, no RediSearch).
+// Tests can run in parallel since each gets its own DB.
+func dragonflyClientFactory(t *testing.T) redis.Cmdable {
+	testinfra.Start(t)
+	redisCfg := testinfra.NewDragonflyConfig(t)
+	client, err := redis.New(context.Background(), redisCfg)
+	if err != nil {
+		t.Fatalf("failed to create dragonfly client: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	return client
+}
+
+// dragonflyStackClientFactory creates a Dragonfly client on DB 0 (RediSearch works).
+// Tests using this are serialized since RediSearch only works on DB 0.
+func dragonflyStackClientFactory(t *testing.T) redis.Cmdable {
+	testinfra.Start(t)
+	redisCfg := testinfra.NewDragonflyStackConfig(t)
+	client, err := redis.New(context.Background(), redisCfg)
+	if err != nil {
+		t.Fatalf("failed to create dragonfly stack client: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	return client
+}
+
 // =============================================================================
 // EntityTestSuite with miniredis (in-memory, no RediSearch)
 // =============================================================================
@@ -76,6 +102,26 @@ func TestEntityStore_RedisStack_WithDeploymentID(t *testing.T) {
 }
 
 // =============================================================================
+// EntityTestSuite with Dragonfly (DB 1-15, no RediSearch, faster parallel tests)
+// =============================================================================
+
+func TestEntityStore_Dragonfly_WithoutDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: dragonflyClientFactory,
+		deploymentID:       "",
+	})
+}
+
+func TestEntityStore_Dragonfly_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: dragonflyClientFactory,
+		deploymentID:       "dp_test_001",
+	})
+}
+
+// =============================================================================
 // ListTenantTestSuite - only runs with Redis Stack (requires RediSearch)
 // =============================================================================
 
@@ -91,6 +137,26 @@ func TestListTenant_RedisStack_WithDeploymentID(t *testing.T) {
 	t.Parallel()
 	suite.Run(t, &ListTenantTestSuite{
 		RedisClientFactory: redisStackClientFactory,
+		deploymentID:       "dp_test_001",
+	})
+}
+
+// =============================================================================
+// ListTenantTestSuite with Dragonfly Stack (DB 0 for RediSearch)
+// =============================================================================
+
+func TestListTenant_Dragonfly_WithoutDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &ListTenantTestSuite{
+		RedisClientFactory: dragonflyStackClientFactory,
+		deploymentID:       "",
+	})
+}
+
+func TestListTenant_Dragonfly_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &ListTenantTestSuite{
+		RedisClientFactory: dragonflyStackClientFactory,
 		deploymentID:       "dp_test_001",
 	})
 }
