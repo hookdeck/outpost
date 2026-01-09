@@ -170,11 +170,19 @@ func (s *entityStoreImpl) Init(ctx context.Context) error {
 // ensureTenantIndex creates the RediSearch index for tenants if it doesn't exist.
 func (s *entityStoreImpl) ensureTenantIndex(ctx context.Context) error {
 	indexName := s.tenantIndexName()
-	prefix := s.tenantKeyPrefix()
 
+	// Check if index already exists using FT.INFO
+	_, err := s.doCmd(ctx, "FT.INFO", indexName).Result()
+	if err == nil {
+		// Index already exists
+		return nil
+	}
+
+	// Index doesn't exist, create it
 	// FT.CREATE index ON HASH PREFIX 1 prefix SCHEMA id TAG created_at NUMERIC SORTABLE
 	// Note: created_at is stored as Unix timestamp for timezone-agnostic sorting
-	_, err := s.doCmd(ctx, "FT.CREATE", indexName,
+	prefix := s.tenantKeyPrefix()
+	_, err = s.doCmd(ctx, "FT.CREATE", indexName,
 		"ON", "HASH",
 		"PREFIX", "1", prefix,
 		"SCHEMA",
@@ -183,10 +191,6 @@ func (s *entityStoreImpl) ensureTenantIndex(ctx context.Context) error {
 	).Result()
 
 	if err != nil {
-		// Check if index already exists (not an error)
-		if err.Error() == "Index already exists" {
-			return nil
-		}
 		return fmt.Errorf("failed to create tenant index: %w", err)
 	}
 

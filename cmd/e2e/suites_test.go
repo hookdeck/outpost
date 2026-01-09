@@ -132,6 +132,7 @@ type basicSuite struct {
 	logStorageType configs.LogStorageType
 	redisConfig    *redis.RedisConfig // Optional Redis config override
 	deploymentID   string             // Optional deployment ID
+	hasRediSearch  bool               // Whether the Redis backend supports RediSearch (only RedisStack)
 	alertServer    *alert.AlertMockServer
 }
 
@@ -221,6 +222,7 @@ func TestDragonflyBasicSuite(t *testing.T) {
 	suite.Run(t, &basicSuite{
 		logStorageType: configs.LogStorageTypePostgres,
 		redisConfig:    testinfra.NewDragonflyConfig(t),
+		// Note: Dragonfly passes FT._LIST probe but FT.SEARCH doesn't work correctly
 	})
 }
 
@@ -233,6 +235,7 @@ func TestRedisStackBasicSuite(t *testing.T) {
 	suite.Run(t, &basicSuite{
 		logStorageType: configs.LogStorageTypePostgres,
 		redisConfig:    testinfra.NewRedisStackConfig(t),
+		hasRediSearch:  true,
 	})
 }
 

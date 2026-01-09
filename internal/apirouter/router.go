@@ -173,6 +173,14 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: false,
 		},
+		{
+			Method:             http.MethodGet,
+			Path:               "/tenants",
+			Handler:            tenantHandlers.List,
+			AuthScope:          AuthScopeAdmin,
+			Mode:               RouteModeAlways,
+			AllowTenantFromJWT: false,
+		},
 	}
 
 	// Portal routes

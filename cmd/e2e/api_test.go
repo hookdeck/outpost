@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"testing"
 	"time"
 
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -492,6 +494,80 @@ func (suite *basicSuite) TestTenantAPIInvalidJSON() {
 	defer resp.Body.Close()
 
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode, "Malformed JSON should return 400")
+}
+
+func (suite *basicSuite) TestListTenantsAPI() {
+	t := suite.T()
+
+	if !suite.hasRediSearch {
+		// Skip full test on backends without verified RediSearch support
+		// Note: Some backends (like Dragonfly) may pass the FT._LIST probe
+		// but not fully support FT.SEARCH, so we just skip the test
+		t.Skip("skipping ListTenant test - RediSearch not verified for this backend")
+	}
+
+	// With RediSearch, test full list functionality
+	// Create some tenants first
+	tenantIDs := make([]string, 3)
+	for i := 0; i < 3; i++ {
+		tenantIDs[i] = idgen.String()
+		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodPUT,
+			Path:   "/" + tenantIDs[i],
+		}))
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+	}
+
+	// Test list without parameters
+	t.Run("list all tenants", func(t *testing.T) {
+		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants",
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, ok := resp.Body.(map[string]interface{})
+		require.True(t, ok, "response should be a map")
+		data, ok := body["data"].([]interface{})
+		require.True(t, ok, "data should be an array")
+		assert.GreaterOrEqual(t, len(data), 3, "should have at least 3 tenants")
+	})
+
+	// Test list with limit
+	t.Run("list with limit", func(t *testing.T) {
+		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=2",
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, ok := resp.Body.(map[string]interface{})
+		require.True(t, ok, "response should be a map")
+		data, ok := body["data"].([]interface{})
+		require.True(t, ok, "data should be an array")
+		assert.Equal(t, 2, len(data), "should have exactly 2 tenants")
+	})
+
+	// Test invalid limit
+	t.Run("invalid limit returns 400", func(t *testing.T) {
+		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=notanumber",
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
+	// Cleanup
+	for _, id := range tenantIDs {
+		_, _ = suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodDELETE,
+			Path:   "/" + id,
+		}))
+	}
 }
 
 func (suite *basicSuite) TestDestinationsAPI() {
