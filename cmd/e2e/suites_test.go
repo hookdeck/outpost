@@ -218,15 +218,9 @@ func TestDragonflyBasicSuite(t *testing.T) {
 		t.Skip("skipping e2e test")
 	}
 
-	// Get Dragonfly config from testinfra
-	dragonflyConfig := configs.CreateDragonflyConfig(t)
-	if dragonflyConfig == nil {
-		t.Skip("skipping Dragonfly test (TEST_DRAGONFLY_URL not set)")
-	}
-
 	suite.Run(t, &basicSuite{
 		logStorageType: configs.LogStorageTypePostgres,
-		redisConfig:    dragonflyConfig,
+		redisConfig:    testinfra.NewDragonflyConfig(t),
 	})
 }
 
