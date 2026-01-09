@@ -224,6 +224,18 @@ func TestDragonflyBasicSuite(t *testing.T) {
 	})
 }
 
+func TestRedisStackBasicSuite(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypePostgres,
+		redisConfig:    testinfra.NewRedisStackConfig(t),
+	})
+}
+
 func TestBasicSuiteWithDeploymentID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
