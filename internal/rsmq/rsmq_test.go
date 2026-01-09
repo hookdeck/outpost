@@ -1,11 +1,12 @@
 package rsmq
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -26,7 +27,10 @@ func TestDragonflyRSMQSuite(t *testing.T) { suite.Run(t, new(DragonflyRSMQSuite)
 func (s *RedisRSMQSuite) SetupTest() {
 	testinfra.Start(s.T())
 	cfg := testinfra.NewRedisConfig(s.T())
-	client := redis.NewClient(&redis.Options{Addr: cfg.Addr, DB: cfg.DB})
+	client, err := redis.New(context.Background(), cfg)
+	if err != nil {
+		s.T().Fatalf("failed to create redis client: %v", err)
+	}
 	s.T().Cleanup(func() { client.Close() })
 	s.client = NewRedisAdapter(client)
 	s.rsmq = NewRedisSMQ(s.client, "test")
@@ -35,7 +39,10 @@ func (s *RedisRSMQSuite) SetupTest() {
 func (s *DragonflyRSMQSuite) SetupTest() {
 	testinfra.Start(s.T())
 	cfg := testinfra.NewDragonflyConfig(s.T())
-	client := redis.NewClient(&redis.Options{Addr: cfg.Addr, DB: cfg.DB})
+	client, err := redis.New(context.Background(), cfg)
+	if err != nil {
+		s.T().Fatalf("failed to create redis client: %v", err)
+	}
 	s.T().Cleanup(func() { client.Close() })
 	s.client = NewRedisAdapter(client)
 	s.rsmq = NewRedisSMQ(s.client, "test")

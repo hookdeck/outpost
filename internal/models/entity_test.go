@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	goredis "github.com/redis/go-redis/v9"
-
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/redis"
@@ -29,10 +27,10 @@ func miniredisClientFactory(t *testing.T) redis.Cmdable {
 func redisStackClientFactory(t *testing.T) redis.Cmdable {
 	testinfra.Start(t)
 	redisCfg := testinfra.NewRedisStackConfig(t)
-	client := goredis.NewClient(&goredis.Options{
-		Addr: redisCfg.Addr,
-		DB:   redisCfg.DB,
-	})
+	client, err := redis.New(context.Background(), redisCfg)
+	if err != nil {
+		t.Fatalf("failed to create redis client: %v", err)
+	}
 	t.Cleanup(func() { client.Close() })
 	return client
 }
