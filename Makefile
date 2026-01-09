@@ -1,4 +1,4 @@
-TEST?=$$(go list ./...)
+TEST?=./internal/...
 RUN?=
 
 # Build targets
@@ -135,6 +135,13 @@ test/unit:
 
 test/integration:
 	gotestsum --rerun-fails=2 --hide-summary=skipped --packages="$(TEST)" -- $(TESTARGS) -run "Integration"
+
+test/e2e:
+	@if [ "$(RUN)" != "" ]; then \
+		$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test ./cmd/e2e $(TESTARGS) -run "$(RUN)"; \
+	else \
+		$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test ./cmd/e2e $(TESTARGS); \
+	fi
 
 test/e2e/rediscluster:
 	@echo "Running Redis cluster e2e tests in Docker container..."
