@@ -125,16 +125,16 @@ func TestEntityStore_Dragonfly_WithDeploymentID(t *testing.T) {
 // ListTenantTestSuite - only runs with Redis Stack (requires RediSearch)
 // =============================================================================
 
+// Not parallel - these tests share Redis indexes
 func TestListTenant_RedisStack_WithoutDeploymentID(t *testing.T) {
-	t.Parallel()
 	suite.Run(t, &ListTenantTestSuite{
 		RedisClientFactory: redisStackClientFactory,
 		deploymentID:       "",
 	})
 }
 
+// Not parallel - these tests share Redis indexes
 func TestListTenant_RedisStack_WithDeploymentID(t *testing.T) {
-	t.Parallel()
 	suite.Run(t, &ListTenantTestSuite{
 		RedisClientFactory: redisStackClientFactory,
 		deploymentID:       "dp_test_001",
@@ -145,16 +145,16 @@ func TestListTenant_RedisStack_WithDeploymentID(t *testing.T) {
 // ListTenantTestSuite with Dragonfly Stack (DB 0 for RediSearch)
 // =============================================================================
 
+// Not parallel - these tests share Redis indexes
 func TestListTenant_Dragonfly_WithoutDeploymentID(t *testing.T) {
-	t.Parallel()
 	suite.Run(t, &ListTenantTestSuite{
 		RedisClientFactory: dragonflyStackClientFactory,
 		deploymentID:       "",
 	})
 }
 
+// Not parallel - these tests share Redis indexes
 func TestListTenant_Dragonfly_WithDeploymentID(t *testing.T) {
-	t.Parallel()
 	suite.Run(t, &ListTenantTestSuite{
 		RedisClientFactory: dragonflyStackClientFactory,
 		deploymentID:       "dp_test_001",

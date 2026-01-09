@@ -175,20 +175,13 @@ func (s *entityStoreImpl) Init(ctx context.Context) error {
 }
 
 // ensureTenantIndex creates the RediSearch index for tenants if it doesn't exist.
-// If the index exists but doesn't have the required schema (e.g., missing deleted_at),
-// it will drop and recreate the index.
 func (s *entityStoreImpl) ensureTenantIndex(ctx context.Context) error {
 	indexName := s.tenantIndexName()
 
 	// Check if index already exists using FT.INFO
-	info, err := s.doCmd(ctx, "FT.INFO", indexName).Result()
+	_, err := s.doCmd(ctx, "FT.INFO", indexName).Result()
 	if err == nil {
-		// Index exists - verify it has the deleted_at field
-		if s.indexHasDeletedAtField(info) {
-			return nil
-		}
-		// Index exists but missing deleted_at field - drop and recreate
-		_, _ = s.doCmd(ctx, "FT.DROPINDEX", indexName).Result()
+		return nil
 	}
 
 	// Create the index
@@ -210,52 +203,6 @@ func (s *entityStoreImpl) ensureTenantIndex(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// indexHasDeletedAtField checks if the FT.INFO result contains the deleted_at field in the schema.
-func (s *entityStoreImpl) indexHasDeletedAtField(info interface{}) bool {
-	// FT.INFO returns different formats depending on RESP version
-	// We need to look for "deleted_at" in the attributes/schema section
-	switch v := info.(type) {
-	case []interface{}:
-		// RESP2 format: alternating key/value pairs
-		for i := 0; i < len(v)-1; i += 2 {
-			if key, ok := v[i].(string); ok && key == "attributes" {
-				if attrs, ok := v[i+1].([]interface{}); ok {
-					return s.attributesContainDeletedAt(attrs)
-				}
-			}
-		}
-	case map[interface{}]interface{}:
-		// RESP3 format: map
-		if attrs, ok := v["attributes"].([]interface{}); ok {
-			return s.attributesContainDeletedAt(attrs)
-		}
-	}
-	return false
-}
-
-// attributesContainDeletedAt checks if the attributes array contains the deleted_at field.
-func (s *entityStoreImpl) attributesContainDeletedAt(attrs []interface{}) bool {
-	for _, attr := range attrs {
-		switch a := attr.(type) {
-		case []interface{}:
-			// Each attribute is an array with field properties
-			for i := 0; i < len(a)-1; i += 2 {
-				if key, ok := a[i].(string); ok && key == "identifier" {
-					if val, ok := a[i+1].(string); ok && val == "deleted_at" {
-						return true
-					}
-				}
-			}
-		case map[interface{}]interface{}:
-			// Attribute as map
-			if id, ok := a["identifier"].(string); ok && id == "deleted_at" {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func (s *entityStoreImpl) RetrieveTenant(ctx context.Context, tenantID string) (*Tenant, error) {
