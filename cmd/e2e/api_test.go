@@ -561,6 +561,88 @@ func (suite *basicSuite) TestListTenantsAPI() {
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
+	// Test forward pagination
+	t.Run("forward pagination with next cursor", func(t *testing.T) {
+		// Get first page
+		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=2",
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, ok := resp.Body.(map[string]interface{})
+		require.True(t, ok, "response should be a map")
+		data, ok := body["data"].([]interface{})
+		require.True(t, ok, "data should be an array")
+		assert.Equal(t, 2, len(data), "page 1 should have 2 tenants")
+
+		next, _ := body["next"].(string)
+		require.NotEmpty(t, next, "should have next cursor")
+
+		// Get second page using next cursor
+		resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=2&next=" + next,
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, ok = resp.Body.(map[string]interface{})
+		require.True(t, ok, "response should be a map")
+		data, ok = body["data"].([]interface{})
+		require.True(t, ok, "data should be an array")
+		assert.GreaterOrEqual(t, len(data), 1, "page 2 should have at least 1 tenant")
+
+		prev, _ := body["prev"].(string)
+		assert.NotEmpty(t, prev, "page 2 should have prev cursor")
+	})
+
+	// Test backward pagination
+	t.Run("backward pagination with prev cursor", func(t *testing.T) {
+		// Get first page
+		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=2",
+		}))
+		require.NoError(t, err)
+		body, ok := resp.Body.(map[string]interface{})
+		require.True(t, ok)
+
+		next, _ := body["next"].(string)
+		require.NotEmpty(t, next, "should have next cursor")
+
+		// Go to page 2
+		resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=2&next=" + next,
+		}))
+		require.NoError(t, err)
+		body, ok = resp.Body.(map[string]interface{})
+		require.True(t, ok)
+
+		prev, _ := body["prev"].(string)
+		require.NotEmpty(t, prev, "page 2 should have prev cursor")
+
+		// Go back to page 1 using prev cursor
+		resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=2&prev=" + prev,
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, ok = resp.Body.(map[string]interface{})
+		require.True(t, ok, "response should be a map")
+		data, ok := body["data"].([]interface{})
+		require.True(t, ok, "data should be an array")
+		assert.Equal(t, 2, len(data), "should have 2 tenants on page 1")
+
+		// First page should not have prev cursor
+		prevOnPage1, _ := body["prev"].(string)
+		assert.Empty(t, prevOnPage1, "page 1 should not have prev cursor")
+	})
+
 	// Cleanup
 	for _, id := range tenantIDs {
 		_, _ = suite.client.Do(suite.AuthRequest(httpclient.Request{
