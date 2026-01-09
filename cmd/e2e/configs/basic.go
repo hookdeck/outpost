@@ -77,6 +77,7 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	c.MQs.RabbitMQ.LogQueue = idgen.String()
 
 	// Test-specific overrides
+	c.AuditLog = false // Disable audit logging to suppress info-level logs in tests
 	c.PublishMaxConcurrency = 3
 	c.DeliveryMaxConcurrency = 3
 	c.LogMaxConcurrency = 3
