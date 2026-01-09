@@ -1974,7 +1974,7 @@ paths:
                     type: string
                     example: "invalid cursor format"
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          description: Unauthorized (Admin API Key missing or invalid).
         "501":
           description: List Tenants feature is not available. Requires Redis with RediSearch module.
           content:
