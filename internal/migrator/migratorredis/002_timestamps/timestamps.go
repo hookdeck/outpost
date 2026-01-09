@@ -62,13 +62,14 @@ func (m *TimestampsMigration) Description() string {
 }
 
 func (m *TimestampsMigration) AutoRunnable() bool {
-	// Auto-runnable because:
-	// - In-place conversion, idempotent, non-destructive
-	// - Uses SCAN (non-blocking) and updates fields without key changes
-	// - Lazy migration fallback: parseTimestamp() reads both Unix and RFC3339 formats,
-	//   so any records not converted during auto-migration will still work correctly
-	//   and get converted on next write
-	return true
+	// NOT auto-runnable because RediSearch index requires consistent data types.
+	// The tenant index uses 'created_at NUMERIC SORTABLE' - mixing string (RFC3339)
+	// and numeric (Unix timestamp) values in the same index causes incorrect sorting
+	// and pagination. This migration should be run manually during a maintenance window
+	// to ensure all records are converted before the RediSearch index is created/used.
+	//
+	// Run with: outpost-migrate-redis apply 002_timestamps
+	return false
 }
 
 func (m *TimestampsMigration) Plan(ctx context.Context) (*migratorredis.Plan, error) {
