@@ -175,19 +175,26 @@ func (s *entityStoreImpl) Init(ctx context.Context) error {
 }
 
 // ensureTenantIndex creates the RediSearch index for tenants if it doesn't exist.
+// If the index exists but doesn't have the required schema (e.g., missing deleted_at),
+// it will drop and recreate the index.
 func (s *entityStoreImpl) ensureTenantIndex(ctx context.Context) error {
 	indexName := s.tenantIndexName()
 
 	// Check if index already exists using FT.INFO
-	_, err := s.doCmd(ctx, "FT.INFO", indexName).Result()
+	info, err := s.doCmd(ctx, "FT.INFO", indexName).Result()
 	if err == nil {
-		// Index already exists
-		return nil
+		// Index exists - verify it has the deleted_at field
+		if s.indexHasDeletedAtField(info) {
+			return nil
+		}
+		// Index exists but missing deleted_at field - drop and recreate
+		_, _ = s.doCmd(ctx, "FT.DROPINDEX", indexName).Result()
 	}
 
-	// Index doesn't exist, create it
-	// FT.CREATE index ON HASH PREFIX 1 prefix SCHEMA id TAG created_at NUMERIC SORTABLE
-	// Note: created_at is stored as Unix timestamp for timezone-agnostic sorting
+	// Create the index
+	// FT.CREATE index ON HASH PREFIX 1 prefix SCHEMA id TAG created_at NUMERIC SORTABLE deleted_at NUMERIC
+	// Note: created_at and deleted_at are stored as Unix timestamps
+	// deleted_at is indexed so we can filter out deleted tenants in FT.SEARCH queries
 	prefix := s.tenantKeyPrefix()
 	_, err = s.doCmd(ctx, "FT.CREATE", indexName,
 		"ON", "HASH",
@@ -195,6 +202,7 @@ func (s *entityStoreImpl) ensureTenantIndex(ctx context.Context) error {
 		"SCHEMA",
 		"id", "TAG",
 		"created_at", "NUMERIC", "SORTABLE",
+		"deleted_at", "NUMERIC",
 	).Result()
 
 	if err != nil {
@@ -202,6 +210,52 @@ func (s *entityStoreImpl) ensureTenantIndex(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// indexHasDeletedAtField checks if the FT.INFO result contains the deleted_at field in the schema.
+func (s *entityStoreImpl) indexHasDeletedAtField(info interface{}) bool {
+	// FT.INFO returns different formats depending on RESP version
+	// We need to look for "deleted_at" in the attributes/schema section
+	switch v := info.(type) {
+	case []interface{}:
+		// RESP2 format: alternating key/value pairs
+		for i := 0; i < len(v)-1; i += 2 {
+			if key, ok := v[i].(string); ok && key == "attributes" {
+				if attrs, ok := v[i+1].([]interface{}); ok {
+					return s.attributesContainDeletedAt(attrs)
+				}
+			}
+		}
+	case map[interface{}]interface{}:
+		// RESP3 format: map
+		if attrs, ok := v["attributes"].([]interface{}); ok {
+			return s.attributesContainDeletedAt(attrs)
+		}
+	}
+	return false
+}
+
+// attributesContainDeletedAt checks if the attributes array contains the deleted_at field.
+func (s *entityStoreImpl) attributesContainDeletedAt(attrs []interface{}) bool {
+	for _, attr := range attrs {
+		switch a := attr.(type) {
+		case []interface{}:
+			// Each attribute is an array with field properties
+			for i := 0; i < len(a)-1; i += 2 {
+				if key, ok := a[i].(string); ok && key == "identifier" {
+					if val, ok := a[i+1].(string); ok && val == "deleted_at" {
+						return true
+					}
+				}
+			}
+		case map[interface{}]interface{}:
+			// Attribute as map
+			if id, ok := a["identifier"].(string); ok && id == "deleted_at" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (s *entityStoreImpl) RetrieveTenant(ctx context.Context, tenantID string) (*Tenant, error) {
@@ -295,18 +349,19 @@ func (s *entityStoreImpl) DeleteTenant(ctx context.Context, tenantID string) err
 
 	// All operations on same tenant - cluster compatible transaction
 	_, err = s.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		now := time.Now()
+		nowUnix := time.Now().Unix()
 
 		// Delete all destinations atomically
 		for _, destinationID := range destinationIDs {
 			destKey := s.redisDestinationID(destinationID, tenantID)
-			pipe.HSet(ctx, destKey, "deleted_at", now)
+			pipe.HSet(ctx, destKey, "deleted_at", nowUnix)
 			pipe.Expire(ctx, destKey, 7*24*time.Hour)
 		}
 
 		// Delete summary and mark tenant as deleted
+		// Store deleted_at as Unix timestamp so it can be filtered in FT.SEARCH
 		pipe.Del(ctx, s.redisTenantDestinationSummaryKey(tenantID))
-		pipe.HSet(ctx, s.redisTenantID(tenantID), "deleted_at", now)
+		pipe.HSet(ctx, s.redisTenantID(tenantID), "deleted_at", nowUnix)
 		pipe.Expire(ctx, s.redisTenantID(tenantID), 7*24*time.Hour)
 
 		return nil
@@ -355,36 +410,69 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		sortDir = "ASC"
 	}
 
-	// Calculate offset from cursor
-	// Both Next and Prev cursors contain the target offset directly
-	offset := 0
+	// Parse cursor timestamp (keyset pagination)
+	// Cursor contains the timestamp boundary for the next/prev page
+	var cursorTimestamp int64
+	isNextCursor := false
+	isPrevCursor := false
 	if req.Next != "" {
 		var err error
-		offset, err = decodeCursor(req.Next)
+		cursorTimestamp, err = decodeCursor(req.Next)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidCursor, err)
 		}
+		isNextCursor = true
 	} else if req.Prev != "" {
 		var err error
-		offset, err = decodeCursor(req.Prev)
+		cursorTimestamp, err = decodeCursor(req.Prev)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidCursor, err)
+		}
+		isPrevCursor = true
+	}
+
+	// Build FT.SEARCH query with timestamp filter (keyset pagination)
+	// This avoids offset-based pagination which has issues on Dragonfly
+	// We use inclusive ranges with cursor-1/cursor+1 for better compatibility
+	// The -@deleted_at:[1 +inf] filter excludes deleted tenants from results
+	// (documents without deleted_at field won't match the positive query, so negation includes them)
+	notDeleted := "-@deleted_at:[1 +inf]"
+	var query string
+	if !isNextCursor && !isPrevCursor {
+		// First page - only filter out deleted
+		query = notDeleted
+	} else if isNextCursor {
+		// Next cursor: get older (DESC) or newer (ASC) records
+		if order == "desc" {
+			// DESC: get records with created_at < cursor (older)
+			query = fmt.Sprintf("(@created_at:[0 %d]) %s", cursorTimestamp-1, notDeleted)
+		} else {
+			// ASC: get records with created_at > cursor (newer)
+			query = fmt.Sprintf("(@created_at:[%d +inf]) %s", cursorTimestamp+1, notDeleted)
+		}
+	} else {
+		// Prev cursor: get newer (DESC) or older (ASC) records - opposite direction
+		if order == "desc" {
+			// DESC going back: get records with created_at > cursor (newer)
+			query = fmt.Sprintf("(@created_at:[%d +inf]) %s", cursorTimestamp+1, notDeleted)
+		} else {
+			// ASC going back: get records with created_at < cursor (older)
+			query = fmt.Sprintf("(@created_at:[0 %d]) %s", cursorTimestamp-1, notDeleted)
 		}
 	}
 
-	// Execute FT.SEARCH query
-	// FT.SEARCH index "*" SORTBY created_at DESC LIMIT offset count
+	// Execute FT.SEARCH query with LIMIT 0 count (no offset)
 	result, err := s.doCmd(ctx, "FT.SEARCH", s.tenantIndexName(),
-		"*",
+		query,
 		"SORTBY", "created_at", sortDir,
-		"LIMIT", offset, limit,
+		"LIMIT", 0, limit,
 	).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to search tenants: %w", err)
 	}
 
 	// Parse FT.SEARCH result
-	tenants, totalCount, err := s.parseSearchResult(ctx, result)
+	tenants, _, err := s.parseSearchResult(ctx, result)
 	if err != nil {
 		return nil, err
 	}
@@ -394,19 +482,19 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		Data: tenants,
 	}
 
-	// Set next cursor if there are more results
-	nextOffset := offset + len(tenants)
-	if nextOffset < totalCount {
-		resp.Next = encodeCursor(nextOffset)
+	// Set next cursor based on the last item's timestamp
+	// For keyset pagination, we use the timestamp of the boundary item
+	if len(tenants) > 0 && len(tenants) == limit {
+		// There might be more results - set next cursor to last item's timestamp
+		lastTenant := tenants[len(tenants)-1]
+		resp.Next = encodeCursor(lastTenant.CreatedAt.Unix())
 	}
 
-	// Set prev cursor if we're not at the beginning
-	if offset > 0 {
-		prevOffset := offset - limit
-		if prevOffset < 0 {
-			prevOffset = 0
-		}
-		resp.Prev = encodeCursor(prevOffset)
+	// Set prev cursor based on the first item's timestamp
+	// Only set if we used a cursor to get here (not first page)
+	if (isNextCursor || isPrevCursor) && len(tenants) > 0 {
+		firstTenant := tenants[0]
+		resp.Prev = encodeCursor(firstTenant.CreatedAt.Unix())
 	}
 
 	return resp, nil
@@ -545,22 +633,22 @@ func (s *entityStoreImpl) parseResp3SearchResult(resultMap map[interface{}]inter
 
 const cursorVersion = "tntv01"
 
-// encodeCursor encodes an offset as a versioned base62 cursor.
-// Internal format: tntv01:<offset>, then base62 encoded.
-func encodeCursor(offset int) string {
-	raw := fmt.Sprintf("%s:%d", cursorVersion, offset)
+// encodeCursor encodes a timestamp as a versioned base62 cursor.
+// Internal format: tntv01:<timestamp>, then base62 encoded.
+func encodeCursor(timestamp int64) string {
+	raw := fmt.Sprintf("%s:%d", cursorVersion, timestamp)
 	return base62Encode(raw)
 }
 
-// decodeCursor decodes a base62 cursor into an offset.
-// Expects base62 encoded string containing: tntv01:<offset>
-func decodeCursor(cursor string) (int, error) {
+// decodeCursor decodes a base62 cursor into a timestamp.
+// Expects base62 encoded string containing: tntv01:<timestamp>
+func decodeCursor(cursor string) (int64, error) {
 	raw, err := base62Decode(cursor)
 	if err != nil {
 		return 0, fmt.Errorf("invalid cursor encoding: %w", err)
 	}
 
-	// Expected format: tntv01:<offset>
+	// Expected format: tntv02:<timestamp>
 	if len(raw) <= len(cursorVersion)+1 {
 		return 0, fmt.Errorf("invalid cursor format")
 	}
@@ -574,16 +662,16 @@ func decodeCursor(cursor string) (int, error) {
 		return 0, fmt.Errorf("invalid cursor format")
 	}
 
-	var offset int
-	_, err = fmt.Sscanf(raw[len(cursorVersion)+1:], "%d", &offset)
+	var timestamp int64
+	_, err = fmt.Sscanf(raw[len(cursorVersion)+1:], "%d", &timestamp)
 	if err != nil {
-		return 0, fmt.Errorf("invalid cursor offset")
+		return 0, fmt.Errorf("invalid cursor timestamp")
 	}
 
-	if offset < 0 {
-		return 0, fmt.Errorf("invalid offset")
+	if timestamp < 0 {
+		return 0, fmt.Errorf("invalid timestamp")
 	}
-	return offset, nil
+	return timestamp, nil
 }
 
 // base62Encode encodes a string to base62.

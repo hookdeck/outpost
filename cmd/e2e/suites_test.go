@@ -188,7 +188,7 @@ func (s *basicSuite) TearDownSuite() {
 // }
 
 func TestPGBasicSuite(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
@@ -196,7 +196,7 @@ func TestPGBasicSuite(t *testing.T) {
 }
 
 func TestRedisClusterBasicSuite(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
@@ -214,7 +214,7 @@ func TestRedisClusterBasicSuite(t *testing.T) {
 }
 
 func TestDragonflyBasicSuite(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
@@ -228,7 +228,7 @@ func TestDragonflyBasicSuite(t *testing.T) {
 }
 
 func TestRedisStackBasicSuite(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
@@ -241,7 +241,7 @@ func TestRedisStackBasicSuite(t *testing.T) {
 }
 
 func TestBasicSuiteWithDeploymentID(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
@@ -256,7 +256,7 @@ func TestBasicSuiteWithDeploymentID(t *testing.T) {
 // ALERT_AUTO_DISABLE_DESTINATION=true without ALERT_CALLBACK_URL set.
 // Run with: go test -v -run TestAutoDisableWithoutCallbackURL ./cmd/e2e/...
 func TestAutoDisableWithoutCallbackURL(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
