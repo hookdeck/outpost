@@ -1214,6 +1214,20 @@ func (s *ListTenantTestSuite) TestListTenantBasic() {
 		assert.Empty(t, resp.Prev, "should not have prev cursor on first page")
 	})
 
+	s.T().Run("returns total count", func(t *testing.T) {
+		// First page with limit
+		resp1, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 2})
+		require.NoError(t, err)
+		assert.Equal(t, 5, resp1.Count, "count should be total tenants, not page size")
+		assert.Len(t, resp1.Data, 2, "data should respect limit")
+
+		// Second page - count should still be total
+		resp2, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 2, Next: resp1.Next})
+		require.NoError(t, err)
+		assert.Equal(t, 5, resp2.Count, "count should remain total across pages")
+		assert.Len(t, resp2.Data, 2)
+	})
+
 	s.T().Run("orders by created_at desc by default", func(t *testing.T) {
 		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{})
 		require.NoError(t, err)

@@ -51,9 +51,10 @@ type ListTenantRequest struct {
 
 // ListTenantResponse contains the paginated list of tenants.
 type ListTenantResponse struct {
-	Data []TenantListItem `json:"data"`
-	Next string           `json:"next"`
-	Prev string           `json:"prev"`
+	Data  []TenantListItem `json:"data"`
+	Next  string           `json:"next"`
+	Prev  string           `json:"prev"`
+	Count int              `json:"count"`
 }
 
 type entityStoreImpl struct {
@@ -444,9 +445,20 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		items[i] = t.ToListItem()
 	}
 
+	// Get total count of all tenants (excluding deleted) - cheap query with LIMIT 0 0
+	var totalCount int
+	countResult, err := s.doCmd(ctx, "FT.SEARCH", s.tenantIndexName(),
+		notDeleted,
+		"LIMIT", 0, 0,
+	).Result()
+	if err == nil {
+		_, totalCount, _ = s.parseSearchResult(ctx, countResult)
+	}
+
 	// Build response with cursors
 	resp := &ListTenantResponse{
-		Data: items,
+		Data:  items,
+		Count: totalCount,
 	}
 
 	// Always set next/prev cursors based on first/last item timestamps.
