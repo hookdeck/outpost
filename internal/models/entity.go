@@ -51,9 +51,9 @@ type ListTenantRequest struct {
 
 // ListTenantResponse contains the paginated list of tenants.
 type ListTenantResponse struct {
-	Data []Tenant `json:"data"`
-	Next string   `json:"next"`
-	Prev string   `json:"prev"`
+	Data []TenantListItem `json:"data"`
+	Next string           `json:"next"`
+	Prev string           `json:"prev"`
 }
 
 type entityStoreImpl struct {
@@ -424,9 +424,15 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		return nil, err
 	}
 
+	// Convert to TenantListItem (excludes computed fields like destinations_count, topics)
+	items := make([]TenantListItem, len(tenants))
+	for i, t := range tenants {
+		items[i] = t.ToListItem()
+	}
+
 	// Build response with cursors
 	resp := &ListTenantResponse{
-		Data: tenants,
+		Data: items,
 	}
 
 	// Set next cursor based on the last item's timestamp
