@@ -19,9 +19,9 @@ RUN go mod download
 COPY . .
 
 # Build all binaries
-RUN go build -o ./bin/outpost ./cmd/outpost/main.go && \
-    go build -o ./bin/outpost-server ./cmd/outpost-server/main.go && \
-    go build -o ./bin/outpost-migrate-redis ./cmd/outpost-migrate-redis/main.go
+RUN go build -o ./bin/outpost ./cmd/outpost && \
+    go build -o ./bin/outpost-server ./cmd/outpost-server && \
+    go build -o ./bin/outpost-migrate-redis ./cmd/outpost-migrate-redis
 
 # Stage 1
 # Get busybox shell for entrypoint script
