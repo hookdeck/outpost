@@ -111,6 +111,10 @@ components:
           nullable: true
           description: Cursor for the previous page of results. Null if on first page.
           example: null
+        count:
+          type: integer
+          description: Total count of all tenants.
+          example: 42
     PortalRedirect:
       type: object
       properties:
@@ -1963,6 +1967,7 @@ paths:
                     updated_at: "2024-01-14T09:00:00Z"
                 next: "MTcwNDA2NzIwMA=="
                 prev: null
+                count: 42
         "400":
           description: Invalid request parameters (e.g., invalid cursor, both next and prev provided).
           content:
