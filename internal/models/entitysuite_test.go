@@ -1258,7 +1258,7 @@ func (s *ListTenantTestSuite) TestListTenantPagination() {
 	time.Sleep(100 * time.Millisecond)
 
 	s.T().Run("paginate forward through all pages", func(t *testing.T) {
-		var allTenants []models.Tenant
+		var allTenants []models.TenantListItem
 		cursor := ""
 		pageCount := 0
 		var firstResp, lastResp *models.ListTenantResponse
@@ -1269,16 +1269,18 @@ func (s *ListTenantTestSuite) TestListTenantPagination() {
 				Next:  cursor,
 			})
 			require.NoError(t, err)
+
+			// Stop when we get empty result (no more data)
+			if len(resp.Data) == 0 {
+				break
+			}
+
 			allTenants = append(allTenants, resp.Data...)
 			pageCount++
 			if firstResp == nil {
 				firstResp = resp
 			}
 			lastResp = resp
-
-			if resp.Next == "" {
-				break
-			}
 			cursor = resp.Next
 
 			// Safety check to prevent infinite loop
@@ -1288,42 +1290,106 @@ func (s *ListTenantTestSuite) TestListTenantPagination() {
 		assert.Equal(t, 25, len(allTenants), "should have retrieved all tenants")
 		assert.Equal(t, 3, pageCount, "should have 3 pages (10+10+5)")
 		assert.Empty(t, firstResp.Prev, "first page should have no prev cursor")
-		assert.Empty(t, lastResp.Next, "last page should have no next cursor")
+		// Last page has next cursor - using it returns empty (which terminated the loop)
+		assert.NotEmpty(t, lastResp.Next, "last page should have next cursor")
 	})
 
-	s.T().Run("prev cursor returns newer items", func(t *testing.T) {
-		// With keyset pagination, Prev cursor returns items newer than the cursor timestamp.
-		// This is different from offset-based "previous page" behavior.
-		// The Prev cursor is primarily useful for "refresh" scenarios (checking for new items).
+	s.T().Run("full forward and backward traversal", func(t *testing.T) {
+		// This test verifies that prev cursor enables traditional "go back to previous page" behavior.
+		// Forward: Page1 -> Page2 -> Page3
+		// Backward: Page3 -> Page2 -> Page1
+		// The same tenants should appear on each page regardless of direction.
 
-		// Traverse forward to page 2
-		resp1, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 10})
-		require.NoError(t, err)
-		require.NotEmpty(t, resp1.Next, "should have next cursor")
+		// Forward traversal: collect all pages
+		var forwardPages [][]models.TenantListItem
+		cursor := ""
+		for {
+			resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+				Limit: 10,
+				Next:  cursor,
+			})
+			require.NoError(t, err)
 
-		resp2, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
-			Limit: 10,
-			Next:  resp1.Next,
-		})
-		require.NoError(t, err)
-		require.NotEmpty(t, resp2.Data, "page 2 should have items")
-		require.NotEmpty(t, resp2.Prev, "page 2 should have prev cursor")
+			// Stop when we get empty result
+			if len(resp.Data) == 0 {
+				break
+			}
 
-		// Using Prev cursor returns items with newer timestamps
-		respPrev, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
-			Limit: 10,
-			Prev:  resp2.Prev,
-		})
-		require.NoError(t, err)
-		require.NotEmpty(t, respPrev.Data, "prev cursor should return items")
-
-		// The items from Prev should be newer than page 2's first item
-		page2FirstTimestamp := resp2.Data[0].CreatedAt
-		for _, tenant := range respPrev.Data {
-			assert.True(t, tenant.CreatedAt.After(page2FirstTimestamp) || tenant.CreatedAt.Equal(page2FirstTimestamp),
-				"prev cursor should return newer items, got %v which is not after %v",
-				tenant.CreatedAt, page2FirstTimestamp)
+			forwardPages = append(forwardPages, resp.Data)
+			cursor = resp.Next
 		}
+		require.Equal(t, 3, len(forwardPages), "should have 3 pages forward")
+
+		// Now traverse backward from page 3 to page 1
+		// Start from page 3, go to page 2, then page 1
+		// Get page 3 again to get its prev cursor
+		resp3, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Limit: 10,
+			Next:  cursor, // This is the cursor that got us to page 3
+		})
+		require.NoError(t, err)
+
+		// Actually we need to re-fetch page 2 first to get its prev cursor
+		// Let's fetch forward again to page 2 and get its prev cursor
+		page1, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 10})
+		require.NoError(t, err)
+		require.NotEmpty(t, page1.Next)
+
+		page2, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Limit: 10,
+			Next:  page1.Next,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, page2.Next)
+		require.NotEmpty(t, page2.Prev, "page 2 should have prev cursor")
+
+		page3, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Limit: 10,
+			Next:  page2.Next,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, page3.Prev, "page 3 should have prev cursor")
+		_ = resp3 // silence unused warning
+
+		// Now go backward: use page3's prev cursor to get page 2
+		backToPage2, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Limit: 10,
+			Prev:  page3.Prev,
+		})
+		require.NoError(t, err)
+		require.Len(t, backToPage2.Data, 10, "going back to page 2 should return 10 items")
+
+		// Verify we got the same items as page 2 (forward)
+		for i, tenant := range backToPage2.Data {
+			assert.Equal(t, page2.Data[i].ID, tenant.ID,
+				"backward page 2 item %d should match forward page 2", i)
+		}
+
+		// Go back one more time: use backToPage2's prev cursor to get page 1
+		require.NotEmpty(t, backToPage2.Prev, "page 2 (backward) should have prev cursor")
+		backToPage1, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Limit: 10,
+			Prev:  backToPage2.Prev,
+		})
+		require.NoError(t, err)
+		require.Len(t, backToPage1.Data, 10, "going back to page 1 should return 10 items")
+
+		// Verify we got the same items as page 1 (forward)
+		for i, tenant := range backToPage1.Data {
+			assert.Equal(t, page1.Data[i].ID, tenant.ID,
+				"backward page 1 item %d should match forward page 1", i)
+		}
+
+		// Page 1 (backward) has prev cursor - client discovers empty when using it
+		assert.NotEmpty(t, backToPage1.Prev, "page 1 (backward) should have prev cursor")
+
+		// Verify using prev cursor on page 1 returns empty
+		emptyResp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
+			Limit: 10,
+			Prev:  backToPage1.Prev,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, emptyResp.Data, "using prev cursor on page 1 should return empty")
 	})
 }
 

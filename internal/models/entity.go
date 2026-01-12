@@ -385,6 +385,8 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 	// (documents without deleted_at field won't match the positive query, so negation includes them)
 	notDeleted := "-@deleted_at:[1 +inf]"
 	var query string
+	querySortDir := sortDir
+
 	if !isNextCursor && !isPrevCursor {
 		// First page - only filter out deleted
 		query = notDeleted
@@ -398,20 +400,24 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 			query = fmt.Sprintf("(@created_at:[%d +inf]) %s", cursorTimestamp+1, notDeleted)
 		}
 	} else {
-		// Prev cursor: get newer (DESC) or older (ASC) records - opposite direction
+		// Prev cursor: go back to previous page
+		// We reverse the sort direction to get items closest to the cursor,
+		// then reverse the results to maintain the user's expected order.
 		if order == "desc" {
-			// DESC going back: get records with created_at > cursor (newer)
+			// DESC going back: get records with created_at > cursor (newer), sorted ASC
 			query = fmt.Sprintf("(@created_at:[%d +inf]) %s", cursorTimestamp+1, notDeleted)
+			querySortDir = "ASC"
 		} else {
-			// ASC going back: get records with created_at < cursor (older)
+			// ASC going back: get records with created_at < cursor (older), sorted DESC
 			query = fmt.Sprintf("(@created_at:[0 %d]) %s", cursorTimestamp-1, notDeleted)
+			querySortDir = "DESC"
 		}
 	}
 
 	// Execute FT.SEARCH query with LIMIT 0 count (no offset)
 	result, err := s.doCmd(ctx, "FT.SEARCH", s.tenantIndexName(),
 		query,
-		"SORTBY", "created_at", sortDir,
+		"SORTBY", "created_at", querySortDir,
 		"LIMIT", 0, limit,
 	).Result()
 	if err != nil {
@@ -422,6 +428,14 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 	tenants, _, err := s.parseSearchResult(ctx, result)
 	if err != nil {
 		return nil, err
+	}
+
+	// For prev cursor, we fetched in reverse order to get items closest to cursor.
+	// Now reverse the results to restore the user's expected order.
+	if isPrevCursor {
+		for i, j := 0, len(tenants)-1; i < j; i, j = i+1, j-1 {
+			tenants[i], tenants[j] = tenants[j], tenants[i]
+		}
 	}
 
 	// Convert to TenantListItem (excludes computed fields like destinations_count, topics)
@@ -435,19 +449,21 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		Data: items,
 	}
 
-	// Set next cursor based on the last item's timestamp
-	// For keyset pagination, we use the timestamp of the boundary item (in milliseconds)
-	if len(tenants) > 0 && len(tenants) == limit {
-		// There might be more results - set next cursor to last item's timestamp
+	// Always set next/prev cursors based on first/last item timestamps.
+	// Client discovers "no more pages" when they use the cursor and get empty result.
+	// This avoids expensive probe queries.
+	if len(tenants) > 0 {
 		lastTenant := tenants[len(tenants)-1]
-		resp.Next = encodeCursor(lastTenant.CreatedAt.UnixMilli())
-	}
-
-	// Set prev cursor based on the first item's timestamp
-	// Only set if we used a cursor to get here (not first page)
-	if (isNextCursor || isPrevCursor) && len(tenants) > 0 {
 		firstTenant := tenants[0]
-		resp.Prev = encodeCursor(firstTenant.CreatedAt.UnixMilli())
+
+		// Next cursor: points to last item (for continuing in same direction)
+		resp.Next = encodeCursor(lastTenant.CreatedAt.UnixMilli())
+
+		// Prev cursor: points to first item (for going back)
+		// Only set if we navigated here via a cursor (not on first page)
+		if isNextCursor || isPrevCursor {
+			resp.Prev = encodeCursor(firstTenant.CreatedAt.UnixMilli())
+		}
 	}
 
 	return resp, nil
