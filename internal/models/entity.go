@@ -186,15 +186,18 @@ func (s *entityStoreImpl) ensureTenantIndex(ctx context.Context) error {
 	}
 
 	// Create the index
-	// FT.CREATE index ON HASH PREFIX 1 prefix SCHEMA id TAG created_at NUMERIC SORTABLE deleted_at NUMERIC
+	// FT.CREATE index ON HASH PREFIX 1 prefix FILTER '@entity == "tenant"' SCHEMA ...
 	// Note: created_at and deleted_at are stored as Unix timestamps
 	// deleted_at is indexed so we can filter out deleted tenants in FT.SEARCH queries
+	// FILTER ensures only tenant entities are indexed (not destinations which share prefix)
 	prefix := s.tenantKeyPrefix()
 	_, err = s.doCmd(ctx, "FT.CREATE", indexName,
 		"ON", "HASH",
 		"PREFIX", "1", prefix,
+		"FILTER", `@entity == "tenant"`,
 		"SCHEMA",
 		"id", "TAG",
+		"entity", "TAG",
 		"created_at", "NUMERIC", "SORTABLE",
 		"deleted_at", "NUMERIC",
 	).Result()
@@ -260,8 +263,10 @@ func (s *entityStoreImpl) UpsertTenant(ctx context.Context, tenant Tenant) error
 	}
 
 	// Set tenant data - store timestamps as Unix milliseconds for timezone-agnostic sorting
+	// entity field is used by RediSearch FILTER to distinguish tenants from destinations
 	if err := s.redisClient.HSet(ctx, key,
 		"id", tenant.ID,
+		"entity", "tenant",
 		"created_at", tenant.CreatedAt.UnixMilli(),
 		"updated_at", tenant.UpdatedAt.UnixMilli(),
 	).Err(); err != nil {
@@ -382,23 +387,24 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 	// Build FT.SEARCH query with timestamp filter (keyset pagination)
 	// This avoids offset-based pagination which has issues on Dragonfly
 	// We use inclusive ranges with cursor-1/cursor+1 for better compatibility
-	// The -@deleted_at:[1 +inf] filter excludes deleted tenants from results
+	// Filter: @entity:{tenant} ensures only tenant records (not destinations)
+	// Filter: -@deleted_at:[1 +inf] excludes deleted tenants
 	// (documents without deleted_at field won't match the positive query, so negation includes them)
-	notDeleted := "-@deleted_at:[1 +inf]"
+	baseFilter := "@entity:{tenant} -@deleted_at:[1 +inf]"
 	var query string
 	querySortDir := sortDir
 
 	if !isNextCursor && !isPrevCursor {
 		// First page - only filter out deleted
-		query = notDeleted
+		query = baseFilter
 	} else if isNextCursor {
 		// Next cursor: get older (DESC) or newer (ASC) records
 		if order == "desc" {
 			// DESC: get records with created_at < cursor (older)
-			query = fmt.Sprintf("(@created_at:[0 %d]) %s", cursorTimestamp-1, notDeleted)
+			query = fmt.Sprintf("(@created_at:[0 %d]) %s", cursorTimestamp-1, baseFilter)
 		} else {
 			// ASC: get records with created_at > cursor (newer)
-			query = fmt.Sprintf("(@created_at:[%d +inf]) %s", cursorTimestamp+1, notDeleted)
+			query = fmt.Sprintf("(@created_at:[%d +inf]) %s", cursorTimestamp+1, baseFilter)
 		}
 	} else {
 		// Prev cursor: go back to previous page
@@ -406,11 +412,11 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		// then reverse the results to maintain the user's expected order.
 		if order == "desc" {
 			// DESC going back: get records with created_at > cursor (newer), sorted ASC
-			query = fmt.Sprintf("(@created_at:[%d +inf]) %s", cursorTimestamp+1, notDeleted)
+			query = fmt.Sprintf("(@created_at:[%d +inf]) %s", cursorTimestamp+1, baseFilter)
 			querySortDir = "ASC"
 		} else {
 			// ASC going back: get records with created_at < cursor (older), sorted DESC
-			query = fmt.Sprintf("(@created_at:[0 %d]) %s", cursorTimestamp-1, notDeleted)
+			query = fmt.Sprintf("(@created_at:[0 %d]) %s", cursorTimestamp-1, baseFilter)
 			querySortDir = "DESC"
 		}
 	}
@@ -448,7 +454,7 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 	// Get total count of all tenants (excluding deleted) - cheap query with LIMIT 0 0
 	var totalCount int
 	countResult, err := s.doCmd(ctx, "FT.SEARCH", s.tenantIndexName(),
-		notDeleted,
+		baseFilter,
 		"LIMIT", 0, 0,
 	).Result()
 	if err == nil {
@@ -822,7 +828,9 @@ func (s *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 
 		// Set all destination fields atomically
 		// Store timestamps as Unix milliseconds for timezone-agnostic handling
+		// entity field is used for consistency with tenants (both tagged for RediSearch filtering)
 		pipe.HSet(ctx, key, "id", destination.ID)
+		pipe.HSet(ctx, key, "entity", "destination")
 		pipe.HSet(ctx, key, "type", destination.Type)
 		pipe.HSet(ctx, key, "topics", &destination.Topics)
 		pipe.HSet(ctx, key, "config", &destination.Config)

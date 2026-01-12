@@ -10,6 +10,7 @@ import (
 
 	migration_001 "github.com/hookdeck/outpost/internal/migrator/migratorredis/001_hash_tags"
 	migration_002 "github.com/hookdeck/outpost/internal/migrator/migratorredis/002_timestamps"
+	migration_003 "github.com/hookdeck/outpost/internal/migrator/migratorredis/003_entity"
 )
 
 // MigrationFactory creates a migration instance with the given client, logger, and deployment ID.
@@ -24,6 +25,9 @@ var registeredMigrations = []MigrationFactory{
 	},
 	func(client redis.Client, logger migratorredis.Logger, deploymentID string) migratorredis.Migration {
 		return migration_002.New(client, logger, deploymentID)
+	},
+	func(client redis.Client, logger migratorredis.Logger, deploymentID string) migratorredis.Migration {
+		return migration_003.New(client, logger, deploymentID)
 	},
 }
 

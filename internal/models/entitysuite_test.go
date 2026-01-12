@@ -1228,6 +1228,39 @@ func (s *ListTenantTestSuite) TestListTenantBasic() {
 		assert.Len(t, resp2.Data, 2)
 	})
 
+	s.T().Run("does not count destinations", func(t *testing.T) {
+		// Get initial count
+		initialResp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{})
+		require.NoError(t, err)
+		initialCount := initialResp.Count
+
+		// Create destinations for a tenant using DestinationFactory
+		dest1 := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithID("dest_count_test_1"),
+			testutil.DestinationFactory.WithTenantID(tenants[0].ID),
+		)
+		dest2 := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithID("dest_count_test_2"),
+			testutil.DestinationFactory.WithTenantID(tenants[0].ID),
+		)
+		require.NoError(t, s.entityStore.UpsertDestination(s.ctx, dest1))
+		require.NoError(t, s.entityStore.UpsertDestination(s.ctx, dest2))
+
+		// Wait for indexing
+		time.Sleep(100 * time.Millisecond)
+
+		// Verify count hasn't changed (destinations not counted as tenants)
+		afterResp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{})
+		require.NoError(t, err)
+		assert.Equal(t, initialCount, afterResp.Count, "destinations should not be counted as tenants")
+		assert.Len(t, afterResp.Data, initialCount, "destinations should not appear in tenant list")
+
+		// Verify no destination IDs in the data
+		for _, tenant := range afterResp.Data {
+			assert.NotContains(t, tenant.ID, "dest_", "destination should not appear in tenant list")
+		}
+	})
+
 	s.T().Run("orders by created_at desc by default", func(t *testing.T) {
 		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{})
 		require.NoError(t, err)

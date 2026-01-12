@@ -19,6 +19,7 @@ type (
 	Cmdable            = r.Cmdable
 	MapStringStringCmd = r.MapStringStringCmd
 	SliceCmd           = r.SliceCmd
+	StringCmd          = r.StringCmd
 	Pipeliner          = r.Pipeliner
 	Tx                 = r.Tx
 	Cmd                = r.Cmd
