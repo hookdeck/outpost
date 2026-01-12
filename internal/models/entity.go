@@ -258,11 +258,11 @@ func (s *entityStoreImpl) UpsertTenant(ctx context.Context, tenant Tenant) error
 		tenant.UpdatedAt = now
 	}
 
-	// Set tenant data - store timestamps as Unix integers for timezone-agnostic sorting
+	// Set tenant data - store timestamps as Unix milliseconds for timezone-agnostic sorting
 	if err := s.redisClient.HSet(ctx, key,
 		"id", tenant.ID,
-		"created_at", tenant.CreatedAt.Unix(),
-		"updated_at", tenant.UpdatedAt.Unix(),
+		"created_at", tenant.CreatedAt.UnixMilli(),
+		"updated_at", tenant.UpdatedAt.UnixMilli(),
 	).Err(); err != nil {
 		return err
 	}
@@ -296,19 +296,19 @@ func (s *entityStoreImpl) DeleteTenant(ctx context.Context, tenantID string) err
 
 	// All operations on same tenant - cluster compatible transaction
 	_, err = s.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		nowUnix := time.Now().Unix()
+		nowUnixMilli := time.Now().UnixMilli()
 
 		// Delete all destinations atomically
 		for _, destinationID := range destinationIDs {
 			destKey := s.redisDestinationID(destinationID, tenantID)
-			pipe.HSet(ctx, destKey, "deleted_at", nowUnix)
+			pipe.HSet(ctx, destKey, "deleted_at", nowUnixMilli)
 			pipe.Expire(ctx, destKey, 7*24*time.Hour)
 		}
 
 		// Delete summary and mark tenant as deleted
-		// Store deleted_at as Unix timestamp so it can be filtered in FT.SEARCH
+		// Store deleted_at as Unix milliseconds so it can be filtered in FT.SEARCH
 		pipe.Del(ctx, s.redisTenantDestinationSummaryKey(tenantID))
-		pipe.HSet(ctx, s.redisTenantID(tenantID), "deleted_at", nowUnix)
+		pipe.HSet(ctx, s.redisTenantID(tenantID), "deleted_at", nowUnixMilli)
 		pipe.Expire(ctx, s.redisTenantID(tenantID), 7*24*time.Hour)
 
 		return nil
@@ -430,18 +430,18 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 	}
 
 	// Set next cursor based on the last item's timestamp
-	// For keyset pagination, we use the timestamp of the boundary item
+	// For keyset pagination, we use the timestamp of the boundary item (in milliseconds)
 	if len(tenants) > 0 && len(tenants) == limit {
 		// There might be more results - set next cursor to last item's timestamp
 		lastTenant := tenants[len(tenants)-1]
-		resp.Next = encodeCursor(lastTenant.CreatedAt.Unix())
+		resp.Next = encodeCursor(lastTenant.CreatedAt.UnixMilli())
 	}
 
 	// Set prev cursor based on the first item's timestamp
 	// Only set if we used a cursor to get here (not first page)
 	if (isNextCursor || isPrevCursor) && len(tenants) > 0 {
 		firstTenant := tenants[0]
-		resp.Prev = encodeCursor(firstTenant.CreatedAt.Unix())
+		resp.Prev = encodeCursor(firstTenant.CreatedAt.UnixMilli())
 	}
 
 	return resp, nil
@@ -787,17 +787,17 @@ func (s *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 		pipe.HDel(ctx, key, "deleted_at")
 
 		// Set all destination fields atomically
-		// Store timestamps as Unix integers for timezone-agnostic handling
+		// Store timestamps as Unix milliseconds for timezone-agnostic handling
 		pipe.HSet(ctx, key, "id", destination.ID)
 		pipe.HSet(ctx, key, "type", destination.Type)
 		pipe.HSet(ctx, key, "topics", &destination.Topics)
 		pipe.HSet(ctx, key, "config", &destination.Config)
 		pipe.HSet(ctx, key, "credentials", encryptedCredentials)
-		pipe.HSet(ctx, key, "created_at", destination.CreatedAt.Unix())
-		pipe.HSet(ctx, key, "updated_at", destination.UpdatedAt.Unix())
+		pipe.HSet(ctx, key, "created_at", destination.CreatedAt.UnixMilli())
+		pipe.HSet(ctx, key, "updated_at", destination.UpdatedAt.UnixMilli())
 
 		if destination.DisabledAt != nil {
-			pipe.HSet(ctx, key, "disabled_at", destination.DisabledAt.Unix())
+			pipe.HSet(ctx, key, "disabled_at", destination.DisabledAt.UnixMilli())
 		} else {
 			pipe.HDel(ctx, key, "disabled_at")
 		}
@@ -844,11 +844,11 @@ func (s *entityStoreImpl) DeleteDestination(ctx context.Context, tenantID, desti
 
 	// Atomic deletion with same-tenant keys
 	_, err := s.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		now := time.Now()
+		nowUnixMilli := time.Now().UnixMilli()
 
 		// Remove from summary and mark as deleted atomically
 		pipe.HDel(ctx, summaryKey, destinationID)
-		pipe.HSet(ctx, key, "deleted_at", now)
+		pipe.HSet(ctx, key, "deleted_at", nowUnixMilli)
 		pipe.Expire(ctx, key, 7*24*time.Hour)
 
 		return nil

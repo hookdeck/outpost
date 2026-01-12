@@ -12,7 +12,7 @@ import (
 )
 
 // TimestampsMigration converts timestamp fields (created_at, updated_at)
-// from RFC3339 string format to Unix timestamp (int64) for timezone-agnostic sorting.
+// from RFC3339 string format to Unix millisecond timestamps (int64) for timezone-agnostic sorting.
 //
 // This migration handles both tenant and destination records.
 // It is idempotent - records with numeric timestamps are skipped.
@@ -21,7 +21,7 @@ import (
 //   - It's not indexed by RediSearch (not needed for sorting)
 //   - Migrating it risks race conditions (user enables destination between Plan/Apply)
 //   - Lazy migration handles it: reads accept both formats, and any disable/enable
-//     action will write the new Unix format automatically
+//     action will write the new Unix millisecond format automatically
 type TimestampsMigration struct {
 	client    redis.Client
 	logger    migratorredis.Logger
@@ -58,7 +58,7 @@ func (m *TimestampsMigration) Version() int {
 }
 
 func (m *TimestampsMigration) Description() string {
-	return "Convert timestamp fields from RFC3339 strings to Unix timestamps for timezone-agnostic sorting"
+	return "Convert timestamp fields from RFC3339 strings to Unix millisecond timestamps for timezone-agnostic sorting"
 }
 
 func (m *TimestampsMigration) AutoRunnable() bool {
@@ -301,13 +301,13 @@ func (m *TimestampsMigration) collectUpdates(ctx context.Context, pattern string
 						continue
 					}
 
-					// Parse RFC3339 and convert to Unix
+					// Parse RFC3339 and convert to Unix milliseconds
 					ts, err := parseRFC3339(value)
 					if err != nil {
 						m.logger.LogError(fmt.Sprintf("Invalid %s in %s: %s", field, key, value), err)
 						continue
 					}
-					keyUpdates[field] = ts.Unix()
+					keyUpdates[field] = ts.UnixMilli()
 				}
 
 				// Only add if there are updates needed

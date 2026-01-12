@@ -26,24 +26,24 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assert.Equal(t, expected.DeliveryMetadata, actual.DeliveryMetadata)
 	assert.Equal(t, expected.Metadata, actual.Metadata)
 	// Use time.Time.Equal() to compare instants (ignores timezone/nanoseconds)
-	// Timestamps are stored as Unix seconds, so nanoseconds are lost and times return as UTC
+	// Timestamps are stored as Unix milliseconds, so sub-millisecond precision is lost and times return as UTC
 	assertEqualTime(t, expected.CreatedAt, actual.CreatedAt, "CreatedAt")
 	assertEqualTime(t, expected.UpdatedAt, actual.UpdatedAt, "UpdatedAt")
 	assertEqualTimePtr(t, expected.DisabledAt, actual.DisabledAt, "DisabledAt")
 }
 
-// assertEqualTime compares two times by truncating to second precision
-// since timestamps are stored as Unix seconds.
+// assertEqualTime compares two times by truncating to millisecond precision
+// since timestamps are stored as Unix milliseconds.
 func assertEqualTime(t *testing.T, expected, actual time.Time, field string) {
 	t.Helper()
-	// Truncate to seconds since Unix timestamps lose sub-second precision
-	expectedTrunc := expected.Truncate(time.Second)
-	actualTrunc := actual.Truncate(time.Second)
+	// Truncate to milliseconds since Unix timestamps lose sub-millisecond precision
+	expectedTrunc := expected.Truncate(time.Millisecond)
+	actualTrunc := actual.Truncate(time.Millisecond)
 	assert.True(t, expectedTrunc.Equal(actualTrunc),
 		"expected %s %v, got %v", field, expectedTrunc, actualTrunc)
 }
 
-// assertEqualTimePtr compares two optional times by truncating to second precision.
+// assertEqualTimePtr compares two optional times by truncating to millisecond precision.
 func assertEqualTimePtr(t *testing.T, expected, actual *time.Time, field string) {
 	t.Helper()
 	if expected == nil {

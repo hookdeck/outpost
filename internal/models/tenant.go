@@ -54,16 +54,16 @@ func (t *Tenant) parseRedisHash(hash map[string]string) error {
 	return nil
 }
 
-// parseTimestamp parses a timestamp from either numeric (Unix) or RFC3339 format.
-// This supports lazy migration from RFC3339 strings to Unix timestamps.
+// parseTimestamp parses a timestamp from either numeric (Unix milliseconds) or RFC3339 format.
+// This supports lazy migration from RFC3339 strings to Unix millisecond timestamps.
 func parseTimestamp(value string) (time.Time, error) {
 	if value == "" {
 		return time.Time{}, fmt.Errorf("missing timestamp")
 	}
 
-	// Try to parse as Unix timestamp (numeric) first - new format
+	// Try to parse as Unix milliseconds (numeric) first - new format
 	if ts, err := strconv.ParseInt(value, 10, 64); err == nil {
-		return time.Unix(ts, 0).UTC(), nil
+		return time.UnixMilli(ts).UTC(), nil
 	}
 
 	// Fallback to RFC3339Nano (old format)
