@@ -75,8 +75,8 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	logger.Audit("processing event",
 		zap.String("event_id", event.ID),
 		zap.String("tenant_id", event.TenantID),
-		zap.String("topic", event.Topic),
-		zap.String("destination_id", event.DestinationID))
+		zap.String("destination_id", event.DestinationID),
+		zap.String("topic", event.Topic))
 
 	var matchedDestinations []models.DestinationSummary
 	var err error
@@ -159,6 +159,8 @@ func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *mode
 	if err != nil {
 		h.logger.Ctx(ctx).Warn("failed to retrieve destination",
 			zap.Error(err),
+			zap.String("event_id", event.ID),
+			zap.String("tenant_id", event.TenantID),
 			zap.String("destination_id", event.DestinationID))
 		return []models.DestinationSummary{}, nil
 	}
@@ -167,12 +169,7 @@ func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *mode
 		return []models.DestinationSummary{}, nil
 	}
 
-	if destination.DisabledAt != nil {
-		return []models.DestinationSummary{}, nil
-	}
-
-	// Check topic match
-	if !destination.Topics.MatchTopic(event.Topic) {
+	if !destination.MatchEvent(*event) {
 		return []models.DestinationSummary{}, nil
 	}
 
@@ -184,8 +181,8 @@ func (h *eventHandler) enqueueDeliveryEvent(ctx context.Context, deliveryEvent m
 	if err := h.deliveryMQ.Publish(ctx, deliveryEvent); err != nil {
 		h.logger.Ctx(ctx).Error("failed to enqueue delivery event",
 			zap.Error(err),
-			zap.String("delivery_event_id", deliveryEvent.ID),
 			zap.String("event_id", deliveryEvent.Event.ID),
+			zap.String("tenant_id", deliveryEvent.Event.TenantID),
 			zap.String("destination_id", deliveryEvent.DestinationID))
 		deliverySpan.RecordError(err)
 		deliverySpan.End()
@@ -193,8 +190,8 @@ func (h *eventHandler) enqueueDeliveryEvent(ctx context.Context, deliveryEvent m
 	}
 
 	h.logger.Ctx(ctx).Audit("delivery event enqueued",
-		zap.String("delivery_event_id", deliveryEvent.ID),
 		zap.String("event_id", deliveryEvent.Event.ID),
+		zap.String("tenant_id", deliveryEvent.Event.TenantID),
 		zap.String("destination_id", deliveryEvent.DestinationID))
 	deliverySpan.End()
 	return nil

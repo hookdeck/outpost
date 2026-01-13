@@ -175,9 +175,10 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		}
 
 		m.logger.Ctx(ctx).Audit("destination disabled",
-			zap.String("destination_id", attempt.Destination.ID),
+			zap.String("event_id", attempt.DeliveryEvent.Event.ID),
 			zap.String("tenant_id", attempt.Destination.TenantID),
-			zap.String("topic", alert.Topic),
+			zap.String("destination_id", attempt.Destination.ID),
+			zap.String("destination_type", attempt.Destination.Type),
 		)
 	}
 
@@ -185,18 +186,20 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 	if m.notifier != nil {
 		if err := m.notifier.Notify(ctx, alert); err != nil {
 			m.logger.Ctx(ctx).Error("failed to send alert",
-				zap.String("destination_id", attempt.Destination.ID),
-				zap.String("tenant_id", attempt.Destination.TenantID),
-				zap.String("topic", alert.Topic),
 				zap.Error(err),
+				zap.String("event_id", attempt.DeliveryEvent.Event.ID),
+				zap.String("tenant_id", attempt.Destination.TenantID),
+				zap.String("destination_id", attempt.Destination.ID),
+				zap.String("destination_type", attempt.Destination.Type),
 			)
 			return fmt.Errorf("failed to send alert: %w", err)
 		}
 
 		m.logger.Ctx(ctx).Audit("alert sent",
-			zap.String("destination_id", attempt.Destination.ID),
+			zap.String("event_id", attempt.DeliveryEvent.Event.ID),
 			zap.String("tenant_id", attempt.Destination.TenantID),
-			zap.String("topic", alert.Topic),
+			zap.String("destination_id", attempt.Destination.ID),
+			zap.String("destination_type", attempt.Destination.Type),
 		)
 	}
 

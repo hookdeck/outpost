@@ -1,8 +1,10 @@
 package destwebhook_test
 
 import (
+	"context"
 	"testing"
 
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -78,6 +80,84 @@ func TestGetAlgorithm(t *testing.T) {
 			assert.Equal(t, tt.want.Name(), got.Name())
 		})
 	}
+}
+
+func TestWebhookDestination_CustomHeadersConfig(t *testing.T) {
+	t.Parallel()
+
+	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
+	assert.NoError(t, err)
+
+	t.Run("should parse config with valid custom_headers", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url":            "https://example.com/webhook",
+				"custom_headers": `{"x-api-key":"secret123","x-tenant-id":"tenant-abc"}`,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "test-secret",
+			}),
+		)
+
+		err := webhookDestination.Validate(context.Background(), &destination)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should parse config with empty custom_headers", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url":            "https://example.com/webhook",
+				"custom_headers": `{}`,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "test-secret",
+			}),
+		)
+
+		err := webhookDestination.Validate(context.Background(), &destination)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should parse config without custom_headers field (backward compatibility)", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com/webhook",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "test-secret",
+			}),
+		)
+
+		err := webhookDestination.Validate(context.Background(), &destination)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should fail on invalid custom_headers JSON", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url":            "https://example.com/webhook",
+				"custom_headers": `{invalid json}`,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "test-secret",
+			}),
+		)
+
+		err := webhookDestination.Validate(context.Background(), &destination)
+		assert.Error(t, err)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.custom_headers", validationErr.Errors[0].Field)
+		assert.Equal(t, "invalid", validationErr.Errors[0].Type)
+	})
 }
 
 func TestWebhookDestination_SignatureOptions(t *testing.T) {

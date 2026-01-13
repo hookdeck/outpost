@@ -1,0 +1,261 @@
+---
+title: Webhook
+---
+
+Send events via HTTP POST requests to a URL endpoint.
+
+Outpost supports two webhook modes:
+- **Default mode** - Customizable headers and signature format
+- **Standard Webhooks mode** - Follows the [Standard Webhooks](https://www.standardwebhooks.com/) specification
+
+## Overview
+
+When you publish an event:
+
+```json
+{
+  "topic": "orders",
+  "data": {
+    "order_id": "123",
+    "status": "created"
+  },
+  "metadata": {
+    "source": "checkout-service"
+  }
+}
+```
+
+Outpost sends an HTTP POST request with:
+
+- **Body**: The event's `data` field as JSON
+- **Headers**: System metadata (`event-id`, `topic`, `timestamp`) plus any event metadata, with a configurable prefix
+
+Example request:
+
+```
+POST /webhooks HTTP/1.1
+Content-Type: application/json
+x-outpost-id: evt_123
+x-outpost-topic: orders
+x-outpost-timestamp: 1704067200
+x-outpost-signature: t=1704067200,v0=abc123...
+x-outpost-source: checkout-service
+
+{"order_id": "123", "status": "created"}
+```
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `config.url` | string | Yes | The URL to send events to |
+| `config.custom_headers` | string | No | JSON object of custom headers to include |
+
+### Credentials
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `credentials.secret` | string | No | Signing secret (auto-generated if not provided) |
+| `credentials.previous_secret` | string | No | Previous secret during rotation |
+| `credentials.previous_secret_invalid_at` | string | No | RFC3339 timestamp when previous secret expires |
+
+If `secret` is not provided, one will be auto-generated. Tenants cannot modify secrets directly - they can only trigger rotation.
+
+### Example
+
+```sh
+curl --location 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "webhook",
+  "topics": ["orders"],
+  "config": {
+    "url": "https://example.com/webhooks"
+  }
+}'
+```
+
+## Secret Rotation
+
+Secret rotation allows you to change the signing secret without downtime. During the rotation window, both the old and new secrets are valid for signature verification.
+
+To rotate a secret, set `rotate_secret` to `true` when updating a destination:
+
+```sh
+curl --location --request PATCH 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations/<DESTINATION_ID>' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "credentials": {
+    "rotate_secret": "true"
+  }
+}'
+```
+
+When rotation is triggered:
+1. The current secret becomes `previous_secret`
+2. A new secret is generated
+3. The previous secret remains valid for 24 hours by default
+4. Both secrets are included in the signature header during the rotation window
+
+To customize the rotation window, set `previous_secret_invalid_at`:
+
+```sh
+curl --location --request PATCH 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations/<DESTINATION_ID>' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "credentials": {
+    "rotate_secret": "true",
+    "previous_secret_invalid_at": "2025-01-15T00:00:00Z"
+  }
+}'
+```
+
+---
+
+## Default Mode
+
+In default mode, Outpost provides a customizable webhook implementation.
+
+### Headers
+
+Outpost adds headers using the configured prefix (default `x-outpost-`):
+
+| Header | Source | Description |
+| ------ | ------ | ----------- |
+| `x-outpost-id` | System | The unique event ID |
+| `x-outpost-timestamp` | System | Event timestamp (Unix) |
+| `x-outpost-topic` | System | The event topic |
+| `x-outpost-signature` | System | HMAC-SHA256 signature |
+| `x-outpost-{key}` | Event | Any metadata from the published event's `metadata` field |
+
+### Signature
+
+The signature is computed over the timestamp and request body:
+
+```
+signature = HMAC-SHA256(secret, "${timestamp}.${body}")
+```
+
+The signature header value follows the format: `t=${timestamp},v0=${signature}`
+
+### Verifying Signatures
+
+To verify webhook requests:
+
+1. Extract the timestamp and signature from the `x-outpost-signature` header
+2. Compute the expected signature using your secret
+3. Compare signatures using a constant-time comparison
+4. Optionally, reject requests with old timestamps to prevent replay attacks
+
+### Operator Configuration
+
+Operators can customize webhook behavior via environment variables.
+
+#### Header Configuration
+
+| Environment Variable | Default | Description |
+| -------------------- | ------- | ----------- |
+| `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `x-outpost-` | Prefix for all webhook headers |
+| `DESTINATIONS_WEBHOOK_DISABLE_EVENT_ID_HEADER` | `false` | Disable the event ID header |
+| `DESTINATIONS_WEBHOOK_DISABLE_TIMESTAMP_HEADER` | `false` | Disable the timestamp header |
+| `DESTINATIONS_WEBHOOK_DISABLE_TOPIC_HEADER` | `false` | Disable the topic header |
+| `DESTINATIONS_WEBHOOK_DISABLE_SIGNATURE_HEADER` | `false` | Disable the signature header |
+
+#### Signature Configuration
+
+| Environment Variable | Default | Description |
+| -------------------- | ------- | ----------- |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Signature encoding (`hex` or `base64`) |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_VALUE_TEMPLATE` | `{{.Timestamp.Unix}}.{{.Body}}` | Template for the value being signed |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` | Template for signature header value |
+
+See the [migration guide](/docs/guides/migrate-to-outpost#webhook-customization) for common customization patterns.
+
+---
+
+## Standard Webhooks Mode
+
+Standard Webhooks mode follows the [Standard Webhooks](https://www.standardwebhooks.com/) specification, providing a standardized format for webhook signatures and headers used by many webhook providers.
+
+To enable Standard Webhooks mode, set:
+
+```
+DESTINATIONS_WEBHOOK_MODE=standard
+```
+
+### Headers
+
+| Header | Source | Description |
+| ------ | ------ | ----------- |
+| `webhook-id` | System | The unique event ID |
+| `webhook-timestamp` | System | Event timestamp (Unix) |
+| `webhook-signature` | System | Signature in `v1,<base64>` format |
+| `webhook-{key}` | Event | Any metadata from the published event's `metadata` field |
+
+### Signature
+
+The signature follows the Standard Webhooks specification:
+
+```
+signature = base64(HMAC-SHA256(secret, "${webhook-id}.${timestamp}.${body}"))
+```
+
+### Verifying Signatures
+
+Use the official [Standard Webhooks SDK](https://github.com/standard-webhooks/standard-webhooks/tree/main/libraries) to verify signatures. SDKs are available for multiple languages including JavaScript, Python, Go, Ruby, and more.
+
+### Secret Format
+
+Standard Webhooks secrets use the format `whsec_<base64>`, which is automatically generated when creating a destination.
+
+### Operator Configuration
+
+| Environment Variable | Default | Description |
+| -------------------- | ------- | ----------- |
+| `DESTINATIONS_WEBHOOK_MODE` | `default` | Set to `standard` to enable Standard Webhooks mode |
+| `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `webhook-` | Prefix for Standard Webhooks headers |
+
+---
+
+## Custom Headers
+
+Tenants can add custom HTTP headers to webhook requests. This is useful for authentication, routing, or passing additional metadata to their endpoint.
+
+```sh
+curl --location 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "webhook",
+  "topics": ["orders"],
+  "config": {
+    "url": "https://example.com/webhooks",
+    "custom_headers": "{\"x-api-key\": \"secret123\", \"x-tenant-id\": \"tenant-abc\"}"
+  }
+}'
+```
+
+### Header Name Requirements
+
+- Must start with a letter or digit
+- Can contain letters, digits, underscores (`_`), and hyphens (`-`)
+
+### Reserved Headers
+
+The following headers cannot be overridden:
+
+- `content-type`
+- `content-length`
+- `host`
+- `connection`
+- `user-agent`
+
+### Operator Configuration
+
+Custom headers are disabled in the tenant portal by default. To enable, set `PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS=true`.

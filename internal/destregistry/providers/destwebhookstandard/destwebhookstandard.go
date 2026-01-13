@@ -54,7 +54,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -74,7 +73,8 @@ type StandardWebhookDestination struct {
 }
 
 type StandardWebhookDestinationConfig struct {
-	URL string `json:"url"`
+	URL           string            `json:"url"`
+	CustomHeaders map[string]string `json:"custom_headers,omitempty"`
 }
 
 type StandardWebhookDestinationCredentials struct {
@@ -229,6 +229,7 @@ func (d *StandardWebhookDestination) CreatePublisher(ctx context.Context, destin
 		secrets:       secrets,
 		sm:            sm,
 		headerPrefix:  d.headerPrefix,
+		customHeaders: config.CustomHeaders,
 	}, nil
 }
 
@@ -239,6 +240,19 @@ func (d *StandardWebhookDestination) resolveConfig(ctx context.Context, destinat
 
 	config := &StandardWebhookDestinationConfig{
 		URL: destination.Config["url"],
+	}
+
+	// Parse custom headers from config
+	if headersJSON, ok := destination.Config["custom_headers"]; ok && headersJSON != "" {
+		if err := json.Unmarshal([]byte(headersJSON), &config.CustomHeaders); err != nil {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+				Field: "config.custom_headers",
+				Type:  "invalid",
+			}})
+		}
+		if err := destwebhook.ValidateCustomHeaders(config.CustomHeaders); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// Parse credentials
@@ -500,11 +514,12 @@ func (d *StandardWebhookDestination) Preprocess(newDestination *models.Destinati
 
 type StandardWebhookPublisher struct {
 	*destregistry.BasePublisher
-	httpClient   *http.Client
-	url          string
-	secrets      []destwebhook.WebhookSecret
-	sm           *destwebhook.SignatureManager
-	headerPrefix string
+	httpClient    *http.Client
+	url           string
+	secrets       []destwebhook.WebhookSecret
+	sm            *destwebhook.SignatureManager
+	headerPrefix  string
+	customHeaders map[string]string
 }
 
 func (p *StandardWebhookPublisher) Close() error {
@@ -523,53 +538,8 @@ func (p *StandardWebhookPublisher) Publish(ctx context.Context, event *models.Ev
 		return nil, err
 	}
 
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, destregistry.NewErrDestinationPublishAttempt(err, "webhook_standard", map[string]interface{}{
-			"error":   "request_failed",
-			"message": err.Error(),
-		})
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		delivery := &destregistry.Delivery{
-			Status: "failed",
-			Code:   fmt.Sprintf("%d", resp.StatusCode),
-		}
-		parseResponse(delivery, resp)
-
-		// Extract body from delivery.Response for error details
-		var bodyStr string
-		if delivery.Response != nil {
-			if body, ok := delivery.Response["body"]; ok {
-				switch v := body.(type) {
-				case string:
-					bodyStr = v
-				case map[string]interface{}:
-					if jsonBytes, err := json.Marshal(v); err == nil {
-						bodyStr = string(jsonBytes)
-					}
-				}
-			}
-		}
-
-		return delivery, destregistry.NewErrDestinationPublishAttempt(
-			fmt.Errorf("request failed with status %d: %s", resp.StatusCode, bodyStr),
-			"webhook_standard",
-			map[string]interface{}{
-				"status": resp.StatusCode,
-				"body":   bodyStr,
-			})
-	}
-
-	delivery := &destregistry.Delivery{
-		Status: "success",
-		Code:   fmt.Sprintf("%d", resp.StatusCode),
-	}
-	parseResponse(delivery, resp)
-
-	return delivery, nil
+	result := destwebhook.ExecuteHTTPRequest(ctx, p.httpClient, httpReq, "webhook_standard")
+	return result.Delivery, result.Error
 }
 
 // Format creates an HTTP request formatted according to Standard Webhooks specification
@@ -586,6 +556,11 @@ func (p *StandardWebhookPublisher) Format(ctx context.Context, event *models.Eve
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+
+	// Add custom headers FIRST (so metadata can override if there's a conflict)
+	for key, value := range p.customHeaders {
+		req.Header.Set(key, value)
+	}
 
 	// Use event ID directly as the message ID
 	// This ensures the same message ID is used across retry attempts
@@ -635,29 +610,5 @@ func isTruthy(value string) bool {
 		return true
 	default:
 		return false
-	}
-}
-
-func parseResponse(delivery *destregistry.Delivery, resp *http.Response) {
-	if strings.Contains(resp.Header.Get("Content-Type"), "application/json") {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		var response map[string]interface{}
-		if err := json.Unmarshal(bodyBytes, &response); err != nil {
-			delivery.Response = map[string]interface{}{
-				"status": resp.StatusCode,
-				"body":   string(bodyBytes),
-			}
-			return
-		}
-		delivery.Response = map[string]interface{}{
-			"status": resp.StatusCode,
-			"body":   response,
-		}
-	} else {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		delivery.Response = map[string]interface{}{
-			"status": resp.StatusCode,
-			"body":   string(bodyBytes),
-		}
 	}
 }

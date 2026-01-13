@@ -100,42 +100,63 @@ $COLORS_CODE_NUMBER_DARK: #ffe066 !default;
 
 // Shadows
 
-$COLORS_SHADOW_TOOLTIP_LIGHT: 0px 2px 4px 0px rgba(0, 0, 0, 0.08),
-  0px 4px 8px 0px rgba(0, 0, 0, 0.08), 0px 0px 0px 1px rgba(0, 0, 0, 0.08);
-$COLORS_SHADOW_TOOLTIP_DARK: 0px -1px 0px 0px rgba(255, 255, 255, 0.04),
-  0px 2px 4px 0px rgba(0, 0, 0, 0.32), 0px 4px 8px 0px rgba(0, 0, 0, 0.32),
-  0px 0px 0px 1px rgba(255, 255, 255, 0.16);
-
-$COLORS_SHADOW_MENU_LIGHT: 0px 8px 16px 0px rgba(0, 0, 0, 0.08),
-  0px 4px 8px 0px rgba(0, 0, 0, 0.08), 0px 0px 0px 1px rgba(0, 0, 0, 0.08);
-$COLORS_SHADOW_MENU_DARK: 0px -1px 0px 0px rgba(255, 255, 255, 0.04),
-  0px 4px 8px 0px rgba(0, 0, 0, 0.32), 0px 8px 16px 0px rgba(0, 0, 0, 0.32),
-  0px 0px 0px 1px rgba(255, 255, 255, 0.16);
-
-$COLORS_SHADOW_DIALOG_LIGHT: 0px 8px 16px 0px rgba(0, 0, 0, 0.08),
-  0px 16px 32px 0px rgba(0, 0, 0, 0.08), 0px 0px 0px 1px rgba(0, 0, 0, 0.08);
-$COLORS_SHADOW_DIALOG_DARK: 0px -1px 0px 0px rgba(255, 255, 255, 0.04),
-  0px 8px 16px 0px rgba(0, 0, 0, 0.32), 0px 16px 32px 0px rgba(0, 0, 0, 0.32),
-  0px 0px 0px 1px rgba(255, 255, 255, 0.16);
-
-$COLORS_SHADOW_BUTTON_LIGHT: 0px 1px 2px 0px rgba(0, 0, 0, 0.08),
+$COLORS_SHADOW_TOOLTIP_LIGHT:
+  0px 2px 4px 0px rgba(0, 0, 0, 0.08),
+  0px 4px 8px 0px rgba(0, 0, 0, 0.08),
   0px 0px 0px 1px rgba(0, 0, 0, 0.08);
-$COLORS_SHADOW_BUTTON_DARK: 0px -1px 0px 0px rgba(255, 255, 255, 0.04),
-  0px 2px 4px 0px rgba(0, 0, 0, 0.32), 0px 0px 0px 1px rgba(255, 255, 255, 0.24);
+$COLORS_SHADOW_TOOLTIP_DARK:
+  0px -1px 0px 0px rgba(255, 255, 255, 0.04),
+  0px 2px 4px 0px rgba(0, 0, 0, 0.32),
+  0px 4px 8px 0px rgba(0, 0, 0, 0.32),
+  0px 0px 0px 1px rgba(255, 255, 255, 0.16);
 
-$COLORS_SHADOW_BUTTON_PRIMARY_LIGHT: 0px 1px 2px 0px rgba(0, 0, 0, 0.32),
+$COLORS_SHADOW_MENU_LIGHT:
+  0px 8px 16px 0px rgba(0, 0, 0, 0.08),
+  0px 4px 8px 0px rgba(0, 0, 0, 0.08),
+  0px 0px 0px 1px rgba(0, 0, 0, 0.08);
+$COLORS_SHADOW_MENU_DARK:
+  0px -1px 0px 0px rgba(255, 255, 255, 0.04),
+  0px 4px 8px 0px rgba(0, 0, 0, 0.32),
+  0px 8px 16px 0px rgba(0, 0, 0, 0.32),
+  0px 0px 0px 1px rgba(255, 255, 255, 0.16);
+
+$COLORS_SHADOW_DIALOG_LIGHT:
+  0px 8px 16px 0px rgba(0, 0, 0, 0.08),
+  0px 16px 32px 0px rgba(0, 0, 0, 0.08),
+  0px 0px 0px 1px rgba(0, 0, 0, 0.08);
+$COLORS_SHADOW_DIALOG_DARK:
+  0px -1px 0px 0px rgba(255, 255, 255, 0.04),
+  0px 8px 16px 0px rgba(0, 0, 0, 0.32),
+  0px 16px 32px 0px rgba(0, 0, 0, 0.32),
+  0px 0px 0px 1px rgba(255, 255, 255, 0.16);
+
+$COLORS_SHADOW_BUTTON_LIGHT:
+  0px 1px 2px 0px rgba(0, 0, 0, 0.08),
+  0px 0px 0px 1px rgba(0, 0, 0, 0.08);
+$COLORS_SHADOW_BUTTON_DARK:
+  0px -1px 0px 0px rgba(255, 255, 255, 0.04),
+  0px 2px 4px 0px rgba(0, 0, 0, 0.32),
+  0px 0px 0px 1px rgba(255, 255, 255, 0.24);
+
+$COLORS_SHADOW_BUTTON_PRIMARY_LIGHT:
+  0px 1px 2px 0px rgba(0, 0, 0, 0.32),
   0px 0px 0px 1px #0036a3;
-$COLORS_SHADOW_BUTTON_PRIMARY_DARK: 0px 1px 2px 0px rgba(0, 0, 0, 0.16),
+$COLORS_SHADOW_BUTTON_PRIMARY_DARK:
+  0px 1px 2px 0px rgba(0, 0, 0, 0.16),
   0px 0px 0px 1px rgba(0, 0, 0, 0.08);
 
-$COLORS_SHADOW_INPUT_LIGHT: 0px 1px 2px 0px rgba(0, 0, 0, 0.04) inset,
+$COLORS_SHADOW_INPUT_LIGHT:
+  0px 1px 2px 0px rgba(0, 0, 0, 0.04) inset,
   0px 0px 0px 1px rgba(0, 0, 0, 0.08) inset;
-$COLORS_SHADOW_INPUT_DARK: 0px 2px 4px 0px rgba(0, 0, 0, 0.32) inset,
+$COLORS_SHADOW_INPUT_DARK:
+  0px 2px 4px 0px rgba(0, 0, 0, 0.32) inset,
   0px 0px 0px 1px rgba(255, 255, 255, 0.24) inset;
 
-$COLORS_SHADOW_INPUT_DANGER_LIGHT: 0px 2px 2px 0px rgba(0, 0, 0, 0.12) inset,
+$COLORS_SHADOW_INPUT_DANGER_LIGHT:
+  0px 2px 2px 0px rgba(0, 0, 0, 0.12) inset,
   0px 0px 0px 1px #cc2314 inset;
-$COLORS_SHADOW_INPUT_DANGER_DARK: 0px 2px 4px 0px rgba(0, 0, 0, 0.32) inset,
+$COLORS_SHADOW_INPUT_DANGER_DARK:
+  0px 2px 4px 0px rgba(0, 0, 0, 0.32) inset,
   0px 0px 0px 1px #cc2314 inset;
 
 // Outline Colors
@@ -298,8 +319,15 @@ html {
 }
 
 * {
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
 
   color: var(--colors-foreground-neutral);
 

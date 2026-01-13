@@ -390,6 +390,13 @@ func (s *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 			pipe.HDel(ctx, key, "metadata")
 		}
 
+		// Store filter if present
+		if destination.Filter != nil && len(destination.Filter) > 0 {
+			pipe.HSet(ctx, key, "filter", &destination.Filter)
+		} else {
+			pipe.HDel(ctx, key, "filter")
+		}
+
 		// Update summary atomically
 		pipe.HSet(ctx, summaryKey, destination.ID, destination.ToSummary())
 		return nil
@@ -430,21 +437,21 @@ func (s *entityStoreImpl) MatchEvent(ctx context.Context, event Event) ([]Destin
 		return nil, err
 	}
 
-	if event.Topic == "" {
-		return destinationSummaryList, nil
-	}
-
 	matchedDestinationSummaryList := []DestinationSummary{}
 
 	for _, destinationSummary := range destinationSummaryList {
 		if destinationSummary.Disabled {
 			continue
 		}
-		// If event topic is "*", match all destinations
-		// Otherwise, match if destination has "*" topic or matches the event topic
-		if destinationSummary.Topics.MatchTopic(event.Topic) {
-			matchedDestinationSummaryList = append(matchedDestinationSummaryList, destinationSummary)
+		// Match by topic first (if topic is provided)
+		if event.Topic != "" && !destinationSummary.Topics.MatchTopic(event.Topic) {
+			continue
 		}
+		// Then apply filter (if filter is set)
+		if !destinationSummary.MatchFilter(event) {
+			continue
+		}
+		matchedDestinationSummaryList = append(matchedDestinationSummaryList, destinationSummary)
 	}
 
 	return matchedDestinationSummaryList, nil

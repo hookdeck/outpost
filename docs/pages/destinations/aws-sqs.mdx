@@ -1,0 +1,122 @@
+---
+title: AWS SQS
+---
+
+Send events to an Amazon SQS queue.
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `config.queue_url` | string | Yes | The SQS queue URL |
+| `config.endpoint` | string | No | Custom endpoint URL (for LocalStack, etc.) |
+
+### Credentials
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `credentials.key` | string | Yes | AWS Access Key ID |
+| `credentials.secret` | string | Yes | AWS Secret Access Key |
+| `credentials.session` | string | No | AWS Session Token (for temporary credentials) |
+
+### Example
+
+```sh
+curl --location 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "aws_sqs",
+  "topics": ["orders"],
+  "config": {
+    "queue_url": "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue"
+  },
+  "credentials": {
+    "key": "<AWS_ACCESS_KEY_ID>",
+    "secret": "<AWS_SECRET_ACCESS_KEY>"
+  }
+}'
+```
+
+## Message Format
+
+Events are sent as SQS messages with:
+
+- **Message Body**: The event's `data` field (JSON)
+- **Message Attributes**: Event metadata
+
+### Example Message
+
+If you publish an event:
+
+```json
+{
+  "topic": "orders",
+  "data": {
+    "order_id": "123",
+    "status": "created"
+  },
+  "metadata": {
+    "source": "checkout-service"
+  }
+}
+```
+
+**Message Body:**
+```json
+{
+  "order_id": "123",
+  "status": "created"
+}
+```
+
+**Message Attributes:**
+
+The `metadata` attribute contains a JSON string with system metadata and any event metadata:
+
+| Attribute | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | String | JSON containing `event-id`, `topic`, `timestamp`, plus any event metadata |
+
+Example value:
+```json
+{"event-id": "evt_123", "topic": "orders", "timestamp": "1704067200", "source": "checkout-service"}
+```
+
+## IAM Permissions
+
+The IAM user or role needs the following permission:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "sqs:SendMessage",
+      "Resource": "arn:aws:sqs:*:*:my-queue"
+    }
+  ]
+}
+```
+
+## Using with LocalStack
+
+For local development with LocalStack, set the `config.endpoint` field:
+
+```json
+{
+  "type": "aws_sqs",
+  "topics": ["orders"],
+  "config": {
+    "queue_url": "http://localhost:4566/000000000000/my-queue",
+    "endpoint": "http://localhost:4566"
+  },
+  "credentials": {
+    "key": "test",
+    "secret": "test"
+  }
+}
+```

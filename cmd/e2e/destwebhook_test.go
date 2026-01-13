@@ -7,6 +7,7 @@ import (
 
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/stretchr/testify/require"
 )
 
 // TestingT is an interface wrapper around *testing.T
@@ -1204,4 +1205,288 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 		},
 	}
 	suite.RunAPITests(suite.T(), cleanupTests)
+}
+
+func (suite *basicSuite) TestDestwebhookFilter() {
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
+	eventMatchID := idgen.Event()
+	eventNoMatchID := idgen.Event()
+	secret := "testsecret1234567890abcdefghijklmnop"
+
+	tests := []APITest{
+		{
+			Name: "PUT /:tenantID",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+		{
+			Name: "PUT mockserver/destinations",
+			Request: httpclient.Request{
+				Method:  httpclient.MethodPUT,
+				BaseURL: suite.mockServerBaseURL,
+				Path:    "/destinations",
+				Body: map[string]interface{}{
+					"id":   destinationID,
+					"type": "webhook",
+					"config": map[string]interface{}{
+						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
+					},
+					"credentials": map[string]interface{}{
+						"secret": secret,
+					},
+				},
+			},
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Name: "POST /:tenantID/destinations - create destination with filter using $gte operator",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/" + tenantID + "/destinations",
+				Body: map[string]interface{}{
+					"id":     destinationID,
+					"type":   "webhook",
+					"topics": "*",
+					"filter": map[string]interface{}{
+						"data": map[string]interface{}{
+							"amount": map[string]interface{}{
+								"$gte": 100,
+							},
+						},
+					},
+					"config": map[string]interface{}{
+						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
+					},
+					"credentials": map[string]interface{}{
+						"secret": secret,
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+		{
+			Name: "POST /publish - event matches filter (amount >= 100)",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/publish",
+				Body: map[string]interface{}{
+					"tenant_id":          tenantID,
+					"topic":              "user.created",
+					"eligible_for_retry": false,
+					"data": map[string]any{
+						"event_id": eventMatchID,
+						"amount":   150, // >= 100, matches filter
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusAccepted,
+				},
+			},
+		},
+		{
+			Delay: 1 * time.Second,
+			Name:  "GET mockserver - verify event was delivered",
+			Request: httpclient.Request{
+				Method:  httpclient.MethodGET,
+				BaseURL: suite.mockServerBaseURL,
+				Path:    "/destinations/" + destinationID + "/events",
+			},
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body: []interface{}{
+						map[string]interface{}{
+							"success":  true,
+							"verified": true,
+							"payload": map[string]interface{}{
+								"event_id": eventMatchID,
+								"amount":   float64(150),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "DELETE mockserver events - clear for next test",
+			Request: httpclient.Request{
+				Method:  httpclient.MethodDELETE,
+				BaseURL: suite.mockServerBaseURL,
+				Path:    "/destinations/" + destinationID + "/events",
+			},
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+		{
+			Name: "POST /publish - event does NOT match filter (amount < 100)",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/publish",
+				Body: map[string]interface{}{
+					"tenant_id":          tenantID,
+					"topic":              "user.created",
+					"eligible_for_retry": false,
+					"data": map[string]any{
+						"event_id": eventNoMatchID,
+						"amount":   50, // < 100, doesn't match filter
+					},
+				},
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusAccepted,
+				},
+			},
+		},
+		{
+			Delay: 1 * time.Second,
+			Name:  "GET mockserver - verify event was NOT delivered (filter mismatch)",
+			Request: httpclient.Request{
+				Method:  httpclient.MethodGET,
+				BaseURL: suite.mockServerBaseURL,
+				Path:    "/destinations/" + destinationID + "/events",
+			},
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+					Body:       []interface{}{}, // empty - no events delivered
+				},
+			},
+		},
+		{
+			Name: "DELETE /:tenantID to clean up",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodDELETE,
+				Path:   "/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+	}
+	suite.RunAPITests(suite.T(), tests)
+}
+
+// TestDeliveryRetry tests that failed deliveries are scheduled for retry via RSMQ.
+// This exercises the RSMQ Lua scripts that are known to fail with Dragonfly.
+func (suite *basicSuite) TestDeliveryRetry() {
+	t := suite.T()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
+	secret := "testsecret1234567890abcdefghijklmnop"
+
+	// Setup: create tenant
+	resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodPUT,
+		Path:   "/" + tenantID,
+	}))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	// Setup: configure mock server destination
+	resp, err = suite.client.Do(httpclient.Request{
+		Method:  httpclient.MethodPUT,
+		BaseURL: suite.mockServerBaseURL,
+		Path:    "/destinations",
+		Body: map[string]interface{}{
+			"id":   destinationID,
+			"type": "webhook",
+			"config": map[string]interface{}{
+				"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
+			},
+			"credentials": map[string]interface{}{
+				"secret": secret,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Setup: create destination in outpost
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodPOST,
+		Path:   "/" + tenantID + "/destinations",
+		Body: map[string]interface{}{
+			"id":     destinationID,
+			"type":   "webhook",
+			"topics": "*",
+			"config": map[string]interface{}{
+				"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
+			},
+			"credentials": map[string]interface{}{
+				"secret": secret,
+			},
+		},
+	}))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	// Publish event with retry enabled and should_err to force failure
+	// This will trigger the RSMQ retry scheduler
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodPOST,
+		Path:   "/publish",
+		Body: map[string]interface{}{
+			"tenant_id":          tenantID,
+			"topic":              "user.created",
+			"eligible_for_retry": true, // Enable retry - exercises RSMQ!
+			"metadata": map[string]any{
+				"should_err": "true", // Force delivery to fail
+			},
+			"data": map[string]any{
+				"test": "retry",
+			},
+		},
+	}))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusAccepted, resp.StatusCode)
+
+	// Wait for retry to be scheduled and attempted
+	// RetryIntervalSeconds=1 in test config, so 3s should be enough for at least one retry
+	time.Sleep(3 * time.Second)
+
+	// Verify: check that multiple delivery attempts were made (original + retries)
+	resp, err = suite.client.Do(httpclient.Request{
+		Method:  httpclient.MethodGET,
+		BaseURL: suite.mockServerBaseURL,
+		Path:    "/destinations/" + destinationID + "/events",
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	events, ok := resp.Body.([]interface{})
+	require.True(t, ok, "response body should be array")
+	// Should have more than 1 event if retry worked (original attempt + at least 1 retry)
+	require.Greater(t, len(events), 1, "expected multiple delivery attempts (original + retry), got %d", len(events))
+
+	// Cleanup
+	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodDELETE,
+		Path:   "/" + tenantID,
+	}))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }

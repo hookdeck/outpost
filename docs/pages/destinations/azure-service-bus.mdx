@@ -1,0 +1,87 @@
+---
+title: Azure Service Bus
+---
+
+Send events to an Azure Service Bus queue or topic.
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `config.name` | string | Yes | The queue or topic name |
+
+### Credentials
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `credentials.connection_string` | string | Yes | Azure Service Bus connection string |
+
+### Example
+
+```sh
+curl --location 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "azure_servicebus",
+  "topics": ["orders"],
+  "config": {
+    "name": "my-queue"
+  },
+  "credentials": {
+    "connection_string": "Endpoint=sb://my-namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=<KEY>"
+  }
+}'
+```
+
+## Message Format
+
+Events are sent as Service Bus messages with:
+
+- **Message Body**: The event's `data` field (JSON)
+- **Application Properties**: Event metadata
+
+### Example Message
+
+If you publish an event:
+
+```json
+{
+  "topic": "orders",
+  "data": {
+    "order_id": "123",
+    "status": "created"
+  },
+  "metadata": {
+    "source": "checkout-service"
+  }
+}
+```
+
+**Body:**
+```json
+{
+  "order_id": "123",
+  "status": "created"
+}
+```
+
+**Application Properties:**
+
+Properties include system metadata and any event metadata from the published event:
+
+| Property | Source | Description |
+| -------- | ------ | ----------- |
+| `event-id` | System | The unique event ID |
+| `topic` | System | The event topic |
+| `timestamp` | System | Event timestamp (Unix) |
+| `*` | Event | Any additional metadata from the published event's `metadata` field |
+
+## Getting a Connection String
+
+1. Navigate to your Service Bus namespace in the Azure Portal
+2. Go to **Shared access policies**
+3. Select or create a policy with **Send** permission
+4. Copy the **Primary Connection String**

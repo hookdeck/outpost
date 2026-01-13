@@ -1,6 +1,7 @@
 package destregistry
 
 import (
+	"context"
 	"errors"
 	"fmt"
 )
@@ -36,6 +37,17 @@ func (e *ErrDestinationPublishAttempt) Error() string {
 
 func NewErrDestinationPublishAttempt(err error, provider string, data map[string]interface{}) error {
 	return &ErrDestinationPublishAttempt{Err: err, Provider: provider, Data: data}
+}
+
+// NewErrPublishCanceled creates an error for when publish is canceled (e.g., service shutdown).
+// This should return nil Delivery to trigger nack → requeue for another instance.
+// See: https://github.com/hookdeck/outpost/issues/571
+func NewErrPublishCanceled(provider string) error {
+	return &ErrDestinationPublishAttempt{
+		Err:      context.Canceled,
+		Provider: provider,
+		Data:     map[string]interface{}{"error": "canceled"},
+	}
 }
 
 var ErrPublisherClosed = errors.New("publisher is closed")

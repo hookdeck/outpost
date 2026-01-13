@@ -45,12 +45,12 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/standard-webhooks/standard-webhooks/libraries v0.0.0-20250711233419-a173a6c0125c
 	github.com/stretchr/testify v1.10.0
-	github.com/testcontainers/testcontainers-go v0.36.0
 	github.com/testcontainers/testcontainers-go/modules/clickhouse v0.33.0
 	github.com/testcontainers/testcontainers-go/modules/gcloud v0.36.0
 	github.com/testcontainers/testcontainers-go/modules/localstack v0.36.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.36.0
 	github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.36.0
+	github.com/testcontainers/testcontainers-go/modules/redis v0.36.0
 	github.com/uptrace/opentelemetry-go-extra/otelzap v0.3.1
 	github.com/urfave/cli/v3 v3.4.1
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.53.0
@@ -202,6 +202,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
+	github.com/testcontainers/testcontainers-go v0.36.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.8.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect

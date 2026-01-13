@@ -169,6 +169,9 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		shouldRevalidate = true
 		updatedDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, input.Credentials)
 	}
+	if input.Filter != nil {
+		updatedDestination.Filter = input.Filter
+	}
 	if input.DeliveryMetadata != nil {
 		updatedDestination.DeliveryMetadata = maputil.MergeStringMaps(originalDestination.DeliveryMetadata, input.DeliveryMetadata)
 	}
@@ -320,6 +323,7 @@ type CreateDestinationRequest struct {
 	ID               string                  `json:"id" binding:"-"`
 	Type             string                  `json:"type" binding:"required"`
 	Topics           models.Topics           `json:"topics" binding:"required"`
+	Filter           models.Filter           `json:"filter,omitempty" binding:"-"`
 	Config           models.Config           `json:"config" binding:"-"`
 	Credentials      models.Credentials      `json:"credentials" binding:"-"`
 	DeliveryMetadata models.DeliveryMetadata `json:"delivery_metadata,omitempty" binding:"-"`
@@ -341,6 +345,7 @@ func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destina
 		ID:               r.ID,
 		Type:             r.Type,
 		Topics:           r.Topics,
+		Filter:           r.Filter,
 		Config:           r.Config,
 		Credentials:      r.Credentials,
 		DeliveryMetadata: r.DeliveryMetadata,
@@ -354,6 +359,7 @@ func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destina
 type UpdateDestinationRequest struct {
 	Type             string                  `json:"type" binding:"-"`
 	Topics           models.Topics           `json:"topics" binding:"-"`
+	Filter           models.Filter           `json:"filter,omitempty" binding:"-"`
 	Config           models.Config           `json:"config" binding:"-"`
 	Credentials      models.Credentials      `json:"credentials" binding:"-"`
 	DeliveryMetadata models.DeliveryMetadata `json:"delivery_metadata,omitempty" binding:"-"`

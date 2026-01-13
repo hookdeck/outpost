@@ -1,5 +1,5 @@
 interface ConfigField {
-  type: "text" | "checkbox";
+  type: "text" | "checkbox" | "key_value_map";
   label: string;
   description: string;
   key: string;
@@ -12,6 +12,8 @@ interface ConfigField {
   minlength?: number;
   maxlength?: number;
   pattern?: string;
+  key_placeholder?: string;
+  value_placeholder?: string;
 }
 
 interface CredentialField extends ConfigField {
@@ -32,11 +34,16 @@ interface DestinationTypeReference {
   icon: string;
 }
 
+// Filter type for event matching using JSON schema syntax
+// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not
+type Filter = Record<string, any> | null;
+
 interface Destination {
   id: string;
   type: string;
   config: Record<string, any>;
   topics: string[];
+  filter?: Filter;
   credentials: Record<string, any>;
   label: string;
   description: string;
@@ -48,6 +55,7 @@ interface Destination {
 
 export type {
   Destination,
+  Filter,
   ConfigField,
   CredentialField,
   DestinationTypeReference,

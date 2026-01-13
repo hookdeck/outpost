@@ -212,6 +212,24 @@ func TestRedisClusterBasicSuite(t *testing.T) {
 	})
 }
 
+func TestDragonflyBasicSuite(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+
+	// Get Dragonfly config from testinfra
+	dragonflyConfig := configs.CreateDragonflyConfig(t)
+	if dragonflyConfig == nil {
+		t.Skip("skipping Dragonfly test (TEST_DRAGONFLY_URL not set)")
+	}
+
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypePostgres,
+		redisConfig:    dragonflyConfig,
+	})
+}
+
 func TestBasicSuiteWithDeploymentID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -222,4 +240,151 @@ func TestBasicSuiteWithDeploymentID(t *testing.T) {
 		logStorageType: configs.LogStorageTypePostgres,
 		deploymentID:   "dp_e2e_test",
 	})
+}
+
+// TestAutoDisableWithoutCallbackURL tests the scenario from issue #596:
+// ALERT_AUTO_DISABLE_DESTINATION=true without ALERT_CALLBACK_URL set.
+// Run with: go test -v -run TestAutoDisableWithoutCallbackURL ./cmd/e2e/...
+func TestAutoDisableWithoutCallbackURL(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+
+	// Setup infrastructure
+	testinfraCleanup := testinfra.Start(t)
+	defer testinfraCleanup()
+	gin.SetMode(gin.TestMode)
+	mockServerBaseURL := testinfra.GetMockServer(t)
+
+	// Configure WITHOUT alert callback URL (the issue #596 scenario)
+	cfg := configs.Basic(t, configs.BasicOpts{
+		LogStorage: configs.LogStorageTypePostgres,
+	})
+	cfg.Alert.CallbackURL = ""              // No callback URL
+	cfg.Alert.AutoDisableDestination = true // Auto-disable enabled
+	cfg.Alert.ConsecutiveFailureCount = 20  // Default threshold
+
+	require.NoError(t, cfg.Validate(config.Flags{}))
+
+	// Start application
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	appDone := make(chan struct{})
+	go func() {
+		defer close(appDone)
+		application := app.New(&cfg)
+		if err := application.Run(ctx); err != nil {
+			log.Println("Application stopped:", err)
+		}
+	}()
+	defer func() {
+		cancel()
+		<-appDone
+	}()
+
+	// Wait for services to start
+	time.Sleep(2 * time.Second)
+
+	// Setup test client
+	client := httpclient.New(fmt.Sprintf("http://localhost:%d/api/v1", cfg.APIPort), cfg.APIKey)
+	mockServerInfra := testinfra.NewMockServerInfra(mockServerBaseURL)
+
+	// Test data
+	tenantID := fmt.Sprintf("tenant_%d", time.Now().UnixNano())
+	destinationID := fmt.Sprintf("dest_%d", time.Now().UnixNano())
+	secret := "testsecret1234567890abcdefghijklmnop"
+
+	// Create tenant
+	resp, err := client.Do(httpclient.Request{
+		Method:  httpclient.MethodPUT,
+		Path:    "/" + tenantID,
+		Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 201, resp.StatusCode, "failed to create tenant")
+
+	// Configure mock server destination to return errors
+	resp, err = client.Do(httpclient.Request{
+		Method:  httpclient.MethodPUT,
+		BaseURL: mockServerBaseURL,
+		Path:    "/destinations",
+		Body: map[string]interface{}{
+			"id":   destinationID,
+			"type": "webhook",
+			"config": map[string]interface{}{
+				"url": fmt.Sprintf("%s/webhook/%s", mockServerBaseURL, destinationID),
+			},
+			"credentials": map[string]interface{}{
+				"secret": secret,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode, "failed to configure mock server")
+
+	// Create destination
+	resp, err = client.Do(httpclient.Request{
+		Method:  httpclient.MethodPOST,
+		Path:    "/" + tenantID + "/destinations",
+		Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
+		Body: map[string]interface{}{
+			"id":     destinationID,
+			"type":   "webhook",
+			"topics": "*",
+			"config": map[string]interface{}{
+				"url": fmt.Sprintf("%s/webhook/%s", mockServerBaseURL, destinationID),
+			},
+			"credentials": map[string]interface{}{
+				"secret": secret,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 201, resp.StatusCode, "failed to create destination")
+
+	// Publish 21 events that will fail (1 more than threshold to test idempotency)
+	for i := 0; i < 21; i++ {
+		resp, err = client.Do(httpclient.Request{
+			Method:  httpclient.MethodPOST,
+			Path:    "/publish",
+			Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
+			Body: map[string]interface{}{
+				"tenant_id":          tenantID,
+				"topic":              "user.created",
+				"eligible_for_retry": false,
+				"metadata": map[string]any{
+					"should_err": "true",
+				},
+				"data": map[string]any{
+					"index": i,
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, 202, resp.StatusCode, "failed to publish event %d", i)
+	}
+
+	// Wait for deliveries to be processed
+	time.Sleep(time.Second)
+
+	// Check if destination is disabled
+	resp, err = client.Do(httpclient.Request{
+		Method:  httpclient.MethodGET,
+		Path:    "/" + tenantID + "/destinations/" + destinationID,
+		Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode, "failed to get destination")
+
+	// Parse response to check disabled_at
+	bodyMap, ok := resp.Body.(map[string]interface{})
+	require.True(t, ok, "response body should be a map")
+
+	disabledAt := bodyMap["disabled_at"]
+	assert.NotNil(t, disabledAt, "destination should be disabled (disabled_at should not be null) - issue #596")
+
+	// Cleanup mock server
+	_ = mockServerInfra
 }
