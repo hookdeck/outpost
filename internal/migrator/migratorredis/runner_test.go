@@ -16,11 +16,11 @@ import (
 
 // mockMigration is a test migration that can be configured for different scenarios
 type mockMigration struct {
-	name         string
-	version      int
-	description  string
-	autoRunnable bool
-	applicable   bool
+	name                string
+	version             int
+	description         string
+	autoRunnable        bool
+	applicable          bool
 	notApplicableReason string
 
 	// Callbacks to track and control behavior

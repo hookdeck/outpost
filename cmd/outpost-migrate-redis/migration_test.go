@@ -15,11 +15,11 @@ import (
 
 // mockMigration implements migratorredis.Migration for testing
 type mockMigration struct {
-	name         string
-	version      int
-	description  string
-	autoRunnable bool
-	applicable   bool
+	name                string
+	version             int
+	description         string
+	autoRunnable        bool
+	applicable          bool
 	notApplicableReason string
 
 	planCalled   bool
