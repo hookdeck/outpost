@@ -20,6 +20,8 @@ type mockMigration struct {
 	version      int
 	description  string
 	autoRunnable bool
+	applicable   bool
+	notApplicableReason string
 
 	// Callbacks to track and control behavior
 	planCalled   bool
@@ -37,6 +39,7 @@ func newMockMigration(name string, version int, autoRunnable bool) *mockMigratio
 		version:      version,
 		description:  "Mock migration: " + name,
 		autoRunnable: autoRunnable,
+		applicable:   true, // default to applicable
 	}
 }
 
@@ -44,6 +47,9 @@ func (m *mockMigration) Name() string        { return m.name }
 func (m *mockMigration) Version() int        { return m.version }
 func (m *mockMigration) Description() string { return m.description }
 func (m *mockMigration) AutoRunnable() bool  { return m.autoRunnable }
+func (m *mockMigration) IsApplicable(ctx context.Context) (bool, string) {
+	return m.applicable, m.notApplicableReason
+}
 
 func (m *mockMigration) Plan(ctx context.Context) (*Plan, error) {
 	m.planCalled = true
@@ -377,5 +383,88 @@ func TestRunner_Run_DetectsExistingData(t *testing.T) {
 
 		// Should have run the migration (not fresh install)
 		assert.True(t, mig.applyCalled)
+	})
+}
+
+func TestRunner_Run_IsApplicable(t *testing.T) {
+	t.Run("marks non-applicable migrations as not_applicable", func(t *testing.T) {
+		runner, mr, cleanup := setupTestRunner(t)
+		defer cleanup()
+		ctx := context.Background()
+
+		simulateExistingData(mr)
+
+		mig := newMockMigration("001_test", 1, true)
+		mig.applicable = false
+		mig.notApplicableReason = "Not needed - using DEPLOYMENT_ID"
+		runner.RegisterMigration(mig)
+
+		err := runner.Run(ctx)
+		require.NoError(t, err)
+
+		// Should NOT have applied the migration
+		assert.False(t, mig.applyCalled, "should not apply non-applicable migration")
+
+		// Should be marked as not_applicable in Redis
+		status := mr.HGet("outpost:migration:001_test", "status")
+		assert.Equal(t, "not_applicable", status)
+
+		reason := mr.HGet("outpost:migration:001_test", "reason")
+		assert.Equal(t, "Not needed - using DEPLOYMENT_ID", reason)
+	})
+
+	t.Run("skips non-applicable and runs applicable migrations", func(t *testing.T) {
+		runner, mr, cleanup := setupTestRunner(t)
+		defer cleanup()
+		ctx := context.Background()
+
+		simulateExistingData(mr)
+
+		mig1 := newMockMigration("001_skip", 1, true)
+		mig1.applicable = false
+		mig1.notApplicableReason = "Not needed"
+
+		mig2 := newMockMigration("002_run", 2, true)
+		mig2.applicable = true
+
+		runner.RegisterMigration(mig1)
+		runner.RegisterMigration(mig2)
+
+		err := runner.Run(ctx)
+		require.NoError(t, err)
+
+		assert.False(t, mig1.applyCalled, "non-applicable should not be applied")
+		assert.True(t, mig2.applyCalled, "applicable should be applied")
+
+		// Check statuses
+		status1 := mr.HGet("outpost:migration:001_skip", "status")
+		assert.Equal(t, "not_applicable", status1)
+
+		status2 := mr.HGet("outpost:migration:002_run", "status")
+		assert.Equal(t, "applied", status2)
+	})
+
+	t.Run("not_applicable migrations are skipped on subsequent runs", func(t *testing.T) {
+		runner, mr, cleanup := setupTestRunner(t)
+		defer cleanup()
+		ctx := context.Background()
+
+		simulateExistingData(mr)
+
+		mig := newMockMigration("001_test", 1, true)
+		mig.applicable = false
+		mig.notApplicableReason = "Not needed"
+		runner.RegisterMigration(mig)
+
+		// First run marks as not_applicable
+		err := runner.Run(ctx)
+		require.NoError(t, err)
+		assert.False(t, mig.applyCalled)
+
+		// Second run should skip entirely (already satisfied)
+		mig.applyCalled = false // reset
+		err = runner.Run(ctx)
+		require.NoError(t, err)
+		assert.False(t, mig.applyCalled, "should skip already not_applicable migration")
 	})
 }

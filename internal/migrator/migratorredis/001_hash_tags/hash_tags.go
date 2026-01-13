@@ -59,6 +59,16 @@ func (m *HashTagsMigration) AutoRunnable() bool {
 	return false
 }
 
+func (m *HashTagsMigration) IsApplicable(ctx context.Context) (bool, string) {
+	// If deployment ID is set, keys already have hash tags in the format:
+	// {deploymentID}:tenant:{tenantID}:*
+	// This migration is only for legacy non-deployment-prefixed keys.
+	if m.deploymentID != "" {
+		return false, "Not needed - using DEPLOYMENT_ID"
+	}
+	return true, ""
+}
+
 func (m *HashTagsMigration) Plan(ctx context.Context) (*migratorredis.Plan, error) {
 	// Find all legacy tenants
 	legacyKeys, err := m.client.Keys(ctx, "tenant:*").Result()

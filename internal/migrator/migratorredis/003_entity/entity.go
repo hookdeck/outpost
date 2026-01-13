@@ -64,6 +64,11 @@ func (m *EntityMigration) AutoRunnable() bool {
 	return false
 }
 
+func (m *EntityMigration) IsApplicable(ctx context.Context) (bool, string) {
+	// Always applicable - all deployments need entity field for RediSearch filtering
+	return true, ""
+}
+
 func (m *EntityMigration) Plan(ctx context.Context) (*migratorredis.Plan, error) {
 	updates := make(entityUpdates)
 

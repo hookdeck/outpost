@@ -139,7 +139,7 @@ type PendingMigration struct {
 func (r *Runner) GetPendingMigrations(ctx context.Context) []PendingMigration {
 	var pending []PendingMigration
 	for _, m := range r.migrations {
-		if !r.isMigrationApplied(ctx, m.Name()) {
+		if !r.isMigrationSatisfied(ctx, m.Name()) {
 			pending = append(pending, PendingMigration{
 				Name:         m.Name(),
 				Description:  m.Description(),
@@ -152,16 +152,31 @@ func (r *Runner) GetPendingMigrations(ctx context.Context) []PendingMigration {
 
 // runPendingMigrations runs any unapplied migrations that are auto-runnable
 func (r *Runner) runPendingMigrations(ctx context.Context) error {
-	// Find pending migrations
+	// Find pending migrations (checking applicability)
 	var pending []Migration
 	var notAutoRunnable []string
 
 	for _, m := range r.migrations {
-		if !r.isMigrationApplied(ctx, m.Name()) {
-			pending = append(pending, m)
-			if !m.AutoRunnable() {
-				notAutoRunnable = append(notAutoRunnable, m.Name())
+		if r.isMigrationSatisfied(ctx, m.Name()) {
+			continue
+		}
+
+		// Check if migration is applicable
+		applicable, reason := m.IsApplicable(ctx)
+		if !applicable {
+			// Mark as not applicable
+			r.logger.Info("migration not applicable",
+				zap.String("migration", m.Name()),
+				zap.String("reason", reason))
+			if err := r.setMigrationNotApplicable(ctx, m.Name(), reason); err != nil {
+				return fmt.Errorf("failed to mark migration %s as not applicable: %w", m.Name(), err)
 			}
+			continue
+		}
+
+		pending = append(pending, m)
+		if !m.AutoRunnable() {
+			notAutoRunnable = append(notAutoRunnable, m.Name())
 		}
 	}
 
@@ -208,9 +223,9 @@ func (r *Runner) runMigration(ctx context.Context, m Migration) error {
 	}
 	defer r.releaseLock(ctx)
 
-	// Check if already applied (another instance may have run it)
-	if r.isMigrationApplied(ctx, m.Name()) {
-		r.logger.Debug("migration already applied by another instance",
+	// Check if already satisfied (another instance may have run it)
+	if r.isMigrationSatisfied(ctx, m.Name()) {
+		r.logger.Debug("migration already satisfied by another instance",
 			zap.String("migration", m.Name()))
 		return nil
 	}
@@ -287,14 +302,14 @@ func (r *Runner) waitForInitialization(ctx context.Context) error {
 	return fmt.Errorf("timeout waiting for redis initialization")
 }
 
-// isMigrationApplied checks if a migration has been applied
-func (r *Runner) isMigrationApplied(ctx context.Context, name string) bool {
+// isMigrationSatisfied checks if a migration has been satisfied (applied or not applicable)
+func (r *Runner) isMigrationSatisfied(ctx context.Context, name string) bool {
 	key := fmt.Sprintf("outpost:migration:%s", name)
 	val, err := r.client.HGet(ctx, key, "status").Result()
 	if err != nil {
 		return false
 	}
-	return val == "applied"
+	return val == "applied" || val == "not_applicable"
 }
 
 // setMigrationApplied marks a migration as applied
@@ -303,6 +318,16 @@ func (r *Runner) setMigrationApplied(ctx context.Context, name string) error {
 	return r.client.HSet(ctx, key,
 		"status", "applied",
 		"applied_at", time.Now().Format(time.RFC3339),
+	).Err()
+}
+
+// setMigrationNotApplicable marks a migration as not applicable
+func (r *Runner) setMigrationNotApplicable(ctx context.Context, name, reason string) error {
+	key := fmt.Sprintf("outpost:migration:%s", name)
+	return r.client.HSet(ctx, key,
+		"status", "not_applicable",
+		"checked_at", time.Now().Format(time.RFC3339),
+		"reason", reason,
 	).Err()
 }
 

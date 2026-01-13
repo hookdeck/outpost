@@ -235,10 +235,10 @@ func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
 
 	// If --current flag is set, check if migrations are pending
 	if currentCheck {
-		// Get pending migrations count
+		// Get pending migrations count (not satisfied = not applied and not marked as not_applicable)
 		pendingCount := 0
 		for name := range m.migrations {
-			if !isApplied(ctx, m.client, name) {
+			if !isSatisfied(ctx, m.client, name) {
 				pendingCount++
 			}
 		}
@@ -280,27 +280,35 @@ func (m *Migrator) checkIfFreshInstallation(ctx context.Context) (bool, error) {
 // Plan shows what changes would be made without applying them
 func (m *Migrator) Plan(ctx context.Context) error {
 	// First show current status
-	var appliedCount, pendingCount int
+	var satisfiedCount, pendingCount int
 
 	for name := range m.migrations {
-		if isApplied(ctx, m.client, name) {
-			appliedCount++
+		if isSatisfied(ctx, m.client, name) {
+			satisfiedCount++
 		} else {
 			pendingCount++
 		}
 	}
 
-	m.logger.LogMigrationStatus(appliedCount, pendingCount)
+	m.logger.LogMigrationStatus(satisfiedCount, pendingCount)
 
 	if pendingCount == 0 {
 		m.logger.LogNoMigrationsNeeded()
 		return nil
 	}
 
-	// Get the next unapplied migration
+	// Get the next unsatisfied migration
 	mig, err := m.getNextMigration(ctx)
 	if err != nil {
 		return err
+	}
+
+	// Check applicability
+	applicable, reason := mig.IsApplicable(ctx)
+	if !applicable {
+		m.logger.LogInfo(fmt.Sprintf("Migration %s is not applicable: %s", mig.Name(), reason))
+		m.logger.LogInfo("Run 'apply --all' to mark it as not_applicable and proceed to next migration.")
+		return nil
 	}
 
 	// Run the migration in plan mode
@@ -525,17 +533,44 @@ func (m *Migrator) ApplyOne(ctx context.Context, autoApprove, rerun bool, migrat
 
 // Apply executes all pending migrations in sequence
 // Each migration is verified after application before proceeding to the next.
+// Non-applicable migrations are automatically marked as such.
 func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
 	// Get all pending migrations sorted by version
-	pending := m.getPendingMigrations(ctx)
+	allPending := m.getPendingMigrations(ctx)
+
+	if len(allPending) == 0 {
+		m.logger.LogAllMigrationsApplied()
+		return nil
+	}
+
+	// Check applicability and separate into applicable and not-applicable
+	var pending []migratorredis.Migration
+	var skipped int
+
+	m.logger.LogInfo("Checking migration applicability...")
+	for _, mig := range allPending {
+		applicable, reason := mig.IsApplicable(ctx)
+		if !applicable {
+			m.logger.LogInfo(fmt.Sprintf("  %s: Skipped (%s)", mig.Name(), reason))
+			if err := setMigrationNotApplicable(ctx, m.client, mig.Name(), reason); err != nil {
+				return fmt.Errorf("failed to mark %s as not applicable: %w", mig.Name(), err)
+			}
+			skipped++
+		} else {
+			pending = append(pending, mig)
+		}
+	}
 
 	if len(pending) == 0 {
+		if skipped > 0 {
+			m.logger.LogInfo(fmt.Sprintf("\nSkipped %d non-applicable migration(s)", skipped))
+		}
 		m.logger.LogAllMigrationsApplied()
 		return nil
 	}
 
 	// Show summary of what will be applied
-	m.logger.LogInfo(fmt.Sprintf("Found %d pending migration(s)", len(pending)))
+	m.logger.LogInfo(fmt.Sprintf("\nFound %d applicable migration(s)", len(pending)))
 	for _, mig := range pending {
 		m.logger.LogInfo(fmt.Sprintf("  - %s: %s", mig.Name(), mig.Description()))
 	}
@@ -622,7 +657,8 @@ func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
 	return nil
 }
 
-// getPendingMigrations returns all unapplied migrations sorted by version
+// getPendingMigrations returns all unsatisfied migrations sorted by version
+// (includes both not-yet-applied and not-yet-checked-for-applicability)
 func (m *Migrator) getPendingMigrations(ctx context.Context) []migratorredis.Migration {
 	type migrationEntry struct {
 		name      string
@@ -638,14 +674,24 @@ func (m *Migrator) getPendingMigrations(ctx context.Context) []migratorredis.Mig
 
 	var pending []migratorredis.Migration
 	for _, entry := range sorted {
-		if !isApplied(ctx, m.client, entry.name) {
+		if !isSatisfied(ctx, m.client, entry.name) {
 			pending = append(pending, entry.migration)
 		}
 	}
 	return pending
 }
 
-// isApplied checks if a migration has been applied
+// isSatisfied checks if a migration has been satisfied (applied or not applicable)
+func isSatisfied(ctx context.Context, client *redisClientWrapper, name string) bool {
+	key := fmt.Sprintf("outpost:migration:%s", name)
+	val, err := client.HGet(ctx, key, "status").Result()
+	if err != nil {
+		return false
+	}
+	return val == "applied" || val == "not_applicable"
+}
+
+// isApplied checks if a migration has been applied (not just satisfied)
 func isApplied(ctx context.Context, client *redisClientWrapper, name string) bool {
 	key := fmt.Sprintf("outpost:migration:%s", name)
 	val, err := client.HGet(ctx, key, "status").Result()
@@ -655,7 +701,7 @@ func isApplied(ctx context.Context, client *redisClientWrapper, name string) boo
 	return val == "applied"
 }
 
-// getNextMigration finds the next unapplied migration
+// getNextMigration finds the next unsatisfied migration
 func (m *Migrator) getNextMigration(ctx context.Context) (migratorredis.Migration, error) {
 	// Sort migrations by version
 	type migrationEntry struct {
@@ -670,9 +716,9 @@ func (m *Migrator) getNextMigration(ctx context.Context) (migratorredis.Migratio
 		return sorted[i].migration.Version() < sorted[j].migration.Version()
 	})
 
-	// Find first unapplied
+	// Find first unsatisfied
 	for _, entry := range sorted {
-		if !isApplied(ctx, m.client, entry.name) {
+		if !isSatisfied(ctx, m.client, entry.name) {
 			return entry.migration, nil
 		}
 	}
@@ -714,6 +760,18 @@ func setMigrationAsApplied(ctx context.Context, client *redisClientWrapper, name
 	return client.HSet(ctx, key,
 		"status", "applied",
 		"applied_at", fmt.Sprintf("%d", now),
+	).Err()
+}
+
+// setMigrationNotApplicable marks a migration as not applicable
+func setMigrationNotApplicable(ctx context.Context, client *redisClientWrapper, name, reason string) error {
+	key := fmt.Sprintf("outpost:migration:%s", name)
+	now := time.Now().Unix()
+
+	return client.HSet(ctx, key,
+		"status", "not_applicable",
+		"checked_at", fmt.Sprintf("%d", now),
+		"reason", reason,
 	).Err()
 }
 

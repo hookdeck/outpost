@@ -22,6 +22,12 @@ type Migration interface {
 	// require confirmation, or have complex rollback scenarios should return false.
 	AutoRunnable() bool
 
+	// IsApplicable checks if this migration is relevant for the current configuration.
+	// Returns (applicable, reason). If !applicable, reason explains why the migration
+	// is not needed (e.g., "Not needed - using DEPLOYMENT_ID").
+	// Migrations that return false will be marked as "not_applicable" instead of "applied".
+	IsApplicable(ctx context.Context) (bool, string)
+
 	// Plan analyzes the current state and returns a migration plan
 	Plan(ctx context.Context) (*Plan, error)
 

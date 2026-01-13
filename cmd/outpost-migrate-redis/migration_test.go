@@ -19,6 +19,8 @@ type mockMigration struct {
 	version      int
 	description  string
 	autoRunnable bool
+	applicable   bool
+	notApplicableReason string
 
 	planCalled   bool
 	applyCalled  bool
@@ -35,6 +37,7 @@ func newMockMigration(name string, version int) *mockMigration {
 		version:      version,
 		description:  "Mock: " + name,
 		autoRunnable: true,
+		applicable:   true, // default to applicable
 	}
 }
 
@@ -42,6 +45,9 @@ func (m *mockMigration) Name() string        { return m.name }
 func (m *mockMigration) Version() int        { return m.version }
 func (m *mockMigration) Description() string { return m.description }
 func (m *mockMigration) AutoRunnable() bool  { return m.autoRunnable }
+func (m *mockMigration) IsApplicable(ctx context.Context) (bool, string) {
+	return m.applicable, m.notApplicableReason
+}
 
 func (m *mockMigration) Plan(ctx context.Context) (*migratorredis.Plan, error) {
 	m.planCalled = true
@@ -626,5 +632,88 @@ func TestMigrator_Apply_All(t *testing.T) {
 		status2 := mr.HGet("outpost:migration:002_second", "status")
 		assert.Equal(t, "applied", status1)
 		assert.Equal(t, "applied", status2)
+	})
+}
+
+func TestMigrator_Apply_IsApplicable(t *testing.T) {
+	t.Run("marks non-applicable migrations as not_applicable", func(t *testing.T) {
+		migrator, mr, cleanup := setupTestMigrator(t)
+		defer cleanup()
+		ctx := context.Background()
+
+		simulateExistingData(mr)
+
+		mig := newMockMigration("001_test", 1)
+		mig.applicable = false
+		mig.notApplicableReason = "Not needed - using DEPLOYMENT_ID"
+		migrator.migrations["001_test"] = mig
+
+		err := migrator.Apply(ctx, true)
+		require.NoError(t, err)
+
+		// Should NOT have applied the migration
+		assert.False(t, mig.applyCalled, "should not apply non-applicable migration")
+
+		// Should be marked as not_applicable in Redis
+		status := mr.HGet("outpost:migration:001_test", "status")
+		assert.Equal(t, "not_applicable", status)
+
+		reason := mr.HGet("outpost:migration:001_test", "reason")
+		assert.Equal(t, "Not needed - using DEPLOYMENT_ID", reason)
+	})
+
+	t.Run("skips non-applicable and runs applicable migrations", func(t *testing.T) {
+		migrator, mr, cleanup := setupTestMigrator(t)
+		defer cleanup()
+		ctx := context.Background()
+
+		simulateExistingData(mr)
+
+		mig1 := newMockMigration("001_skip", 1)
+		mig1.applicable = false
+		mig1.notApplicableReason = "Not needed"
+
+		mig2 := newMockMigration("002_run", 2)
+		mig2.applicable = true
+
+		migrator.migrations["001_skip"] = mig1
+		migrator.migrations["002_run"] = mig2
+
+		err := migrator.Apply(ctx, true)
+		require.NoError(t, err)
+
+		assert.False(t, mig1.applyCalled, "non-applicable should not be applied")
+		assert.True(t, mig2.applyCalled, "applicable should be applied")
+
+		// Check statuses
+		status1 := mr.HGet("outpost:migration:001_skip", "status")
+		assert.Equal(t, "not_applicable", status1)
+
+		status2 := mr.HGet("outpost:migration:002_run", "status")
+		assert.Equal(t, "applied", status2)
+	})
+
+	t.Run("not_applicable migrations are skipped on subsequent runs", func(t *testing.T) {
+		migrator, mr, cleanup := setupTestMigrator(t)
+		defer cleanup()
+		ctx := context.Background()
+
+		simulateExistingData(mr)
+
+		mig := newMockMigration("001_test", 1)
+		mig.applicable = false
+		mig.notApplicableReason = "Not needed"
+		migrator.migrations["001_test"] = mig
+
+		// First run marks as not_applicable
+		err := migrator.Apply(ctx, true)
+		require.NoError(t, err)
+		assert.False(t, mig.applyCalled)
+
+		// Second run should skip entirely (already satisfied)
+		mig.applyCalled = false // reset
+		err = migrator.Apply(ctx, true)
+		require.NoError(t, err)
+		assert.False(t, mig.applyCalled, "should skip already not_applicable migration")
 	})
 }
