@@ -155,8 +155,8 @@ func NewRouter(
 	logHandlers := NewLogHandlers(logger, logStore)
 	topicHandlers := NewTopicHandlers(logger, cfg.Topics)
 
-	// Admin routes
-	adminRoutes := []RouteDefinition{
+	// Non-tenant routes (no :tenantID in path)
+	nonTenantRoutes := []RouteDefinition{
 		{
 			Method:             http.MethodPost,
 			Path:               "/publish",
@@ -165,14 +165,16 @@ func NewRouter(
 			Mode:               RouteModeAlways,
 			AllowTenantFromJWT: false,
 		},
-		{
-			Method:             http.MethodPut,
-			Path:               "/:tenantID",
-			Handler:            tenantHandlers.Upsert,
-			AuthScope:          AuthScopeAdmin,
-			Mode:               RouteModeAlways,
-			AllowTenantFromJWT: false,
-		},
+	}
+
+	// Tenant upsert route (admin-only, but has :tenantID in path)
+	tenantUpsertRoute := RouteDefinition{
+		Method:             http.MethodPut,
+		Path:               "/:tenantID",
+		Handler:            tenantHandlers.Upsert,
+		AuthScope:          AuthScopeAdmin,
+		Mode:               RouteModeAlways,
+		AllowTenantFromJWT: false,
 	}
 
 	// Portal routes
@@ -402,14 +404,24 @@ func NewRouter(
 		},
 	}
 
-	// Register all routes to a single router
-	apiRoutes := []RouteDefinition{} // combine all routes
-	apiRoutes = append(apiRoutes, adminRoutes...)
-	apiRoutes = append(apiRoutes, portalRoutes...)
-	apiRoutes = append(apiRoutes, tenantAgnosticRoutes...)
-	apiRoutes = append(apiRoutes, tenantSpecificRoutes...)
+	// Register non-tenant routes at root (unchanged)
+	registerRoutes(apiRouter, cfg, nonTenantRoutes)
 
-	registerRoutes(apiRouter, cfg, apiRoutes)
+	// Combine all tenant-scoped routes (routes with :tenantID in path)
+	tenantScopedRoutes := []RouteDefinition{}
+	tenantScopedRoutes = append(tenantScopedRoutes, tenantUpsertRoute)
+	tenantScopedRoutes = append(tenantScopedRoutes, portalRoutes...)
+	tenantScopedRoutes = append(tenantScopedRoutes, tenantAgnosticRoutes...)
+	tenantScopedRoutes = append(tenantScopedRoutes, tenantSpecificRoutes...)
+
+	// Register tenant-scoped routes under /tenants prefix (NEW canonical paths)
+	tenantsGroup := apiRouter.Group("/tenants")
+	registerRoutes(tenantsGroup, cfg, tenantScopedRoutes)
+
+	// Register tenant-scoped routes at root level (DEPRECATED paths)
+	deprecatedGroup := apiRouter.Group("")
+	deprecatedGroup.Use(DeprecationWarningMiddleware())
+	registerRoutes(deprecatedGroup, cfg, tenantScopedRoutes)
 
 	// Register dev routes
 	if gin.Mode() == gin.DebugMode {
