@@ -299,7 +299,7 @@ func TestAutoDisableWithoutCallbackURL(t *testing.T) {
 	// Create tenant
 	resp, err := client.Do(httpclient.Request{
 		Method:  httpclient.MethodPUT,
-		Path:    "/" + tenantID,
+		Path:    "/tenants/" + tenantID,
 		Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
 	})
 	require.NoError(t, err)
@@ -327,7 +327,7 @@ func TestAutoDisableWithoutCallbackURL(t *testing.T) {
 	// Create destination
 	resp, err = client.Do(httpclient.Request{
 		Method:  httpclient.MethodPOST,
-		Path:    "/" + tenantID + "/destinations",
+		Path:    "/tenants/" + tenantID + "/destinations",
 		Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
 		Body: map[string]interface{}{
 			"id":     destinationID,
@@ -372,7 +372,7 @@ func TestAutoDisableWithoutCallbackURL(t *testing.T) {
 	// Check if destination is disabled
 	resp, err = client.Do(httpclient.Request{
 		Method:  httpclient.MethodGET,
-		Path:    "/" + tenantID + "/destinations/" + destinationID,
+		Path:    "/tenants/" + tenantID + "/destinations/" + destinationID,
 		Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
 	})
 	require.NoError(t, err)

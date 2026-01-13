@@ -21,7 +21,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlert() {
 			Name: "PUT /:tenantID - Create tenant",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -56,7 +56,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlert() {
 			Name: "POST /:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     destinationID,
 					"type":   "webhook",
@@ -115,7 +115,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlert() {
 		Name:  "GET /:tenantID/destinations/:destinationID - Check disabled",
 		Request: suite.AuthRequest(httpclient.Request{
 			Method: httpclient.MethodGET,
-			Path:   "/" + tenantID + "/destinations/" + destinationID,
+			Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 		}),
 		Expected: APITestExpectation{
 			Validate: makeDestinationDisabledValidator(destinationID, true),
@@ -146,7 +146,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
 			Name: "PUT /:tenantID - Create tenant",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -181,7 +181,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
 			Name: "POST /:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     destinationID,
 					"type":   "webhook",
@@ -295,7 +295,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
 		Name:  "GET /:tenantID/destinations/:destinationID - Check disabled",
 		Request: suite.AuthRequest(httpclient.Request{
 			Method: httpclient.MethodGET,
-			Path:   "/" + tenantID + "/destinations/" + destinationID,
+			Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 		}),
 		Expected: APITestExpectation{
 			Validate: makeDestinationDisabledValidator(destinationID, false),

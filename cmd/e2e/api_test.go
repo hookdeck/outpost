@@ -51,7 +51,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "GET /:tenantID without auth header",
 			Request: httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			},
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -63,7 +63,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "GET /:tenantID without tenant",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -75,7 +75,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "PUT /:tenantID without auth header",
 			Request: httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			},
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -87,7 +87,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "PUT /:tenantID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -104,7 +104,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "GET /:tenantID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -121,7 +121,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "PUT /:tenantID again",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -138,7 +138,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "POST /:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     sampleDestinationID,
 					"type":   "webhook",
@@ -158,7 +158,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "GET /:tenantID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -175,7 +175,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "PATCH /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 				Body: map[string]interface{}{
 					"topics": []string{suite.config.Topics[0]},
 				},
@@ -190,7 +190,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "GET /:tenantID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -207,7 +207,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "DELETE /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodDELETE,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -219,7 +219,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "GET /:tenantID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -236,7 +236,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "DELETE /:tenantID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodDELETE,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -248,7 +248,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "GET /:tenantID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -260,7 +260,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "POST /:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -272,7 +272,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "PUT /:tenantID should override deleted tenant",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -290,7 +290,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "PUT /:tenantID with metadata",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 				Body: map[string]interface{}{
 					"metadata": map[string]interface{}{
 						"environment": "production",
@@ -317,7 +317,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "GET /:tenantID retrieves metadata",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -337,7 +337,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "PUT /:tenantID replaces metadata (full replacement)",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 				Body: map[string]interface{}{
 					"metadata": map[string]interface{}{
 						"team":  "engineering",
@@ -363,7 +363,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "GET /:tenantID verifies metadata was replaced",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -382,7 +382,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "PUT /:tenantID without metadata clears it",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 				Body:   map[string]interface{}{},
 			}),
 			Expected: APITestExpectation{
@@ -395,7 +395,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "GET /:tenantID verifies metadata is nil",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -481,7 +481,7 @@ func (suite *basicSuite) TestTenantAPIInvalidJSON() {
 
 	// Create tenant with malformed JSON (send raw bytes)
 	jsonBody := []byte(`{"metadata": invalid json}`)
-	req, err := http.NewRequest(httpclient.MethodPUT, baseURL+"/"+tenantID, bytes.NewReader(jsonBody))
+	req, err := http.NewRequest(httpclient.MethodPUT, baseURL+"/tenants/"+tenantID, bytes.NewReader(jsonBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+suite.config.APIKey)
@@ -504,7 +504,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "PUT /:tenantID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -516,7 +516,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "GET /:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(0),
@@ -526,7 +526,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "POST /:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"type":   "webhook",
 					"topics": "*",
@@ -545,7 +545,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "POST /:tenantID/destinations with no body JSON",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -560,7 +560,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "POST /:tenantID/destinations with empty body JSON",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body:   map[string]interface{}{},
 			}),
 			Expected: APITestExpectation{
@@ -580,7 +580,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "POST /:tenantID/destinations with invalid topics",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"type":   "webhook",
 					"topics": "invalid",
@@ -602,7 +602,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "POST /:tenantID/destinations with invalid topics",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"type":   "webhook",
 					"topics": []string{"invalid"},
@@ -624,7 +624,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "POST /:tenantID/destinations with invalid config",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"type":   "webhook",
 					"topics": []string{"user.created"},
@@ -647,7 +647,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "POST /:tenantID/destinations with user-provided ID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     sampleDestinationID,
 					"type":   "webhook",
@@ -667,7 +667,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "POST /:tenantID/destinations with delivery_metadata and metadata",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     destinationWithMetadataID,
 					"type":   "webhook",
@@ -695,7 +695,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "GET /:tenantID/destinations/:destinationID with delivery_metadata and metadata",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + destinationWithMetadataID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationWithMetadataID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -724,7 +724,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "PATCH /:tenantID/destinations/:destinationID update delivery_metadata",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationWithMetadataID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationWithMetadataID,
 				Body: map[string]interface{}{
 					"delivery_metadata": map[string]interface{}{
 						"X-Version": "2.0",       // Overwrite existing value (was "1.0")
@@ -761,7 +761,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "PATCH /:tenantID/destinations/:destinationID update metadata",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationWithMetadataID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationWithMetadataID,
 				Body: map[string]interface{}{
 					"metadata": map[string]interface{}{
 						"team":   "engineering", // Overwrite existing value (was "platform")
@@ -799,7 +799,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "GET /:tenantID/destinations/:destinationID verify merged fields",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + destinationWithMetadataID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationWithMetadataID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -839,7 +839,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "POST /:tenantID/destinations with filter",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     destinationWithFilterID,
 					"type":   "webhook",
@@ -876,7 +876,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "GET /:tenantID/destinations/:destinationID verify filter",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + destinationWithFilterID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationWithFilterID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -898,7 +898,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "PATCH /:tenantID/destinations/:destinationID update filter",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationWithFilterID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationWithFilterID,
 				Body: map[string]interface{}{
 					"filter": map[string]interface{}{
 						"data": map[string]interface{}{
@@ -925,7 +925,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "PATCH /:tenantID/destinations/:destinationID unset filter with empty object",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationWithFilterID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationWithFilterID,
 				Body: map[string]interface{}{
 					"filter": map[string]interface{}{},
 				},
@@ -940,7 +940,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "GET /:tenantID/destinations/:destinationID verify filter unset",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + destinationWithFilterID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationWithFilterID,
 			}),
 			Expected: APITestExpectation{
 				// Use JSON schema validation to verify filter is NOT present
@@ -965,7 +965,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "POST /:tenantID/destinations with duplicate ID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     sampleDestinationID,
 					"type":   "webhook",
@@ -988,7 +988,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "GET /:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(4), // 3 original + 1 with filter
@@ -998,7 +998,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "GET /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1019,7 +1019,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "PATCH /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 				Body: map[string]interface{}{
 					"topics": []string{"user.created"},
 				},
@@ -1043,7 +1043,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "GET /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1064,7 +1064,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "PATCH /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 				Body: map[string]interface{}{
 					"topics": []string{""},
 				},
@@ -1082,7 +1082,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "PATCH /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 				Body: map[string]interface{}{
 					"config": map[string]interface{}{
 						"url": "",
@@ -1105,7 +1105,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "DELETE /:tenantID/destinations/:destinationID with invalid destination ID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodDELETE,
-				Path:   "/" + tenantID + "/destinations/" + idgen.Destination(),
+				Path:   "/tenants/" + tenantID + "/destinations/" + idgen.Destination(),
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1117,7 +1117,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "DELETE /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodDELETE,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1129,7 +1129,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "GET /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1141,7 +1141,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "GET /:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(3), // 4 - 1 deleted = 3
@@ -1151,7 +1151,7 @@ func (suite *basicSuite) TestDestinationsAPI() {
 			Name: "POST /:tenantID/destinations with metadata auto-conversion",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"type":   "webhook",
 					"topics": "*",
@@ -1190,7 +1190,7 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	// Create tenant
 	resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodPUT,
-		Path:   "/" + tenantID,
+		Path:   "/tenants/" + tenantID,
 	}))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -1198,7 +1198,7 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	// Get tenant and verify created_at and updated_at exist and are equal
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
-		Path:   "/" + tenantID,
+		Path:   "/tenants/" + tenantID,
 	}))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -1222,7 +1222,7 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	// Update tenant
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodPUT,
-		Path:   "/" + tenantID,
+		Path:   "/tenants/" + tenantID,
 		Body: map[string]interface{}{
 			"metadata": map[string]interface{}{
 				"env": "production",
@@ -1235,7 +1235,7 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	// Get tenant again and verify updated_at changed but created_at didn't
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
-		Path:   "/" + tenantID,
+		Path:   "/tenants/" + tenantID,
 	}))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -1251,7 +1251,7 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	// Create destination
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodPOST,
-		Path:   "/" + tenantID + "/destinations",
+		Path:   "/tenants/" + tenantID + "/destinations",
 		Body: map[string]interface{}{
 			"id":     destinationID,
 			"type":   "webhook",
@@ -1267,7 +1267,7 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	// Get destination and verify created_at and updated_at exist and are equal
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
-		Path:   "/" + tenantID + "/destinations/" + destinationID,
+		Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 	}))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -1291,7 +1291,7 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	// Update destination
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodPATCH,
-		Path:   "/" + tenantID + "/destinations/" + destinationID,
+		Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 		Body: map[string]interface{}{
 			"topics": []string{"user.created"},
 		},
@@ -1302,7 +1302,7 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	// Get destination again and verify updated_at changed but created_at didn't
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
-		Path:   "/" + tenantID + "/destinations/" + destinationID,
+		Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 	}))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -1323,7 +1323,7 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 			Name: "PUT /:tenantID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1335,7 +1335,7 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 			Name: "POST /:tenantID/destinations type=webhook topics=*",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"type":   "webhook",
 					"topics": "*",
@@ -1354,7 +1354,7 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 			Name: "POST /:tenantID/destinations type=webhook topics=user.created",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"type":   "webhook",
 					"topics": []string{"user.created"},
@@ -1373,7 +1373,7 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 			Name: "POST /:tenantID/destinations type=webhook topics=user.created user.updated",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"type":   "webhook",
 					"topics": []string{"user.created", "user.updated"},
@@ -1392,7 +1392,7 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 			Name: "GET /:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(3),
@@ -1402,7 +1402,7 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 			Name: "GET /:tenantID/destinations?type=webhook",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations?type=webhook",
+				Path:   "/tenants/" + tenantID + "/destinations?type=webhook",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(3),
@@ -1412,7 +1412,7 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 			Name: "GET /:tenantID/destinations?type=rabbitmq",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations?type=rabbitmq",
+				Path:   "/tenants/" + tenantID + "/destinations?type=rabbitmq",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(0),
@@ -1422,7 +1422,7 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 			Name: "GET /:tenantID/destinations?topics=*",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations?topics=*",
+				Path:   "/tenants/" + tenantID + "/destinations?topics=*",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(1),
@@ -1432,7 +1432,7 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 			Name: "GET /:tenantID/destinations?topics=user.created",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations?topics=user.created",
+				Path:   "/tenants/" + tenantID + "/destinations?topics=user.created",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(3),
@@ -1442,7 +1442,7 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 			Name: "GET /:tenantID/destinations?topics=user.updated",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations?topics=user.updated",
+				Path:   "/tenants/" + tenantID + "/destinations?topics=user.updated",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(2),
@@ -1452,7 +1452,7 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 			Name: "GET /:tenantID/destinations?topics=user.created&topics=user.updated",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations?topics=user.created&topics=user.updated",
+				Path:   "/tenants/" + tenantID + "/destinations?topics=user.created&topics=user.updated",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(2),
@@ -1462,7 +1462,7 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 			Name: "GET /:tenantID/destinations?type=webhook&topics=user.created&topics=user.updated",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations?type=webhook&topics=user.created&topics=user.updated",
+				Path:   "/tenants/" + tenantID + "/destinations?type=webhook&topics=user.created&topics=user.updated",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(2),
@@ -1472,7 +1472,7 @@ func (suite *basicSuite) TestDestinationsListAPI() {
 			Name: "GET /:tenantID/destinations?type=rabbitmq&topics=user.created&topics=user.updated",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations?type=rabbitmq&topics=user.created&topics=user.updated",
+				Path:   "/tenants/" + tenantID + "/destinations?type=rabbitmq&topics=user.created&topics=user.updated",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(0),
@@ -1490,7 +1490,7 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 			Name: "PUT /:tenantID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1502,7 +1502,7 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 			Name: "POST /:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     sampleDestinationID,
 					"type":   "webhook",
@@ -1522,7 +1522,7 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 			Name: "GET /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationDisabledValidator(sampleDestinationID, false),
@@ -1532,7 +1532,7 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 			Name: "PUT /:tenantID/destinations/:destinationID/disable",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID + "/disable",
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID + "/disable",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationDisabledValidator(sampleDestinationID, true),
@@ -1542,7 +1542,7 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 			Name: "GET /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationDisabledValidator(sampleDestinationID, true),
@@ -1552,7 +1552,7 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 			Name: "PUT /:tenantID/destinations/:destinationID/enable",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID + "/enable",
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID + "/enable",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationDisabledValidator(sampleDestinationID, false),
@@ -1562,7 +1562,7 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 			Name: "GET /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationDisabledValidator(sampleDestinationID, false),
@@ -1572,7 +1572,7 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 			Name: "PUT /:tenantID/destinations/:destinationID/enable duplicate",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID + "/enable",
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID + "/enable",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationDisabledValidator(sampleDestinationID, false),
@@ -1582,7 +1582,7 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 			Name: "GET /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationDisabledValidator(sampleDestinationID, false),
@@ -1592,7 +1592,7 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 			Name: "PUT /:tenantID/destinations/:destinationID/disable",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID + "/disable",
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID + "/disable",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationDisabledValidator(sampleDestinationID, true),
@@ -1602,7 +1602,7 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 			Name: "PUT /:tenantID/destinations/:destinationID/disable duplicate",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID + "/disable",
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID + "/disable",
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationDisabledValidator(sampleDestinationID, true),
@@ -1612,7 +1612,7 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 			Name: "GET /:tenantID/destinations/:destinationID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 			}),
 			Expected: APITestExpectation{
 				Validate: makeDestinationDisabledValidator(sampleDestinationID, true),
@@ -1743,7 +1743,7 @@ func (suite *basicSuite) TestJWTAuthAPI() {
 			Name: "PUT /:tenantID to create tenant",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1757,7 +1757,7 @@ func (suite *basicSuite) TestJWTAuthAPI() {
 	// Step 2: Get JWT token - need to do this manually since we need to extract the token
 	tokenResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
-		Path:   "/" + tenantID + "/token",
+		Path:   "/tenants/" + tenantID + "/token",
 	}))
 	suite.Require().NoError(err)
 	suite.Require().Equal(http.StatusOK, tokenResp.StatusCode)
@@ -1773,7 +1773,7 @@ func (suite *basicSuite) TestJWTAuthAPI() {
 			Name: "GET /:tenantID with JWT should work",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}, token),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1785,7 +1785,7 @@ func (suite *basicSuite) TestJWTAuthAPI() {
 			Name: "GET /:tenantID/destinations with JWT should work",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 			}, token),
 			Expected: APITestExpectation{
 				Validate: makeDestinationListValidator(0),
@@ -1795,7 +1795,7 @@ func (suite *basicSuite) TestJWTAuthAPI() {
 			Name: "POST /:tenantID/destinations with JWT should work",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     destinationID,
 					"type":   "webhook",
@@ -1848,7 +1848,7 @@ func (suite *basicSuite) TestJWTAuthAPI() {
 			Name: "GET /:tenantID/destination-types with JWT should work",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destination-types",
+				Path:   "/tenants/" + tenantID + "/destination-types",
 			}, token),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1860,7 +1860,7 @@ func (suite *basicSuite) TestJWTAuthAPI() {
 			Name: "GET /:tenantID/topics with JWT should work",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/topics",
+				Path:   "/tenants/" + tenantID + "/topics",
 			}, token),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1914,7 +1914,7 @@ func (suite *basicSuite) TestJWTAuthAPI() {
 			Name: "DELETE /:tenantID with JWT should work",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodDELETE,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}, token),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
