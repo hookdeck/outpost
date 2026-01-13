@@ -1855,7 +1855,7 @@ paths:
                   retrymq-consumer:
                     status: failed
   # Tenants
-  /{tenant_id}:
+  /tenants/{tenant_id}:
     parameters:
       - name: tenant_id
         in: path
@@ -1924,7 +1924,7 @@ paths:
           description: Tenant not found.
         # Add other error responses
 
-  /{tenant_id}/portal:
+  /tenants/{tenant_id}/portal:
     parameters:
       - name: tenant_id
         in: path
@@ -1960,7 +1960,7 @@ paths:
           description: Tenant not found.
         # Add other error responses
 
-  /{tenant_id}/token:
+  /tenants/{tenant_id}/token:
     parameters:
       - name: tenant_id
         in: path
@@ -1989,7 +1989,7 @@ paths:
         # Add other error responses
 
   # Destinations
-  /{tenant_id}/destinations:
+  /tenants/{tenant_id}/destinations:
     description: |
       Manage destinations for a specific tenant. Destinations determine where events are sent.
       The structure of `config` and `credentials` depends on the destination `type`.
@@ -2137,7 +2137,7 @@ paths:
           description: Tenant not found.
         # Add other error responses (e.g., max destinations reached)
 
-  /{tenant_id}/destinations/{destination_id}:
+  /tenants/{tenant_id}/destinations/{destination_id}:
     parameters:
       - name: tenant_id
         in: path
@@ -2240,7 +2240,7 @@ paths:
           description: Tenant or Destination not found.
         # Add other error responses
 
-  /{tenant_id}/destinations/{destination_id}/enable:
+  /tenants/{tenant_id}/destinations/{destination_id}/enable:
     parameters:
       - name: tenant_id
         in: path
@@ -2285,7 +2285,7 @@ paths:
           description: Tenant or Destination not found.
         # Add other error responses
 
-  /{tenant_id}/destinations/{destination_id}/disable:
+  /tenants/{tenant_id}/destinations/{destination_id}/disable:
     parameters:
       - name: tenant_id
         in: path
@@ -2361,7 +2361,7 @@ paths:
         # Add other error responses
 
   # Schemas (Tenant Specific - Admin or JWT)
-  /{tenant_id}/destination-types:
+  /tenants/{tenant_id}/destination-types:
     parameters:
       - name: tenant_id
         in: path
@@ -2530,7 +2530,7 @@ paths:
         "404":
           description: Tenant not found.
 
-  /{tenant_id}/destination-types/{type}:
+  /tenants/{tenant_id}/destination-types/{type}:
     parameters:
       - name: tenant_id
         in: path
@@ -2587,7 +2587,7 @@ paths:
           description: Tenant or Destination type not found.
 
   # Topics (Tenant Specific - Admin or JWT)
-  /{tenant_id}/topics:
+  /tenants/{tenant_id}/topics:
     parameters:
       - name: tenant_id
         in: path
@@ -2622,7 +2622,7 @@ paths:
           description: Tenant not found.
 
   # Events (Tenant Specific - Admin or JWT)
-  /{tenant_id}/events:
+  /tenants/{tenant_id}/events:
     parameters:
       - name: tenant_id
         in: path
@@ -2727,7 +2727,7 @@ paths:
           description: Tenant not found.
         # Add other error responses
 
-  /{tenant_id}/events/{event_id}:
+  /tenants/{tenant_id}/events/{event_id}:
     parameters:
       - name: tenant_id
         in: path
@@ -2766,7 +2766,7 @@ paths:
         "404":
           description: Tenant or Event not found.
 
-  /{tenant_id}/events/{event_id}/deliveries:
+  /tenants/{tenant_id}/events/{event_id}/deliveries:
     parameters:
       - name: tenant_id
         in: path
@@ -2810,7 +2810,7 @@ paths:
         "404":
           description: Tenant or Event not found.
 
-  /{tenant_id}/destinations/{destination_id}/events:
+  /tenants/{tenant_id}/destinations/{destination_id}/events:
     parameters:
       - name: tenant_id
         in: path
@@ -2910,7 +2910,7 @@ paths:
         "404":
           description: Tenant or Destination not found.
 
-  /{tenant_id}/destinations/{destination_id}/events/{event_id}:
+  /tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}:
     parameters:
       - name: tenant_id
         in: path
@@ -2955,7 +2955,7 @@ paths:
         "404":
           description: Tenant, Destination or Event not found.
 
-  /{tenant_id}/destinations/{destination_id}/events/{event_id}/retry:
+  /tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry:
     parameters:
       - name: tenant_id
         in: path
