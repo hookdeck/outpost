@@ -430,11 +430,11 @@ func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 	return nil
 }
 
-// Apply executes a migration
+// ApplyOne executes a single migration
 // If migrationName is empty, applies the next unapplied migration.
 // If migrationName is specified, applies that specific migration.
 // If rerun is true, re-runs the migration even if already applied.
-func (m *Migrator) Apply(ctx context.Context, autoApprove, rerun bool, migrationName string) error {
+func (m *Migrator) ApplyOne(ctx context.Context, autoApprove, rerun bool, migrationName string) error {
 	var mig migratorredis.Migration
 	var alreadyApplied bool
 
@@ -521,6 +521,128 @@ func (m *Migrator) Apply(ctx context.Context, autoApprove, rerun bool, migration
 	}
 	m.logger.LogMigrationComplete(mig.Name(), stats)
 	return nil
+}
+
+// Apply executes all pending migrations in sequence
+// Each migration is verified after application before proceeding to the next.
+func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
+	// Get all pending migrations sorted by version
+	pending := m.getPendingMigrations(ctx)
+
+	if len(pending) == 0 {
+		m.logger.LogAllMigrationsApplied()
+		return nil
+	}
+
+	// Show summary of what will be applied
+	m.logger.LogInfo(fmt.Sprintf("Found %d pending migration(s)", len(pending)))
+	for _, mig := range pending {
+		m.logger.LogInfo(fmt.Sprintf("  - %s: %s", mig.Name(), mig.Description()))
+	}
+
+	// Confirm if not auto-approved
+	if !autoApprove {
+		confirmed, err := m.logger.Confirm(fmt.Sprintf("Apply %d migration(s)?", len(pending)))
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			m.logger.LogMigrationCancelled()
+			return nil
+		}
+	}
+
+	// Apply each migration in sequence
+	applied := 0
+	for _, mig := range pending {
+		m.logger.LogInfo(fmt.Sprintf("\n[%d/%d] Applying %s...", applied+1, len(pending), mig.Name()))
+
+		// Plan
+		plan, err := mig.Plan(ctx)
+		if err != nil {
+			return fmt.Errorf("planning %s failed: %w", mig.Name(), err)
+		}
+
+		m.logger.LogMigrationPlan(mig.Name(), plan, false)
+
+		// Acquire lock
+		if err := m.acquireLock(ctx, mig.Name()); err != nil {
+			return fmt.Errorf("failed to acquire lock for %s: %w", mig.Name(), err)
+		}
+
+		// Apply
+		startTime := time.Now()
+		m.logger.LogMigrationStart(mig.Name())
+		state, err := mig.Apply(ctx, plan)
+		if err != nil {
+			m.releaseLock(ctx)
+			return fmt.Errorf("applying %s failed: %w", mig.Name(), err)
+		}
+		duration := time.Since(startTime)
+
+		// Mark as applied
+		if err := setMigrationAsApplied(ctx, m.client, mig.Name()); err != nil {
+			m.releaseLock(ctx)
+			return fmt.Errorf("failed to mark %s as applied: %w", mig.Name(), err)
+		}
+
+		// Record run history
+		if err := recordMigrationRun(ctx, m.client, mig.Name(), state, false, duration); err != nil {
+			m.logger.LogWarning(fmt.Sprintf("failed to record run history: %v", err))
+		}
+
+		// Release lock before verify (verify doesn't need lock)
+		m.releaseLock(ctx)
+
+		// Verify
+		m.logger.LogInfo("Verifying...")
+		verifyState := &migratorredis.State{
+			MigrationName: mig.Name(),
+			Phase:         "applied",
+		}
+		result, err := mig.Verify(ctx, verifyState)
+		if err != nil {
+			return fmt.Errorf("verifying %s failed: %w", mig.Name(), err)
+		}
+		if !result.Valid {
+			return fmt.Errorf("verification failed for %s: %v", mig.Name(), result.Issues)
+		}
+
+		stats := MigrationStats{
+			ProcessedItems: state.Progress.ProcessedItems,
+			FailedItems:    state.Progress.FailedItems,
+			SkippedItems:   state.Progress.SkippedItems,
+			Duration:       duration.String(),
+		}
+		m.logger.LogMigrationComplete(mig.Name(), stats)
+		applied++
+	}
+
+	m.logger.LogInfo(fmt.Sprintf("\nAll %d migration(s) applied successfully", applied))
+	return nil
+}
+
+// getPendingMigrations returns all unapplied migrations sorted by version
+func (m *Migrator) getPendingMigrations(ctx context.Context) []migratorredis.Migration {
+	type migrationEntry struct {
+		name      string
+		migration migratorredis.Migration
+	}
+	var sorted []migrationEntry
+	for name, mig := range m.migrations {
+		sorted = append(sorted, migrationEntry{name: name, migration: mig})
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].migration.Version() < sorted[j].migration.Version()
+	})
+
+	var pending []migratorredis.Migration
+	for _, entry := range sorted {
+		if !isApplied(ctx, m.client, entry.name) {
+			pending = append(pending, entry.migration)
+		}
+	}
+	return pending
 }
 
 // isApplied checks if a migration has been applied

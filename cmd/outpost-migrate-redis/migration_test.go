@@ -171,7 +171,7 @@ func simulateExistingData(mr *miniredis.Miniredis) {
 	mr.HSet("outpost:tenant:test123:tenant", "id", "test123")
 }
 
-func TestMigrator_Apply_NextPending(t *testing.T) {
+func TestMigrator_ApplyOne_NextPending(t *testing.T) {
 	t.Run("applies next pending migration", func(t *testing.T) {
 		migrator, mr, cleanup := setupTestMigrator(t)
 		defer cleanup()
@@ -182,7 +182,7 @@ func TestMigrator_Apply_NextPending(t *testing.T) {
 		mig := newMockMigration("001_test", 1)
 		migrator.migrations["001_test"] = mig
 
-		err := migrator.Apply(ctx, true, false, "")
+		err := migrator.ApplyOne(ctx, true, false, "")
 		require.NoError(t, err)
 
 		assert.True(t, mig.planCalled)
@@ -202,7 +202,7 @@ func TestMigrator_Apply_NextPending(t *testing.T) {
 		// Mark as applied
 		mr.HSet("outpost:migration:001_test", "status", "applied")
 
-		err := migrator.Apply(ctx, true, false, "")
+		err := migrator.ApplyOne(ctx, true, false, "")
 		require.NoError(t, err)
 
 		assert.False(t, mig.applyCalled, "should not apply already-applied migration")
@@ -221,7 +221,7 @@ func TestMigrator_Apply_NextPending(t *testing.T) {
 		migrator.migrations["002_second"] = mig2
 
 		// First apply
-		err := migrator.Apply(ctx, true, false, "")
+		err := migrator.ApplyOne(ctx, true, false, "")
 		require.NoError(t, err)
 
 		assert.True(t, mig1.applyCalled, "001 should be applied first")
@@ -229,7 +229,7 @@ func TestMigrator_Apply_NextPending(t *testing.T) {
 	})
 }
 
-func TestMigrator_Apply_SpecificMigration(t *testing.T) {
+func TestMigrator_ApplyOne_SpecificMigration(t *testing.T) {
 	t.Run("applies specific migration by name", func(t *testing.T) {
 		migrator, mr, cleanup := setupTestMigrator(t)
 		defer cleanup()
@@ -243,7 +243,7 @@ func TestMigrator_Apply_SpecificMigration(t *testing.T) {
 		migrator.migrations["002_second"] = mig2
 
 		// Apply specific migration (out of order)
-		err := migrator.Apply(ctx, true, false, "002_second")
+		err := migrator.ApplyOne(ctx, true, false, "002_second")
 		require.NoError(t, err)
 
 		assert.False(t, mig1.applyCalled)
@@ -255,7 +255,7 @@ func TestMigrator_Apply_SpecificMigration(t *testing.T) {
 		defer cleanup()
 		ctx := context.Background()
 
-		err := migrator.Apply(ctx, true, false, "unknown_migration")
+		err := migrator.ApplyOne(ctx, true, false, "unknown_migration")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
@@ -275,18 +275,18 @@ func TestMigrator_Apply_SpecificMigration(t *testing.T) {
 		mr.HSet("outpost:migration:001_test", "status", "applied")
 
 		// Without rerun - should skip
-		err := migrator.Apply(ctx, true, false, "001_test")
+		err := migrator.ApplyOne(ctx, true, false, "001_test")
 		require.NoError(t, err)
 		assert.False(t, mig.applyCalled)
 
 		// With rerun - should apply
-		err = migrator.Apply(ctx, true, true, "001_test")
+		err = migrator.ApplyOne(ctx, true, true, "001_test")
 		require.NoError(t, err)
 		assert.True(t, mig.applyCalled)
 	})
 }
 
-func TestMigrator_Apply_Confirmation(t *testing.T) {
+func TestMigrator_ApplyOne_Confirmation(t *testing.T) {
 	t.Run("skips confirmation with autoApprove", func(t *testing.T) {
 		migrator, mr, cleanup := setupTestMigrator(t)
 		defer cleanup()
@@ -301,7 +301,7 @@ func TestMigrator_Apply_Confirmation(t *testing.T) {
 		mig := newMockMigration("001_test", 1)
 		migrator.migrations["001_test"] = mig
 
-		err := migrator.Apply(ctx, true, false, "") // autoApprove = true
+		err := migrator.ApplyOne(ctx, true, false, "") // autoApprove = true
 		require.NoError(t, err)
 		assert.True(t, mig.applyCalled)
 	})
@@ -320,13 +320,13 @@ func TestMigrator_Apply_Confirmation(t *testing.T) {
 		mig := newMockMigration("001_test", 1)
 		migrator.migrations["001_test"] = mig
 
-		err := migrator.Apply(ctx, false, false, "") // autoApprove = false
+		err := migrator.ApplyOne(ctx, false, false, "") // autoApprove = false
 		require.NoError(t, err)
 		assert.False(t, mig.applyCalled, "should not apply when confirmation rejected")
 	})
 }
 
-func TestMigrator_Apply_Failure(t *testing.T) {
+func TestMigrator_ApplyOne_Failure(t *testing.T) {
 	t.Run("returns error on plan failure", func(t *testing.T) {
 		migrator, mr, cleanup := setupTestMigrator(t)
 		defer cleanup()
@@ -340,7 +340,7 @@ func TestMigrator_Apply_Failure(t *testing.T) {
 		}
 		migrator.migrations["001_test"] = mig
 
-		err := migrator.Apply(ctx, true, false, "")
+		err := migrator.ApplyOne(ctx, true, false, "")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "plan failed")
@@ -359,14 +359,14 @@ func TestMigrator_Apply_Failure(t *testing.T) {
 		}
 		migrator.migrations["001_test"] = mig
 
-		err := migrator.Apply(ctx, true, false, "")
+		err := migrator.ApplyOne(ctx, true, false, "")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "apply failed")
 	})
 }
 
-func TestMigrator_Apply_MarksAsApplied(t *testing.T) {
+func TestMigrator_ApplyOne_MarksAsApplied(t *testing.T) {
 	t.Run("marks migration as applied after success", func(t *testing.T) {
 		migrator, mr, cleanup := setupTestMigrator(t)
 		defer cleanup()
@@ -377,7 +377,7 @@ func TestMigrator_Apply_MarksAsApplied(t *testing.T) {
 		mig := newMockMigration("001_test", 1)
 		migrator.migrations["001_test"] = mig
 
-		err := migrator.Apply(ctx, true, false, "")
+		err := migrator.ApplyOne(ctx, true, false, "")
 		require.NoError(t, err)
 
 		// Verify it's marked in Redis
@@ -455,5 +455,176 @@ func TestMigrator_Verify(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "no migrations have been applied")
+	})
+}
+
+func TestMigrator_Apply_All(t *testing.T) {
+	t.Run("applies all pending migrations in order", func(t *testing.T) {
+		migrator, mr, cleanup := setupTestMigrator(t)
+		defer cleanup()
+		ctx := context.Background()
+
+		simulateExistingData(mr)
+
+		var executionOrder []string
+
+		mig1 := newMockMigration("001_first", 1)
+		mig1.applyFunc = func(ctx context.Context, plan *migratorredis.Plan) (*migratorredis.State, error) {
+			executionOrder = append(executionOrder, "001_first")
+			now := time.Now()
+			return &migratorredis.State{
+				MigrationName: "001_first",
+				Phase:         "applied",
+				CompletedAt:   &now,
+				Progress:      migratorredis.Progress{TotalItems: 10, ProcessedItems: 10},
+			}, nil
+		}
+
+		mig2 := newMockMigration("002_second", 2)
+		mig2.applyFunc = func(ctx context.Context, plan *migratorredis.Plan) (*migratorredis.State, error) {
+			executionOrder = append(executionOrder, "002_second")
+			now := time.Now()
+			return &migratorredis.State{
+				MigrationName: "002_second",
+				Phase:         "applied",
+				CompletedAt:   &now,
+				Progress:      migratorredis.Progress{TotalItems: 5, ProcessedItems: 5},
+			}, nil
+		}
+
+		mig3 := newMockMigration("003_third", 3)
+		mig3.applyFunc = func(ctx context.Context, plan *migratorredis.Plan) (*migratorredis.State, error) {
+			executionOrder = append(executionOrder, "003_third")
+			now := time.Now()
+			return &migratorredis.State{
+				MigrationName: "003_third",
+				Phase:         "applied",
+				CompletedAt:   &now,
+				Progress:      migratorredis.Progress{TotalItems: 3, ProcessedItems: 3},
+			}, nil
+		}
+
+		// Register in wrong order to test sorting
+		migrator.migrations["003_third"] = mig3
+		migrator.migrations["001_first"] = mig1
+		migrator.migrations["002_second"] = mig2
+
+		err := migrator.Apply(ctx, true)
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{"001_first", "002_second", "003_third"}, executionOrder)
+	})
+
+	t.Run("returns nil when all already applied", func(t *testing.T) {
+		migrator, mr, cleanup := setupTestMigrator(t)
+		defer cleanup()
+		ctx := context.Background()
+
+		simulateExistingData(mr)
+
+		mig := newMockMigration("001_test", 1)
+		migrator.migrations["001_test"] = mig
+
+		// Mark as applied
+		mr.HSet("outpost:migration:001_test", "status", "applied")
+
+		err := migrator.Apply(ctx, true)
+		require.NoError(t, err)
+
+		assert.False(t, mig.applyCalled, "should not apply already-applied migration")
+	})
+
+	t.Run("stops on migration failure", func(t *testing.T) {
+		migrator, mr, cleanup := setupTestMigrator(t)
+		defer cleanup()
+		ctx := context.Background()
+
+		simulateExistingData(mr)
+
+		mig1 := newMockMigration("001_first", 1)
+		mig1.applyFunc = func(ctx context.Context, plan *migratorredis.Plan) (*migratorredis.State, error) {
+			return nil, errors.New("migration failed")
+		}
+
+		mig2 := newMockMigration("002_second", 2)
+
+		migrator.migrations["001_first"] = mig1
+		migrator.migrations["002_second"] = mig2
+
+		err := migrator.Apply(ctx, true)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "001_first")
+		assert.False(t, mig2.applyCalled, "second migration should not run after failure")
+	})
+
+	t.Run("stops on verification failure", func(t *testing.T) {
+		migrator, mr, cleanup := setupTestMigrator(t)
+		defer cleanup()
+		ctx := context.Background()
+
+		simulateExistingData(mr)
+
+		mig1 := newMockMigration("001_first", 1)
+		mig1.verifyFunc = func(ctx context.Context, state *migratorredis.State) (*migratorredis.VerificationResult, error) {
+			return &migratorredis.VerificationResult{
+				Valid:  false,
+				Issues: []string{"something went wrong"},
+			}, nil
+		}
+
+		mig2 := newMockMigration("002_second", 2)
+
+		migrator.migrations["001_first"] = mig1
+		migrator.migrations["002_second"] = mig2
+
+		err := migrator.Apply(ctx, true)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "verification failed")
+		assert.True(t, mig1.applyCalled, "first migration should be applied")
+		assert.False(t, mig2.applyCalled, "second migration should not run after verification failure")
+	})
+
+	t.Run("cancels when confirmation rejected", func(t *testing.T) {
+		migrator, mr, cleanup := setupTestMigrator(t)
+		defer cleanup()
+		ctx := context.Background()
+
+		simulateExistingData(mr)
+
+		logger := newMockLogger()
+		logger.confirmResult = false
+		migrator.logger = logger
+
+		mig := newMockMigration("001_test", 1)
+		migrator.migrations["001_test"] = mig
+
+		err := migrator.Apply(ctx, false) // autoApprove = false
+		require.NoError(t, err)
+		assert.False(t, mig.applyCalled, "should not apply when confirmation rejected")
+	})
+
+	t.Run("marks all migrations as applied", func(t *testing.T) {
+		migrator, mr, cleanup := setupTestMigrator(t)
+		defer cleanup()
+		ctx := context.Background()
+
+		simulateExistingData(mr)
+
+		mig1 := newMockMigration("001_first", 1)
+		mig2 := newMockMigration("002_second", 2)
+
+		migrator.migrations["001_first"] = mig1
+		migrator.migrations["002_second"] = mig2
+
+		err := migrator.Apply(ctx, true)
+		require.NoError(t, err)
+
+		// Verify both are marked in Redis
+		status1 := mr.HGet("outpost:migration:001_first", "status")
+		status2 := mr.HGet("outpost:migration:002_second", "status")
+		assert.Equal(t, "applied", status1)
+		assert.Equal(t, "applied", status2)
 	})
 }

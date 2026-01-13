@@ -108,14 +108,21 @@ func NewCommand() *cli.Command {
 						Name:  "rerun",
 						Usage: "Re-run migration even if already applied (useful for catching records created between runs)",
 					},
+					&cli.BoolFlag{
+						Name:  "all",
+						Usage: "Apply all pending migrations in sequence",
+					},
 				},
 				Action: func(ctx context.Context, c *cli.Command) error {
 					return withMigrator(ctx, c, func(migrator *Migrator) error {
+						if c.Bool("all") {
+							return migrator.Apply(ctx, c.Bool("yes"))
+						}
 						migrationName := ""
 						if c.NArg() > 0 {
 							migrationName = c.Args().First()
 						}
-						return migrator.Apply(ctx, c.Bool("yes"), c.Bool("rerun"), migrationName)
+						return migrator.ApplyOne(ctx, c.Bool("yes"), c.Bool("rerun"), migrationName)
 					})
 				},
 			},

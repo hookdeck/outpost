@@ -53,7 +53,11 @@ outpost migrate list
 # Plan next migration (shows current status and what will change)
 outpost migrate plan
 
-# Apply the next pending migration
+# Apply all pending migrations
+outpost migrate apply --all
+outpost migrate apply --all --yes  # Skip confirmation prompt
+
+# Apply the next pending migration (one at a time)
 outpost migrate apply
 outpost migrate apply --yes  # Skip confirmation prompt
 
@@ -78,10 +82,60 @@ outpost migrate unlock --yes  # Skip confirmation prompt
 
 ## Migration Workflow
 
+### Single Migration (Manual)
 1. **Plan** - Check status and show what will be migrated
 2. **Apply** - Execute the migration (creates new keys, preserves old ones)
 3. **Verify** - Spot-check migrated data for correctness
 4. **Cleanup** - Delete old keys after confirming success
+
+### Batch Migration (`--all`)
+
+The `--all` flag applies all pending migrations in sequence with automatic verification:
+
+```
+$ outpost migrate apply --all
+Found 3 pending migration(s)
+  - 001_hash_tags: Migrate from legacy format...
+  - 002_timestamps: Convert timestamp fields...
+  - 003_entity: Add entity field...
+
+Apply 3 migration(s)? [y/N] y
+
+[1/3] Applying 001_hash_tags...
+  ✓ Applied (150 records)
+  Verifying... ✓ Valid
+
+[2/3] Applying 002_timestamps...
+  ✓ Applied (150 records)
+  Verifying... ✓ Valid
+
+[3/3] Applying 003_entity...
+  ✓ Applied (150 records)
+  Verifying... ✓ Valid
+
+All 3 migration(s) applied successfully
+```
+
+**How it works:**
+
+```
+For each pending migration (in version order):
+  1. Plan()   → Analyze what needs to change
+  2. Lock     → Acquire distributed lock
+  3. Apply()  → Execute the migration
+  4. Mark     → Set status = "applied"
+  5. Unlock   → Release lock
+  6. Verify() → Confirm migration succeeded
+     └─ If failed → STOP immediately
+     └─ If passed → Continue to next
+```
+
+**Key behaviors:**
+- Single confirmation prompt for all migrations
+- Runs in version order (001 → 002 → 003)
+- Verifies each migration before proceeding to the next
+- Stops immediately on first failure (fail-fast)
+- Safe to re-run: skips already-applied migrations
 
 ## Using in Startup Scripts
 
@@ -91,7 +145,7 @@ The `init --current` command is designed for use in automated startup scripts. I
 # Initialize database and check for pending migrations
 outpost migrate init --current || {
     echo "Error: Database migrations required"
-    echo "Run: outpost migrate apply"
+    echo "Run: outpost migrate apply --all"
     exit 1
 }
 outpost serve
