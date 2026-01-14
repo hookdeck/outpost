@@ -70,12 +70,22 @@ components:
           description: Optional metadata to store with the tenant.
     TenantListItem:
       type: object
-      description: Lightweight tenant object returned in list operations (excludes computed fields like destinations_count and topics).
+      description: Tenant object returned in list operations.
       properties:
         id:
           type: string
           description: User-defined system ID for the tenant.
           example: "123"
+        destinations_count:
+          type: integer
+          description: Number of destinations associated with the tenant.
+          example: 5
+        topics:
+          type: array
+          items:
+            type: string
+          description: List of subscribed topics across all destinations for this tenant.
+          example: ["user.created", "user.deleted"]
         metadata:
           type: object
           additionalProperties:
