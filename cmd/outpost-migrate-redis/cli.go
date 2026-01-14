@@ -95,18 +95,27 @@ func NewCommand() *cli.Command {
 				},
 			},
 			{
-				Name:  "apply",
-				Usage: "Apply the migration",
+				Name:      "apply",
+				Usage:     "Apply the next pending migration, or a specific migration",
+				ArgsUsage: "[migration_name]",
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:    "yes",
 						Aliases: []string{"y"},
 						Usage:   "Skip confirmation prompt",
 					},
+					&cli.BoolFlag{
+						Name:  "rerun",
+						Usage: "Re-run migration even if already applied (useful for catching records created between runs)",
+					},
 				},
 				Action: func(ctx context.Context, c *cli.Command) error {
 					return withMigrator(ctx, c, func(migrator *Migrator) error {
-						return migrator.Apply(ctx, c.Bool("yes"))
+						migrationName := ""
+						if c.NArg() > 0 {
+							migrationName = c.Args().First()
+						}
+						return migrator.Apply(ctx, c.Bool("yes"), c.Bool("rerun"), migrationName)
 					})
 				},
 			},

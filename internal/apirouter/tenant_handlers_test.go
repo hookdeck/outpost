@@ -60,7 +60,8 @@ func TestDestinationUpsertHandler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		assert.True(t, existingResource.CreatedAt.Equal(createdAt))
+		// Compare at second precision since Redis stores Unix timestamps
+		assert.Equal(t, existingResource.CreatedAt.Unix(), createdAt.Unix())
 
 		// Cleanup
 		entityStore.DeleteTenant(context.Background(), existingResource.ID)
@@ -107,7 +108,8 @@ func TestTenantRetrieveHandler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		assert.True(t, existingResource.CreatedAt.Equal(createdAt))
+		// Compare at second precision since Redis stores Unix timestamps
+		assert.Equal(t, existingResource.CreatedAt.Unix(), createdAt.Unix())
 
 		// Cleanup
 		entityStore.DeleteTenant(context.Background(), existingResource.ID)
@@ -189,5 +191,43 @@ func TestTenantDeleteHandler(t *testing.T) {
 		destinations, err := entityStore.ListDestinationByTenant(context.Background(), existingResource.ID)
 		assert.Nil(t, err)
 		assert.Equal(t, 0, len(destinations))
+	})
+}
+
+func TestTenantListHandler(t *testing.T) {
+	t.Parallel()
+
+	router, _, redisClient := setupTestRouter(t, "", "")
+	_ = setupTestEntityStore(t, redisClient, nil)
+
+	// Note: These tests use miniredis which doesn't support RediSearch.
+	// The ListTenant feature requires RediSearch, so we expect 501 Not Implemented.
+
+	t.Run("should return 501 when RediSearch is not available", func(t *testing.T) {
+		t.Parallel()
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotImplemented, w.Code)
+
+		var response map[string]any
+		json.Unmarshal(w.Body.Bytes(), &response)
+		assert.Contains(t, response["message"], "not enabled")
+	})
+
+	t.Run("should return 400 for invalid limit", func(t *testing.T) {
+		t.Parallel()
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants?limit=notanumber", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var response map[string]any
+		json.Unmarshal(w.Body.Bytes(), &response)
+		assert.Contains(t, response["message"], "invalid limit")
 	})
 }

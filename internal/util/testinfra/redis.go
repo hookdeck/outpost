@@ -4,96 +4,174 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
-	goredis "github.com/redis/go-redis/v9"
-	"github.com/testcontainers/testcontainers-go/modules/redis"
+	"github.com/hookdeck/outpost/internal/redis"
+	rediscontainer "github.com/testcontainers/testcontainers-go/modules/redis"
 )
 
 var (
-	redisOnce       sync.Once
-	dragonflyOnce   sync.Once
+	redisOnce     sync.Once
+	dragonflyOnce sync.Once
+
+	// DB 0 is reserved for Redis Stack / Dragonfly Stack (RediSearch requires DB 0)
+	// Tests needing RediSearch serialize via these mutexes
+	redisStackMu     sync.Mutex
+	dragonflyStackMu sync.Mutex
+
+	// DB 1-15 are for regular Redis/Dragonfly tests (can run in parallel)
 	redisDBMu       sync.Mutex
 	dragonflyDBMu   sync.Mutex
 	redisDBUsed     = make(map[int]bool)
 	dragonflyDBUsed = make(map[int]bool)
 )
 
-const maxRedisDBs = 16
+const (
+	redisStackDB = 0 // Reserved for Redis Stack (RediSearch)
+	minRegularDB = 1 // Regular tests use DB 1-15
+	maxRegularDB = 15
+)
 
-// RedisConfig holds the connection info for a test Redis database.
-type RedisConfig struct {
-	Addr string
-	DB   int
-}
-
-// NewRedisConfig allocates a Redis database (0-15) for the test.
+// NewRedisConfig allocates a Redis database (1-15) for the test.
+// Use this for tests that don't need RediSearch.
 // The database is flushed on cleanup.
-func NewRedisConfig(t *testing.T) RedisConfig {
+func NewRedisConfig(t *testing.T) *redis.RedisConfig {
 	addr := EnsureRedis()
-	db := allocateDB(&redisDBMu, redisDBUsed)
+	db := allocateRegularDB()
 
-	cfg := RedisConfig{
-		Addr: addr,
-		DB:   db,
-	}
+	cfg := parseAddrToConfig(addr, db)
 
 	t.Cleanup(func() {
 		flushRedisDB(addr, db)
-		releaseDB(&redisDBMu, redisDBUsed, db)
+		releaseRegularDB(db)
 	})
 
 	return cfg
 }
 
-// NewDragonflyConfig allocates a Dragonfly database (0-15) for the test.
+// NewRedisStackConfig returns DB 0 for tests requiring RediSearch.
+// Tests using this are serialized (one at a time) since RediSearch only works on DB 0.
 // The database is flushed on cleanup.
-func NewDragonflyConfig(t *testing.T) RedisConfig {
-	addr := EnsureDragonfly()
-	db := allocateDB(&dragonflyDBMu, dragonflyDBUsed)
+func NewRedisStackConfig(t *testing.T) *redis.RedisConfig {
+	addr := EnsureRedis()
 
-	cfg := RedisConfig{
-		Addr: addr,
-		DB:   db,
-	}
+	// Acquire exclusive access to DB 0
+	redisStackMu.Lock()
+
+	cfg := parseAddrToConfig(addr, redisStackDB)
 
 	t.Cleanup(func() {
-		flushRedisDB(addr, db)
-		releaseDB(&dragonflyDBMu, dragonflyDBUsed, db)
+		flushRedisDB(addr, redisStackDB)
+		redisStackMu.Unlock()
 	})
 
 	return cfg
 }
 
-func allocateDB(mu *sync.Mutex, used map[int]bool) int {
-	mu.Lock()
-	defer mu.Unlock()
+// NewDragonflyConfig allocates a Dragonfly database (1-15) for the test.
+// Use NewDragonflyStackConfig for tests requiring RediSearch.
+// The database is flushed on cleanup.
+func NewDragonflyConfig(t *testing.T) *redis.RedisConfig {
+	addr := EnsureDragonfly()
+	db := allocateDragonflyDB()
 
-	for i := 0; i < maxRedisDBs; i++ {
-		if !used[i] {
-			used[i] = true
+	cfg := parseAddrToConfig(addr, db)
+
+	t.Cleanup(func() {
+		flushRedisDB(addr, db)
+		releaseDragonflyDB(db)
+	})
+
+	return cfg
+}
+
+// NewDragonflyStackConfig returns DB 0 for tests requiring RediSearch on Dragonfly.
+// Tests using this are serialized (one at a time) since RediSearch only works on DB 0.
+// The database is flushed on cleanup.
+func NewDragonflyStackConfig(t *testing.T) *redis.RedisConfig {
+	addr := EnsureDragonfly()
+
+	// Acquire exclusive access to DB 0
+	dragonflyStackMu.Lock()
+
+	cfg := parseAddrToConfig(addr, redisStackDB)
+
+	t.Cleanup(func() {
+		flushRedisDB(addr, redisStackDB)
+		dragonflyStackMu.Unlock()
+	})
+
+	return cfg
+}
+
+// parseAddrToConfig converts an addr string (host:port) to a RedisConfig.
+func parseAddrToConfig(addr string, db int) *redis.RedisConfig {
+	parts := strings.Split(addr, ":")
+	port := 6379 // default
+	if len(parts) == 2 {
+		if p, err := strconv.Atoi(parts[1]); err == nil {
+			port = p
+		}
+	}
+	return &redis.RedisConfig{
+		Host:     parts[0],
+		Port:     port,
+		Database: db,
+	}
+}
+
+func allocateRegularDB() int {
+	redisDBMu.Lock()
+	defer redisDBMu.Unlock()
+
+	for i := minRegularDB; i <= maxRegularDB; i++ {
+		if !redisDBUsed[i] {
+			redisDBUsed[i] = true
 			return i
 		}
 	}
-	panic(fmt.Sprintf("no available databases (max %d)", maxRedisDBs))
+	panic(fmt.Sprintf("no available Redis databases (DB %d-%d all in use)", minRegularDB, maxRegularDB))
 }
 
-func releaseDB(mu *sync.Mutex, used map[int]bool, db int) {
-	mu.Lock()
-	defer mu.Unlock()
-	delete(used, db)
+func releaseRegularDB(db int) {
+	redisDBMu.Lock()
+	defer redisDBMu.Unlock()
+	delete(redisDBUsed, db)
+}
+
+func allocateDragonflyDB() int {
+	dragonflyDBMu.Lock()
+	defer dragonflyDBMu.Unlock()
+
+	// Start from DB 1; DB 0 is reserved for DragonflyStack (RediSearch)
+	for i := minRegularDB; i <= maxRegularDB; i++ {
+		if !dragonflyDBUsed[i] {
+			dragonflyDBUsed[i] = true
+			return i
+		}
+	}
+	panic(fmt.Sprintf("no available Dragonfly databases (DB %d-%d all in use)", minRegularDB, maxRegularDB))
+}
+
+func releaseDragonflyDB(db int) {
+	dragonflyDBMu.Lock()
+	defer dragonflyDBMu.Unlock()
+	delete(dragonflyDBUsed, db)
 }
 
 func flushRedisDB(addr string, db int) {
-	client := goredis.NewClient(&goredis.Options{
-		Addr: addr,
-		DB:   db,
-	})
+	cfg := parseAddrToConfig(addr, db)
+	client, err := redis.New(context.Background(), cfg)
+	if err != nil {
+		log.Printf("failed to create Redis client for flush: %s", err)
+		return
+	}
 	defer client.Close()
 
-	ctx := context.Background()
-	if err := client.FlushDB(ctx).Err(); err != nil {
+	if err := client.FlushDB(context.Background()).Err(); err != nil {
 		log.Printf("failed to flush Redis DB %d: %s", db, err)
 	}
 }
@@ -121,7 +199,7 @@ func EnsureDragonfly() string {
 func startRedisTestContainer(cfg *Config) {
 	ctx := context.Background()
 
-	redisContainer, err := redis.Run(ctx,
+	redisContainer, err := rediscontainer.Run(ctx,
 		"redis/redis-stack-server:latest",
 	)
 	if err != nil {
@@ -145,7 +223,7 @@ func startDragonflyTestContainer(cfg *Config) {
 	ctx := context.Background()
 
 	// Use the redis module with Dragonfly image
-	dragonflyContainer, err := redis.Run(ctx,
+	dragonflyContainer, err := rediscontainer.Run(ctx,
 		"docker.dragonflydb.io/dragonflydb/dragonfly:latest",
 	)
 	if err != nil {

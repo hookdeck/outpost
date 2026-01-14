@@ -1,4 +1,4 @@
-package migration
+package migratorredis
 
 import (
 	"context"
@@ -16,6 +16,11 @@ type Migration interface {
 
 	// Description returns a human-readable description
 	Description() string
+
+	// AutoRunnable returns true if this migration can be safely run automatically
+	// at startup without manual intervention. Migrations that are destructive,
+	// require confirmation, or have complex rollback scenarios should return false.
+	AutoRunnable() bool
 
 	// Plan analyzes the current state and returns a migration plan
 	Plan(ctx context.Context) (*Plan, error)
@@ -44,6 +49,9 @@ type Plan struct {
 	Scope          map[string]int    `json:"scope"` // e.g., {"tenants": 100, "destinations": 500}
 	EstimatedItems int               `json:"estimated_items"`
 	Metadata       map[string]string `json:"metadata,omitempty"`
+	// Data holds migration-specific data collected during Plan phase.
+	// Apply phase can use this to avoid re-reading from Redis.
+	Data interface{} `json:"-"`
 }
 
 // State represents the current state of a migration

@@ -7,9 +7,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration"
-	migration_001 "github.com/hookdeck/outpost/cmd/outpost-migrate-redis/migration/001_hash_tags"
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/migrator/migrations"
+	"github.com/hookdeck/outpost/internal/migrator/migratorredis"
 	"github.com/hookdeck/outpost/internal/redis"
 )
 
@@ -21,7 +21,7 @@ const (
 type Migrator struct {
 	client     *redisClientWrapper
 	logger     MigrationLogger
-	migrations map[string]migration.Migration // All available migrations
+	migrations map[string]migratorredis.Migration // All available migrations
 }
 
 // Close cleans up resources (logger sync, redis connection, etc)
@@ -62,24 +62,20 @@ func NewMigrator(cfg *config.Config, logger MigrationLogger) (*Migrator, error) 
 		Cmdable: redisClient,
 	}
 
-	// Initialize all migrations
-	migrations := make(map[string]migration.Migration)
+	// Get all migrations from the central registry
+	// Pass deployment ID to scope migrations to this deployment's keys
+	allMigrations := migrations.AllRedisMigrations(client, logger, cfg.DeploymentID)
 
-	// Helper to register a migration by its name
-	registerMigration := func(m migration.Migration) {
-		migrations[m.Name()] = m
+	// Build map by name for lookup
+	migrationMap := make(map[string]migratorredis.Migration)
+	for _, m := range allMigrations {
+		migrationMap[m.Name()] = m
 	}
-
-	// Register all migrations
-	registerMigration(migration_001.New(client, logger))
-
-	// Future migrations would be added here:
-	// registerMigration(migration_002.New(client, logger))
 
 	return &Migrator{
 		client:     client,
 		logger:     logger,
-		migrations: migrations,
+		migrations: migrationMap,
 	}, nil
 }
 
@@ -314,7 +310,7 @@ func (m *Migrator) Plan(ctx context.Context) error {
 	}
 
 	// Display the plan
-	m.logger.LogMigrationPlan(mig.Name(), plan)
+	m.logger.LogMigrationPlan(mig.Name(), plan, false)
 
 	return nil
 }
@@ -331,7 +327,7 @@ func (m *Migrator) Verify(ctx context.Context) error {
 
 	// Run verification
 	// Note: We're passing a minimal state object since the full state isn't stored yet
-	verifyState := &migration.State{
+	verifyState := &migratorredis.State{
 		MigrationName: mig.Name(),
 		Phase:         "applied",
 	}
@@ -362,7 +358,7 @@ func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 	// First verify the migration if not forced
 	if !force {
 		m.logger.LogInfo("verifying migration before cleanup")
-		verifyState := &migration.State{
+		verifyState := &migratorredis.State{
 			MigrationName: mig.Name(),
 			Phase:         "applied",
 		}
@@ -418,7 +414,7 @@ func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 
 	// Run cleanup
 	// Note: We're passing a minimal state object since the full state isn't stored yet
-	cleanupState := &migration.State{
+	cleanupState := &migratorredis.State{
 		MigrationName: mig.Name(),
 		Phase:         "applied",
 	}
@@ -434,16 +430,38 @@ func (m *Migrator) Cleanup(ctx context.Context, force, autoApprove bool) error {
 	return nil
 }
 
-// Apply executes the migration
-func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
-	// Get the next unapplied migration
-	mig, err := m.getNextMigration(ctx)
-	if err != nil {
-		if err.Error() == "all migrations have been applied" {
-			m.logger.LogAllMigrationsApplied()
+// Apply executes a migration
+// If migrationName is empty, applies the next unapplied migration.
+// If migrationName is specified, applies that specific migration.
+// If rerun is true, re-runs the migration even if already applied.
+func (m *Migrator) Apply(ctx context.Context, autoApprove, rerun bool, migrationName string) error {
+	var mig migratorredis.Migration
+	var alreadyApplied bool
+
+	if migrationName != "" {
+		// Find specific migration by name
+		var ok bool
+		mig, ok = m.migrations[migrationName]
+		if !ok {
+			return fmt.Errorf("migration not found: %s", migrationName)
+		}
+		alreadyApplied = isApplied(ctx, m.client, migrationName)
+
+		if alreadyApplied && !rerun {
+			m.logger.LogInfo(fmt.Sprintf("migration %s already applied (use --rerun to re-run)", migrationName))
 			return nil
 		}
-		return err
+	} else {
+		// Get the next unapplied migration
+		var err error
+		mig, err = m.getNextMigration(ctx)
+		if err != nil {
+			if err.Error() == "all migrations have been applied" {
+				m.logger.LogAllMigrationsApplied()
+				return nil
+			}
+			return err
+		}
 	}
 
 	// First show the plan
@@ -453,7 +471,7 @@ func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
 		return err
 	}
 
-	m.logger.LogMigrationPlan(mig.Name(), plan)
+	m.logger.LogMigrationPlan(mig.Name(), plan, alreadyApplied && rerun)
 
 	// Confirm if not auto-approved
 	if !autoApprove {
@@ -476,22 +494,30 @@ func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
 	defer m.releaseLock(ctx)
 
 	// Apply the migration
+	startTime := time.Now()
 	m.logger.LogMigrationStart(mig.Name())
 	state, err := mig.Apply(ctx, plan)
 	if err != nil {
 		return err
 	}
+	duration := time.Since(startTime)
 
-	// Mark migration as applied
+	// Mark migration as applied (or update applied_at if re-running)
 	if err := setMigrationAsApplied(ctx, m.client, mig.Name()); err != nil {
 		return fmt.Errorf("failed to mark migration as applied: %w", err)
+	}
+
+	// Record run history
+	if err := recordMigrationRun(ctx, m.client, mig.Name(), state, rerun, duration); err != nil {
+		m.logger.LogWarning(fmt.Sprintf("failed to record run history: %v", err))
+		// Don't fail the migration for history recording errors
 	}
 
 	stats := MigrationStats{
 		ProcessedItems: state.Progress.ProcessedItems,
 		FailedItems:    state.Progress.FailedItems,
 		SkippedItems:   state.Progress.SkippedItems,
-		Duration:       "", // TODO: Add duration tracking
+		Duration:       duration.String(),
 	}
 	m.logger.LogMigrationComplete(mig.Name(), stats)
 	return nil
@@ -508,11 +534,11 @@ func isApplied(ctx context.Context, client *redisClientWrapper, name string) boo
 }
 
 // getNextMigration finds the next unapplied migration
-func (m *Migrator) getNextMigration(ctx context.Context) (migration.Migration, error) {
+func (m *Migrator) getNextMigration(ctx context.Context) (migratorredis.Migration, error) {
 	// Sort migrations by version
 	type migrationEntry struct {
 		name      string
-		migration migration.Migration
+		migration migratorredis.Migration
 	}
 	var sorted []migrationEntry
 	for name, mig := range m.migrations {
@@ -533,11 +559,11 @@ func (m *Migrator) getNextMigration(ctx context.Context) (migration.Migration, e
 }
 
 // getLastAppliedMigration finds the most recently applied migration
-func (m *Migrator) getLastAppliedMigration(ctx context.Context) (migration.Migration, error) {
+func (m *Migrator) getLastAppliedMigration(ctx context.Context) (migratorredis.Migration, error) {
 	// Sort migrations by version (descending)
 	type migrationEntry struct {
 		name      string
-		migration migration.Migration
+		migration migratorredis.Migration
 	}
 	var sorted []migrationEntry
 	for name, mig := range m.migrations {
@@ -560,11 +586,27 @@ func (m *Migrator) getLastAppliedMigration(ctx context.Context) (migration.Migra
 // setMigrationAsApplied marks a migration as applied
 func setMigrationAsApplied(ctx context.Context, client *redisClientWrapper, name string) error {
 	key := fmt.Sprintf("outpost:migration:%s", name)
+	now := time.Now().Unix()
 
 	// Use Redis hash to store migration state
 	return client.HSet(ctx, key,
 		"status", "applied",
-		"applied_at", time.Now().Format(time.RFC3339),
+		"applied_at", fmt.Sprintf("%d", now),
+	).Err()
+}
+
+// recordMigrationRun records a migration run in the history
+// Key format: outpost:migration:{name}:run:{timestamp}
+func recordMigrationRun(ctx context.Context, client *redisClientWrapper, name string, state *migratorredis.State, rerun bool, duration time.Duration) error {
+	now := time.Now().Unix()
+	key := fmt.Sprintf("outpost:migration:%s:run:%d", name, now)
+
+	return client.HSet(ctx, key,
+		"processed", state.Progress.ProcessedItems,
+		"skipped", state.Progress.SkippedItems,
+		"failed", state.Progress.FailedItems,
+		"rerun", rerun,
+		"duration_ms", duration.Milliseconds(),
 	).Err()
 }
 

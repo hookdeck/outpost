@@ -201,6 +201,13 @@ func (a *App) initializeRedis(ctx context.Context) error {
 		return err
 	}
 	a.redisClient = redisClient
+
+	// Run Redis schema migrations
+	if err := runRedisMigrations(ctx, redisClient, a.logger, a.config.DeploymentID); err != nil {
+		a.logger.Error("Redis migration failed", zap.Error(err))
+		return err
+	}
+
 	return nil
 }
 

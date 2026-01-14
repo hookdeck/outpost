@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -78,6 +77,7 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	c.MQs.RabbitMQ.LogQueue = idgen.String()
 
 	// Test-specific overrides
+	c.AuditLog = false // Disable audit logging to suppress info-level logs in tests
 	c.PublishMaxConcurrency = 3
 	c.DeliveryMaxConcurrency = 3
 	c.LogMaxConcurrency = 3
@@ -86,6 +86,10 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	c.LogBatchThresholdSeconds = 1
 	c.LogBatchSize = 100
 	c.DeploymentID = opts.DeploymentID
+
+	// Use signature templates with timestamps for mock server compatibility
+	c.Destinations.Webhook.SignatureContentTemplate = "{{.Timestamp.Unix}}.{{.Body}}"
+	c.Destinations.Webhook.SignatureHeaderTemplate = "t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
 
 	// Setup cleanup
 	t.Cleanup(func() {
@@ -103,28 +107,6 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	})
 
 	return *c
-}
-
-// CreateDragonflyConfig returns a Dragonfly config for e2e tests.
-// Returns nil if Dragonfly is not configured in testinfra.
-func CreateDragonflyConfig(t *testing.T) *redis.RedisConfig {
-	cfg := testinfra.ReadConfig()
-	if cfg.DragonflyURL == "" {
-		return nil
-	}
-
-	parts := strings.Split(cfg.DragonflyURL, ":")
-	if len(parts) != 2 {
-		t.Fatalf("Invalid DragonflyURL: %s", cfg.DragonflyURL)
-	}
-	port, _ := strconv.Atoi(parts[1])
-
-	return &redis.RedisConfig{
-		Host:     parts[0],
-		Port:     port,
-		Password: "",
-		Database: 0,
-	}
 }
 
 // CreateRedisClusterConfig creates a Redis cluster configuration for testing
