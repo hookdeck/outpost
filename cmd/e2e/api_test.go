@@ -2055,6 +2055,133 @@ func (suite *basicSuite) TestTenantScopedAPI() {
 	suite.RunAPITests(suite.T(), jwtTests)
 }
 
+func (suite *basicSuite) TestAdminOnlyRoutesRejectJWT() {
+	// Step 1: Create tenant and get JWT token
+	tenantID := idgen.String()
+
+	// Create tenant first using admin auth
+	createTenantTests := []APITest{
+		{
+			Name: "PUT /tenants/:tenantID to create tenant",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/tenants/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+	}
+	suite.RunAPITests(suite.T(), createTenantTests)
+
+	// Step 2: Get JWT token
+	tokenResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodGET,
+		Path:   "/tenants/" + tenantID + "/token",
+	}))
+	suite.Require().NoError(err)
+	suite.Require().Equal(http.StatusOK, tokenResp.StatusCode)
+
+	bodyMap := tokenResp.Body.(map[string]interface{})
+	token := bodyMap["token"].(string)
+	suite.Require().NotEmpty(token)
+
+	// Step 3: Test admin-only routes with JWT auth should be rejected
+	adminOnlyTests := []APITest{
+		// PUT /tenants/:id is admin-only (create/update tenant)
+		{
+			Name: "PUT /tenants/:tenantID with JWT should return 401",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/tenants/" + tenantID,
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnauthorized,
+				},
+			},
+		},
+		// GET /tenants/:id/token is admin-only (retrieve token)
+		{
+			Name: "GET /tenants/:tenantID/token with JWT should return 401",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/token",
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnauthorized,
+				},
+			},
+		},
+		// GET /tenants/:id/portal is admin-only (retrieve portal redirect)
+		{
+			Name: "GET /tenants/:tenantID/portal with JWT should return 401",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/portal",
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnauthorized,
+				},
+			},
+		},
+		// GET /tenants (list) is admin-only
+		{
+			Name: "GET /tenants with JWT should return 401",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants",
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnauthorized,
+				},
+			},
+		},
+		// POST /publish is admin-only
+		{
+			Name: "POST /publish with JWT should return 401",
+			Request: suite.AuthJWTRequest(httpclient.Request{
+				Method: httpclient.MethodPOST,
+				Path:   "/publish",
+				Body: map[string]interface{}{
+					"tenant_id": tenantID,
+					"topic":     "user.created",
+					"data":      map[string]interface{}{"test": "data"},
+				},
+			}, token),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusUnauthorized,
+				},
+			},
+		},
+	}
+
+	suite.RunAPITests(suite.T(), adminOnlyTests)
+
+	// Cleanup: delete tenant using admin auth
+	cleanupTests := []APITest{
+		{
+			Name: "DELETE /tenants/:tenantID cleanup",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodDELETE,
+				Path:   "/tenants/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusOK,
+				},
+			},
+		},
+	}
+	suite.RunAPITests(suite.T(), cleanupTests)
+}
+
 func makeDestinationListValidator(length int) map[string]any {
 	return map[string]any{
 		"type": "object",
