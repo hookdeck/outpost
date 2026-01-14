@@ -123,17 +123,19 @@ test/setup:
 	@echo ""
 
 test:
-	@if [ "$(RUN)" != "" ]; then \
-		$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test $(TEST) $(TESTARGS) -run "$(RUN)"; \
-	else \
-		$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test $(TEST) $(TESTARGS); \
-	fi
+	TEST="$(TEST)" RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh test
 
 test/unit:
-	$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test $(TEST) $(TESTARGS) -short
+	TEST="$(TEST)" RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh unit
 
 test/integration:
-	$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test $(TEST) $(TESTARGS) -run "Integration"
+	gotestsum --rerun-fails=2 --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -run "Integration"
+
+test/e2e:
+	RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh e2e
+
+test/full:
+	TEST="$(TEST)" RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh full
 
 test/e2e/rediscluster:
 	@echo "Running Redis cluster e2e tests in Docker container..."
