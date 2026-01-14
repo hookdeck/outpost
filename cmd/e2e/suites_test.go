@@ -187,15 +187,17 @@ func (s *basicSuite) TearDownSuite() {
 // 	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypeClickHouse})
 // }
 
+// TestPGBasicSuite is skipped by default - redundant with TestDragonflyBasicSuite
 func TestPGBasicSuite(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
+	testutil.SkipUnlessCompat(t)
 	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypePostgres})
 }
 
-// TestRedisClusterBasicSuite is skipped by default - run with TESTFULL=1 for full compatibility testing
+// TestRedisClusterBasicSuite is skipped by default - run with TESTCOMPAT=1 for full compatibility testing
 func TestRedisClusterBasicSuite(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -228,9 +230,9 @@ func TestDragonflyBasicSuite(t *testing.T) {
 	})
 }
 
-// TestRedisStackBasicSuite is skipped by default - run with TESTFULL=1 for full compatibility testing
+// TestRedisStackBasicSuite is skipped by default - run with TESTCOMPAT=1 for full compatibility testing
 func TestRedisStackBasicSuite(t *testing.T) {
-	// t.Parallel() // Disabled to avoid test interference
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
