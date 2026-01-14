@@ -87,6 +87,10 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	c.LogBatchSize = 100
 	c.DeploymentID = opts.DeploymentID
 
+	// Use signature templates with timestamps for mock server compatibility
+	c.Destinations.Webhook.SignatureContentTemplate = "{{.Timestamp.Unix}}.{{.Body}}"
+	c.Destinations.Webhook.SignatureHeaderTemplate = "t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
+
 	// Setup cleanup
 	t.Cleanup(func() {
 		redisClient, err := redis.New(context.Background(), c.Redis.ToConfig())
