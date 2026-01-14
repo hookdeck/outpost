@@ -1951,6 +1951,10 @@ func (suite *basicSuite) TestTenantScopedAPI() {
 	token := bodyMap["token"].(string)
 	suite.Require().NotEmpty(token)
 
+	// Verify tenant_id is returned and matches the requested tenant
+	returnedTenantID := bodyMap["tenant_id"].(string)
+	suite.Require().Equal(tenantID, returnedTenantID, "tenant_id in token response should match the requested tenant")
+
 	// Step 3: Test various endpoints with JWT auth
 	jwtTests := []APITest{
 		// Test tenant-specific routes with tenantID param
