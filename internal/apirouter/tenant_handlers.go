@@ -170,7 +170,7 @@ func (h *TenantHandlers) RetrieveToken(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"token": jwtToken})
+	c.JSON(http.StatusOK, gin.H{"token": jwtToken, "tenant_id": tenant.ID})
 }
 
 func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
@@ -195,12 +195,13 @@ func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
 		theme = ""
 	}
 
-	portalURL := scheme + "://" + c.Request.Host + "?token=" + jwtToken
+	portalURL := scheme + "://" + c.Request.Host + "?token=" + jwtToken + "&tenant_id=" + tenant.ID
 	if theme != "" {
 		portalURL += "&theme=" + theme
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"redirect_url": portalURL,
+		"tenant_id":    tenant.ID,
 	})
 }

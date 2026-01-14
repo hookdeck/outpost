@@ -25,7 +25,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		id := idgen.String()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+id, nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+id, nil)
 		router.ServeHTTP(w, req)
 
 		var response map[string]any
@@ -48,7 +48,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 
 		// Request
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+existingResource.ID, nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+existingResource.ID, nil)
 		router.ServeHTTP(w, req)
 		var response map[string]any
 		json.Unmarshal(w.Body.Bytes(), &response)
@@ -78,7 +78,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/invalid_id", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/invalid_id", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -96,7 +96,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 
 		// Request
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+existingResource.ID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+existingResource.ID, nil)
 		router.ServeHTTP(w, req)
 		var response map[string]any
 		json.Unmarshal(w.Body.Bytes(), &response)
@@ -126,7 +126,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("DELETE", baseAPIPath+"/invalid_id", nil)
+		req, _ := http.NewRequest("DELETE", baseAPIPath+"/tenants/invalid_id", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -144,7 +144,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 
 		// Request
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("DELETE", baseAPIPath+"/"+existingResource.ID, nil)
+		req, _ := http.NewRequest("DELETE", baseAPIPath+"/tenants/"+existingResource.ID, nil)
 		router.ServeHTTP(w, req)
 		var response map[string]any
 		json.Unmarshal(w.Body.Bytes(), &response)
@@ -179,7 +179,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 
 		// Request
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("DELETE", baseAPIPath+"/"+existingResource.ID, nil)
+		req, _ := http.NewRequest("DELETE", baseAPIPath+"/tenants/"+existingResource.ID, nil)
 		router.ServeHTTP(w, req)
 		var response map[string]any
 		json.Unmarshal(w.Body.Bytes(), &response)
@@ -191,6 +191,107 @@ func TestTenantDeleteHandler(t *testing.T) {
 		destinations, err := entityStore.ListDestinationByTenant(context.Background(), existingResource.ID)
 		assert.Nil(t, err)
 		assert.Equal(t, 0, len(destinations))
+	})
+}
+
+func TestTenantRetrieveTokenHandler(t *testing.T) {
+	t.Parallel()
+
+	apiKey := "api_key"
+	jwtSecret := "jwt_secret"
+	router, _, redisClient := setupTestRouter(t, apiKey, jwtSecret)
+	entityStore := setupTestEntityStore(t, redisClient, nil)
+
+	t.Run("should return token and tenant_id", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup
+		existingResource := models.Tenant{
+			ID:        idgen.String(),
+			CreatedAt: time.Now(),
+		}
+		entityStore.UpsertTenant(context.Background(), existingResource)
+
+		// Request
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+existingResource.ID+"/token", nil)
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		router.ServeHTTP(w, req)
+		var response map[string]any
+		json.Unmarshal(w.Body.Bytes(), &response)
+
+		// Test
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.NotEmpty(t, response["token"])
+		assert.Equal(t, existingResource.ID, response["tenant_id"])
+
+		// Cleanup
+		entityStore.DeleteTenant(context.Background(), existingResource.ID)
+	})
+}
+
+func TestTenantRetrievePortalHandler(t *testing.T) {
+	t.Parallel()
+
+	apiKey := "api_key"
+	jwtSecret := "jwt_secret"
+	router, _, redisClient := setupTestRouter(t, apiKey, jwtSecret)
+	entityStore := setupTestEntityStore(t, redisClient, nil)
+
+	t.Run("should return redirect_url with tenant_id and tenant_id in body", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup
+		existingResource := models.Tenant{
+			ID:        idgen.String(),
+			CreatedAt: time.Now(),
+		}
+		entityStore.UpsertTenant(context.Background(), existingResource)
+
+		// Request
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+existingResource.ID+"/portal", nil)
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		router.ServeHTTP(w, req)
+		var response map[string]any
+		json.Unmarshal(w.Body.Bytes(), &response)
+
+		// Test
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.NotEmpty(t, response["redirect_url"])
+		assert.Contains(t, response["redirect_url"], "tenant_id="+existingResource.ID)
+		assert.Equal(t, existingResource.ID, response["tenant_id"])
+
+		// Cleanup
+		entityStore.DeleteTenant(context.Background(), existingResource.ID)
+	})
+
+	t.Run("should include theme in redirect_url when provided", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup
+		existingResource := models.Tenant{
+			ID:        idgen.String(),
+			CreatedAt: time.Now(),
+		}
+		entityStore.UpsertTenant(context.Background(), existingResource)
+
+		// Request
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+existingResource.ID+"/portal?theme=dark", nil)
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		router.ServeHTTP(w, req)
+		var response map[string]any
+		json.Unmarshal(w.Body.Bytes(), &response)
+
+		// Test
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, response["redirect_url"], "tenant_id="+existingResource.ID)
+		assert.Contains(t, response["redirect_url"], "theme=dark")
+		assert.Equal(t, existingResource.ID, response["tenant_id"])
+
+		// Cleanup
+		entityStore.DeleteTenant(context.Background(), existingResource.ID)
 	})
 }
 
