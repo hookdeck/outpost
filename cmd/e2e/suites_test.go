@@ -18,7 +18,6 @@ import (
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/santhosh-tekuri/jsonschema/v6"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -106,9 +105,9 @@ func (test *APITest) Run(t *testing.T, client httpclient.Client) {
 	require.NoError(t, err)
 
 	if test.Expected.Match != nil {
-		assert.Equal(t, test.Expected.Match.StatusCode, resp.StatusCode)
+		require.Equal(t, test.Expected.Match.StatusCode, resp.StatusCode)
 		if test.Expected.Match.Body != nil {
-			assert.True(t, resp.MatchBody(test.Expected.Match.Body), "expected body %s, got %s", test.Expected.Match.Body, resp.Body)
+			require.True(t, resp.MatchBody(test.Expected.Match.Body), "expected body %s, got %s", test.Expected.Match.Body, resp.Body)
 		}
 	}
 
@@ -121,9 +120,7 @@ func (test *APITest) Run(t *testing.T, client httpclient.Client) {
 		var respJSON map[string]interface{}
 		require.NoError(t, json.Unmarshal(respStr, &respJSON), "failed to parse response: %v", err)
 		validationErr := schema.Validate(respJSON)
-		if assert.NoError(t, validationErr, "response validation failed: %v: %s", validationErr, respJSON) == false {
-			log.Println(resp)
-		}
+		require.NoError(t, validationErr, "response validation failed: %v: %s", validationErr, respJSON)
 	}
 }
 
@@ -134,6 +131,19 @@ type basicSuite struct {
 	redisConfig    *redis.RedisConfig // Optional Redis config override
 	deploymentID   string             // Optional deployment ID
 	alertServer    *alert.AlertMockServer
+	failed         bool // Fail-fast: skip remaining tests after first failure
+}
+
+func (s *basicSuite) BeforeTest(suiteName, testName string) {
+	if s.failed {
+		s.T().Skip("skipping due to previous test failure")
+	}
+}
+
+func (s *basicSuite) AfterTest(suiteName, testName string) {
+	if s.T().Failed() {
+		s.failed = true
+	}
 }
 
 func (suite *basicSuite) SetupSuite() {
@@ -397,7 +407,7 @@ func TestAutoDisableWithoutCallbackURL(t *testing.T) {
 	require.True(t, ok, "response body should be a map")
 
 	disabledAt := bodyMap["disabled_at"]
-	assert.NotNil(t, disabledAt, "destination should be disabled (disabled_at should not be null) - issue #596")
+	require.NotNil(t, disabledAt, "destination should be disabled (disabled_at should not be null) - issue #596")
 
 	// Cleanup mock server
 	_ = mockServerInfra
