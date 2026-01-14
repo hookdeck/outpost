@@ -2,56 +2,87 @@
 
 ## Commands
 
+### Using go test
+
 1. Run all tests
 
 ```sh
-$ make test
-# go test $(go list ./...)
+go test ./...
 ```
 
 2. Run unit tests
 
 ```sh
-$ make test/unit
-# go test $(go list ./...) -short
+go test ./... -short
 ```
 
 3. Run integration tests
 
 ```sh
-$ make test/unit
-# go test $(go list ./...) -run "Integration"
+go test ./... -run "Integration"
 ```
 
-## Options
+### Using Make (requires gotestsum)
+
+The Makefile uses [gotestsum](https://github.com/gotestyourself/gotestsum) which provides better output formatting and automatic retries for flaky tests.
+
+```sh
+# Install gotestsum first
+go install gotest.tools/gotestsum@latest
+```
+
+1. Run all tests
+
+```sh
+make test
+```
+
+2. Run unit tests
+
+```sh
+make test/unit
+```
+
+3. Run integration tests
+
+```sh
+make test/integration
+```
+
+#### Make Options
 
 1. To test specific package
 
 ```sh
-$ TEST='./internal/services/api' make test
-# go test ./internal/services/api
+TEST='./internal/services/api' make test
 ```
 
-2. To run specific tests or use other options
+2. To run specific tests
 
 ```sh
-$ TESTARGS='-v -run "TestJWT"'' make test
-# go test $(go list ./...) -v -run "TestJWT"
+RUN='TestJWT' make test
 ```
 
-Keep in mind you can't use `-run "Test..."` along with `make test/integration` as the integration test already specify integration tests with `-run` option. However, since you're already specifying which test to run, we assume this is a non-issue.
+3. To pass additional options
+
+```sh
+TESTARGS='-v' make test
+```
+
+Keep in mind you can't use `RUN` along with `make test/integration` as it already uses `-run` option. However, since you're already specifying which test to run, we assume this is a non-issue.
 
 ## Coverage
 
 1. Run test coverage
 
 ```sh
-$ make test/coverage
-# go test $(go list ./...)  -coverprofile=coverage.out
+make test/coverage
+
+# or with go test directly
+go test ./... -coverprofile=coverage.out
 
 # or to test specific package
-$ TEST='./internal/services/api' make test/coverage
-# go test $(go list ./...)  -coverprofile=coverage.out
+TEST='./internal/services/api' make test/coverage
 ```
 
 2. Visualize test coverage

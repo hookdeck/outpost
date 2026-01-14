@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"testing"
 	"time"
 
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -492,6 +494,163 @@ func (suite *basicSuite) TestTenantAPIInvalidJSON() {
 	defer resp.Body.Close()
 
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode, "Malformed JSON should return 400")
+}
+
+func (suite *basicSuite) TestListTenantsAPI() {
+	t := suite.T()
+
+	if !suite.hasRediSearch {
+		// Skip full test on backends without verified RediSearch support
+		// Note: Some backends (like Dragonfly) may pass the FT._LIST probe
+		// but not fully support FT.SEARCH, so we just skip the test
+		t.Skip("skipping ListTenant test - RediSearch not verified for this backend")
+	}
+
+	// With RediSearch, test full list functionality
+	// Create some tenants first, with 1 second apart to ensure distinct timestamps
+	// (Dragonfly's FT.SEARCH SORTBY + LIMIT has issues with duplicate sort keys)
+	tenantIDs := make([]string, 3)
+	for i := 0; i < 3; i++ {
+		if i > 0 {
+			time.Sleep(time.Second)
+		}
+		tenantIDs[i] = idgen.String()
+		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodPUT,
+			Path:   "/" + tenantIDs[i],
+		}))
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+	}
+
+	// Test list without parameters
+	t.Run("list all tenants", func(t *testing.T) {
+		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants",
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, ok := resp.Body.(map[string]interface{})
+		require.True(t, ok, "response should be a map")
+		data, ok := body["data"].([]interface{})
+		require.True(t, ok, "data should be an array")
+		assert.GreaterOrEqual(t, len(data), 3, "should have at least 3 tenants")
+	})
+
+	// Test list with limit
+	t.Run("list with limit", func(t *testing.T) {
+		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=2",
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, ok := resp.Body.(map[string]interface{})
+		require.True(t, ok, "response should be a map")
+		data, ok := body["data"].([]interface{})
+		require.True(t, ok, "data should be an array")
+		assert.Equal(t, 2, len(data), "should have exactly 2 tenants")
+	})
+
+	// Test invalid limit
+	t.Run("invalid limit returns 400", func(t *testing.T) {
+		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=notanumber",
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
+	// Test forward pagination
+	t.Run("forward pagination with next cursor", func(t *testing.T) {
+		// Get first page
+		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=2",
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, ok := resp.Body.(map[string]interface{})
+		require.True(t, ok, "response should be a map")
+		data, ok := body["data"].([]interface{})
+		require.True(t, ok, "data should be an array")
+		assert.Equal(t, 2, len(data), "page 1 should have 2 tenants")
+
+		next, _ := body["next"].(string)
+		require.NotEmpty(t, next, "should have next cursor")
+
+		// Get second page using next cursor
+		resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=2&next=" + next,
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, ok = resp.Body.(map[string]interface{})
+		require.True(t, ok, "response should be a map")
+		data, ok = body["data"].([]interface{})
+		require.True(t, ok, "data should be an array")
+		assert.GreaterOrEqual(t, len(data), 1, "page 2 should have at least 1 tenant")
+
+		prev, _ := body["prev"].(string)
+		assert.NotEmpty(t, prev, "page 2 should have prev cursor")
+	})
+
+	// Test prev cursor returns newer items (keyset pagination)
+	t.Run("backward pagination with prev cursor", func(t *testing.T) {
+		// Get first page
+		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=2",
+		}))
+		require.NoError(t, err)
+		body, ok := resp.Body.(map[string]interface{})
+		require.True(t, ok)
+
+		next, _ := body["next"].(string)
+		require.NotEmpty(t, next, "should have next cursor")
+
+		// Go to page 2
+		resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=2&next=" + next,
+		}))
+		require.NoError(t, err)
+		body, ok = resp.Body.(map[string]interface{})
+		require.True(t, ok)
+
+		prev, _ := body["prev"].(string)
+		require.NotEmpty(t, prev, "page 2 should have prev cursor")
+
+		// Using prev cursor returns items with newer timestamps (keyset pagination)
+		// This is NOT the same as "going back to page 1" in offset pagination
+		resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   "/tenants?limit=2&prev=" + prev,
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, ok = resp.Body.(map[string]interface{})
+		require.True(t, ok, "response should be a map")
+		data, ok := body["data"].([]interface{})
+		require.True(t, ok, "data should be an array")
+		assert.NotEmpty(t, data, "prev cursor should return items")
+	})
+
+	// Cleanup
+	for _, id := range tenantIDs {
+		_, _ = suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodDELETE,
+			Path:   "/" + id,
+		}))
+	}
 }
 
 func (suite *basicSuite) TestDestinationsAPI() {
@@ -1216,8 +1375,8 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	require.NoError(t, err)
 	require.WithinDuration(t, createdTime, updatedTime, time.Second, "created_at and updated_at should be close on creation")
 
-	// Wait a bit to ensure different timestamp
-	time.Sleep(10 * time.Millisecond)
+	// Wait to ensure different timestamp (Unix timestamps have second precision)
+	time.Sleep(1100 * time.Millisecond)
 
 	// Update tenant
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
@@ -1285,8 +1444,8 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	require.NoError(t, err)
 	require.WithinDuration(t, createdTime, updatedTime, time.Second, "created_at and updated_at should be close on creation")
 
-	// Wait a bit to ensure different timestamp
-	time.Sleep(10 * time.Millisecond)
+	// Wait to ensure different timestamp (Unix timestamps have second precision)
+	time.Sleep(1100 * time.Millisecond)
 
 	// Update destination
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{

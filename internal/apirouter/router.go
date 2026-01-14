@@ -154,6 +154,14 @@ func NewRouter(
 			AuthScope: AuthScopeAdmin,
 			Mode:      RouteModeAlways,
 		},
+		{
+			Method:             http.MethodGet,
+			Path:               "/tenants",
+			Handler:            tenantHandlers.List,
+			AuthScope:          AuthScopeAdmin,
+			Mode:               RouteModeAlways,
+			AllowTenantFromJWT: false,
+		},
 	}
 
 	// Tenant upsert route (admin-only, but has :tenantID in path)

@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -114,19 +116,21 @@ func main() {
 
 	ctx := context.Background()
 
-	// Health check
+	// Health check - use simple HTTP call to avoid SDK content-type parsing issues
 	fmt.Printf("Checking server health...\n")
-	healthResp, err := client.Health.Check(ctx)
+	healthURL := strings.TrimSuffix(*serverURL, "/api/v1") + "/healthz"
+	healthResp, err := http.Get(healthURL)
 	if err != nil {
 		fmt.Printf("❌ Health check failed: %v\n", err)
 		fmt.Printf("\nPlease ensure the Outpost server is running at %s\n", *serverURL)
 		return
 	}
-	if healthResp.Res != nil {
-		fmt.Printf("✅ Server is healthy: %s\n", *healthResp.Res)
-	} else {
-		fmt.Printf("✅ Server responded to health check\n")
+	defer healthResp.Body.Close()
+	if healthResp.StatusCode != http.StatusOK {
+		fmt.Printf("❌ Health check failed: status %d\n", healthResp.StatusCode)
+		return
 	}
+	fmt.Printf("✅ Server is healthy\n")
 	fmt.Println()
 
 	stats := &seedStats{}
@@ -170,9 +174,9 @@ func main() {
 func worker(ctx context.Context, client *outpost.Outpost, tenantChan <-chan int, stats *seedStats, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	for range tenantChan {
-		// Create tenant
-		tenantID := generateTenantID()
+	for i := range tenantChan {
+		// Create tenant with sequential ID
+		tenantID := fmt.Sprintf("tenant_%d", i+1)
 
 		if *verbose {
 			fmt.Printf("Creating tenant: %s\n", tenantID)

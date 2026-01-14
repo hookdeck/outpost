@@ -132,6 +132,7 @@ type basicSuite struct {
 	logStorageType configs.LogStorageType
 	redisConfig    *redis.RedisConfig // Optional Redis config override
 	deploymentID   string             // Optional deployment ID
+	hasRediSearch  bool               // Whether the Redis backend supports RediSearch (only RedisStack)
 	alertServer    *alert.AlertMockServer
 }
 
@@ -187,7 +188,7 @@ func (s *basicSuite) TearDownSuite() {
 // }
 
 func TestPGBasicSuite(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
@@ -195,7 +196,7 @@ func TestPGBasicSuite(t *testing.T) {
 }
 
 func TestRedisClusterBasicSuite(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
@@ -213,25 +214,34 @@ func TestRedisClusterBasicSuite(t *testing.T) {
 }
 
 func TestDragonflyBasicSuite(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
 
-	// Get Dragonfly config from testinfra
-	dragonflyConfig := configs.CreateDragonflyConfig(t)
-	if dragonflyConfig == nil {
-		t.Skip("skipping Dragonfly test (TEST_DRAGONFLY_URL not set)")
+	// Use NewDragonflyStackConfig (DB 0) for RediSearch support
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypePostgres,
+		redisConfig:    testinfra.NewDragonflyStackConfig(t),
+		hasRediSearch:  true,
+	})
+}
+
+func TestRedisStackBasicSuite(t *testing.T) {
+	// t.Parallel() // Disabled to avoid test interference
+	if testing.Short() {
+		t.Skip("skipping e2e test")
 	}
 
 	suite.Run(t, &basicSuite{
 		logStorageType: configs.LogStorageTypePostgres,
-		redisConfig:    dragonflyConfig,
+		redisConfig:    testinfra.NewRedisStackConfig(t),
+		hasRediSearch:  true,
 	})
 }
 
 func TestBasicSuiteWithDeploymentID(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
@@ -246,7 +256,7 @@ func TestBasicSuiteWithDeploymentID(t *testing.T) {
 // ALERT_AUTO_DISABLE_DESTINATION=true without ALERT_CALLBACK_URL set.
 // Run with: go test -v -run TestAutoDisableWithoutCallbackURL ./cmd/e2e/...
 func TestAutoDisableWithoutCallbackURL(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}

@@ -68,6 +68,63 @@ components:
             type: string
           nullable: true
           description: Optional metadata to store with the tenant.
+    TenantListItem:
+      type: object
+      description: Tenant object returned in list operations.
+      properties:
+        id:
+          type: string
+          description: User-defined system ID for the tenant.
+          example: "123"
+        destinations_count:
+          type: integer
+          description: Number of destinations associated with the tenant.
+          example: 5
+        topics:
+          type: array
+          items:
+            type: string
+          description: List of subscribed topics across all destinations for this tenant.
+          example: ["user.created", "user.deleted"]
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary key-value pairs for storing contextual information about the tenant.
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the tenant was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the tenant was last updated.
+          example: "2024-01-01T00:00:00Z"
+    TenantListResponse:
+      type: object
+      description: Paginated list of tenants.
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantListItem"
+          description: Array of tenant objects.
+        next:
+          type: string
+          nullable: true
+          description: Cursor for the next page of results. Null if no more results.
+          example: "MTcwNDA2NzIwMA=="
+        prev:
+          type: string
+          nullable: true
+          description: Cursor for the previous page of results. Null if on first page.
+          example: null
+        count:
+          type: integer
+          description: Total count of all tenants.
+          example: 42
     PortalRedirect:
       type: object
       properties:
@@ -1855,6 +1912,94 @@ paths:
                   retrymq-consumer:
                     status: failed
   # Tenants
+  /tenants:
+    get:
+      tags: [Tenants]
+      summary: List Tenants
+      description: |
+        List all tenants with cursor-based pagination.
+
+        **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
+        If RediSearch is not available, this endpoint returns `501 Not Implemented`.
+
+        The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
+        Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
+      operationId: listTenants
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of tenants to return per page (1-100, default 20).
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort order by `created_at` timestamp.
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for the next page of results. Mutually exclusive with `prev`.
+        - name: prev
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for the previous page of results. Mutually exclusive with `next`.
+      responses:
+        "200":
+          description: List of tenants.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantListResponse"
+              example:
+                data:
+                  - id: "tenant_123"
+                    metadata:
+                      plan: "pro"
+                    created_at: "2024-01-15T10:30:00Z"
+                    updated_at: "2024-01-15T10:30:00Z"
+                  - id: "tenant_456"
+                    metadata: null
+                    created_at: "2024-01-14T09:00:00Z"
+                    updated_at: "2024-01-14T09:00:00Z"
+                next: "MTcwNDA2NzIwMA=="
+                prev: null
+                count: 42
+        "400":
+          description: Invalid request parameters (e.g., invalid cursor, both next and prev provided).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "invalid cursor format"
+        "401":
+          description: Unauthorized (Admin API Key missing or invalid).
+        "501":
+          description: List Tenants feature is not available. Requires Redis with RediSearch module.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "list tenant not supported"
   /tenants/{tenant_id}:
     parameters:
       - name: tenant_id

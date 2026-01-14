@@ -31,6 +31,53 @@ If your system is not multi-tenant, create a single tenant with a hard-code tena
 }
 ```
 
+### `GET` `/tenants`
+
+List all tenants with cursor-based pagination.
+
+:::note[RediSearch Required]
+This endpoint requires Redis with the RediSearch module (e.g., `redis/redis-stack-server`). If RediSearch is not available, this endpoint returns `501 Not Implemented`. Outpost automatically detects RediSearch availability at startup.
+:::
+
+The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`. Use `GET /:tenant_id` to retrieve full tenant details.
+
+#### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | 20 | Number of tenants per page (1-100) |
+| `order` | string | `desc` | Sort order by `created_at`: `asc` or `desc` |
+| `next` | string | - | Cursor for next page (mutually exclusive with `prev`) |
+| `prev` | string | - | Cursor for previous page (mutually exclusive with `next`) |
+
+#### Response
+
+```json
+{
+  "data": [
+    {
+      "id": "tenant_123",
+      "metadata": { "plan": "pro" },
+      "created_at": "2024-01-15T10:30:00Z",
+      "updated_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "id": "tenant_456",
+      "metadata": null,
+      "created_at": "2024-01-14T09:00:00Z",
+      "updated_at": "2024-01-14T09:00:00Z"
+    }
+  ],
+  "next": "MTcwNDA2NzIwMA==",
+  "prev": null
+}
+```
+
+#### Error Responses
+
+- `400 Bad Request` - Invalid cursor or conflicting pagination parameters
+- `501 Not Implemented` - RediSearch not available
+
 ### `PUT` `/:tenant_id`
 
 Idempotently creates the tenant. A tenant is required to associate a destination.
