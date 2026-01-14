@@ -45,16 +45,48 @@ cmd_test() {
     run_tests "$TEST"
 }
 
+# Command: unit - run tests with -short flag
+cmd_unit() {
+    run_tests "$TEST" -short
+}
+
+# Command: e2e - run end-to-end tests
+cmd_e2e() {
+    run_tests "./cmd/e2e"
+}
+
+# Command: full - run all tests with full backend compatibility
+cmd_full() {
+    export TESTCOMPAT=1
+    echo "Running full test suite with TESTCOMPAT=1..."
+    run_tests "$TEST"
+    echo ""
+    echo "Running e2e tests..."
+    run_tests "./cmd/e2e"
+}
+
 # Main entry point
 case "${1:-test}" in
     test)
         cmd_test
         ;;
+    unit)
+        cmd_unit
+        ;;
+    e2e)
+        cmd_e2e
+        ;;
+    full)
+        cmd_full
+        ;;
     *)
-        echo "Usage: $0 {test}"
+        echo "Usage: $0 {test|unit|e2e|full}"
         echo ""
         echo "Commands:"
         echo "  test    Run unit + integration tests (default)"
+        echo "  unit    Run tests with -short flag (skip long-running tests)"
+        echo "  e2e     Run end-to-end tests (./cmd/e2e)"
+        echo "  full    Run full test suite with TESTCOMPAT=1 (test + e2e)"
         echo ""
         echo "Environment variables:"
         echo "  TEST          Package(s) to test (default: ./internal/...)"
