@@ -194,6 +194,42 @@ func TestTenantDeleteHandler(t *testing.T) {
 	})
 }
 
+func TestTenantRetrieveTokenHandler(t *testing.T) {
+	t.Parallel()
+
+	apiKey := "api_key"
+	jwtSecret := "jwt_secret"
+	router, _, redisClient := setupTestRouter(t, apiKey, jwtSecret)
+	entityStore := setupTestEntityStore(t, redisClient, nil)
+
+	t.Run("should return token and tenant_id", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup
+		existingResource := models.Tenant{
+			ID:        idgen.String(),
+			CreatedAt: time.Now(),
+		}
+		entityStore.UpsertTenant(context.Background(), existingResource)
+
+		// Request
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+existingResource.ID+"/token", nil)
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		router.ServeHTTP(w, req)
+		var response map[string]any
+		json.Unmarshal(w.Body.Bytes(), &response)
+
+		// Test
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.NotEmpty(t, response["token"])
+		assert.Equal(t, existingResource.ID, response["tenant_id"])
+
+		// Cleanup
+		entityStore.DeleteTenant(context.Background(), existingResource.ID)
+	})
+}
+
 func TestTenantListHandler(t *testing.T) {
 	t.Parallel()
 

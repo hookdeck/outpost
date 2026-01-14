@@ -170,7 +170,7 @@ func (h *TenantHandlers) RetrieveToken(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"token": jwtToken})
+	c.JSON(http.StatusOK, gin.H{"token": jwtToken, "tenant_id": tenant.ID})
 }
 
 func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
