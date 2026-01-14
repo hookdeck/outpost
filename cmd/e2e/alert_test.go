@@ -18,7 +18,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlert() {
 
 	tests := []APITest{
 		{
-			Name: "PUT /:tenantID - Create tenant",
+			Name: "PUT /tenants/:tenantID - Create tenant",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
 				Path:   "/tenants/" + tenantID,
@@ -53,7 +53,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlert() {
 			},
 		},
 		{
-			Name: "POST /:tenantID/destinations",
+			Name: "POST /tenants/:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
 				Path:   "/tenants/" + tenantID + "/destinations",
@@ -112,7 +112,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlert() {
 	tests = []APITest{}
 	tests = append(tests, APITest{
 		Delay: time.Second / 2,
-		Name:  "GET /:tenantID/destinations/:destinationID - Check disabled",
+		Name:  "GET /tenants/:tenantID/destinations/:destinationID - Check disabled",
 		Request: suite.AuthRequest(httpclient.Request{
 			Method: httpclient.MethodGET,
 			Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
@@ -143,7 +143,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
 	// Setup phase - same as before
 	tests := []APITest{
 		{
-			Name: "PUT /:tenantID - Create tenant",
+			Name: "PUT /tenants/:tenantID - Create tenant",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
 				Path:   "/tenants/" + tenantID,
@@ -178,7 +178,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
 			},
 		},
 		{
-			Name: "POST /:tenantID/destinations",
+			Name: "POST /tenants/:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
 				Path:   "/tenants/" + tenantID + "/destinations",
@@ -292,7 +292,7 @@ func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
 	tests = []APITest{}
 	tests = append(tests, APITest{
 		Delay: time.Second / 2,
-		Name:  "GET /:tenantID/destinations/:destinationID - Check disabled",
+		Name:  "GET /tenants/:tenantID/destinations/:destinationID - Check disabled",
 		Request: suite.AuthRequest(httpclient.Request{
 			Method: httpclient.MethodGET,
 			Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
