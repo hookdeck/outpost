@@ -410,10 +410,10 @@ func (suite *basicSuite) TestTenantsAPI() {
 			},
 		},
 		{
-			Name: "Create new tenant with metadata",
+			Name: "PUT /tenants/:tenantID - Create new tenant with metadata",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + idgen.String(),
+				Path:   "/tenants/" + idgen.String(),
 				Body: map[string]interface{}{
 					"metadata": map[string]interface{}{
 						"stage": "development",
@@ -435,7 +435,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "PUT /tenants/:tenantID with metadata value auto-converted (number to string)",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + idgen.String(),
+				Path:   "/tenants/" + idgen.String(),
 				Body: map[string]interface{}{
 					"metadata": map[string]interface{}{
 						"count":   42,
@@ -461,7 +461,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 			Name: "PUT /tenants/:tenantID with empty body (no metadata)",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + idgen.String(),
+				Path:   "/tenants/" + idgen.String(),
 				Body:   map[string]interface{}{},
 			}),
 			Expected: APITestExpectation{
@@ -1623,12 +1623,25 @@ func (suite *basicSuite) TestDestinationEnableDisableAPI() {
 }
 
 func (suite *basicSuite) TestTopicsAPI() {
+	tenantID := idgen.String()
 	tests := []APITest{
 		{
-			Name: "GET /topics",
+			Name: "PUT /tenants/:tenantID - Create tenant",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/tenants/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+		{
+			Name: "GET /tenants/:tenantID/topics",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/topics",
+				Path:   "/tenants/" + tenantID + "/topics",
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1677,12 +1690,25 @@ func (suite *basicSuite) TestDestinationTypesAPI() {
 		},
 	}
 
+	tenantID := idgen.String()
 	tests := []APITest{
 		{
-			Name: "GET /destination-types",
+			Name: "PUT /tenants/:tenantID - Create tenant",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodPUT,
+				Path:   "/tenants/" + tenantID,
+			}),
+			Expected: APITestExpectation{
+				Match: &httpclient.Response{
+					StatusCode: http.StatusCreated,
+				},
+			},
+		},
+		{
+			Name: "GET /tenants/:tenantID/destination-types",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/destination-types",
+				Path:   "/tenants/" + tenantID + "/destination-types",
 			}),
 			Expected: APITestExpectation{
 				Validate: map[string]any{
@@ -1701,10 +1727,10 @@ func (suite *basicSuite) TestDestinationTypesAPI() {
 			},
 		},
 		{
-			Name: "GET /destination-types/webhook",
+			Name: "GET /tenants/:tenantID/destination-types/webhook",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/destination-types/webhook",
+				Path:   "/tenants/" + tenantID + "/destination-types/webhook",
 			}),
 			Expected: APITestExpectation{
 				Validate: map[string]any{
@@ -1717,10 +1743,10 @@ func (suite *basicSuite) TestDestinationTypesAPI() {
 			},
 		},
 		{
-			Name: "GET /destination-types/invalid",
+			Name: "GET /tenants/:tenantID/destination-types/invalid",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/destination-types/invalid",
+				Path:   "/tenants/" + tenantID + "/destination-types/invalid",
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1812,38 +1838,7 @@ func (suite *basicSuite) TestJWTAuthAPI() {
 			},
 		},
 
-		// Test tenant-specific routes without tenantID param
-		{
-			Name: "GET /destinations with JWT should work",
-			Request: suite.AuthJWTRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/destinations",
-			}, token),
-			Expected: APITestExpectation{
-				Validate: makeDestinationListValidator(1),
-			},
-		},
-		{
-			Name: "POST /destinations with JWT should work",
-			Request: suite.AuthJWTRequest(httpclient.Request{
-				Method: httpclient.MethodPOST,
-				Path:   "/destinations",
-				Body: map[string]interface{}{
-					"type":   "webhook",
-					"topics": "*",
-					"config": map[string]interface{}{
-						"url": "http://host.docker.internal:4444",
-					},
-				},
-			}, token),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusCreated,
-				},
-			},
-		},
-
-		// Test tenant-agnostic routes with tenantID param
+		// Test tenant routes with JWT auth
 		{
 			Name: "GET /tenants/:tenantID/destination-types with JWT should work",
 			Request: suite.AuthJWTRequest(httpclient.Request{
@@ -1869,38 +1864,12 @@ func (suite *basicSuite) TestJWTAuthAPI() {
 			},
 		},
 
-		// Test tenant-agnostic routes without tenantID param
-		{
-			Name: "GET /destination-types with JWT should work",
-			Request: suite.AuthJWTRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/destination-types",
-			}, token),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
-				},
-			},
-		},
-		{
-			Name: "GET /topics with JWT should work",
-			Request: suite.AuthJWTRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/topics",
-			}, token),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
-				},
-			},
-		},
-
 		// Test wrong tenantID
 		{
-			Name: "GET /wrong-tenant-id with JWT should fail",
+			Name: "GET /tenants/wrong-tenant-id with JWT should fail",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + idgen.String(),
+				Path:   "/tenants/" + idgen.String(),
 			}, token),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
