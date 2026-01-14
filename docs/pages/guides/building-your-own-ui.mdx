@@ -43,7 +43,7 @@ const [destination_types, setDestinationTypes] = useState([]);
 
 const fetchDestinations = async () => {
   // Get the tenant destinations
-  const response = await fetch(`${API_URL}/api/v1/destinations`, {
+  const response = await fetch(`${API_URL}/api/v1/tenants/destinations`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -341,7 +341,7 @@ Events are listed using the [List Events API](/docs/api/events#list-events). You
 const [events, setEvents] = useState([]);
 
 const fetchEvents = async () => {
-  const response = await fetch(`${API_URL}/api/v1/events`, {
+  const response = await fetch(`${API_URL}/api/v1/tenants/events`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },

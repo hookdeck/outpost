@@ -54,7 +54,7 @@ describe('Webhook Destinations - Contract Tests (SDK-based validation)', () => {
     }
   });
 
-  describe('POST /api/v1/{tenant_id}/destinations - Create Webhook Destination', () => {
+  describe('POST /api/v1/tenants/{tenant_id}/destinations - Create Webhook Destination', () => {
     it('should create a webhook destination with valid config', async () => {
       const destinationData = createWebhookDestination();
       const destination = await client.createDestination(destinationData);
@@ -160,7 +160,7 @@ describe('Webhook Destinations - Contract Tests (SDK-based validation)', () => {
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations/{id} - Retrieve Webhook Destination', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations/{id} - Retrieve Webhook Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -204,7 +204,7 @@ describe('Webhook Destinations - Contract Tests (SDK-based validation)', () => {
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations - List Webhook Destinations', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations - List Webhook Destinations', () => {
     before(async () => {
       // Create multiple webhook destinations for listing
       await client.createDestination(createWebhookDestination());
@@ -233,7 +233,7 @@ describe('Webhook Destinations - Contract Tests (SDK-based validation)', () => {
     });
   });
 
-  describe('PATCH /api/v1/{tenant_id}/destinations/{id} - Update Webhook Destination', () => {
+  describe('PATCH /api/v1/tenants/{tenant_id}/destinations/{id} - Update Webhook Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -296,7 +296,7 @@ describe('Webhook Destinations - Contract Tests (SDK-based validation)', () => {
     });
   });
 
-  describe('DELETE /api/v1/{tenant_id}/destinations/{id} - Delete Webhook Destination', () => {
+  describe('DELETE /api/v1/tenants/{tenant_id}/destinations/{id} - Delete Webhook Destination', () => {
     it('should delete an existing destination', async () => {
       const destinationData = createWebhookDestination();
       const destination = await client.createDestination(destinationData);

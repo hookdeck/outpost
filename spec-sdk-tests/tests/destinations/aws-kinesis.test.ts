@@ -54,7 +54,7 @@ describe('AWS Kinesis Destinations - Contract Tests (SDK-based validation)', () 
     }
   });
 
-  describe('POST /api/v1/{tenant_id}/destinations - Create AWS Kinesis Destination', () => {
+  describe('POST /api/v1/tenants/{tenant_id}/destinations - Create AWS Kinesis Destination', () => {
     it('should create an AWS Kinesis destination with valid config', async () => {
       const destinationData = createAwsKinesisDestination();
       const destination = await client.createDestination(destinationData);
@@ -226,7 +226,7 @@ describe('AWS Kinesis Destinations - Contract Tests (SDK-based validation)', () 
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations/{id} - Retrieve AWS Kinesis Destination', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations/{id} - Retrieve AWS Kinesis Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -271,7 +271,7 @@ describe('AWS Kinesis Destinations - Contract Tests (SDK-based validation)', () 
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations - List AWS Kinesis Destinations', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations - List AWS Kinesis Destinations', () => {
     before(async () => {
       // Create multiple AWS Kinesis destinations for listing
       await client.createDestination(createAwsKinesisDestination());
@@ -301,7 +301,7 @@ describe('AWS Kinesis Destinations - Contract Tests (SDK-based validation)', () 
     });
   });
 
-  describe('PATCH /api/v1/{tenant_id}/destinations/{id} - Update AWS Kinesis Destination', () => {
+  describe('PATCH /api/v1/tenants/{tenant_id}/destinations/{id} - Update AWS Kinesis Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -378,7 +378,7 @@ describe('AWS Kinesis Destinations - Contract Tests (SDK-based validation)', () 
     });
   });
 
-  describe('DELETE /api/v1/{tenant_id}/destinations/{id} - Delete AWS Kinesis Destination', () => {
+  describe('DELETE /api/v1/tenants/{tenant_id}/destinations/{id} - Delete AWS Kinesis Destination', () => {
     it('should delete an existing destination', async () => {
       const destinationData = createAwsKinesisDestination();
       const destination = await client.createDestination(destinationData);

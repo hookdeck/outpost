@@ -54,7 +54,7 @@ export default function (): void {
   if (__ITER === 0) {
     // Create tenant
     const tenantResponse = http.put(
-      `${config.env.api.baseUrl}/api/v1/${tenantId}`,
+      `${config.env.api.baseUrl}/api/v1/tenants/${tenantId}`,
       JSON.stringify({}),
       { headers }
     );
@@ -71,7 +71,7 @@ export default function (): void {
 
     // Create destination
     const destinationResponse = http.post(
-      `${config.env.api.baseUrl}/api/v1/${tenantId}/destinations`,
+      `${config.env.api.baseUrl}/api/v1/tenants/${tenantId}/destinations`,
       JSON.stringify({
         type: "webhook",
         topics: ["user.created"],

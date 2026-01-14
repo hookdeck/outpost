@@ -182,7 +182,7 @@ run_api_tests() {
     fi
 
     echo "   (Creating tenant: $TENANT_ID...)"
-    if ! curl -sf -X PUT "$base_url/api/v1/$TENANT_ID" -H "Authorization: Bearer $API_KEY" >/dev/null; then
+    if ! curl -sf -X PUT "$base_url/api/v1/tenants/$TENANT_ID" -H "Authorization: Bearer $API_KEY" >/dev/null; then
         echo "   -> ❌ Failed to create tenant."
         if [[ "$base_url" == *"azurecontainerapps.io"* ]]; then
             echo "      Fetching logs for '$AZURE_CONTAINER_APP_NAME'..."
@@ -195,7 +195,7 @@ run_api_tests() {
     echo "   -> ✅ Tenant created."
 
     echo "   (Checking configured topics...)"
-    topics_response=$(curl -s -w "\n%{http_code}" -X GET "$base_url/api/v1/$TENANT_ID/topics" \
+    topics_response=$(curl -s -w "\n%{http_code}" -X GET "$base_url/api/v1/tenants/$TENANT_ID/topics" \
     -H "Authorization: Bearer $API_KEY")
     
     topics_http_code=$(echo "$topics_response" | tail -n1)
@@ -212,7 +212,7 @@ run_api_tests() {
     fi
 
     echo "   (Creating webhook destination...)"
-    DESTINATION_ID=$(curl -sf -X POST "$base_url/api/v1/$TENANT_ID/destinations" \
+    DESTINATION_ID=$(curl -sf -X POST "$base_url/api/v1/tenants/$TENANT_ID/destinations" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $API_KEY" \
     -d "{\"type\":\"webhook\",\"topics\":[\"*\"],\"config\":{\"url\":\"$WEBHOOK_URL\"}}" | jq -r .id)
@@ -255,7 +255,7 @@ run_api_tests() {
     echo "   -> ✅ Event published."
 
     echo "   (Getting Outpost portal URL...)"
-    PORTAL_URL=$(curl -sf "$base_url/api/v1/$TENANT_ID/portal" -H "Authorization: Bearer $API_KEY" | jq -r .redirect_url)
+    PORTAL_URL=$(curl -sf "$base_url/api/v1/tenants/$TENANT_ID/portal" -H "Authorization: Bearer $API_KEY" | jq -r .redirect_url)
     if [ -z "$PORTAL_URL" ]; then
         echo "   -> ⚠️  Could not retrieve portal URL."
     else
@@ -263,7 +263,7 @@ run_api_tests() {
     fi
 
     echo "   (Testing destination deletion...)"
-    if ! curl -sf -X DELETE "$base_url/api/v1/$TENANT_ID/destinations/$DESTINATION_ID" \
+    if ! curl -sf -X DELETE "$base_url/api/v1/tenants/$TENANT_ID/destinations/$DESTINATION_ID" \
     -H "Authorization: Bearer $API_KEY" >/dev/null; then
         echo "   -> ❌ Failed to delete webhook destination."
         if [[ "$base_url" == *"azurecontainerapps.io"* ]]; then

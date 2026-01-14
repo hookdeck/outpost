@@ -132,7 +132,7 @@ describe('Events - Status Field Tests (PR #491)', () => {
     }
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations/{destination_id}/events - Event Status Field', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations/{destination_id}/events - Event Status Field', () => {
     it('should include status field in events returned from listByDestination', async function () {
       // Increase timeout for this test as it involves publishing and waiting for event delivery
       this.timeout(45000);
@@ -225,7 +225,7 @@ describe('Events - Status Field Tests (PR #491)', () => {
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/events - Tenant Events Status Field', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/events - Tenant Events Status Field', () => {
     it('should include status field in events returned from tenant events list', async function () {
       // Increase timeout for this test as it involves publishing and waiting for event delivery
       this.timeout(45000);
