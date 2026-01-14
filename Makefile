@@ -125,16 +125,16 @@ test/setup:
 
 test:
 	@if [ "$(RUN)" != "" ]; then \
-		gotestsum --rerun-fails=2 --hide-summary=skipped --packages="$(TEST)" -- $(TESTARGS) -run "$(RUN)"; \
+		gotestsum --rerun-fails=2 --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -run "$(RUN)"; \
 	else \
-		gotestsum --rerun-fails=2 --hide-summary=skipped --packages="$(TEST)" -- $(TESTARGS); \
+		gotestsum --rerun-fails=2 --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS); \
 	fi
 
 test/unit:
-	gotestsum --rerun-fails=2 --hide-summary=skipped --packages="$(TEST)" -- $(TESTARGS) -short
+	gotestsum --rerun-fails=2 --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -short
 
 test/integration:
-	gotestsum --rerun-fails=2 --hide-summary=skipped --packages="$(TEST)" -- $(TESTARGS) -run "Integration"
+	gotestsum --rerun-fails=2 --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -run "Integration"
 
 test/e2e:
 	@if [ "$(RUN)" != "" ]; then \
@@ -153,10 +153,10 @@ test/e2e/rediscluster:
 	@echo "Redis cluster e2e tests completed."
 
 test/race:
-	TESTRACE=1 gotestsum --hide-summary=skipped --packages="$(TEST)" -- $(TESTARGS) -race
+	TESTRACE=1 gotestsum --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -race
 
 test/coverage:
-	gotestsum --hide-summary=skipped --packages="$(TEST)" -- $(TESTARGS) -coverprofile=coverage.out
+	gotestsum --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -coverprofile=coverage.out
 
 test/coverage/html:
 	go tool cover -html=coverage.out
