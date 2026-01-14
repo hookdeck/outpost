@@ -23,7 +23,25 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Per-tenant JWT token valid for 24 hours. When used, tenant_id path parameter is inferred.
+      description: |
+        Per-tenant JWT token valid for 24 hours. When used, tenant_id path parameter is inferred.
+
+        **JWT Structure:**
+        The token is a standard JWT signed with HS256 algorithm containing the following claims:
+        - `iss` (issuer): Always "outpost"
+        - `sub` (subject): The tenant_id this token is scoped to
+        - `iat` (issued at): Unix timestamp when the token was created
+        - `exp` (expiration): Unix timestamp when the token expires (24 hours after issuance)
+
+        **Example decoded payload:**
+        ```json
+        {
+          "iss": "outpost",
+          "sub": "tenant_123",
+          "iat": 1704067200,
+          "exp": 1704153600
+        }
+        ```
   schemas:
     # Base Schemas
     Tenant:
