@@ -517,7 +517,7 @@ func (suite *basicSuite) TestListTenantsAPI() {
 		tenantIDs[i] = idgen.String()
 		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 			Method: httpclient.MethodPUT,
-			Path:   "/" + tenantIDs[i],
+			Path:   "/tenants/" + tenantIDs[i],
 		}))
 		require.NoError(t, err)
 		require.Equal(t, http.StatusCreated, resp.StatusCode)
