@@ -128,9 +128,6 @@ test:
 test/unit:
 	TEST="$(TEST)" RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh unit
 
-test/integration:
-	gotestsum --rerun-fails=2 --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -run "Integration"
-
 test/e2e:
 	RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh e2e
 
