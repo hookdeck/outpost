@@ -72,6 +72,11 @@ func (m *TimestampsMigration) AutoRunnable() bool {
 	return false
 }
 
+func (m *TimestampsMigration) IsApplicable(ctx context.Context) (bool, string) {
+	// Always applicable - all deployments need timestamp conversion for RediSearch
+	return true, ""
+}
+
 func (m *TimestampsMigration) Plan(ctx context.Context) (*migratorredis.Plan, error) {
 	updates := make(timestampUpdates)
 
