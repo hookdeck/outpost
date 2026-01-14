@@ -132,7 +132,11 @@ components:
           type: string
           format: url
           description: Redirect URL containing a JWT to authenticate the user with the portal.
-          example: "https://webhooks.acme.com/?token=JWT_TOKEN"
+          example: "https://webhooks.acme.com/?token=JWT_TOKEN&tenant_id=tenant_123"
+        tenant_id:
+          type: string
+          description: The ID of the tenant associated with this portal session.
+          example: "tenant_123"
     TenantToken:
       type: object
       properties:
@@ -140,6 +144,10 @@ components:
           type: string
           description: JWT token scoped to the tenant for safe browser API calls.
           example: "SOME_JWT_TOKEN"
+        tenant_id:
+          type: string
+          description: The ID of the tenant this token is scoped to.
+          example: "tenant_123"
     SuccessResponse:
       type: object
       properties:
@@ -2100,7 +2108,8 @@ paths:
               examples:
                 PortalRedirectExample:
                   value:
-                    redirect_url: "https://webhooks.acme.com/?token=JWT_TOKEN"
+                    redirect_url: "https://webhooks.acme.com/?token=JWT_TOKEN&tenant_id=tenant_123"
+                    tenant_id: "tenant_123"
         "404":
           description: Tenant not found.
         # Add other error responses
@@ -2129,6 +2138,7 @@ paths:
                 TenantTokenExample:
                   value:
                     token: "SOME_JWT_TOKEN"
+                    tenant_id: "tenant_123"
         "404":
           description: Tenant not found.
         # Add other error responses
