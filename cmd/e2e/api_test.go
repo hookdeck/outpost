@@ -1917,7 +1917,7 @@ func (suite *basicSuite) TestDestinationTypesAPI() {
 	suite.RunAPITests(suite.T(), tests)
 }
 
-func (suite *basicSuite) TestJWTAuthAPI() {
+func (suite *basicSuite) TestTenantScopedAPI() {
 	// Step 1: Create tenant and get JWT token
 	tenantID := idgen.String()
 	destinationID := idgen.Destination()
