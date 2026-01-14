@@ -51,10 +51,10 @@ type ListTenantRequest struct {
 
 // ListTenantResponse contains the paginated list of tenants.
 type ListTenantResponse struct {
-	Data  []TenantListItem `json:"data"`
-	Next  string           `json:"next"`
-	Prev  string           `json:"prev"`
-	Count int              `json:"count"`
+	Data  []Tenant `json:"data"`
+	Next  string   `json:"next"`
+	Prev  string   `json:"prev"`
+	Count int      `json:"count"`
 }
 
 type entityStoreImpl struct {
@@ -445,10 +445,26 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		}
 	}
 
-	// Convert to TenantListItem (excludes computed fields like destinations_count, topics)
-	items := make([]TenantListItem, len(tenants))
-	for i, t := range tenants {
-		items[i] = t.ToListItem()
+	// Batch fetch destination summaries for all tenants in a single Redis round-trip
+	if len(tenants) > 0 {
+		pipe := s.redisClient.Pipeline()
+		cmds := make([]*redis.MapStringStringCmd, len(tenants))
+		for i, t := range tenants {
+			cmds[i] = pipe.HGetAll(ctx, s.redisTenantDestinationSummaryKey(t.ID))
+		}
+		if _, err := pipe.Exec(ctx); err != nil {
+			return nil, fmt.Errorf("failed to fetch destination summaries: %w", err)
+		}
+
+		// Compute destinations_count and topics for each tenant
+		for i := range tenants {
+			destinationSummaryList, err := s.parseListDestinationSummaryByTenantCmd(cmds[i], ListDestinationByTenantOpts{})
+			if err != nil {
+				return nil, err
+			}
+			tenants[i].DestinationsCount = len(destinationSummaryList)
+			tenants[i].Topics = s.parseTenantTopics(destinationSummaryList)
+		}
 	}
 
 	// Get total count of all tenants (excluding deleted) - cheap query with LIMIT 0 0
@@ -463,7 +479,7 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 
 	// Build response with cursors
 	resp := &ListTenantResponse{
-		Data:  items,
+		Data:  tenants,
 		Count: totalCount,
 	}
 

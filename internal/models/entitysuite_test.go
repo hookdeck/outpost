@@ -1261,6 +1261,41 @@ func (s *ListTenantTestSuite) TestListTenantBasic() {
 		}
 	})
 
+	s.T().Run("returns destinations_count and topics", func(t *testing.T) {
+		// tenants[0] already has 2 destinations from the previous test
+		// Find the tenant with destinations in the response
+		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{})
+		require.NoError(t, err)
+
+		var tenantWithDests *models.Tenant
+		for i := range resp.Data {
+			if resp.Data[i].ID == tenants[0].ID {
+				tenantWithDests = &resp.Data[i]
+				break
+			}
+		}
+		require.NotNil(t, tenantWithDests, "should find tenant with destinations")
+
+		// Verify destinations_count
+		assert.Equal(t, 2, tenantWithDests.DestinationsCount, "should have 2 destinations")
+
+		// Verify topics is populated (destinations created by factory typically have topics)
+		// Note: topics depends on the destination factory defaults
+		assert.NotNil(t, tenantWithDests.Topics, "topics should not be nil")
+
+		// Verify tenants without destinations have 0 count and empty topics
+		var tenantWithoutDests *models.Tenant
+		for i := range resp.Data {
+			if resp.Data[i].ID != tenants[0].ID {
+				tenantWithoutDests = &resp.Data[i]
+				break
+			}
+		}
+		require.NotNil(t, tenantWithoutDests, "should find tenant without destinations")
+		assert.Equal(t, 0, tenantWithoutDests.DestinationsCount, "tenant without destinations should have 0 count")
+		assert.Empty(t, tenantWithoutDests.Topics, "tenant without destinations should have empty topics")
+	})
+
 	s.T().Run("orders by created_at desc by default", func(t *testing.T) {
 		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{})
 		require.NoError(t, err)
@@ -1305,7 +1340,7 @@ func (s *ListTenantTestSuite) TestListTenantPagination() {
 	time.Sleep(100 * time.Millisecond)
 
 	s.T().Run("paginate forward through all pages", func(t *testing.T) {
-		var allTenants []models.TenantListItem
+		var allTenants []models.Tenant
 		cursor := ""
 		pageCount := 0
 		var firstResp, lastResp *models.ListTenantResponse
@@ -1348,7 +1383,7 @@ func (s *ListTenantTestSuite) TestListTenantPagination() {
 		// The same tenants should appear on each page regardless of direction.
 
 		// Forward traversal: collect all pages
-		var forwardPages [][]models.TenantListItem
+		var forwardPages [][]models.Tenant
 		cursor := ""
 		for {
 			resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
