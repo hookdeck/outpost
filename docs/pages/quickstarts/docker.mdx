@@ -74,7 +74,7 @@ URL=your_webhook_url
 2. Create a tenant with the following command, replacing `$TENANT_ID` with a unique identifier such as "your_org_name", and the `$API_KEY` with the value you set in your `.env`:
 
    ```sh
-   curl --location --request PUT "localhost:3333/api/v1/$TENANT_ID" \
+   curl --location --request PUT "localhost:3333/api/v1/tenants/$TENANT_ID" \
    --header "Authorization: Bearer $API_KEY"
    ```
 
@@ -83,7 +83,7 @@ URL=your_webhook_url
 4. Create a webhook destination where events will be delivered to using the following command. Again, replace `$TENANT_ID` and `$API_KEY`. Also, replace `$URL` with the webhook destination's URL:
 
    ```sh
-   curl --location "localhost:3333/api/v1/$TENANT_ID/destinations" \
+   curl --location "localhost:3333/api/v1/tenants/$TENANT_ID/destinations" \
    --header "Content-Type: application/json" \
    --header "Authorization: Bearer $API_KEY" \
    --data '{
@@ -119,7 +119,7 @@ URL=your_webhook_url
 7. Get an Outpost portal link for the tenant:
 
    ```sh
-   curl "localhost:3333/api/v1/$TENANT_ID/portal" \
+   curl "localhost:3333/api/v1/tenants/$TENANT_ID/portal" \
    --header "Authorization: Bearer $API_KEY"
    ```
 

@@ -15,7 +15,7 @@ View the Tenant API docs [here](/docs/api/tenants).
 Create a tenant with the following command, replacing `<TENANT_ID>` with a unique identifier such as "your_org_name", and the `<API_KEY>` with the value you set in your Outpost installation `API_KEY` environment variable:
 
 ```sh
-curl --location --request PUT 'localhost:3333/api/v1/<TENANT_ID>' \
+curl --location --request PUT 'localhost:3333/api/v1/tenants/<TENANT_ID>' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>'
 ```

@@ -23,7 +23,7 @@ Events published for a given tenant are evaluated against the destination's topi
 Create destinations with the following request, replacing `<TENANT_ID>` and `<API_KEY>`. The `<TYPE>` must be one of the supported [event destination types](#event-destination-types), and the `<CONFIG>` contents will depend on the event destination type.
 
 ```sh
-curl --location 'localhost:3333/api/v1/<TENANT_ID>/destinations' \
+curl --location 'localhost:3333/api/v1/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
@@ -36,7 +36,7 @@ curl --location 'localhost:3333/api/v1/<TENANT_ID>/destinations' \
 For example, the following creates a webhook destination that subscribes to all topics (`*`) and delivers published events to the URL `https://example.test/webhooks`:
 
 ```sh
-curl --location 'localhost:3333/api/v1/<TENANT_ID>/destinations' \
+curl --location 'localhost:3333/api/v1/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{

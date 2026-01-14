@@ -20,6 +20,10 @@ The API segments resources per `tenant`. A tenant represents a user/team/organiz
 
 If your system is not multi-tenant, create a single tenant with a hard-code tenant ID upon initialization. If your system has a single tenant but multiple environments, create a tenant per environment, like `live` and `test`.
 
+:::note[API Path Change in v0.12]
+All tenant-scoped endpoints now use the `/tenants/` prefix (e.g., `/tenants/:tenant_id/destinations`). The old paths without the prefix are deprecated but still functional. See the [v0.12 Upgrade Guide](/guides/upgrade-v0.12) for details.
+:::
+
 ### Tenant Object
 
 ```json
@@ -78,7 +82,7 @@ The response includes lightweight tenant objects without computed fields like `d
 - `400 Bad Request` - Invalid cursor or conflicting pagination parameters
 - `501 Not Implemented` - RediSearch not available
 
-### `PUT` `/:tenant_id`
+### `PUT` `/tenants/:tenant_id`
 
 Idempotently creates the tenant. A tenant is required to associate a destination.
 
@@ -97,7 +101,7 @@ Empty body
 }
 ```
 
-### `GET` `/:tenant_id`
+### `GET` `/tenants/:tenant_id`
 
 Get a tenant.
 
@@ -112,7 +116,7 @@ Get a tenant.
 }
 ```
 
-### `GET` `/:tenant_id/portal`
+### `GET` `/tenants/:tenant_id/portal`
 
 Return a redirect URL for a user portal URL. The redirect URL contains a JWT that authenticates the user with the portal.
 
@@ -130,7 +134,7 @@ Supported parameters:
 }
 ```
 
-### `GET` `/:tenant_id/token`
+### `GET` `/tenants/:tenant_id/token`
 
 Return a JTW token to authenticate the user with the API scoped to their specific tenant in order to call the API from the browser safely.
 
@@ -142,7 +146,7 @@ Return a JTW token to authenticate the user with the API scoped to their specifi
 }
 ```
 
-### `DELETE` `/:tenant_id`
+### `DELETE` `/tenants/:tenant_id`
 
 Delete the tenant and all associated destinations
 
@@ -200,7 +204,7 @@ Empty body
 
 - **`metadata`** (optional): Arbitrary contextual information stored with the destination for organizational purposes (e.g., name, description, notes). Not encrypted and not included in event deliveries. Useful for documenting what a destination is used for or adding labels for filtering.
 
-### `GET` `/:tenant_id/destinations`
+### `GET` `/tenants/:tenant_id/destinations`
 
 Return a list of the destinations. The endpoint is not paged, and the maximum number is equivalent to the maximum configured number of destinations per tenant through the `MAX_DESTINATIONS_PER_TENANT` env variable.
 
@@ -232,7 +236,7 @@ Supported Parameters:
 ]
 ```
 
-### `POST` `/:tenant_id/destinations`
+### `POST` `/tenants/:tenant_id/destinations`
 
 Create a new destination type with the provided configuration.
 
@@ -279,7 +283,7 @@ Additionally, `credentials.previous_secret` can be used to set a rotated secret 
 
 `previous_secret` are valid and used to “double” sign the request for 24 hours.
 
-### `PATCH` `/:tenant_id/destinations/:destination_id`
+### `PATCH` `/tenants/:tenant_id/destinations/:destination_id`
 
 Update the destination configuration.
 
@@ -325,7 +329,7 @@ If the destination uses OAuth:
 }
 ```
 
-### `PUT` `/:tenant_id/destinations/:destination_id/enable`
+### `PUT` `/tenants/:tenant_id/destinations/:destination_id/enable`
 
 Enable a previously disabled destination.
 
@@ -353,7 +357,7 @@ Empty body
 }
 ```
 
-### `PUT` `/:tenant_id/destinations/:destination_id/disable`
+### `PUT` `/tenants/:tenant_id/destinations/:destination_id/disable`
 
 Disable a previously enabled destination.
 
@@ -381,7 +385,7 @@ Empty body
 }
 ```
 
-### `DELETE` `/:tenant_id/destinations/:destination_id`
+### `DELETE` `/tenants/:tenant_id/destinations/:destination_id`
 
 Delete the destination.
 
@@ -528,7 +532,7 @@ Runs the input schemas for the specified destination type.
 
 ## Events
 
-### `GET` `/:tenant_id/events`
+### `GET` `/tenants/:tenant_id/events`
 
 Retrieve a list of events using a cursor navigation.
 
@@ -558,7 +562,7 @@ Retrieve a list of events using a cursor navigation.
 ]
 ```
 
-### `GET` `/:tenant_id/events/:event_id/deliveries`
+### `GET` `/tenants/:tenant_id/events/:event_id/deliveries`
 
 Retrieve a list of the delivery **attempts** with the associated responses.
 
@@ -577,7 +581,7 @@ Retrieve a list of the delivery **attempts** with the associated responses.
 ]
 ```
 
-### `GET` `/:tenant_id/destination/:destination_id/events`
+### `GET` `/tenants/:tenant_id/destinations/:destination_id/events`
 
 Retrieve a list of events using a cursor navigation.
 
@@ -603,7 +607,7 @@ Retrieve a list of events using a cursor navigation.
 }]
 ```
 
-### `GET` `/:tenant_id/destination/:destination_id/events/:event_id`
+### `GET` `/tenants/:tenant_id/destinations/:destination_id/events/:event_id`
 
 Retrieve a specific event and its associated data.
 
@@ -625,7 +629,7 @@ Retrieve a specific event and its associated data.
 }]
 ```
 
-### `POST` `/:tenant_id/destination/:destination_id/events/:event_id/retry`
+### `POST` `/tenants/:tenant_id/destinations/:destination_id/events/:event_id/retry`
 
 Submit an event for retry
 
