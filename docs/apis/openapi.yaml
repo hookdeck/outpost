@@ -24,7 +24,7 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: |
-        Per-tenant JWT token valid for 24 hours. When used, tenant_id path parameter is inferred.
+        Per-tenant JWT token valid for 24 hours.
 
         **JWT Structure:**
         The token is a standard JWT signed with HS256 algorithm containing the following claims:
