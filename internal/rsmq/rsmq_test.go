@@ -4,7 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"fmt"
+
 	"github.com/hookdeck/outpost/internal/util/testinfra"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -20,7 +23,12 @@ type RSMQSuite struct {
 type RedisRSMQSuite struct{ RSMQSuite }
 type DragonflyRSMQSuite struct{ RSMQSuite }
 
-func TestRedisRSMQSuite(t *testing.T)     { suite.Run(t, new(RedisRSMQSuite)) }
+// TestRedisRSMQSuite is skipped by default - run with TESTFULL=1 for full compatibility testing
+func TestRedisRSMQSuite(t *testing.T) {
+	testutil.SkipUnlessCompat(t)
+	suite.Run(t, new(RedisRSMQSuite))
+}
+
 func TestDragonflyRSMQSuite(t *testing.T) { suite.Run(t, new(DragonflyRSMQSuite)) }
 
 func (s *RedisRSMQSuite) SetupTest() {
@@ -35,7 +43,7 @@ func (s *RedisRSMQSuite) SetupTest() {
 func (s *DragonflyRSMQSuite) SetupTest() {
 	testinfra.Start(s.T())
 	cfg := testinfra.NewDragonflyConfig(s.T())
-	client := redis.NewClient(&redis.Options{Addr: cfg.Addr, DB: cfg.DB})
+	client := redis.NewClient(&redis.Options{Addr: fmt.Sprintf("%s:%d", cfg.Host, cfg.Port), DB: cfg.Database})
 	s.T().Cleanup(func() { client.Close() })
 	s.client = NewRedisAdapter(client)
 	s.rsmq = NewRedisSMQ(s.client, "test")

@@ -16,6 +16,7 @@ import (
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -194,11 +195,13 @@ func TestPGBasicSuite(t *testing.T) {
 	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypePostgres})
 }
 
+// TestRedisClusterBasicSuite is skipped by default - run with TESTFULL=1 for full compatibility testing
 func TestRedisClusterBasicSuite(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
+	testutil.SkipUnlessCompat(t)
 
 	// Get Redis cluster config from environment
 	redisConfig := configs.CreateRedisClusterConfig(t)
@@ -218,15 +221,24 @@ func TestDragonflyBasicSuite(t *testing.T) {
 		t.Skip("skipping e2e test")
 	}
 
-	// Get Dragonfly config from testinfra
-	dragonflyConfig := configs.CreateDragonflyConfig(t)
-	if dragonflyConfig == nil {
-		t.Skip("skipping Dragonfly test (TEST_DRAGONFLY_URL not set)")
+	// Use NewDragonflyStackConfig (DB 0) for RediSearch support
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypePostgres,
+		redisConfig:    testinfra.NewDragonflyStackConfig(t),
+	})
+}
+
+// TestRedisStackBasicSuite is skipped by default - run with TESTFULL=1 for full compatibility testing
+func TestRedisStackBasicSuite(t *testing.T) {
+	// t.Parallel() // Disabled to avoid test interference
+	if testing.Short() {
+		t.Skip("skipping e2e test")
 	}
+	testutil.SkipUnlessCompat(t)
 
 	suite.Run(t, &basicSuite{
 		logStorageType: configs.LogStorageTypePostgres,
-		redisConfig:    dragonflyConfig,
+		redisConfig:    testinfra.NewRedisStackConfig(t),
 	})
 }
 

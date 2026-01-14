@@ -63,6 +63,17 @@ $ make test/coverage/html
 # go tool cover -html=coverage.out
 ```
 
+## Compatibility Testing
+
+By default, the test suite runs only the primary backends (Miniredis + Dragonfly + Postgres) to keep feedback loops fast. To run the full suite including compatibility tests for alternative backends (Redis Stack, Redis Cluster), set the `TESTCOMPAT` environment variable:
+
+```sh
+# Run full test suite including all backend combinations
+TESTCOMPAT=1 make test
+```
+
+This is useful for release testing or when making changes that might affect Redis compatibility.
+
 ## Integration & E2E Tests
 
 When running integration & e2e tests, we often times require some test infrastructure such as ClickHouse, LocalStack, RabbitMQ, etc. We use [Testcontainers](https://testcontainers.com/) for that. It usually takes a few seconds (10s or so) to spawn the necessary containers. To improve the feedback loop, you can run a persistent test infrastructure and skip spawning testcontainers.
