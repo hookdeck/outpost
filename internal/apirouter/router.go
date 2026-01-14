@@ -155,12 +155,11 @@ func NewRouter(
 			Mode:      RouteModeAlways,
 		},
 		{
-			Method:             http.MethodGet,
-			Path:               "/tenants",
-			Handler:            tenantHandlers.List,
-			AuthScope:          AuthScopeAdmin,
-			Mode:               RouteModeAlways,
-			AllowTenantFromJWT: false,
+			Method:    http.MethodGet,
+			Path:      "/tenants",
+			Handler:   tenantHandlers.List,
+			AuthScope: AuthScopeAdmin,
+			Mode:      RouteModeAlways,
 		},
 	}
 
