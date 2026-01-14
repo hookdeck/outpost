@@ -125,7 +125,15 @@ This is useful for release testing or when making changes that might affect Redi
 
 ## Integration & E2E Tests
 
-When running integration & e2e tests, we often times require some test infrastructure such as ClickHouse, LocalStack, RabbitMQ, etc. We use [Testcontainers](https://testcontainers.com/) for that. It usually takes a few seconds (10s or so) to spawn the necessary containers. To improve the feedback loop, you can run a persistent test infrastructure and skip spawning testcontainers.
+Integration and e2e tests require external services like ClickHouse, LocalStack, RabbitMQ, etc. The test suite supports two modes for running these:
+
+**Persistent infrastructure (recommended)**: Run `make up/test` once, then use `TESTINFRA=1` for all test runs. This is the recommended approach for local development.
+
+**Testcontainers (fallback)**: Without `TESTINFRA=1`, tests automatically spawn containers via [Testcontainers](https://testcontainers.com/). This is convenient for CI or one-off runs but adds startup overhead.
+
+### Why persistent infrastructure?
+
+Lightweight services like Redis start quickly, but heavier dependencies like LocalStack (AWS) or GCP emulators can take 15-30 seconds to initialize. With persistent infrastructure, you pay this cost once and get fast iteration from then on.
 
 To run the test infrastructure:
 
