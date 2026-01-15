@@ -25,9 +25,6 @@ type Harness interface {
 	// this forces merge/compaction. For immediately consistent stores (e.g., PostgreSQL),
 	// this is a no-op.
 	FlushWrites(ctx context.Context) error
-	// SupportsListEvent indicates if the driver has ListEvent implemented.
-	// Drivers with stub implementations should return false.
-	SupportsListEvent() bool
 	Close()
 }
 
@@ -40,16 +37,6 @@ func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 		testInsertManyDeliveryEvent(t, newHarness)
 	})
 	t.Run("TestListEvent", func(t *testing.T) {
-		// Check if driver supports ListEvent before running tests
-		ctx := context.Background()
-		h, err := newHarness(ctx, t)
-		if err != nil {
-			t.Fatalf("failed to create harness: %v", err)
-		}
-		defer h.Close()
-		if !h.SupportsListEvent() {
-			t.Skip("driver does not support ListEvent")
-		}
 		testListEvent(t, newHarness)
 	})
 	t.Run("TestListDeliveryEvent", func(t *testing.T) {

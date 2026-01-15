@@ -84,7 +84,3 @@ func (h *harness) FlushWrites(ctx context.Context) error {
 func (h *harness) MakeDriver(ctx context.Context) (driver.LogStore, error) {
 	return NewLogStore(h.chDB), nil
 }
-
-func (h *harness) SupportsListEvent() bool {
-	return true
-}
