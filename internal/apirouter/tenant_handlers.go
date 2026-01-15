@@ -1,7 +1,9 @@
 package apirouter
 
 import (
+	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -93,6 +95,54 @@ func (h *TenantHandlers) Retrieve(c *gin.Context) {
 	c.JSON(http.StatusOK, tenant)
 }
 
+func (h *TenantHandlers) List(c *gin.Context) {
+	// Parse query parameters
+	req := models.ListTenantRequest{
+		Next:  c.Query("next"),
+		Prev:  c.Query("prev"),
+		Order: c.Query("order"),
+	}
+
+	// Parse limit if provided
+	if limitStr := c.Query("limit"); limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil {
+			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errors.New("invalid limit: must be an integer")))
+			return
+		}
+		req.Limit = limit
+	}
+
+	// Call entity store
+	resp, err := h.entityStore.ListTenant(c.Request.Context(), req)
+	if err != nil {
+		// Map errors to HTTP status codes
+		if errors.Is(err, models.ErrListTenantNotSupported) {
+			AbortWithError(c, http.StatusNotImplemented, ErrorResponse{
+				Code:    http.StatusNotImplemented,
+				Message: err.Error(),
+			})
+			return
+		}
+		if errors.Is(err, models.ErrConflictingCursors) {
+			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+			return
+		}
+		if errors.Is(err, models.ErrInvalidCursor) {
+			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+			return
+		}
+		if errors.Is(err, models.ErrInvalidOrder) {
+			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+			return
+		}
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 func (h *TenantHandlers) Delete(c *gin.Context) {
 	tenantID := mustTenantIDFromContext(c)
 	if tenantID == "" {
@@ -122,7 +172,7 @@ func (h *TenantHandlers) RetrieveToken(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"token": jwtToken})
+	c.JSON(http.StatusOK, gin.H{"token": jwtToken, "tenant_id": tenant.ID})
 }
 
 func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
@@ -147,12 +197,13 @@ func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
 		theme = ""
 	}
 
-	portalURL := scheme + "://" + c.Request.Host + "?token=" + jwtToken
+	portalURL := scheme + "://" + c.Request.Host + "?token=" + jwtToken + "&tenant_id=" + tenant.ID
 	if theme != "" {
 		portalURL += "&theme=" + theme
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"redirect_url": portalURL,
+		"tenant_id":    tenant.ID,
 	})
 }

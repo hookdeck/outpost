@@ -9,20 +9,156 @@ import (
 
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
-func TestEntityStore_WithoutDeploymentID(t *testing.T) {
-	t.Parallel()
-	suite.Run(t, &EntityTestSuite{deploymentID: ""})
+// miniredisClientFactory creates a miniredis client (in-memory, no RediSearch)
+func miniredisClientFactory(t *testing.T) redis.Cmdable {
+	return testutil.CreateTestRedisClient(t)
 }
 
-func TestEntityStore_WithDeploymentID(t *testing.T) {
+// redisStackClientFactory creates a Redis Stack client on DB 0 (RediSearch works)
+// Tests using this are serialized since RediSearch only works on DB 0.
+func redisStackClientFactory(t *testing.T) redis.Cmdable {
+	testinfra.Start(t)
+	redisCfg := testinfra.NewRedisStackConfig(t)
+	client, err := redis.New(context.Background(), redisCfg)
+	if err != nil {
+		t.Fatalf("failed to create redis client: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	return client
+}
+
+// dragonflyClientFactory creates a Dragonfly client (DB 1-15, no RediSearch).
+// Tests can run in parallel since each gets its own DB.
+func dragonflyClientFactory(t *testing.T) redis.Cmdable {
+	testinfra.Start(t)
+	redisCfg := testinfra.NewDragonflyConfig(t)
+	client, err := redis.New(context.Background(), redisCfg)
+	if err != nil {
+		t.Fatalf("failed to create dragonfly client: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	return client
+}
+
+// dragonflyStackClientFactory creates a Dragonfly client on DB 0 (RediSearch works).
+// Tests using this are serialized since RediSearch only works on DB 0.
+func dragonflyStackClientFactory(t *testing.T) redis.Cmdable {
+	testinfra.Start(t)
+	redisCfg := testinfra.NewDragonflyStackConfig(t)
+	client, err := redis.New(context.Background(), redisCfg)
+	if err != nil {
+		t.Fatalf("failed to create dragonfly stack client: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	return client
+}
+
+// =============================================================================
+// EntityTestSuite with miniredis (in-memory, no RediSearch)
+// =============================================================================
+
+func TestEntityStore_Miniredis_WithoutDeploymentID(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, &EntityTestSuite{deploymentID: "dp_test_001"})
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: miniredisClientFactory,
+		deploymentID:       "",
+	})
+}
+
+func TestEntityStore_Miniredis_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: miniredisClientFactory,
+		deploymentID:       "dp_test_001",
+	})
+}
+
+// =============================================================================
+// EntityTestSuite with Redis Stack (real Redis with RediSearch)
+// =============================================================================
+
+func TestEntityStore_RedisStack_WithoutDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: redisStackClientFactory,
+		deploymentID:       "",
+	})
+}
+
+func TestEntityStore_RedisStack_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: redisStackClientFactory,
+		deploymentID:       "dp_test_001",
+	})
+}
+
+// =============================================================================
+// EntityTestSuite with Dragonfly (DB 1-15, no RediSearch, faster parallel tests)
+// =============================================================================
+
+func TestEntityStore_Dragonfly_WithoutDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: dragonflyClientFactory,
+		deploymentID:       "",
+	})
+}
+
+func TestEntityStore_Dragonfly_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: dragonflyClientFactory,
+		deploymentID:       "dp_test_001",
+	})
+}
+
+// =============================================================================
+// ListTenantTestSuite - only runs with Redis Stack (requires RediSearch)
+// =============================================================================
+
+// Not parallel - these tests share Redis indexes
+func TestListTenant_RedisStack_WithoutDeploymentID(t *testing.T) {
+	suite.Run(t, &ListTenantTestSuite{
+		RedisClientFactory: redisStackClientFactory,
+		deploymentID:       "",
+	})
+}
+
+// Not parallel - these tests share Redis indexes
+func TestListTenant_RedisStack_WithDeploymentID(t *testing.T) {
+	suite.Run(t, &ListTenantTestSuite{
+		RedisClientFactory: redisStackClientFactory,
+		deploymentID:       "dp_test_001",
+	})
+}
+
+// =============================================================================
+// ListTenantTestSuite with Dragonfly Stack (DB 0 for RediSearch)
+// =============================================================================
+
+// Not parallel - these tests share Redis indexes
+func TestListTenant_Dragonfly_WithoutDeploymentID(t *testing.T) {
+	suite.Run(t, &ListTenantTestSuite{
+		RedisClientFactory: dragonflyStackClientFactory,
+		deploymentID:       "",
+	})
+}
+
+// Not parallel - these tests share Redis indexes
+func TestListTenant_Dragonfly_WithDeploymentID(t *testing.T) {
+	suite.Run(t, &ListTenantTestSuite{
+		RedisClientFactory: dragonflyStackClientFactory,
+		deploymentID:       "dp_test_001",
+	})
 }
 
 // TestDestinationCredentialsEncryption verifies that credentials and delivery_metadata

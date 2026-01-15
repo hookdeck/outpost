@@ -50,14 +50,12 @@ function NotFound() {
   );
 }
 
-export function App() {
-  const token = useToken();
-  const tenant = useTenant(token ?? undefined);
+type Tenant = { id: string };
 
-  // Create API client with tenant and token
+function AuthenticatedApp({ tenant, token }: { tenant: Tenant; token: string }) {
   const apiClient: ApiClient = {
     fetch: (path: string, init?: RequestInit) => {
-      return fetch(`/api/v1/${tenant?.id}/${path}`, {
+      return fetch(`/api/v1/tenants/${tenant.id}/${path}`, {
         ...init,
         headers: {
           "Content-Type": "application/json",
@@ -81,6 +79,31 @@ export function App() {
   };
 
   return (
+    <ApiContext.Provider value={apiClient}>
+      <SWRConfig
+        value={{
+          fetcher: (path: string) => apiClient.fetch(path),
+        }}
+      >
+        <Routes>
+          <Route path="/" Component={DestinationList} />
+          <Route path="/new/*" Component={CreateDestination} />
+          <Route
+            path="/destinations/:destination_id/*"
+            Component={Destination}
+          />
+          <Route path="*" Component={NotFound} />
+        </Routes>
+      </SWRConfig>
+    </ApiContext.Provider>
+  );
+}
+
+export function App() {
+  const token = useToken();
+  const tenant = useTenant(token ?? undefined);
+
+  return (
     <BrowserRouter
       future={{
         v7_startTransition: true,
@@ -91,24 +114,8 @@ export function App() {
         <SidebarProvider>
           <div className="layout">
             <ErrorBoundary>
-              {tenant ? (
-                <ApiContext.Provider value={apiClient}>
-                  <SWRConfig
-                    value={{
-                      fetcher: (path: string) => apiClient.fetch(path),
-                    }}
-                  >
-                    <Routes>
-                      <Route path="/" Component={DestinationList} />
-                      <Route path="/new/*" Component={CreateDestination} />
-                      <Route
-                        path="/destinations/:destination_id/*"
-                        Component={Destination}
-                      />
-                      <Route path="*" Component={NotFound} />
-                    </Routes>
-                  </SWRConfig>
-                </ApiContext.Provider>
+              {tenant && token ? (
+                <AuthenticatedApp tenant={tenant} token={token} />
               ) : (
                 <div>
                   <Loading />
@@ -180,7 +187,7 @@ function useTenant(token?: string): Tenant | undefined {
       }
       const tenantId = value.sub;
       // TODO: Replace to use SWR
-      const response = await fetch(`/api/v1/${tenantId}`, {
+      const response = await fetch(`/api/v1/tenants/${tenantId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

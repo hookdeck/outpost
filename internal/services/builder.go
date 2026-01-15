@@ -175,7 +175,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	if err := svc.initEventTracer(b.cfg, b.logger); err != nil {
 		return err
 	}
-	if err := svc.initEntityStore(b.cfg, b.logger); err != nil {
+	if err := svc.initEntityStore(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
 
@@ -266,7 +266,7 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	if err := svc.initEventTracer(b.cfg, b.logger); err != nil {
 		return err
 	}
-	if err := svc.initEntityStore(b.cfg, b.logger); err != nil {
+	if err := svc.initEntityStore(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
 	if err := svc.initLogStore(b.ctx, b.cfg, b.logger); err != nil {
@@ -522,7 +522,7 @@ func (s *serviceInstance) initLogStore(ctx context.Context, cfg *config.Config, 
 	return nil
 }
 
-func (s *serviceInstance) initEntityStore(cfg *config.Config, logger *logging.Logger) error {
+func (s *serviceInstance) initEntityStore(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
 	if s.redisClient == nil {
 		return fmt.Errorf("redis client must be initialized before entity store")
 	}
@@ -533,6 +533,9 @@ func (s *serviceInstance) initEntityStore(cfg *config.Config, logger *logging.Lo
 		models.WithMaxDestinationsPerTenant(cfg.MaxDestinationsPerTenant),
 		models.WithDeploymentID(cfg.DeploymentID),
 	)
+	if err := s.entityStore.Init(ctx); err != nil {
+		return fmt.Errorf("failed to initialize entity store: %w", err)
+	}
 	return nil
 }
 

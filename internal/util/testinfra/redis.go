@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/redis"
-	goredis "github.com/redis/go-redis/v9"
 	"github.com/testcontainers/testcontainers-go"
 	rediscontainer "github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -32,22 +31,14 @@ const (
 	maxRegularDB = 15
 )
 
-// RedisConfig holds the connection info for a test Redis database.
-type RedisConfig struct {
-	Addr string
-	DB   int
-}
-
-// NewRedisConfig allocates a Redis database (0-15) for the test.
+// NewRedisConfig allocates a Redis database (1-15) for the test.
+// Use this for tests that don't need RediSearch.
 // The database is flushed on cleanup.
-func NewRedisConfig(t *testing.T) RedisConfig {
+func NewRedisConfig(t *testing.T) *redis.RedisConfig {
 	addr := EnsureRedis()
 	db := allocateRegularDB()
 
-	cfg := RedisConfig{
-		Addr: addr,
-		DB:   db,
-	}
+	cfg := parseAddrToConfig(addr, db)
 
 	t.Cleanup(func() {
 		flushRedisDB(addr, db)
@@ -200,14 +191,15 @@ func releaseDragonflyDB(db int) {
 }
 
 func flushRedisDB(addr string, db int) {
-	client := goredis.NewClient(&goredis.Options{
-		Addr: addr,
-		DB:   db,
-	})
+	cfg := parseAddrToConfig(addr, db)
+	client, err := redis.New(context.Background(), cfg)
+	if err != nil {
+		log.Printf("failed to create Redis client for flush: %s", err)
+		return
+	}
 	defer client.Close()
 
-	ctx := context.Background()
-	if err := client.FlushDB(ctx).Err(); err != nil {
+	if err := client.FlushDB(context.Background()).Err(); err != nil {
 		log.Printf("failed to flush Redis DB %d: %s", db, err)
 	}
 }

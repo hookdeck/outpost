@@ -1,22 +1,25 @@
-// Package infra provides distributed locking for infrastructure provisioning.
+// Package redislock provides distributed locking using Redis.
 //
 // This implementation uses a naive "single instance" Redis distributed locking algorithm
 // as described in https://redis.io/docs/latest/develop/use/patterns/distributed-locks/
 //
 // We use the simple SET NX PX pattern which has edge cases where multiple nodes may
 // acquire the lock under extreme circumstances (see the Redis documentation for details).
-// We accept these edge cases because:
+// We accept these edge cases because our primary use cases can tolerate occasional races:
 //
-// 1. Infrastructure provisioning is infrequent and can tolerate occasional race conditions
-// 2. Cloud providers (AWS, GCP, Azure) handle concurrent provisioning attempts gracefully
-// 3. In the worst case, if provisioning fails due to a conflict, the node won't be able
-//    to start and will fail its health check, allowing another node to take over
+//  1. Infrastructure provisioning - infrequent, cloud providers handle concurrent attempts gracefully
+//  2. Migration coordination - prevents multiple nodes from running migrations simultaneously at
+//     startup; if a race occurs, the migration runner re-checks "already applied" status after
+//     acquiring the lock
+//  3. Initialization tasks - typically have "already exists" checks after acquiring lock
 //
-// This locking mechanism is primarily needed during the initial infrastructure setup.
-// Once infrastructure is provisioned on first startup, subsequent nodes will detect it
-// already exists and skip provisioning entirely.
-
-package infra
+// In the worst case, if an operation fails due to a lock race, the node will fail its
+// health check and another node can take over. This is acceptable for startup-time
+// operations that run infrequently.
+//
+// Do NOT use this for high-frequency locking or cases where duplicate execution would
+// cause data corruption. For those cases, consider Redlock or a proper distributed lock.
+package redislock
 
 import (
 	"context"
@@ -30,6 +33,12 @@ import (
 	"github.com/hookdeck/outpost/internal/redis"
 )
 
+// Lock defines the interface for distributed locking
+type Lock interface {
+	AttemptLock(ctx context.Context) (bool, error)
+	Unlock(ctx context.Context) (bool, error)
+}
+
 type redisLock struct {
 	client redis.Cmdable
 	key    string
@@ -37,30 +46,30 @@ type redisLock struct {
 	ttl    time.Duration
 }
 
-// LockOption configures a redisLock
-type LockOption func(*redisLock)
+// Option configures a redisLock
+type Option func(*redisLock)
 
-// LockWithKey sets a custom key for the lock
-func LockWithKey(key string) LockOption {
+// WithKey sets a custom key for the lock
+func WithKey(key string) Option {
 	return func(l *redisLock) {
 		l.key = key
 	}
 }
 
-// LockWithTTL sets a custom TTL for the lock
-func LockWithTTL(ttl time.Duration) LockOption {
+// WithTTL sets a custom TTL for the lock
+func WithTTL(ttl time.Duration) Option {
 	return func(l *redisLock) {
 		l.ttl = ttl
 	}
 }
 
-// NewRedisLock creates a new Redis-based distributed lock
-func NewRedisLock(client redis.Cmdable, opts ...LockOption) Lock {
+// New creates a new Redis-based distributed lock
+func New(client redis.Cmdable, opts ...Option) Lock {
 	lock := &redisLock{
 		client: client,
-		key:    lockKey, // default
+		key:    "outpost:lock", // default
 		value:  generateRandomValue(),
-		ttl:    lockTTL, // default
+		ttl:    10 * time.Second, // default
 	}
 
 	for _, opt := range opts {
@@ -113,20 +122,17 @@ func (l *redisLock) Unlock(ctx context.Context) (bool, error) {
 // This ensures each lock instance has a unique identifier
 func generateRandomValue() string {
 	// Primary: Use crypto/rand (backed by /dev/urandom on Unix)
-	// This is cryptographically secure and the recommended approach
 	b := make([]byte, 20) // 20 bytes = 160 bits of entropy
 	if _, err := rand.Read(b); err == nil {
 		return hex.EncodeToString(b)
 	}
 
-	// Fallback 1: Use UUID v4 which has its own entropy sources
-	// UUID v4 provides 122 bits of randomness
+	// Fallback 1: Use UUID v4
 	if id, err := uuid.NewRandom(); err == nil {
 		return id.String()
 	}
 
 	// Fallback 2: Combination of timestamp + hostname + PID
-	// This is unique enough for most practical purposes
 	hostname, _ := os.Hostname()
 	if hostname == "" {
 		hostname = "unknown"

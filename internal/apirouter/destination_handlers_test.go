@@ -46,7 +46,7 @@ func TestDestinationCreateHandler(t *testing.T) {
 		bodyBytes, _ := json.Marshal(body)
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/"+tenantID+"/destinations", bytes.NewReader(bodyBytes))
+		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/destinations", bytes.NewReader(bodyBytes))
 		req.Header.Set("Content-Type", "application/json")
 		router.ServeHTTP(w, req)
 

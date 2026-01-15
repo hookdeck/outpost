@@ -1,4 +1,4 @@
-package migration
+package migratorredis
 
 // Logger provides a simple logging interface for migrations
 // Each migration receives a logger and can check verbosity

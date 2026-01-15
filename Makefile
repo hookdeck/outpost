@@ -115,6 +115,7 @@ down/test/rediscluster:
 
 test/setup:
 	@echo "To setup the test environment, run the following command:"
+	@echo "$$ go install gotest.tools/gotestsum@latest"
 	@echo "$$ make up/test"
 	@echo "$$ make up/azure"
 	@echo ""
@@ -144,10 +145,10 @@ test/e2e/rediscluster:
 	@echo "Redis cluster e2e tests completed."
 
 test/race:
-	TESTRACE=1 go test $(TEST) $(TESTARGS) -race
+	TESTRACE=1 gotestsum --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -race
 
 test/coverage:
-	go test $(TEST) $(TESTARGS) -coverprofile=coverage.out
+	gotestsum --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -coverprofile=coverage.out
 
 test/coverage/html:
 	go tool cover -html=coverage.out

@@ -26,7 +26,7 @@
       "label": "Endpoint",
       "description": "Custom endpoint URL for AWS Kinesis (optional, for testing or VPC endpoints)",
       "required": false,
-      "pattern": "^https?:\\/\\/[\\w\\-]+(?:\\.[\\w\\-]+)*(?::\\d{1,5})?(?:\\/[\\w\\-\\/\\.~:?#\\[\\]@!$&'\\(\\)*+,;=]*)?$"
+      "pattern": "^https?:\\/\\/[\\w\\-]+(?:\\.[\\w\\-]+)*(?::\\d{1,5})?(?:\\/[\\w\\-\\/\\.~:%?#\\[\\]@!$&'\\(\\)*+,;=]*)?$"
     },
     {
       "key": "partition_key_template",

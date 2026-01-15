@@ -18,13 +18,22 @@ const (
 type (
 	Cmdable            = r.Cmdable
 	MapStringStringCmd = r.MapStringStringCmd
+	SliceCmd           = r.SliceCmd
+	StringCmd          = r.StringCmd
 	Pipeliner          = r.Pipeliner
 	Tx                 = r.Tx
+	Cmd                = r.Cmd
 )
 
 type Client interface {
 	Cmdable
 	Close() error
+}
+
+// DoContext is an interface for executing arbitrary Redis commands.
+// This is needed for RediSearch commands that aren't in the Cmdable interface.
+type DoContext interface {
+	Do(ctx context.Context, args ...interface{}) *r.Cmd
 }
 
 const (

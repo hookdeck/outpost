@@ -95,12 +95,13 @@ RUN='TestListTenant' TEST='./internal/models' TESTINFRA=1 make test
 1. Run test coverage
 
 ```sh
-$ make test/coverage
-# go test $(go list ./...)  -coverprofile=coverage.out
+make test/coverage
+
+# or with go test directly
+go test ./... -coverprofile=coverage.out
 
 # or to test specific package
-$ TEST='./internal/services/api' make test/coverage
-# go test $(go list ./...)  -coverprofile=coverage.out
+TEST='./internal/services/api' make test/coverage
 ```
 
 2. Visualize test coverage

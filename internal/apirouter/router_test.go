@@ -99,7 +99,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -109,7 +109,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
 		req.Header.Set("Authorization", "Bearer "+validToken)
 		router.ServeHTTP(w, req)
 
@@ -120,7 +120,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		router.ServeHTTP(w, req)
 
@@ -131,7 +131,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenantID", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenantID", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -141,29 +141,18 @@ func TestRouterWithAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenantIDnotfound", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenantIDnotfound", nil)
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("should allow admin request to tenant routes", func(t *testing.T) {
+	t.Run("should allow tenant-auth request to tenant routes", func(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenantIDnotfound", nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should allow tenant-auth request to admin routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID, nil)
 		req.Header.Set("Authorization", "Bearer "+validToken)
 		router.ServeHTTP(w, req)
 
@@ -172,11 +161,11 @@ func TestRouterWithAPIKey(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("should block invalid tenant-auth request to admin routes", func(t *testing.T) {
+	t.Run("should block invalid tenant-auth request to tenant routes", func(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID, nil)
 		req.Header.Set("Authorization", "Bearer invalid")
 		router.ServeHTTP(w, req)
 
@@ -202,7 +191,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
@@ -212,7 +201,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
 		req.Header.Set("Authorization", "Bearer "+validToken)
 		router.ServeHTTP(w, req)
 
@@ -223,7 +212,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/"+idgen.String(), nil)
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		router.ServeHTTP(w, req)
 
@@ -234,7 +223,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/destinations", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/destinations", nil)
 		req.Header.Set("Authorization", "Bearer "+validToken)
 		router.ServeHTTP(w, req)
 
@@ -245,7 +234,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/destinations", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/destinations", nil)
 		req.Header.Set("Authorization", "Bearer invalid")
 		router.ServeHTTP(w, req)
 
@@ -256,7 +245,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/destinations", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/destinations", nil)
 		req.Header.Set("Authorization", "NotBearer "+validToken)
 		router.ServeHTTP(w, req)
 
@@ -267,7 +256,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenantID", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenantID", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -277,7 +266,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenantIDnotfound", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenantIDnotfound", nil)
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		router.ServeHTTP(w, req)
 
@@ -288,7 +277,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID, nil)
 		req.Header.Set("Authorization", "Bearer "+validToken)
 		router.ServeHTTP(w, req)
 
@@ -309,25 +298,25 @@ func TestTokenAndPortalRoutes(t *testing.T) {
 			name:      "token route should return 404 when apiKey is empty",
 			apiKey:    "",
 			jwtSecret: "secret",
-			path:      "/tenant-id/token",
+			path:      "/tenants/tenant-id/token",
 		},
 		{
 			name:      "token route should return 404 when jwtSecret is empty",
 			apiKey:    "key",
 			jwtSecret: "",
-			path:      "/tenant-id/token",
+			path:      "/tenants/tenant-id/token",
 		},
 		{
 			name:      "portal route should return 404 when apiKey is empty",
 			apiKey:    "",
 			jwtSecret: "secret",
-			path:      "/tenant-id/portal",
+			path:      "/tenants/tenant-id/portal",
 		},
 		{
 			name:      "portal route should return 404 when jwtSecret is empty",
 			apiKey:    "key",
 			jwtSecret: "",
-			path:      "/tenant-id/portal",
+			path:      "/tenants/tenant-id/portal",
 		},
 	}
 
@@ -336,7 +325,7 @@ func TestTokenAndPortalRoutes(t *testing.T) {
 			router, _, _ := setupTestRouter(t, tt.apiKey, tt.jwtSecret)
 
 			w := httptest.NewRecorder()
-			req, _ := http.NewRequest("GET", baseAPIPath+"/"+tt.path, nil)
+			req, _ := http.NewRequest("GET", baseAPIPath+tt.path, nil)
 			if tt.apiKey != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.apiKey)
 			}
@@ -345,4 +334,42 @@ func TestTokenAndPortalRoutes(t *testing.T) {
 			assert.Equal(t, http.StatusNotFound, w.Code)
 		})
 	}
+}
+
+func TestTenantsRoutePrefix(t *testing.T) {
+	t.Parallel()
+
+	apiKey := "api_key"
+	router, _, _ := setupTestRouter(t, apiKey, "jwt_secret")
+
+	t.Run("/tenants/ path should work for tenant upsert", func(t *testing.T) {
+		t.Parallel()
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+
+	t.Run("/tenants/ path should work for tenant GET", func(t *testing.T) {
+		t.Parallel()
+
+		// First create a tenant
+		tenantID := idgen.String()
+		createReq, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+tenantID, nil)
+		createReq.Header.Set("Authorization", "Bearer "+apiKey)
+		createW := httptest.NewRecorder()
+		router.ServeHTTP(createW, createReq)
+		require.Equal(t, http.StatusCreated, createW.Code)
+
+		// GET via /tenants/ path
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID, nil)
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
 }

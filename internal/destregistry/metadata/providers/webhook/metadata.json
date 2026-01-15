@@ -7,7 +7,7 @@
       "label": "Webhook URL",
       "description": "The URL to send webhook events to via HTTP POST",
       "required": true,
-      "pattern": "^https?:\\/\\/[\\w\\-]+(?:\\.[\\w\\-]+)*(?::\\d{1,5})?(?:\\/[\\w\\-\\/\\.~:?#\\[\\]@!$&'\\(\\)*+,;=]*)?$"
+      "pattern": "^https?:\\/\\/[\\w\\-]+(?:\\.[\\w\\-]+)*(?::\\d{1,5})?(?:\\/[\\w\\-\\/\\.~:%?#\\[\\]@!$&'\\(\\)*+,;=]*)?$"
     },
     {
       "key": "custom_headers",
