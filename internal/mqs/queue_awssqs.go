@@ -16,10 +16,11 @@ import (
 )
 
 type AWSSQSConfig struct {
-	Endpoint                  string // optional - dev-focused
+	Endpoint                  string        // optional - dev-focused
 	Region                    string
 	ServiceAccountCredentials string
 	Topic                     string
+	WaitTime                  time.Duration // optional - defaults to 20s if not set
 }
 
 func (c *AWSSQSConfig) ToCredentials() (*credentials.StaticCredentialsProvider, error) {
@@ -73,8 +74,12 @@ func (q *AWSQueue) Subscribe(ctx context.Context) (Subscription, error) {
 	if err != nil {
 		return nil, err
 	}
+	waitTime := q.config.WaitTime
+	if waitTime == 0 {
+		waitTime = 20 * time.Second // default for production
+	}
 	subscription := awssnssqs.OpenSubscriptionV2(ctx, q.sqsClient, q.sqsQueueURL, &awssnssqs.SubscriptionOptions{
-		WaitTime: 20 * time.Second,
+		WaitTime: waitTime,
 	})
 	return q.base.Subscribe(ctx, subscription)
 }
