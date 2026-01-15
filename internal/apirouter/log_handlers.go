@@ -391,7 +391,7 @@ func (h *LogHandlers) RetrieveDelivery(c *gin.Context) {
 }
 
 // ListEvents handles GET /:tenantID/events
-// Query params: destination_id, topic[], start, end, limit, next, prev
+// Query params: destination_id, topic[], start, end, limit, next, prev, sort_order
 func (h *LogHandlers) ListEvents(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 	if tenant == nil {
@@ -443,6 +443,22 @@ func (h *LogHandlers) ListEvents(c *gin.Context) {
 		destinationIDs = []string{destID}
 	}
 
+	// Parse sort_order (default: desc)
+	sortOrder := c.Query("sort_order")
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
+	if sortOrder != "asc" && sortOrder != "desc" {
+		AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
+			Code:    http.StatusUnprocessableEntity,
+			Message: "validation error",
+			Data: map[string]string{
+				"query.sort_order": "must be 'asc' or 'desc'",
+			},
+		})
+		return
+	}
+
 	// Build request
 	req := logstore.ListEventRequest{
 		TenantID:       tenant.ID,
@@ -453,6 +469,7 @@ func (h *LogHandlers) ListEvents(c *gin.Context) {
 		Limit:          limit,
 		Next:           c.Query("next"),
 		Prev:           c.Query("prev"),
+		SortOrder:      sortOrder,
 	}
 
 	// Call logstore
