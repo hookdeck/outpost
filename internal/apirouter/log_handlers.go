@@ -44,9 +44,10 @@ func parseQueryArray(c *gin.Context, key string) []string {
 
 // ExpandOptions represents which fields to expand in the response
 type ExpandOptions struct {
-	Event       bool
-	EventData   bool
-	Destination bool
+	Event        bool
+	EventData    bool
+	Destination  bool
+	ResponseData bool
 }
 
 func parseExpandOptions(c *gin.Context) ExpandOptions {
@@ -60,6 +61,8 @@ func parseExpandOptions(c *gin.Context) ExpandOptions {
 			opts.EventData = true
 		case "destination":
 			opts.Destination = true
+		case "response_data":
+			opts.ResponseData = true
 		}
 	}
 	return opts
@@ -139,7 +142,9 @@ func toAPIDelivery(de *models.DeliveryEvent, opts ExpandOptions) APIDelivery {
 		api.Status = de.Delivery.Status
 		api.DeliveredAt = de.Delivery.Time
 		api.Code = de.Delivery.Code
-		api.ResponseData = de.Delivery.ResponseData
+		if opts.ResponseData {
+			api.ResponseData = de.Delivery.ResponseData
+		}
 	}
 
 	// Handle event expansion
