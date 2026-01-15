@@ -293,6 +293,41 @@ func (suite *basicSuite) TestLogAPI() {
 				},
 			},
 		},
+		// GET /:tenantID/deliveries?expand=response_data - expand response data
+		{
+			Name: "GET /:tenantID/deliveries?expand=response_data - expand response data",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/deliveries?expand=response_data",
+			}),
+			Expected: APITestExpectation{
+				Validate: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"statusCode": map[string]interface{}{"const": 200},
+						"body": map[string]interface{}{
+							"type": "object",
+							"properties": map[string]interface{}{
+								"data": map[string]interface{}{
+									"type":     "array",
+									"minItems": 1,
+									"items": map[string]interface{}{
+										"type":     "object",
+										"required": []interface{}{"id", "status", "response_data"},
+										"properties": map[string]interface{}{
+											// response_data should be present and be an object
+											"response_data": map[string]interface{}{
+												"type": "object",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 		// GET /:tenantID/events/:eventID - retrieve single event
 		{
 			Name: "GET /:tenantID/events/:eventID - retrieve event",
