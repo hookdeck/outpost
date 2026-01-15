@@ -260,20 +260,14 @@ func ensureKinesisStream(ctx context.Context, client *kinesis.Client, streamName
 		return err
 	}
 
-	// Wait for stream to become active
-	waiter := kinesis.NewStreamExistsWaiter(client)
-	err = waiter.Wait(ctx, &kinesis.DescribeStreamInput{
+	// Wait for stream to become active with fast polling for tests
+	waiter := kinesis.NewStreamExistsWaiter(client, func(o *kinesis.StreamExistsWaiterOptions) {
+		o.MinDelay = 100 * time.Millisecond
+		o.MaxDelay = 1 * time.Second
+	})
+	return waiter.Wait(ctx, &kinesis.DescribeStreamInput{
 		StreamName: aws.String(streamName),
 	}, 30*time.Second)
-
-	// Even though the stream is marked as ACTIVE, there can be a slight delay before it's fully
-	// ready to accept writes/reads, especially in LocalStack. This sleep helps avoid flaky tests
-	// that might fail if we try to use the stream immediately after creation.
-	if err == nil {
-		time.Sleep(2 * time.Second)
-	}
-
-	return err
 }
 
 // Delete Kinesis stream
