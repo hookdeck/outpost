@@ -56,9 +56,9 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `DESTINATIONS_WEBHOOK_MODE` | Webhook mode: 'default' for customizable webhooks or 'standard' for Standard Webhooks specification compliance. Defaults to 'default'. | `nil` | No |
 | `DESTINATIONS_WEBHOOK_PROXY_URL` | Proxy URL for routing webhook requests through a proxy server. Supports HTTP and HTTPS proxies. When configured, all outgoing webhook traffic will be routed through the specified proxy. | `nil` | No |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | Algorithm used for signing webhook requests (e.g., 'hmac-sha256'). Only applies to 'default' mode. | `hmac-sha256` | No |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | Go template for constructing the content to be signed for webhook requests. Only applies to 'default' mode. | `{{.Timestamp.Unix}}.{{.Body}}` | No |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | Go template for constructing the content to be signed for webhook requests. Only applies to 'default' mode. | `{{.Body}}` | No |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | Encoding for the signature (e.g., 'hex', 'base64'). Only applies to 'default' mode. | `hex` | No |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | Go template for the value of the signature header. Only applies to 'default' mode. | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` | No |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | Go template for the value of the signature header. Only applies to 'default' mode. | `v0={{.Signatures \| join ","}}` | No |
 | `DESTINATION_METADATA_PATH` | Path to the directory containing custom destination type definitions. Overrides 'destinations.metadata_path' if set. | `nil` | No |
 | `DISABLE_TELEMETRY` | Global flag to disable all telemetry (anonymous usage statistics to Hookdeck and error reporting to Sentry). If true, overrides 'telemetry.disabled'. | `false` | No |
 | `GCP_PUBSUB_DELIVERY_SUBSCRIPTION` | Name of the GCP Pub/Sub subscription for delivery events. | `outpost-delivery-sub` | No |
@@ -227,13 +227,13 @@ destinations:
     signature_algorithm: "hmac-sha256"
 
     # Go template for constructing the content to be signed for webhook requests. Only applies to 'default' mode.
-    signature_content_template: "{{.Timestamp.Unix}}.{{.Body}}"
+    signature_content_template: "{{.Body}}"
 
     # Encoding for the signature (e.g., 'hex', 'base64'). Only applies to 'default' mode.
     signature_encoding: "hex"
 
     # Go template for the value of the signature header. Only applies to 'default' mode.
-    signature_header_template: "t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
+    signature_header_template: "v0={{.Signatures | join \",\"}}"
 
 
 

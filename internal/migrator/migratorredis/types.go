@@ -1,4 +1,4 @@
-package migration
+package migratorredis
 
 import (
 	"context"
@@ -16,6 +16,17 @@ type Migration interface {
 
 	// Description returns a human-readable description
 	Description() string
+
+	// AutoRunnable returns true if this migration can be safely run automatically
+	// at startup without manual intervention. Migrations that are destructive,
+	// require confirmation, or have complex rollback scenarios should return false.
+	AutoRunnable() bool
+
+	// IsApplicable checks if this migration is relevant for the current configuration.
+	// Returns (applicable, reason). If !applicable, reason explains why the migration
+	// is not needed (e.g., "Not needed - using DEPLOYMENT_ID").
+	// Migrations that return false will be marked as "not_applicable" instead of "applied".
+	IsApplicable(ctx context.Context) (bool, string)
 
 	// Plan analyzes the current state and returns a migration plan
 	Plan(ctx context.Context) (*Plan, error)
@@ -44,6 +55,9 @@ type Plan struct {
 	Scope          map[string]int    `json:"scope"` // e.g., {"tenants": 100, "destinations": 500}
 	EstimatedItems int               `json:"estimated_items"`
 	Metadata       map[string]string `json:"metadata,omitempty"`
+	// Data holds migration-specific data collected during Plan phase.
+	// Apply phase can use this to avoid re-reading from Redis.
+	Data interface{} `json:"-"`
 }
 
 // State represents the current state of a migration

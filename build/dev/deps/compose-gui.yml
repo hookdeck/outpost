@@ -8,6 +8,7 @@ services:
   redis-commander:
     profiles: ["redis-commander"]
     image: rediscommander/redis-commander:latest
+    platform: linux/amd64
     restart: always
     ports:
       - "${LOCAL_DEV_REDIS_COMMANDER:-28081}:8081"

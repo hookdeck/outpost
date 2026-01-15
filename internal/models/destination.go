@@ -46,12 +46,33 @@ func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Ciphe
 	if _, exists := hash["deleted_at"]; exists {
 		return ErrDestinationDeleted
 	}
-	if err = cmd.Scan(d); err != nil {
-		return err
+
+	// Parse basic fields manually (Scan doesn't handle numeric timestamps)
+	d.ID = hash["id"]
+	d.Type = hash["type"]
+
+	// Parse created_at - supports both numeric (Unix) and RFC3339 formats
+	d.CreatedAt, err = parseTimestamp(hash["created_at"])
+	if err != nil {
+		return fmt.Errorf("invalid created_at: %w", err)
 	}
-	// Fallback updated_at to created_at if missing (for existing records)
-	if hash["updated_at"] == "" {
+
+	// Parse updated_at - same lazy migration support
+	if hash["updated_at"] != "" {
+		d.UpdatedAt, err = parseTimestamp(hash["updated_at"])
+		if err != nil {
+			d.UpdatedAt = d.CreatedAt
+		}
+	} else {
 		d.UpdatedAt = d.CreatedAt
+	}
+
+	// Parse disabled_at if present
+	if hash["disabled_at"] != "" {
+		disabledAt, err := parseTimestamp(hash["disabled_at"])
+		if err == nil {
+			d.DisabledAt = &disabledAt
+		}
 	}
 	err = d.Topics.UnmarshalBinary([]byte(hash["topics"]))
 	if err != nil {

@@ -150,17 +150,17 @@ All 7 Hookdeck tests have been marked with `.skip()`:
 1. **Lines 61-64**: `should create a Hookdeck destination with valid config` (it.skip)
 2. **Lines 66-79**: `should create a Hookdeck destination with array of topics` (it.skip)
 3. **Lines 81-92**: `should create destination with user-provided ID` (it.skip)
-4. **Lines 167-206**: `GET /api/v1/{tenant_id}/destinations/{id}` describe block (describe.skip)
+4. **Lines 167-206**: `GET /api/v1/tenants/{tenant_id}/destinations/{id}` describe block (describe.skip)
    - `should retrieve an existing Hookdeck destination`
    - `should return 404 for non-existent destination`
-5. **Lines 210-232**: `GET /api/v1/{tenant_id}/destinations` describe block (describe.skip)
+5. **Lines 210-232**: `GET /api/v1/tenants/{tenant_id}/destinations` describe block (describe.skip)
    - `should list all destinations`
    - `should filter destinations by type`
-6. **Lines 236-300**: `PATCH /api/v1/{tenant_id}/destinations/{id}` describe block (describe.skip)
+6. **Lines 236-300**: `PATCH /api/v1/tenants/{tenant_id}/destinations/{id}` describe block (describe.skip)
    - `should update destination topics`
    - `should update destination credentials`
    - `should return 404 for updating non-existent destination`
-7. **Lines 304-325**: `DELETE /api/v1/{tenant_id}/destinations/{id}` describe block (describe.skip)
+7. **Lines 304-325**: `DELETE /api/v1/tenants/{tenant_id}/destinations/{id}` describe block (describe.skip)
    - `should delete an existing destination`
    - `should return 404 for deleting non-existent destination`
 

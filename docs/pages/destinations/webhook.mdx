@@ -66,7 +66,7 @@ If `secret` is not provided, one will be auto-generated. Tenants cannot modify s
 ### Example
 
 ```sh
-curl --location 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations' \
+curl --location 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
@@ -85,7 +85,7 @@ Secret rotation allows you to change the signing secret without downtime. During
 To rotate a secret, set `rotate_secret` to `true` when updating a destination:
 
 ```sh
-curl --location --request PATCH 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations/<DESTINATION_ID>' \
+curl --location --request PATCH 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations/<DESTINATION_ID>' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
@@ -104,7 +104,7 @@ When rotation is triggered:
 To customize the rotation window, set `previous_secret_invalid_at`:
 
 ```sh
-curl --location --request PATCH 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations/<DESTINATION_ID>' \
+curl --location --request PATCH 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations/<DESTINATION_ID>' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
@@ -172,8 +172,8 @@ Operators can customize webhook behavior via environment variables.
 | -------------------- | ------- | ----------- |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Signature encoding (`hex` or `base64`) |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_VALUE_TEMPLATE` | `{{.Timestamp.Unix}}.{{.Body}}` | Template for the value being signed |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` | Template for signature header value |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for the content being signed |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for signature header value |
 
 See the [migration guide](/docs/guides/migrate-to-outpost#webhook-customization) for common customization patterns.
 
@@ -228,7 +228,7 @@ Standard Webhooks secrets use the format `whsec_<base64>`, which is automaticall
 Tenants can add custom HTTP headers to webhook requests. This is useful for authentication, routing, or passing additional metadata to their endpoint.
 
 ```sh
-curl --location 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations' \
+curl --location 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{

@@ -14,6 +14,7 @@ services:
       - 36379:6379
   dragonfly:
     image: docker.dragonflydb.io/dragonflydb/dragonfly
+    command: ["--proactor_threads=1", "--maxmemory=256mb"]
     ports:
       - 37379:6379
   clickhouse:

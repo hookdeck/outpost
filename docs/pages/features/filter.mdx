@@ -273,7 +273,7 @@ Process only high-value orders:
 Filters are set when creating or updating a destination via the `filter` field:
 
 ```sh
-curl --location 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations' \
+curl --location 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
@@ -293,7 +293,7 @@ curl --location 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations' \
 To remove a filter from a destination, set the `filter` field to an empty object:
 
 ```sh
-curl --location --request PATCH 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations/<DESTINATION_ID>' \
+curl --location --request PATCH 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations/<DESTINATION_ID>' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{

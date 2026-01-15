@@ -28,10 +28,10 @@ func (suite *basicSuite) TestDestwebhookPublish() {
 	newSecret := "testsecret0987654321zyxwvutsrqponm"
 	tests := []APITest{
 		{
-			Name: "PUT /:tenantID",
+			Name: "PUT /tenants/:tenantID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -63,10 +63,10 @@ func (suite *basicSuite) TestDestwebhookPublish() {
 			},
 		},
 		{
-			Name: "POST /:tenantID/destinations",
+			Name: "POST /tenants/:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     sampleDestinationID,
 					"type":   "webhook",
@@ -229,10 +229,10 @@ func (suite *basicSuite) TestDestwebhookPublish() {
 			},
 		},
 		{
-			Name: "PATCH /:tenantID/destinations - update outpost destination",
+			Name: "PATCH /tenants/:tenantID/destinations - update outpost destination",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + sampleDestinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + sampleDestinationID,
 				Body: map[string]interface{}{
 					"type":   "webhook",
 					"topics": "*",
@@ -404,7 +404,7 @@ func (suite *basicSuite) TestDestwebhookSecretRotation() {
 	// Setup tenant
 	resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodPUT,
-		Path:   "/" + tenantID,
+		Path:   "/tenants/" + tenantID,
 	}))
 	suite.Require().NoError(err)
 	suite.Require().Equal(http.StatusCreated, resp.StatusCode)
@@ -412,7 +412,7 @@ func (suite *basicSuite) TestDestwebhookSecretRotation() {
 	// Create destination without secret
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodPOST,
-		Path:   "/" + tenantID + "/destinations",
+		Path:   "/tenants/" + tenantID + "/destinations",
 		Body: map[string]interface{}{
 			"id":     destinationID,
 			"type":   "webhook",
@@ -428,7 +428,7 @@ func (suite *basicSuite) TestDestwebhookSecretRotation() {
 	// Get initial secret and verify initial state
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
-		Path:   "/" + tenantID + "/destinations/" + destinationID,
+		Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 	}))
 	suite.Require().NoError(err)
 	suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -445,7 +445,7 @@ func (suite *basicSuite) TestDestwebhookSecretRotation() {
 	// Rotate secret
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodPATCH,
-		Path:   "/" + tenantID + "/destinations/" + destinationID,
+		Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 		Body: map[string]interface{}{
 			"credentials": map[string]interface{}{
 				"rotate_secret": true,
@@ -458,7 +458,7 @@ func (suite *basicSuite) TestDestwebhookSecretRotation() {
 	// Get destination and verify rotated state
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
-		Path:   "/" + tenantID + "/destinations/" + destinationID,
+		Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 	}))
 	suite.Require().NoError(err)
 	suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -480,10 +480,10 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 	// First create tenant and get JWT token
 	createTenantTests := []APITest{
 		{
-			Name: "PUT /:tenantID to create tenant",
+			Name: "PUT /tenants/:tenantID to create tenant",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -497,7 +497,7 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 	// Get JWT token
 	tokenResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
-		Path:   "/" + tenantID + "/token",
+		Path:   "/tenants/" + tenantID + "/token",
 	}))
 	suite.Require().NoError(err)
 	suite.Require().Equal(http.StatusOK, tokenResp.StatusCode)
@@ -509,10 +509,10 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 	// Run tenant-scoped tests
 	tests := []APITest{
 		{
-			Name: "POST /:tenantID/destinations - attempt to create destination with secret (should fail)",
+			Name: "POST /tenants/:tenantID/destinations - attempt to create destination with secret (should fail)",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     destinationID,
 					"type":   "webhook",
@@ -538,10 +538,10 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 			},
 		},
 		{
-			Name: "POST /:tenantID/destinations - create destination without secret",
+			Name: "POST /tenants/:tenantID/destinations - create destination without secret",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     destinationID,
 					"type":   "webhook",
@@ -563,7 +563,7 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 	// Get initial secret and verify initial state
 	resp, err := suite.client.Do(suite.AuthJWTRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
-		Path:   "/" + tenantID + "/destinations/" + destinationID,
+		Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 	}, token))
 	suite.Require().NoError(err)
 	suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -578,10 +578,10 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 	// Continue with permission tests
 	permissionTests := []APITest{
 		{
-			Name: "PATCH /:tenantID/destinations/:destinationID - attempt to update secret directly",
+			Name: "PATCH /tenants/:tenantID/destinations/:destinationID - attempt to update secret directly",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
 						"secret": "new-secret",
@@ -601,10 +601,10 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 			},
 		},
 		{
-			Name: "PATCH /:tenantID/destinations/:destinationID - attempt to set previous_secret directly",
+			Name: "PATCH /tenants/:tenantID/destinations/:destinationID - attempt to set previous_secret directly",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
 						"previous_secret": "another-secret",
@@ -624,10 +624,10 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 			},
 		},
 		{
-			Name: "PATCH /:tenantID/destinations/:destinationID - attempt to set previous_secret_invalid_at directly",
+			Name: "PATCH /tenants/:tenantID/destinations/:destinationID - attempt to set previous_secret_invalid_at directly",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
 						"previous_secret_invalid_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
@@ -647,10 +647,10 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 			},
 		},
 		{
-			Name: "PATCH /:tenantID/destinations/:destinationID - rotate secret properly",
+			Name: "PATCH /tenants/:tenantID/destinations/:destinationID - rotate secret properly",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
 						"rotate_secret": true,
@@ -664,10 +664,10 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 			},
 		},
 		{
-			Name: "GET /:tenantID/destinations/:destinationID - verify rotation worked",
+			Name: "GET /tenants/:tenantID/destinations/:destinationID - verify rotation worked",
 			Request: suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 			}, token),
 			Expected: APITestExpectation{
 				Validate: map[string]interface{}{
@@ -713,10 +713,10 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 	// Clean up using admin auth
 	cleanupTests := []APITest{
 		{
-			Name: "DELETE /:tenantID to clean up",
+			Name: "DELETE /tenants/:tenantID to clean up",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodDELETE,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -737,10 +737,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 	// First group: Test all creation flows
 	createTests := []APITest{
 		{
-			Name: "PUT /:tenantID to create tenant",
+			Name: "PUT /tenants/:tenantID to create tenant",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -749,10 +749,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "POST /:tenantID/destinations - create destination without credentials",
+			Name: "POST /tenants/:tenantID/destinations - create destination without credentials",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     destinationID + "-1",
 					"type":   "webhook",
@@ -769,10 +769,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "GET /:tenantID/destinations/:destinationID - verify auto-generated secret",
+			Name: "GET /tenants/:tenantID/destinations/:destinationID - verify auto-generated secret",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + destinationID + "-1",
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID + "-1",
 			}),
 			Expected: APITestExpectation{
 				Validate: map[string]interface{}{
@@ -804,10 +804,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "POST /:tenantID/destinations - create destination with secret",
+			Name: "POST /tenants/:tenantID/destinations - create destination with secret",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     destinationID, // Use main destinationID for update tests
 					"type":   "webhook",
@@ -827,10 +827,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "GET /:tenantID/destinations/:destinationID - verify custom secret",
+			Name: "GET /tenants/:tenantID/destinations/:destinationID - verify custom secret",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -844,10 +844,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "POST /:tenantID/destinations - attempt to create with rotate_secret",
+			Name: "POST /tenants/:tenantID/destinations - attempt to create with rotate_secret",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     destinationID + "-3",
 					"type":   "webhook",
@@ -881,10 +881,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 	// Second group: Test update flows using the destination with custom secret
 	updateTests := []APITest{
 		{
-			Name: "PATCH /:tenantID/destinations/:destinationID - update secret directly",
+			Name: "PATCH /tenants/:tenantID/destinations/:destinationID - update secret directly",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
 						"secret": newSecret,
@@ -898,10 +898,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "GET /:tenantID/destinations/:destinationID - verify secret updated",
+			Name: "GET /tenants/:tenantID/destinations/:destinationID - verify secret updated",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -915,10 +915,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "PATCH /:tenantID/destinations/:destinationID - attempt to set invalid previous_secret_invalid_at format",
+			Name: "PATCH /tenants/:tenantID/destinations/:destinationID - attempt to set invalid previous_secret_invalid_at format",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
 						"secret":                     newSecret,
@@ -940,10 +940,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "PATCH /:tenantID/destinations/:destinationID - attempt to set previous_secret without invalid_at",
+			Name: "PATCH /tenants/:tenantID/destinations/:destinationID - attempt to set previous_secret without invalid_at",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
 						"previous_secret": updatedPreviousSecret,
@@ -962,10 +962,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "PATCH /:tenantID/destinations/:destinationID - attempt to set previous_secret_invalid_at without previous_secret",
+			Name: "PATCH /tenants/:tenantID/destinations/:destinationID - attempt to set previous_secret_invalid_at without previous_secret",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
 						"previous_secret_invalid_at": updatedPreviousSecretInvalidAt,
@@ -985,10 +985,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "PATCH /:tenantID/destinations/:destinationID - overrides everything",
+			Name: "PATCH /tenants/:tenantID/destinations/:destinationID - overrides everything",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
 						"secret":                     newSecret,
@@ -1004,10 +1004,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "GET /:tenantID/destinations/:destinationID - verify previous_secret set",
+			Name: "GET /tenants/:tenantID/destinations/:destinationID - verify previous_secret set",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 			}),
 			Expected: APITestExpectation{
 				Validate: map[string]interface{}{
@@ -1048,10 +1048,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "PATCH /:tenantID/destinations/:destinationID - rotate secret as admin",
+			Name: "PATCH /tenants/:tenantID/destinations/:destinationID - rotate secret as admin",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
 						"rotate_secret": true,
@@ -1065,10 +1065,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "PATCH /:tenantID/destinations/:destinationID - attempt to set previous_secret and previous_secret_invalid_at without secret",
+			Name: "PATCH /tenants/:tenantID/destinations/:destinationID - attempt to set previous_secret and previous_secret_invalid_at without secret",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
 						"secret":                     "",
@@ -1090,10 +1090,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "GET /:tenantID/destinations/:destinationID - verify rotation worked",
+			Name: "GET /tenants/:tenantID/destinations/:destinationID - verify rotation worked",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 			}),
 			Expected: APITestExpectation{
 				Validate: map[string]interface{}{
@@ -1134,10 +1134,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "PATCH /:tenantID/destinations/:destinationID - admin unset previous_secret",
+			Name: "PATCH /tenants/:tenantID/destinations/:destinationID - admin unset previous_secret",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPATCH,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 				Body: map[string]interface{}{
 					"credentials": map[string]interface{}{
 						"previous_secret":            "",
@@ -1152,10 +1152,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 			},
 		},
 		{
-			Name: "GET /:tenantID/destinations/:destinationID - verify previous_secret was unset",
+			Name: "GET /tenants/:tenantID/destinations/:destinationID - verify previous_secret was unset",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/" + tenantID + "/destinations/" + destinationID,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 			}),
 			Expected: APITestExpectation{
 				Validate: map[string]interface{}{
@@ -1192,10 +1192,10 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 	// Clean up
 	cleanupTests := []APITest{
 		{
-			Name: "DELETE /:tenantID to clean up",
+			Name: "DELETE /tenants/:tenantID to clean up",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodDELETE,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1216,10 +1216,10 @@ func (suite *basicSuite) TestDestwebhookFilter() {
 
 	tests := []APITest{
 		{
-			Name: "PUT /:tenantID",
+			Name: "PUT /tenants/:tenantID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1251,10 +1251,10 @@ func (suite *basicSuite) TestDestwebhookFilter() {
 			},
 		},
 		{
-			Name: "POST /:tenantID/destinations - create destination with filter using $gte operator",
+			Name: "POST /tenants/:tenantID/destinations - create destination with filter using $gte operator",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     destinationID,
 					"type":   "webhook",
@@ -1375,10 +1375,10 @@ func (suite *basicSuite) TestDestwebhookFilter() {
 			},
 		},
 		{
-			Name: "DELETE /:tenantID to clean up",
+			Name: "DELETE /tenants/:tenantID to clean up",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodDELETE,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -1401,7 +1401,7 @@ func (suite *basicSuite) TestDeliveryRetry() {
 	// Setup: create tenant
 	resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodPUT,
-		Path:   "/" + tenantID,
+		Path:   "/tenants/" + tenantID,
 	}))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -1428,7 +1428,7 @@ func (suite *basicSuite) TestDeliveryRetry() {
 	// Setup: create destination in outpost
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodPOST,
-		Path:   "/" + tenantID + "/destinations",
+		Path:   "/tenants/" + tenantID + "/destinations",
 		Body: map[string]interface{}{
 			"id":     destinationID,
 			"type":   "webhook",
@@ -1485,7 +1485,7 @@ func (suite *basicSuite) TestDeliveryRetry() {
 	// Cleanup
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodDELETE,
-		Path:   "/" + tenantID,
+		Path:   "/tenants/" + tenantID,
 	}))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)

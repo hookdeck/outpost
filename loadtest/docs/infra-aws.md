@@ -132,7 +132,7 @@ A successful health check will return a positive response indicating that Outpos
 Once Outpost is running, you can create a new tenant with:
 
 ```sh
-curl -v --location --request PUT "$API_URL/api/v1/123" \
+curl -v --location --request PUT "$API_URL/api/v1/tenants/123" \
 --header "Authorization: Bearer $API_KEY"
 ```
 
