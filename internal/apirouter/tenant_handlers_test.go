@@ -34,6 +34,8 @@ func TestDestinationUpsertHandler(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, w.Code)
 		assert.Equal(t, id, response["id"])
 		assert.NotEqual(t, "", response["created_at"])
+		assert.NotEqual(t, "", response["updated_at"])
+		assert.Equal(t, response["created_at"], response["updated_at"])
 	})
 
 	t.Run("should return tenant when there's already one", func(t *testing.T) {

@@ -10,17 +10,14 @@ import (
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/testcontainers/testcontainers-go"
 	rediscontainer "github.com/testcontainers/testcontainers-go/modules/redis"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 var (
 	redisOnce     sync.Once
 	dragonflyOnce sync.Once
-
-	// DB 0 is reserved for Redis Stack / Dragonfly Stack (RediSearch requires DB 0)
-	// Tests needing RediSearch serialize via these mutexes
-	redisStackMu     sync.Mutex
-	dragonflyStackMu sync.Mutex
 
 	// DB 1-15 are for regular Redis/Dragonfly tests (can run in parallel)
 	redisDBMu       sync.Mutex
@@ -30,7 +27,6 @@ var (
 )
 
 const (
-	redisStackDB = 0 // Reserved for Redis Stack (RediSearch)
 	minRegularDB = 1 // Regular tests use DB 1-15
 	maxRegularDB = 15
 )
@@ -52,20 +48,31 @@ func NewRedisConfig(t *testing.T) *redis.RedisConfig {
 	return cfg
 }
 
-// NewRedisStackConfig returns DB 0 for tests requiring RediSearch.
-// Tests using this are serialized (one at a time) since RediSearch only works on DB 0.
-// The database is flushed on cleanup.
+// NewRedisStackConfig spins up a dedicated Redis Stack container for tests requiring RediSearch.
+// Each test gets its own isolated container, eliminating cross-test interference.
+// The container is terminated on cleanup.
 func NewRedisStackConfig(t *testing.T) *redis.RedisConfig {
-	addr := EnsureRedis()
+	ctx := context.Background()
 
-	// Acquire exclusive access to DB 0
-	redisStackMu.Lock()
+	container, err := rediscontainer.Run(ctx,
+		"redis/redis-stack-server:latest",
+	)
+	if err != nil {
+		t.Fatalf("failed to start redis-stack container: %v", err)
+	}
 
-	cfg := parseAddrToConfig(addr, redisStackDB)
+	endpoint, err := container.PortEndpoint(ctx, "6379/tcp", "")
+	if err != nil {
+		t.Fatalf("failed to get redis-stack endpoint: %v", err)
+	}
+	log.Printf("Redis Stack (dedicated for test) running at %s", endpoint)
+
+	cfg := parseAddrToConfig(endpoint, 0)
 
 	t.Cleanup(func() {
-		flushRedisDB(addr, redisStackDB)
-		redisStackMu.Unlock()
+		if err := container.Terminate(ctx); err != nil {
+			log.Printf("failed to terminate redis-stack container: %s", err)
+		}
 	})
 
 	return cfg
@@ -88,20 +95,41 @@ func NewDragonflyConfig(t *testing.T) *redis.RedisConfig {
 	return cfg
 }
 
-// NewDragonflyStackConfig returns DB 0 for tests requiring RediSearch on Dragonfly.
-// Tests using this are serialized (one at a time) since RediSearch only works on DB 0.
-// The database is flushed on cleanup.
+// NewDragonflyStackConfig spins up a dedicated Dragonfly container for tests requiring RediSearch.
+// Each test gets its own isolated container, eliminating cross-test interference.
+// The container is terminated on cleanup.
 func NewDragonflyStackConfig(t *testing.T) *redis.RedisConfig {
-	addr := EnsureDragonfly()
+	ctx := context.Background()
 
-	// Acquire exclusive access to DB 0
-	dragonflyStackMu.Lock()
+	// Use generic container instead of redis module since Dragonfly has different startup behavior.
+	// Set proactor_threads=1 and maxmemory=256mb to reduce resource usage when running many containers.
+	req := testcontainers.ContainerRequest{
+		Image:        "docker.dragonflydb.io/dragonflydb/dragonfly:latest",
+		ExposedPorts: []string{"6379/tcp"},
+		Cmd:          []string{"--proactor_threads=1", "--maxmemory=256mb"},
+		WaitingFor:   wait.ForListeningPort("6379/tcp"),
+	}
 
-	cfg := parseAddrToConfig(addr, redisStackDB)
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		t.Fatalf("failed to start dragonfly container: %v", err)
+	}
+
+	endpoint, err := container.Endpoint(ctx, "")
+	if err != nil {
+		t.Fatalf("failed to get dragonfly endpoint: %v", err)
+	}
+	log.Printf("Dragonfly (dedicated for test) running at %s", endpoint)
+
+	cfg := parseAddrToConfig(endpoint, 0)
 
 	t.Cleanup(func() {
-		flushRedisDB(addr, redisStackDB)
-		dragonflyStackMu.Unlock()
+		if err := container.Terminate(ctx); err != nil {
+			log.Printf("failed to terminate dragonfly container: %s", err)
+		}
 	})
 
 	return cfg
@@ -133,7 +161,7 @@ func allocateRegularDB() int {
 			return i
 		}
 	}
-	panic(fmt.Sprintf("no available Redis databases (DB %d-%d all in use)", minRegularDB, maxRegularDB))
+	panic(fmt.Sprintf("no available databases (DB %d-%d all in use)", minRegularDB, maxRegularDB))
 }
 
 func releaseRegularDB(db int) {
@@ -146,7 +174,7 @@ func allocateDragonflyDB() int {
 	dragonflyDBMu.Lock()
 	defer dragonflyDBMu.Unlock()
 
-	// Start from DB 1; DB 0 is reserved for DragonflyStack (RediSearch)
+	// Use DB 1-15 to avoid conflicts with tests that might use DB 0
 	for i := minRegularDB; i <= maxRegularDB; i++ {
 		if !dragonflyDBUsed[i] {
 			dragonflyDBUsed[i] = true
@@ -222,15 +250,24 @@ func startRedisTestContainer(cfg *Config) {
 func startDragonflyTestContainer(cfg *Config) {
 	ctx := context.Background()
 
-	// Use the redis module with Dragonfly image
-	dragonflyContainer, err := rediscontainer.Run(ctx,
-		"docker.dragonflydb.io/dragonflydb/dragonfly:latest",
-	)
+	// Use generic container with resource-limiting flags to prevent memory issues.
+	// Dragonfly requires ~256MB per thread by default, which can exhaust memory.
+	req := testcontainers.ContainerRequest{
+		Image:        "docker.dragonflydb.io/dragonflydb/dragonfly:latest",
+		ExposedPorts: []string{"6379/tcp"},
+		Cmd:          []string{"--proactor_threads=1", "--maxmemory=256mb"},
+		WaitingFor:   wait.ForListeningPort("6379/tcp"),
+	}
+
+	dragonflyContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
 	if err != nil {
 		panic(err)
 	}
 
-	endpoint, err := dragonflyContainer.PortEndpoint(ctx, "6379/tcp", "")
+	endpoint, err := dragonflyContainer.Endpoint(ctx, "")
 	if err != nil {
 		panic(err)
 	}

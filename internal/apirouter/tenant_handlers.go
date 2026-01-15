@@ -71,11 +71,13 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	}
 
 	// Create new tenant.
+	now := time.Now()
 	tenant := &models.Tenant{
 		ID:        tenantID,
 		Topics:    []string{},
 		Metadata:  input.Metadata,
-		CreatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 	if err := h.entityStore.UpsertTenant(c.Request.Context(), *tenant); err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))

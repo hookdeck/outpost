@@ -1,9 +1,16 @@
-TEST?=./internal/...
+TEST?=./...
 RUN?=
 
 # Build targets
 .PHONY: build
 build:
+	@echo "Checking formatting..."
+	@if [ -n "$$(gofmt -l .)" ]; then \
+		echo "Formatting issues found in:"; \
+		gofmt -l .; \
+		echo "Run 'gofmt -w .' to fix"; \
+		exit 1; \
+	fi
 	@echo "Building all binaries..."
 	go build -o bin/outpost ./cmd/outpost
 	go build -o bin/outpost-server ./cmd/outpost-server
@@ -124,24 +131,16 @@ test/setup:
 	@echo ""
 
 test:
-	@if [ "$(RUN)" != "" ]; then \
-		gotestsum --rerun-fails=2 --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -run "$(RUN)"; \
-	else \
-		gotestsum --rerun-fails=2 --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS); \
-	fi
+	TEST="$(TEST)" RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh test
 
 test/unit:
-	gotestsum --rerun-fails=2 --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -short
-
-test/integration:
-	gotestsum --rerun-fails=2 --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -run "Integration"
+	TEST="$(TEST)" RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh unit
 
 test/e2e:
-	@if [ "$(RUN)" != "" ]; then \
-		$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test ./cmd/e2e $(TESTARGS) -run "$(RUN)"; \
-	else \
-		$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test ./cmd/e2e $(TESTARGS); \
-	fi
+	RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh e2e
+
+test/full:
+	TEST="$(TEST)" RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh full
 
 test/e2e/rediscluster:
 	@echo "Running Redis cluster e2e tests in Docker container..."

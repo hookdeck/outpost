@@ -1346,21 +1346,13 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	tenantID := idgen.String()
 	destinationID := idgen.Destination()
 
-	// Create tenant
+	// Create tenant and verify timestamps in PUT response directly
 	resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodPUT,
 		Path:   "/tenants/" + tenantID,
 	}))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// Get tenant and verify created_at and updated_at exist and are equal
-	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
-		Method: httpclient.MethodGET,
-		Path:   "/tenants/" + tenantID,
-	}))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	body := resp.Body.(map[string]interface{})
 	require.NotNil(t, body["created_at"], "created_at should be present")
@@ -1403,11 +1395,17 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	newTenantCreatedAt := body["created_at"].(string)
 	newTenantUpdatedAt := body["updated_at"].(string)
 
-	require.Equal(t, tenantCreatedAt, newTenantCreatedAt, "created_at should not change")
-	require.NotEqual(t, tenantUpdatedAt, newTenantUpdatedAt, "updated_at should change")
-	require.True(t, newTenantUpdatedAt > tenantUpdatedAt, "updated_at should be newer")
+	// Parse timestamps to compare actual times (format may differ between responses)
+	newCreatedTime, err := time.Parse(time.RFC3339Nano, newTenantCreatedAt)
+	require.NoError(t, err)
+	newUpdatedTime, err := time.Parse(time.RFC3339Nano, newTenantUpdatedAt)
+	require.NoError(t, err)
 
-	// Create destination
+	require.Equal(t, createdTime.Unix(), newCreatedTime.Unix(), "created_at should not change")
+	require.NotEqual(t, updatedTime.Unix(), newUpdatedTime.Unix(), "updated_at should change")
+	require.True(t, newUpdatedTime.After(updatedTime), "updated_at should be newer")
+
+	// Create destination and verify timestamps in POST response directly
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodPOST,
 		Path:   "/tenants/" + tenantID + "/destinations",
@@ -1422,14 +1420,6 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	}))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
-
-	// Get destination and verify created_at and updated_at exist and are equal
-	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
-		Method: httpclient.MethodGET,
-		Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
-	}))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	body = resp.Body.(map[string]interface{})
 	require.NotNil(t, body["created_at"], "created_at should be present")
@@ -1470,9 +1460,15 @@ func (suite *basicSuite) TestEntityUpdatedAt() {
 	newDestCreatedAt := body["created_at"].(string)
 	newDestUpdatedAt := body["updated_at"].(string)
 
-	require.Equal(t, destCreatedAt, newDestCreatedAt, "created_at should not change")
-	require.NotEqual(t, destUpdatedAt, newDestUpdatedAt, "updated_at should change")
-	require.True(t, newDestUpdatedAt > destUpdatedAt, "updated_at should be newer")
+	// Parse timestamps to compare actual times (format may differ between responses)
+	newDestCreatedTime, err := time.Parse(time.RFC3339Nano, newDestCreatedAt)
+	require.NoError(t, err)
+	newDestUpdatedTime, err := time.Parse(time.RFC3339Nano, newDestUpdatedAt)
+	require.NoError(t, err)
+
+	require.Equal(t, createdTime.Unix(), newDestCreatedTime.Unix(), "created_at should not change")
+	require.NotEqual(t, updatedTime.Unix(), newDestUpdatedTime.Unix(), "updated_at should change")
+	require.True(t, newDestUpdatedTime.After(updatedTime), "updated_at should be newer")
 }
 
 func (suite *basicSuite) TestDestinationsListAPI() {

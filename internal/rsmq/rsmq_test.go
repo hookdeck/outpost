@@ -7,6 +7,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -21,7 +22,12 @@ type RSMQSuite struct {
 type RedisRSMQSuite struct{ RSMQSuite }
 type DragonflyRSMQSuite struct{ RSMQSuite }
 
-func TestRedisRSMQSuite(t *testing.T)     { suite.Run(t, new(RedisRSMQSuite)) }
+// TestRedisRSMQSuite is skipped by default - run with TESTFULL=1 for full compatibility testing
+func TestRedisRSMQSuite(t *testing.T) {
+	testutil.SkipUnlessCompat(t)
+	suite.Run(t, new(RedisRSMQSuite))
+}
+
 func TestDragonflyRSMQSuite(t *testing.T) { suite.Run(t, new(DragonflyRSMQSuite)) }
 
 func (s *RedisRSMQSuite) SetupTest() {
