@@ -39,14 +39,12 @@ interface DeliveryListResponse {
   data: Delivery[];
   next?: string;
   prev?: string;
-  count?: number;
 }
 
 interface EventListResponse {
   data: Event[];
   next?: string;
   prev?: string;
-  count?: number;
 }
 
 export type {

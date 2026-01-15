@@ -126,7 +126,7 @@ const Deliveries: React.FC<DeliveriesProps> = ({ destination, navigateDelivery }
     <div className="destination-deliveries">
       <div className="destination-deliveries__header">
         <h2 className="destination-deliveries__header-title title-l">
-          Deliveries <Badge text={deliveriesList?.count ?? 0} size="s" />
+          Deliveries <Badge text={deliveriesList?.data.length ?? 0} size="s" />
         </h2>
         <div className="destination-deliveries__header-filters">
           <Dropdown
@@ -253,11 +253,7 @@ const Deliveries: React.FC<DeliveriesProps> = ({ destination, navigateDelivery }
             <div className="table__footer">
               <div>
                 <span className="subtitle-s">
-                  {deliveriesList?.data.length ?? 0}
-                </span>
-                <span className="body-s">
-                  {" "}
-                  of {deliveriesList?.count ?? 0} deliveries
+                  {deliveriesList?.data.length ?? 0} deliveries
                 </span>
               </div>
 
