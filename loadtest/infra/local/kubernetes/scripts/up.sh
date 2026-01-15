@@ -231,12 +231,12 @@ kubectl port-forward svc/outpost 3333:3333 -n $NAMESPACE
 curl http://localhost:3333/api/v1/healthz
 
 # Create tenant
-curl -v -X PUT http://localhost:3333/api/v1/123 \
+curl -v -X PUT http://localhost:3333/api/v1/tenants/123 \
   -H 'Authorization: Bearer $API_KEY' \
   -H 'Content-Type: application/json'
 
 # Create a destination (replace URL with your endpoint)
-WEBHOOK_URL='http://example.com/webhook' curl -v -X POST http://localhost:3333/api/v1/123/destinations \
+WEBHOOK_URL='http://example.com/webhook' curl -v -X POST http://localhost:3333/api/v1/tenants/123/destinations \
   -H 'Authorization: Bearer $API_KEY' \
   -H 'Content-Type: application/json' \
   -d '{
@@ -249,11 +249,12 @@ WEBHOOK_URL='http://example.com/webhook' curl -v -X POST http://localhost:3333/a
   }'
 
 # Send an event
-curl -v -X POST http://localhost:3333/api/v1/events \
+curl -v -X POST http://localhost:3333/api/v1/publish \
   -H 'Authorization: Bearer $API_KEY' \
   -H 'Content-Type: application/json' \
   -d '{
-    \"event\": \"test.event\",
+    \"tenant_id\": \"123\",
+    \"topic\": \"test.event\",
     \"data\": {\"hello\": \"world\"}
   }'
 

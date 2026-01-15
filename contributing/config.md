@@ -1,6 +1,134 @@
 # Config
 
-TBD. This document should go into more details about various Outpost configuration.
+This document provides guidelines for working with Outpost configuration.
+
+## Adding New Configuration Fields
+
+When adding new configuration fields to Outpost, follow these steps to ensure consistency and proper logging:
+
+### 1. Define the Configuration Field
+
+Add your new field to the appropriate config struct in `internal/config/`:
+
+```go
+type Config struct {
+    // ... existing fields ...
+    MyNewField string `yaml:"my_new_field" env:"MY_NEW_FIELD" desc:"Description of the field" required:"N"`
+}
+```
+
+### 2. Add Default Values (if applicable)
+
+Update `InitDefaults()` in `internal/config/config.go`:
+
+```go
+func (c *Config) InitDefaults() {
+    // ... existing defaults ...
+    c.MyNewField = "default_value"
+}
+```
+
+### 3. Update Configuration Logging ⚠️ IMPORTANT
+
+**To maintain visibility into startup configuration, you MUST update the configuration logging helper** in `internal/config/logging.go`:
+
+#### For General Configuration Fields
+
+Add your field to `LogConfigurationSummary()`:
+
+```go
+func (c *Config) LogConfigurationSummary() []zap.Field {
+    fields := []zap.Field{
+        // ... existing fields ...
+        
+        // For non-sensitive fields:
+        zap.String("my_new_field", c.MyNewField),
+        
+        // For sensitive fields (passwords, secrets, keys):
+        zap.Bool("my_secret_field_configured", c.MySecretField != ""),
+        
+        // ... rest of fields ...
+    }
+    return fields
+}
+```
+
+#### For Message Queue Configuration
+
+If adding MQ-specific fields, update `getMQSpecificFields()`:
+
+```go
+func (c *Config) getMQSpecificFields(mqType string) []zap.Field {
+    switch mqType {
+    case "rabbitmq":
+        return []zap.Field{
+            // ... existing fields ...
+            zap.String("rabbitmq_my_field", c.MQs.RabbitMQ.MyField),
+        }
+    // ... other cases ...
+    }
+}
+```
+
+### 4. Guidelines for Sensitive Data
+
+**Always mask sensitive data in logs:**
+
+- ✅ **DO**: Use `zap.Bool("field_configured", value != "")` for secrets
+- ✅ **DO**: Use helper functions like `maskURL()` for URLs with credentials
+- ❌ **DON'T**: Log actual passwords, API keys, tokens, or secrets
+- ❌ **DON'T**: Log full connection strings with credentials
+
+**Examples:**
+
+```go
+// Good - shows if configured without exposing value
+zap.Bool("api_key_configured", c.APIKey != "")
+
+// Good - masks credentials in URL
+zap.String("database_url", maskPostgresURLHost(c.PostgresURL))
+
+// Bad - exposes sensitive data
+zap.String("api_key", c.APIKey) // ❌ NEVER DO THIS
+```
+
+### 5. Update Validation (if needed)
+
+If your field requires validation, update `Validate()` in `internal/config/validation.go`.
+
+### 6. Update Documentation
+
+Don't forget to regenerate the configuration documentation:
+
+```bash
+go generate ./internal/config/...
+```
+
+This will update `docs/pages/references/configuration.mdx` with your new field's description.
+
+## Configuration Logging Checklist
+
+When adding or modifying configuration fields, use this checklist:
+
+- [ ] Field added to appropriate struct with `yaml`, `env`, `desc`, and `required` tags
+- [ ] Default value added to `InitDefaults()` (if applicable)
+- [ ] **Field added to `LogConfigurationSummary()` in `internal/config/logging.go`**
+- [ ] **Sensitive fields are masked (showing only if configured, not actual value)**
+- [ ] MQ-specific fields added to `getMQSpecificFields()` (if applicable)
+- [ ] Validation added (if required)
+- [ ] Documentation regenerated with `go generate`
+- [ ] Changes tested with `LOG_LEVEL=info` to verify logs appear correctly
+
+## Why Configuration Logging Matters
+
+Configuration logging serves several critical purposes:
+
+1. **Troubleshooting**: When users report issues, configuration logs help identify misconfiguration quickly
+2. **Security Auditing**: Shows what's configured without exposing sensitive values
+3. **Deployment Verification**: Confirms the application started with expected configuration
+4. **Documentation**: Provides a real-world example of what configuration is being used
+
+Keeping configuration logging up-to-date prevents "configuration drift" where the code and logs don't match, making troubleshooting harder.
 
 ## MQs
 

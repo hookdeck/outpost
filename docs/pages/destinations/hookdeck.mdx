@@ -1,0 +1,69 @@
+---
+title: Hookdeck
+---
+
+Route events through the [Hookdeck Event Gateway](https://hookdeck.com) for advanced webhook management, including automatic retries, rate limiting, transformations, and observability.
+
+## Overview
+
+The Hookdeck destination enables tenants to route their events through Hookdeck's Event Gateway. This provides tenants with additional delivery features managed by Hookdeck, such as configurable retries, request transformations, and detailed event logs.
+
+This destination uses a **managed source** flow. When tenants create a Hookdeck destination, they are guided through Hookdeck's dashboard to create a managed source, then paste the resulting token back into Outpost.
+
+## Configuration
+
+### Config
+
+This destination has no configuration fields. Routing and delivery settings are managed in the Hookdeck dashboard by tenants.
+
+### Credentials
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `credentials.token` | string | Yes | Hookdeck source token |
+
+### Example
+
+```sh
+curl --location 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "hookdeck",
+  "topics": ["orders"],
+  "credentials": {
+    "token": "<HOOKDECK_SOURCE_TOKEN>"
+  }
+}'
+```
+
+## Portal Setup Flow
+
+In the Outpost portal, tenants follow this flow:
+
+1. Select **Hookdeck** as the destination type
+2. Open the Hookdeck dashboard via the portal link
+3. Create a managed source in Hookdeck
+4. Copy the source token
+5. Paste the token into the Outpost portal and create the destination
+6. Return to Hookdeck to create connections that route events to their endpoints
+
+## Event Flow
+
+1. Events published to Outpost are sent to the Hookdeck Event Gateway
+2. Hookdeck buffers and processes the events
+3. Based on tenant connection configuration, Hookdeck routes events to their endpoints
+4. Hookdeck handles retries, rate limiting, and delivery guarantees
+
+## Hookdeck Features
+
+Tenants using Hookdeck as a destination get access to:
+
+- **Event buffering** - Handle traffic spikes without overwhelming endpoints
+- **Automatic retries** - Configurable retry strategies for failed deliveries
+- **Transformations** - Modify event payloads before delivery
+- **Filtering & routing** - Route events to different endpoints based on content
+- **Observability** - Event logs, metrics, and debugging tools
+- **Alerts** - Notifications for delivery issues
+
+See the [Hookdeck documentation](https://hookdeck.com/docs) for more details.

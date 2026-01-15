@@ -110,8 +110,8 @@ const config: ZudokuConfig = {
         collapsible: false,
         items: [
           { type: "doc", id: "features/multi-tenant-support" },
-          { type: "doc", id: "features/destinations" },
           { type: "doc", id: "features/topics" },
+          { type: "doc", id: "features/filter" },
           { type: "doc", id: "features/publish-events" },
           { type: "doc", id: "features/event-delivery" },
           { type: "doc", id: "features/alerts" },
@@ -123,6 +123,23 @@ const config: ZudokuConfig = {
             label: "SDKs",
             id: "sdks",
           },
+        ],
+      },
+      {
+        type: "category",
+        label: "Destinations",
+        link: "destinations",
+        collapsed: false,
+        collapsible: false,
+        items: [
+          { type: "doc", id: "destinations/webhook" },
+          { type: "doc", id: "destinations/hookdeck" },
+          { type: "doc", id: "destinations/aws-kinesis", label: "AWS Kinesis" },
+          { type: "doc", id: "destinations/aws-sqs", label: "AWS SQS" },
+          { type: "doc", id: "destinations/aws-s3", label: "AWS S3" },
+          { type: "doc", id: "destinations/azure-service-bus", label: "Azure Service Bus" },
+          { type: "doc", id: "destinations/gcp-pubsub", label: "GCP Pub/Sub" },
+          { type: "doc", id: "destinations/rabbitmq", label: "RabbitMQ" },
         ],
       },
       {
@@ -166,6 +183,11 @@ const config: ZudokuConfig = {
             type: "doc",
             label: "Building Your Own UI",
             id: "guides/building-your-own-ui",
+          },
+          {
+            type: "doc",
+            label: "Bring Your Own MQs",
+            id: "guides/byo-mqs",
           },
           {
             type: "doc",

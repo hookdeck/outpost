@@ -9,8 +9,9 @@ services:
     volumes:
       - ../../:/app
       - go_mod_cache:/go/pkg
+      - go_build_cache:/root/.cache/go-build
     ports:
-      - "${PORT}:${PORT}"
+      - "3333:3333"
     env_file: ../../.env
     environment:
       SERVICE: api
@@ -20,6 +21,7 @@ services:
     volumes:
       - ../..:/app
       - go_mod_cache:/go/pkg
+      - go_build_cache:/root/.cache/go-build
     depends_on:
       api:
         condition: service_started
@@ -32,6 +34,7 @@ services:
     volumes:
       - ../..:/app
       - go_mod_cache:/go/pkg
+      - go_build_cache:/root/.cache/go-build
     depends_on:
       api:
         condition: service_started
@@ -55,6 +58,8 @@ volumes:
   portal_node_modules:
     driver: local
   go_mod_cache:
+    driver: local
+  go_build_cache:
     driver: local
 
 networks:

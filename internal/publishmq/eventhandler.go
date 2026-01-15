@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"time"
 
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/emetrics"
@@ -12,7 +11,6 @@ import (
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/hookdeck/outpost/internal/redis"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -23,7 +21,12 @@ var (
 )
 
 type EventHandler interface {
-	Handle(ctx context.Context, event *models.Event) error
+	Handle(ctx context.Context, event *models.Event) (*HandleResult, error)
+}
+
+type HandleResult struct {
+	EventID   string `json:"id"`
+	Duplicate bool   `json:"duplicate"`
 }
 
 type eventHandler struct {
@@ -38,19 +41,16 @@ type eventHandler struct {
 
 func NewEventHandler(
 	logger *logging.Logger,
-	redisClient redis.Cmdable,
 	deliveryMQ *deliverymq.DeliveryMQ,
 	entityStore models.EntityStore,
 	eventTracer eventtracer.EventTracer,
 	topics []string,
+	idempotence idempotence.Idempotence,
 ) EventHandler {
 	emeter, _ := emetrics.New()
 	eventHandler := &eventHandler{
-		logger: logger,
-		idempotence: idempotence.New(redisClient,
-			idempotence.WithTimeout(5*time.Second),
-			idempotence.WithSuccessfulTTL(24*time.Hour),
-		),
+		logger:      logger,
+		idempotence: idempotence,
 		deliveryMQ:  deliveryMQ,
 		entityStore: entityStore,
 		eventTracer: eventTracer,
@@ -62,42 +62,79 @@ func NewEventHandler(
 
 var _ EventHandler = (*eventHandler)(nil)
 
-func (h *eventHandler) Handle(ctx context.Context, event *models.Event) error {
+func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*HandleResult, error) {
+	logger := h.logger.Ctx(ctx)
+
 	if len(h.topics) > 0 && event.Topic == "" {
-		return ErrRequiredTopic
+		return nil, ErrRequiredTopic
 	}
 	if len(h.topics) > 0 && event.Topic != "*" && !slices.Contains(h.topics, event.Topic) {
-		return ErrInvalidTopic
+		return nil, ErrInvalidTopic
 	}
-	return h.idempotence.Exec(ctx, idempotencyKeyFromEvent(event), func(ctx context.Context) error {
-		return h.doHandle(ctx, event)
-	})
-}
 
-func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error {
-	logger := h.logger.Ctx(ctx)
 	logger.Audit("processing event",
 		zap.String("event_id", event.ID),
 		zap.String("tenant_id", event.TenantID),
+		zap.String("destination_id", event.DestinationID),
 		zap.String("topic", event.Topic))
 
-	_, span := h.eventTracer.Receive(ctx, event)
-	defer span.End()
+	var matchedDestinations []models.DestinationSummary
+	var err error
 
-	matchedDestinations, err := h.entityStore.MatchEvent(ctx, *event)
-	if err != nil {
-		logger.Error("failed to match event destinations",
-			zap.Error(err),
-			zap.String("event_id", event.ID),
-			zap.String("tenant_id", event.TenantID))
-		return err
+	// Branch: specific destination vs topic-based matching
+	if event.DestinationID != "" {
+		// Specific destination path
+		matchedDestinations, err = h.matchSpecificDestination(ctx, event)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Topic-based matching path
+		matchedDestinations, err = h.entityStore.MatchEvent(ctx, *event)
+		if err != nil {
+			logger.Error("failed to match event destinations",
+				zap.Error(err),
+				zap.String("event_id", event.ID),
+				zap.String("tenant_id", event.TenantID))
+			return nil, err
+		}
 	}
+
+	result := &HandleResult{
+		EventID:   event.ID,
+		Duplicate: false,
+	}
+
+	// Early return if no destinations matched
 	if len(matchedDestinations) == 0 {
 		logger.Info("no matching destinations",
 			zap.String("event_id", event.ID),
 			zap.String("tenant_id", event.TenantID))
-		return nil
+		return result, nil
 	}
+
+	// Publish deliveries (INSIDE idempotency)
+	executed := false
+	err = h.idempotence.Exec(ctx, idempotencyKeyFromEvent(event), func(ctx context.Context) error {
+		executed = true
+		return h.doPublish(ctx, event, matchedDestinations)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Set duplicate flag if not executed (idempotency hit)
+	if !executed {
+		result.Duplicate = true
+	}
+
+	return result, nil
+}
+
+func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, matchedDestinations []models.DestinationSummary) error {
+	_, span := h.eventTracer.Receive(ctx, event)
+	defer span.End()
 
 	h.emeter.EventEligbible(ctx, event)
 
@@ -115,13 +152,37 @@ func (h *eventHandler) doHandle(ctx context.Context, event *models.Event) error 
 	return nil
 }
 
+// matchSpecificDestination handles the case where a specific destination_id is provided.
+// It retrieves the destination and validates it, returning the matched destinations.
+func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *models.Event) ([]models.DestinationSummary, error) {
+	destination, err := h.entityStore.RetrieveDestination(ctx, event.TenantID, event.DestinationID)
+	if err != nil {
+		h.logger.Ctx(ctx).Warn("failed to retrieve destination",
+			zap.Error(err),
+			zap.String("event_id", event.ID),
+			zap.String("tenant_id", event.TenantID),
+			zap.String("destination_id", event.DestinationID))
+		return []models.DestinationSummary{}, nil
+	}
+
+	if destination == nil {
+		return []models.DestinationSummary{}, nil
+	}
+
+	if !destination.MatchEvent(*event) {
+		return []models.DestinationSummary{}, nil
+	}
+
+	return []models.DestinationSummary{*destination.ToSummary()}, nil
+}
+
 func (h *eventHandler) enqueueDeliveryEvent(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
 	_, deliverySpan := h.eventTracer.StartDelivery(ctx, &deliveryEvent)
 	if err := h.deliveryMQ.Publish(ctx, deliveryEvent); err != nil {
 		h.logger.Ctx(ctx).Error("failed to enqueue delivery event",
 			zap.Error(err),
-			zap.String("delivery_event_id", deliveryEvent.ID),
 			zap.String("event_id", deliveryEvent.Event.ID),
+			zap.String("tenant_id", deliveryEvent.Event.TenantID),
 			zap.String("destination_id", deliveryEvent.DestinationID))
 		deliverySpan.RecordError(err)
 		deliverySpan.End()
@@ -129,8 +190,8 @@ func (h *eventHandler) enqueueDeliveryEvent(ctx context.Context, deliveryEvent m
 	}
 
 	h.logger.Ctx(ctx).Audit("delivery event enqueued",
-		zap.String("delivery_event_id", deliveryEvent.ID),
 		zap.String("event_id", deliveryEvent.Event.ID),
+		zap.String("tenant_id", deliveryEvent.Event.TenantID),
 		zap.String("destination_id", deliveryEvent.DestinationID))
 	deliverySpan.End()
 	return nil

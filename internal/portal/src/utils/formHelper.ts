@@ -21,7 +21,7 @@ export function getFormValues(form: HTMLFormElement): Record<string, any> {
 
 /**
  * Determines if a string value represents a checked state in a form.
- * 
+ *
  * @param {string} value - The string value to be evaluated
  * @returns {boolean} - Returns true if the value represents a checked state ("true" or "on"), false otherwise
  *
@@ -29,7 +29,7 @@ export function getFormValues(form: HTMLFormElement): Record<string, any> {
  * // Returns true
  * isCheckedValue("true");
  * isCheckedValue("on");
- * 
+ *
  * @example
  * // Returns false
  * isCheckedValue("false");

@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/redislock"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,20 +61,20 @@ func (m *mockInfraProvider) Teardown(ctx context.Context) error {
 }
 
 // Helper to create test infra with custom provider
-func newTestInfra(t *testing.T, provider infra.InfraProvider, lockKey string) *infra.Infra {
+func newTestInfra(t *testing.T, provider infra.InfraProvider, lockKey string, shouldManage bool) *infra.Infra {
 	redisConfig := testutil.CreateTestRedisConfig(t)
 
 	ctx := context.Background()
 	client, err := redis.New(ctx, redisConfig)
 	require.NoError(t, err)
 
-	return newTestInfraWithRedis(t, provider, lockKey, client)
+	return newTestInfraWithRedis(t, provider, lockKey, client, shouldManage)
 }
 
 // Helper to create test infra with specific Redis client
-func newTestInfraWithRedis(t *testing.T, provider infra.InfraProvider, lockKey string, client redis.Cmdable) *infra.Infra {
-	lock := infra.NewRedisLock(client, infra.LockWithKey(lockKey))
-	return infra.NewInfraWithProvider(lock, provider)
+func newTestInfraWithRedis(t *testing.T, provider infra.InfraProvider, lockKey string, client redis.Cmdable, shouldManage bool) *infra.Infra {
+	lock := redislock.New(client, redislock.WithKey(lockKey))
+	return infra.NewInfraWithProvider(lock, provider, shouldManage)
 }
 
 func TestInfra_SingleNode(t *testing.T) {
@@ -81,9 +82,9 @@ func TestInfra_SingleNode(t *testing.T) {
 
 	ctx := context.Background()
 	mockProvider := &mockInfraProvider{}
-	lockKey := "test:lock:" + uuid.New().String()
+	lockKey := "test:lock:" + idgen.String()
 
-	infra := newTestInfra(t, mockProvider, lockKey)
+	infra := newTestInfra(t, mockProvider, lockKey, true)
 
 	// Infrastructure doesn't exist initially
 	assert.False(t, mockProvider.exists.Load())
@@ -103,9 +104,9 @@ func TestInfra_InfrastructureAlreadyExists(t *testing.T) {
 	ctx := context.Background()
 	mockProvider := &mockInfraProvider{}
 	mockProvider.exists.Store(true) // Infrastructure already exists
-	lockKey := "test:lock:" + uuid.New().String()
+	lockKey := "test:lock:" + idgen.String()
 
-	infra := newTestInfra(t, mockProvider, lockKey)
+	infra := newTestInfra(t, mockProvider, lockKey, true)
 
 	// Declare should succeed without acquiring lock
 	err := infra.Declare(ctx)
@@ -123,7 +124,7 @@ func TestInfra_ConcurrentNodes(t *testing.T) {
 	mockProvider := &mockInfraProvider{
 		declareDelay: 100 * time.Millisecond, // Simulate slow declaration
 	}
-	lockKey := "test:lock:" + uuid.New().String()
+	lockKey := "test:lock:" + idgen.String()
 
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	client, err := redis.New(ctx, redisConfig)
@@ -140,7 +141,7 @@ func TestInfra_ConcurrentNodes(t *testing.T) {
 			defer wg.Done()
 
 			// Each node gets its own Infra instance but shares the provider and Redis client
-			nodeInfra := newTestInfraWithRedis(t, mockProvider, lockKey, client)
+			nodeInfra := newTestInfraWithRedis(t, mockProvider, lockKey, client, true)
 			errors[idx] = nodeInfra.Declare(ctx)
 		}(i)
 	}
@@ -165,7 +166,7 @@ func TestInfra_LockExpiry(t *testing.T) {
 
 	ctx := context.Background()
 	mockProvider := &mockInfraProvider{}
-	lockKey := "test:lock:" + uuid.New().String()
+	lockKey := "test:lock:" + idgen.String()
 
 	mr := miniredis.RunT(t)
 	t.Cleanup(func() {
@@ -183,9 +184,9 @@ func TestInfra_LockExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create and acquire lock with 1 second TTL
-	shortLock := infra.NewRedisLock(client,
-		infra.LockWithKey(lockKey),
-		infra.LockWithTTL(1*time.Second),
+	shortLock := redislock.New(client,
+		redislock.WithKey(lockKey),
+		redislock.WithTTL(1*time.Second),
 	)
 	locked, err := shortLock.AttemptLock(ctx)
 	require.NoError(t, err)
@@ -196,10 +197,69 @@ func TestInfra_LockExpiry(t *testing.T) {
 
 	// Now another node should be able to acquire and declare
 	// Use the same Redis client
-	nodeInfra := newTestInfraWithRedis(t, mockProvider, lockKey, client)
+	nodeInfra := newTestInfraWithRedis(t, mockProvider, lockKey, client, true)
 	err = nodeInfra.Declare(ctx)
 	require.NoError(t, err)
 
 	// Declaration should have succeeded
 	assert.Equal(t, int32(1), mockProvider.declareCount.Load())
+}
+
+func TestInfra_Verify_InfrastructureExists(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mockProvider := &mockInfraProvider{}
+	mockProvider.exists.Store(true) // Infrastructure exists
+	lockKey := "test:lock:" + idgen.String()
+
+	infra := newTestInfra(t, mockProvider, lockKey, false)
+
+	// Verify should succeed when infrastructure exists (shouldManage=false)
+	err := infra.Verify(ctx)
+	require.NoError(t, err)
+
+	// Verify no declaration happened
+	assert.Equal(t, int32(0), mockProvider.declareCount.Load())
+	assert.Equal(t, int32(1), mockProvider.existCallCount.Load())
+}
+
+func TestInfra_Verify_InfrastructureDoesNotExist(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mockProvider := &mockInfraProvider{}
+	mockProvider.exists.Store(false) // Infrastructure does not exist
+	lockKey := "test:lock:" + idgen.String()
+
+	infraInstance := newTestInfra(t, mockProvider, lockKey, false)
+
+	// Verify should fail with ErrInfraNotFound when shouldManage=false
+	err := infraInstance.Verify(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, infra.ErrInfraNotFound)
+
+	// Verify no declaration happened
+	assert.Equal(t, int32(0), mockProvider.declareCount.Load())
+	assert.Equal(t, int32(1), mockProvider.existCallCount.Load())
+}
+
+func TestInfra_Verify_ExistCheckError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mockProvider := &mockInfraProvider{
+		existError: assert.AnError,
+	}
+	lockKey := "test:lock:" + idgen.String()
+
+	infra := newTestInfra(t, mockProvider, lockKey, false)
+
+	// Verify should fail with wrapped error when shouldManage=false
+	err := infra.Verify(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to verify infrastructure exists")
+
+	// Verify no declaration happened
+	assert.Equal(t, int32(0), mockProvider.declareCount.Load())
 }

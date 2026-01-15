@@ -5,26 +5,32 @@ import (
 	"errors"
 	"os"
 	"os/signal"
-	"strings"
-	"sync"
 	"syscall"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/logging"
-	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/otel"
 	"github.com/hookdeck/outpost/internal/redis"
-	"github.com/hookdeck/outpost/internal/services/api"
-	"github.com/hookdeck/outpost/internal/services/delivery"
-	"github.com/hookdeck/outpost/internal/services/log"
+	"github.com/hookdeck/outpost/internal/services"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/worker"
 	"go.uber.org/zap"
 )
 
 type App struct {
 	config *config.Config
+	logger *logging.Logger
+
+	// Runtime dependencies
+	redisClient    redis.Cmdable
+	telemetry      telemetry.Telemetry
+	builder        *services.ServiceBuilder
+	supervisor     *worker.WorkerSupervisor
+	otelShutdown   func(context.Context) error
+	installationID string
 }
 
 func New(cfg *config.Config) *App {
@@ -34,282 +40,225 @@ func New(cfg *config.Config) *App {
 }
 
 func (a *App) Run(ctx context.Context) error {
-	return run(ctx, a.config)
+	if err := a.PreRun(ctx); err != nil {
+		return err
+	}
+	defer a.PostRun(ctx)
+
+	return a.run(ctx)
 }
 
-func run(mainContext context.Context, cfg *config.Config) error {
-	logger, err := logging.NewLogger(
-		logging.WithLogLevel(cfg.LogLevel),
-		logging.WithAuditLog(cfg.AuditLog),
-	)
-	if err != nil {
-		return err
-	}
-	defer logger.Sync()
-
-	logFields := []zap.Field{
-		zap.String("config_path", cfg.ConfigFilePath()),
-		zap.String("service", cfg.MustGetService().String()),
-	}
-	if cfg.DeploymentID != "" {
-		logFields = append(logFields, zap.String("deployment_id", cfg.DeploymentID))
-	}
-	logger.Info("starting outpost", logFields...)
-
-	if err := runMigration(mainContext, cfg, logger); err != nil {
+// PreRun initializes all dependencies before starting the application
+func (a *App) PreRun(ctx context.Context) error {
+	if err := a.setupLogger(); err != nil {
 		return err
 	}
 
-	logger.Debug("initializing Redis client for infrastructure")
-	// Create Redis client for infrastructure components
-	redisClient, err := redis.New(mainContext, cfg.Redis.ToConfig())
-	if err != nil {
-		logger.Error("Redis client initialization failed", zap.Error(err))
-		return err
-	}
-
-	logger.Debug("creating Outpost infrastructure")
-	outpostInfra := infra.NewInfra(infra.Config{
-		DeliveryMQ: cfg.MQs.ToInfraConfig("deliverymq"),
-		LogMQ:      cfg.MQs.ToInfraConfig("logmq"),
-	}, redisClient)
-	if err := outpostInfra.Declare(mainContext); err != nil {
-		logger.Error("infrastructure declaration failed", zap.Error(err))
-		return err
-	}
-
-	installationID, err := getInstallation(mainContext, redisClient, cfg.Telemetry.ToTelemetryConfig())
-	if err != nil {
-		return err
-	}
-
-	telemetry := telemetry.New(logger, cfg.Telemetry.ToTelemetryConfig(), installationID)
-	telemetry.Init(mainContext)
-	telemetry.ApplicationStarted(mainContext, cfg.ToTelemetryApplicationInfo())
-
-	// Set up cancellation context and waitgroup
-	ctx, cancel := context.WithCancel(mainContext)
-
-	// Set up OpenTelemetry.
-	if cfg.OpenTelemetry.ToConfig() != nil {
-		otelShutdown, err := otel.SetupOTelSDK(ctx, cfg.OpenTelemetry.ToConfig())
-		if err != nil {
-			cancel()
-			return err
+	defer func() {
+		if r := recover(); r != nil {
+			a.logger.Error("panic during PreRun", zap.Any("panic", r))
 		}
-		// Handle shutdown properly so nothing leaks.
-		defer func() {
-			err = errors.Join(err, otelShutdown(context.Background()))
-		}()
-	}
+	}()
 
-	// Initialize waitgroup
-	// Once all services are done, we can exit.
-	// Each service will wait for the context to be cancelled before shutting down.
-	wg := &sync.WaitGroup{}
+	a.logger.Info("starting outpost", a.config.LogConfigurationSummary()...)
 
-	// Construct services based on config
-	logger.Debug("constructing services")
-	services, err := constructServices(
-		ctx,
-		cfg,
-		wg,
-		logger,
-		telemetry,
-	)
-	if err != nil {
-		logger.Error("service construction failed", zap.Error(err))
-		cancel()
+	if err := a.configureIDGenerators(); err != nil {
 		return err
 	}
 
-	// Start services
-	logger.Info("starting services", zap.Int("count", len(services)))
-	for _, service := range services {
-		go service.Run(ctx)
+	if err := a.runMigrations(ctx); err != nil {
+		return err
 	}
+
+	if err := a.initializeRedis(ctx); err != nil {
+		return err
+	}
+
+	if err := a.initializeInfrastructure(ctx); err != nil {
+		return err
+	}
+
+	if err := a.initializeTelemetry(ctx); err != nil {
+		return err
+	}
+
+	if err := a.setupOpenTelemetry(ctx); err != nil {
+		return err
+	}
+
+	if err := a.buildServices(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// PostRun handles cleanup after application exits
+func (a *App) PostRun(ctx context.Context) {
+	if a.telemetry != nil {
+		a.telemetry.Flush()
+	}
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	if a.builder != nil {
+		a.builder.Cleanup(shutdownCtx)
+	}
+
+	if a.otelShutdown != nil {
+		if err := a.otelShutdown(context.Background()); err != nil {
+			a.logger.Error("OpenTelemetry shutdown error", zap.Error(err))
+		}
+	}
+
+	if a.logger != nil {
+		a.logger.Info("outpost shutdown complete")
+		a.logger.Sync()
+	}
+}
+
+func (a *App) run(ctx context.Context) error {
+	// Set up cancellation context
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	// Handle sigterm and await termChan signal
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Wait for either context cancellation or termination signal
+	// Run workers in goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- a.supervisor.Run(ctx)
+	}()
+
+	// Wait for either termination signal or worker failure
+	var exitErr error
 	select {
 	case <-termChan:
-		logger.Ctx(ctx).Info("shutdown signal received")
-	case <-ctx.Done():
-		logger.Ctx(ctx).Info("context cancelled")
+		a.logger.Info("shutdown signal received")
+		cancel() // Cancel context to trigger graceful shutdown
+		err := <-errChan
+		// context.Canceled is expected during graceful shutdown
+		if err != nil && !errors.Is(err, context.Canceled) {
+			a.logger.Error("error during graceful shutdown", zap.Error(err))
+			exitErr = err
+		}
+	case err := <-errChan:
+		// Workers exited unexpectedly
+		if err != nil {
+			a.logger.Error("workers exited unexpectedly", zap.Error(err))
+			exitErr = err
+		}
 	}
 
-	telemetry.Flush()
+	return exitErr
+}
 
-	// Handle shutdown
-	cancel()  // Signal cancellation to context.Context
-	wg.Wait() // Block here until all workers are done
+func (a *App) setupLogger() error {
+	logger, err := logging.NewLogger(
+		logging.WithLogLevel(a.config.LogLevel),
+		logging.WithAuditLog(a.config.AuditLog),
+	)
+	if err != nil {
+		return err
+	}
+	a.logger = logger
+	return nil
+}
 
-	logger.Ctx(ctx).Info("outpost shutdown complete")
+func (a *App) configureIDGenerators() error {
+	a.logger.Debug("configuring ID generators",
+		zap.String("type", a.config.IDGen.Type),
+		zap.String("event_prefix", a.config.IDGen.EventPrefix),
+		zap.String("destination_prefix", a.config.IDGen.DestinationPrefix),
+		zap.String("delivery_prefix", a.config.IDGen.DeliveryPrefix),
+		zap.String("delivery_event_prefix", a.config.IDGen.DeliveryEventPrefix))
+
+	if err := idgen.Configure(idgen.IDGenConfig{
+		Type:                a.config.IDGen.Type,
+		EventPrefix:         a.config.IDGen.EventPrefix,
+		DestinationPrefix:   a.config.IDGen.DestinationPrefix,
+		DeliveryPrefix:      a.config.IDGen.DeliveryPrefix,
+		DeliveryEventPrefix: a.config.IDGen.DeliveryEventPrefix,
+	}); err != nil {
+		a.logger.Error("failed to configure ID generators", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (a *App) runMigrations(ctx context.Context) error {
+	return runMigration(ctx, a.config, a.logger)
+}
+
+func (a *App) initializeRedis(ctx context.Context) error {
+	a.logger.Debug("initializing Redis client for infrastructure")
+	redisClient, err := redis.New(ctx, a.config.Redis.ToConfig())
+	if err != nil {
+		a.logger.Error("Redis client initialization failed", zap.Error(err))
+		return err
+	}
+	a.redisClient = redisClient
+
+	// Run Redis schema migrations
+	if err := runRedisMigrations(ctx, redisClient, a.logger, a.config.DeploymentID); err != nil {
+		a.logger.Error("Redis migration failed", zap.Error(err))
+		return err
+	}
 
 	return nil
 }
 
-type Service interface {
-	Run(ctx context.Context) error
+func (a *App) initializeInfrastructure(ctx context.Context) error {
+	a.logger.Debug("initializing infrastructure")
+	if err := infra.Init(ctx, infra.Config{
+		DeliveryMQ:    a.config.MQs.ToInfraConfig("deliverymq"),
+		LogMQ:         a.config.MQs.ToInfraConfig("logmq"),
+		AutoProvision: a.config.MQs.AutoProvision,
+	}, a.redisClient); err != nil {
+		a.logger.Error("infrastructure initialization failed", zap.Error(err))
+		return err
+	}
+	return nil
 }
 
-func constructServices(
-	ctx context.Context,
-	cfg *config.Config,
-	wg *sync.WaitGroup,
-	logger *logging.Logger,
-	telemetry telemetry.Telemetry,
-) ([]Service, error) {
-	serviceType := cfg.MustGetService()
-	services := []Service{}
+func (a *App) initializeTelemetry(ctx context.Context) error {
+	installationID, err := getInstallation(ctx, a.redisClient, a.config.Telemetry.ToTelemetryConfig())
+	if err != nil {
+		return err
+	}
+	a.installationID = installationID
 
-	if serviceType == config.ServiceTypeAPI || serviceType == config.ServiceTypeAll {
-		logger.Debug("creating API service")
-		service, err := api.NewService(ctx, wg, cfg, logger, telemetry)
-		if err != nil {
-			logger.Error("API service creation failed", zap.Error(err))
-			return nil, err
-		}
-		services = append(services, service)
-	}
-	if serviceType == config.ServiceTypeDelivery || serviceType == config.ServiceTypeAll {
-		logger.Debug("creating delivery service")
-		service, err := delivery.NewService(ctx, wg, cfg, logger, nil)
-		if err != nil {
-			logger.Error("delivery service creation failed", zap.Error(err))
-			return nil, err
-		}
-		services = append(services, service)
-	}
-	if serviceType == config.ServiceTypeLog || serviceType == config.ServiceTypeAll {
-		logger.Debug("creating log service")
-		service, err := log.NewService(ctx, wg, cfg, logger, nil)
-		if err != nil {
-			logger.Error("log service creation failed", zap.Error(err))
-			return nil, err
-		}
-		services = append(services, service)
-	}
-
-	return services, nil
+	a.telemetry = telemetry.New(a.logger, a.config.Telemetry.ToTelemetryConfig(), installationID)
+	a.telemetry.Init(ctx)
+	a.telemetry.ApplicationStarted(ctx, a.config.ToTelemetryApplicationInfo())
+	return nil
 }
 
-// runMigration handles database schema migrations with retry logic for lock conflicts.
-//
-// MIGRATION LOCK BEHAVIOR:
-// - Database locks are only acquired when migrations need to be performed
-// - When multiple nodes start simultaneously and migrations are pending:
-//  1. One node acquires the lock and performs migrations (ideally < 5 seconds)
-//  2. Other nodes fail with lock errors ("try lock failed", "can't acquire lock")
-//  3. Failed nodes wait 5 seconds and retry
-//  4. On retry, migrations are complete and nodes proceed successfully
-//
-// RETRY STRATEGY:
-// - Max 3 attempts with 5-second delays between retries
-// - 5 seconds is sufficient because most migrations complete quickly
-// - If no migrations are needed (common case), all nodes proceed immediately without lock contention
-func runMigration(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
-	const (
-		maxRetries = 3
-		retryDelay = 5 * time.Second
-	)
-
-	var lastErr error
-
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		migrator, err := migrator.New(cfg.ToMigratorOpts())
+func (a *App) setupOpenTelemetry(ctx context.Context) error {
+	if a.config.OpenTelemetry.ToConfig() != nil {
+		otelShutdown, err := otel.SetupOTelSDK(ctx, a.config.OpenTelemetry.ToConfig())
 		if err != nil {
 			return err
 		}
-
-		version, versionJumped, err := migrator.Up(ctx, -1)
-
-		// Always close the migrator after each attempt
-		sourceErr, dbErr := migrator.Close(ctx)
-		if sourceErr != nil {
-			logger.Error("failed to close migrator source", zap.Error(sourceErr))
-		}
-		if dbErr != nil {
-			logger.Error("failed to close migrator database connection", zap.Error(dbErr))
-		}
-
-		if err == nil {
-			// Migration succeeded
-			if versionJumped > 0 {
-				logger.Info("migrations applied",
-					zap.Int("version", version),
-					zap.Int("version_applied", versionJumped))
-			} else {
-				logger.Info("no migrations applied", zap.Int("version", version))
-			}
-			return nil
-		}
-
-		// Check if this is a lock-related error
-		// Lock errors can manifest as:
-		// - "can't acquire lock" (database.ErrLocked)
-		// - "try lock failed" (postgres advisory lock failure)
-		// - "pg_advisory_lock" (postgres lock function errors)
-		isLockError := isLockRelatedError(err)
-		lastErr = err
-
-		if !isLockError {
-			// Not a lock error, fail immediately
-			logger.Error("migration failed", zap.Error(err))
-			return err
-		}
-
-		// Lock error - retry if we have attempts remaining
-		if attempt < maxRetries {
-			logger.Warn("migration lock conflict, retrying",
-				zap.Int("attempt", attempt),
-				zap.Int("max_retries", maxRetries),
-				zap.Duration("retry_delay", retryDelay),
-				zap.Error(err))
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(retryDelay):
-				// Continue to next attempt
-			}
-		} else {
-			// Exhausted all retries
-			logger.Error("migration failed after retries",
-				zap.Int("attempts", maxRetries),
-				zap.Error(err))
-		}
+		a.otelShutdown = otelShutdown
 	}
-
-	return lastErr
+	return nil
 }
 
-// isLockRelatedError checks if an error is related to database migration lock acquisition.
-// This includes errors from golang-migrate's locking mechanism.
-func isLockRelatedError(err error) bool {
-	if err == nil {
-		return false
+func (a *App) buildServices(ctx context.Context) error {
+	a.logger.Debug("building services")
+	builder := services.NewServiceBuilder(ctx, a.config, a.logger, a.telemetry)
+
+	supervisor, err := builder.BuildWorkers()
+	if err != nil {
+		a.logger.Error("failed to build workers", zap.Error(err))
+		return err
 	}
 
-	errMsg := err.Error()
-
-	// Check for lock-related error messages from golang-migrate:
-	// 1. "can't acquire lock" - database.ErrLocked from golang-migrate/migrate/v4/database
-	// 2. "try lock failed" - returned by postgres driver when pg_advisory_lock() fails
-	//    See: https://github.com/golang-migrate/migrate/blob/master/database/postgres/postgres.go
-	lockIndicators := []string{
-		"can't acquire lock",
-		"try lock failed",
-	}
-
-	for _, indicator := range lockIndicators {
-		if strings.Contains(errMsg, indicator) {
-			return true
-		}
-	}
-
-	return false
+	a.builder = builder
+	a.supervisor = supervisor
+	return nil
 }

@@ -5,7 +5,8 @@ package rsmq
 // Parameters:
 //
 // KEYS[1]: the zset key
-// KEYS[2]: the current time in ms
+// KEYS[2]: the hash key (zset key + ":Q")
+// ARGV[1]: the current time in ms
 //
 // * Find a message id
 // * Get the message
@@ -20,18 +21,18 @@ const scriptPopMessage = `local msg = redis.call("ZRANGEBYSCORE", KEYS[1], "-inf
 if #msg == 0 then
 	return {}
 end
-redis.call("HINCRBY", KEYS[1] .. ":Q", "totalrecv", 1)
-local mbody = redis.call("HGET", KEYS[1] .. ":Q", msg[1])
-local rc = redis.call("HINCRBY", KEYS[1] .. ":Q", msg[1] .. ":rc", 1)
+redis.call("HINCRBY", KEYS[2], "totalrecv", 1)
+local mbody = redis.call("HGET", KEYS[2], msg[1])
+local rc = redis.call("HINCRBY", KEYS[2], msg[1] .. ":rc", 1)
 local o = {msg[1], mbody, rc}
 if rc==1 then
 	table.insert(o, ARGV[1])
 else
-	local fr = redis.call("HGET", KEYS[1] .. ":Q", msg[1] .. ":fr")
+	local fr = redis.call("HGET", KEYS[2], msg[1] .. ":fr")
 	table.insert(o, fr)
 end
 redis.call("ZREM", KEYS[1], msg[1])
-redis.call("HDEL", KEYS[1] .. ":Q", msg[1], msg[1] .. ":rc", msg[1] .. ":fr")
+redis.call("HDEL", KEYS[2], msg[1], msg[1] .. ":rc", msg[1] .. ":fr")
 return o`
 
 // The receiveMessage LUA Script
@@ -39,8 +40,9 @@ return o`
 // Parameters:
 //
 // KEYS[1]: the zset key
-// KEYS[2]: the current time in ms
-// KEYS[3]: the new calculated time when the vt runs out
+// KEYS[2]: the hash key (zset key + ":Q")
+// ARGV[1]: the current time in ms
+// ARGV[2]: the new calculated time when the vt runs out
 //
 // * Find a message id
 // * Get the message
@@ -56,15 +58,15 @@ if #msg == 0 then
 	return {}
 end
 redis.call("ZADD", KEYS[1], ARGV[2], msg[1])
-redis.call("HINCRBY", KEYS[1] .. ":Q", "totalrecv", 1)
-local mbody = redis.call("HGET", KEYS[1] .. ":Q", msg[1])
-local rc = redis.call("HINCRBY", KEYS[1] .. ":Q", msg[1] .. ":rc", 1)
+redis.call("HINCRBY", KEYS[2], "totalrecv", 1)
+local mbody = redis.call("HGET", KEYS[2], msg[1])
+local rc = redis.call("HINCRBY", KEYS[2], msg[1] .. ":rc", 1)
 local o = {msg[1], mbody, rc}
 if rc==1 then
-	redis.call("HSET", KEYS[1] .. ":Q", msg[1] .. ":fr", ARGV[1])
+	redis.call("HSET", KEYS[2], msg[1] .. ":fr", ARGV[1])
 	table.insert(o, ARGV[1])
 else
-	local fr = redis.call("HGET", KEYS[1] .. ":Q", msg[1] .. ":fr")
+	local fr = redis.call("HGET", KEYS[2], msg[1] .. ":fr")
 	table.insert(o, fr)
 end
 return o`

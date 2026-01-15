@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/caarlos0/env/v9"
+	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
@@ -73,12 +75,18 @@ type Config struct {
 	LogMaxConcurrency      int `yaml:"log_max_concurrency" env:"LOG_MAX_CONCURRENCY" desc:"Maximum number of log writing operations to process concurrently." required:"N"`
 
 	// Delivery Retry
-	RetryIntervalSeconds int `yaml:"retry_interval_seconds" env:"RETRY_INTERVAL_SECONDS" desc:"Interval in seconds between delivery retry attempts for failed webhooks." required:"N"`
-	RetryMaxLimit        int `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up." required:"N"`
+	RetrySchedule        []int `yaml:"retry_schedule" env:"RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h." required:"N"`
+	RetryIntervalSeconds int   `yaml:"retry_interval_seconds" env:"RETRY_INTERVAL_SECONDS" desc:"Interval in seconds for exponential backoff retry strategy (base 2). Ignored if retry_schedule is provided." required:"N"`
+	RetryMaxLimit        int   `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided." required:"N"`
+	RetryPollBackoffMs   int   `yaml:"retry_poll_backoff_ms" env:"RETRY_POLL_BACKOFF_MS" desc:"Backoff time in milliseconds when the retry monitor finds no messages to process. When a retry message is found, the monitor immediately polls for the next message without delay. Lower values provide faster retry processing but increase Redis load. For serverless Redis providers (Upstash, ElastiCache Serverless), consider increasing to 5000-10000ms to reduce costs. Default: 100" required:"N"`
 
 	// Event Delivery
 	MaxDestinationsPerTenant int `yaml:"max_destinations_per_tenant" env:"MAX_DESTINATIONS_PER_TENANT" desc:"Maximum number of destinations allowed per tenant/organization." required:"N"`
 	DeliveryTimeoutSeconds   int `yaml:"delivery_timeout_seconds" env:"DELIVERY_TIMEOUT_SECONDS" desc:"Timeout in seconds for HTTP requests made during event delivery to webhook destinations." required:"N"`
+
+	// Idempotency
+	PublishIdempotencyKeyTTL  int `yaml:"publish_idempotency_key_ttl" env:"PUBLISH_IDEMPOTENCY_KEY_TTL" desc:"Time-to-live in seconds for publish queue idempotency keys. Controls how long processed events are remembered to prevent duplicate processing. Default: 3600 (1 hour)." required:"N"`
+	DeliveryIdempotencyKeyTTL int `yaml:"delivery_idempotency_key_ttl" env:"DELIVERY_IDEMPOTENCY_KEY_TTL" desc:"Time-to-live in seconds for delivery queue idempotency keys. Controls how long processed deliveries are remembered to prevent duplicate delivery attempts. Default: 3600 (1 hour)." required:"N"`
 
 	// Destination Registry
 	DestinationMetadataPath string `yaml:"destination_metadata_path" env:"DESTINATION_METADATA_PATH" desc:"Path to the directory containing custom destination type definitions. Overrides 'destinations.metadata_path' if set." required:"N"`
@@ -97,6 +105,9 @@ type Config struct {
 
 	// Alert
 	Alert AlertConfig `yaml:"alert"`
+
+	// ID Generation
+	IDGen IDGenConfig `yaml:"idgen"`
 }
 
 var (
@@ -149,10 +160,14 @@ func (c *Config) InitDefaults() {
 	c.PublishMaxConcurrency = 1
 	c.DeliveryMaxConcurrency = 1
 	c.LogMaxConcurrency = 1
+	c.RetrySchedule = []int{} // Empty by default, falls back to exponential backoff
 	c.RetryIntervalSeconds = 30
 	c.RetryMaxLimit = 10
+	c.RetryPollBackoffMs = 100
 	c.MaxDestinationsPerTenant = 20
 	c.DeliveryTimeoutSeconds = 5
+	c.PublishIdempotencyKeyTTL = 3600  // 1 hour
+	c.DeliveryIdempotencyKeyTTL = 3600 // 1 hour
 	c.LogBatchThresholdSeconds = 10
 	c.LogBatchSize = 1000
 
@@ -161,8 +176,8 @@ func (c *Config) InitDefaults() {
 		MetadataPath: "config/outpost/destinations",
 		Webhook: DestinationWebhookConfig{
 			HeaderPrefix:             "x-outpost-",
-			SignatureContentTemplate: "{{.Timestamp.Unix}}.{{.Body}}",
-			SignatureHeaderTemplate:  "t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}",
+			SignatureContentTemplate: "{{.Body}}",
+			SignatureHeaderTemplate:  "v0={{.Signatures | join \",\"}}",
 			SignatureEncoding:        "hex",
 			SignatureAlgorithm:       "hmac-sha256",
 		},
@@ -183,6 +198,11 @@ func (c *Config) InitDefaults() {
 		BatchInterval:     5,
 		HookdeckSourceURL: "https://hkdk.events/yhk665ljz3rn6l",
 		SentryDSN:         "https://examplePublicKey@o0.ingest.sentry.io/0",
+	}
+
+	c.IDGen = IDGenConfig{
+		Type:        "uuidv4",
+		EventPrefix: "",
 	}
 }
 
@@ -259,6 +279,26 @@ func (c *Config) parseEnvVariables(osInterface OSInterface) error {
 	return env.Parse(c)
 }
 
+func (c *Config) normalizeTopics() {
+	if len(c.Topics) == 0 {
+		return
+	}
+
+	// If topics only contains whitespace entries, treat as empty
+	// This handles cases like TOPICS=" " or TOPICS="  ,  "
+	hasNonWhitespace := false
+	for _, topic := range c.Topics {
+		if strings.TrimSpace(topic) != "" {
+			hasNonWhitespace = true
+			break
+		}
+	}
+
+	if !hasNonWhitespace {
+		c.Topics = []string{}
+	}
+}
+
 // GetService returns ServiceType with error checking
 func (c *Config) GetService() (ServiceType, error) {
 	return ServiceTypeFromString(c.Service)
@@ -290,6 +330,9 @@ func ParseWithoutValidation(flags Flags, osInterface OSInterface) (*Config, erro
 	if err := config.parseEnvVariables(osInterface); err != nil {
 		return nil, err
 	}
+
+	// Normalize topics: trim whitespace and filter out empty strings
+	config.normalizeTopics()
 
 	return &config, nil
 }
@@ -363,6 +406,23 @@ type AlertConfig struct {
 // ConfigFilePath returns the path of the config file that was used
 func (c *Config) ConfigFilePath() string {
 	return c.configPath
+}
+
+// GetRetryBackoff returns the configured backoff strategy based on retry configuration
+func (c *Config) GetRetryBackoff() (backoff.Backoff, int) {
+	if len(c.RetrySchedule) > 0 {
+		// Use scheduled backoff if retry_schedule is provided
+		schedule := make([]time.Duration, len(c.RetrySchedule))
+		for i, seconds := range c.RetrySchedule {
+			schedule[i] = time.Duration(seconds) * time.Second
+		}
+		return &backoff.ScheduledBackoff{Schedule: schedule}, c.RetryMaxLimit
+	}
+	// Fall back to exponential backoff
+	return &backoff.ExponentialBackoff{
+		Interval: time.Duration(c.RetryIntervalSeconds) * time.Second,
+		Base:     2,
+	}, c.RetryMaxLimit
 }
 
 type TelemetryConfig struct {

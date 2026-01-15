@@ -1,0 +1,121 @@
+---
+title: RabbitMQ
+---
+
+Send events to a RabbitMQ exchange via AMQP.
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `config.server_url` | string | Yes | RabbitMQ server URL (host:port) |
+| `config.exchange` | string | Yes | Exchange name |
+| `config.tls` | string | No | Enable TLS (`true` or `false`, default: `false`) |
+
+### Credentials
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `credentials.username` | string | Yes | RabbitMQ username |
+| `credentials.password` | string | Yes | RabbitMQ password |
+
+### Example
+
+```sh
+curl --location 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "rabbitmq",
+  "topics": ["orders"],
+  "config": {
+    "server_url": "rabbitmq.example.com:5672",
+    "exchange": "events"
+  },
+  "credentials": {
+    "username": "guest",
+    "password": "guest"
+  }
+}'
+```
+
+## Message Format
+
+Events are published as AMQP messages with:
+
+- **Body**: The event's `data` field (JSON)
+- **Headers**: Event metadata
+- **Routing Key**: The event topic
+
+### Example Message
+
+If you publish an event:
+
+```json
+{
+  "topic": "orders",
+  "data": {
+    "order_id": "123",
+    "status": "created"
+  },
+  "metadata": {
+    "source": "checkout-service"
+  }
+}
+```
+
+**Body:**
+```json
+{
+  "order_id": "123",
+  "status": "created"
+}
+```
+
+**Headers:**
+
+Headers include system metadata and any event metadata from the published event:
+
+| Header | Source | Description |
+| ------ | ------ | ----------- |
+| `event-id` | System | The unique event ID |
+| `topic` | System | The event topic |
+| `timestamp` | System | Event timestamp (Unix) |
+| `*` | Event | Any additional metadata from the published event's `metadata` field |
+
+## TLS Configuration
+
+To enable TLS, set `config.tls` to `true`:
+
+```json
+{
+  "type": "rabbitmq",
+  "topics": ["orders"],
+  "config": {
+    "server_url": "rabbitmq.example.com:5671",
+    "exchange": "events",
+    "tls": "true"
+  },
+  "credentials": {
+    "username": "user",
+    "password": "password"
+  }
+}
+```
+
+## Exchange Setup
+
+Before sending events, ensure the exchange exists in RabbitMQ. Outpost publishes messages with the event topic as the routing key, allowing you to bind queues based on topic patterns.
+
+Example RabbitMQ setup:
+
+```bash
+# Create a topic exchange
+rabbitmqadmin declare exchange name=events type=topic
+
+# Create a queue and bind it to receive all order events
+rabbitmqadmin declare queue name=order-events
+rabbitmqadmin declare binding source=events destination=order-events routing_key="orders.*"
+```

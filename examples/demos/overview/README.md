@@ -11,7 +11,7 @@ URL=your_webhook_url
 You'd do this whenever a new organization signups up.
 
 ```sh
-curl --location --request PUT "localhost:3333/api/v1/$TENANT_ID" \
+curl --location --request PUT "localhost:3333/api/v1/tenants/$TENANT_ID" \
 --header "Authorization: Bearer $API_KEY"
 ```
 
@@ -20,7 +20,7 @@ curl --location --request PUT "localhost:3333/api/v1/$TENANT_ID" \
 When someone within an org wants to subscribe to an event, create a Destination:
 
 ```sh
-curl --location "localhost:3333/api/v1/$TENANT_ID/destinations" \
+curl --location "localhost:3333/api/v1/tenants/$TENANT_ID/destinations" \
 --header "Content-Type: application/json" \
 --header "Authorization: Bearer $API_KEY" \
 --data '{
@@ -77,7 +77,7 @@ Outpost comes with a pre-built portal that supports event destination management
 Event Inspection will be available next week (mid-March). Metric will be part of the BETA release.
 
 ```sh
-curl "localhost:3333/api/v1/$TENANT_ID/portal" \
+curl "localhost:3333/api/v1/tenants/$TENANT_ID/portal" \
 --header "Authorization: Bearer $API_KEY"
 ```
 

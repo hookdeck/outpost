@@ -1,0 +1,109 @@
+---
+title: "Upgrade to v0.12"
+---
+
+This guide covers breaking changes and migration steps when upgrading from v0.11 to v0.12.
+
+## Breaking Changes Overview
+
+| Change | Impact | Action Required |
+|--------|--------|-----------------|
+| [API route prefix](#api-route-prefix) | All tenant-scoped endpoints | Update API client paths |
+| [Webhook signature defaults](#webhook-signature-defaults) | Signature verification | Update receivers or configure for backward compatibility |
+| [List Tenants & Redis migrations](#list-tenants--redis-migrations) | New feature + data format | Run migrations |
+
+## API Route Prefix
+
+All tenant-scoped API endpoints now use a `/tenants/` prefix.
+
+| Old Path | New Path |
+|----------|----------|
+| `PUT /api/v1/:tenant_id` | `PUT /api/v1/tenants/:tenant_id` |
+| `GET /api/v1/:tenant_id` | `GET /api/v1/tenants/:tenant_id` |
+| `DELETE /api/v1/:tenant_id` | `DELETE /api/v1/tenants/:tenant_id` |
+| `GET /api/v1/:tenant_id/destinations` | `GET /api/v1/tenants/:tenant_id/destinations` |
+| `POST /api/v1/:tenant_id/destinations` | `POST /api/v1/tenants/:tenant_id/destinations` |
+| `GET /api/v1/:tenant_id/events` | `GET /api/v1/tenants/:tenant_id/events` |
+| ... | ... |
+
+The pattern applies to all endpoints that previously started with `/:tenant_id`.
+
+**Action:** Update your API clients to use the new `/tenants/` prefixed paths before upgrading.
+
+## Webhook Signature Defaults
+
+The default webhook signature templates have changed to a simpler format without timestamps.
+
+| Setting | Old Default (v0.11) | New Default (v0.12) |
+|---------|---------------------|---------------------|
+| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Timestamp.Unix}}.{{.Body}}` | `{{.Body}}` |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` | `v0={{.Signatures \| join ","}}` |
+
+If your webhook receivers verify signatures using the old format, signature verification will fail after upgrading.
+
+**To maintain backward compatibility**, set these environment variables:
+
+```bash
+DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE="{{.Timestamp.Unix}}.{{.Body}}"
+DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE="t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
+```
+
+## List Tenants & Redis Migrations
+
+v0.12 introduces a new `GET /api/v1/tenants` endpoint for listing all tenants with cursor-based pagination. This feature requires Redis migrations to be run.
+
+:::note[RediSearch Required]
+This endpoint requires Redis with the RediSearch module (e.g., `redis/redis-stack-server`). If RediSearch is not available, the endpoint returns `501 Not Implemented`.
+:::
+
+See the [API Reference](/docs/api/tenants#list-tenants) for details.
+
+### Migrations Included
+
+- **002_timestamps**: Converts timestamp fields to Unix format for timezone-agnostic sorting
+- **003_entity**: Creates RediSearch indexes for tenant listing
+
+### Running Migrations
+
+Migrations run automatically at startup. For production environments, manual migration is recommended.
+
+:::note
+These commands require environment variables for Redis connection (`REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, etc.). You can also use `--config` to pass a config file. See the [Schema Migration Guide](/guides/migration#configuration) for details.
+:::
+
+```bash
+# Preview changes
+docker run --rm -e REDIS_HOST=... -e REDIS_PASSWORD=... hookdeck/outpost:v0.12.0 migrate plan
+
+# Apply migrations
+docker run --rm -it -e REDIS_HOST=... -e REDIS_PASSWORD=... hookdeck/outpost:v0.12.0 migrate apply
+
+# Verify migrations
+docker run --rm -e REDIS_HOST=... -e REDIS_PASSWORD=... hookdeck/outpost:v0.12.0 migrate verify
+```
+
+For systems with high write throughput, re-run migrations after the initial upgrade:
+
+```bash
+docker run --rm -it -e REDIS_HOST=... -e REDIS_PASSWORD=... hookdeck/outpost:v0.12.0 migrate apply --rerun
+```
+
+:::tip[Migration Tool Reference]
+For detailed information on the migration workflow, safety features, and troubleshooting, see the [Schema Migration Guide](/guides/migration).
+:::
+
+## Upgrade Checklist
+
+1. **Before upgrading:**
+   - [ ] Update API clients to use `/tenants/` prefix paths
+   - [ ] Decide on webhook signature format (keep old or adopt new)
+   - [ ] Back up Redis data
+
+2. **During upgrade:**
+   - [ ] Set webhook signature environment variables if maintaining backward compatibility
+   - [ ] Run migrations (automatic or manual)
+
+3. **After upgrading:**
+   - [ ] Verify migrations completed: `migrate verify`
+   - [ ] For high-volume systems: `migrate apply --rerun`
+   - [ ] Test webhook signature verification

@@ -164,7 +164,42 @@ func TestValidate(t *testing.T) {
 			credentials: map[string]string{
 				"service_account_json": "not-valid-json",
 			},
-			wantErr: false, // We don't validate JSON structure anymore, Google SDK will handle it
+			wantErr:     true,
+			errContains: "credentials.service_account_json",
+		},
+		{
+			name: "invalid JSON in service_account_json - but passes with emulator endpoint",
+			config: map[string]string{
+				"project_id": "my-project",
+				"topic":      "my-topic",
+				"endpoint":   "http://localhost:8085",
+			},
+			credentials: map[string]string{
+				"service_account_json": "not-valid-json",
+			},
+			wantErr: false, // Emulator doesn't require valid JSON
+		},
+		{
+			name: "valid service account JSON with complete structure",
+			config: map[string]string{
+				"project_id": "my-project",
+				"topic":      "my-topic",
+			},
+			credentials: map[string]string{
+				"service_account_json": `{
+					"type": "service_account",
+					"project_id": "my-project",
+					"private_key_id": "key123",
+					"private_key": "-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----\n",
+					"client_email": "my-service@my-project.iam.gserviceaccount.com",
+					"client_id": "123456789",
+					"auth_uri": "https://accounts.google.com/o/oauth2/auth",
+					"token_uri": "https://oauth2.googleapis.com/token",
+					"auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+					"client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/my-service%40my-project.iam.gserviceaccount.com"
+				}`,
+			},
+			wantErr: false,
 		},
 		{
 			name: "valid with all optional fields",

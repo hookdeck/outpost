@@ -1,0 +1,124 @@
+---
+title: AWS Kinesis
+---
+
+Stream events to an Amazon Kinesis Data Stream.
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `config.stream_name` | string | Yes | The Kinesis stream name |
+| `config.region` | string | Yes | AWS region (e.g., `us-east-1`) |
+| `config.endpoint` | string | No | Custom endpoint URL (for LocalStack, etc.) |
+| `config.partition_key_template` | string | No | JMESPath expression for partition key |
+
+### Credentials
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `credentials.key` | string | Yes | AWS Access Key ID |
+| `credentials.secret` | string | Yes | AWS Secret Access Key |
+| `credentials.session` | string | No | AWS Session Token (for temporary credentials) |
+
+### Example
+
+```sh
+curl --location 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "aws_kinesis",
+  "topics": ["orders"],
+  "config": {
+    "stream_name": "my-stream",
+    "region": "us-east-1"
+  },
+  "credentials": {
+    "key": "<AWS_ACCESS_KEY_ID>",
+    "secret": "<AWS_SECRET_ACCESS_KEY>"
+  }
+}'
+```
+
+## Partition Key
+
+By default, the event ID is used as the partition key. You can customize this using a JMESPath expression in `partition_key_template`:
+
+```json
+{
+  "config": {
+    "stream_name": "my-stream",
+    "region": "us-east-1",
+    "partition_key_template": "data.customer_id"
+  }
+}
+```
+
+## Record Format
+
+If you publish an event:
+
+```json
+{
+  "topic": "orders",
+  "data": {
+    "order_id": "123",
+    "status": "created"
+  },
+  "metadata": {
+    "source": "checkout-service"
+  }
+}
+```
+
+By default, the Kinesis record includes both metadata and the event's `data` field. The `metadata` object contains system metadata (`event-id`, `topic`, `timestamp`) plus any event metadata from the published event:
+
+```json
+{
+  "metadata": {
+    "event-id": "evt_123",
+    "topic": "orders",
+    "timestamp": "1704067200",
+    "source": "checkout-service"
+  },
+  "data": {
+    "order_id": "123",
+    "status": "created"
+  }
+}
+```
+
+When `DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD` is set to `false`, only the event's `data` field is sent:
+
+```json
+{
+  "order_id": "123",
+  "status": "created"
+}
+```
+
+## IAM Permissions
+
+The IAM user or role needs the following permission:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "kinesis:PutRecord",
+      "Resource": "arn:aws:kinesis:*:*:stream/my-stream"
+    }
+  ]
+}
+```
+
+## Operator Configuration
+
+| Environment Variable | Default | Description |
+| -------------------- | ------- | ----------- |
+| `DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD` | `true` | Include Outpost metadata in the Kinesis record payload |

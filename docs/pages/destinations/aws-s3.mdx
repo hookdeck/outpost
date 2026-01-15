@@ -1,0 +1,126 @@
+---
+title: AWS S3
+---
+
+Store events in an Amazon S3 bucket.
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `config.bucket` | string | Yes | The S3 bucket name |
+| `config.region` | string | Yes | AWS region (e.g., `us-east-1`) |
+| `config.key_template` | string | No | JMESPath expression for S3 object key |
+| `config.storage_class` | string | No | S3 storage class (e.g., `STANDARD`, `GLACIER`) |
+| `config.endpoint` | string | No | Custom endpoint URL (for LocalStack, etc.) |
+
+### Credentials
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `credentials.key` | string | Yes | AWS Access Key ID |
+| `credentials.secret` | string | Yes | AWS Secret Access Key |
+| `credentials.session` | string | No | AWS Session Token (for temporary credentials) |
+
+### Example
+
+```sh
+curl --location 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "aws_s3",
+  "topics": ["orders"],
+  "config": {
+    "bucket": "my-events-bucket",
+    "region": "us-east-1"
+  },
+  "credentials": {
+    "key": "<AWS_ACCESS_KEY_ID>",
+    "secret": "<AWS_SECRET_ACCESS_KEY>"
+  }
+}'
+```
+
+## Object Key
+
+By default, objects are stored with keys in the format: `{timestamp}_{event-id}.json`
+
+You can customize the key using a JMESPath expression in `key_template`:
+
+```json
+{
+  "config": {
+    "bucket": "my-events-bucket",
+    "region": "us-east-1",
+    "key_template": "join('/', [data.customer_id, metadata.\"event-id\", '.json'])"
+  }
+}
+```
+
+## Object Format
+
+Events are stored as JSON files containing the event's `data` field. For example, if you publish an event:
+
+```json
+{
+  "topic": "orders",
+  "data": {
+    "order_id": "123",
+    "status": "created"
+  },
+  "metadata": {
+    "source": "checkout-service"
+  }
+}
+```
+
+The S3 object body will be:
+
+```json
+{
+  "order_id": "123",
+  "status": "created"
+}
+```
+
+Event metadata is stored in the S3 object's metadata (not in the body). This includes system metadata and any event metadata from the published event:
+
+| Metadata Key | Source | Description |
+| ------------ | ------ | ----------- |
+| `event-id` | System | The unique event ID |
+| `topic` | System | The event topic |
+| `timestamp` | System | Event timestamp (Unix) |
+| `*` | Event | Any additional metadata from the published event's `metadata` field |
+
+## IAM Permissions
+
+The IAM user or role needs the following permission:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::my-events-bucket/*"
+    }
+  ]
+}
+```
+
+## Storage Classes
+
+Supported storage classes:
+
+- `STANDARD` (default)
+- `REDUCED_REDUNDANCY`
+- `STANDARD_IA`
+- `ONEZONE_IA`
+- `INTELLIGENT_TIERING`
+- `GLACIER`
+- `DEEP_ARCHIVE`
+- `GLACIER_IR`

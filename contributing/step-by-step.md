@@ -82,7 +82,7 @@ OK%
 1: Create a tenant with ID: 123
 
 ```sh
-$ curl --location --request PUT 'localhost:3333/api/v1/123' \
+$ curl --location --request PUT 'localhost:3333/api/v1/tenants/123' \
 --header 'Authorization: Bearer apikey'
 {"id":"123","created_at":"..."}%
 ```
@@ -90,7 +90,7 @@ $ curl --location --request PUT 'localhost:3333/api/v1/123' \
 2: Create a webhook-type destination
 
 ```sh
-$ curl --location 'localhost:3333/api/v1/123/destinations' \
+$ curl --location 'localhost:3333/api/v1/tenants/123/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer apikey' \
 --data '{
@@ -108,7 +108,7 @@ $ curl --location 'localhost:3333/api/v1/123/destinations' \
 Feel free to confirm that the destination is successfully created either in Redis or by listing the destination for tenant 123:
 
 ```sh
-$ curl --location 'localhost:3333/api/v1/123/destinations' \
+$ curl --location 'localhost:3333/api/v1/tenants/123/destinations' \
 --header 'Authorization: Bearer apikey'
 ```
 
@@ -149,7 +149,7 @@ $ go run ./cmd/destinations/webhooks
 You can also confirm the data by checking the data in ClickHouse or querying the Event API:
 
 ```sh
-$ curl --location 'localhost:3333/api/v1/123/events' \
+$ curl --location 'localhost:3333/api/v1/tenants/123/events' \
 --header 'Authorization: Bearer apikey'
 ```
 
@@ -160,7 +160,7 @@ $ curl --location 'localhost:3333/api/v1/123/events' \
 To get the portal URL:
 
 ```sh
-$ curl --location 'localhost:3333/api/v1/123/portal' \
+$ curl --location 'localhost:3333/api/v1/tenants/123/portal' \
 --header 'Authorization: Bearer apikey'
 {"redirect_url":"http://localhost:3333?token=eyJH..."}%
 ```

@@ -1,0 +1,95 @@
+---
+title: Destinations
+---
+
+Outpost supports multiple event destination types. Each tenant can have multiple destinations, up to a maximum set by the `MAX_DESTINATIONS_PER_TENANT` environment variable (defaulting to `20`).
+
+> We recommend setting the `MAX_DESTINATIONS_PER_TENANT` value as low as is appropriate for your use case to prevent abuse and performance degradation. Updating the value to a lower value later will not delete existing destinations.
+
+## Supported Destinations
+
+| Destination | Description |
+| ----------- | ----------- |
+| [Webhook](/docs/destinations/webhook) | Send events via HTTP POST to a URL |
+| [Hookdeck](/docs/destinations/hookdeck) | Route events through Hookdeck Event Gateway |
+| [AWS Kinesis](/docs/destinations/aws-kinesis) | Stream events to Amazon Kinesis |
+| [AWS SQS](/docs/destinations/aws-sqs) | Send events to an Amazon SQS queue |
+| [AWS S3](/docs/destinations/aws-s3) | Store events in an Amazon S3 bucket |
+| [Azure Service Bus](/docs/destinations/azure-service-bus) | Send events to Azure Service Bus |
+| [GCP Pub/Sub](/docs/destinations/gcp-pubsub) | Publish events to Google Cloud Pub/Sub |
+| [RabbitMQ](/docs/destinations/rabbitmq) | Send events to a RabbitMQ exchange |
+
+See the [roadmap](/docs/references/roadmap) for planned destination types. To be eligible as a destination type, it must be asynchronous in nature and not run any business logic.
+
+## Creating a Destination
+
+Destinations can be registered through the tenant portal or via the API. Each destination type has its own configuration and credentials. Refer to the [Create Destination API](/docs/api/destinations#create-destination) for the required `config` and `credentials` fields for each destination type.
+
+```sh
+curl --location 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "<TYPE>",
+  "topics": ["<TOPIC>"],
+  "config": { ... },
+  "credentials": { ... }
+}'
+```
+
+## Destination Filtering
+
+Destinations can be configured with filters to selectively receive only events matching specific criteria. This allows tenants to create fine-grained routing rules based on event properties.
+
+See the [Filters](/docs/features/filter) documentation for the complete filter syntax and examples.
+
+## Getting Destination Types & Schemas
+
+When using the API, you may want to build your own UI to capture user input on the destination configuration. Since each destination requires a specific configuration, the `GET /destination-types` endpoint provides a JSON schema for standardized input fields for each destination type.
+
+For example, for the `webhook` type:
+
+```json
+{
+  "type": "webhook",
+  "label": "Webhook",
+  "description": "Send events via an HTTP POST request to a URL",
+  "icon": "<svg />",
+  "instructions": "Some *markdown*",
+  "remote_setup_url": null,
+  "config_fields": [
+    {
+      "type": "text",
+      "label": "URL",
+      "description": "The URL to send the event to",
+      "pattern": "/((([A-Za-z]{3,9}:(?://)?)(?:[-;:&=+$,w]+@)?[A-Za-z0-9.-]+(:[0-9]+)?|(?:www.|[-;:&=+$,w]+@)[A-Za-z0-9.-]+)((?:/[+~%/.w-_]*)???(?:[-+=&;%@.w_]*)#?(?:[w]*))?)/",
+      "required": true
+    }
+  ],
+  "credential_fields": []
+}
+```
+
+### `config_fields` `Field[]`
+
+Config fields are non-secret values that can be stored and displayed to the user in plain text.
+
+### `credential_fields` `Field[]`
+
+Credential fields are secret values that will be AES encrypted and obfuscated to the user. Some credentials may not be obfuscated; the destination type dictates the obfuscation logic.
+
+### `instructions` `string`
+
+Some destinations will require instructions to configure. For instance, with Pub/Sub, the user will need to create a service account and grant some permissions to that service account. The value is a markdown string to be rendered with any markdown rendering library. Images will be hosted through the GitHub repository.
+
+### `remote_setup_url`
+
+Some destinations may have OAuth flow or other managed setup flow that can be triggered with a link. If a `remote_setup_url` is set, then the user should be prompted to follow the link to configure the destination.
+
+See the [building your own UI guide](/docs/guides/building-your-own-ui) for recommended UI patterns and wireframes for implementation in your own app.
+
+## Customizing Destination Type Definitions & Instructions
+
+The destination type definitions (label, description, icon, etc) and instructions can be customized by setting the `DESTINATIONS_METADATA_PATH` environment variable to a path on disk containing the destination type definitions and instructions. Outpost will load both the default destination type definitions and any custom destination type definitions and merge them.
+
+The metadata path is a directory containing a `providers` directory with a subdirectory for each destination type. Each destination type directory contains a `metadata.json` file and an `instructions.md` file. You can find the default destination type definitions and instructions in the [outpost-providers](https://github.com/hookdeck/outpost/tree/main/internal/destregistry/providers) folder.

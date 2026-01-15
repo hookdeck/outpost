@@ -7,30 +7,166 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
-func TestEntityStore_WithoutDeploymentID(t *testing.T) {
-	t.Parallel()
-	suite.Run(t, &EntityTestSuite{deploymentID: ""})
+// miniredisClientFactory creates a miniredis client (in-memory, no RediSearch)
+func miniredisClientFactory(t *testing.T) redis.Cmdable {
+	return testutil.CreateTestRedisClient(t)
 }
 
-func TestEntityStore_WithDeploymentID(t *testing.T) {
-	t.Parallel()
-	suite.Run(t, &EntityTestSuite{deploymentID: "dp_test_001"})
+// redisStackClientFactory creates a Redis Stack client on DB 0 (RediSearch works)
+// Tests using this are serialized since RediSearch only works on DB 0.
+func redisStackClientFactory(t *testing.T) redis.Cmdable {
+	testinfra.Start(t)
+	redisCfg := testinfra.NewRedisStackConfig(t)
+	client, err := redis.New(context.Background(), redisCfg)
+	if err != nil {
+		t.Fatalf("failed to create redis client: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	return client
 }
 
-// TestDestinationCredentialsEncryption verifies that credentials are properly encrypted
-// when stored in Redis.
+// dragonflyClientFactory creates a Dragonfly client (DB 1-15, no RediSearch).
+// Tests can run in parallel since each gets its own DB.
+func dragonflyClientFactory(t *testing.T) redis.Cmdable {
+	testinfra.Start(t)
+	redisCfg := testinfra.NewDragonflyConfig(t)
+	client, err := redis.New(context.Background(), redisCfg)
+	if err != nil {
+		t.Fatalf("failed to create dragonfly client: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	return client
+}
+
+// dragonflyStackClientFactory creates a Dragonfly client on DB 0 (RediSearch works).
+// Tests using this are serialized since RediSearch only works on DB 0.
+func dragonflyStackClientFactory(t *testing.T) redis.Cmdable {
+	testinfra.Start(t)
+	redisCfg := testinfra.NewDragonflyStackConfig(t)
+	client, err := redis.New(context.Background(), redisCfg)
+	if err != nil {
+		t.Fatalf("failed to create dragonfly stack client: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	return client
+}
+
+// =============================================================================
+// EntityTestSuite with miniredis (in-memory, no RediSearch)
+// =============================================================================
+
+func TestEntityStore_Miniredis_WithoutDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: miniredisClientFactory,
+		deploymentID:       "",
+	})
+}
+
+func TestEntityStore_Miniredis_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: miniredisClientFactory,
+		deploymentID:       "dp_test_001",
+	})
+}
+
+// =============================================================================
+// EntityTestSuite with Redis Stack (real Redis with RediSearch)
+// =============================================================================
+
+func TestEntityStore_RedisStack_WithoutDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: redisStackClientFactory,
+		deploymentID:       "",
+	})
+}
+
+func TestEntityStore_RedisStack_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: redisStackClientFactory,
+		deploymentID:       "dp_test_001",
+	})
+}
+
+// =============================================================================
+// EntityTestSuite with Dragonfly (DB 1-15, no RediSearch, faster parallel tests)
+// =============================================================================
+
+func TestEntityStore_Dragonfly_WithoutDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: dragonflyClientFactory,
+		deploymentID:       "",
+	})
+}
+
+func TestEntityStore_Dragonfly_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &EntityTestSuite{
+		RedisClientFactory: dragonflyClientFactory,
+		deploymentID:       "dp_test_001",
+	})
+}
+
+// =============================================================================
+// ListTenantTestSuite - only runs with Redis Stack (requires RediSearch)
+// =============================================================================
+
+// Not parallel - these tests share Redis indexes
+func TestListTenant_RedisStack_WithoutDeploymentID(t *testing.T) {
+	suite.Run(t, &ListTenantTestSuite{
+		RedisClientFactory: redisStackClientFactory,
+		deploymentID:       "",
+	})
+}
+
+// Not parallel - these tests share Redis indexes
+func TestListTenant_RedisStack_WithDeploymentID(t *testing.T) {
+	suite.Run(t, &ListTenantTestSuite{
+		RedisClientFactory: redisStackClientFactory,
+		deploymentID:       "dp_test_001",
+	})
+}
+
+// =============================================================================
+// ListTenantTestSuite with Dragonfly Stack (DB 0 for RediSearch)
+// =============================================================================
+
+// Not parallel - these tests share Redis indexes
+func TestListTenant_Dragonfly_WithoutDeploymentID(t *testing.T) {
+	suite.Run(t, &ListTenantTestSuite{
+		RedisClientFactory: dragonflyStackClientFactory,
+		deploymentID:       "",
+	})
+}
+
+// Not parallel - these tests share Redis indexes
+func TestListTenant_Dragonfly_WithDeploymentID(t *testing.T) {
+	suite.Run(t, &ListTenantTestSuite{
+		RedisClientFactory: dragonflyStackClientFactory,
+		deploymentID:       "dp_test_001",
+	})
+}
+
+// TestDestinationCredentialsEncryption verifies that credentials and delivery_metadata
+// are properly encrypted when stored in Redis.
 //
 // NOTE: This test accesses Redis implementation details directly to verify encryption.
 // While this couples the test to the storage implementation, it's necessary to confirm
-// that credentials are actually encrypted at rest.
+// that sensitive fields are actually encrypted at rest.
 func TestDestinationCredentialsEncryption(t *testing.T) {
 	t.Parallel()
 
@@ -54,6 +190,10 @@ func TestDestinationCredentialsEncryption(t *testing.T) {
 			"username": "guest",
 			"password": "guest",
 		}),
+		testutil.DestinationFactory.WithDeliveryMetadata(map[string]string{
+			"Authorization": "Bearer secret-token",
+			"X-API-Key":     "sensitive-key",
+		}),
 	)
 
 	err := entityStore.UpsertDestination(ctx, input)
@@ -67,11 +207,20 @@ func TestDestinationCredentialsEncryption(t *testing.T) {
 	// Verify credentials are encrypted (not plaintext)
 	assert.NotEqual(t, input.Credentials, actual["credentials"])
 
-	// Verify we can decrypt back to original
+	// Verify we can decrypt credentials back to original
 	decryptedCredentials, err := cipher.Decrypt([]byte(actual["credentials"]))
 	require.NoError(t, err)
 	jsonCredentials, _ := json.Marshal(input.Credentials)
 	assert.Equal(t, string(jsonCredentials), string(decryptedCredentials))
+
+	// Verify delivery_metadata is encrypted (not plaintext)
+	assert.NotEqual(t, input.DeliveryMetadata, actual["delivery_metadata"])
+
+	// Verify we can decrypt delivery_metadata back to original
+	decryptedDeliveryMetadata, err := cipher.Decrypt([]byte(actual["delivery_metadata"]))
+	require.NoError(t, err)
+	jsonDeliveryMetadata, _ := json.Marshal(input.DeliveryMetadata)
+	assert.Equal(t, string(jsonDeliveryMetadata), string(decryptedDeliveryMetadata))
 }
 
 // TestMaxDestinationsPerTenant verifies that the entity store properly enforces
@@ -90,7 +239,7 @@ func TestMaxDestinationsPerTenant(t *testing.T) {
 	)
 
 	tenant := models.Tenant{
-		ID:        uuid.New().String(),
+		ID:        idgen.String(),
 		CreatedAt: time.Now(),
 	}
 	require.NoError(t, limitedStore.UpsertTenant(ctx, tenant))
@@ -146,8 +295,8 @@ func TestDeploymentIsolation(t *testing.T) {
 	)
 
 	// Use the SAME tenant ID and destination ID for both deployments
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 
 	// Create tenant in both deployments
 	tenant := models.Tenant{

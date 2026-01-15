@@ -1,9 +1,16 @@
-TEST?=$$(go list ./...)
+TEST?=./...
 RUN?=
 
 # Build targets
 .PHONY: build
 build:
+	@echo "Checking formatting..."
+	@if [ -n "$$(gofmt -l .)" ]; then \
+		echo "Formatting issues found in:"; \
+		gofmt -l .; \
+		echo "Run 'gofmt -w .' to fix"; \
+		exit 1; \
+	fi
 	@echo "Building all binaries..."
 	go build -o bin/outpost ./cmd/outpost
 	go build -o bin/outpost-server ./cmd/outpost-server
@@ -47,10 +54,10 @@ down/outpost:
 	docker-compose -f build/dev/compose.yml --env-file .env down
 
 up/deps:
-	docker-compose -f build/dev/deps/compose.yml --env-file .env up -d
+	COMPOSE_PROFILES=$$(./build/dev/deps/profiles.sh) docker-compose --env-file .env -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml up -d
 
 down/deps:
-	docker-compose -f build/dev/deps/compose.yml --env-file .env down
+	COMPOSE_PROFILES=$$(./build/dev/deps/profiles.sh --all) docker-compose -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml down
 
 up/mqs:
 	docker-compose -f build/dev/mqs/compose.yml up -d
@@ -74,10 +81,10 @@ up/portal:
 	cd internal/portal && npm install && npm run dev
 
 up/azure:
-	docker compose -f build/dev/azure/compose.yml up -d
+	docker-compose -f build/dev/azure/compose.yml up -d
 
 down/azure:
-	docker compose -f build/dev/azure/compose.yml down --volumes
+	docker-compose -f build/dev/azure/compose.yml down --volumes
 
 up/test:
 	docker-compose -f build/test/compose.yml up -d
@@ -115,6 +122,7 @@ down/test/rediscluster:
 
 test/setup:
 	@echo "To setup the test environment, run the following command:"
+	@echo "$$ go install gotest.tools/gotestsum@latest"
 	@echo "$$ make up/test"
 	@echo "$$ make up/azure"
 	@echo ""
@@ -123,17 +131,16 @@ test/setup:
 	@echo ""
 
 test:
-	@if [ "$(RUN)" != "" ]; then \
-		$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test $(TEST) $(TESTARGS) -run "$(RUN)"; \
-	else \
-		$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test $(TEST) $(TESTARGS); \
-	fi
+	TEST="$(TEST)" RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh test
 
 test/unit:
-	$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test $(TEST) $(TESTARGS) -short
+	TEST="$(TEST)" RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh unit
 
-test/integration:
-	$(if $(TESTINFRA),TESTINFRA=$(TESTINFRA)) go test $(TEST) $(TESTARGS) -run "Integration"
+test/e2e:
+	RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh e2e
+
+test/full:
+	TEST="$(TEST)" RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh full
 
 test/e2e/rediscluster:
 	@echo "Running Redis cluster e2e tests in Docker container..."
@@ -145,10 +152,10 @@ test/e2e/rediscluster:
 	@echo "Redis cluster e2e tests completed."
 
 test/race:
-	TESTRACE=1 go test $(TEST) $(TESTARGS) -race
+	TESTRACE=1 gotestsum --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -race
 
 test/coverage:
-	go test $(TEST) $(TESTARGS) -coverprofile=coverage.out
+	gotestsum --hide-summary=skipped --format-hide-empty-pkg --packages="$(TEST)" -- $(TESTARGS) -coverprofile=coverage.out
 
 test/coverage/html:
 	go tool cover -html=coverage.out

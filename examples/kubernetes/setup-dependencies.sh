@@ -3,68 +3,206 @@ set -e  # Exit on any error
 
 echo "🚀 Setting up Outpost dependencies..."
 
-# Helper function to check if helm release exists
-helm_release_exists() {
-    helm list | grep -q "^$1"
+# Helper function to print pod diagnostics
+print_pod_diagnostics() {
+    local pod_name=$1
+    local resource_name=$2
+    local cleanup_commands=$3
+    
+    echo ""
+    echo "❌ $resource_name pod failed to become ready!"
+    echo ""
+    echo "Pod status:"
+    kubectl get pod "$pod_name"
+    echo ""
+    echo "Recent events:"
+    kubectl describe pod "$pod_name" | grep -A 10 "Events:" || true
+    echo ""
+    echo "Container logs (last 20 lines):"
+    kubectl logs "$pod_name" --tail=20 2>/dev/null || echo "  (no logs available)"
+    echo ""
+    echo "⚠️  To fix this issue, clean up and re-run:"
+    echo "$cleanup_commands"
+    echo ""
 }
 
-# Helper function to check if secret exists
-secret_exists() {
-    kubectl get secret "$1" >/dev/null 2>&1
+# Helper function to check if pod is healthy
+pod_is_healthy() {
+    local pod_name=$1
+    if kubectl get pod "$pod_name" >/dev/null 2>&1; then
+        local status=$(kubectl get pod "$pod_name" -o jsonpath='{.status.phase}')
+        local ready=$(kubectl get pod "$pod_name" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
+        
+        # Check init containers for ERROR states only (not normal waiting states like "PodInitializing")
+        local init_container_status=$(kubectl get pod "$pod_name" -o jsonpath='{.status.initContainerStatuses[*].state.waiting.reason}' 2>/dev/null)
+        if [[ "$init_container_status" =~ (ImagePullBackOff|ErrImagePull|CrashLoopBackOff) ]]; then
+            return 1
+        fi
+        
+        # Check main containers for error states
+        local container_status=$(kubectl get pod "$pod_name" -o jsonpath='{.status.containerStatuses[0].state}' 2>/dev/null)
+        if echo "$container_status" | grep -q "waiting"; then
+            local waiting_reason=$(kubectl get pod "$pod_name" -o jsonpath='{.status.containerStatuses[0].state.waiting.reason}')
+            if [[ "$waiting_reason" =~ (ImagePullBackOff|ErrImagePull|CrashLoopBackOff) ]]; then
+                return 1
+            fi
+        fi
+        
+        [[ "$status" == "Running" && "$ready" == "True" ]]
+    else
+        return 1
+    fi
 }
 
-# Add Bitnami repo if not exists
-if ! helm repo list | grep -q "bitnami"; then
-    echo "📦 Adding Bitnami Helm repo..."
-    helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null
-    helm repo update >/dev/null
-fi
+# Helper function to wait for pod with periodic error checking
+wait_for_pod_ready() {
+    local pod_name=$1
+    local timeout=$2
+    local elapsed=0
+    local check_interval=5
+    
+    while [ $elapsed -lt $timeout ]; do
+        # Check if pod is ready
+        if kubectl wait --for=condition=ready "pod/$pod_name" --timeout=${check_interval}s 2>/dev/null; then
+            return 0
+        fi
+        
+        # Check for actual error states only (not just "not ready yet")
+        if kubectl get pod "$pod_name" >/dev/null 2>&1; then
+            local init_container_status=$(kubectl get pod "$pod_name" -o jsonpath='{.status.initContainerStatuses[*].state.waiting.reason}' 2>/dev/null)
+            if [[ "$init_container_status" =~ (ImagePullBackOff|ErrImagePull|CrashLoopBackOff) ]]; then
+                return 1
+            fi
+            
+            local container_status=$(kubectl get pod "$pod_name" -o jsonpath='{.status.containerStatuses[0].state.waiting.reason}' 2>/dev/null)
+            if [[ "$container_status" =~ (ImagePullBackOff|ErrImagePull|CrashLoopBackOff) ]]; then
+                return 1
+            fi
+        fi
+        
+        elapsed=$((elapsed + check_interval))
+    done
+    
+    return 1
+}
 
-# Install PostgreSQL with custom config
-if ! helm_release_exists "outpost-postgresql"; then
-    echo "🐘 Installing PostgreSQL..."
-    helm install outpost-postgresql bitnami/postgresql \
-        --set auth.username=outpost \
-        --set auth.database=outpost \
-        --set auth.postgresPassword="" >/dev/null
+echo "🚀 Using official Docker images for improved reliability"
+echo ""
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Install PostgreSQL using direct Kubernetes manifests
+if ! kubectl get statefulset outpost-postgresql >/dev/null 2>&1; then
+    echo "🐘 Installing PostgreSQL (using official postgres:16-alpine image)..."
+    
+    # Generate a random password
+    POSTGRES_PASSWORD=$(openssl rand -base64 24)
+    
+    # Create PostgreSQL secret
+    kubectl create secret generic outpost-postgresql \
+        --from-literal=password="$POSTGRES_PASSWORD" \
+        --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+    
+    # Apply PostgreSQL manifests
+    kubectl apply -f "$SCRIPT_DIR/postgresql.yaml" >/dev/null
+    
+    echo "⏳ Waiting for PostgreSQL to be ready (timeout: 120s)..."
+    if ! wait_for_pod_ready "outpost-postgresql-0" 120; then
+        print_pod_diagnostics "outpost-postgresql-0" "PostgreSQL" \
+"     kubectl delete -f $SCRIPT_DIR/postgresql.yaml
+     kubectl delete pvc data-outpost-postgresql-0
+     kubectl delete secret outpost-postgresql"
+        exit 1
+    fi
+elif ! pod_is_healthy "outpost-postgresql-0"; then
+    print_pod_diagnostics "outpost-postgresql-0" "PostgreSQL" \
+"     kubectl delete -f $SCRIPT_DIR/postgresql.yaml
+     kubectl delete pvc data-outpost-postgresql-0
+     kubectl delete secret outpost-postgresql"
+    exit 1
 else
-    echo "🐘 PostgreSQL already installed, skipping..."
+    echo "🐘 PostgreSQL already installed and healthy, skipping..."
 fi
-echo "⏳ Waiting for PostgreSQL to be ready..."
-kubectl wait --for=condition=ready pod/outpost-postgresql-0 --timeout=120s >/dev/null 2>&1
 POSTGRES_PASSWORD=$(kubectl get secret outpost-postgresql -o jsonpath="{.data.password}" | base64 -d)
 POSTGRES_URL="postgresql://outpost:${POSTGRES_PASSWORD}@outpost-postgresql:5432/outpost?sslmode=disable"
 
-# Install Redis
-if ! helm_release_exists "outpost-redis"; then
-    echo "🔴 Installing Redis..."
-    helm install outpost-redis bitnami/redis >/dev/null
+# Install Redis using direct Kubernetes manifests
+if ! kubectl get statefulset outpost-redis >/dev/null 2>&1; then
+    echo "🔴 Installing Redis (using official redis:7-alpine image)..."
+    
+    # Generate a random password
+    REDIS_PASSWORD=$(openssl rand -base64 24)
+    
+    # Create Redis secret
+    kubectl create secret generic outpost-redis \
+        --from-literal=redis-password="$REDIS_PASSWORD" \
+        --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+    
+    # Apply Redis manifests
+    kubectl apply -f "$SCRIPT_DIR/redis.yaml" >/dev/null
+    
+    echo "⏳ Waiting for Redis to be ready (timeout: 120s)..."
+    if ! wait_for_pod_ready "outpost-redis-0" 120; then
+        print_pod_diagnostics "outpost-redis-0" "Redis" \
+"     kubectl delete -f $SCRIPT_DIR/redis.yaml
+     kubectl delete pvc data-outpost-redis-0
+     kubectl delete secret outpost-redis"
+        exit 1
+    fi
+elif ! pod_is_healthy "outpost-redis-0"; then
+    print_pod_diagnostics "outpost-redis-0" "Redis" \
+"     kubectl delete -f $SCRIPT_DIR/redis.yaml
+     kubectl delete pvc data-outpost-redis-0
+     kubectl delete secret outpost-redis"
+    exit 1
 else
-    echo "🔴 Redis already installed, skipping..."
+    echo "🔴 Redis already installed and healthy, skipping..."
 fi
-echo "⏳ Waiting for Redis to be ready..."
-kubectl wait --for=condition=ready pod/outpost-redis-master-0 --timeout=120s >/dev/null 2>&1
 REDIS_PASSWORD=$(kubectl get secret outpost-redis -o jsonpath="{.data.redis-password}" | base64 -d)
 
-# Install RabbitMQ with custom config
-if ! helm_release_exists "outpost-rabbitmq"; then
-    echo "🐰 Installing RabbitMQ..."
-    helm install outpost-rabbitmq bitnami/rabbitmq \
-        --set auth.username=outpost \
-        --set auth.password="" >/dev/null
+# Install RabbitMQ using direct Kubernetes manifests
+if ! kubectl get statefulset outpost-rabbitmq >/dev/null 2>&1; then
+    echo "🐰 Installing RabbitMQ (using official rabbitmq:3.13-management-alpine image)..."
+    
+    # Generate passwords
+    RABBITMQ_PASSWORD=$(openssl rand -base64 24)
+    RABBITMQ_ERLANG_COOKIE=$(openssl rand -base64 48)
+    
+    # Create RabbitMQ secret
+    kubectl create secret generic outpost-rabbitmq \
+        --from-literal=rabbitmq-password="$RABBITMQ_PASSWORD" \
+        --from-literal=rabbitmq-erlang-cookie="$RABBITMQ_ERLANG_COOKIE" \
+        --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+    
+    # Apply RabbitMQ manifests
+    kubectl apply -f "$SCRIPT_DIR/rabbitmq.yaml" >/dev/null
+    
+    echo "⏳ Waiting for RabbitMQ to be ready (timeout: 120s)..."
+    if ! wait_for_pod_ready "outpost-rabbitmq-0" 120; then
+        print_pod_diagnostics "outpost-rabbitmq-0" "RabbitMQ" \
+"     kubectl delete -f $SCRIPT_DIR/rabbitmq.yaml
+     kubectl delete pvc data-outpost-rabbitmq-0
+     kubectl delete secret outpost-rabbitmq"
+        exit 1
+    fi
+elif ! pod_is_healthy "outpost-rabbitmq-0"; then
+    print_pod_diagnostics "outpost-rabbitmq-0" "RabbitMQ" \
+"     kubectl delete -f $SCRIPT_DIR/rabbitmq.yaml
+     kubectl delete pvc data-outpost-rabbitmq-0
+     kubectl delete secret outpost-rabbitmq"
+    exit 1
 else
-    echo "🐰 RabbitMQ already installed, skipping..."
+    echo "🐰 RabbitMQ already installed and healthy, skipping..."
 fi
-echo "⏳ Waiting for RabbitMQ to be ready..."
-kubectl wait --for=condition=ready pod/outpost-rabbitmq-0 --timeout=120s >/dev/null 2>&1
 RABBITMQ_PASSWORD=$(kubectl get secret outpost-rabbitmq -o jsonpath="{.data.rabbitmq-password}" | base64 -d)
 RABBITMQ_SERVER_URL="amqp://outpost:${RABBITMQ_PASSWORD}@outpost-rabbitmq:5672"
 
 # Generate application secrets
 echo "🔑 Generating application secrets..."
-API_KEY=$(openssl rand -hex 16)
-API_JWT_SECRET=$(openssl rand -hex 32)
-AES_ENCRYPTION_SECRET=$(openssl rand -hex 32)
+API_KEY=$(openssl rand -base64 24)
+API_JWT_SECRET=$(openssl rand -base64 48)
+AES_ENCRYPTION_SECRET=$(openssl rand -base64 48)
 
 # Create or update Kubernetes secret
 echo "🔒 Creating/updating Kubernetes secrets..."

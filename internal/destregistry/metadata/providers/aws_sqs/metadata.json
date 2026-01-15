@@ -7,7 +7,7 @@
       "label": "Queue URL",
       "description": "The URL of your AWS SQS queue",
       "required": true,
-      "pattern": "^https?:\\/\\/[\\w\\-]+(?:\\.[\\w\\-]+)*(?::\\d{1,5})?(?:\\/[\\w\\-\\/\\.~:?#\\[\\]@!$&'\\(\\)*+,;=]*)?$"
+      "pattern": "^https?:\\/\\/[\\w\\-]+(?:\\.[\\w\\-]+)*(?::\\d{1,5})?(?:\\/[\\w\\-\\/\\.~:%?#\\[\\]@!$&'\\(\\)*+,;=]*)?$"
     }
   ],
   "credential_fields": [

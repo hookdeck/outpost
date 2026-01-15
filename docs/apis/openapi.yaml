@@ -23,7 +23,25 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Per-tenant JWT token valid for 24 hours. When used, tenant_id path parameter is inferred.
+      description: |
+        Per-tenant JWT token valid for 24 hours.
+
+        **JWT Structure:**
+        The token is a standard JWT signed with HS256 algorithm containing the following claims:
+        - `iss` (issuer): Always "outpost"
+        - `sub` (subject): The tenant_id this token is scoped to
+        - `iat` (issued at): Unix timestamp when the token was created
+        - `exp` (expiration): Unix timestamp when the token expires (24 hours after issuance)
+
+        **Example decoded payload:**
+        ```json
+        {
+          "iss": "outpost",
+          "sub": "tenant_123",
+          "iat": 1704067200,
+          "exp": 1704153600
+        }
+        ```
   schemas:
     # Base Schemas
     Tenant:
@@ -43,11 +61,88 @@ components:
             type: string
           description: List of subscribed topics across all destinations for this tenant.
           example: ["user.created", "user.deleted"]
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary key-value pairs for storing contextual information about the tenant.
         created_at:
           type: string
           format: date-time
           description: ISO Date when the tenant was created.
           example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the tenant was last updated.
+          example: "2024-01-01T00:00:00Z"
+    TenantUpsert:
+      type: object
+      properties:
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Optional metadata to store with the tenant.
+    TenantListItem:
+      type: object
+      description: Tenant object returned in list operations.
+      properties:
+        id:
+          type: string
+          description: User-defined system ID for the tenant.
+          example: "123"
+        destinations_count:
+          type: integer
+          description: Number of destinations associated with the tenant.
+          example: 5
+        topics:
+          type: array
+          items:
+            type: string
+          description: List of subscribed topics across all destinations for this tenant.
+          example: ["user.created", "user.deleted"]
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary key-value pairs for storing contextual information about the tenant.
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the tenant was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the tenant was last updated.
+          example: "2024-01-01T00:00:00Z"
+    TenantListResponse:
+      type: object
+      description: Paginated list of tenants.
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantListItem"
+          description: Array of tenant objects.
+        next:
+          type: string
+          nullable: true
+          description: Cursor for the next page of results. Null if no more results.
+          example: "MTcwNDA2NzIwMA=="
+        prev:
+          type: string
+          nullable: true
+          description: Cursor for the previous page of results. Null if on first page.
+          example: null
+        count:
+          type: integer
+          description: Total count of all tenants.
+          example: 42
     PortalRedirect:
       type: object
       properties:
@@ -55,7 +150,11 @@ components:
           type: string
           format: url
           description: Redirect URL containing a JWT to authenticate the user with the portal.
-          example: "https://webhooks.acme.com/?token=JWT_TOKEN"
+          example: "https://webhooks.acme.com/?token=JWT_TOKEN&tenant_id=tenant_123"
+        tenant_id:
+          type: string
+          description: The ID of the tenant associated with this portal session.
+          example: "tenant_123"
     TenantToken:
       type: object
       properties:
@@ -63,6 +162,10 @@ components:
           type: string
           description: JWT token scoped to the tenant for safe browser API calls.
           example: "SOME_JWT_TOKEN"
+        tenant_id:
+          type: string
+          description: The ID of the tenant this token is scoped to.
+          example: "tenant_123"
     SuccessResponse:
       type: object
       properties:
@@ -78,6 +181,22 @@ components:
             type: string
       description: '"*" or an array of enabled topics.'
       example: "*"
+
+    Filter:
+      type: object
+      nullable: true
+      additionalProperties: true
+      description: |
+        Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+        Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+        If null or empty, all events matching the topic filter will be delivered.
+        To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+      example:
+        data:
+          amount:
+            $gte: 100
+          customer:
+            tier: "premium"
 
     PaginatedResponse:
       type: object
@@ -110,6 +229,10 @@ components:
           format: url
           description: The URL to send the webhook events to.
           example: "https://example.com/webhooks/user"
+        custom_headers:
+          type: string
+          description: JSON string of custom HTTP headers to include with every webhook request. Header names must be valid HTTP header tokens (alphanumeric, hyphens, underscores). Reserved headers (Content-Type, Host, etc.) cannot be overridden.
+          example: "{\"x-api-key\":\"secret123\",\"x-tenant-id\":\"customer-456\"}"
     WebhookCredentials:
       type: object
       properties:
@@ -313,7 +436,7 @@ components:
     DestinationWebhook:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
         id:
           type: string
@@ -326,6 +449,8 @@ components:
           example: "webhook"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -337,10 +462,29 @@ components:
           format: date-time
           description: ISO Date when the destination was created.
           example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/WebhookConfig"
         credentials:
           $ref: "#/components/schemas/WebhookCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (e.g., URL host). Read-only.
@@ -359,6 +503,7 @@ components:
         topics: ["user.created", "order.shipped"]
         disabled_at: null
         created_at: "2024-02-15T10:00:00Z"
+        updated_at: "2024-02-15T10:00:00Z"
         config:
           url: "https://my-service.com/webhook/handler"
         credentials:
@@ -368,7 +513,7 @@ components:
     DestinationAWSSQS:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
         id:
           type: string
@@ -381,6 +526,8 @@ components:
           example: "aws_sqs"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -392,10 +539,29 @@ components:
           format: date-time
           description: ISO Date when the destination was created.
           example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/AWSSQSConfig"
         credentials:
           $ref: "#/components/schemas/AWSSQSCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (SQS queue name). Read-only.
@@ -414,6 +580,7 @@ components:
         topics: ["*"]
         disabled_at: "2024-03-01T12:00:00Z"
         created_at: "2024-02-20T11:30:00Z"
+        updated_at: "2024-02-20T11:30:00Z"
         config:
           queue_url: "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue"
           endpoint: "https://sqs.us-west-2.amazonaws.com"
@@ -423,7 +590,7 @@ components:
     DestinationRabbitMQ:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
         id:
           type: string
@@ -436,6 +603,8 @@ components:
           example: "rabbitmq"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -447,10 +616,29 @@ components:
           format: date-time
           description: ISO Date when the destination was created.
           example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/RabbitMQConfig"
         credentials:
           $ref: "#/components/schemas/RabbitMQCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (RabbitMQ exchange). Read-only.
@@ -469,6 +657,7 @@ components:
         topics: ["inventory.updated"]
         disabled_at: null
         created_at: "2024-01-10T09:00:00Z"
+        updated_at: "2024-01-10T09:00:00Z"
         config:
           server_url: "amqp.cloudamqp.com:5671"
           exchange: "events-exchange"
@@ -492,6 +681,8 @@ components:
           example: "hookdeck"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -503,9 +694,28 @@ components:
           format: date-time
           description: ISO Date when the destination was created.
           example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
         config: {} # Empty config
         credentials:
           $ref: "#/components/schemas/HookdeckCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (Hookdeck). Read-only.
@@ -524,13 +734,14 @@ components:
         topics: ["*"]
         disabled_at: null
         created_at: "2024-04-01T10:00:00Z"
+        updated_at: "2024-04-01T10:00:00Z"
         config: {}
         credentials:
           token: "hd_token_..."
     DestinationAWSKinesis:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
         id:
           type: string
@@ -543,6 +754,8 @@ components:
           example: "aws_kinesis"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -554,10 +767,29 @@ components:
           format: date-time
           description: ISO Date when the destination was created.
           example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/AWSKinesisConfig"
         credentials:
           $ref: "#/components/schemas/AWSKinesisCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (Kinesis stream name). Read-only.
@@ -576,6 +808,7 @@ components:
         topics: ["user.created", "user.updated"]
         disabled_at: null
         created_at: "2024-03-10T15:30:00Z"
+        updated_at: "2024-03-10T15:30:00Z"
         config:
           stream_name: "production-events"
           region: "eu-west-1"
@@ -598,6 +831,8 @@ components:
           example: "azure_servicebus"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -609,10 +844,29 @@ components:
           format: date-time
           description: ISO Date when the destination was created.
           example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/AzureServiceBusConfig"
         credentials:
           $ref: "#/components/schemas/AzureServiceBusCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (Azure Service Bus queue/topic name). Read-only.
@@ -631,6 +885,7 @@ components:
         topics: ["*"]
         disabled_at: null
         created_at: "2024-05-01T10:00:00Z"
+        updated_at: "2024-05-01T10:00:00Z"
         config:
           name: "my-queue-or-topic"
         credentials:
@@ -639,7 +894,7 @@ components:
     DestinationAWSS3:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
         id:
           type: string
@@ -652,6 +907,8 @@ components:
           example: "aws_s3"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -663,10 +920,29 @@ components:
           format: date-time
           description: ISO Date when the destination was created.
           example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/AWSS3Config"
         credentials:
           $ref: "#/components/schemas/AWSS3Credentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (bucket and region). Read-only.
@@ -685,6 +961,7 @@ components:
         topics: ["*"]
         disabled_at: null
         created_at: "2024-03-20T12:00:00Z"
+        updated_at: "2024-03-20T12:00:00Z"
         config:
           bucket: "my-bucket"
           region: "us-east-1"
@@ -694,7 +971,7 @@ components:
     DestinationGCPPubSub:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, disabled_at]
+      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
         id:
           type: string
@@ -707,6 +984,8 @@ components:
           example: "gcp_pubsub"
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         disabled_at:
           type: string
           format: date-time
@@ -718,10 +997,29 @@ components:
           format: date-time
           description: ISO Date when the destination was created.
           example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
         config:
           $ref: "#/components/schemas/GCPPubSubConfig"
         credentials:
           $ref: "#/components/schemas/GCPPubSubCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
         target:
           type: string
           description: A human-readable representation of the destination target (project/topic). Read-only.
@@ -740,6 +1038,7 @@ components:
         topics: ["order.created", "order.updated"]
         disabled_at: null
         created_at: "2024-03-10T14:30:00Z"
+        updated_at: "2024-03-10T14:30:00Z"
         config:
           project_id: "my-project-123"
           topic: "events-topic"
@@ -783,11 +1082,27 @@ components:
           enum: [webhook]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/WebhookConfig"
         credentials:
           # Secret is optional on create for admin, forbidden for tenant
           $ref: "#/components/schemas/WebhookCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationCreateAWSSQS:
       type: object
       required: [type, topics, config, credentials]
@@ -802,10 +1117,26 @@ components:
           enum: [aws_sqs]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AWSSQSConfig"
         credentials:
           $ref: "#/components/schemas/AWSSQSCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationCreateRabbitMQ:
       type: object
       required: [type, topics, config, credentials]
@@ -820,10 +1151,26 @@ components:
           enum: [rabbitmq]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/RabbitMQConfig"
         credentials:
           $ref: "#/components/schemas/RabbitMQCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationCreateHookdeck:
       type: object
       required: [type, topics, credentials] # No config
@@ -838,9 +1185,25 @@ components:
           enum: [hookdeck]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config: {}
         credentials:
           $ref: "#/components/schemas/HookdeckCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationCreateAWSKinesis:
       type: object
       required: [type, topics, config, credentials]
@@ -855,10 +1218,26 @@ components:
           enum: [aws_kinesis]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AWSKinesisConfig"
         credentials:
           $ref: "#/components/schemas/AWSKinesisCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
 
     DestinationCreateAzureServiceBus:
       type: object
@@ -874,10 +1253,26 @@ components:
           enum: [azure_servicebus]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AzureServiceBusConfig"
         credentials:
           $ref: "#/components/schemas/AzureServiceBusCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
 
     DestinationCreateAWSS3:
       type: object
@@ -893,10 +1288,26 @@ components:
           enum: [aws_s3]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AWSS3Config"
         credentials:
           $ref: "#/components/schemas/AWSS3Credentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationCreateGCPPubSub:
       type: object
       required: [type, topics, config, credentials]
@@ -911,10 +1322,26 @@ components:
           enum: [gcp_pubsub]
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/GCPPubSubConfig"
         credentials:
           $ref: "#/components/schemas/GCPPubSubCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
 
     # Polymorphic Destination Creation Schema (for Request Bodies)
     DestinationCreate:
@@ -962,59 +1389,155 @@ components:
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/WebhookConfig" # URL is required here, but PATCH means it's optional in the request
         credentials:
           $ref: "#/components/schemas/WebhookCredentialsUpdate"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateAWSSQS:
       type: object
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AWSSQSConfig" # queue_url is required here, but PATCH means it's optional
         credentials:
           $ref: "#/components/schemas/AWSSQSCredentials" # key/secret required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateRabbitMQ:
       type: object
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/RabbitMQConfig" # server_url/exchange required here, but PATCH means optional
         credentials:
           $ref: "#/components/schemas/RabbitMQCredentials" # username/password required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateHookdeck:
       type: object
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config: {} # Empty config, cannot be updated
         credentials:
           $ref: "#/components/schemas/HookdeckCredentials" # token required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateAWSKinesis:
       type: object
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AWSKinesisConfig" # stream_name/region required here, but PATCH means optional
         credentials:
           $ref: "#/components/schemas/AWSKinesisCredentials" # key/secret required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateAzureServiceBus:
       type: object
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AzureServiceBusConfig" # name required here, but PATCH means optional
         credentials:
           $ref: "#/components/schemas/AzureServiceBusCredentials" # connection_string required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
 
     DestinationUpdateAWSS3:
       type: object
@@ -1022,20 +1545,52 @@ components:
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/AWSS3Config" # bucket/region required here, but PATCH means optional
         credentials:
           $ref: "#/components/schemas/AWSS3Credentials" # key/secret required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateGCPPubSub:
       type: object
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
           $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
         config:
           $ref: "#/components/schemas/GCPPubSubConfig" # project_id/topic required here, but PATCH means optional
         credentials:
           $ref: "#/components/schemas/GCPPubSubCredentials" # service_account_json required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
 
     # Polymorphic Destination Update Schema (for Request Bodies)
     DestinationUpdate:
@@ -1088,11 +1643,16 @@ components:
       type: object
       required:
         - id
+        - duplicate
       properties:
         id:
           type: string
           description: The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated UUID.
           example: "evt_abc123xyz789"
+        duplicate:
+          type: boolean
+          description: Whether this event was already processed (idempotency hit). If true, the event was not queued again.
+          example: false
     Event:
       type: object
       properties:
@@ -1282,19 +1842,191 @@ paths:
     get:
       tags: [Health]
       summary: Health Check
-      description: Simple health check endpoint.
+      description: |
+        Health check endpoint that reports the status of all workers.
+
+        Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
+
+        The response includes:
+        - `status`: Overall health status ("healthy" or "failed")
+        - `timestamp`: When this health check was performed (ISO 8601 format)
+        - `workers`: Map of worker names to their individual health status
+
+        Each worker reports:
+        - `status`: Worker health ("healthy" or "failed")
+
+        Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
       operationId: healthCheck
       security: []
       responses:
         "200":
-          description: Service is healthy.
+          description: Service is healthy - all workers are operational.
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-                example: OK
+                type: object
+                required:
+                  - status
+                  - timestamp
+                  - workers
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy]
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+                    description: When this health check was performed
+                    example: "2025-11-11T10:30:00Z"
+                  workers:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      required:
+                        - status
+                      properties:
+                        status:
+                          type: string
+                          enum: [healthy]
+                          example: healthy
+              example:
+                status: healthy
+                timestamp: "2025-11-11T10:30:00Z"
+                workers:
+                  http-server:
+                    status: healthy
+                  retrymq-consumer:
+                    status: healthy
+        "503":
+          description: Service is unhealthy - one or more workers have failed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - timestamp
+                  - workers
+                properties:
+                  status:
+                    type: string
+                    enum: [failed]
+                    example: failed
+                  timestamp:
+                    type: string
+                    format: date-time
+                    description: When this health check was performed
+                    example: "2025-11-11T10:30:15Z"
+                  workers:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      required:
+                        - status
+                      properties:
+                        status:
+                          type: string
+                          enum: [healthy, failed]
+                          example: failed
+              example:
+                status: failed
+                timestamp: "2025-11-11T10:30:15Z"
+                workers:
+                  http-server:
+                    status: healthy
+                  retrymq-consumer:
+                    status: failed
   # Tenants
-  /{tenant_id}:
+  /tenants:
+    get:
+      tags: [Tenants]
+      summary: List Tenants
+      description: |
+        List all tenants with cursor-based pagination.
+
+        **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
+        If RediSearch is not available, this endpoint returns `501 Not Implemented`.
+
+        The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
+        Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
+      operationId: listTenants
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of tenants to return per page (1-100, default 20).
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort order by `created_at` timestamp.
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for the next page of results. Mutually exclusive with `prev`.
+        - name: prev
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for the previous page of results. Mutually exclusive with `next`.
+      responses:
+        "200":
+          description: List of tenants.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantListResponse"
+              example:
+                data:
+                  - id: "tenant_123"
+                    metadata:
+                      plan: "pro"
+                    created_at: "2024-01-15T10:30:00Z"
+                    updated_at: "2024-01-15T10:30:00Z"
+                  - id: "tenant_456"
+                    metadata: null
+                    created_at: "2024-01-14T09:00:00Z"
+                    updated_at: "2024-01-14T09:00:00Z"
+                next: "MTcwNDA2NzIwMA=="
+                prev: null
+                count: 42
+        "400":
+          description: Invalid request parameters (e.g., invalid cursor, both next and prev provided).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "invalid cursor format"
+        "401":
+          description: Unauthorized (Admin API Key missing or invalid).
+        "501":
+          description: List Tenants feature is not available. Requires Redis with RediSearch module.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "list tenant not supported"
+  /tenants/{tenant_id}:
     parameters:
       - name: tenant_id
         in: path
@@ -1307,6 +2039,13 @@ paths:
       summary: Create or Update Tenant
       description: Idempotently creates or updates a tenant. Required before associating destinations.
       operationId: upsertTenant
+      requestBody:
+        description: Optional tenant metadata
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantUpsert"
       responses:
         "200":
           description: Tenant updated details.
@@ -1314,26 +2053,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
-              examples:
-                TenantExample:
-                  value:
-                    id: "tenant_123"
-                    destinations_count: 5
-                    topics: ["user.created", "user.deleted"]
-                    created_at: "2024-01-01T00:00:00Z"
         "201":
           description: Tenant created details.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
-              examples:
-                TenantExample:
-                  value:
-                    id: "tenant_123"
-                    destinations_count: 5
-                    topics: ["user.created", "user.deleted"]
-                    created_at: "2024-01-01T00:00:00Z"
         # Add error responses
     get:
       tags: [Tenants]
@@ -1347,13 +2072,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
-              examples:
-                TenantExample:
-                  value:
-                    id: "tenant_123"
-                    destinations_count: 5
-                    topics: ["user.created", "user.deleted"]
-                    created_at: "2024-01-01T00:00:00Z"
         "404":
           description: Tenant not found.
         # Add other error responses
@@ -1377,7 +2095,7 @@ paths:
           description: Tenant not found.
         # Add other error responses
 
-  /{tenant_id}/portal:
+  /tenants/{tenant_id}/portal:
     parameters:
       - name: tenant_id
         in: path
@@ -1408,12 +2126,13 @@ paths:
               examples:
                 PortalRedirectExample:
                   value:
-                    redirect_url: "https://webhooks.acme.com/?token=JWT_TOKEN"
+                    redirect_url: "https://webhooks.acme.com/?token=JWT_TOKEN&tenant_id=tenant_123"
+                    tenant_id: "tenant_123"
         "404":
           description: Tenant not found.
         # Add other error responses
 
-  /{tenant_id}/token:
+  /tenants/{tenant_id}/token:
     parameters:
       - name: tenant_id
         in: path
@@ -1437,12 +2156,13 @@ paths:
                 TenantTokenExample:
                   value:
                     token: "SOME_JWT_TOKEN"
+                    tenant_id: "tenant_123"
         "404":
           description: Tenant not found.
         # Add other error responses
 
   # Destinations
-  /{tenant_id}/destinations:
+  /tenants/{tenant_id}/destinations:
     description: |
       Manage destinations for a specific tenant. Destinations determine where events are sent.
       The structure of `config` and `credentials` depends on the destination `type`.
@@ -1518,6 +2238,7 @@ paths:
                       topics: ["user.created", "order.shipped"]
                       disabled_at: null
                       created_at: "2024-02-15T10:00:00Z"
+                      updated_at: "2024-02-15T10:00:00Z"
                       config:
                         url: "https://my-service.com/webhook/handler"
                       credentials:
@@ -1529,6 +2250,7 @@ paths:
                       topics: ["*"]
                       disabled_at: "2024-03-01T12:00:00Z"
                       created_at: "2024-02-20T11:30:00Z"
+                      updated_at: "2024-02-20T11:30:00Z"
                       config:
                         queue_url: "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue"
                         endpoint: "https://sqs.us-west-2.amazonaws.com"
@@ -1540,6 +2262,7 @@ paths:
                       topics: ["*"]
                       disabled_at: null
                       created_at: "2024-03-20T12:00:00Z"
+                      updated_at: "2024-03-20T12:00:00Z"
                       config:
                         bucket: "my-bucket"
                         region: "us-east-1"
@@ -1575,6 +2298,7 @@ paths:
                     topics: ["user.created", "order.shipped"]
                     disabled_at: null
                     created_at: "2024-02-15T10:00:00Z"
+                    updated_at: "2024-02-15T10:00:00Z"
                     config:
                       url: "https://my-service.com/webhook/handler"
                     credentials:
@@ -1586,7 +2310,7 @@ paths:
           description: Tenant not found.
         # Add other error responses (e.g., max destinations reached)
 
-  /{tenant_id}/destinations/{destination_id}:
+  /tenants/{tenant_id}/destinations/{destination_id}:
     parameters:
       - name: tenant_id
         in: path
@@ -1620,6 +2344,7 @@ paths:
                     topics: ["user.created", "order.shipped"]
                     disabled_at: null
                     created_at: "2024-02-15T10:00:00Z"
+                    updated_at: "2024-02-15T10:00:00Z"
                     config:
                       url: "https://my-service.com/webhook/handler"
                     credentials:
@@ -1656,6 +2381,7 @@ paths:
                     topics: ["user.created"]
                     disabled_at: null
                     created_at: "2024-02-15T10:00:00Z"
+                    updated_at: "2024-02-15T10:00:00Z"
                     config:
                       url: "https://my-service.com/webhook/new-handler" # Updated URL
                     credentials:
@@ -1687,7 +2413,7 @@ paths:
           description: Tenant or Destination not found.
         # Add other error responses
 
-  /{tenant_id}/destinations/{destination_id}/enable:
+  /tenants/{tenant_id}/destinations/{destination_id}/enable:
     parameters:
       - name: tenant_id
         in: path
@@ -1721,6 +2447,7 @@ paths:
                     topics: ["user.created", "order.shipped"]
                     disabled_at: null # Now enabled
                     created_at: "2024-02-15T10:00:00Z"
+                    updated_at: "2024-02-15T10:00:00Z"
                     config:
                       url: "https://my-service.com/webhook/handler"
                     credentials:
@@ -1731,7 +2458,7 @@ paths:
           description: Tenant or Destination not found.
         # Add other error responses
 
-  /{tenant_id}/destinations/{destination_id}/disable:
+  /tenants/{tenant_id}/destinations/{destination_id}/disable:
     parameters:
       - name: tenant_id
         in: path
@@ -1765,6 +2492,7 @@ paths:
                     topics: ["user.created", "order.shipped"]
                     disabled_at: "2024-04-11T21:00:00Z" # Now disabled
                     created_at: "2024-02-15T10:00:00Z"
+                    updated_at: "2024-02-15T10:00:00Z"
                     config:
                       url: "https://my-service.com/webhook/handler"
                     credentials:
@@ -1806,7 +2534,7 @@ paths:
         # Add other error responses
 
   # Schemas (Tenant Specific - Admin or JWT)
-  /{tenant_id}/destination-types:
+  /tenants/{tenant_id}/destination-types:
     parameters:
       - name: tenant_id
         in: path
@@ -1975,7 +2703,7 @@ paths:
         "404":
           description: Tenant not found.
 
-  /{tenant_id}/destination-types/{type}:
+  /tenants/{tenant_id}/destination-types/{type}:
     parameters:
       - name: tenant_id
         in: path
@@ -2032,7 +2760,7 @@ paths:
           description: Tenant or Destination type not found.
 
   # Topics (Tenant Specific - Admin or JWT)
-  /{tenant_id}/topics:
+  /tenants/{tenant_id}/topics:
     parameters:
       - name: tenant_id
         in: path
@@ -2067,7 +2795,7 @@ paths:
           description: Tenant not found.
 
   # Events (Tenant Specific - Admin or JWT)
-  /{tenant_id}/events:
+  /tenants/{tenant_id}/events:
     parameters:
       - name: tenant_id
         in: path
@@ -2172,7 +2900,7 @@ paths:
           description: Tenant not found.
         # Add other error responses
 
-  /{tenant_id}/events/{event_id}:
+  /tenants/{tenant_id}/events/{event_id}:
     parameters:
       - name: tenant_id
         in: path
@@ -2211,7 +2939,7 @@ paths:
         "404":
           description: Tenant or Event not found.
 
-  /{tenant_id}/events/{event_id}/deliveries:
+  /tenants/{tenant_id}/events/{event_id}/deliveries:
     parameters:
       - name: tenant_id
         in: path
@@ -2255,7 +2983,7 @@ paths:
         "404":
           description: Tenant or Event not found.
 
-  /{tenant_id}/destinations/{destination_id}/events:
+  /tenants/{tenant_id}/destinations/{destination_id}/events:
     parameters:
       - name: tenant_id
         in: path
@@ -2355,7 +3083,7 @@ paths:
         "404":
           description: Tenant or Destination not found.
 
-  /{tenant_id}/destinations/{destination_id}/events/{event_id}:
+  /tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}:
     parameters:
       - name: tenant_id
         in: path
@@ -2400,7 +3128,7 @@ paths:
         "404":
           description: Tenant, Destination or Event not found.
 
-  /{tenant_id}/destinations/{destination_id}/events/{event_id}/retry:
+  /tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry:
     parameters:
       - name: tenant_id
         in: path

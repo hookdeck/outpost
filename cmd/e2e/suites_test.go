@@ -16,8 +16,8 @@ import (
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/santhosh-tekuri/jsonschema/v6"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -30,14 +30,17 @@ type e2eSuite struct {
 	mockServerInfra   *testinfra.MockServerInfra
 	cleanup           func()
 	client            httpclient.Client
+	appDone           chan struct{}
 }
 
 func (suite *e2eSuite) SetupSuite() {
 	ctx, cancel := context.WithCancel(context.Background())
 	suite.ctx = ctx
 	suite.cancel = cancel
+	suite.appDone = make(chan struct{})
 	suite.client = httpclient.New(fmt.Sprintf("http://localhost:%d/api/v1", suite.config.APIPort), suite.config.APIKey)
 	go func() {
+		defer close(suite.appDone)
 		application := app.New(&suite.config)
 		if err := application.Run(suite.ctx); err != nil {
 			log.Println("Application failed to run", err)
@@ -48,6 +51,8 @@ func (suite *e2eSuite) SetupSuite() {
 func (s *e2eSuite) TearDownSuite() {
 	if s.cancel != nil {
 		s.cancel()
+		// Wait for application to fully shut down before cleaning up resources
+		<-s.appDone
 	}
 	s.cleanup()
 }
@@ -100,9 +105,9 @@ func (test *APITest) Run(t *testing.T, client httpclient.Client) {
 	require.NoError(t, err)
 
 	if test.Expected.Match != nil {
-		assert.Equal(t, test.Expected.Match.StatusCode, resp.StatusCode)
+		require.Equal(t, test.Expected.Match.StatusCode, resp.StatusCode)
 		if test.Expected.Match.Body != nil {
-			assert.True(t, resp.MatchBody(test.Expected.Match.Body), "expected body %s, got %s", test.Expected.Match.Body, resp.Body)
+			require.True(t, resp.MatchBody(test.Expected.Match.Body), "expected body %s, got %s", test.Expected.Match.Body, resp.Body)
 		}
 	}
 
@@ -115,9 +120,7 @@ func (test *APITest) Run(t *testing.T, client httpclient.Client) {
 		var respJSON map[string]interface{}
 		require.NoError(t, json.Unmarshal(respStr, &respJSON), "failed to parse response: %v", err)
 		validationErr := schema.Validate(respJSON)
-		if assert.NoError(t, validationErr, "response validation failed: %v: %s", validationErr, respJSON) == false {
-			log.Println(resp)
-		}
+		require.NoError(t, validationErr, "response validation failed: %v: %s", validationErr, respJSON)
 	}
 }
 
@@ -127,7 +130,21 @@ type basicSuite struct {
 	logStorageType configs.LogStorageType
 	redisConfig    *redis.RedisConfig // Optional Redis config override
 	deploymentID   string             // Optional deployment ID
+	hasRediSearch  bool               // Whether the Redis backend supports RediSearch (only RedisStack)
 	alertServer    *alert.AlertMockServer
+	failed         bool // Fail-fast: skip remaining tests after first failure
+}
+
+func (s *basicSuite) BeforeTest(suiteName, testName string) {
+	if s.failed {
+		s.T().Skip("skipping due to previous test failure")
+	}
+}
+
+func (s *basicSuite) AfterTest(suiteName, testName string) {
+	if s.T().Failed() {
+		s.failed = true
+	}
 }
 
 func (suite *basicSuite) SetupSuite() {
@@ -181,19 +198,23 @@ func (s *basicSuite) TearDownSuite() {
 // 	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypeClickHouse})
 // }
 
+// TestPGBasicSuite is skipped by default - redundant with TestDragonflyBasicSuite
 func TestPGBasicSuite(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
+	testutil.SkipUnlessCompat(t)
 	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypePostgres})
 }
 
+// TestRedisClusterBasicSuite is skipped by default - run with TESTCOMPAT=1 for full compatibility testing
 func TestRedisClusterBasicSuite(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
+	testutil.SkipUnlessCompat(t)
 
 	// Get Redis cluster config from environment
 	redisConfig := configs.CreateRedisClusterConfig(t)
@@ -207,8 +228,35 @@ func TestRedisClusterBasicSuite(t *testing.T) {
 	})
 }
 
-func TestBasicSuiteWithDeploymentID(t *testing.T) {
+func TestDragonflyBasicSuite(t *testing.T) {
+	// t.Parallel() // Disabled to avoid test interference
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+
+	// Use NewDragonflyStackConfig (DB 0) for RediSearch support
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypePostgres,
+		redisConfig:    testinfra.NewDragonflyStackConfig(t),
+	})
+}
+
+// TestRedisStackBasicSuite is skipped by default - run with TESTCOMPAT=1 for full compatibility testing
+func TestRedisStackBasicSuite(t *testing.T) {
 	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+	testutil.SkipUnlessCompat(t)
+
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypePostgres,
+		redisConfig:    testinfra.NewRedisStackConfig(t),
+	})
+}
+
+func TestBasicSuiteWithDeploymentID(t *testing.T) {
+	// t.Parallel() // Disabled to avoid test interference
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
@@ -217,4 +265,151 @@ func TestBasicSuiteWithDeploymentID(t *testing.T) {
 		logStorageType: configs.LogStorageTypePostgres,
 		deploymentID:   "dp_e2e_test",
 	})
+}
+
+// TestAutoDisableWithoutCallbackURL tests the scenario from issue #596:
+// ALERT_AUTO_DISABLE_DESTINATION=true without ALERT_CALLBACK_URL set.
+// Run with: go test -v -run TestAutoDisableWithoutCallbackURL ./cmd/e2e/...
+func TestAutoDisableWithoutCallbackURL(t *testing.T) {
+	// t.Parallel() // Disabled to avoid test interference
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+
+	// Setup infrastructure
+	testinfraCleanup := testinfra.Start(t)
+	defer testinfraCleanup()
+	gin.SetMode(gin.TestMode)
+	mockServerBaseURL := testinfra.GetMockServer(t)
+
+	// Configure WITHOUT alert callback URL (the issue #596 scenario)
+	cfg := configs.Basic(t, configs.BasicOpts{
+		LogStorage: configs.LogStorageTypePostgres,
+	})
+	cfg.Alert.CallbackURL = ""              // No callback URL
+	cfg.Alert.AutoDisableDestination = true // Auto-disable enabled
+	cfg.Alert.ConsecutiveFailureCount = 20  // Default threshold
+
+	require.NoError(t, cfg.Validate(config.Flags{}))
+
+	// Start application
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	appDone := make(chan struct{})
+	go func() {
+		defer close(appDone)
+		application := app.New(&cfg)
+		if err := application.Run(ctx); err != nil {
+			log.Println("Application stopped:", err)
+		}
+	}()
+	defer func() {
+		cancel()
+		<-appDone
+	}()
+
+	// Wait for services to start
+	time.Sleep(2 * time.Second)
+
+	// Setup test client
+	client := httpclient.New(fmt.Sprintf("http://localhost:%d/api/v1", cfg.APIPort), cfg.APIKey)
+	mockServerInfra := testinfra.NewMockServerInfra(mockServerBaseURL)
+
+	// Test data
+	tenantID := fmt.Sprintf("tenant_%d", time.Now().UnixNano())
+	destinationID := fmt.Sprintf("dest_%d", time.Now().UnixNano())
+	secret := "testsecret1234567890abcdefghijklmnop"
+
+	// Create tenant
+	resp, err := client.Do(httpclient.Request{
+		Method:  httpclient.MethodPUT,
+		Path:    "/tenants/" + tenantID,
+		Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 201, resp.StatusCode, "failed to create tenant")
+
+	// Configure mock server destination to return errors
+	resp, err = client.Do(httpclient.Request{
+		Method:  httpclient.MethodPUT,
+		BaseURL: mockServerBaseURL,
+		Path:    "/destinations",
+		Body: map[string]interface{}{
+			"id":   destinationID,
+			"type": "webhook",
+			"config": map[string]interface{}{
+				"url": fmt.Sprintf("%s/webhook/%s", mockServerBaseURL, destinationID),
+			},
+			"credentials": map[string]interface{}{
+				"secret": secret,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode, "failed to configure mock server")
+
+	// Create destination
+	resp, err = client.Do(httpclient.Request{
+		Method:  httpclient.MethodPOST,
+		Path:    "/tenants/" + tenantID + "/destinations",
+		Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
+		Body: map[string]interface{}{
+			"id":     destinationID,
+			"type":   "webhook",
+			"topics": "*",
+			"config": map[string]interface{}{
+				"url": fmt.Sprintf("%s/webhook/%s", mockServerBaseURL, destinationID),
+			},
+			"credentials": map[string]interface{}{
+				"secret": secret,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 201, resp.StatusCode, "failed to create destination")
+
+	// Publish 21 events that will fail (1 more than threshold to test idempotency)
+	for i := 0; i < 21; i++ {
+		resp, err = client.Do(httpclient.Request{
+			Method:  httpclient.MethodPOST,
+			Path:    "/publish",
+			Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
+			Body: map[string]interface{}{
+				"tenant_id":          tenantID,
+				"topic":              "user.created",
+				"eligible_for_retry": false,
+				"metadata": map[string]any{
+					"should_err": "true",
+				},
+				"data": map[string]any{
+					"index": i,
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, 202, resp.StatusCode, "failed to publish event %d", i)
+	}
+
+	// Wait for deliveries to be processed
+	time.Sleep(time.Second)
+
+	// Check if destination is disabled
+	resp, err = client.Do(httpclient.Request{
+		Method:  httpclient.MethodGET,
+		Path:    "/tenants/" + tenantID + "/destinations/" + destinationID,
+		Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode, "failed to get destination")
+
+	// Parse response to check disabled_at
+	bodyMap, ok := resp.Body.(map[string]interface{})
+	require.True(t, ok, "response body should be a map")
+
+	disabledAt := bodyMap["disabled_at"]
+	require.NotNil(t, disabledAt, "destination should be disabled (disabled_at should not be null) - issue #596")
+
+	// Cleanup mock server
+	_ = mockServerInfra
 }

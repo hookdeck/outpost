@@ -7,16 +7,21 @@ import "./DestinationConfigFields.scss";
 import { EditIcon, HelpIcon, CloseIcon } from "../Icons";
 import Tooltip from "../Tooltip/Tooltip";
 import Button from "../Button/Button";
-import ConfigurationModal from "../ConfigurationModal/ConfigurationModal";
+import { useSidebar } from "../Sidebar/Sidebar";
+import { ConfigurationGuide } from "../ConfigurationGuide/ConfigurationGuide";
 import { Checkbox } from "../Checkbox/Checkbox";
+import KeyValueMapField from "../KeyValueMapField/KeyValueMapField";
 import { isCheckedValue } from "../../utils/formHelper";
+import CONFIGS from "../../config";
 
 const DestinationConfigFields = ({
   destination,
   type,
+  onChange,
 }: {
   destination?: Destination;
   type: DestinationTypeReference;
+  onChange?: () => void;
 }) => {
   const [unlockedSensitiveFields, setUnlockedSensitiveFields] = useState<
     Record<string, boolean>
@@ -24,7 +29,7 @@ const DestinationConfigFields = ({
   const [lastUnlockedSensitiveField, setLastUnlockedSensitiveField] = useState<
     string | null
   >(null);
-  const [showConfigModal, setShowConfigModal] = useState(false);
+  const sidebar = useSidebar();
 
   const inputRefs = useRef<Record<string, HTMLInputElement>>({});
 
@@ -65,7 +70,9 @@ const DestinationConfigFields = ({
     <>
       {type.instructions && (
         <Button
-          onClick={() => setShowConfigModal(!showConfigModal)}
+          onClick={() =>
+            sidebar.toggle("configuration", <ConfigurationGuide type={type} />)
+          }
           className="config-guide-button"
         >
           <HelpIcon />
@@ -84,101 +91,138 @@ const DestinationConfigFields = ({
           </a>
         </div>
       )}
-      {[...type.config_fields, ...type.credential_fields].map((field) => (
-        <div key={field.key} className="destination-config-field">
-          <label htmlFor={field.key}>
-            {field.label}
-            {field.required && <span className="required">*</span>}
-          </label>
-          {field.type === "text" && (
-            <div className="input-container">
-              <input
-                ref={(el) => {
-                  if (el) inputRefs.current[field.key] = el;
-                }}
-                type={
-                  "sensitive" in field && field.sensitive ? "password" : "text"
-                }
-                placeholder={""}
+      {[...type.config_fields, ...type.credential_fields]
+        .filter((field) => {
+          // Filter out custom_headers if the feature flag is not enabled
+          if (
+            field.key === "custom_headers" &&
+            CONFIGS.ENABLE_WEBHOOK_CUSTOM_HEADERS !== "true"
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .map((field) => (
+          <div key={field.key} className="destination-config-field">
+            <label htmlFor={field.key}>
+              {field.label}
+              {field.required && <span className="required">*</span>}
+            </label>
+            {field.type === "text" && (
+              <div className="input-container">
+                <input
+                  ref={(el) => {
+                    if (el) inputRefs.current[field.key] = el;
+                  }}
+                  type={
+                    "sensitive" in field && field.sensitive
+                      ? "password"
+                      : "text"
+                  }
+                  placeholder={""}
+                  id={field.key}
+                  name={field.key}
+                  defaultValue={
+                    "sensitive" in field && field.sensitive
+                      ? unlockedSensitiveFields[field.key]
+                        ? ""
+                        : destination?.credentials[field.key] || field.default
+                      : destination?.config[field.key] ||
+                        destination?.credentials[field.key] ||
+                        field.default
+                  }
+                  disabled={
+                    "sensitive" in field && field.sensitive
+                      ? destination?.credentials[field.key] &&
+                        !unlockedSensitiveFields[field.key]
+                      : field.disabled
+                  }
+                  required={field.required}
+                  minLength={field.minlength}
+                  maxLength={field.maxlength}
+                  pattern={field.pattern}
+                />
+                {/* Show Edit button if sensitive and locked */}
+                {"sensitive" in field &&
+                  field.sensitive &&
+                  destination?.credentials[field.key] &&
+                  !unlockedSensitiveFields[field.key] && (
+                    <button
+                      type="button"
+                      onClick={() => unlockSensitiveField(field.key)}
+                    >
+                      <Tooltip content="Edit secret value" align="end">
+                        <EditIcon />
+                      </Tooltip>
+                    </button>
+                  )}
+
+                {/* Show Cancel button if sensitive and unlocked */}
+                {"sensitive" in field &&
+                  field.sensitive &&
+                  unlockedSensitiveFields[field.key] && (
+                    <button
+                      type="button"
+                      onClick={() => lockSensitiveField(field.key)}
+                    >
+                      <Tooltip content="Cancel editing" align="end">
+                        <CloseIcon />
+                      </Tooltip>
+                    </button>
+                  )}
+              </div>
+            )}
+            {field.type === "checkbox" && (
+              <Checkbox
+                label=""
                 id={field.key}
                 name={field.key}
-                defaultValue={
-                  "sensitive" in field && field.sensitive
-                    ? unlockedSensitiveFields[field.key]
-                      ? ""
-                      : destination?.credentials[field.key] || field.default
-                    : destination?.config[field.key] ||
-                      destination?.credentials[field.key] ||
-                      field.default
+                defaultChecked={
+                  (destination?.config[field.key] !== undefined
+                    ? isCheckedValue(destination?.config[field.key])
+                    : undefined) ??
+                  (destination?.credentials[field.key] !== undefined
+                    ? isCheckedValue(destination?.credentials[field.key])
+                    : undefined) ??
+                  (field.default !== undefined
+                    ? isCheckedValue(field.default)
+                    : undefined) ??
+                  false
                 }
-                disabled={
-                  "sensitive" in field && field.sensitive
-                    ? destination?.credentials[field.key] &&
-                      !unlockedSensitiveFields[field.key]
-                    : field.disabled
-                }
+                disabled={field.disabled}
                 required={field.required}
-                minLength={field.minlength}
-                maxLength={field.maxlength}
-                pattern={field.pattern}
               />
-              {/* Show Edit button if sensitive and locked */}
-              {"sensitive" in field &&
-                field.sensitive &&
-                destination?.credentials[field.key] &&
-                !unlockedSensitiveFields[field.key] && (
-                  <button type="button" onClick={() => unlockSensitiveField(field.key)}>
-                    <Tooltip content="Edit secret value" align="end">
-                      <EditIcon />
-                    </Tooltip>
-                  </button>
-                )}
+            )}
+            {field.description && (
+              <p
+                className="description"
+                style={{
+                  marginBottom:
+                    field.type === "key_value_map"
+                      ? "var(--spacing-2)"
+                      : "var(--spacing-4)",
+                }}
+              >
+                {field.description}
+              </p>
+            )}
+            {field.type === "key_value_map" && (
+              <KeyValueMapField
+                name={field.key}
+                defaultValue={
+                  destination?.config[field.key] ||
+                  destination?.credentials[field.key] ||
+                  field.default
+                }
+                disabled={field.disabled}
+                keyPlaceholder={field.key_placeholder}
+                valuePlaceholder={field.value_placeholder}
+                onChange={onChange}
+              />
+            )}
+          </div>
+        ))}
 
-              {/* Show Cancel button if sensitive and unlocked */}
-              {"sensitive" in field &&
-                field.sensitive &&
-                unlockedSensitiveFields[field.key] && (
-                  <button type="button" onClick={() => lockSensitiveField(field.key)}>
-                    <Tooltip content="Cancel editing" align="end">
-                      <CloseIcon />
-                    </Tooltip>
-                  </button>
-                )}
-            </div>
-          )}
-          {field.type === "checkbox" && (
-            <Checkbox
-              label=""
-              id={field.key}
-              name={field.key}
-              defaultChecked={
-                (destination?.config[field.key] !== undefined
-                  ? isCheckedValue(destination?.config[field.key])
-                  : undefined) ??
-                (destination?.credentials[field.key] !== undefined
-                  ? isCheckedValue(destination?.credentials[field.key])
-                  : undefined) ??
-                (field.default !== undefined
-                  ? isCheckedValue(field.default)
-                  : undefined) ??
-                false
-              }
-              disabled={field.disabled}
-              required={field.required}
-            />
-          )}
-          {field.description && (
-            <p className="description">{field.description}</p>
-          )}
-        </div>
-      ))}
-
-      {showConfigModal && (
-        <ConfigurationModal
-          type={type}
-          onClose={() => setShowConfigModal(false)}
-        />
-      )}
     </>
   );
 };

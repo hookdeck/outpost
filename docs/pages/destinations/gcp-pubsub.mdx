@@ -1,0 +1,121 @@
+---
+title: GCP Pub/Sub
+---
+
+Publish events to a Google Cloud Pub/Sub topic.
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `config.project_id` | string | Yes | GCP project ID |
+| `config.topic` | string | Yes | Pub/Sub topic name |
+| `config.endpoint` | string | No | Custom endpoint (for emulator) |
+
+### Credentials
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `credentials.service_account_json` | string | Yes* | Service account JSON key |
+
+*Not required when using the Pub/Sub emulator.
+
+### Example
+
+```sh
+curl --location 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "gcp_pubsub",
+  "topics": ["orders"],
+  "config": {
+    "project_id": "my-project",
+    "topic": "my-topic"
+  },
+  "credentials": {
+    "service_account_json": "{\"type\": \"service_account\", ...}"
+  }
+}'
+```
+
+## Message Format
+
+Events are published as Pub/Sub messages with:
+
+- **Data**: The event's `data` field (JSON)
+- **Attributes**: Event metadata
+
+### Example Message
+
+If you publish an event:
+
+```json
+{
+  "topic": "orders",
+  "data": {
+    "order_id": "123",
+    "status": "created"
+  },
+  "metadata": {
+    "source": "checkout-service"
+  }
+}
+```
+
+**Data:**
+```json
+{
+  "order_id": "123",
+  "status": "created"
+}
+```
+
+**Attributes:**
+
+Attributes include system metadata and any event metadata from the published event:
+
+| Attribute | Source | Description |
+| --------- | ------ | ----------- |
+| `event-id` | System | The unique event ID |
+| `topic` | System | The event topic |
+| `timestamp` | System | Event timestamp (Unix) |
+| `*` | Event | Any additional metadata from the published event's `metadata` field |
+
+## IAM Permissions
+
+The service account needs the following role:
+
+- `roles/pubsub.publisher` on the topic
+
+Or the specific permission:
+
+- `pubsub.topics.publish`
+
+## Creating a Service Account
+
+1. Navigate to **IAM & Admin > Service Accounts** in the GCP Console
+2. Click **Create Service Account**
+3. Grant the **Pub/Sub Publisher** role
+4. Create a JSON key and download it
+5. Use the JSON content as `service_account_json`
+
+## Using with Emulator
+
+For local development with the Pub/Sub emulator, set the `config.endpoint` field:
+
+```json
+{
+  "type": "gcp_pubsub",
+  "topics": ["orders"],
+  "config": {
+    "project_id": "test-project",
+    "topic": "test-topic",
+    "endpoint": "localhost:8085"
+  }
+}
+```
+
+When using the emulator, `service_account_json` is not required.

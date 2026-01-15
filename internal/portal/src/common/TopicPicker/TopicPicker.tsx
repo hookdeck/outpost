@@ -19,30 +19,32 @@ interface TopicPickerProps {
 
 const detectSeparator = (topics: string[]): string => {
   // Common separators to check
-  const possibleSeparators = ['/', '.', '-'];
-  
+  const possibleSeparators = ["/", ".", "-"];
+
   // Find the first separator that appears in all topics
   // and is the first occurring separator in each topic
-  return possibleSeparators.find(sep => 
-    topics.every(topic => {
-      const sepIndex = topic.indexOf(sep);
-      if (sepIndex === -1) return false;
-      
-      // Check if any other separator appears before this one
-      const otherSepsIndex = possibleSeparators
-        .filter(s => s !== sep)
-        .map(s => topic.indexOf(s))
-        .filter(idx => idx !== -1);
-        
-      return otherSepsIndex.every(idx => idx === -1 || idx > sepIndex);
-    })
-  ) || '-'; // Fallback to '-' if no consistent separator is found
+  return (
+    possibleSeparators.find((sep) =>
+      topics.every((topic) => {
+        const sepIndex = topic.indexOf(sep);
+        if (sepIndex === -1) return false;
+
+        // Check if any other separator appears before this one
+        const otherSepsIndex = possibleSeparators
+          .filter((s) => s !== sep)
+          .map((s) => topic.indexOf(s))
+          .filter((idx) => idx !== -1);
+
+        return otherSepsIndex.every((idx) => idx === -1 || idx > sepIndex);
+      })
+    ) || "-"
+  ); // Fallback to '-' if no consistent separator is found
 };
 
 const topics: Topic[] = (() => {
   const topicsList = CONFIGS.TOPICS.split(",");
   const separator = detectSeparator(topicsList);
-  
+
   return topicsList.map((topic) => {
     const parts = topic.split(separator);
     return {
@@ -78,14 +80,17 @@ const TopicPicker = ({
       topic.id.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    return filtered.reduce((acc, topic) => {
-      const category = topic.category;
-      if (!acc[category]) {
-        acc[category] = [];
-      }
-      acc[category].push(topic);
-      return acc;
-    }, {} as Record<string, Topic[]>);
+    return filtered.reduce(
+      (acc, topic) => {
+        const category = topic.category;
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push(topic);
+        return acc;
+      },
+      {} as Record<string, Topic[]>
+    );
   }, [topics, searchQuery]);
 
   const toggleCategory = (category: string) => {
@@ -174,9 +179,10 @@ const TopicPicker = ({
                     .split(" ")
                     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
                     .join(" ")}`}
-                  checked={areAllSelected}
-                  indeterminate={isIndeterminate}
+                  checked={isEverythingSelected || areAllSelected}
+                  indeterminate={!isEverythingSelected && isIndeterminate}
                   onChange={() => toggleCategorySelection(categoryTopics)}
+                  disabled={isEverythingSelected}
                 />
               </div>
               {isExpanded && (
@@ -184,10 +190,14 @@ const TopicPicker = ({
                   {categoryTopics.map((topic) => (
                     <div key={topic.id} className="topic-picker__topic">
                       <Checkbox
-                        checked={selectedTopics.indexOf(topic.id) !== -1}
+                        checked={
+                          isEverythingSelected ||
+                          selectedTopics.indexOf(topic.id) !== -1
+                        }
                         onChange={() => toggleTopic(topic.id)}
                         label={topic.id}
                         monospace
+                        disabled={isEverythingSelected}
                       />
                     </div>
                   ))}

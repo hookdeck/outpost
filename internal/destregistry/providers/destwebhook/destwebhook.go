@@ -7,8 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -21,6 +21,60 @@ const (
 	DefaultEncoding  = "hex"
 	DefaultAlgorithm = "hmac-sha256"
 )
+
+// Reserved headers that cannot be set via custom_headers
+var reservedHeaders = map[string]bool{
+	"content-type":   true,
+	"content-length": true,
+	"host":           true,
+	"connection":     true,
+	"user-agent":     true,
+}
+
+// Valid header name pattern (RFC 7230 token)
+var headerNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
+
+// ValidateCustomHeaders validates custom header names and values
+func ValidateCustomHeaders(headers map[string]string) error {
+	if len(headers) == 0 {
+		return nil
+	}
+
+	var errors []destregistry.ValidationErrorDetail
+
+	for name, value := range headers {
+		// Check header name format
+		if !headerNameRegex.MatchString(name) {
+			errors = append(errors, destregistry.ValidationErrorDetail{
+				Field: fmt.Sprintf("config.custom_headers.%s", name),
+				Type:  "pattern",
+			})
+			continue
+		}
+
+		// Check reserved headers (case-insensitive)
+		if reservedHeaders[strings.ToLower(name)] {
+			errors = append(errors, destregistry.ValidationErrorDetail{
+				Field: fmt.Sprintf("config.custom_headers.%s", name),
+				Type:  "forbidden",
+			})
+			continue
+		}
+
+		// Check value is not empty
+		if value == "" {
+			errors = append(errors, destregistry.ValidationErrorDetail{
+				Field: fmt.Sprintf("config.custom_headers.%s", name),
+				Type:  "required",
+			})
+		}
+	}
+
+	if len(errors) > 0 {
+		return destregistry.NewErrDestinationValidation(errors)
+	}
+	return nil
+}
 
 type WebhookDestination struct {
 	*destregistry.BaseProvider
@@ -38,7 +92,8 @@ type WebhookDestination struct {
 }
 
 type WebhookDestinationConfig struct {
-	URL string
+	URL           string
+	CustomHeaders map[string]string
 }
 
 type WebhookSecret struct {
@@ -234,7 +289,7 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 	}
 
 	return &WebhookPublisher{
-		BasePublisher:          d.BaseProvider.NewPublisher(),
+		BasePublisher:          d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		httpClient:             httpClient,
 		url:                    config.URL,
 		headerPrefix:           d.headerPrefix,
@@ -244,6 +299,7 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		disableSignatureHeader: d.disableSignatureHeader,
 		disableTimestampHeader: d.disableTimestampHeader,
 		disableTopicHeader:     d.disableTopicHeader,
+		customHeaders:          config.CustomHeaders,
 	}, nil
 }
 
@@ -254,6 +310,19 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 
 	config := &WebhookDestinationConfig{
 		URL: destination.Config["url"],
+	}
+
+	// Parse custom headers from config
+	if headersJSON, ok := destination.Config["custom_headers"]; ok && headersJSON != "" {
+		if err := json.Unmarshal([]byte(headersJSON), &config.CustomHeaders); err != nil {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+				Field: "config.custom_headers",
+				Type:  "invalid",
+			}})
+		}
+		if err := ValidateCustomHeaders(config.CustomHeaders); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// Parse credentials directly from map
@@ -506,6 +575,7 @@ type WebhookPublisher struct {
 	disableSignatureHeader bool
 	disableTimestampHeader bool
 	disableTopicHeader     bool
+	customHeaders          map[string]string
 }
 
 func (p *WebhookPublisher) Close() error {
@@ -524,38 +594,8 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) (*d
 		return nil, err
 	}
 
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, destregistry.NewErrDestinationPublishAttempt(err, "webhook", map[string]interface{}{
-			"error":   "request_failed",
-			"message": err.Error(),
-		})
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		delivery := &destregistry.Delivery{
-			Status: "failed",
-			Code:   fmt.Sprintf("%d", resp.StatusCode),
-		}
-		parseResponse(delivery, resp)
-		return delivery, destregistry.NewErrDestinationPublishAttempt(
-			fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(bodyBytes)),
-			"webhook",
-			map[string]interface{}{
-				"status": resp.StatusCode,
-				"body":   string(bodyBytes),
-			})
-	}
-
-	delivery := &destregistry.Delivery{
-		Status: "success",
-		Code:   fmt.Sprintf("%d", resp.StatusCode),
-	}
-	parseResponse(delivery, resp)
-
-	return delivery, nil
+	result := ExecuteHTTPRequest(ctx, p.httpClient, httpReq, "webhook")
+	return result.Delivery, result.Error
 }
 
 // Format is a helper function to format the event data into an HTTP request.
@@ -572,6 +612,11 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+
+	// Add custom headers FIRST (so metadata can override if there's a conflict)
+	for key, value := range p.customHeaders {
+		req.Header.Set(key, value)
+	}
 
 	// Get merged metadata (system + event metadata) using BasePublisher
 	metadata := p.BasePublisher.MakeMetadata(event, now)
@@ -655,28 +700,5 @@ func isTruthy(value string) bool {
 		return true
 	default:
 		return false
-	}
-}
-
-func parseResponse(delivery *destregistry.Delivery, resp *http.Response) {
-	if strings.Contains(resp.Header.Get("Content-Type"), "application/json") {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		var response map[string]interface{}
-		if err := json.Unmarshal(bodyBytes, &response); err != nil {
-			delivery.Response = map[string]interface{}{
-				"status": resp.StatusCode,
-				"body":   string(bodyBytes),
-			}
-		}
-		delivery.Response = map[string]interface{}{
-			"status": resp.StatusCode,
-			"body":   response,
-		}
-	} else {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		delivery.Response = map[string]interface{}{
-			"status": resp.StatusCode,
-			"body":   string(bodyBytes),
-		}
 	}
 }

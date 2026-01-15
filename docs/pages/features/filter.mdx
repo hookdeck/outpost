@@ -1,0 +1,306 @@
+---
+title: Destination Filters
+---
+
+Destination filters allow tenants to selectively receive only events that match specific criteria. Instead of receiving all events for subscribed topics, a destination can define filters to route events based on their properties.
+
+## Overview
+
+When an event is published, Outpost evaluates each destination's filter against the event. A destination receives an event only if:
+
+1. The destination is enabled
+2. The event's topic matches one of the destination's subscribed topics
+3. The event matches the destination's filter (or no filter is defined)
+
+Filters are optional. Destinations without filters receive all events matching their subscribed topics.
+
+## Event Structure
+
+Events have five top-level properties that can be filtered:
+
+| Property | Description |
+| -------- | ----------- |
+| `id` | The event ID |
+| `topic` | The event topic |
+| `time` | Event timestamp (RFC 3339 format) |
+| `metadata` | Additional event information |
+| `data` | The event payload |
+
+Your filter should specify one or more of these at the top level:
+
+```json
+{
+  "topic": "order.created",
+  "data": {
+    "status": "paid"
+  },
+  "metadata": {
+    "source": "api"
+  }
+}
+```
+
+## Exact Match
+
+Specify the field path and value to match:
+
+```json
+{
+  "data": {
+    "status": "paid"
+  }
+}
+```
+
+Multiple conditions are combined with AND logic:
+
+```json
+{
+  "data": {
+    "status": "paid",
+    "currency": "usd"
+  }
+}
+```
+
+Nested objects are supported:
+
+```json
+{
+  "data": {
+    "customer": {
+      "tier": "premium"
+    }
+  }
+}
+```
+
+## Arrays
+
+Arrays match if they contain the specified value:
+
+```json
+{
+  "data": {
+    "tags": "urgent"
+  }
+}
+```
+
+This matches events like: `{ "tags": ["urgent", "support"] }`
+
+## Operators
+
+Use operators for complex matching.
+
+### Comparison Operators
+
+| Operator | Description |
+| -------- | ----------- |
+| `$eq` | Equals |
+| `$neq` | Not equals |
+| `$gt` | Greater than |
+| `$gte` | Greater or equal |
+| `$lt` | Less than |
+| `$lte` | Less or equal |
+
+Match orders over $100:
+
+```json
+{
+  "data": {
+    "amount": { "$gte": 100 }
+  }
+}
+```
+
+Multiple operators on the same field are combined with AND:
+
+```json
+{
+  "data": {
+    "amount": {
+      "$gte": 100,
+      "$lt": 500
+    }
+  }
+}
+```
+
+### Membership Operators
+
+| Operator | Description |
+| -------- | ----------- |
+| `$in` | Value in array, or substring match |
+| `$nin` | Value not in array |
+
+Match specific statuses:
+
+```json
+{
+  "data": {
+    "status": {
+      "$in": ["pending", "processing", "completed"]
+    }
+  }
+}
+```
+
+### String Operators
+
+| Operator | Description |
+| -------- | ----------- |
+| `$startsWith` | String starts with |
+| `$endsWith` | String ends with |
+
+Match emails ending with a domain:
+
+```json
+{
+  "data": {
+    "email": { "$endsWith": "@example.com" }
+  }
+}
+```
+
+### Field Existence Operator
+
+| Operator | Description |
+| -------- | ----------- |
+| `$exist` | Field exists (`true`) or doesn't (`false`) |
+
+Check if a field exists:
+
+```json
+{
+  "data": {
+    "discount_code": { "$exist": true }
+  }
+}
+```
+
+Check if a field doesn't exist:
+
+```json
+{
+  "data": {
+    "deleted_at": { "$exist": false }
+  }
+}
+```
+
+## Logical Operators
+
+### `$or` - Match any condition
+
+```json
+{
+  "$or": [
+    { "data": { "status": "paid" } },
+    { "data": { "status": "shipped" } }
+  ]
+}
+```
+
+### `$and` - Match all conditions (explicit)
+
+While multiple conditions are implicitly ANDed, `$and` is useful when you need to apply multiple conditions that can't be nested together:
+
+```json
+{
+  "$and": [
+    { "data": { "status": "active" } },
+    { "data": { "amount": { "$gte": 100 } } }
+  ]
+}
+```
+
+### `$not` - Negate a condition
+
+```json
+{
+  "data": {
+    "status": {
+      "$not": {
+        "$in": ["cancelled", "refunded"]
+      }
+    }
+  }
+}
+```
+
+## Common Examples
+
+### Filter by Metadata
+
+Route events based on source:
+
+```json
+{
+  "metadata": {
+    "source": "api"
+  }
+}
+```
+
+### Filter by Time Range
+
+Match events within a specific time window:
+
+```json
+{
+  "time": {
+    "$gte": "2025-01-01T00:00:00Z",
+    "$lt": "2025-02-01T00:00:00Z"
+  }
+}
+```
+
+### Filter by Numeric Value
+
+Process only high-value orders:
+
+```json
+{
+  "data": {
+    "amount": { "$gte": 1000 }
+  }
+}
+```
+
+## API Usage
+
+Filters are set when creating or updating a destination via the `filter` field:
+
+```sh
+curl --location 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "webhook",
+  "topics": ["orders"],
+  "config": {
+    "url": "https://example.test/webhooks"
+  },
+  "filter": {
+    "data": {
+      "status": { "$in": ["paid", "shipped"] }
+    }
+  }
+}'
+```
+
+To remove a filter from a destination, set the `filter` field to an empty object:
+
+```sh
+curl --location --request PATCH 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations/<DESTINATION_ID>' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "filter": {}
+}'
+```
+
+## Portal Configuration
+
+To enable destination filters in the tenant portal UI, set the `PORTAL_ENABLE_DESTINATION_FILTER` environment variable to `true`.

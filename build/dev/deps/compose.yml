@@ -1,87 +1,98 @@
 name: "outpost-deps"
 
 services:
+  # ============================== Redis ==============================
+  # LOCAL_DEV_REDIS=1 (default) or LOCAL_DEV_DRAGONFLY=1
   redis:
-    image: redis:7.4-alpine
+    profiles: ["redis"]
+    image: redis/redis-stack-server:latest
     restart: always
     ports:
-      - "${REDIS_PORT}:${REDIS_PORT}"
-    command: >
-      redis-server
-        --save 20 1
-        --requirepass ${REDIS_PASSWORD}
+      - "26379:6379"
+    environment:
+      - REDIS_ARGS=--requirepass password
     volumes:
       - redis:/data
 
+  dragonfly:
+    profiles: ["dragonfly"]
+    image: docker.dragonflydb.io/dragonflydb/dragonfly
+    restart: always
+    ports:
+      - "26379:6379"
+    command: >
+      dragonfly
+        --requirepass password
+    volumes:
+      - dragonfly:/data
+    networks:
+      default:
+        aliases:
+          - redis
+
   # ============================== Log Store ==============================
-  # clickhouse:
-  #   image: clickhouse/clickhouse-server:24-alpine
-  #   environment:
-  #     CLICKHOUSE_DB: outpost
-  #   ports:
-  #     # tcp
-  #     - 9000:9000
-  #     # # http
-  #     # - 8123:8123
-  #     # # postgresql
-  #     # - 9005:9005
-  #   volumes:
-  #     # optional to persist data locally
-  #     - clickhouse:/var/lib/clickhouse/
-  #     # optional to add own config
-  #     # - ./extra-config.xml:/etc/clickhouse-server/config.d/extra-config.xml
-  #     # optional to add users or enable settings for a default user
-  #     # - ./user.xml:/etc/clickhouse-server/users.d/user.xml
-  #     # qol to mount own sql scripts to run them from inside container with
-  #     # clickhouse client < /sql/myquery.sql
-  #     # - ./sql:/sql
-  #   # adjust mem_limit and cpus to machine
-  #   # mem_limit: 12G
-  #   # cpus: 4
-  #   ulimits:
-  #     nofile:
-  #       soft: 262144
-  #       hard: 262144
-  #   healthcheck:
-  #     test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
-  #     interval: 1s
-  #     timeout: 1s
-  #     retries: 30
+  # LOCAL_DEV_CLICKHOUSE=1, LOCAL_DEV_POSTGRES=1 (can enable both)
+  clickhouse:
+    profiles: ["clickhouse"]
+    image: clickhouse/clickhouse-server:24-alpine
+    environment:
+      CLICKHOUSE_DB: outpost
+      CLICKHOUSE_USER: outpost
+      CLICKHOUSE_PASSWORD: outpost
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - 29000:9000  # TCP
+      - 28123:8123  # HTTP
+    volumes:
+      - clickhouse:/var/lib/clickhouse/
+      - ./clickhouse/cors.xml:/etc/clickhouse-server/config.d/cors.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
 
   postgres:
+    profiles: ["postgres"]
     image: postgres:16-alpine
     environment:
       - POSTGRES_USER=outpost
       - POSTGRES_PASSWORD=outpost
       - POSTGRES_DB=outpost
     ports:
-      - 5432:5432
+      - 25432:5432
     volumes:
       - postgres:/var/lib/postgresql/data
 
   # ============================== MQs ==============================
+  # LOCAL_DEV_RABBITMQ=1, LOCAL_DEV_LOCALSTACK=1, LOCAL_DEV_GCP=1
   rabbitmq:
+    profiles: ["rabbitmq"]
     image: rabbitmq:3-management
     ports:
-      # Reserve 5672 for AzureSB Emulator which doens't support custom ports.
-      # We may not need to expose 5672 at all if we run the full local dev env with Docker Compose.
-      # - 5673:5672
-      - 15672:15672
+      - 25672:5672   # AMQP
+      - 25673:15672  # Management UI
     volumes:
       - rabbitmq:/var/lib/rabbitmq
 
-  aws:
+  localstack:
+    profiles: ["localstack"]
     image: localstack/localstack:latest
     environment:
       - SERVICES=s3,sns,sts,sqs,kinesis
     ports:
-      - 4566:4566
-      - 4571:4571
+      - 24566:4566
+      - 24571:4571
     volumes:
-      - aws:/var/lib/localstack
+      - localstack:/var/lib/localstack
 
   gcp:
-    image: google/cloud-sdk:latest
+    profiles: ["gcp"]
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
     command:
       [
         "gcloud",
@@ -93,7 +104,7 @@ services:
         "--project=test",
       ]
     ports:
-      - "8085:8085"
+      - "28085:8085"
     volumes:
       - gcp-config:/root/.config
       - gcp-kube:/root/.kube
@@ -101,13 +112,15 @@ services:
 volumes:
   redis:
     driver: local
-  # clickhouse:
-  #   driver: local
+  dragonfly:
+    driver: local
+  clickhouse:
+    driver: local
   postgres:
     driver: local
   rabbitmq:
     driver: local
-  aws:
+  localstack:
     driver: local
   gcp-config:
     driver: local

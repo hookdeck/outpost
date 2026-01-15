@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
@@ -72,11 +72,12 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 
 	// MQ overrides
 	c.MQs.RabbitMQ.ServerURL = rabbitmqServerURL
-	c.MQs.RabbitMQ.Exchange = uuid.New().String()
-	c.MQs.RabbitMQ.DeliveryQueue = uuid.New().String()
-	c.MQs.RabbitMQ.LogQueue = uuid.New().String()
+	c.MQs.RabbitMQ.Exchange = idgen.String()
+	c.MQs.RabbitMQ.DeliveryQueue = idgen.String()
+	c.MQs.RabbitMQ.LogQueue = idgen.String()
 
 	// Test-specific overrides
+	c.AuditLog = false // Disable audit logging to suppress info-level logs in tests
 	c.PublishMaxConcurrency = 3
 	c.DeliveryMaxConcurrency = 3
 	c.LogMaxConcurrency = 3
@@ -85,6 +86,10 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	c.LogBatchThresholdSeconds = 1
 	c.LogBatchSize = 100
 	c.DeploymentID = opts.DeploymentID
+
+	// Use signature templates with timestamps for mock server compatibility
+	c.Destinations.Webhook.SignatureContentTemplate = "{{.Timestamp.Unix}}.{{.Body}}"
+	c.Destinations.Webhook.SignatureHeaderTemplate = "t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
 
 	// Setup cleanup
 	t.Cleanup(func() {

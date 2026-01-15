@@ -54,7 +54,7 @@ describe('AWS SQS Destinations - Contract Tests (SDK-based validation)', () => {
     }
   });
 
-  describe('POST /api/v1/{tenant_id}/destinations - Create AWS SQS Destination', () => {
+  describe('POST /api/v1/tenants/{tenant_id}/destinations - Create AWS SQS Destination', () => {
     it('should create an AWS SQS destination with valid config', async () => {
       const destinationData = createAwsSqsDestination();
       const destination = await client.createDestination(destinationData);
@@ -193,7 +193,7 @@ describe('AWS SQS Destinations - Contract Tests (SDK-based validation)', () => {
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations/{id} - Retrieve AWS SQS Destination', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations/{id} - Retrieve AWS SQS Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -237,7 +237,7 @@ describe('AWS SQS Destinations - Contract Tests (SDK-based validation)', () => {
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations - List AWS SQS Destinations', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations - List AWS SQS Destinations', () => {
     before(async () => {
       // Create multiple AWS SQS destinations for listing
       await client.createDestination(createAwsSqsDestination());
@@ -266,7 +266,7 @@ describe('AWS SQS Destinations - Contract Tests (SDK-based validation)', () => {
     });
   });
 
-  describe('PATCH /api/v1/{tenant_id}/destinations/{id} - Update AWS SQS Destination', () => {
+  describe('PATCH /api/v1/tenants/{tenant_id}/destinations/{id} - Update AWS SQS Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -342,7 +342,7 @@ describe('AWS SQS Destinations - Contract Tests (SDK-based validation)', () => {
     });
   });
 
-  describe('DELETE /api/v1/{tenant_id}/destinations/{id} - Delete AWS SQS Destination', () => {
+  describe('DELETE /api/v1/tenants/{tenant_id}/destinations/{id} - Delete AWS SQS Destination', () => {
     it('should delete an existing destination', async () => {
       const destinationData = createAwsSqsDestination();
       const destination = await client.createDestination(destinationData);

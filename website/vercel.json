@@ -1,4 +1,11 @@
 {
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "https://hookdeck.com/outpost",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/docs",

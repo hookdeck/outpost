@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/lru"
 	"github.com/hookdeck/outpost/internal/models"
@@ -142,7 +142,7 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	}
 
 	delivery := &models.Delivery{
-		ID:            uuid.New().String(),
+		ID:            idgen.Delivery(),
 		DestinationID: destination.ID,
 		EventID:       event.ID,
 	}
@@ -153,6 +153,13 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 
 	deliveryData, err := publisher.Publish(timeoutCtx, event)
 	if err != nil {
+		// Context canceled = system shutdown, return nil delivery to trigger nack → requeue.
+		// This is handled centrally so individual publishers don't need to check for it.
+		// See: https://github.com/hookdeck/outpost/issues/571
+		if errors.Is(err, context.Canceled) {
+			return nil, NewErrPublishCanceled(destination.Type)
+		}
+
 		if deliveryData != nil {
 			delivery.Time = time.Now()
 			delivery.Status = deliveryData.Status

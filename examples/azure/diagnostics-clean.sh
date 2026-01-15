@@ -63,7 +63,7 @@ run_cleanup() {
     TENANT_ID="diagnostics-tenant-x"
 
     echo "   (Fetching destinations for tenant: $TENANT_ID...)"
-    DESTINATION_IDS=$(curl -sf -X GET "$base_url/api/v1/$TENANT_ID/destinations" \
+    DESTINATION_IDS=$(curl -sf -X GET "$base_url/api/v1/tenants/$TENANT_ID/destinations" \
         -H "Authorization: Bearer $API_KEY" | jq -r '.[].id')
 
     if [ -z "$DESTINATION_IDS" ]; then
@@ -71,7 +71,7 @@ run_cleanup() {
     else
         for DEST_ID in $DESTINATION_IDS; do
             echo "   (Deleting destination: $DEST_ID...)"
-            if ! curl -sf -X DELETE "$base_url/api/v1/$TENANT_ID/destinations/$DEST_ID" -H "Authorization: Bearer $API_KEY" >/dev/null; then
+            if ! curl -sf -X DELETE "$base_url/api/v1/tenants/$TENANT_ID/destinations/$DEST_ID" -H "Authorization: Bearer $API_KEY" >/dev/null; then
                 echo "   -> ❌ Failed to delete destination $DEST_ID."
             else
                 echo "   -> ✅ Destination $DEST_ID deleted."
@@ -80,7 +80,7 @@ run_cleanup() {
     fi
 
     echo "   (Deleting tenant: $TENANT_ID...)"
-    if ! curl -sf -X DELETE "$base_url/api/v1/$TENANT_ID" -H "Authorization: Bearer $API_KEY" >/dev/null; then
+    if ! curl -sf -X DELETE "$base_url/api/v1/tenants/$TENANT_ID" -H "Authorization: Bearer $API_KEY" >/dev/null; then
         echo "   -> ❌ Failed to delete tenant $TENANT_ID."
     else
         echo "   -> ✅ Tenant $TENANT_ID deleted."

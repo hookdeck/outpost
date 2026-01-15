@@ -10,6 +10,7 @@ import ErrorBoundary from "./common/ErrorBoundary/ErrorBoundary";
 import CONFIGS from "./config";
 import Destination from "./scenes/Destination/Destination";
 import { ToastProvider } from "./common/Toast/Toast";
+import { SidebarProvider } from "./common/Sidebar/Sidebar";
 import CreateDestination from "./scenes/CreateDestination/CreateDestination";
 
 type ApiClient = {
@@ -20,25 +21,27 @@ export const ApiContext = createContext<ApiClient>({} as ApiClient);
 
 function NotFound() {
   return (
-    <div style={{ 
-      textAlign: 'center', 
-      padding: '2rem',
-      maxWidth: '500px',
-      margin: '0 auto'
-    }}>
-      <h1 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#374151' }}>
+    <div
+      style={{
+        textAlign: "center",
+        padding: "2rem",
+        maxWidth: "500px",
+        margin: "0 auto",
+      }}
+    >
+      <h1 style={{ fontSize: "2rem", marginBottom: "1rem", color: "#374151" }}>
         Page Not Found
       </h1>
-      <p style={{ fontSize: '1rem', marginBottom: '2rem', color: '#6b7280' }}>
+      <p style={{ fontSize: "1rem", marginBottom: "2rem", color: "#6b7280" }}>
         The page you're looking for doesn't exist.
       </p>
-      <Link 
-        to="/" 
-        style={{ 
-          color: '#3b82f6', 
-          textDecoration: 'none',
-          fontSize: '1rem',
-          fontWeight: '500'
+      <Link
+        to="/"
+        style={{
+          color: "#3b82f6",
+          textDecoration: "none",
+          fontSize: "1rem",
+          fontWeight: "500",
         }}
       >
         ← Back to Destinations
@@ -47,14 +50,12 @@ function NotFound() {
   );
 }
 
-export function App() {
-  const token = useToken();
-  const tenant = useTenant(token ?? undefined);
+type Tenant = { id: string };
 
-  // Create API client with tenant and token
+function AuthenticatedApp({ tenant, token }: { tenant: Tenant; token: string }) {
   const apiClient: ApiClient = {
     fetch: (path: string, init?: RequestInit) => {
-      return fetch(`/api/v1/${tenant?.id}/${path}`, {
+      return fetch(`/api/v1/tenants/${tenant.id}/${path}`, {
         ...init,
         headers: {
           "Content-Type": "application/json",
@@ -78,6 +79,31 @@ export function App() {
   };
 
   return (
+    <ApiContext.Provider value={apiClient}>
+      <SWRConfig
+        value={{
+          fetcher: (path: string) => apiClient.fetch(path),
+        }}
+      >
+        <Routes>
+          <Route path="/" Component={DestinationList} />
+          <Route path="/new/*" Component={CreateDestination} />
+          <Route
+            path="/destinations/:destination_id/*"
+            Component={Destination}
+          />
+          <Route path="*" Component={NotFound} />
+        </Routes>
+      </SWRConfig>
+    </ApiContext.Provider>
+  );
+}
+
+export function App() {
+  const token = useToken();
+  const tenant = useTenant(token ?? undefined);
+
+  return (
     <BrowserRouter
       future={{
         v7_startTransition: true,
@@ -85,45 +111,31 @@ export function App() {
       }}
     >
       <ToastProvider>
-        <div className="layout">
-          <ErrorBoundary>
-            {tenant ? (
-              <ApiContext.Provider value={apiClient}>
-                <SWRConfig
-                  value={{
-                    fetcher: (path: string) => apiClient.fetch(path),
-                  }}
-                >
-                  <Routes>
-                    <Route path="/" Component={DestinationList} />
-                    <Route path="/new/*" Component={CreateDestination} />
-                    <Route
-                      path="/destinations/:destination_id/*"
-                      Component={Destination}
-                    />
-                    <Route path="*" Component={NotFound} />
-                  </Routes>
-                </SWRConfig>
-              </ApiContext.Provider>
-            ) : (
-              <div>
-                <Loading />
-              </div>
-            )}
-          </ErrorBoundary>
-        </div>
-        {!CONFIGS.DISABLE_OUTPOST_BRANDING && (
-          <div className="powered-by subtitle-s">
-            Powered by{" "}
-            <a
-              href="https://github.com/hookdeck/outpost"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Outpost
-            </a>
+        <SidebarProvider>
+          <div className="layout">
+            <ErrorBoundary>
+              {tenant && token ? (
+                <AuthenticatedApp tenant={tenant} token={token} />
+              ) : (
+                <div>
+                  <Loading />
+                </div>
+              )}
+            </ErrorBoundary>
           </div>
-        )}
+          {!CONFIGS.DISABLE_OUTPOST_BRANDING && (
+            <div className="powered-by subtitle-s">
+              Powered by{" "}
+              <a
+                href="https://github.com/hookdeck/outpost"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Outpost
+              </a>
+            </div>
+          )}
+        </SidebarProvider>
       </ToastProvider>
     </BrowserRouter>
   );
@@ -138,7 +150,7 @@ function useToken() {
     if (token) {
       setToken(token);
       sessionStorage.setItem("token", token);
-      
+
       // Preserve the current path from the browser
       const currentPath = window.location.pathname;
       window.location.replace(currentPath);
@@ -175,7 +187,7 @@ function useTenant(token?: string): Tenant | undefined {
       }
       const tenantId = value.sub;
       // TODO: Replace to use SWR
-      const response = await fetch(`/api/v1/${tenantId}`, {
+      const response = await fetch(`/api/v1/tenants/${tenantId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

@@ -9,10 +9,13 @@ export function useDestinationTypes(): Record<
   if (!data) {
     return {};
   }
-  return data.reduce((acc, type) => {
-    acc[type.type] = type;
-    return acc;
-  }, {} as Record<string, DestinationTypeReference>);
+  return data.reduce(
+    (acc, type) => {
+      acc[type.type] = type;
+      return acc;
+    },
+    {} as Record<string, DestinationTypeReference>
+  );
 }
 
 export function useDestinationType(

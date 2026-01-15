@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
@@ -12,7 +13,7 @@ import (
 	"github.com/hookdeck/outpost/internal/scheduler"
 )
 
-func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, deploymentID string, logger *logging.Logger) (scheduler.Scheduler, error) {
+func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, deploymentID string, pollBackoff time.Duration, logger *logging.Logger) (scheduler.Scheduler, error) {
 	// Create Redis client for RSMQ
 	ctx := context.Background()
 	redisClient, err := redis.New(ctx, redisConfig)
@@ -52,7 +53,7 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		return nil
 	}
 
-	return scheduler.New("deliverymq-retry", rsmqClient, exec), nil
+	return scheduler.New("deliverymq-retry", rsmqClient, exec, scheduler.WithPollBackoff(pollBackoff)), nil
 }
 
 type RetryMessage struct {

@@ -18,7 +18,7 @@ import (
 
 const (
 	AWSRegion             = "us-east-1"
-	AWSEndpoint           = "http://localhost:4566"
+	AWSEndpoint           = "http://localhost:14566"
 	AWSCredentials        = "test:test:"
 	DestinationStreamName = "destination_kinesis_stream"
 	ShardCount            = 1
@@ -192,7 +192,7 @@ func consumeMessages(ctx context.Context, client *kinesis.Client) error {
 
 	log.Printf("[*] Ready to receive messages from Kinesis")
 	log.Printf("[*] Configuration:")
-	log.Printf("\tEndpoint: %s (use 'aws:4566' if running in Docker)", AWSEndpoint)
+	log.Printf("\tEndpoint: %s (use 'aws:4566' if running inside Docker network)", AWSEndpoint)
 	log.Printf("\tRegion: %s", AWSRegion)
 	log.Printf("\tStream: %s", DestinationStreamName)
 	log.Printf("[*] Consumer set to read only NEW messages that arrive after startup")

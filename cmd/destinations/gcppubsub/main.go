@@ -17,11 +17,11 @@ import (
 )
 
 const (
-	// Default configuration for local emulator
-	DEFAULT_PROJECT_ID   = "test-project"
-	DEFAULT_TOPIC        = "test-topic"
-	DEFAULT_SUBSCRIPTION = "test-subscription"
-	DEFAULT_ENDPOINT     = "localhost:8085" // Default emulator endpoint
+	// Local emulator configuration
+	LOCAL_PROJECT_ID   = "test-project"
+	LOCAL_TOPIC        = "test-topic"
+	LOCAL_SUBSCRIPTION = "test-subscription"
+	LOCAL_ENDPOINT     = "localhost:18085" // Local dev emulator endpoint (see build/dev/deps/compose.yml)
 
 	// To use real GCP, set these environment variables:
 	// GCP_PROJECT_ID - Your GCP project ID
@@ -64,11 +64,11 @@ COMMANDS:
   help     Show this help message
   clean    Delete the topic and subscription (cleanup)
 
-DEFAULT CONFIGURATION (Emulator):
+LOCAL DEV CONFIGURATION (Emulator):
   - Project ID: test-project
   - Topic: test-topic
   - Subscription: test-subscription
-  - Endpoint: localhost:8085
+  - Endpoint: localhost:18085
 
 TO USE WITH LOCAL EMULATOR:
   # Make sure the emulator is running, then:
@@ -83,11 +83,11 @@ TO USE WITH REAL GCP:
   go run cmd/destinations/gcppubsub/main.go
 
 ENVIRONMENT VARIABLES:
-  GCP_PROJECT_ID     - GCP project ID (default: test-project)
-  GCP_TOPIC          - Pub/Sub topic name (default: test-topic)
-  GCP_SUBSCRIPTION   - Subscription name (default: test-subscription)
-  GCP_CREDENTIALS    - Path to service account JSON file (default: none, uses emulator)
-  GCP_ENDPOINT       - Custom endpoint (default: localhost:8085)
+  GCP_PROJECT_ID     - GCP project ID (local: test-project)
+  GCP_TOPIC          - Pub/Sub topic name (local: test-topic)
+  GCP_SUBSCRIPTION   - Subscription name (local: test-subscription)
+  GCP_CREDENTIALS    - Path to service account JSON file (unset for emulator)
+  GCP_ENDPOINT       - Custom endpoint (local: localhost:18085)
 
 NOTES:
   - The program will create the topic and subscription if they don't exist
@@ -98,11 +98,11 @@ NOTES:
 func run() error {
 	ctx := context.Background()
 
-	// Get configuration from environment or use defaults
-	projectID := getEnvOrDefault("GCP_PROJECT_ID", DEFAULT_PROJECT_ID)
-	topicName := getEnvOrDefault("GCP_TOPIC", DEFAULT_TOPIC)
-	subscriptionName := getEnvOrDefault("GCP_SUBSCRIPTION", DEFAULT_SUBSCRIPTION)
-	endpoint := getEnvOrDefault("GCP_ENDPOINT", DEFAULT_ENDPOINT)
+	// Get configuration from environment or use local defaults
+	projectID := getEnvOrDefault("GCP_PROJECT_ID", LOCAL_PROJECT_ID)
+	topicName := getEnvOrDefault("GCP_TOPIC", LOCAL_TOPIC)
+	subscriptionName := getEnvOrDefault("GCP_SUBSCRIPTION", LOCAL_SUBSCRIPTION)
+	endpoint := getEnvOrDefault("GCP_ENDPOINT", LOCAL_ENDPOINT)
 	credentialsPath := os.Getenv("GCP_CREDENTIALS")
 
 	log.Printf("Configuration:")
@@ -233,11 +233,11 @@ func getEnvOrDefault(key, defaultValue string) string {
 func cleanup() error {
 	ctx := context.Background()
 
-	// Get configuration from environment or use defaults
-	projectID := getEnvOrDefault("GCP_PROJECT_ID", DEFAULT_PROJECT_ID)
-	topicName := getEnvOrDefault("GCP_TOPIC", DEFAULT_TOPIC)
-	subscriptionName := getEnvOrDefault("GCP_SUBSCRIPTION", DEFAULT_SUBSCRIPTION)
-	endpoint := getEnvOrDefault("GCP_ENDPOINT", DEFAULT_ENDPOINT)
+	// Get configuration from environment or use local defaults
+	projectID := getEnvOrDefault("GCP_PROJECT_ID", LOCAL_PROJECT_ID)
+	topicName := getEnvOrDefault("GCP_TOPIC", LOCAL_TOPIC)
+	subscriptionName := getEnvOrDefault("GCP_SUBSCRIPTION", LOCAL_SUBSCRIPTION)
+	endpoint := getEnvOrDefault("GCP_ENDPOINT", LOCAL_ENDPOINT)
 	credentialsPath := os.Getenv("GCP_CREDENTIALS")
 
 	log.Printf("Cleanup Configuration:")

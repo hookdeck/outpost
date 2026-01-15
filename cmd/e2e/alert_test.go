@@ -5,23 +5,23 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func (suite *basicSuite) TestConsecutiveFailuresAlert() {
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	secret := "testsecret1234567890abcdefghijklmnop"
 
 	tests := []APITest{
 		{
-			Name: "PUT /:tenantID - Create tenant",
+			Name: "PUT /tenants/:tenantID - Create tenant",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -53,10 +53,10 @@ func (suite *basicSuite) TestConsecutiveFailuresAlert() {
 			},
 		},
 		{
-			Name: "POST /:tenantID/destinations",
+			Name: "POST /tenants/:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     destinationID,
 					"type":   "webhook",
@@ -112,10 +112,10 @@ func (suite *basicSuite) TestConsecutiveFailuresAlert() {
 	tests = []APITest{}
 	tests = append(tests, APITest{
 		Delay: time.Second / 2,
-		Name:  "GET /:tenantID/destinations/:destinationID - Check disabled",
+		Name:  "GET /tenants/:tenantID/destinations/:destinationID - Check disabled",
 		Request: suite.AuthRequest(httpclient.Request{
 			Method: httpclient.MethodGET,
-			Path:   "/" + tenantID + "/destinations/" + destinationID,
+			Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 		}),
 		Expected: APITestExpectation{
 			Validate: makeDestinationDisabledValidator(destinationID, true),
@@ -136,17 +136,17 @@ func (suite *basicSuite) TestConsecutiveFailuresAlert() {
 }
 
 func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
-	tenantID := uuid.New().String()
-	destinationID := uuid.New().String()
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
 	secret := "testsecret1234567890abcdefghijklmnop"
 
 	// Setup phase - same as before
 	tests := []APITest{
 		{
-			Name: "PUT /:tenantID - Create tenant",
+			Name: "PUT /tenants/:tenantID - Create tenant",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
-				Path:   "/" + tenantID,
+				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -178,10 +178,10 @@ func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
 			},
 		},
 		{
-			Name: "POST /:tenantID/destinations",
+			Name: "POST /tenants/:tenantID/destinations",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/" + tenantID + "/destinations",
+				Path:   "/tenants/" + tenantID + "/destinations",
 				Body: map[string]interface{}{
 					"id":     destinationID,
 					"type":   "webhook",
@@ -292,10 +292,10 @@ func (suite *basicSuite) TestConsecutiveFailuresAlertReset() {
 	tests = []APITest{}
 	tests = append(tests, APITest{
 		Delay: time.Second / 2,
-		Name:  "GET /:tenantID/destinations/:destinationID - Check disabled",
+		Name:  "GET /tenants/:tenantID/destinations/:destinationID - Check disabled",
 		Request: suite.AuthRequest(httpclient.Request{
 			Method: httpclient.MethodGET,
-			Path:   "/" + tenantID + "/destinations/" + destinationID,
+			Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
 		}),
 		Expected: APITestExpectation{
 			Validate: makeDestinationDisabledValidator(destinationID, false),

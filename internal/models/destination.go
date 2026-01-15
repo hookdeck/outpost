@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/simplejsonmatch"
 )
 
 var (
@@ -19,14 +20,18 @@ var (
 )
 
 type Destination struct {
-	ID          string      `json:"id" redis:"id"`
-	TenantID    string      `json:"tenant_id" redis:"-"`
-	Type        string      `json:"type" redis:"type"`
-	Topics      Topics      `json:"topics" redis:"-"`
-	Config      Config      `json:"config" redis:"-"`
-	Credentials Credentials `json:"credentials" redis:"-"`
-	CreatedAt   time.Time   `json:"created_at" redis:"created_at"`
-	DisabledAt  *time.Time  `json:"disabled_at" redis:"disabled_at"`
+	ID               string           `json:"id" redis:"id"`
+	TenantID         string           `json:"tenant_id" redis:"-"`
+	Type             string           `json:"type" redis:"type"`
+	Topics           Topics           `json:"topics" redis:"-"`
+	Filter           Filter           `json:"filter,omitempty" redis:"-"`
+	Config           Config           `json:"config" redis:"-"`
+	Credentials      Credentials      `json:"credentials" redis:"-"`
+	DeliveryMetadata DeliveryMetadata `json:"delivery_metadata,omitempty" redis:"-"`
+	Metadata         Metadata         `json:"metadata,omitempty" redis:"-"`
+	CreatedAt        time.Time        `json:"created_at" redis:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at" redis:"updated_at"`
+	DisabledAt       *time.Time       `json:"disabled_at" redis:"disabled_at"`
 }
 
 func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Cipher) error {
@@ -41,8 +46,33 @@ func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Ciphe
 	if _, exists := hash["deleted_at"]; exists {
 		return ErrDestinationDeleted
 	}
-	if err = cmd.Scan(d); err != nil {
-		return err
+
+	// Parse basic fields manually (Scan doesn't handle numeric timestamps)
+	d.ID = hash["id"]
+	d.Type = hash["type"]
+
+	// Parse created_at - supports both numeric (Unix) and RFC3339 formats
+	d.CreatedAt, err = parseTimestamp(hash["created_at"])
+	if err != nil {
+		return fmt.Errorf("invalid created_at: %w", err)
+	}
+
+	// Parse updated_at - same lazy migration support
+	if hash["updated_at"] != "" {
+		d.UpdatedAt, err = parseTimestamp(hash["updated_at"])
+		if err != nil {
+			d.UpdatedAt = d.CreatedAt
+		}
+	} else {
+		d.UpdatedAt = d.CreatedAt
+	}
+
+	// Parse disabled_at if present
+	if hash["disabled_at"] != "" {
+		disabledAt, err := parseTimestamp(hash["disabled_at"])
+		if err == nil {
+			d.DisabledAt = &disabledAt
+		}
 	}
 	err = d.Topics.UnmarshalBinary([]byte(hash["topics"]))
 	if err != nil {
@@ -60,6 +90,31 @@ func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Ciphe
 	if err != nil {
 		return fmt.Errorf("invalid credentials: %w", err)
 	}
+	// Decrypt and deserialize delivery_metadata if present
+	if deliveryMetadataStr, exists := hash["delivery_metadata"]; exists && deliveryMetadataStr != "" {
+		deliveryMetadataBytes, err := cipher.Decrypt([]byte(deliveryMetadataStr))
+		if err != nil {
+			return fmt.Errorf("invalid delivery_metadata: %w", err)
+		}
+		err = d.DeliveryMetadata.UnmarshalBinary(deliveryMetadataBytes)
+		if err != nil {
+			return fmt.Errorf("invalid delivery_metadata: %w", err)
+		}
+	}
+	// Deserialize metadata if present
+	if metadataStr, exists := hash["metadata"]; exists && metadataStr != "" {
+		err = d.Metadata.UnmarshalBinary([]byte(metadataStr))
+		if err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+	// Deserialize filter if present
+	if filterStr, exists := hash["filter"]; exists && filterStr != "" {
+		err = d.Filter.UnmarshalBinary([]byte(filterStr))
+		if err != nil {
+			return fmt.Errorf("invalid filter: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -74,6 +129,7 @@ type DestinationSummary struct {
 	ID       string `json:"id"`
 	Type     string `json:"type"`
 	Topics   Topics `json:"topics"`
+	Filter   Filter `json:"filter,omitempty"`
 	Disabled bool   `json:"disabled"`
 }
 
@@ -93,8 +149,56 @@ func (d *Destination) ToSummary() *DestinationSummary {
 		ID:       d.ID,
 		Type:     d.Type,
 		Topics:   d.Topics,
+		Filter:   d.Filter,
 		Disabled: d.DisabledAt != nil,
 	}
+}
+
+// MatchEvent checks if the destination matches the given event.
+// Returns true if the destination is enabled, topic matches, and filter matches.
+func (d *Destination) MatchEvent(event Event) bool {
+	if d.DisabledAt != nil {
+		return false
+	}
+	if !d.Topics.MatchTopic(event.Topic) {
+		return false
+	}
+	return matchFilter(d.Filter, event)
+}
+
+// MatchFilter checks if the given event matches the destination's filter.
+// Returns true if no filter is set (nil or empty) or if the event matches the filter.
+func (ds *DestinationSummary) MatchFilter(event Event) bool {
+	return matchFilter(ds.Filter, event)
+}
+
+// matchFilter is the shared implementation for filter matching.
+// Returns true if no filter is set (nil or empty) or if the event matches the filter.
+func matchFilter(filter Filter, event Event) bool {
+	if filter == nil || len(filter) == 0 {
+		return true
+	}
+	// Build the filter input from the event
+	filterInput := map[string]any{
+		"id":       event.ID,
+		"topic":    event.Topic,
+		"time":     event.Time.Format("2006-01-02T15:04:05Z07:00"),
+		"metadata": map[string]any{},
+		"data":     map[string]any{},
+	}
+	// Convert metadata to map[string]any
+	if event.Metadata != nil {
+		metadata := make(map[string]any)
+		for k, v := range event.Metadata {
+			metadata[k] = v
+		}
+		filterInput["metadata"] = metadata
+	}
+	// Copy data
+	if event.Data != nil {
+		filterInput["data"] = map[string]any(event.Data)
+	}
+	return simplejsonmatch.Match(filterInput, map[string]any(filter))
 }
 
 // ============================== Types ==============================
@@ -108,6 +212,10 @@ var _ json.Unmarshaler = &Topics{}
 
 func (t *Topics) MatchesAll() bool {
 	return len(*t) == 1 && (*t)[0] == "*"
+}
+
+func (t *Topics) MatchTopic(eventTopic string) bool {
+	return eventTopic == "" || eventTopic == "*" || t.MatchesAll() || slices.Contains(*t, eventTopic)
 }
 
 func (t *Topics) Validate(availableTopics []string) error {
@@ -166,6 +274,7 @@ func TopicsFromString(s string) Topics {
 
 type Config = MapStringString
 type Credentials = MapStringString
+type DeliveryMetadata = MapStringString
 type MapStringString map[string]string
 
 var _ encoding.BinaryMarshaler = &MapStringString{}
@@ -218,4 +327,25 @@ func (m *MapStringString) UnmarshalJSON(data []byte) error {
 
 	*m = result
 	return nil
+}
+
+// Filter represents a JSON schema filter for event matching.
+// It uses the simplejsonmatch schema syntax for filtering events.
+type Filter map[string]any
+
+var _ encoding.BinaryMarshaler = &Filter{}
+var _ encoding.BinaryUnmarshaler = &Filter{}
+
+func (f *Filter) MarshalBinary() ([]byte, error) {
+	if f == nil || len(*f) == 0 {
+		return nil, nil
+	}
+	return json.Marshal(f)
+}
+
+func (f *Filter) UnmarshalBinary(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	return json.Unmarshal(data, f)
 }

@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
 import "./Checkbox.scss";
 
-interface CheckboxProps
-  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
+interface CheckboxProps extends Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "type"
+> {
   label: string;
   indeterminate?: boolean;
   monospace?: boolean;
