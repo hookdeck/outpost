@@ -74,7 +74,10 @@ func (h *harness) Close() {
 }
 
 func (h *harness) FlushWrites(ctx context.Context) error {
-	// Force ClickHouse to merge parts and deduplicate rows
+	// Force ClickHouse to merge parts and deduplicate rows on both tables
+	if err := h.chDB.Exec(ctx, "OPTIMIZE TABLE events FINAL"); err != nil {
+		return err
+	}
 	return h.chDB.Exec(ctx, "OPTIMIZE TABLE event_log FINAL")
 }
 
@@ -83,5 +86,5 @@ func (h *harness) MakeDriver(ctx context.Context) (driver.LogStore, error) {
 }
 
 func (h *harness) SupportsListEvent() bool {
-	return false // ListEvent is not implemented for ClickHouse yet
+	return true
 }
