@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"testing"
 	"time"
 
@@ -21,6 +22,24 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
+
+// waitForHealthy polls the /healthz endpoint until it returns 200 or times out.
+func waitForHealthy(t *testing.T, port int, timeout time.Duration) {
+	t.Helper()
+	healthURL := fmt.Sprintf("http://localhost:%d/healthz", port)
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get(healthURL)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for health check at %s", healthURL)
+}
 
 type e2eSuite struct {
 	ctx               context.Context
@@ -182,8 +201,7 @@ func (suite *basicSuite) SetupSuite() {
 	suite.e2eSuite.SetupSuite()
 
 	// wait for outpost services to start
-	// TODO: replace with a health check
-	time.Sleep(2 * time.Second)
+	waitForHealthy(t, cfg.APIPort, 5*time.Second)
 }
 
 func (s *basicSuite) TearDownSuite() {
@@ -317,7 +335,7 @@ func TestE2E_Regression_AutoDisableWithoutCallbackURL(t *testing.T) {
 	}()
 
 	// Wait for services to start
-	time.Sleep(2 * time.Second)
+	waitForHealthy(t, cfg.APIPort, 5*time.Second)
 
 	// Setup test client
 	client := httpclient.New(fmt.Sprintf("http://localhost:%d/api/v1", cfg.APIPort), cfg.APIKey)
