@@ -1,4 +1,4 @@
-TEST?=$$(go list ./...)
+TEST?=./...
 RUN?=
 
 # Build targets
