@@ -16,7 +16,7 @@ import (
 )
 
 type AWSSQSConfig struct {
-	Endpoint                  string        // optional - dev-focused
+	Endpoint                  string // optional - dev-focused
 	Region                    string
 	ServiceAccountCredentials string
 	Topic                     string

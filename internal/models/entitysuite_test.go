@@ -1190,8 +1190,8 @@ func (s *ListTenantTestSuite) SetupSuite() {
 	baseTime := time.Now()
 	for i := range s.tenants {
 		s.tenants[i] = testutil.TenantFactory.Any(
-			testutil.TenantFactory.WithCreatedAt(baseTime.Add(time.Duration(i) * time.Second)),
-			testutil.TenantFactory.WithUpdatedAt(baseTime.Add(time.Duration(i) * time.Second)),
+			testutil.TenantFactory.WithCreatedAt(baseTime.Add(time.Duration(i)*time.Second)),
+			testutil.TenantFactory.WithUpdatedAt(baseTime.Add(time.Duration(i)*time.Second)),
 		)
 		require.NoError(s.T(), s.entityStore.UpsertTenant(s.ctx, s.tenants[i]))
 	}
