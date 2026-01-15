@@ -235,11 +235,11 @@ See the [API Reference](/docs/api/tenants#list-tenants) for details.
 ### Migrations Included
 
 - **002_timestamps**: Converts timestamp fields to Unix format for timezone-agnostic sorting
-- **003_entity**: Creates RediSearch indexes for tenant listing
+- **003_entity**: Adds entity field to tenant and destination records for RediSearch filtering
 
 ### Running Migrations
 
-Migrations run automatically at startup. For production environments, manual migration is recommended.
+These migrations require downtime and must be run manually before starting Outpost v0.12.
 
 :::note
 These commands require environment variables for Redis connection (`REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, etc.). You can also use `--config` to pass a config file. See the [Schema Migration Guide](/guides/migration#configuration) for details.
@@ -249,17 +249,14 @@ These commands require environment variables for Redis connection (`REDIS_HOST`,
 # Preview changes
 docker run --rm -e REDIS_HOST=... -e REDIS_PASSWORD=... hookdeck/outpost:v0.12.0 migrate plan
 
-# Apply migrations
+# Apply the next pending migration (one at a time)
 docker run --rm -it -e REDIS_HOST=... -e REDIS_PASSWORD=... hookdeck/outpost:v0.12.0 migrate apply
+
+# Apply all pending migrations in sequence
+docker run --rm -it -e REDIS_HOST=... -e REDIS_PASSWORD=... hookdeck/outpost:v0.12.0 migrate apply --all
 
 # Verify migrations
 docker run --rm -e REDIS_HOST=... -e REDIS_PASSWORD=... hookdeck/outpost:v0.12.0 migrate verify
-```
-
-For systems with high write throughput, re-run migrations after the initial upgrade:
-
-```bash
-docker run --rm -it -e REDIS_HOST=... -e REDIS_PASSWORD=... hookdeck/outpost:v0.12.0 migrate apply --rerun
 ```
 
 :::tip[Migration Tool Reference]
@@ -278,11 +275,11 @@ For detailed information on the migration workflow, safety features, and trouble
    - [ ] Back up Redis data
 
 2. **During upgrade:**
-
+   - [ ] Stop Outpost (migrations require downtime)
+   - [ ] Run migrations: `migrate apply --all`
+   - [ ] Verify migrations completed: `migrate verify`
    - [ ] Set webhook signature environment variables if maintaining backward compatibility
-   - [ ] Run migrations (automatic or manual)
 
 3. **After upgrading:**
-   - [ ] Verify migrations completed: `migrate verify`
-   - [ ] For high-volume systems: `migrate apply --rerun`
+   - [ ] Start Outpost v0.12
    - [ ] Test webhook signature verification
