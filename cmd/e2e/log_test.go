@@ -787,8 +787,8 @@ func (suite *basicSuite) TestListEventsAPI() {
 	}
 	suite.RunAPITests(suite.T(), setupTests)
 
-	// Wait for deliveries to complete
-	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries", 1, 5*time.Second)
+	// Wait for deliveries to complete (3 events published)
+	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries", 3, 5*time.Second)
 
 	// Test the ListEvents API endpoint
 	listEventsTests := []APITest{
