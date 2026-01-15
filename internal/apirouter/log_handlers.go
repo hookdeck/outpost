@@ -3,6 +3,7 @@ package apirouter
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,6 +27,21 @@ func NewLogHandlers(
 	}
 }
 
+// parseQueryArray parses a query parameter that can be specified as repeated params
+// (e.g., ?topic=a&topic=b) or comma-separated (e.g., ?topic=a,b) or both.
+func parseQueryArray(c *gin.Context, key string) []string {
+	var result []string
+	for _, v := range c.QueryArray(key) {
+		for _, part := range strings.Split(v, ",") {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				result = append(result, part)
+			}
+		}
+	}
+	return result
+}
+
 // ExpandOptions represents which fields to expand in the response
 type ExpandOptions struct {
 	Event       bool
@@ -35,7 +51,7 @@ type ExpandOptions struct {
 
 func parseExpandOptions(c *gin.Context) ExpandOptions {
 	opts := ExpandOptions{}
-	for _, e := range c.QueryArray("expand") {
+	for _, e := range parseQueryArray(c, "expand") {
 		switch e {
 		case "event":
 			opts.Event = true
@@ -215,7 +231,7 @@ func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 		EventID:        c.Query("event_id"),
 		DestinationIDs: destinationIDs,
 		Status:         c.Query("status"),
-		Topics:         c.QueryArray("topic"),
+		Topics:         parseQueryArray(c, "topic"),
 		DeliveryStart:  start,
 		DeliveryEnd:    end,
 		Limit:          limit,
@@ -359,7 +375,7 @@ func (h *LogHandlers) ListEvents(c *gin.Context) {
 	req := logstore.ListEventRequest{
 		TenantID:       tenant.ID,
 		DestinationIDs: destinationIDs,
-		Topics:         c.QueryArray("topic"),
+		Topics:         parseQueryArray(c, "topic"),
 		EventStart:     start,
 		EventEnd:       end,
 		Limit:          limit,
