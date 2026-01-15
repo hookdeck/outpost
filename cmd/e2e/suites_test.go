@@ -62,6 +62,28 @@ func (s *e2eSuite) waitForDeliveries(t *testing.T, path string, minCount int, ti
 	t.Fatalf("timed out waiting for %d deliveries at %s", minCount, path)
 }
 
+// waitForDestinationDisabled polls until the destination has disabled_at set (non-null).
+func (s *e2eSuite) waitForDestinationDisabled(t *testing.T, tenantID, destinationID string, timeout time.Duration) {
+	t.Helper()
+	path := "/tenants/" + tenantID + "/destinations/" + destinationID
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := s.client.Do(s.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   path,
+		}))
+		if err == nil && resp.StatusCode == http.StatusOK {
+			if body, ok := resp.Body.(map[string]interface{}); ok {
+				if disabledAt, exists := body["disabled_at"]; exists && disabledAt != nil {
+					return
+				}
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for destination %s to be disabled", destinationID)
+}
+
 type e2eSuite struct {
 	ctx               context.Context
 	cancel            context.CancelFunc
