@@ -178,7 +178,7 @@ func toAPIDelivery(de *models.DeliveryEvent, opts ExpandOptions) APIDelivery {
 }
 
 // ListDeliveries handles GET /:tenantID/deliveries
-// Query params: event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[]
+// Query params: event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_by, sort_order
 func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 	if tenant == nil {
@@ -230,6 +230,38 @@ func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 		destinationIDs = []string{destID}
 	}
 
+	// Parse sort_by (default: delivery_time)
+	sortBy := c.Query("sort_by")
+	if sortBy == "" {
+		sortBy = "delivery_time"
+	}
+	if sortBy != "delivery_time" && sortBy != "event_time" {
+		AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
+			Code:    http.StatusUnprocessableEntity,
+			Message: "validation error",
+			Data: map[string]string{
+				"query.sort_by": "must be 'delivery_time' or 'event_time'",
+			},
+		})
+		return
+	}
+
+	// Parse sort_order (default: desc)
+	sortOrder := c.Query("sort_order")
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
+	if sortOrder != "asc" && sortOrder != "desc" {
+		AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
+			Code:    http.StatusUnprocessableEntity,
+			Message: "validation error",
+			Data: map[string]string{
+				"query.sort_order": "must be 'asc' or 'desc'",
+			},
+		})
+		return
+	}
+
 	// Build request
 	req := logstore.ListDeliveryEventRequest{
 		TenantID:       tenant.ID,
@@ -242,6 +274,8 @@ func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 		Limit:          limit,
 		Next:           c.Query("next"),
 		Prev:           c.Query("prev"),
+		SortBy:         sortBy,
+		SortOrder:      sortOrder,
 	}
 
 	// Call logstore
