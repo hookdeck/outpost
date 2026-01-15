@@ -1,4 +1,4 @@
-.destination-events {
+.destination-deliveries {
   margin-top: var(--spacing-5);
   margin-bottom: var(--spacing-20);
 
@@ -32,7 +32,7 @@
     display: grid;
     min-height: 713px;
 
-    .event-time-cell {
+    .delivery-time-cell {
       text-transform: uppercase;
     }
 
@@ -126,11 +126,12 @@
   }
 }
 
-.event-data {
+.delivery-data {
   height: 100%;
   box-sizing: border-box;
 
-  &__overview {
+  &__overview,
+  &__event {
     padding: var(--spacing-3) var(--spacing-6);
     border-bottom: 1px solid var(--colors-outline-neutral);
 
@@ -140,7 +141,9 @@
     }
   }
 
-  &__data {
+  &__data,
+  &__metadata,
+  &__response {
     padding: var(--spacing-3) var(--spacing-6);
     border-bottom: 1px solid var(--colors-outline-neutral);
     background-color: var(--colors-background-neutral-2);
@@ -157,150 +160,8 @@
     }
   }
 
-  &__metadata {
-    padding: var(--spacing-3) var(--spacing-6);
-    border-bottom: 1px solid var(--colors-outline-neutral);
-    background-color: var(--colors-background-neutral-2);
-
-    > h3 {
-      margin-top: 0;
-      margin-bottom: 0;
-    }
-
-    pre {
-      white-space: break-spaces;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-  }
-}
-
-.event-attempts {
-  height: 100%;
-  box-sizing: border-box;
-
-  &__list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-
-    &-item {
-      padding: var(--spacing-2) var(--spacing-6);
-      border-bottom: 1px solid var(--colors-outline-neutral);
-      position: relative;
-
-      &:hover {
-        background-color: var(--colors-background-neutral-1);
-      }
-
-      button {
-        position: absolute;
-        right: 0;
-        top: 0;
-        bottom: 0;
-        left: 0;
-        background-color: transparent;
-        border: none;
-        padding: 0;
-        margin: 0;
-        cursor: pointer;
-      }
-
-      &-content {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: var(--spacing-2);
-
-        & > span:first-child {
-          display: flex;
-          align-items: center;
-          gap: var(--spacing-2);
-
-          :first-child {
-            width: 96px;
-          }
-
-          .mono-s {
-            text-transform: uppercase;
-          }
-        }
-
-        & > span:last-child {
-          display: flex;
-          align-items: center;
-          gap: var(--spacing-2);
-
-          .icon-container {
-            width: 28px;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            svg {
-              fill: var(--colors-foreground-neutral-2);
-              width: 16px;
-              height: 16px;
-            }
-          }
-        }
-
-        svg {
-          fill: var(--colors-foreground-neutral);
-          width: 24px;
-          height: 24px;
-        }
-      }
-    }
-  }
-}
-
-.event-attempt-details {
-  height: 100%;
-  box-sizing: border-box;
-
-  &__overview {
-    padding: var(--spacing-3) var(--spacing-6);
-    border-bottom: 1px solid var(--colors-outline-neutral);
-
-    > h3 {
-      margin-top: 0;
-      margin-bottom: 0;
-    }
-  }
-
-  &__message {
-    padding: var(--spacing-3) var(--spacing-6);
-    border-bottom: 1px solid var(--colors-outline-neutral);
-    background-color: var(--colors-background-neutral-2);
-
-    > h3 {
-      margin-top: 0;
-      margin-bottom: 0;
-    }
-
-    > pre {
-      white-space: break-spaces;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-  }
-
-  &__result {
-    padding: var(--spacing-3) var(--spacing-6);
-    background-color: var(--colors-background-neutral-2);
-
-    > h3 {
-      margin-top: 0;
-      margin-bottom: 0;
-    }
-
-    > pre {
-      white-space: break-spaces;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
+  &__response {
+    border-bottom: none;
   }
 }
 

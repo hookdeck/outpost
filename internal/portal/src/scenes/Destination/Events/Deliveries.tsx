@@ -1,10 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
 import Badge from "../../../common/Badge/Badge";
 import Button from "../../../common/Button/Button";
-// import SearchInput from "../../../common/SearchInput/SearchInput";
-import "./Events.scss";
+import "./Deliveries.scss";
 import Table from "../../../common/Table/Table";
-import { EventListResponse } from "../../../typings/Event";
+import { DeliveryListResponse, Delivery, EventSummary } from "../../../typings/Event";
 import useSWR from "swr";
 import Dropdown from "../../../common/Dropdown/Dropdown";
 import {
@@ -14,7 +13,7 @@ import {
   RefreshIcon,
   NextIcon,
 } from "../../../common/Icons";
-import RetryEventButton from "../../../common/RetryEventButton/RetryEventButton";
+import RetryDeliveryButton from "../../../common/RetryDeliveryButton/RetryDeliveryButton";
 import { Checkbox } from "../../../common/Checkbox/Checkbox";
 import {
   Route,
@@ -25,17 +24,17 @@ import {
   useParams,
 } from "react-router-dom";
 import CONFIGS from "../../../config";
-import EventDetails from "./EventDetails";
+import DeliveryDetails from "./DeliveryDetails";
 
-interface EventsProps {
+interface DeliveriesProps {
   destination: any;
-  navigateEvent: (path: string, state?: any) => void;
+  navigateDelivery: (path: string, state?: any) => void;
 }
 
-const Events: React.FC<EventsProps> = ({ destination, navigateEvent }) => {
+const Deliveries: React.FC<DeliveriesProps> = ({ destination, navigateDelivery }) => {
   const [timeRange, setTimeRange] = useState("24h");
-  const { event_id: eventId } = useParams<{ event_id: string }>();
-  const { status, topics, pagination, urlSearchParams } = useEventFilter();
+  const { delivery_id: deliveryId } = useParams<{ delivery_id: string }>();
+  const { status, topics, pagination, urlSearchParams } = useDeliveryFilter();
 
   const queryUrl = useMemo(() => {
     const searchParams = new URLSearchParams(urlSearchParams);
@@ -65,45 +64,46 @@ const Events: React.FC<EventsProps> = ({ destination, navigateEvent }) => {
       searchParams.set("limit", "15");
     }
 
-    return `destinations/${destination.id}/events?${searchParams.toString()}`;
+    searchParams.set("destination_id", destination.id);
+    searchParams.set("expand", "event");
+
+    return `deliveries?${searchParams.toString()}`;
   }, [destination.id, timeRange, urlSearchParams]);
 
   const {
-    data: eventsList,
+    data: deliveriesList,
     mutate,
     isValidating,
-  } = useSWR<EventListResponse>(queryUrl, {
+  } = useSWR<DeliveryListResponse>(queryUrl, {
     revalidateOnFocus: false,
   });
 
   const topicsList = CONFIGS.TOPICS.split(",");
 
-  const table_rows = eventsList?.data
-    ? eventsList.data.map((event) => ({
-        id: event.id,
-        active: event.id === (eventId || ""),
-        entries: [
-          <span className="mono-s event-time-cell">
-            {new Date(event.time).toLocaleString("en-US", {
-              month: "short",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-              hour12: true,
-            })}
-          </span>,
-          <span className="mono-s">
-            {event.status === "success" ? (
-              <Badge text="Successful" success />
-            ) : event.status === "failed" ? (
-              <Badge text="Failed" danger />
-            ) : (
-              <Badge text="Pending" />
-            )}
-            {(event.status === "success" || event.status === "failed") && (
-              <RetryEventButton
-                eventId={event.id}
-                destinationId={destination.id}
+  const table_rows = deliveriesList?.data
+    ? deliveriesList.data.map((delivery) => {
+        const event = typeof delivery.event === "object" ? delivery.event as EventSummary : null;
+        return {
+          id: delivery.id,
+          active: delivery.id === (deliveryId || ""),
+          entries: [
+            <span className="mono-s delivery-time-cell">
+              {new Date(delivery.delivered_at).toLocaleString("en-US", {
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+              })}
+            </span>,
+            <span className="mono-s">
+              {delivery.status === "success" ? (
+                <Badge text="Successful" success />
+              ) : (
+                <Badge text="Failed" danger />
+              )}
+              <RetryDeliveryButton
+                deliveryId={delivery.id}
                 disabled={isValidating}
                 loading={isValidating}
                 completed={(success) => {
@@ -112,27 +112,22 @@ const Events: React.FC<EventsProps> = ({ destination, navigateEvent }) => {
                   }
                 }}
               />
-            )}
-          </span>,
-          <span className="mono-s">{event.topic}</span>,
-          <span className="mono-s">{event.id}</span>,
-        ],
-        onClick: () => navigateEvent(`/${event.id}`),
-      }))
+            </span>,
+            <span className="mono-s">{event?.topic || "-"}</span>,
+            <span className="mono-s">{event?.id || "-"}</span>,
+          ],
+          onClick: () => navigateDelivery(`/${delivery.id}`),
+        };
+      })
     : [];
 
   return (
-    <div className="destination-events">
-      <div className="destination-events__header">
-        <h2 className="destination-events__header-title title-l">
-          Events <Badge text={eventsList?.count ?? 0} size="s" />
+    <div className="destination-deliveries">
+      <div className="destination-deliveries__header">
+        <h2 className="destination-deliveries__header-title title-l">
+          Deliveries <Badge text={deliveriesList?.count ?? 0} size="s" />
         </h2>
-        <div className="destination-events__header-filters">
-          {/* <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Filter by ID"
-          /> */}
+        <div className="destination-deliveries__header-filters">
           <Dropdown
             trigger_icon={<CalendarIcon />}
             trigger={`Last ${timeRange}`}
@@ -228,14 +223,14 @@ const Events: React.FC<EventsProps> = ({ destination, navigateEvent }) => {
       </div>
 
       <div
-        className={`destination-events__table ${
-          eventId ? "destination-events__table--active" : ""
+        className={`destination-deliveries__table ${
+          deliveryId ? "destination-deliveries__table--active" : ""
         }`}
       >
         <Table
           columns={[
             {
-              header: "Timestamp",
+              header: "Delivered At",
               width: 160,
             },
             {
@@ -246,7 +241,7 @@ const Events: React.FC<EventsProps> = ({ destination, navigateEvent }) => {
               header: "Topic",
             },
             {
-              header: "Message ID",
+              header: "Event ID",
             },
           ]}
           rows={table_rows}
@@ -254,11 +249,11 @@ const Events: React.FC<EventsProps> = ({ destination, navigateEvent }) => {
             <div className="table__footer">
               <div>
                 <span className="subtitle-s">
-                  {eventsList?.data.length ?? 0}
+                  {deliveriesList?.data.length ?? 0}
                 </span>
                 <span className="body-s">
                   {" "}
-                  of {eventsList?.count ?? 0} events
+                  of {deliveriesList?.count ?? 0} deliveries
                 </span>
               </div>
 
@@ -266,16 +261,16 @@ const Events: React.FC<EventsProps> = ({ destination, navigateEvent }) => {
                 <Button
                   icon
                   iconLabel="Previous"
-                  disabled={!eventsList?.prev}
-                  onClick={() => pagination.prev(eventsList?.prev || "")}
+                  disabled={!deliveriesList?.prev}
+                  onClick={() => pagination.prev(deliveriesList?.prev || "")}
                 >
                   <PreviousIcon />
                 </Button>
                 <Button
                   icon
                   iconLabel="Next"
-                  disabled={!eventsList?.next}
-                  onClick={() => pagination.next(eventsList?.next || "")}
+                  disabled={!deliveriesList?.next}
+                  onClick={() => pagination.next(deliveriesList?.next || "")}
                 >
                   <NextIcon />
                 </Button>
@@ -290,9 +285,9 @@ const Events: React.FC<EventsProps> = ({ destination, navigateEvent }) => {
   );
 };
 
-export default Events;
+export default Deliveries;
 
-const useEventFilter = () => {
+const useDeliveryFilter = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const handleFilterChange = (key: string, value: string | null) => {
@@ -387,18 +382,18 @@ const useEventFilter = () => {
   };
 };
 
-export const EventRoutes = ({ destination }: { destination: any }) => {
-  const { urlSearchParams } = useEventFilter();
+export const DeliveryRoutes = ({ destination }: { destination: any }) => {
+  const { urlSearchParams } = useDeliveryFilter();
   const navigate = useNavigate();
 
-  const navigateEvent = useCallback(
+  const navigateDelivery = useCallback(
     (path: string, state?: any) => {
       navigate(
-        `/destinations/${destination.id}/events${path}?${urlSearchParams}`,
+        `/destinations/${destination.id}/deliveries${path}?${urlSearchParams}`,
         { state }
       );
     },
-    [navigate, urlSearchParams]
+    [navigate, destination.id, urlSearchParams]
   );
 
   return (
@@ -406,12 +401,12 @@ export const EventRoutes = ({ destination }: { destination: any }) => {
       <Route
         path="/"
         element={
-          <Events destination={destination} navigateEvent={navigateEvent} />
+          <Deliveries destination={destination} navigateDelivery={navigateDelivery} />
         }
       >
         <Route
-          path=":event_id/*"
-          element={<EventDetails navigateEvent={navigateEvent} />}
+          path=":delivery_id/*"
+          element={<DeliveryDetails navigateDelivery={navigateDelivery} />}
         />
       </Route>
     </Routes>
