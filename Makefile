@@ -4,6 +4,13 @@ RUN?=
 # Build targets
 .PHONY: build
 build:
+	@echo "Checking formatting..."
+	@if [ -n "$$(gofmt -l .)" ]; then \
+		echo "Formatting issues found in:"; \
+		gofmt -l .; \
+		echo "Run 'gofmt -w .' to fix"; \
+		exit 1; \
+	fi
 	@echo "Building all binaries..."
 	go build -o bin/outpost ./cmd/outpost
 	go build -o bin/outpost-server ./cmd/outpost-server
