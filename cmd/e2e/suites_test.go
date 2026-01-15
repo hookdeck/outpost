@@ -84,6 +84,27 @@ func (s *e2eSuite) waitForDestinationDisabled(t *testing.T, tenantID, destinatio
 	t.Fatalf("timed out waiting for destination %s to be disabled", destinationID)
 }
 
+// waitForMockServerEvents polls the mock server until at least minCount events exist for the destination.
+func (s *e2eSuite) waitForMockServerEvents(t *testing.T, destinationID string, minCount int, timeout time.Duration) {
+	t.Helper()
+	path := "/destinations/" + destinationID + "/events"
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := s.client.Do(httpclient.Request{
+			Method:  httpclient.MethodGET,
+			BaseURL: s.mockServerBaseURL,
+			Path:    path,
+		})
+		if err == nil && resp.StatusCode == http.StatusOK {
+			if events, ok := resp.Body.([]interface{}); ok && len(events) >= minCount {
+				return
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %d events at mock server %s", minCount, path)
+}
+
 type e2eSuite struct {
 	ctx               context.Context
 	cancel            context.CancelFunc
@@ -144,9 +165,18 @@ func (suite *e2eSuite) RunAPITests(t *testing.T, tests []APITest) {
 	}
 }
 
+// MockServerPoll configures polling for the mock server before running the test.
+type MockServerPoll struct {
+	BaseURL  string        // Mock server base URL
+	DestID   string        // Destination ID to poll
+	MinCount int           // Minimum events to wait for
+	Timeout  time.Duration // Poll timeout
+}
+
 type APITest struct {
 	Name     string
-	Delay    time.Duration
+	Delay    time.Duration   // Deprecated: use WaitForMockEvents instead
+	WaitFor  *MockServerPoll // Poll mock server before running test
 	Request  httpclient.Request
 	Expected APITestExpectation
 }
@@ -159,7 +189,25 @@ type APITestExpectation struct {
 func (test *APITest) Run(t *testing.T, client httpclient.Client) {
 	t.Helper()
 
-	if test.Delay > 0 {
+	// Poll mock server if configured (preferred over Delay)
+	if test.WaitFor != nil {
+		w := test.WaitFor
+		path := "/destinations/" + w.DestID + "/events"
+		deadline := time.Now().Add(w.Timeout)
+		for time.Now().Before(deadline) {
+			resp, err := client.Do(httpclient.Request{
+				Method:  httpclient.MethodGET,
+				BaseURL: w.BaseURL,
+				Path:    path,
+			})
+			if err == nil && resp.StatusCode == http.StatusOK {
+				if events, ok := resp.Body.([]interface{}); ok && len(events) >= w.MinCount {
+					break
+				}
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	} else if test.Delay > 0 {
 		time.Sleep(test.Delay)
 	}
 
