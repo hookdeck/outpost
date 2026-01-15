@@ -190,9 +190,11 @@ func (s *memLogStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvent
 		// Deep copy to avoid external mutation
 		copied := &models.DeliveryEvent{
 			ID:            de.ID,
+			Attempt:       de.Attempt,
 			DestinationID: de.DestinationID,
 			Event:         de.Event,
 			Delivery:      de.Delivery,
+			Manual:        de.Manual,
 		}
 
 		// Check for existing entry and update (idempotent upsert)
@@ -462,9 +464,11 @@ func (s *memLogStore) matchesFilter(de *models.DeliveryEvent, req driver.ListDel
 func copyDeliveryEvent(de *models.DeliveryEvent) *models.DeliveryEvent {
 	return &models.DeliveryEvent{
 		ID:            de.ID,
+		Attempt:       de.Attempt,
 		DestinationID: de.DestinationID,
 		Event:         *copyEvent(&de.Event),
 		Delivery:      copyDelivery(de.Delivery),
+		Manual:        de.Manual,
 	}
 }
 

@@ -176,6 +176,278 @@ func TestListDeliveries(t *testing.T) {
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
+
+	t.Run("should exclude response_data by default", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+		data := response["data"].([]interface{})
+		require.Len(t, data, 1)
+
+		firstDelivery := data[0].(map[string]interface{})
+		assert.Nil(t, firstDelivery["response_data"])
+	})
+
+	t.Run("should include response_data with expand=response_data", func(t *testing.T) {
+		// Seed a delivery with response_data
+		eventID := idgen.Event()
+		deliveryID := idgen.Delivery()
+		eventTime := time.Now().Add(-30 * time.Minute).Truncate(time.Millisecond)
+		deliveryTime := eventTime.Add(100 * time.Millisecond)
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID(eventID),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(destinationID),
+			testutil.EventFactory.WithTopic("order.created"),
+			testutil.EventFactory.WithTime(eventTime),
+		)
+
+		delivery := testutil.DeliveryFactory.AnyPointer(
+			testutil.DeliveryFactory.WithID(deliveryID),
+			testutil.DeliveryFactory.WithEventID(eventID),
+			testutil.DeliveryFactory.WithDestinationID(destinationID),
+			testutil.DeliveryFactory.WithStatus("success"),
+			testutil.DeliveryFactory.WithTime(deliveryTime),
+		)
+		delivery.ResponseData = map[string]interface{}{
+			"body":   "OK",
+			"status": float64(200),
+		}
+
+		de := &models.DeliveryEvent{
+			ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
+			DestinationID: destinationID,
+			Event:         *event,
+			Delivery:      delivery,
+		}
+
+		require.NoError(t, result.logStore.InsertManyDeliveryEvent(context.Background(), []*models.DeliveryEvent{de}))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?expand=response_data", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+		data := response["data"].([]interface{})
+		// Find the delivery we just created
+		var foundDelivery map[string]interface{}
+		for _, d := range data {
+			del := d.(map[string]interface{})
+			if del["id"] == deliveryID {
+				foundDelivery = del
+				break
+			}
+		}
+		require.NotNil(t, foundDelivery, "delivery not found in response")
+		require.NotNil(t, foundDelivery["response_data"], "response_data should be included")
+		respData := foundDelivery["response_data"].(map[string]interface{})
+		assert.Equal(t, "OK", respData["body"])
+		assert.Equal(t, float64(200), respData["status"])
+	})
+
+	t.Run("should support comma-separated expand param", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?expand=event,response_data", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+		data := response["data"].([]interface{})
+		require.GreaterOrEqual(t, len(data), 1)
+
+		firstDelivery := data[0].(map[string]interface{})
+		// event should be expanded (object, not string)
+		event := firstDelivery["event"].(map[string]interface{})
+		assert.NotNil(t, event["id"])
+		assert.NotNil(t, event["topic"])
+	})
+
+	t.Run("should return validation error for invalid sort_by", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?sort_by=invalid", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	})
+
+	t.Run("should return validation error for invalid sort_order", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?sort_order=invalid", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	})
+
+	t.Run("should accept valid sort_by and sort_order params", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?sort_by=event_time&sort_order=asc", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("should return validation error for invalid event_start time", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?event_start=invalid", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	})
+
+	t.Run("should return validation error for invalid event_end time", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?event_end=invalid", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	})
+
+	t.Run("should accept valid event_start and event_end params", func(t *testing.T) {
+		now := time.Now().UTC()
+		eventStart := now.Add(-2 * time.Hour).Format(time.RFC3339)
+		eventEnd := now.Format(time.RFC3339)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?event_start="+eventStart+"&event_end="+eventEnd, nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+func TestListDeliveriesManualField(t *testing.T) {
+	t.Parallel()
+
+	result := setupTestRouterFull(t, "", "")
+
+	// Create a tenant
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
+	require.NoError(t, result.entityStore.UpsertTenant(context.Background(), models.Tenant{
+		ID:        tenantID,
+		CreatedAt: time.Now(),
+	}))
+	require.NoError(t, result.entityStore.UpsertDestination(context.Background(), models.Destination{
+		ID:        destinationID,
+		TenantID:  tenantID,
+		Type:      "webhook",
+		Topics:    []string{"*"},
+		CreatedAt: time.Now(),
+	}))
+
+	t.Run("should include Manual field in delivery response", func(t *testing.T) {
+		// Seed a manual delivery
+		eventID := idgen.Event()
+		deliveryID := idgen.Delivery()
+		eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
+		deliveryTime := eventTime.Add(100 * time.Millisecond)
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID(eventID),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(destinationID),
+			testutil.EventFactory.WithTopic("manual.test"),
+			testutil.EventFactory.WithTime(eventTime),
+		)
+
+		delivery := testutil.DeliveryFactory.AnyPointer(
+			testutil.DeliveryFactory.WithID(deliveryID),
+			testutil.DeliveryFactory.WithEventID(eventID),
+			testutil.DeliveryFactory.WithDestinationID(destinationID),
+			testutil.DeliveryFactory.WithStatus("success"),
+			testutil.DeliveryFactory.WithTime(deliveryTime),
+		)
+
+		de := &models.DeliveryEvent{
+			ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
+			DestinationID: destinationID,
+			Event:         *event,
+			Delivery:      delivery,
+			Manual:        true, // Set Manual to true
+		}
+
+		require.NoError(t, result.logStore.InsertManyDeliveryEvent(context.Background(), []*models.DeliveryEvent{de}))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?topic=manual.test", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+		data := response["data"].([]interface{})
+		require.Len(t, data, 1)
+
+		firstDelivery := data[0].(map[string]interface{})
+		assert.Equal(t, deliveryID, firstDelivery["id"])
+		assert.Equal(t, true, firstDelivery["manual"])
+	})
+
+	t.Run("should return false for non-manual deliveries", func(t *testing.T) {
+		// Seed a non-manual delivery
+		eventID := idgen.Event()
+		deliveryID := idgen.Delivery()
+		eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
+		deliveryTime := eventTime.Add(100 * time.Millisecond)
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID(eventID),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(destinationID),
+			testutil.EventFactory.WithTopic("nonmanual.test"),
+			testutil.EventFactory.WithTime(eventTime),
+		)
+
+		delivery := testutil.DeliveryFactory.AnyPointer(
+			testutil.DeliveryFactory.WithID(deliveryID),
+			testutil.DeliveryFactory.WithEventID(eventID),
+			testutil.DeliveryFactory.WithDestinationID(destinationID),
+			testutil.DeliveryFactory.WithStatus("success"),
+			testutil.DeliveryFactory.WithTime(deliveryTime),
+		)
+
+		de := &models.DeliveryEvent{
+			ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
+			DestinationID: destinationID,
+			Event:         *event,
+			Delivery:      delivery,
+			Manual:        false, // Set Manual to false
+		}
+
+		require.NoError(t, result.logStore.InsertManyDeliveryEvent(context.Background(), []*models.DeliveryEvent{de}))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?topic=nonmanual.test", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+		data := response["data"].([]interface{})
+		require.Len(t, data, 1)
+
+		firstDelivery := data[0].(map[string]interface{})
+		assert.Equal(t, deliveryID, firstDelivery["id"])
+		assert.Equal(t, false, firstDelivery["manual"])
+	})
 }
 
 func TestRetrieveDelivery(t *testing.T) {
@@ -541,5 +813,21 @@ func TestListEvents(t *testing.T) {
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	})
+
+	t.Run("should return validation error for invalid sort_order", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?sort_order=invalid", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	})
+
+	t.Run("should accept valid sort_order param", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?sort_order=asc", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }
