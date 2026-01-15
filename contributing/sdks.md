@@ -31,7 +31,7 @@ Outpost maintains three official SDKs, each in its own directory within the `sdk
 
 ### 1. Go SDK (`sdks/outpost-go/`)
 - **Location**: `sdks/outpost-go/`
-- **Package**: `github.com/hookdeck/outpost-go`
+- **Package**: `github.com/hookdeck/outpost/sdks/outpost-go`
 - **Published**: Automatically via Git tags
 - **Generation Workflow**: `sdk_generation_outpost_go.yaml`
 - **Publish Workflow**: `sdk_publish_outpost_go.yaml`
@@ -70,18 +70,14 @@ All SDK changes begin with updating the OpenAPI specification:
 
 3. **Validate the specification**:
    ```bash
-   # Use Speakeasy CLI to validate (if installed)
-   speakeasy validate -s docs/apis/openapi.yaml
-   
-   # Or use the spec-sdk-tests validation
-   cd spec-sdk-tests
-   npm run validate:spec
+   # Use Speakeasy CLI to lint (if installed)
+   speakeasy lint openapi -s docs/apis/openapi.yaml
    ```
 
 4. **Commit and push**:
    ```bash
    git add docs/apis/openapi.yaml
-   git commit -m "Update OpenAPI spec: <description>"
+   git commit -m "docs: update OpenAPI spec - <description>"
    git push
    ```
 
@@ -171,7 +167,7 @@ Once testing is complete and PRs are approved:
 3. **Verify publication**:
    - Check the Actions tab for successful publish workflows
    - Verify packages are available:
-     - Go: `go get github.com/hookdeck/outpost-go@<version>`
+     - Go: `go get github.com/hookdeck/outpost/sdks/outpost-go@<version>`
      - Python: Check [PyPI](https://pypi.org/project/outpost-python/)
      - TypeScript: Check [npm](https://www.npmjs.com/package/@hookdeck/outpost)
 
@@ -263,15 +259,13 @@ To avoid the race condition, **always follow this exact sequence**:
 
 4. **Start Outpost locally** (in a separate terminal):
    ```bash
-   # Using Docker Compose
-   docker-compose -f build/dev/compose.yml up
-   
-   # Or run directly with Go
-   go run cmd/outpost/main.go
-   
+   make up
+
    # Verify it's running
-   curl http://localhost:8000/healthz
+   curl http://localhost:3333/api/v1/healthz
    ```
+
+   For more details, see [Getting Started Guide](./getting-started.md).
 
 5. **Run the tests**:
    ```bash
@@ -394,7 +388,7 @@ npm test
 **Symptom**: Workflow fails during generation step
 
 **Solutions**:
-1. Validate OpenAPI spec: `speakeasy validate -s docs/apis/openapi.yaml`
+1. Lint OpenAPI spec: `speakeasy lint openapi -s docs/apis/openapi.yaml`
 2. Check for syntax errors in `openapi.yaml`
 3. Ensure all `$ref` references are valid
 4. Review workflow logs for specific Speakeasy errors
@@ -425,7 +419,7 @@ npm test
    ```bash
    cd spec-sdk-tests && rm -rf node_modules && npm install
    ```
-3. Is Outpost running locally? Check `http://localhost:3333/healthz`
+3. Is Outpost running locally? Check `http://localhost:3333/api/v1/healthz`
 4. Check for console warnings about version mismatches
 5. Review test logs for API errors or authentication issues
 6. Verify the file path in `package.json` is correct: `file:../../../sdks/outpost-typescript`
@@ -509,9 +503,8 @@ npm test
 ### Common Commands
 
 ```bash
-# Validate OpenAPI spec
-speakeasy validate -s docs/apis/openapi.yaml
-cd spec-sdk-tests && npm run validate:spec
+# Lint OpenAPI spec
+speakeasy lint openapi -s docs/apis/openapi.yaml
 
 # Rebuild TypeScript SDK (CRITICAL before testing!)
 cd sdks/outpost-typescript
@@ -538,12 +531,10 @@ cd sdks/outpost-python && pytest
 cd sdks/outpost-typescript && npm test
 
 # Start Outpost locally for testing
-docker-compose -f build/dev/compose.yml up
-# OR
-go run cmd/outpost/main.go
+make up
 
 # Verify Outpost is running
-curl http://localhost:3333/healthz
+curl http://localhost:3333/api/v1/healthz
 
 # Clean caches if needed
 npm cache clean --force
