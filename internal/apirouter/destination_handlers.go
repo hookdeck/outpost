@@ -341,6 +341,7 @@ func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destina
 		r.Credentials = make(map[string]string)
 	}
 
+	now := time.Now()
 	return models.Destination{
 		ID:               r.ID,
 		Type:             r.Type,
@@ -350,7 +351,8 @@ func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destina
 		Credentials:      r.Credentials,
 		DeliveryMetadata: r.DeliveryMetadata,
 		Metadata:         r.Metadata,
-		CreatedAt:        time.Now(),
+		CreatedAt:        now,
+		UpdatedAt:        now,
 		DisabledAt:       nil,
 		TenantID:         tenantID,
 	}
