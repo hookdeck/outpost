@@ -16,8 +16,8 @@ import (
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/santhosh-tekuri/jsonschema/v6"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -105,9 +105,9 @@ func (test *APITest) Run(t *testing.T, client httpclient.Client) {
 	require.NoError(t, err)
 
 	if test.Expected.Match != nil {
-		assert.Equal(t, test.Expected.Match.StatusCode, resp.StatusCode)
+		require.Equal(t, test.Expected.Match.StatusCode, resp.StatusCode)
 		if test.Expected.Match.Body != nil {
-			assert.True(t, resp.MatchBody(test.Expected.Match.Body), "expected body %s, got %s", test.Expected.Match.Body, resp.Body)
+			require.True(t, resp.MatchBody(test.Expected.Match.Body), "expected body %s, got %s", test.Expected.Match.Body, resp.Body)
 		}
 	}
 
@@ -120,9 +120,7 @@ func (test *APITest) Run(t *testing.T, client httpclient.Client) {
 		var respJSON map[string]interface{}
 		require.NoError(t, json.Unmarshal(respStr, &respJSON), "failed to parse response: %v", err)
 		validationErr := schema.Validate(respJSON)
-		if assert.NoError(t, validationErr, "response validation failed: %v: %s", validationErr, respJSON) == false {
-			log.Println(resp)
-		}
+		require.NoError(t, validationErr, "response validation failed: %v: %s", validationErr, respJSON)
 	}
 }
 
@@ -133,6 +131,19 @@ type basicSuite struct {
 	redisConfig    *redis.RedisConfig // Optional Redis config override
 	deploymentID   string             // Optional deployment ID
 	alertServer    *alert.AlertMockServer
+	failed         bool // Fail-fast: skip remaining tests after first failure
+}
+
+func (s *basicSuite) BeforeTest(suiteName, testName string) {
+	if s.failed {
+		s.T().Skip("skipping due to previous test failure")
+	}
+}
+
+func (s *basicSuite) AfterTest(suiteName, testName string) {
+	if s.T().Failed() {
+		s.failed = true
+	}
 }
 
 func (suite *basicSuite) SetupSuite() {
@@ -186,19 +197,23 @@ func (s *basicSuite) TearDownSuite() {
 // 	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypeClickHouse})
 // }
 
+// TestPGBasicSuite is skipped by default - redundant with TestDragonflyBasicSuite
 func TestPGBasicSuite(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
+	testutil.SkipUnlessCompat(t)
 	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypePostgres})
 }
 
+// TestRedisClusterBasicSuite is skipped by default - run with TESTCOMPAT=1 for full compatibility testing
 func TestRedisClusterBasicSuite(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
+	testutil.SkipUnlessCompat(t)
 
 	// Get Redis cluster config from environment
 	redisConfig := configs.CreateRedisClusterConfig(t)
@@ -218,15 +233,24 @@ func TestDragonflyBasicSuite(t *testing.T) {
 		t.Skip("skipping e2e test")
 	}
 
-	// Get Dragonfly config from testinfra
-	dragonflyConfig := configs.CreateDragonflyConfig(t)
-	if dragonflyConfig == nil {
-		t.Skip("skipping Dragonfly test (TEST_DRAGONFLY_URL not set)")
+	// Use NewDragonflyStackConfig (DB 0) for RediSearch support
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypePostgres,
+		redisConfig:    testinfra.NewDragonflyStackConfig(t),
+	})
+}
+
+// TestRedisStackBasicSuite is skipped by default - run with TESTCOMPAT=1 for full compatibility testing
+func TestRedisStackBasicSuite(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping e2e test")
 	}
+	testutil.SkipUnlessCompat(t)
 
 	suite.Run(t, &basicSuite{
 		logStorageType: configs.LogStorageTypePostgres,
-		redisConfig:    dragonflyConfig,
+		redisConfig:    testinfra.NewRedisStackConfig(t),
 	})
 }
 
@@ -383,7 +407,7 @@ func TestAutoDisableWithoutCallbackURL(t *testing.T) {
 	require.True(t, ok, "response body should be a map")
 
 	disabledAt := bodyMap["disabled_at"]
-	assert.NotNil(t, disabledAt, "destination should be disabled (disabled_at should not be null) - issue #596")
+	require.NotNil(t, disabledAt, "destination should be disabled (disabled_at should not be null) - issue #596")
 
 	// Cleanup mock server
 	_ = mockServerInfra

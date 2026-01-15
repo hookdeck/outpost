@@ -43,6 +43,12 @@ func Race(t *testing.T) {
 	}
 }
 
+func SkipUnlessCompat(t *testing.T) {
+	if os.Getenv("TESTCOMPAT") != "1" {
+		t.Skip("skipping compat test (set TESTCOMPAT=1 to run)")
+	}
+}
+
 func CreateTestRedisConfig(t *testing.T) *internalredis.RedisConfig {
 	mr := miniredis.RunT(t)
 

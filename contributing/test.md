@@ -1,45 +1,94 @@
 # Test
 
+## Test Runner
+
+The test suite uses `scripts/test.sh` as the unified test runner. It provides consistent behavior across different commands with support for [gotestsum](https://github.com/gotestyourself/gotestsum) (recommended) or plain `go test`.
+
+### Runner Behavior
+
+By default, the script auto-detects the available runner:
+
+1. If `RUNNER` env var is set, use that explicitly
+2. If `gotestsum` is installed, use it (with automatic retries for flaky tests)
+3. Otherwise, fall back to `go test`
+
+To install gotestsum (recommended):
+
+```sh
+go install gotest.tools/gotestsum@latest
+```
+
+To force a specific runner:
+
+```sh
+RUNNER=go ./scripts/test.sh test    # Force go test
+RUNNER=gotestsum ./scripts/test.sh test  # Force gotestsum
+```
+
 ## Commands
 
-1. Run all tests
+### Using the Test Script
 
 ```sh
-$ make test
-# go test $(go list ./...)
+# Run all tests (unit + integration)
+./scripts/test.sh test
+
+# Run unit tests only (uses -short flag)
+./scripts/test.sh unit
+
+# Run end-to-end tests
+./scripts/test.sh e2e
+
+# Run full suite with all backend combinations
+./scripts/test.sh full
 ```
 
-2. Run unit tests
+### Using Make
+
+The Makefile targets delegate to `scripts/test.sh`:
 
 ```sh
-$ make test/unit
-# go test $(go list ./...) -short
+make test        # ./scripts/test.sh test
+make test/unit   # ./scripts/test.sh unit
+make test/e2e    # ./scripts/test.sh e2e
+make test/full   # ./scripts/test.sh full
 ```
 
-3. Run integration tests
+### Using go test Directly
 
 ```sh
-$ make test/unit
-# go test $(go list ./...) -run "Integration"
+go test ./...           # All tests
+go test ./... -short    # Unit tests only
+go test ./... -run "Integration"  # Integration tests
 ```
 
-## Options
+## Environment Variables
 
-1. To test specific package
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `TEST` | Package(s) to test | `./internal/...` |
+| `RUN` | Filter tests by name pattern | (none) |
+| `TESTARGS` | Additional arguments to pass to test command | (none) |
+| `TESTINFRA` | Set to `1` to use persistent test infrastructure | (none) |
+| `TESTCOMPAT` | Set to `1` to run full backend compatibility suite | (none) |
+| `TESTREDISCLUSTER` | Set to `1` to enable Redis cluster tests | (none) |
+| `RUNNER` | Force test runner: `gotestsum` or `go` | auto-detect |
+
+### Examples
 
 ```sh
-$ TEST='./internal/services/api' make test
-# go test ./internal/services/api
+# Test specific package
+TEST='./internal/services/api' make test
+
+# Run specific tests
+RUN='TestJWT' make test
+
+# Pass additional options
+TESTARGS='-v' make test
+
+# Combine options
+RUN='TestListTenant' TEST='./internal/models' TESTINFRA=1 make test
 ```
-
-2. To run specific tests or use other options
-
-```sh
-$ TESTARGS='-v -run "TestJWT"'' make test
-# go test $(go list ./...) -v -run "TestJWT"
-```
-
-Keep in mind you can't use `-run "Test..."` along with `make test/integration` as the integration test already specify integration tests with `-run` option. However, since you're already specifying which test to run, we assume this is a non-issue.
 
 ## Coverage
 
@@ -63,9 +112,28 @@ $ make test/coverage/html
 # go tool cover -html=coverage.out
 ```
 
+## Compatibility Testing
+
+By default, the test suite runs only the primary backends (Miniredis + Dragonfly + Postgres) to keep feedback loops fast. To run the full suite including compatibility tests for alternative backends (Redis Stack, Redis Cluster), set the `TESTCOMPAT` environment variable:
+
+```sh
+# Run full test suite including all backend combinations
+TESTCOMPAT=1 make test
+```
+
+This is useful for release testing or when making changes that might affect Redis compatibility.
+
 ## Integration & E2E Tests
 
-When running integration & e2e tests, we often times require some test infrastructure such as ClickHouse, LocalStack, RabbitMQ, etc. We use [Testcontainers](https://testcontainers.com/) for that. It usually takes a few seconds (10s or so) to spawn the necessary containers. To improve the feedback loop, you can run a persistent test infrastructure and skip spawning testcontainers.
+Integration and e2e tests require external services like ClickHouse, LocalStack, RabbitMQ, etc. The test suite supports two modes for running these:
+
+**Persistent infrastructure (recommended)**: Run `make up/test` once, then use `TESTINFRA=1` for all test runs. This is the recommended approach for local development.
+
+**Testcontainers (fallback)**: Without `TESTINFRA=1`, tests automatically spawn containers via [Testcontainers](https://testcontainers.com/). This is convenient for CI or one-off runs but adds startup overhead.
+
+### Why persistent infrastructure?
+
+Lightweight services like Redis start quickly, but heavier dependencies like LocalStack (AWS) or GCP emulators can take 15-30 seconds to initialize. With persistent infrastructure, you pay this cost once and get fast iteration from then on.
 
 To run the test infrastructure:
 

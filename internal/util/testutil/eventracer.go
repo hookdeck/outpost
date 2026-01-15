@@ -31,10 +31,7 @@ func (m *mockEventTracerImpl) Deliver(ctx context.Context, deliveryEvent *models
 }
 
 func NewMockEventTracer(exporter traceSDK.SpanExporter) *mockEventTracerImpl {
-	traceProvider := traceSDK.NewTracerProvider(traceSDK.WithBatcher(
-		exporter,
-		traceSDK.WithBatchTimeout(0),
-	))
+	traceProvider := traceSDK.NewTracerProvider(traceSDK.WithSyncer(exporter))
 
 	mockEventTracer := &mockEventTracerImpl{
 		tracer: traceProvider.Tracer("mockeventtracer"),
