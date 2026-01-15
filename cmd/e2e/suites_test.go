@@ -190,88 +190,95 @@ func (s *basicSuite) TearDownSuite() {
 	s.e2eSuite.TearDownSuite()
 }
 
-func TestBasicSuiteWithCH(t *testing.T) {
+// =============================================================================
+// Default E2E Test Suites (always run)
+// =============================================================================
+// These suites test the primary supported configuration: Dragonfly + ClickHouse.
+// They run in parallel by default.
+
+// TestE2E tests the main configuration: Dragonfly (Redis) + ClickHouse (log storage).
+func TestE2E(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
-	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypeClickHouse})
-}
-
-// TestPGBasicSuite is skipped by default - redundant with TestDragonflyBasicSuite
-func TestPGBasicSuite(t *testing.T) {
-	// t.Parallel() // Disabled to avoid test interference
-	if testing.Short() {
-		t.Skip("skipping e2e test")
-	}
-	testutil.SkipUnlessCompat(t)
-	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypePostgres})
-}
-
-// TestRedisClusterBasicSuite is skipped by default - run with TESTCOMPAT=1 for full compatibility testing
-func TestRedisClusterBasicSuite(t *testing.T) {
-	// t.Parallel() // Disabled to avoid test interference
-	if testing.Short() {
-		t.Skip("skipping e2e test")
-	}
-	testutil.SkipUnlessCompat(t)
-
-	// Get Redis cluster config from environment
-	redisConfig := configs.CreateRedisClusterConfig(t)
-	if redisConfig == nil {
-		t.Skip("skipping Redis cluster test (TEST_REDIS_CLUSTER_URL not set)")
-	}
-
 	suite.Run(t, &basicSuite{
-		logStorageType: configs.LogStorageTypePostgres,
-		redisConfig:    redisConfig,
+		logStorageType: configs.LogStorageTypeClickHouse,
+		redisConfig:    testinfra.NewDragonflyStackConfig(t),
 	})
 }
 
-func TestDragonflyBasicSuite(t *testing.T) {
-	// t.Parallel() // Disabled to avoid test interference
+// TestE2E_WithDeploymentID tests multi-tenancy with deployment ID prefix.
+func TestE2E_WithDeploymentID(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypeClickHouse,
+		redisConfig:    testinfra.NewDragonflyStackConfig(t),
+		deploymentID:   "dp_e2e_test",
+	})
+}
 
-	// Use NewDragonflyStackConfig (DB 0) for RediSearch support
+// =============================================================================
+// Compatibility Test Suites (TESTCOMPAT=1 only)
+// =============================================================================
+// These suites test alternative backend configurations for compatibility.
+// Run with: TESTCOMPAT=1 make test/e2e
+
+// TestE2E_Compat_Postgres tests Postgres as log storage backend.
+func TestE2E_Compat_Postgres(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+	testutil.SkipUnlessCompat(t)
 	suite.Run(t, &basicSuite{
 		logStorageType: configs.LogStorageTypePostgres,
 		redisConfig:    testinfra.NewDragonflyStackConfig(t),
 	})
 }
 
-// TestRedisStackBasicSuite is skipped by default - run with TESTCOMPAT=1 for full compatibility testing
-func TestRedisStackBasicSuite(t *testing.T) {
-	t.Parallel()
+// TestE2E_Compat_RedisStack tests Redis Stack as the Redis backend.
+func TestE2E_Compat_RedisStack(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+	testutil.SkipUnlessCompat(t)
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypeClickHouse,
+		redisConfig:    testinfra.NewRedisStackConfig(t),
+	})
+}
+
+// TestE2E_Compat_RedisCluster tests Redis Cluster mode.
+// Requires TEST_REDIS_CLUSTER_URL environment variable.
+func TestE2E_Compat_RedisCluster(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
 	testutil.SkipUnlessCompat(t)
 
-	suite.Run(t, &basicSuite{
-		logStorageType: configs.LogStorageTypePostgres,
-		redisConfig:    testinfra.NewRedisStackConfig(t),
-	})
-}
-
-func TestBasicSuiteWithDeploymentID(t *testing.T) {
-	// t.Parallel() // Disabled to avoid test interference
-	if testing.Short() {
-		t.Skip("skipping e2e test")
+	redisConfig := configs.CreateRedisClusterConfig(t)
+	if redisConfig == nil {
+		t.Skip("skipping Redis cluster test (TEST_REDIS_CLUSTER_URL not set)")
 	}
 
 	suite.Run(t, &basicSuite{
-		logStorageType: configs.LogStorageTypePostgres,
-		deploymentID:   "dp_e2e_test",
+		logStorageType: configs.LogStorageTypeClickHouse,
+		redisConfig:    redisConfig,
 	})
 }
 
-// TestAutoDisableWithoutCallbackURL tests the scenario from issue #596:
+// =============================================================================
+// Regression Tests
+// =============================================================================
+// Standalone tests for specific issues/scenarios.
+
+// TestE2E_Regression_AutoDisableWithoutCallbackURL tests issue #596:
 // ALERT_AUTO_DISABLE_DESTINATION=true without ALERT_CALLBACK_URL set.
-// Run with: go test -v -run TestAutoDisableWithoutCallbackURL ./cmd/e2e/...
-func TestAutoDisableWithoutCallbackURL(t *testing.T) {
-	// t.Parallel() // Disabled to avoid test interference
+func TestE2E_Regression_AutoDisableWithoutCallbackURL(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
