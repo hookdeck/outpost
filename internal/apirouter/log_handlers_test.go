@@ -385,3 +385,161 @@ func TestRetrieveEvent(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 }
+
+func TestListEvents(t *testing.T) {
+	t.Parallel()
+
+	result := setupTestRouterFull(t, "", "")
+
+	// Create a tenant
+	tenantID := idgen.String()
+	destinationID := idgen.Destination()
+	require.NoError(t, result.entityStore.UpsertTenant(context.Background(), models.Tenant{
+		ID:        tenantID,
+		CreatedAt: time.Now(),
+	}))
+	require.NoError(t, result.entityStore.UpsertDestination(context.Background(), models.Destination{
+		ID:        destinationID,
+		TenantID:  tenantID,
+		Type:      "webhook",
+		Topics:    []string{"*"},
+		CreatedAt: time.Now(),
+	}))
+
+	t.Run("should return empty list when no events", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+		data := response["data"].([]interface{})
+		assert.Len(t, data, 0)
+	})
+
+	t.Run("should list events", func(t *testing.T) {
+		// Seed delivery events
+		eventID := idgen.Event()
+		deliveryID := idgen.Delivery()
+		eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
+		deliveryTime := eventTime.Add(100 * time.Millisecond)
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID(eventID),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(destinationID),
+			testutil.EventFactory.WithTopic("user.created"),
+			testutil.EventFactory.WithTime(eventTime),
+			testutil.EventFactory.WithData(map[string]interface{}{
+				"user_id": "123",
+			}),
+		)
+
+		delivery := testutil.DeliveryFactory.AnyPointer(
+			testutil.DeliveryFactory.WithID(deliveryID),
+			testutil.DeliveryFactory.WithEventID(eventID),
+			testutil.DeliveryFactory.WithDestinationID(destinationID),
+			testutil.DeliveryFactory.WithStatus("success"),
+			testutil.DeliveryFactory.WithTime(deliveryTime),
+		)
+
+		de := &models.DeliveryEvent{
+			ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
+			DestinationID: destinationID,
+			Event:         *event,
+			Delivery:      delivery,
+		}
+
+		require.NoError(t, result.logStore.InsertManyDeliveryEvent(context.Background(), []*models.DeliveryEvent{de}))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+		data := response["data"].([]interface{})
+		assert.Len(t, data, 1)
+
+		firstEvent := data[0].(map[string]interface{})
+		assert.Equal(t, eventID, firstEvent["id"])
+		assert.Equal(t, "user.created", firstEvent["topic"])
+		assert.NotNil(t, firstEvent["data"])
+	})
+
+	t.Run("should filter by destination_id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?destination_id="+destinationID, nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+		data := response["data"].([]interface{})
+		assert.GreaterOrEqual(t, len(data), 1)
+	})
+
+	t.Run("should filter by non-existent destination_id", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?destination_id=nonexistent", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+		data := response["data"].([]interface{})
+		assert.Len(t, data, 0)
+	})
+
+	t.Run("should filter by topic", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?topic=user.created", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+		data := response["data"].([]interface{})
+		assert.GreaterOrEqual(t, len(data), 1)
+		for _, item := range data {
+			event := item.(map[string]interface{})
+			assert.Equal(t, "user.created", event["topic"])
+		}
+	})
+
+	t.Run("should return 404 for non-existent tenant", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/nonexistent/events", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("should return validation error for invalid start time", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?start=invalid", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	})
+
+	t.Run("should return validation error for invalid end time", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?end=invalid", nil)
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	})
+}

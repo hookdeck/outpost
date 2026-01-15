@@ -101,6 +101,13 @@ type ListDeliveriesResponse struct {
 	Prev string        `json:"prev,omitempty"`
 }
 
+// ListEventsResponse is the response for ListEvents
+type ListEventsResponse struct {
+	Data []APIEvent `json:"data"`
+	Next string     `json:"next,omitempty"`
+	Prev string     `json:"prev,omitempty"`
+}
+
 // toAPIDelivery converts a DeliveryEvent to APIDelivery with expand options
 func toAPIDelivery(de *models.DeliveryEvent, opts ExpandOptions) APIDelivery {
 	api := APIDelivery{
@@ -291,4 +298,96 @@ func (h *LogHandlers) RetrieveDelivery(c *gin.Context) {
 	expandOpts := parseExpandOptions(c)
 
 	c.JSON(http.StatusOK, toAPIDelivery(deliveryEvent, expandOpts))
+}
+
+// ListEvents handles GET /:tenantID/events
+// Query params: destination_id, topic[], start, end, limit, next, prev
+func (h *LogHandlers) ListEvents(c *gin.Context) {
+	tenant := mustTenantFromContext(c)
+	if tenant == nil {
+		return
+	}
+
+	// Parse time filters
+	var start, end *time.Time
+	if startStr := c.Query("start"); startStr != "" {
+		t, err := time.Parse(time.RFC3339, startStr)
+		if err != nil {
+			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
+				Code:    http.StatusUnprocessableEntity,
+				Message: "validation error",
+				Data: map[string]string{
+					"query.start": "invalid format, expected RFC3339",
+				},
+			})
+			return
+		}
+		start = &t
+	}
+	if endStr := c.Query("end"); endStr != "" {
+		t, err := time.Parse(time.RFC3339, endStr)
+		if err != nil {
+			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
+				Code:    http.StatusUnprocessableEntity,
+				Message: "validation error",
+				Data: map[string]string{
+					"query.end": "invalid format, expected RFC3339",
+				},
+			})
+			return
+		}
+		end = &t
+	}
+
+	// Parse limit
+	limit := 100
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	// Parse destination_id (single value for now)
+	var destinationIDs []string
+	if destID := c.Query("destination_id"); destID != "" {
+		destinationIDs = []string{destID}
+	}
+
+	// Build request
+	req := logstore.ListEventRequest{
+		TenantID:       tenant.ID,
+		DestinationIDs: destinationIDs,
+		Topics:         c.QueryArray("topic"),
+		EventStart:     start,
+		EventEnd:       end,
+		Limit:          limit,
+		Next:           c.Query("next"),
+		Prev:           c.Query("prev"),
+	}
+
+	// Call logstore
+	response, err := h.logStore.ListEvent(c.Request.Context(), req)
+	if err != nil {
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return
+	}
+
+	// Transform to API response
+	apiEvents := make([]APIEvent, len(response.Data))
+	for i, e := range response.Data {
+		apiEvents[i] = APIEvent{
+			ID:               e.ID,
+			Topic:            e.Topic,
+			Time:             e.Time,
+			EligibleForRetry: e.EligibleForRetry,
+			Metadata:         e.Metadata,
+			Data:             e.Data,
+		}
+	}
+
+	c.JSON(http.StatusOK, ListEventsResponse{
+		Data: apiEvents,
+		Next: response.Next,
+		Prev: response.Prev,
+	})
 }

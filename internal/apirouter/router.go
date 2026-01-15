@@ -321,6 +321,16 @@ func NewRouter(
 		// Event routes
 		{
 			Method:    http.MethodGet,
+			Path:      "/:tenantID/events",
+			Handler:   logHandlers.ListEvents,
+			AuthScope: AuthScopeAdminOrTenant,
+			Mode:      RouteModeAlways,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+		{
+			Method:    http.MethodGet,
 			Path:      "/:tenantID/events/:eventID",
 			Handler:   logHandlers.RetrieveEvent,
 			AuthScope: AuthScopeAdminOrTenant,
