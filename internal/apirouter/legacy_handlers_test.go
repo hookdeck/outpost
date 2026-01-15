@@ -69,7 +69,7 @@ func TestLegacyRetryByEventDestination(t *testing.T) {
 
 	t.Run("should retry via legacy endpoint and return deprecation header", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/"+tenantID+"/destinations/"+destinationID+"/events/"+eventID+"/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/destinations/"+destinationID+"/events/"+eventID+"/retry", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusAccepted, w.Code)
@@ -83,7 +83,7 @@ func TestLegacyRetryByEventDestination(t *testing.T) {
 
 	t.Run("should return 404 for non-existent event", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/"+tenantID+"/destinations/"+destinationID+"/events/nonexistent/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/destinations/"+destinationID+"/events/nonexistent/retry", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -91,7 +91,7 @@ func TestLegacyRetryByEventDestination(t *testing.T) {
 
 	t.Run("should return 404 for non-existent destination", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/"+tenantID+"/destinations/nonexistent/events/"+eventID+"/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/destinations/nonexistent/events/"+eventID+"/retry", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -111,7 +111,7 @@ func TestLegacyRetryByEventDestination(t *testing.T) {
 		}))
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/"+tenantID+"/destinations/"+disabledDestinationID+"/events/"+eventID+"/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/destinations/"+disabledDestinationID+"/events/"+eventID+"/retry", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -171,7 +171,7 @@ func TestLegacyListEventsByDestination(t *testing.T) {
 
 	t.Run("should list events for destination with deprecation header", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/destinations/"+destinationID+"/events", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/destinations/"+destinationID+"/events", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -242,7 +242,7 @@ func TestLegacyRetrieveEventByDestination(t *testing.T) {
 
 	t.Run("should retrieve event by destination with deprecation header", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/destinations/"+destinationID+"/events/"+eventID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/destinations/"+destinationID+"/events/"+eventID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -257,7 +257,7 @@ func TestLegacyRetrieveEventByDestination(t *testing.T) {
 
 	t.Run("should return 404 for non-existent event", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/destinations/"+destinationID+"/events/nonexistent", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/destinations/"+destinationID+"/events/nonexistent", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -317,7 +317,7 @@ func TestLegacyListDeliveriesByEvent(t *testing.T) {
 
 	t.Run("should list deliveries for event with deprecation header", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/events/"+eventID+"/deliveries", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events/"+eventID+"/deliveries", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -334,7 +334,7 @@ func TestLegacyListDeliveriesByEvent(t *testing.T) {
 
 	t.Run("should return empty list for non-existent event", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/events/nonexistent/deliveries", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events/nonexistent/deliveries", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)

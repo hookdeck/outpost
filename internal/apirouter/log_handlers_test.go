@@ -38,7 +38,7 @@ func TestListDeliveries(t *testing.T) {
 
 	t.Run("should return empty list when no deliveries", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/deliveries", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -83,7 +83,7 @@ func TestListDeliveries(t *testing.T) {
 		require.NoError(t, result.logStore.InsertManyDeliveryEvent(context.Background(), []*models.DeliveryEvent{de}))
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/deliveries", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -103,7 +103,7 @@ func TestListDeliveries(t *testing.T) {
 
 	t.Run("should expand event when expand=event", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/deliveries?expand=event", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?expand=event", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -124,7 +124,7 @@ func TestListDeliveries(t *testing.T) {
 
 	t.Run("should expand event.data when expand=event.data", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/deliveries?expand=event.data", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?expand=event.data", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -143,7 +143,7 @@ func TestListDeliveries(t *testing.T) {
 
 	t.Run("should filter by destination_id", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/deliveries?destination_id="+destinationID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?destination_id="+destinationID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -157,7 +157,7 @@ func TestListDeliveries(t *testing.T) {
 
 	t.Run("should filter by non-existent destination_id", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/deliveries?destination_id=nonexistent", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?destination_id=nonexistent", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -171,7 +171,7 @@ func TestListDeliveries(t *testing.T) {
 
 	t.Run("should return 404 for non-existent tenant", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/nonexistent/deliveries", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/nonexistent/deliveries", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -231,7 +231,7 @@ func TestRetrieveDelivery(t *testing.T) {
 
 	t.Run("should retrieve delivery by ID", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/deliveries/"+deliveryID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries/"+deliveryID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -247,7 +247,7 @@ func TestRetrieveDelivery(t *testing.T) {
 
 	t.Run("should expand event when expand=event", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/deliveries/"+deliveryID+"?expand=event", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries/"+deliveryID+"?expand=event", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -264,7 +264,7 @@ func TestRetrieveDelivery(t *testing.T) {
 
 	t.Run("should expand event.data when expand=event.data", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/deliveries/"+deliveryID+"?expand=event.data", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries/"+deliveryID+"?expand=event.data", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -279,7 +279,7 @@ func TestRetrieveDelivery(t *testing.T) {
 
 	t.Run("should return 404 for non-existent delivery", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/deliveries/nonexistent", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries/nonexistent", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -287,7 +287,7 @@ func TestRetrieveDelivery(t *testing.T) {
 
 	t.Run("should return 404 for non-existent tenant", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/nonexistent/deliveries/"+deliveryID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/nonexistent/deliveries/"+deliveryID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -353,7 +353,7 @@ func TestRetrieveEvent(t *testing.T) {
 
 	t.Run("should retrieve event by ID", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/events/"+eventID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events/"+eventID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -371,7 +371,7 @@ func TestRetrieveEvent(t *testing.T) {
 
 	t.Run("should return 404 for non-existent event", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/"+tenantID+"/events/nonexistent", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events/nonexistent", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -379,7 +379,7 @@ func TestRetrieveEvent(t *testing.T) {
 
 	t.Run("should return 404 for non-existent tenant", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/nonexistent/events/"+eventID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/nonexistent/events/"+eventID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)

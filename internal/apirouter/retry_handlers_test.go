@@ -69,7 +69,7 @@ func TestRetryDelivery(t *testing.T) {
 
 	t.Run("should retry delivery successfully", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/"+tenantID+"/deliveries/"+deliveryID+"/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/deliveries/"+deliveryID+"/retry", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusAccepted, w.Code)
@@ -81,7 +81,7 @@ func TestRetryDelivery(t *testing.T) {
 
 	t.Run("should return 404 for non-existent delivery", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/"+tenantID+"/deliveries/nonexistent/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/deliveries/nonexistent/retry", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -89,7 +89,7 @@ func TestRetryDelivery(t *testing.T) {
 
 	t.Run("should return 404 for non-existent tenant", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/nonexistent/deliveries/"+deliveryID+"/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/nonexistent/deliveries/"+deliveryID+"/retry", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -138,7 +138,7 @@ func TestRetryDelivery(t *testing.T) {
 		require.NoError(t, result.logStore.InsertManyDeliveryEvent(context.Background(), []*models.DeliveryEvent{disabledDE}))
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/"+tenantID+"/deliveries/"+disabledDeliveryID+"/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/deliveries/"+disabledDeliveryID+"/retry", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
