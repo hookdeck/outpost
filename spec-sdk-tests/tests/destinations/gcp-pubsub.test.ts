@@ -55,7 +55,7 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
     }
   });
 
-  describe('POST /api/v1/{tenant_id}/destinations - Create GCP Pub/Sub Destination', () => {
+  describe('POST /api/v1/tenants/{tenant_id}/destinations - Create GCP Pub/Sub Destination', () => {
     it('should create a GCP Pub/Sub destination with valid config', async () => {
       const destination = await client.createDestination({
         type: 'gcp_pubsub',
@@ -301,7 +301,7 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations/{id} - Retrieve GCP Pub/Sub Destination', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations/{id} - Retrieve GCP Pub/Sub Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -376,7 +376,7 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations - List GCP Pub/Sub Destinations', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations - List GCP Pub/Sub Destinations', () => {
     before(async () => {
       // Create multiple GCP Pub/Sub destinations for listing
       await client.createDestination({
@@ -429,7 +429,7 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
     });
   });
 
-  describe('PATCH /api/v1/{tenant_id}/destinations/{id} - Update GCP Pub/Sub Destination', () => {
+  describe('PATCH /api/v1/tenants/{tenant_id}/destinations/{id} - Update GCP Pub/Sub Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -537,7 +537,7 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
     });
   });
 
-  describe('DELETE /api/v1/{tenant_id}/destinations/{id} - Delete GCP Pub/Sub Destination', () => {
+  describe('DELETE /api/v1/tenants/{tenant_id}/destinations/{id} - Delete GCP Pub/Sub Destination', () => {
     it('should delete an existing destination', async () => {
       // Create a destination to delete
       const destination = await client.createDestination({

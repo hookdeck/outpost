@@ -54,7 +54,7 @@ describe('AWS S3 Destinations - Contract Tests (SDK-based validation)', () => {
     }
   });
 
-  describe('POST /api/v1/{tenant_id}/destinations - Create AWS S3 Destination', () => {
+  describe('POST /api/v1/tenants/{tenant_id}/destinations - Create AWS S3 Destination', () => {
     it('should create an AWS S3 destination with valid config', async () => {
       const destinationData = createAwsS3Destination();
       const destination = await client.createDestination(destinationData);
@@ -226,7 +226,7 @@ describe('AWS S3 Destinations - Contract Tests (SDK-based validation)', () => {
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations/{id} - Retrieve AWS S3 Destination', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations/{id} - Retrieve AWS S3 Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -271,7 +271,7 @@ describe('AWS S3 Destinations - Contract Tests (SDK-based validation)', () => {
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations - List AWS S3 Destinations', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations - List AWS S3 Destinations', () => {
     before(async () => {
       // Create multiple AWS S3 destinations for listing
       await client.createDestination(createAwsS3Destination());
@@ -301,7 +301,7 @@ describe('AWS S3 Destinations - Contract Tests (SDK-based validation)', () => {
     });
   });
 
-  describe('PATCH /api/v1/{tenant_id}/destinations/{id} - Update AWS S3 Destination', () => {
+  describe('PATCH /api/v1/tenants/{tenant_id}/destinations/{id} - Update AWS S3 Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -375,7 +375,7 @@ describe('AWS S3 Destinations - Contract Tests (SDK-based validation)', () => {
     });
   });
 
-  describe('DELETE /api/v1/{tenant_id}/destinations/{id} - Delete AWS S3 Destination', () => {
+  describe('DELETE /api/v1/tenants/{tenant_id}/destinations/{id} - Delete AWS S3 Destination', () => {
     it('should delete an existing destination', async () => {
       const destinationData = createAwsS3Destination();
       const destination = await client.createDestination(destinationData);

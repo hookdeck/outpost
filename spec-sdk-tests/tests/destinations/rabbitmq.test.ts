@@ -54,7 +54,7 @@ describe('RabbitMQ Destinations - Contract Tests (SDK-based validation)', () => 
     }
   });
 
-  describe('POST /api/v1/{tenant_id}/destinations - Create RabbitMQ Destination', () => {
+  describe('POST /api/v1/tenants/{tenant_id}/destinations - Create RabbitMQ Destination', () => {
     it('should create a RabbitMQ destination with valid config', async () => {
       const destinationData = createRabbitMqDestination();
       const destination = await client.createDestination(destinationData);
@@ -226,7 +226,7 @@ describe('RabbitMQ Destinations - Contract Tests (SDK-based validation)', () => 
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations/{id} - Retrieve RabbitMQ Destination', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations/{id} - Retrieve RabbitMQ Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -271,7 +271,7 @@ describe('RabbitMQ Destinations - Contract Tests (SDK-based validation)', () => 
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations - List RabbitMQ Destinations', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations - List RabbitMQ Destinations', () => {
     before(async () => {
       // Create multiple RabbitMQ destinations for listing
       await client.createDestination(createRabbitMqDestination());
@@ -301,7 +301,7 @@ describe('RabbitMQ Destinations - Contract Tests (SDK-based validation)', () => 
     });
   });
 
-  describe('PATCH /api/v1/{tenant_id}/destinations/{id} - Update RabbitMQ Destination', () => {
+  describe('PATCH /api/v1/tenants/{tenant_id}/destinations/{id} - Update RabbitMQ Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -375,7 +375,7 @@ describe('RabbitMQ Destinations - Contract Tests (SDK-based validation)', () => 
     });
   });
 
-  describe('DELETE /api/v1/{tenant_id}/destinations/{id} - Delete RabbitMQ Destination', () => {
+  describe('DELETE /api/v1/tenants/{tenant_id}/destinations/{id} - Delete RabbitMQ Destination', () => {
     it('should delete an existing destination', async () => {
       const destinationData = createRabbitMqDestination();
       const destination = await client.createDestination(destinationData);

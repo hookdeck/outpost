@@ -79,7 +79,7 @@ See the [Outpost Features](https://outpost.hookdeck.com/docs/features) for more 
 - [Quickstarts](https://outpost.hookdeck.com/docs/quickstarts)
 - [Features](https://outpost.hookdeck.com/docs/features)
 - [Guides](https://outpost.hookdeck.com/docs/guides)
-- [API Reference](https://outpost.hookdeck.com/docs/references/api)
+- [API Reference](https://outpost.hookdeck.com/docs/api)
 - [Configuration Reference](https://outpost.hookdeck.com/docs/references/configuration)
 
 _The Outpost documentation is built using the [Zudoku documentation framework](https://zuplo.link/outpost)._
@@ -180,7 +180,7 @@ Create a tenant with the following command, replacing `$TENANT_ID` with a unique
 
 
 ```sh
-curl --location --request PUT "$OUTPOST_URL/api/v1/$TENANT_ID" \
+curl --location --request PUT "$OUTPOST_URL/api/v1/tenants/$TENANT_ID" \
 --header "Authorization: Bearer $API_KEY"
 ```
 
@@ -189,7 +189,7 @@ Run a local server exposed via a localtunnel or use a hosted service such as the
 Create a webhook destination where events will be delivered to with the following command. Again, replace `$TENANT_ID` and `$API_KEY`. Also, replace `$URL` with the webhook destinations URL:
 
 ```sh
-curl --location "$OUTPOST_URL/api/v1/$TENANT_ID/destinations" \
+curl --location "$OUTPOST_URL/api/v1/tenants/$TENANT_ID/destinations" \
 --header "Content-Type: application/json" \
 --header "Authorization: Bearer $API_KEY" \
 --data '{
@@ -225,7 +225,7 @@ Check the logs on your server or your webhook capture tool for the delivered eve
 Get an Outpost portal link for the tenant:
 
 ```sh
-curl "$OUTPOST_URL/api/v1/$TENANT_ID/portal" \
+curl "$OUTPOST_URL/api/v1/tenants/$TENANT_ID/portal" \
 --header "Authorization: Bearer $API_KEY"
 ```
 
@@ -241,7 +241,7 @@ Open the `redirect_url` link to view the Outpost portal.
 
 ![Dashboard homepage](docs/public/images/dashboard-homepage.png)
 
-Continue to use the [Outpost API](https://outpost.hookdeck.com/docs/references/api) or the Outpost portal to add and test more destinations.
+Continue to use the [Outpost API](https://outpost.hookdeck.com/docs/api) or the Outpost portal to add and test more destinations.
 
 ## Contributing
 

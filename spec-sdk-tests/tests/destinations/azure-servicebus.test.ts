@@ -54,7 +54,7 @@ describe('Azure Service Bus Destinations - Contract Tests (SDK-based validation)
     }
   });
 
-  describe('POST /api/v1/{tenant_id}/destinations - Create Azure Service Bus Destination', () => {
+  describe('POST /api/v1/tenants/{tenant_id}/destinations - Create Azure Service Bus Destination', () => {
     it('should create an Azure Service Bus destination with valid config', async () => {
       const destinationData = createAzureServiceBusDestination();
       const destination = await client.createDestination(destinationData);
@@ -193,7 +193,7 @@ describe('Azure Service Bus Destinations - Contract Tests (SDK-based validation)
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations/{id} - Retrieve Azure Service Bus Destination', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations/{id} - Retrieve Azure Service Bus Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -237,7 +237,7 @@ describe('Azure Service Bus Destinations - Contract Tests (SDK-based validation)
     });
   });
 
-  describe('GET /api/v1/{tenant_id}/destinations - List Azure Service Bus Destinations', () => {
+  describe('GET /api/v1/tenants/{tenant_id}/destinations - List Azure Service Bus Destinations', () => {
     before(async () => {
       // Create multiple Azure Service Bus destinations for listing
       await client.createDestination(createAzureServiceBusDestination());
@@ -266,7 +266,7 @@ describe('Azure Service Bus Destinations - Contract Tests (SDK-based validation)
     });
   });
 
-  describe('PATCH /api/v1/{tenant_id}/destinations/{id} - Update Azure Service Bus Destination', () => {
+  describe('PATCH /api/v1/tenants/{tenant_id}/destinations/{id} - Update Azure Service Bus Destination', () => {
     let destinationId: string;
 
     before(async () => {
@@ -340,7 +340,7 @@ describe('Azure Service Bus Destinations - Contract Tests (SDK-based validation)
     });
   });
 
-  describe('DELETE /api/v1/{tenant_id}/destinations/{id} - Delete Azure Service Bus Destination', () => {
+  describe('DELETE /api/v1/tenants/{tenant_id}/destinations/{id} - Delete Azure Service Bus Destination', () => {
     it('should delete an existing destination', async () => {
       const destinationData = createAzureServiceBusDestination();
       const destination = await client.createDestination(destinationData);

@@ -26,7 +26,7 @@ See the [roadmap](/docs/references/roadmap) for planned destination types. To be
 Destinations can be registered through the tenant portal or via the API. Each destination type has its own configuration and credentials. Refer to the [Create Destination API](/docs/api/destinations#create-destination) for the required `config` and `credentials` fields for each destination type.
 
 ```sh
-curl --location 'https://<OUTPOST_API_URL>/api/v1/<TENANT_ID>/destinations' \
+curl --location 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
