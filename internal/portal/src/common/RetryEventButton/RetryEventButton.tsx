@@ -31,7 +31,7 @@ const RetryEventButton: React.FC<RetryEventButtonProps> = ({
           `destinations/${destinationId}/events/${eventId}/retry`,
           {
             method: "POST",
-          }
+          },
         );
         showToast("success", "Retry successful.");
         completed(true);
@@ -39,14 +39,14 @@ const RetryEventButton: React.FC<RetryEventButtonProps> = ({
         showToast(
           "error",
           "Retry failed. " +
-            `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`
+            `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
         );
         completed(false);
       }
 
       setRetrying(false);
     },
-    [apiClient, destinationId, eventId, completed]
+    [apiClient, destinationId, eventId, completed],
   );
 
   return (

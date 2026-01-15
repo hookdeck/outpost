@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
           excludeReplayIframe: true,
           excludeReplayWorker: true,
         },
-      })
+      }),
     );
   }
 

@@ -38,14 +38,14 @@ const RetryDeliveryButton: React.FC<RetryDeliveryButtonProps> = ({
         showToast(
           "error",
           "Retry failed. " +
-            `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`
+            `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
         );
         completed(false);
       }
 
       setRetrying(false);
     },
-    [apiClient, deliveryId, completed]
+    [apiClient, deliveryId, completed],
   );
 
   return (

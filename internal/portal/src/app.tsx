@@ -55,7 +55,13 @@ function NotFound() {
   );
 }
 
-function AuthenticatedApp({ tenant, token }: { tenant: TenantResponse; token: string }) {
+function AuthenticatedApp({
+  tenant,
+  token,
+}: {
+  tenant: TenantResponse;
+  token: string;
+}) {
   const apiClient: ApiClient = {
     fetch: (path: string, init?: RequestInit) => {
       return fetch(`/api/v1/tenants/${tenant.id}/${path}`, {
@@ -191,7 +197,7 @@ function useTenant(token?: string): TenantResponse | undefined {
         }
         return res.json();
       }),
-    { revalidateOnFocus: false }
+    { revalidateOnFocus: false },
   );
 
   return data;
@@ -207,7 +213,7 @@ function decodeJWT(token: string) {
         .map(function (c) {
           return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
         })
-        .join("")
+        .join(""),
     );
     return JSON.parse(jsonPayload);
   } catch (e) {

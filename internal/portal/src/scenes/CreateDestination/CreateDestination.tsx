@@ -57,7 +57,7 @@ const EVENT_TOPICS_STEP: Step = {
         ? Array.isArray(defaultValue.topics)
           ? defaultValue.topics
           : defaultValue.topics.split(",")
-        : []
+        : [],
     );
 
     useEffect(() => {
@@ -159,7 +159,7 @@ const CONFIGURATION_STEP: Step = {
     onChange?: (value: Record<string, any>) => void;
   }) => {
     const destinationType = destinations?.find(
-      (d) => d.type === defaultValue.type
+      (d) => d.type === defaultValue.type,
     );
     const [filter, setFilter] = useState<Filter>(defaultValue.filter || null);
     const [showFilter, setShowFilter] = useState(!!defaultValue.filter);
@@ -317,15 +317,17 @@ export default function CreateDestination() {
           ...(filter && Object.keys(filter).length > 0 ? { filter } : {}),
           config: Object.fromEntries(
             Object.entries(values).filter(([key]) =>
-              destination_type?.config_fields.some((field) => field.key === key)
-            )
+              destination_type?.config_fields.some(
+                (field) => field.key === key,
+              ),
+            ),
           ),
           credentials: Object.fromEntries(
             Object.entries(values).filter(([key]) =>
               destination_type?.credential_fields.some(
-                (field) => field.key === key
-              )
-            )
+                (field) => field.key === key,
+              ),
+            ),
           ),
         }),
       })
@@ -337,7 +339,7 @@ export default function CreateDestination() {
       .catch((error) => {
         showToast(
           "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`
+          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
         );
       })
       .finally(() => {
@@ -412,7 +414,7 @@ export default function CreateDestination() {
                   setStepValues((prev) => ({ ...prev, ...values }));
                   if (currentStep.isValid) {
                     setIsValid(
-                      currentStep.isValid({ ...stepValues, ...values })
+                      currentStep.isValid({ ...stepValues, ...values }),
                     );
                   }
                 }}

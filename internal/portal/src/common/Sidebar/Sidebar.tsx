@@ -35,17 +35,14 @@ export const SidebarProvider = ({ children }: { children: ReactNode }) => {
     setState((current) => (current?.id === id ? null : current));
   }, []);
 
-  const toggle = useCallback(
-    (id: string, content: ReactNode) => {
-      setState((current) => {
-        if (current?.id === id) {
-          return null;
-        }
-        return { id, content };
-      });
-    },
-    []
-  );
+  const toggle = useCallback((id: string, content: ReactNode) => {
+    setState((current) => {
+      if (current?.id === id) {
+        return null;
+      }
+      return { id, content };
+    });
+  }, []);
 
   const handleClose = useCallback(() => {
     setState(null);
@@ -87,7 +84,7 @@ const SidebarPortal = ({
       </Button>
       {state.content}
     </div>,
-    document.body
+    document.body,
   );
 };
 

@@ -3,7 +3,11 @@ import Badge from "../../../common/Badge/Badge";
 import Button from "../../../common/Button/Button";
 import "./Deliveries.scss";
 import Table from "../../../common/Table/Table";
-import { DeliveryListResponse, Delivery, EventSummary } from "../../../typings/Event";
+import {
+  DeliveryListResponse,
+  Delivery,
+  EventSummary,
+} from "../../../typings/Event";
 import useSWR from "swr";
 import Dropdown from "../../../common/Dropdown/Dropdown";
 import {
@@ -31,7 +35,10 @@ interface DeliveriesProps {
   navigateDelivery: (path: string, state?: any) => void;
 }
 
-const Deliveries: React.FC<DeliveriesProps> = ({ destination, navigateDelivery }) => {
+const Deliveries: React.FC<DeliveriesProps> = ({
+  destination,
+  navigateDelivery,
+}) => {
   const [timeRange, setTimeRange] = useState("24h");
   const { delivery_id: deliveryId } = useParams<{ delivery_id: string }>();
   const { status, topics, pagination, urlSearchParams } = useDeliveryFilter();
@@ -44,19 +51,19 @@ const Deliveries: React.FC<DeliveriesProps> = ({ destination, navigateDelivery }
       case "7d":
         searchParams.set(
           "start",
-          new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+          new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(),
         );
         break;
       case "30d":
         searchParams.set(
           "start",
-          new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+          new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(),
         );
         break;
       default: // 24h
         searchParams.set(
           "start",
-          new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+          new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
         );
     }
 
@@ -82,7 +89,10 @@ const Deliveries: React.FC<DeliveriesProps> = ({ destination, navigateDelivery }
 
   const table_rows = deliveriesList?.data
     ? deliveriesList.data.map((delivery) => {
-        const event = typeof delivery.event === "object" ? delivery.event as EventSummary : null;
+        const event =
+          typeof delivery.event === "object"
+            ? (delivery.event as EventSummary)
+            : null;
         return {
           id: delivery.id,
           active: delivery.id === (deliveryId || ""),
@@ -390,10 +400,10 @@ export const DeliveryRoutes = ({ destination }: { destination: any }) => {
     (path: string, state?: any) => {
       navigate(
         `/destinations/${destination.id}/deliveries${path}?${urlSearchParams}`,
-        { state }
+        { state },
       );
     },
-    [navigate, destination.id, urlSearchParams]
+    [navigate, destination.id, urlSearchParams],
   );
 
   return (
@@ -401,7 +411,10 @@ export const DeliveryRoutes = ({ destination }: { destination: any }) => {
       <Route
         path="/"
         element={
-          <Deliveries destination={destination} navigateDelivery={navigateDelivery} />
+          <Deliveries
+            destination={destination}
+            navigateDelivery={navigateDelivery}
+          />
         }
       >
         <Route

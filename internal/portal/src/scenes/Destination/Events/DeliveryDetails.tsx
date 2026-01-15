@@ -14,14 +14,15 @@ const DeliveryDetails = ({
   const { delivery_id: deliveryId } = useParams();
 
   const { data: delivery } = useSWR<Delivery>(
-    `deliveries/${deliveryId}?expand=event.data,response_data`
+    `deliveries/${deliveryId}?expand=event.data,response_data`,
   );
 
   if (!delivery) {
     return <div>Loading...</div>;
   }
 
-  const event = typeof delivery.event === "object" ? delivery.event as EventFull : null;
+  const event =
+    typeof delivery.event === "object" ? (delivery.event as EventFull) : null;
 
   return (
     <div className="drawer">
@@ -66,7 +67,9 @@ const DeliveryDetails = ({
                 <dt>Status</dt>
                 <dd>
                   <Badge
-                    text={delivery.status === "success" ? "Successful" : "Failed"}
+                    text={
+                      delivery.status === "success" ? "Successful" : "Failed"
+                    }
                     success={delivery.status === "success"}
                     danger={delivery.status === "failed"}
                   />
@@ -132,7 +135,9 @@ const DeliveryDetails = ({
           {event?.data && (
             <div className="delivery-data__data">
               <h3 className="subtitle-m">Event Data</h3>
-              <pre className="mono-s">{JSON.stringify(event.data, null, 2)}</pre>
+              <pre className="mono-s">
+                {JSON.stringify(event.data, null, 2)}
+              </pre>
             </div>
           )}
 

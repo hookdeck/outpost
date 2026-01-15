@@ -36,7 +36,7 @@ const detectSeparator = (topics: string[]): string => {
           .filter((idx) => idx !== -1);
 
         return otherSepsIndex.every((idx) => idx === -1 || idx > sepIndex);
-      })
+      }),
     ) || "-"
   ); // Fallback to '-' if no consistent separator is found
 };
@@ -61,7 +61,7 @@ const TopicPicker = ({
 }: TopicPickerProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<string[]>(
-    Array.from(new Set(topics.map((topic) => topic.category)))
+    Array.from(new Set(topics.map((topic) => topic.category))),
   );
 
   const isEverythingSelected = selectedTopics.includes("*");
@@ -77,7 +77,7 @@ const TopicPicker = ({
   // Group topics by category
   const categorizedTopics = useMemo(() => {
     const filtered = topics.filter((topic) =>
-      topic.id.toLowerCase().includes(searchQuery.toLowerCase())
+      topic.id.toLowerCase().includes(searchQuery.toLowerCase()),
     );
 
     return filtered.reduce(
@@ -89,7 +89,7 @@ const TopicPicker = ({
         acc[category].push(topic);
         return acc;
       },
-      {} as Record<string, Topic[]>
+      {} as Record<string, Topic[]>,
     );
   }, [topics, searchQuery]);
 
@@ -97,7 +97,7 @@ const TopicPicker = ({
     setExpandedCategories((prev) =>
       prev.includes(category)
         ? prev.filter((c) => c !== category)
-        : [...prev, category]
+        : [...prev, category],
     );
   };
 
@@ -108,12 +108,12 @@ const TopicPicker = ({
 
     const categoryTopicIds = topicsInCategory.map((t) => t.id);
     const areAllSelected = categoryTopicIds.every((id) =>
-      selectedTopics.includes(id)
+      selectedTopics.includes(id),
     );
 
     if (areAllSelected) {
       onTopicsChange(
-        selectedTopics.filter((id) => !categoryTopicIds.includes(id))
+        selectedTopics.filter((id) => !categoryTopicIds.includes(id)),
       );
     } else {
       const newSelected = new Set([...selectedTopics, ...categoryTopicIds]);
@@ -157,7 +157,7 @@ const TopicPicker = ({
         {Object.entries(categorizedTopics).map(([category, categoryTopics]) => {
           const isExpanded = expandedCategories.includes(category);
           const selectedCount = categoryTopics.filter((topic) =>
-            selectedTopics.includes(topic.id)
+            selectedTopics.includes(topic.id),
           ).length;
           const areAllSelected = selectedCount === categoryTopics.length;
           const isIndeterminate = selectedCount > 0 && !areAllSelected;
