@@ -38,6 +38,8 @@ const DeliveryDetails = ({
             disabled={false}
             loading={false}
             completed={() => {}}
+            icon
+            iconLabel="Retry"
           />
 
           <Button

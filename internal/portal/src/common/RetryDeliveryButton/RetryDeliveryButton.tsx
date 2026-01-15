@@ -9,6 +9,8 @@ interface RetryDeliveryButtonProps {
   disabled: boolean;
   loading: boolean;
   completed: (success: boolean) => void;
+  icon?: boolean;
+  iconLabel?: string;
 }
 
 const RetryDeliveryButton: React.FC<RetryDeliveryButtonProps> = ({
@@ -16,6 +18,8 @@ const RetryDeliveryButton: React.FC<RetryDeliveryButtonProps> = ({
   disabled,
   loading,
   completed,
+  icon,
+  iconLabel,
 }) => {
   const apiClient = useContext(ApiContext);
   const [retrying, setRetrying] = useState<boolean>(false);
@@ -47,6 +51,8 @@ const RetryDeliveryButton: React.FC<RetryDeliveryButtonProps> = ({
   return (
     <Button
       minimal
+      icon={icon}
+      iconLabel={iconLabel}
       onClick={(e) => retryDelivery(e)}
       disabled={disabled || retrying}
       loading={loading || retrying}
