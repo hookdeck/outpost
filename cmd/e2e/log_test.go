@@ -10,43 +10,52 @@ import (
 	"github.com/hookdeck/outpost/internal/idgen"
 )
 
-// TestLogAPI tests the new Log API endpoints (deliveries, events).
+// parseTime parses a timestamp string (RFC3339 with optional nanoseconds)
+func parseTime(s string) time.Time {
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		t, _ = time.Parse(time.RFC3339, s)
+	}
+	return t
+}
+
+// TestLogAPI tests the Log API endpoints (deliveries, events).
 //
 // Setup:
-//  1. Create a tenant
-//  2. Configure mock webhook server to accept deliveries
-//  3. Create a destination pointing to the mock server
-//  4. Publish an event and wait for delivery to complete
+//  1. Create a tenant and destination
+//  2. Publish 10 events with small delays for distinct timestamps
 //
-// Test Cases:
-//   - GET /:tenantID/deliveries - List all deliveries with proper response structure
-//   - GET /:tenantID/deliveries?destination_id=X - Filter deliveries by destination
-//   - GET /:tenantID/deliveries?event_id=X - Filter deliveries by event
-//   - GET /:tenantID/deliveries?expand=event - Expand event summary (without data)
-//   - GET /:tenantID/deliveries?expand=event.data - Expand full event with payload data
-//   - GET /:tenantID/events/:eventID - Retrieve a single event with full details
-//   - GET /:tenantID/events/:eventID (non-existent) - Returns 404
+// Test Groups:
+//   - deliveries: list, filter, expand
+//   - events: list, filter, retrieve
+//   - sort_order: sort by time ascending/descending
+//   - pagination: paginate through results
+//   - event_time_filter: filter deliveries by event time
 func (suite *basicSuite) TestLogAPI() {
 	tenantID := idgen.String()
 	destinationID := idgen.Destination()
-	eventID := idgen.Event()
 
-	// Setup: Create tenant, destination, and publish an event
+	// Generate 10 event IDs with readable numbers and unique prefix
+	eventPrefix := idgen.String()[:8]
+	eventIDs := make([]string, 10)
+	for i := range eventIDs {
+		eventIDs[i] = fmt.Sprintf("%s_event_%d", eventPrefix, i+1)
+	}
+
+	// Setup: Create tenant and destination
 	setupTests := []APITest{
 		{
-			Name: "PUT /tenants/:tenantID - create tenant",
+			Name: "create tenant",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPUT,
 				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusCreated,
-				},
+				Match: &httpclient.Response{StatusCode: http.StatusCreated},
 			},
 		},
 		{
-			Name: "PUT mockserver/destinations - setup mock",
+			Name: "setup mock server",
 			Request: httpclient.Request{
 				Method:  httpclient.MethodPUT,
 				BaseURL: suite.mockServerBaseURL,
@@ -60,13 +69,11 @@ func (suite *basicSuite) TestLogAPI() {
 				},
 			},
 			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
-				},
+				Match: &httpclient.Response{StatusCode: http.StatusOK},
 			},
 		},
 		{
-			Name: "POST /:tenantID/destinations - create destination",
+			Name: "create destination",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
 				Path:   "/tenants/" + tenantID + "/destinations",
@@ -80,325 +87,423 @@ func (suite *basicSuite) TestLogAPI() {
 				},
 			}),
 			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusCreated,
-				},
-			},
-		},
-		{
-			Name: "POST /publish - publish event",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPOST,
-				Path:   "/publish",
-				Body: map[string]interface{}{
-					"id":                 eventID,
-					"tenant_id":          tenantID,
-					"topic":              "user.created",
-					"eligible_for_retry": true,
-					"data": map[string]interface{}{
-						"user_id": "123",
-					},
-				},
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusAccepted,
-				},
+				Match: &httpclient.Response{StatusCode: http.StatusCreated},
 			},
 		},
 	}
 	suite.RunAPITests(suite.T(), setupTests)
 
-	// Wait for delivery to complete
-	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries", 1, 5*time.Second)
+	// Publish 10 events with small delays for distinct timestamps
+	for i, eventID := range eventIDs {
+		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodPOST,
+			Path:   "/publish",
+			Body: map[string]interface{}{
+				"id":                 eventID,
+				"tenant_id":          tenantID,
+				"topic":              "user.created",
+				"eligible_for_retry": true,
+				"data":               map[string]interface{}{"index": i},
+			},
+		}))
+		suite.Require().NoError(err)
+		suite.Require().Equal(http.StatusAccepted, resp.StatusCode, "failed to publish event %d", i)
+		time.Sleep(50 * time.Millisecond)
+	}
 
-	// Test the new Log API endpoints
-	logAPITests := []APITest{
-		// GET /:tenantID/deliveries - list deliveries
-		{
-			Name: "GET /:tenantID/deliveries - list all deliveries",
-			Request: suite.AuthRequest(httpclient.Request{
+	// Wait for all deliveries
+	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries", 10, 10*time.Second)
+
+	// =========================================================================
+	// Deliveries Tests
+	// =========================================================================
+	suite.Run("deliveries", func() {
+		suite.Run("list all", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
 				Path:   "/tenants/" + tenantID + "/deliveries",
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type":     "object",
-							"required": []interface{}{"data"},
-							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
-									"type":     "array",
-									"minItems": 1,
-									"items": map[string]interface{}{
-										"type":     "object",
-										"required": []interface{}{"id", "event", "destination", "status", "delivered_at"},
-										"properties": map[string]interface{}{
-											"id":           map[string]interface{}{"type": "string"},
-											"event":        map[string]interface{}{"type": "string"}, // Event ID when not expanded
-											"destination":  map[string]interface{}{"const": destinationID},
-											"status":       map[string]interface{}{"type": "string"},
-											"delivered_at": map[string]interface{}{"type": "string"},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// GET /:tenantID/deliveries?destination_id=X - filter by destination
-		{
-			Name: "GET /:tenantID/deliveries?destination_id=X - filter by destination",
-			Request: suite.AuthRequest(httpclient.Request{
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Len(data, 10)
+
+			// Verify structure
+			first := data[0].(map[string]interface{})
+			suite.NotEmpty(first["id"])
+			suite.NotEmpty(first["event"])
+			suite.Equal(destinationID, first["destination"])
+			suite.NotEmpty(first["status"])
+			suite.NotEmpty(first["delivered_at"])
+		})
+
+		suite.Run("filter by destination_id", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
 				Path:   "/tenants/" + tenantID + "/deliveries?destination_id=" + destinationID,
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type":     "object",
-							"required": []interface{}{"data"},
-							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
-									"type":     "array",
-									"minItems": 1,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// GET /:tenantID/deliveries?event_id=X - filter by event
-		{
-			Name: "GET /:tenantID/deliveries?event_id=X - filter by event",
-			Request: suite.AuthRequest(httpclient.Request{
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Len(data, 10)
+		})
+
+		suite.Run("filter by event_id", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?event_id=" + eventID,
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type":     "object",
-							"required": []interface{}{"data"},
-							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
-									"type":     "array",
-									"minItems": 1,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// GET /:tenantID/deliveries?expand=event - expand event (without data)
-		{
-			Name: "GET /:tenantID/deliveries?expand=event - expand event summary",
-			Request: suite.AuthRequest(httpclient.Request{
+				Path:   "/tenants/" + tenantID + "/deliveries?event_id=" + eventIDs[0],
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Len(data, 1)
+		})
+
+		suite.Run("expand=event returns event object without data", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?expand=event",
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
-									"type":     "array",
-									"minItems": 1,
-									"items": map[string]interface{}{
-										"type":     "object",
-										"required": []interface{}{"event"},
-										"properties": map[string]interface{}{
-											"event": map[string]interface{}{
-												"type":     "object",
-												"required": []interface{}{"id", "topic", "time"},
-												"properties": map[string]interface{}{
-													"id":    map[string]interface{}{"type": "string"},
-													"topic": map[string]interface{}{"type": "string"},
-													"time":  map[string]interface{}{"type": "string"},
-												},
-												// expand=event should NOT include data
-												"not": map[string]interface{}{
-													"required": []interface{}{"data"},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// GET /:tenantID/deliveries?expand=event.data - expand full event with data
-		{
-			Name: "GET /:tenantID/deliveries?expand=event.data - expand full event",
-			Request: suite.AuthRequest(httpclient.Request{
+				Path:   "/tenants/" + tenantID + "/deliveries?expand=event&limit=1",
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Require().Len(data, 1)
+
+			delivery := data[0].(map[string]interface{})
+			event := delivery["event"].(map[string]interface{})
+			suite.NotEmpty(event["id"])
+			suite.NotEmpty(event["topic"])
+			suite.NotEmpty(event["time"])
+			suite.Nil(event["data"]) // expand=event should NOT include data
+		})
+
+		suite.Run("expand=event.data returns event object with data", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?expand=event.data",
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
-									"type":     "array",
-									"minItems": 1,
-									"items": map[string]interface{}{
-										"type":     "object",
-										"required": []interface{}{"event"},
-										"properties": map[string]interface{}{
-											"event": map[string]interface{}{
-												"type":     "object",
-												"required": []interface{}{"id", "topic", "time", "data"},
-												"properties": map[string]interface{}{
-													"id":    map[string]interface{}{"const": eventID},
-													"topic": map[string]interface{}{"const": "user.created"},
-													"time":  map[string]interface{}{"type": "string"},
-													"data": map[string]interface{}{
-														"type": "object",
-														"properties": map[string]interface{}{
-															"user_id": map[string]interface{}{"const": "123"},
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// GET /:tenantID/deliveries?expand=response_data - expand response data
-		{
-			Name: "GET /:tenantID/deliveries?expand=response_data - expand response data",
-			Request: suite.AuthRequest(httpclient.Request{
+				Path:   "/tenants/" + tenantID + "/deliveries?expand=event.data&limit=1",
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Require().Len(data, 1)
+
+			delivery := data[0].(map[string]interface{})
+			event := delivery["event"].(map[string]interface{})
+			suite.NotEmpty(event["id"])
+			suite.NotNil(event["data"]) // expand=event.data SHOULD include data
+		})
+
+		suite.Run("expand=response_data returns response data", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?expand=response_data",
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
-									"type":     "array",
-									"minItems": 1,
-									"items": map[string]interface{}{
-										"type":     "object",
-										"required": []interface{}{"id", "status", "response_data"},
-										"properties": map[string]interface{}{
-											// response_data should be present and be an object
-											"response_data": map[string]interface{}{
-												"type": "object",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// GET /:tenantID/events/:eventID - retrieve single event
-		{
-			Name: "GET /:tenantID/events/:eventID - retrieve event",
-			Request: suite.AuthRequest(httpclient.Request{
+				Path:   "/tenants/" + tenantID + "/deliveries?expand=response_data&limit=1",
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Require().Len(data, 1)
+
+			delivery := data[0].(map[string]interface{})
+			suite.NotNil(delivery["response_data"])
+		})
+	})
+
+	// =========================================================================
+	// Events Tests
+	// =========================================================================
+	suite.Run("events", func() {
+		suite.Run("list all", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events/" + eventID,
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type":     "object",
-							"required": []interface{}{"id", "topic", "time", "data"},
-							"properties": map[string]interface{}{
-								"id":    map[string]interface{}{"const": eventID},
-								"topic": map[string]interface{}{"const": "user.created"},
-								"data": map[string]interface{}{
-									"type": "object",
-									"properties": map[string]interface{}{
-										"user_id": map[string]interface{}{"const": "123"},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// GET /:tenantID/events/:eventID - non-existent event
-		{
-			Name: "GET /:tenantID/events/:eventID - not found",
-			Request: suite.AuthRequest(httpclient.Request{
+				Path:   "/tenants/" + tenantID + "/events",
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Len(data, 10)
+
+			// Verify structure
+			first := data[0].(map[string]interface{})
+			suite.NotEmpty(first["id"])
+			suite.NotEmpty(first["topic"])
+			suite.NotEmpty(first["time"])
+			suite.NotNil(first["data"])
+		})
+
+		suite.Run("filter by topic", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/events?topic=user.created",
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Len(data, 10) // All events have topic=user.created
+		})
+
+		suite.Run("retrieve single event", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/events/" + eventIDs[0],
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			suite.Equal(eventIDs[0], body["id"])
+			suite.Equal("user.created", body["topic"])
+			suite.NotNil(body["data"])
+		})
+
+		suite.Run("retrieve non-existent event returns 404", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
 				Path:   "/tenants/" + tenantID + "/events/" + idgen.Event(),
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusNotFound,
-				},
-			},
-		},
-	}
-	suite.RunAPITests(suite.T(), logAPITests)
+			}))
+			suite.Require().NoError(err)
+			suite.Equal(http.StatusNotFound, resp.StatusCode)
+		})
+
+		suite.Run("filter by start time excludes past events", func() {
+			futureTime := url.QueryEscape(time.Now().Add(1 * time.Hour).Format(time.RFC3339))
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/events?start=" + futureTime,
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Len(data, 0)
+		})
+	})
+
+	// =========================================================================
+	// Sort Order Tests
+	// =========================================================================
+	suite.Run("sort_order", func() {
+		suite.Run("events desc returns newest first", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/events?sort_order=desc",
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Require().Len(data, 10)
+
+			for i := 0; i < len(data)-1; i++ {
+				curr := parseTime(data[i].(map[string]interface{})["time"].(string))
+				next := parseTime(data[i+1].(map[string]interface{})["time"].(string))
+				suite.True(curr.After(next) || curr.Equal(next), "events not in descending order at index %d", i)
+			}
+		})
+
+		suite.Run("events asc returns oldest first", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/events?sort_order=asc",
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Require().Len(data, 10)
+
+			for i := 0; i < len(data)-1; i++ {
+				curr := parseTime(data[i].(map[string]interface{})["time"].(string))
+				next := parseTime(data[i+1].(map[string]interface{})["time"].(string))
+				suite.True(curr.Before(next) || curr.Equal(next), "events not in ascending order at index %d", i)
+			}
+		})
+
+		suite.Run("events invalid sort_order returns 422", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/events?sort_order=invalid",
+			}))
+			suite.Require().NoError(err)
+			suite.Equal(http.StatusUnprocessableEntity, resp.StatusCode)
+		})
+
+		// Note: We don't test deliveries sort by delivery_time because delivery
+		// order is not guaranteed - deliveries can complete out of order.
+
+		suite.Run("deliveries sort_by=event_time sorts by event time", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/deliveries?sort_by=event_time&sort_order=asc&expand=event",
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Require().Len(data, 10)
+
+			for i := 0; i < len(data)-1; i++ {
+				currEvent := data[i].(map[string]interface{})["event"].(map[string]interface{})
+				nextEvent := data[i+1].(map[string]interface{})["event"].(map[string]interface{})
+				curr := parseTime(currEvent["time"].(string))
+				next := parseTime(nextEvent["time"].(string))
+				suite.True(curr.Before(next) || curr.Equal(next), "deliveries not in ascending event_time order at index %d", i)
+			}
+		})
+
+		suite.Run("deliveries invalid sort_by returns 422", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/deliveries?sort_by=invalid",
+			}))
+			suite.Require().NoError(err)
+			suite.Equal(http.StatusUnprocessableEntity, resp.StatusCode)
+		})
+	})
+
+	// =========================================================================
+	// Pagination Tests
+	// =========================================================================
+	suite.Run("pagination", func() {
+		suite.Run("events limit=3 paginates correctly", func() {
+			var allEventIDs []string
+			nextCursor := ""
+			pageCount := 0
+
+			for {
+				path := "/tenants/" + tenantID + "/events?limit=3&sort_order=asc"
+				if nextCursor != "" {
+					path += "&next=" + nextCursor
+				}
+
+				resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+					Method: httpclient.MethodGET,
+					Path:   path,
+				}))
+				suite.Require().NoError(err)
+				suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+				body := resp.Body.(map[string]interface{})
+				data := body["data"].([]interface{})
+				pageCount++
+
+				for _, item := range data {
+					event := item.(map[string]interface{})
+					allEventIDs = append(allEventIDs, event["id"].(string))
+				}
+
+				if next, ok := body["next"].(string); ok && next != "" {
+					nextCursor = next
+				} else {
+					break
+				}
+
+				if pageCount > 10 {
+					suite.Fail("too many pages")
+					break
+				}
+			}
+
+			suite.Equal(4, pageCount, "expected 4 pages (3+3+3+1)")
+			suite.Len(allEventIDs, 10, "should have all 10 events")
+		})
+	})
+
+	// =========================================================================
+	// Event Time Filter Tests (event_start, event_end)
+	// =========================================================================
+	suite.Run("event_time_filter", func() {
+		suite.Run("event_start and event_end filters deliveries", func() {
+			// Use a wide time range that definitely includes all events
+			pastTime := time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
+			futureTime := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+
+			// Query with event_start and event_end
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/deliveries?event_start=" + url.QueryEscape(pastTime) + "&event_end=" + url.QueryEscape(futureTime),
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Len(data, 10) // All 10 events are within the last hour
+		})
+
+		suite.Run("event_start=future returns empty", func() {
+			futureTime := url.QueryEscape(time.Now().Add(1 * time.Hour).Format(time.RFC3339))
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/deliveries?event_start=" + futureTime,
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			data := body["data"].([]interface{})
+			suite.Len(data, 0)
+		})
+
+		suite.Run("event_start=invalid returns 422", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/deliveries?event_start=invalid",
+			}))
+			suite.Require().NoError(err)
+			suite.Equal(http.StatusUnprocessableEntity, resp.StatusCode)
+		})
+
+		suite.Run("event_end=invalid returns 422", func() {
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/deliveries?event_end=invalid",
+			}))
+			suite.Require().NoError(err)
+			suite.Equal(http.StatusUnprocessableEntity, resp.StatusCode)
+		})
+	})
 
 	// Cleanup
 	cleanupTests := []APITest{
 		{
-			Name: "DELETE mockserver/destinations/:destinationID",
+			Name: "cleanup mock server",
 			Request: httpclient.Request{
 				Method:  httpclient.MethodDELETE,
 				BaseURL: suite.mockServerBaseURL,
 				Path:    "/destinations/" + destinationID,
 			},
 			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
-				},
+				Match: &httpclient.Response{StatusCode: http.StatusOK},
 			},
 		},
 		{
-			Name: "DELETE /:tenantID",
+			Name: "cleanup tenant",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodDELETE,
 				Path:   "/tenants/" + tenantID,
 			}),
 			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
-				},
+				Match: &httpclient.Response{StatusCode: http.StatusOK},
 			},
 		},
 	}
@@ -666,389 +771,6 @@ func (suite *basicSuite) TestRetryAPI() {
 		},
 		{
 			Name: "DELETE /:tenantID",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodDELETE,
-				Path:   "/tenants/" + tenantID,
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
-				},
-			},
-		},
-	}
-	suite.RunAPITests(suite.T(), cleanupTests)
-}
-
-// TestListEventsAPI tests the GET /:tenantID/events endpoint.
-//
-// Setup:
-//  1. Create a tenant
-//  2. Configure mock webhook server to accept deliveries
-//  3. Create two destinations pointing to the mock server
-//  4. Publish multiple events with different topics
-//
-// Test Cases:
-//   - GET /:tenantID/events - List all events with proper response structure
-//   - GET /:tenantID/events?destination_id=X - Filter events by destination
-//   - GET /:tenantID/events?topic=X - Filter events by topic
-//   - GET /:tenantID/events?limit=1 - Test pagination limit
-//   - GET /:tenantID/events?start=X&end=Y - Filter by time range
-func (suite *basicSuite) TestListEventsAPI() {
-	tenantID := idgen.String()
-	destinationID := idgen.Destination()
-	eventID1 := idgen.Event()
-	eventID2 := idgen.Event()
-	eventID3 := idgen.Event()
-
-	// Setup: Create tenant, destination, and publish multiple events
-	setupTests := []APITest{
-		{
-			Name: "PUT /tenants/:tenantID - create tenant",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPUT,
-				Path:   "/tenants/" + tenantID,
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusCreated,
-				},
-			},
-		},
-		{
-			Name: "PUT mockserver/destinations - setup mock",
-			Request: httpclient.Request{
-				Method:  httpclient.MethodPUT,
-				BaseURL: suite.mockServerBaseURL,
-				Path:    "/destinations",
-				Body: map[string]interface{}{
-					"id":   destinationID,
-					"type": "webhook",
-					"config": map[string]interface{}{
-						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
-					},
-				},
-			},
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
-				},
-			},
-		},
-		{
-			Name: "POST /tenants/:tenantID/destinations - create destination",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPOST,
-				Path:   "/tenants/" + tenantID + "/destinations",
-				Body: map[string]interface{}{
-					"id":     destinationID,
-					"type":   "webhook",
-					"topics": "*",
-					"config": map[string]interface{}{
-						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
-					},
-				},
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusCreated,
-				},
-			},
-		},
-		{
-			Name: "POST /publish - publish event1 (user.created)",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPOST,
-				Path:   "/publish",
-				Body: map[string]interface{}{
-					"id":                 eventID1,
-					"tenant_id":          tenantID,
-					"topic":              "user.created",
-					"eligible_for_retry": true,
-					"data": map[string]interface{}{
-						"user_id": "123",
-					},
-				},
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusAccepted,
-				},
-			},
-		},
-		{
-			Name: "POST /publish - publish event2 (user.updated)",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPOST,
-				Path:   "/publish",
-				Body: map[string]interface{}{
-					"id":                 eventID2,
-					"tenant_id":          tenantID,
-					"topic":              "user.updated",
-					"eligible_for_retry": true,
-					"data": map[string]interface{}{
-						"user_id": "123",
-						"name":    "John",
-					},
-				},
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusAccepted,
-				},
-			},
-		},
-		{
-			Name: "POST /publish - publish event3 (user.deleted)",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPOST,
-				Path:   "/publish",
-				Body: map[string]interface{}{
-					"id":                 eventID3,
-					"tenant_id":          tenantID,
-					"topic":              "user.deleted",
-					"eligible_for_retry": true,
-					"data": map[string]interface{}{
-						"user_id": "456",
-					},
-				},
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusAccepted,
-				},
-			},
-		},
-	}
-	suite.RunAPITests(suite.T(), setupTests)
-
-	// Wait for deliveries to complete (3 events published)
-	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries", 3, 5*time.Second)
-
-	// Test the ListEvents API endpoint
-	listEventsTests := []APITest{
-		// GET /tenants/:tenantID/events - list all events
-		{
-			Name: "GET /tenants/:tenantID/events - list all events",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events",
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type":     "object",
-							"required": []interface{}{"data"},
-							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
-									"type":     "array",
-									"minItems": 3,
-									"items": map[string]interface{}{
-										"type":     "object",
-										"required": []interface{}{"id", "topic", "time", "data"},
-										"properties": map[string]interface{}{
-											"id":    map[string]interface{}{"type": "string"},
-											"topic": map[string]interface{}{"type": "string"},
-											"time":  map[string]interface{}{"type": "string"},
-											"data":  map[string]interface{}{"type": "object"},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// GET /tenants/:tenantID/events?destination_id=X - filter by destination
-		// Note: destination_id filter only works with logstores that track destination associations
-		{
-			Name: "GET /tenants/:tenantID/events?destination_id=X - filter by destination",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?destination_id=" + destinationID,
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type":     "object",
-							"required": []interface{}{"data"},
-							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
-									"type": "array",
-									// Can return 0-3 items depending on logstore implementation
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// GET /tenants/:tenantID/events?topic=user.created - filter by specific topic
-		{
-			Name: "GET /tenants/:tenantID/events?topic=user.created - filter by topic",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?topic=user.created",
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type":     "object",
-							"required": []interface{}{"data"},
-							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
-									"type":     "array",
-									"minItems": 1,
-									"maxItems": 1,
-									"items": map[string]interface{}{
-										"type": "object",
-										"properties": map[string]interface{}{
-											"id":    map[string]interface{}{"const": eventID1},
-											"topic": map[string]interface{}{"const": "user.created"},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// GET /tenants/:tenantID/events?limit=1 - test pagination limit
-		{
-			Name: "GET /tenants/:tenantID/events?limit=1 - test pagination limit",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?limit=1",
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type":     "object",
-							"required": []interface{}{"data", "next"},
-							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
-									"type":     "array",
-									"minItems": 1,
-									"maxItems": 1,
-								},
-								"next": map[string]interface{}{
-									"type":      "string",
-									"minLength": 1,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	suite.RunAPITests(suite.T(), listEventsTests)
-
-	// Test pagination with next cursor
-	// First get the next cursor from a limited request
-	paginationResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
-		Method: httpclient.MethodGET,
-		Path:   "/tenants/" + tenantID + "/events?limit=1",
-	}))
-	suite.Require().NoError(err)
-	suite.Require().Equal(http.StatusOK, paginationResp.StatusCode)
-
-	body := paginationResp.Body.(map[string]interface{})
-	nextCursor, hasNext := body["next"].(string)
-	suite.Require().True(hasNext, "should have next cursor")
-
-	// Use the next cursor to get more results
-	paginationTests := []APITest{
-		{
-			Name: "GET /tenants/:tenantID/events?next=X - pagination with next cursor",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?next=" + nextCursor,
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type":     "object",
-							"required": []interface{}{"data"},
-							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
-									"type": "array",
-									// May have more events depending on logstore implementation
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	suite.RunAPITests(suite.T(), paginationTests)
-
-	// Test time range filter - use a time range that excludes all events
-	futureTime := url.QueryEscape(time.Now().Add(1 * time.Hour).Format(time.RFC3339))
-	timeRangeTests := []APITest{
-		{
-			Name: "GET /tenants/:tenantID/events?start=future - time filter returns empty",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?start=" + futureTime,
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type":     "object",
-							"required": []interface{}{"data"},
-							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
-									"type":     "array",
-									"maxItems": 0,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	suite.RunAPITests(suite.T(), timeRangeTests)
-
-	// Cleanup
-	cleanupTests := []APITest{
-		{
-			Name: "DELETE mockserver/destinations/:destinationID",
-			Request: httpclient.Request{
-				Method:  httpclient.MethodDELETE,
-				BaseURL: suite.mockServerBaseURL,
-				Path:    "/destinations/" + destinationID,
-			},
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
-				},
-			},
-		},
-		{
-			Name: "DELETE /tenants/:tenantID",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodDELETE,
 				Path:   "/tenants/" + tenantID,
