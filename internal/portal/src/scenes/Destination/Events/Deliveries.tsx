@@ -87,6 +87,7 @@ const Deliveries: React.FC<DeliveriesProps> = ({ destination, navigateDelivery }
           id: delivery.id,
           active: delivery.id === (deliveryId || ""),
           entries: [
+            <span className="mono-s">{delivery.id}</span>,
             <span className="mono-s delivery-time-cell">
               {new Date(delivery.delivered_at).toLocaleString("en-US", {
                 month: "short",
@@ -229,6 +230,9 @@ const Deliveries: React.FC<DeliveriesProps> = ({ destination, navigateDelivery }
       >
         <Table
           columns={[
+            {
+              header: "Delivery ID",
+            },
             {
               header: "Delivered At",
               width: 160,
