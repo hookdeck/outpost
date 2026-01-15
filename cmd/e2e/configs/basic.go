@@ -83,7 +83,7 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	c.LogMaxConcurrency = 3
 	c.RetryIntervalSeconds = 1
 	c.RetryMaxLimit = 3
-	c.LogBatchThresholdSeconds = 1
+	c.LogBatchThresholdSeconds = 0 // Immediate flush (1ms) for faster tests
 	c.LogBatchSize = 100
 	c.DeploymentID = opts.DeploymentID
 
