@@ -17,7 +17,7 @@ actions:
       created_at: 1745611620644
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/destinations/{destination_id}"]["get"]
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}"]["get"]
     update:
       x-speakeasy-name-override: get
     x-speakeasy-metadata:
@@ -26,7 +26,7 @@ actions:
       created_at: 1745611620644
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/destinations/{destination_id}/events/{event_id}"]["get"]
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}"]["get"]
     update:
       x-speakeasy-name-override: getByDestination
     x-speakeasy-metadata:
@@ -44,7 +44,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/token"]["get"]
+  - target: $["paths"]["/tenants/{tenant_id}/token"]["get"]
     update:
       x-speakeasy-name-override: getToken
     x-speakeasy-metadata:
@@ -62,7 +62,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/destinations/{destination_id}/disable"]["put"]
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/disable"]["put"]
     update:
       x-speakeasy-name-override: disable
     x-speakeasy-metadata:
@@ -71,7 +71,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/portal"]["get"]
+  - target: $["paths"]["/tenants/{tenant_id}/portal"]["get"]
     update:
       x-speakeasy-name-override: getPortalUrl
     x-speakeasy-metadata:
@@ -80,7 +80,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/destinations/{destination_id}/enable"]["put"]
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/enable"]["put"]
     update:
       x-speakeasy-name-override: enable
     x-speakeasy-metadata:
@@ -98,7 +98,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/destination-types"]["get"]
+  - target: $["paths"]["/tenants/{tenant_id}/destination-types"]["get"]
     update:
       x-speakeasy-name-override: listTenantDestinationTypes
     x-speakeasy-metadata:
@@ -107,7 +107,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/destinations"]["post"]
+  - target: $["paths"]["/tenants/{tenant_id}/destinations"]["post"]
     update:
       x-speakeasy-name-override: create
     x-speakeasy-metadata:
@@ -116,7 +116,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry"]["post"]
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry"]["post"]
     update:
       x-speakeasy-name-override: retry
     x-speakeasy-metadata:
@@ -125,7 +125,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/events/{event_id}/deliveries"]["get"]
+  - target: $["paths"]["/tenants/{tenant_id}/events/{event_id}/deliveries"]["get"]
     update:
       x-speakeasy-name-override: listDeliveries
     x-speakeasy-metadata:
@@ -134,7 +134,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/topics"]["get"]
+  - target: $["paths"]["/tenants/{tenant_id}/topics"]["get"]
     update:
       x-speakeasy-name-override: list
     x-speakeasy-metadata:
@@ -143,7 +143,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/events"]["get"]
+  - target: $["paths"]["/tenants/{tenant_id}/events"]["get"]
     update:
       x-speakeasy-name-override: list
     x-speakeasy-metadata:
@@ -152,7 +152,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/destinations/{destination_id}"]["patch"]
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}"]["patch"]
     update:
       x-speakeasy-name-override: update
     x-speakeasy-metadata:
@@ -161,7 +161,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/events/{event_id}"]["get"]
+  - target: $["paths"]["/tenants/{tenant_id}/events/{event_id}"]["get"]
     update:
       x-speakeasy-name-override: get
     x-speakeasy-metadata:
@@ -170,7 +170,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/destination-types/{type}"]["get"]
+  - target: $["paths"]["/tenants/{tenant_id}/destination-types/{type}"]["get"]
     update:
       x-speakeasy-name-override: get
     x-speakeasy-metadata:
@@ -188,7 +188,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/destinations"]["get"]
+  - target: $["paths"]["/tenants/{tenant_id}/destinations"]["get"]
     update:
       x-speakeasy-name-override: list
     x-speakeasy-metadata:
@@ -197,7 +197,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/destinations/{destination_id}"]["delete"]
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}"]["delete"]
     update:
       x-speakeasy-name-override: delete
     x-speakeasy-metadata:
@@ -215,7 +215,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}/destinations/{destination_id}/events"]["get"]
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/events"]["get"]
     update:
       x-speakeasy-name-override: listByDestination
     x-speakeasy-metadata:
@@ -224,7 +224,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}"]["get"]
+  - target: $["paths"]["/tenants/{tenant_id}"]["get"]
     update:
       x-speakeasy-name-override: get
     x-speakeasy-metadata:
@@ -233,7 +233,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}"]["delete"]
+  - target: $["paths"]["/tenants/{tenant_id}"]["delete"]
     update:
       x-speakeasy-name-override: delete
     x-speakeasy-metadata:
@@ -242,7 +242,7 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/{tenant_id}"]["put"]
+  - target: $["paths"]["/tenants/{tenant_id}"]["put"]
     update:
       x-speakeasy-name-override: upsert
     x-speakeasy-metadata:
