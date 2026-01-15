@@ -26,12 +26,6 @@ const DeliveryDetails = ({
   return (
     <div className="drawer">
       <div className="drawer__header">
-        <div className="drawer__header-tabs">
-          <Button minimal className="active">
-            Delivery
-          </Button>
-        </div>
-
         <div className="drawer__header-actions">
           <Badge
             text={delivery.status === "success" ? "Successful" : "Failed"}
