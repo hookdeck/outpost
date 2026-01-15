@@ -28,12 +28,6 @@ const DeliveryDetails = ({
     <div className="drawer">
       <div className="drawer__header">
         <div className="drawer__header-actions">
-          <Badge
-            text={delivery.status === "success" ? "Successful" : "Failed"}
-            success={delivery.status === "success"}
-            danger={delivery.status === "failed"}
-          />
-
           <RetryDeliveryButton
             deliveryId={delivery.id}
             disabled={false}

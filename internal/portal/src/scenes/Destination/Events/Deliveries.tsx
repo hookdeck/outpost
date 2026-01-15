@@ -97,7 +97,6 @@ const Deliveries: React.FC<DeliveriesProps> = ({
           id: delivery.id,
           active: delivery.id === (deliveryId || ""),
           entries: [
-            <span className="mono-s">{delivery.id}</span>,
             <span className="mono-s delivery-time-cell">
               {new Date(delivery.delivered_at).toLocaleString("en-US", {
                 month: "short",
@@ -126,6 +125,7 @@ const Deliveries: React.FC<DeliveriesProps> = ({
             </span>,
             <span className="mono-s">{event?.topic || "-"}</span>,
             <span className="mono-s">{event?.id || "-"}</span>,
+            <span className="mono-s">{delivery.id}</span>,
           ],
           onClick: () => navigateDelivery(`/${delivery.id}`),
         };
@@ -241,9 +241,6 @@ const Deliveries: React.FC<DeliveriesProps> = ({
         <Table
           columns={[
             {
-              header: "Delivery ID",
-            },
-            {
               header: "Delivered At",
               width: 160,
             },
@@ -256,6 +253,9 @@ const Deliveries: React.FC<DeliveriesProps> = ({
             },
             {
               header: "Event ID",
+            },
+            {
+              header: "Delivery ID",
             },
           ]}
           rows={table_rows}
