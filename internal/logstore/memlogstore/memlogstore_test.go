@@ -25,6 +25,10 @@ func (h *memLogStoreHarness) FlushWrites(ctx context.Context) error {
 	return nil
 }
 
+func (h *memLogStoreHarness) SupportsListEvent() bool {
+	return true
+}
+
 func newHarness(ctx context.Context, t *testing.T) (drivertest.Harness, error) {
 	return &memLogStoreHarness{
 		logStore: NewLogStore(),

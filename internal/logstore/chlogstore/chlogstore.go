@@ -3,6 +3,7 @@ package chlogstore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -21,6 +22,10 @@ var _ driver.LogStore = (*logStoreImpl)(nil)
 
 func NewLogStore(chDB clickhouse.DB) driver.LogStore {
 	return &logStoreImpl{chDB: chDB}
+}
+
+func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
+	return driver.ListEventResponse{}, errors.New("not implemented")
 }
 
 func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDeliveryEventRequest) (driver.ListDeliveryEventResponse, error) {

@@ -86,7 +86,7 @@ func (h *RetryHandlers) RetryDelivery(c *gin.Context) {
 		return
 	}
 
-h.logger.Ctx(c.Request.Context()).Audit("manual retry initiated",
+	h.logger.Ctx(c.Request.Context()).Audit("manual retry initiated",
 		zap.String("delivery_id", deliveryID),
 		zap.String("event_id", deliveryEvent.Event.ID),
 		zap.String("tenant_id", tenant.ID),

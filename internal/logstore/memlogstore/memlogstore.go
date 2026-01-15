@@ -25,6 +25,163 @@ func NewLogStore() driver.LogStore {
 	}
 }
 
+func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Validate and set defaults for sort parameters
+	sortOrder := req.SortOrder
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = "desc"
+	}
+
+	// Decode and validate cursors (using "event_time" as the sortBy for events)
+	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, "event_time", sortOrder)
+	if err != nil {
+		return driver.ListEventResponse{}, err
+	}
+
+	// Build unique events map (dedupe by event ID)
+	eventMap := make(map[string]*models.Event)
+	for _, de := range s.deliveryEvents {
+		if !s.matchesEventFilter(&de.Event, req) {
+			continue
+		}
+		// Keep only one entry per event ID
+		if _, exists := eventMap[de.Event.ID]; !exists {
+			eventMap[de.Event.ID] = copyEvent(&de.Event)
+		}
+	}
+
+	// Convert to slice
+	var filtered []*models.Event
+	for _, event := range eventMap {
+		filtered = append(filtered, event)
+	}
+
+	// Sort by event_time with event_id as tiebreaker
+	isDesc := sortOrder == "desc"
+	sort.Slice(filtered, func(i, j int) bool {
+		if !filtered[i].Time.Equal(filtered[j].Time) {
+			if isDesc {
+				return filtered[i].Time.After(filtered[j].Time)
+			}
+			return filtered[i].Time.Before(filtered[j].Time)
+		}
+		// Tiebreaker: event_id
+		if isDesc {
+			return filtered[i].ID > filtered[j].ID
+		}
+		return filtered[i].ID < filtered[j].ID
+	})
+
+	// Handle pagination
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+
+	// Find start index based on cursor
+	startIdx := 0
+	if !nextCursor.IsEmpty() {
+		for i, event := range filtered {
+			if event.ID == nextCursor.Position {
+				startIdx = i
+				break
+			}
+		}
+	} else if !prevCursor.IsEmpty() {
+		for i, event := range filtered {
+			if event.ID == prevCursor.Position {
+				startIdx = i - limit
+				if startIdx < 0 {
+					startIdx = 0
+				}
+				break
+			}
+		}
+	}
+
+	// Slice the results
+	endIdx := startIdx + limit
+	if endIdx > len(filtered) {
+		endIdx = len(filtered)
+	}
+
+	data := make([]*models.Event, endIdx-startIdx)
+	for i, event := range filtered[startIdx:endIdx] {
+		data[i] = copyEvent(event)
+	}
+
+	// Build cursors
+	var nextEncoded, prevEncoded string
+	if endIdx < len(filtered) {
+		nextEncoded = cursor.Encode(cursor.Cursor{
+			SortBy:    "event_time",
+			SortOrder: sortOrder,
+			Position:  filtered[endIdx].ID,
+		})
+	}
+	if startIdx > 0 {
+		prevEncoded = cursor.Encode(cursor.Cursor{
+			SortBy:    "event_time",
+			SortOrder: sortOrder,
+			Position:  filtered[startIdx].ID,
+		})
+	}
+
+	return driver.ListEventResponse{
+		Data: data,
+		Next: nextEncoded,
+		Prev: prevEncoded,
+	}, nil
+}
+
+func (s *memLogStore) matchesEventFilter(event *models.Event, req driver.ListEventRequest) bool {
+	// Tenant filter (required)
+	if event.TenantID != req.TenantID {
+		return false
+	}
+
+	// Destination filter
+	if len(req.DestinationIDs) > 0 {
+		found := false
+		for _, destID := range req.DestinationIDs {
+			if event.DestinationID == destID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	// Topics filter
+	if len(req.Topics) > 0 {
+		found := false
+		for _, topic := range req.Topics {
+			if event.Topic == topic {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	// Event time filter
+	if req.EventStart != nil && event.Time.Before(*req.EventStart) {
+		return false
+	}
+	if req.EventEnd != nil && event.Time.After(*req.EventEnd) {
+		return false
+	}
+
+	return true
+}
+
 func (s *memLogStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents []*models.DeliveryEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

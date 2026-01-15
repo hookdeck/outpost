@@ -25,6 +25,9 @@ type Harness interface {
 	// this forces merge/compaction. For immediately consistent stores (e.g., PostgreSQL),
 	// this is a no-op.
 	FlushWrites(ctx context.Context) error
+	// SupportsListEvent indicates if the driver has ListEvent implemented.
+	// Drivers with stub implementations should return false.
+	SupportsListEvent() bool
 	Close()
 }
 
@@ -35,6 +38,19 @@ func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 
 	t.Run("TestInsertManyDeliveryEvent", func(t *testing.T) {
 		testInsertManyDeliveryEvent(t, newHarness)
+	})
+	t.Run("TestListEvent", func(t *testing.T) {
+		// Check if driver supports ListEvent before running tests
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		if err != nil {
+			t.Fatalf("failed to create harness: %v", err)
+		}
+		defer h.Close()
+		if !h.SupportsListEvent() {
+			t.Skip("driver does not support ListEvent")
+		}
+		testListEvent(t, newHarness)
 	})
 	t.Run("TestListDeliveryEvent", func(t *testing.T) {
 		testListDeliveryEvent(t, newHarness)
@@ -214,6 +230,290 @@ func testInsertManyDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 		require.Len(t, response.Data, 1, "duplicate inserts should not create multiple records")
 		assert.Equal(t, event.ID, response.Data[0].Event.ID)
 		assert.Equal(t, delivery.ID, response.Data[0].Delivery.ID)
+	})
+}
+
+// testListEvent tests the ListEvent method with various filters and pagination
+func testListEvent(t *testing.T, newHarness HarnessMaker) {
+	t.Helper()
+
+	ctx := context.Background()
+	h, err := newHarness(ctx, t)
+	require.NoError(t, err)
+	t.Cleanup(h.Close)
+
+	logStore, err := h.MakeDriver(ctx)
+	require.NoError(t, err)
+
+	tenantID := idgen.String()
+	destinationIDs := []string{
+		idgen.Destination(),
+		idgen.Destination(),
+		idgen.Destination(),
+	}
+
+	// Track events by various dimensions for assertions
+	destinationEvents := map[string][]*models.Event{}
+	topicEvents := map[string][]*models.Event{}
+	allEvents := []*models.Event{}
+
+	// Use a fixed baseTime for deterministic tests
+	baseTime := time.Now().Truncate(time.Second)
+	startTime := baseTime.Add(-48 * time.Hour)
+	start := &startTime
+
+	// Create 15 events spread across destinations and topics
+	for i := 0; i < 15; i++ {
+		destinationID := destinationIDs[i%len(destinationIDs)]
+		topic := testutil.TestTopics[i%len(testutil.TestTopics)]
+
+		// Spread events across time
+		eventTime := baseTime.Add(-time.Duration(i) * time.Minute)
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID(fmt.Sprintf("evt_%02d", i)),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithTime(eventTime),
+			testutil.EventFactory.WithDestinationID(destinationID),
+			testutil.EventFactory.WithTopic(topic),
+			testutil.EventFactory.WithMetadata(map[string]string{
+				"index": strconv.Itoa(i),
+			}),
+		)
+
+		delivery := testutil.DeliveryFactory.AnyPointer(
+			testutil.DeliveryFactory.WithID(fmt.Sprintf("del_%02d", i)),
+			testutil.DeliveryFactory.WithEventID(event.ID),
+			testutil.DeliveryFactory.WithDestinationID(destinationID),
+			testutil.DeliveryFactory.WithStatus("success"),
+			testutil.DeliveryFactory.WithTime(eventTime.Add(time.Millisecond)),
+		)
+
+		de := &models.DeliveryEvent{
+			ID:            fmt.Sprintf("de_%02d", i),
+			DestinationID: destinationID,
+			Event:         *event,
+			Delivery:      delivery,
+		}
+
+		err := logStore.InsertManyDeliveryEvent(ctx, []*models.DeliveryEvent{de})
+		require.NoError(t, err)
+
+		allEvents = append(allEvents, event)
+		destinationEvents[destinationID] = append(destinationEvents[destinationID], event)
+		topicEvents[topic] = append(topicEvents[topic], event)
+	}
+
+	// Sort allEvents by event_time DESC for ordering assertions
+	sortedEvents := make([]*models.Event, len(allEvents))
+	copy(sortedEvents, allEvents)
+	sort.Slice(sortedEvents, func(i, j int) bool {
+		return sortedEvents[i].Time.After(sortedEvents[j].Time)
+	})
+
+	t.Run("empty result for unknown tenant", func(t *testing.T) {
+		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:   "unknown",
+			Limit:      5,
+			EventStart: start,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, response.Data)
+		assert.Empty(t, response.Next)
+		assert.Empty(t, response.Prev)
+	})
+
+	t.Run("default ordering (event_time DESC)", func(t *testing.T) {
+		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:   tenantID,
+			Limit:      10,
+			EventStart: start,
+		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, 10)
+
+		// Verify ordering: should be sorted by event_time DESC
+		for i, event := range response.Data {
+			assert.Equal(t, sortedEvents[i].ID, event.ID,
+				"event ID mismatch at position %d", i)
+		}
+
+		// Verify first page has next cursor but no prev cursor
+		assert.NotEmpty(t, response.Next, "should have next cursor with more data")
+		assert.Empty(t, response.Prev, "first page should have no prev cursor")
+	})
+
+	t.Run("filter by destination", func(t *testing.T) {
+		destID := destinationIDs[0]
+		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:       tenantID,
+			DestinationIDs: []string{destID},
+			Limit:          100,
+			EventStart:     start,
+		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, len(destinationEvents[destID]))
+		for _, event := range response.Data {
+			assert.Equal(t, destID, event.DestinationID)
+		}
+	})
+
+	t.Run("filter by multiple destinations", func(t *testing.T) {
+		destIDs := []string{destinationIDs[0], destinationIDs[1]}
+		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:       tenantID,
+			DestinationIDs: destIDs,
+			Limit:          100,
+			EventStart:     start,
+		})
+		require.NoError(t, err)
+		expectedCount := len(destinationEvents[destIDs[0]]) + len(destinationEvents[destIDs[1]])
+		require.Len(t, response.Data, expectedCount)
+		for _, event := range response.Data {
+			assert.Contains(t, destIDs, event.DestinationID)
+		}
+	})
+
+	t.Run("filter by single topic", func(t *testing.T) {
+		topic := testutil.TestTopics[0]
+		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:   tenantID,
+			Topics:     []string{topic},
+			Limit:      100,
+			EventStart: start,
+		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, len(topicEvents[topic]))
+		for _, event := range response.Data {
+			assert.Equal(t, topic, event.Topic)
+		}
+	})
+
+	t.Run("filter by multiple topics", func(t *testing.T) {
+		topics := []string{testutil.TestTopics[0], testutil.TestTopics[1]}
+		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:   tenantID,
+			Topics:     topics,
+			Limit:      100,
+			EventStart: start,
+		})
+		require.NoError(t, err)
+		expectedCount := len(topicEvents[topics[0]]) + len(topicEvents[topics[1]])
+		require.Len(t, response.Data, expectedCount)
+		for _, event := range response.Data {
+			assert.Contains(t, topics, event.Topic)
+		}
+	})
+
+	t.Run("filter by event time range", func(t *testing.T) {
+		// Get events from the last 5 minutes
+		eventStart := baseTime.Add(-5 * time.Minute)
+		eventEnd := baseTime.Add(time.Minute)
+		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:   tenantID,
+			EventStart: &eventStart,
+			EventEnd:   &eventEnd,
+			Limit:      100,
+		})
+		require.NoError(t, err)
+		// Should return events 0-5 (6 events within 5 minutes)
+		require.Len(t, response.Data, 6)
+		for _, event := range response.Data {
+			assert.True(t, !event.Time.Before(eventStart), "event time should be >= eventStart")
+			assert.True(t, !event.Time.After(eventEnd), "event time should be <= eventEnd")
+		}
+	})
+
+	t.Run("pagination with limit", func(t *testing.T) {
+		// First page
+		response1, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:   tenantID,
+			Limit:      5,
+			EventStart: start,
+		})
+		require.NoError(t, err)
+		require.Len(t, response1.Data, 5)
+		assert.NotEmpty(t, response1.Next)
+		assert.Empty(t, response1.Prev)
+
+		// Second page using next cursor
+		response2, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:   tenantID,
+			Next:       response1.Next,
+			Limit:      5,
+			EventStart: start,
+		})
+		require.NoError(t, err)
+		require.Len(t, response2.Data, 5)
+		assert.NotEmpty(t, response2.Prev)
+		assert.NotEmpty(t, response2.Next)
+
+		// Verify no overlap between pages
+		for _, e1 := range response1.Data {
+			for _, e2 := range response2.Data {
+				assert.NotEqual(t, e1.ID, e2.ID, "pages should not overlap")
+			}
+		}
+
+		// Third page
+		response3, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:   tenantID,
+			Next:       response2.Next,
+			Limit:      5,
+			EventStart: start,
+		})
+		require.NoError(t, err)
+		require.Len(t, response3.Data, 5)
+		assert.NotEmpty(t, response3.Prev)
+		assert.Empty(t, response3.Next, "last page should have no next cursor")
+	})
+
+	t.Run("sort order ASC", func(t *testing.T) {
+		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:   tenantID,
+			Limit:      10,
+			SortOrder:  "asc",
+			EventStart: start,
+		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, 10)
+
+		// Verify ascending order
+		for i := 1; i < len(response.Data); i++ {
+			assert.True(t, !response.Data[i].Time.Before(response.Data[i-1].Time),
+				"events should be in ascending order")
+		}
+	})
+
+	t.Run("events are deduplicated", func(t *testing.T) {
+		// Insert another delivery for an existing event
+		existingEvent := allEvents[0]
+		newDelivery := testutil.DeliveryFactory.AnyPointer(
+			testutil.DeliveryFactory.WithID(fmt.Sprintf("del_retry_%s", existingEvent.ID)),
+			testutil.DeliveryFactory.WithEventID(existingEvent.ID),
+			testutil.DeliveryFactory.WithDestinationID(existingEvent.DestinationID),
+			testutil.DeliveryFactory.WithStatus("success"),
+			testutil.DeliveryFactory.WithTime(existingEvent.Time.Add(time.Second)),
+		)
+
+		de := &models.DeliveryEvent{
+			ID:            fmt.Sprintf("de_retry_%s", existingEvent.ID),
+			DestinationID: existingEvent.DestinationID,
+			Event:         *existingEvent,
+			Delivery:      newDelivery,
+		}
+
+		err := logStore.InsertManyDeliveryEvent(ctx, []*models.DeliveryEvent{de})
+		require.NoError(t, err)
+
+		// ListEvent should still return the same number of events (no duplicates)
+		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:   tenantID,
+			Limit:      100,
+			EventStart: start,
+		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, 15, "ListEvent should return unique events only")
 	})
 }
 

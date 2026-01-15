@@ -13,10 +13,29 @@ import (
 var ErrInvalidCursor = errors.New("invalid cursor")
 
 type LogStore interface {
+	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
 	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
 	RetrieveDeliveryEvent(ctx context.Context, request RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error)
 	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
+}
+
+type ListEventRequest struct {
+	Next           string
+	Prev           string
+	Limit          int
+	EventStart     *time.Time // optional - filter events created after this time
+	EventEnd       *time.Time // optional - filter events created before this time
+	TenantID       string     // required
+	DestinationIDs []string   // optional
+	Topics         []string   // optional
+	SortOrder      string     // optional: "asc", "desc" (default: "desc")
+}
+
+type ListEventResponse struct {
+	Data []*models.Event
+	Next string
+	Prev string
 }
 
 type ListDeliveryEventRequest struct {
