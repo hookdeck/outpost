@@ -4,9 +4,12 @@ This guide covers the complete process for updating, generating, testing, and pu
 
 ## Overview
 
-Outpost SDKs are automatically generated from the [OpenAPI specification](../docs/apis/openapi.yaml) using [Speakeasy](https://www.speakeasyapi.dev/). The SDK generation, testing, and publishing process is managed through GitHub Actions workflows, but requires manual triggering and careful coordination to ensure quality.
+Outpost SDKs are automatically generated from the [OpenAPI specification](../docs/apis/openapi.yaml) using [Speakeasy](https://www.speakeasyapi.dev/). The SDK generation, testing, and publishing process is managed through GitHub Actions workflows, but currently requires manual triggering and careful coordination to ensure quality.
 
-**Key Point**: SDK generation is a **manual process** that requires explicit workflow triggering and version management. This is intentional to maintain control over releases.
+**Key Point**: SDK generation is currently a **manual process** that requires explicit workflow triggering and version management. Future improvements may include:
+- Automatically triggering SDK generation when Outpost releases are published
+- Only generating SDKs if `docs/apis/openapi.yaml` has changed since the last release
+- Letting Speakeasy handle versioning automatically (it detects breaking vs non-breaking changes), testing and releasing
 
 ## Prerequisites
 
@@ -105,7 +108,7 @@ SDK generation is **manually triggered** through GitHub Actions:
    - Select the branch (typically `main`)
    - **Optional inputs**:
      - `force`: Force generation even if no OpenAPI changes detected (default: false)
-     - `set_version`: Set a specific SDK version (e.g., `1.2.3`). Leave empty to keep current version
+     - `set_version`: Set a specific SDK version (e.g., `1.2.3` or `v1.2.3`). Both formats are supported. Leave empty to keep current version. If autogenerating with each release, versions should match the Outpost release version. Note: Existing releases use the `v` prefix format.
    - Click "Run workflow"
 
 4. **Repeat for all three SDKs** that need updates
