@@ -110,7 +110,7 @@ func (suite *basicSuite) TestLogAPI() {
 	suite.RunAPITests(suite.T(), setupTests)
 
 	// Wait for delivery to complete
-	time.Sleep(2 * time.Second)
+	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries", 1, 5*time.Second)
 
 	// Test the new Log API endpoints
 	logAPITests := []APITest{
@@ -472,7 +472,7 @@ func (suite *basicSuite) TestRetryAPI() {
 	suite.RunAPITests(suite.T(), setupTests)
 
 	// Wait for delivery to complete (and fail)
-	time.Sleep(2 * time.Second)
+	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries?event_id="+eventID, 1, 5*time.Second)
 
 	// Get the delivery ID
 	deliveriesResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
@@ -551,7 +551,7 @@ func (suite *basicSuite) TestRetryAPI() {
 	suite.RunAPITests(suite.T(), retryTests)
 
 	// Wait for retry delivery to complete
-	time.Sleep(2 * time.Second)
+	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries?event_id="+eventID, 2, 5*time.Second)
 
 	// Verify we have more deliveries after retry
 	verifyTests := []APITest{
@@ -788,7 +788,7 @@ func (suite *basicSuite) TestListEventsAPI() {
 	suite.RunAPITests(suite.T(), setupTests)
 
 	// Wait for deliveries to complete
-	time.Sleep(2 * time.Second)
+	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries", 1, 5*time.Second)
 
 	// Test the ListEvents API endpoint
 	listEventsTests := []APITest{
@@ -1130,7 +1130,7 @@ func (suite *basicSuite) TestLegacyLogAPI() {
 	suite.RunAPITests(suite.T(), setupTests)
 
 	// Wait for delivery
-	time.Sleep(2 * time.Second)
+	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries", 1, 5*time.Second)
 
 	// Test legacy endpoints - all should return deprecation headers
 	legacyTests := []APITest{

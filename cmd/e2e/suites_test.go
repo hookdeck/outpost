@@ -41,6 +41,27 @@ func waitForHealthy(t *testing.T, port int, timeout time.Duration) {
 	t.Fatalf("timed out waiting for health check at %s", healthURL)
 }
 
+// waitForDeliveries polls until at least minCount deliveries exist for the given path.
+func (s *e2eSuite) waitForDeliveries(t *testing.T, path string, minCount int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := s.client.Do(s.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   path,
+		}))
+		if err == nil && resp.StatusCode == http.StatusOK {
+			if body, ok := resp.Body.(map[string]interface{}); ok {
+				if data, ok := body["data"].([]interface{}); ok && len(data) >= minCount {
+					return
+				}
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %d deliveries at %s", minCount, path)
+}
+
 type e2eSuite struct {
 	ctx               context.Context
 	cancel            context.CancelFunc
