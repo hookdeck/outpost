@@ -232,7 +232,7 @@ components:
         custom_headers:
           type: string
           description: JSON string of custom HTTP headers to include with every webhook request. Header names must be valid HTTP header tokens (alphanumeric, hyphens, underscores). Reserved headers (Content-Type, Host, etc.) cannot be overridden.
-          example: "{\"x-api-key\":\"secret123\",\"x-tenant-id\":\"customer-456\"}"
+          example: '{"x-api-key":"secret123","x-tenant-id":"customer-456"}'
     WebhookCredentials:
       type: object
       properties:
@@ -436,7 +436,17 @@ components:
     DestinationWebhook:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
       properties:
         id:
           type: string
@@ -513,7 +523,17 @@ components:
     DestinationAWSSQS:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
       properties:
         id:
           type: string
@@ -590,7 +610,17 @@ components:
     DestinationRabbitMQ:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
       properties:
         id:
           type: string
@@ -741,7 +771,17 @@ components:
     DestinationAWSKinesis:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
       properties:
         id:
           type: string
@@ -894,7 +934,17 @@ components:
     DestinationAWSS3:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
       properties:
         id:
           type: string
@@ -971,7 +1021,17 @@ components:
     DestinationGCPPubSub:
       type: object
       # Properties duplicated from DestinationBase
-      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
       properties:
         id:
           type: string
@@ -1716,6 +1776,19 @@ components:
           example: { "content-type": "application/json" }
 
     # Destination Type Schema (for Metadata endpoint)
+    DestinationType:
+      type: string
+      enum:
+        - webhook
+        - aws_sqs
+        - rabbitmq
+        - hookdeck
+        - aws_kinesis
+        - azure_servicebus
+        - aws_s3
+        - gcp_pubsub
+      description: Type of destination.
+      example: "webhook"
     DestinationTypeSchema:
       type: object
       properties:
@@ -2184,32 +2257,10 @@ paths:
           required: false
           schema:
             oneOf:
-              - type: string
-                enum:
-                  [
-                    webhook,
-                    aws_sqs,
-                    rabbitmq,
-                    hookdeck,
-                    aws_kinesis,
-                    azure_servicebus,
-                    aws_s3,
-                    gcp_pubsub,
-                  ]
+              - $ref: "#/components/schemas/DestinationType"
               - type: array
                 items:
-                  type: string
-                  enum:
-                    [
-                      webhook,
-                      aws_sqs,
-                      rabbitmq,
-                      hookdeck,
-                      aws_kinesis,
-                      azure_servicebus,
-                      aws_s3,
-                      gcp_pubsub,
-                    ]
+                  $ref: "#/components/schemas/DestinationType"
           description: Filter destinations by type(s).
         - name: topics
           in: query

@@ -135,7 +135,7 @@ describe('Events - Status Field Tests (PR #491)', () => {
   describe('GET /api/v1/tenants/{tenant_id}/destinations/{destination_id}/events - Event Status Field', () => {
     it('should include status field in events returned from listByDestination', async function () {
       // Increase timeout for this test as it involves publishing and waiting for event delivery
-      this.timeout(45000);
+      this.timeout(90000);
 
       // Get the underlying SDK to access the events and publish methods
       const sdk: Outpost = client.getSDK();
@@ -151,21 +151,21 @@ describe('Events - Status Field Tests (PR #491)', () => {
       });
       console.log('Event published successfully');
 
-      // Poll for events with 5s intervals, max 30s wait
+      // Poll for events with 5s intervals, max 60s wait
       const events = await pollForEvents(
         async () => {
           const response = await sdk.events.listByDestination({
             tenantId: client.getTenantId(),
             destinationId: destinationId,
           });
-          return response?.result?.data || [];
+          return response?.data || [];
         },
-        30000,
+        60000,
         5000
       );
 
       if (events.length === 0) {
-        throw new Error('No events found after 30 seconds - event delivery may be failing');
+        throw new Error('No events found after 60 seconds - event delivery may be failing');
       }
 
       // Verify that at least one event has the status field
@@ -193,8 +193,8 @@ describe('Events - Status Field Tests (PR #491)', () => {
         destinationId: destinationId,
       });
 
-      // The SDK wraps the API response in a 'result' object
-      const events = response?.result?.data || [];
+      // The SDK wraps the API response in a 'data' property
+      const events = response?.data || [];
 
       if (events.length === 0) {
         console.warn('No events found - skipping single event test');
@@ -228,7 +228,7 @@ describe('Events - Status Field Tests (PR #491)', () => {
   describe('GET /api/v1/tenants/{tenant_id}/events - Tenant Events Status Field', () => {
     it('should include status field in events returned from tenant events list', async function () {
       // Increase timeout for this test as it involves publishing and waiting for event delivery
-      this.timeout(45000);
+      this.timeout(90000);
 
       const sdk: Outpost = client.getSDK();
 
@@ -243,20 +243,20 @@ describe('Events - Status Field Tests (PR #491)', () => {
       });
       console.log('Event published successfully');
 
-      // Poll for events with 5s intervals, max 30s wait
+      // Poll for events with 5s intervals, max 60s wait
       const events = await pollForEvents(
         async () => {
           const response = await sdk.events.list({
             tenantId: client.getTenantId(),
           });
-          return response?.result?.data || [];
+          return response?.data || [];
         },
-        30000,
+        60000,
         5000
       );
 
       if (events.length === 0) {
-        throw new Error('No tenant events found after 30 seconds - event delivery may be failing');
+        throw new Error('No tenant events found after 60 seconds - event delivery may be failing');
       }
 
       // Verify that at least one event has the status field

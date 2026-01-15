@@ -63,7 +63,7 @@ const withAdminApiKey  = async () => {
   );
   const destination = await outpost.destinations.create({
     tenantId,
-    destinationCreate: {
+    params: {
       type: "webhook",
       config: {
         url: "https://example.com/webhook-receiver",

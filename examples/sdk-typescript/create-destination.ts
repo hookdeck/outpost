@@ -97,7 +97,7 @@ az servicebus queue authorization-rule keys list \\
     ]);
     destinationCreateRequest = {
       tenantId: TENANT_ID,
-      destinationCreate: {
+      params: {
         credentials: {
           connectionString,
         },
