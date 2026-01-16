@@ -45,21 +45,36 @@ func waitForHealthy(t *testing.T, port int, timeout time.Duration) {
 func (s *e2eSuite) waitForDeliveries(t *testing.T, path string, minCount int, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
+	var lastCount int
+	var lastErr error
+	var lastStatus int
 	for time.Now().Before(deadline) {
 		resp, err := s.client.Do(s.AuthRequest(httpclient.Request{
 			Method: httpclient.MethodGET,
 			Path:   path,
 		}))
-		if err == nil && resp.StatusCode == http.StatusOK {
+		if err != nil {
+			lastErr = err
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		lastStatus = resp.StatusCode
+		if resp.StatusCode == http.StatusOK {
 			if body, ok := resp.Body.(map[string]interface{}); ok {
-				if data, ok := body["data"].([]interface{}); ok && len(data) >= minCount {
-					return
+				if data, ok := body["data"].([]interface{}); ok {
+					lastCount = len(data)
+					if lastCount >= minCount {
+						return
+					}
 				}
 			}
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	t.Fatalf("timed out waiting for %d deliveries at %s", minCount, path)
+	if lastErr != nil {
+		t.Fatalf("timed out waiting for %d deliveries at %s: last error: %v", minCount, path, lastErr)
+	}
+	t.Fatalf("timed out waiting for %d deliveries at %s: got %d (status %d)", minCount, path, lastCount, lastStatus)
 }
 
 // waitForDestinationDisabled polls until the destination has disabled_at set (non-null).
