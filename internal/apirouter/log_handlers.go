@@ -42,6 +42,21 @@ func parseQueryArray(c *gin.Context, key string) []string {
 	return result
 }
 
+// parseLimit parses the limit query parameter with a default and maximum value.
+// If the provided limit exceeds maxLimit, it is capped at maxLimit.
+func parseLimit(c *gin.Context, defaultLimit, maxLimit int) int {
+	limit := defaultLimit
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+	if limit > maxLimit {
+		limit = maxLimit
+	}
+	return limit
+}
+
 // ExpandOptions represents which fields to expand in the response
 type ExpandOptions struct {
 	Event        bool
@@ -245,13 +260,8 @@ func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 		eventEnd = &t
 	}
 
-	// Parse limit
-	limit := 100
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			limit = l
-		}
-	}
+	// Parse limit (default 100, max 1000)
+	limit := parseLimit(c, 100, 1000)
 
 	// Parse destination_id (single value for now)
 	var destinationIDs []string
@@ -427,13 +437,8 @@ func (h *LogHandlers) ListEvents(c *gin.Context) {
 		end = &t
 	}
 
-	// Parse limit
-	limit := 100
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			limit = l
-		}
-	}
+	// Parse limit (default 100, max 1000)
+	limit := parseLimit(c, 100, 1000)
 
 	// Parse destination_id (single value for now)
 	var destinationIDs []string

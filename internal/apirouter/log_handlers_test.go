@@ -327,6 +327,15 @@ func TestListDeliveries(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
+
+	t.Run("should cap limit at 1000", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?limit=5000", nil)
+		result.router.ServeHTTP(w, req)
+
+		// Should succeed, limit is silently capped
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
 }
 
 func TestRetrieveDelivery(t *testing.T) {
@@ -707,6 +716,15 @@ func TestListEvents(t *testing.T) {
 		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?sort_order=asc", nil)
 		result.router.ServeHTTP(w, req)
 
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("should cap limit at 1000", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?limit=5000", nil)
+		result.router.ServeHTTP(w, req)
+
+		// Should succeed, limit is silently capped
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }
