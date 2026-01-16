@@ -1,9 +1,8 @@
-# Status
+# HealthCheckStatus1
 
 
 ## Values
 
 | Name      | Value     |
 | --------- | --------- |
-| `SUCCESS` | success   |
-| `FAILED`  | failed    |
+| `HEALTHY` | healthy   |

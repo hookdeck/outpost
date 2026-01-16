@@ -45,3 +45,9 @@ value: models.DestinationCreateAzureServiceBus = /* values here */
 value: models.DestinationCreateAwss3 = /* values here */
 ```
 
+### `models.DestinationCreateGCPPubSub`
+
+```python
+value: models.DestinationCreateGCPPubSub = /* values here */
+```
+

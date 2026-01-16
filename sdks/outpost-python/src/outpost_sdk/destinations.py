@@ -5,7 +5,7 @@ from outpost_sdk import errors, models, utils
 from outpost_sdk._hooks import HookContext
 from outpost_sdk.types import OptionalNullable, UNSET
 from outpost_sdk.utils.unmarshal_json_response import unmarshal_json_response
-from typing import Any, List, Mapping, Optional, Union
+from typing import List, Mapping, Optional, Union
 
 
 class Destinations(BaseSDK):
@@ -39,7 +39,12 @@ class Destinations(BaseSDK):
         self,
         *,
         tenant_id: Optional[str] = None,
-        type_: Optional[Union[models.Type, models.TypeTypedDict]] = None,
+        type_: Optional[
+            Union[
+                models.ListTenantDestinationsType,
+                models.ListTenantDestinationsTypeTypedDict,
+            ]
+        ] = None,
         topics: Optional[
             Union[
                 models.ListTenantDestinationsTopics,
@@ -81,7 +86,7 @@ class Destinations(BaseSDK):
 
         req = self._build_request(
             method="GET",
-            path="/{tenant_id}/destinations",
+            path="/tenants/{tenant_id}/destinations",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -95,6 +100,7 @@ class Destinations(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -111,86 +117,16 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="listTenantDestinations",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(List[models.Destination], http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -204,7 +140,12 @@ class Destinations(BaseSDK):
         self,
         *,
         tenant_id: Optional[str] = None,
-        type_: Optional[Union[models.Type, models.TypeTypedDict]] = None,
+        type_: Optional[
+            Union[
+                models.ListTenantDestinationsType,
+                models.ListTenantDestinationsTypeTypedDict,
+            ]
+        ] = None,
         topics: Optional[
             Union[
                 models.ListTenantDestinationsTopics,
@@ -246,7 +187,7 @@ class Destinations(BaseSDK):
 
         req = self._build_request_async(
             method="GET",
-            path="/{tenant_id}/destinations",
+            path="/tenants/{tenant_id}/destinations",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -260,6 +201,7 @@ class Destinations(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -276,86 +218,16 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="listTenantDestinations",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(List[models.Destination], http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -368,9 +240,7 @@ class Destinations(BaseSDK):
     def create(
         self,
         *,
-        destination_create: Union[
-            models.DestinationCreate, models.DestinationCreateTypedDict
-        ],
+        params: Union[models.DestinationCreate, models.DestinationCreateTypedDict],
         tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
@@ -381,7 +251,7 @@ class Destinations(BaseSDK):
 
         Creates a new destination for the tenant. The request body structure depends on the `type`.
 
-        :param destination_create:
+        :param params:
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -400,14 +270,12 @@ class Destinations(BaseSDK):
 
         request = models.CreateTenantDestinationRequest(
             tenant_id=tenant_id,
-            destination_create=utils.get_pydantic_model(
-                destination_create, models.DestinationCreate
-            ),
+            params=utils.get_pydantic_model(params, models.DestinationCreate),
         )
 
         req = self._build_request(
             method="POST",
-            path="/{tenant_id}/destinations",
+            path="/tenants/{tenant_id}/destinations",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -422,12 +290,9 @@ class Destinations(BaseSDK):
             ),
             security=self.sdk_configuration.security,
             get_serialized_body=lambda: utils.serialize_request_body(
-                request.destination_create,
-                False,
-                False,
-                "json",
-                models.DestinationCreate,
+                request.params, False, False, "json", models.DestinationCreate
             ),
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -444,86 +309,16 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="createTenantDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["400", "404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "201", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["400", "404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -536,9 +331,7 @@ class Destinations(BaseSDK):
     async def create_async(
         self,
         *,
-        destination_create: Union[
-            models.DestinationCreate, models.DestinationCreateTypedDict
-        ],
+        params: Union[models.DestinationCreate, models.DestinationCreateTypedDict],
         tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
@@ -549,7 +342,7 @@ class Destinations(BaseSDK):
 
         Creates a new destination for the tenant. The request body structure depends on the `type`.
 
-        :param destination_create:
+        :param params:
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -568,14 +361,12 @@ class Destinations(BaseSDK):
 
         request = models.CreateTenantDestinationRequest(
             tenant_id=tenant_id,
-            destination_create=utils.get_pydantic_model(
-                destination_create, models.DestinationCreate
-            ),
+            params=utils.get_pydantic_model(params, models.DestinationCreate),
         )
 
         req = self._build_request_async(
             method="POST",
-            path="/{tenant_id}/destinations",
+            path="/tenants/{tenant_id}/destinations",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -590,12 +381,9 @@ class Destinations(BaseSDK):
             ),
             security=self.sdk_configuration.security,
             get_serialized_body=lambda: utils.serialize_request_body(
-                request.destination_create,
-                False,
-                False,
-                "json",
-                models.DestinationCreate,
+                request.params, False, False, "json", models.DestinationCreate
             ),
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -612,86 +400,16 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="createTenantDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["400", "404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "201", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["400", "404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -739,7 +457,7 @@ class Destinations(BaseSDK):
 
         req = self._build_request(
             method="GET",
-            path="/{tenant_id}/destinations/{destination_id}",
+            path="/tenants/{tenant_id}/destinations/{destination_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -753,6 +471,7 @@ class Destinations(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -769,86 +488,16 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="getTenantDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -896,7 +545,7 @@ class Destinations(BaseSDK):
 
         req = self._build_request_async(
             method="GET",
-            path="/{tenant_id}/destinations/{destination_id}",
+            path="/tenants/{tenant_id}/destinations/{destination_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -910,6 +559,7 @@ class Destinations(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -926,86 +576,16 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="getTenantDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1019,9 +599,7 @@ class Destinations(BaseSDK):
         self,
         *,
         destination_id: str,
-        destination_update: Union[
-            models.DestinationUpdate, models.DestinationUpdateTypedDict
-        ],
+        params: Union[models.DestinationUpdate, models.DestinationUpdateTypedDict],
         tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
@@ -1033,7 +611,7 @@ class Destinations(BaseSDK):
         Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
 
         :param destination_id: The ID of the destination.
-        :param destination_update:
+        :param params:
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -1053,14 +631,12 @@ class Destinations(BaseSDK):
         request = models.UpdateTenantDestinationRequest(
             tenant_id=tenant_id,
             destination_id=destination_id,
-            destination_update=utils.get_pydantic_model(
-                destination_update, models.DestinationUpdate
-            ),
+            params=utils.get_pydantic_model(params, models.DestinationUpdate),
         )
 
         req = self._build_request(
             method="PATCH",
-            path="/{tenant_id}/destinations/{destination_id}",
+            path="/tenants/{tenant_id}/destinations/{destination_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1075,12 +651,9 @@ class Destinations(BaseSDK):
             ),
             security=self.sdk_configuration.security,
             get_serialized_body=lambda: utils.serialize_request_body(
-                request.destination_update,
-                False,
-                False,
-                "json",
-                models.DestinationUpdate,
+                request.params, False, False, "json", models.DestinationUpdate
             ),
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1097,88 +670,18 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="updateTenantDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["400", "404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(
                 models.UpdateTenantDestinationResponse, http_res
             )
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["400", "404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1192,9 +695,7 @@ class Destinations(BaseSDK):
         self,
         *,
         destination_id: str,
-        destination_update: Union[
-            models.DestinationUpdate, models.DestinationUpdateTypedDict
-        ],
+        params: Union[models.DestinationUpdate, models.DestinationUpdateTypedDict],
         tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
@@ -1206,7 +707,7 @@ class Destinations(BaseSDK):
         Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
 
         :param destination_id: The ID of the destination.
-        :param destination_update:
+        :param params:
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -1226,14 +727,12 @@ class Destinations(BaseSDK):
         request = models.UpdateTenantDestinationRequest(
             tenant_id=tenant_id,
             destination_id=destination_id,
-            destination_update=utils.get_pydantic_model(
-                destination_update, models.DestinationUpdate
-            ),
+            params=utils.get_pydantic_model(params, models.DestinationUpdate),
         )
 
         req = self._build_request_async(
             method="PATCH",
-            path="/{tenant_id}/destinations/{destination_id}",
+            path="/tenants/{tenant_id}/destinations/{destination_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1248,12 +747,9 @@ class Destinations(BaseSDK):
             ),
             security=self.sdk_configuration.security,
             get_serialized_body=lambda: utils.serialize_request_body(
-                request.destination_update,
-                False,
-                False,
-                "json",
-                models.DestinationUpdate,
+                request.params, False, False, "json", models.DestinationUpdate
             ),
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1270,88 +766,18 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="updateTenantDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["400", "404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(
                 models.UpdateTenantDestinationResponse, http_res
             )
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["400", "404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1399,7 +825,7 @@ class Destinations(BaseSDK):
 
         req = self._build_request(
             method="DELETE",
-            path="/{tenant_id}/destinations/{destination_id}",
+            path="/tenants/{tenant_id}/destinations/{destination_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1413,6 +839,7 @@ class Destinations(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1429,86 +856,16 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="deleteTenantDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.SuccessResponse, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1556,7 +913,7 @@ class Destinations(BaseSDK):
 
         req = self._build_request_async(
             method="DELETE",
-            path="/{tenant_id}/destinations/{destination_id}",
+            path="/tenants/{tenant_id}/destinations/{destination_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1570,6 +927,7 @@ class Destinations(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1586,86 +944,16 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="deleteTenantDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.SuccessResponse, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1713,7 +1001,7 @@ class Destinations(BaseSDK):
 
         req = self._build_request(
             method="PUT",
-            path="/{tenant_id}/destinations/{destination_id}/enable",
+            path="/tenants/{tenant_id}/destinations/{destination_id}/enable",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1727,6 +1015,7 @@ class Destinations(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1743,86 +1032,16 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="enableTenantDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1870,7 +1089,7 @@ class Destinations(BaseSDK):
 
         req = self._build_request_async(
             method="PUT",
-            path="/{tenant_id}/destinations/{destination_id}/enable",
+            path="/tenants/{tenant_id}/destinations/{destination_id}/enable",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1884,6 +1103,7 @@ class Destinations(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1900,86 +1120,16 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="enableTenantDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -2027,7 +1177,7 @@ class Destinations(BaseSDK):
 
         req = self._build_request(
             method="PUT",
-            path="/{tenant_id}/destinations/{destination_id}/disable",
+            path="/tenants/{tenant_id}/destinations/{destination_id}/disable",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -2041,6 +1191,7 @@ class Destinations(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -2057,86 +1208,16 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="disableTenantDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -2184,7 +1265,7 @@ class Destinations(BaseSDK):
 
         req = self._build_request_async(
             method="PUT",
-            path="/{tenant_id}/destinations/{destination_id}/disable",
+            path="/tenants/{tenant_id}/destinations/{destination_id}/disable",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -2198,6 +1279,7 @@ class Destinations(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -2214,86 +1296,16 @@ class Destinations(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="disableTenantDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)

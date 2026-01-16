@@ -17,6 +17,10 @@ from .destinationcreateazureservicebus import (
     DestinationCreateAzureServiceBus,
     DestinationCreateAzureServiceBusTypedDict,
 )
+from .destinationcreategcppubsub import (
+    DestinationCreateGCPPubSub,
+    DestinationCreateGCPPubSubTypedDict,
+)
 from .destinationcreatehookdeck import (
     DestinationCreateHookdeck,
     DestinationCreateHookdeckTypedDict,
@@ -45,6 +49,7 @@ DestinationCreateTypedDict = TypeAliasType(
         DestinationCreateAWSKinesisTypedDict,
         DestinationCreateAzureServiceBusTypedDict,
         DestinationCreateAwss3TypedDict,
+        DestinationCreateGCPPubSubTypedDict,
     ],
 )
 
@@ -58,6 +63,7 @@ DestinationCreate = Annotated[
         Annotated[DestinationCreateAWSKinesis, Tag("aws_kinesis")],
         Annotated[DestinationCreateAzureServiceBus, Tag("azure_servicebus")],
         Annotated[DestinationCreateAwss3, Tag("aws_s3")],
+        Annotated[DestinationCreateGCPPubSub, Tag("gcp_pubsub")],
     ],
     Discriminator(lambda m: get_discriminator(m, "type", "type")),
 ]

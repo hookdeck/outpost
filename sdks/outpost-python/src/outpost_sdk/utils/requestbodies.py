@@ -44,15 +44,15 @@ def serialize_request_body(
 
     serialized_request_body = SerializedRequestBody(media_type)
 
-    if re.match(r"(application|text)\/.*?\+*json.*", media_type) is not None:
+    if re.match(r"^(application|text)\/([^+]+\+)*json.*", media_type) is not None:
         serialized_request_body.content = marshal_json(request_body, request_body_type)
-    elif re.match(r"multipart\/.*", media_type) is not None:
+    elif re.match(r"^multipart\/.*", media_type) is not None:
         (
             serialized_request_body.media_type,
             serialized_request_body.data,
             serialized_request_body.files,
         ) = serialize_multipart_form(media_type, request_body)
-    elif re.match(r"application\/x-www-form-urlencoded.*", media_type) is not None:
+    elif re.match(r"^application\/x-www-form-urlencoded.*", media_type) is not None:
         serialized_request_body.data = serialize_form_data(request_body)
     elif isinstance(request_body, (bytes, bytearray, io.BytesIO, io.BufferedReader)):
         serialized_request_body.content = request_body

@@ -78,6 +78,7 @@ class Publish(BaseSDK):
             get_serialized_body=lambda: utils.serialize_request_body(
                 request, False, False, "json", models.PublishRequest
             ),
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -94,7 +95,7 @@ class Publish(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="publishEvent",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
@@ -254,6 +255,7 @@ class Publish(BaseSDK):
             get_serialized_body=lambda: utils.serialize_request_body(
                 request, False, False, "json", models.PublishRequest
             ),
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -270,7 +272,7 @@ class Publish(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="publishEvent",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,

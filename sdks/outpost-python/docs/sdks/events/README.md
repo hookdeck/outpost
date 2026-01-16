@@ -1,5 +1,4 @@
 # Events
-(*events*)
 
 ## Overview
 
@@ -20,7 +19,7 @@ Retrieves a list of events for the tenant, supporting cursor navigation (details
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="listTenantEvents" method="get" path="/{tenant_id}/events" -->
+<!-- UsageSnippet language="python" operationID="listTenantEvents" method="get" path="/tenants/{tenant_id}/events" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -48,8 +47,8 @@ with Outpost(
 | `tenant_id`                                                                       | *Optional[str]*                                                                   | :heavy_minus_sign:                                                                | The ID of the tenant. Required when using AdminApiKey authentication.             |
 | `destination_id`                                                                  | [Optional[models.DestinationID]](../../models/destinationid.md)                   | :heavy_minus_sign:                                                                | Filter events by destination ID(s).                                               |
 | `status`                                                                          | [Optional[models.ListTenantEventsStatus]](../../models/listtenanteventsstatus.md) | :heavy_minus_sign:                                                                | Filter events by delivery status.                                                 |
-| `next`                                                                            | *Optional[str]*                                                                   | :heavy_minus_sign:                                                                | Cursor for next page of results                                                   |
-| `prev`                                                                            | *Optional[str]*                                                                   | :heavy_minus_sign:                                                                | Cursor for previous page of results                                               |
+| `next_cursor`                                                                     | *Optional[str]*                                                                   | :heavy_minus_sign:                                                                | Cursor for next page of results                                                   |
+| `prev_cursor`                                                                     | *Optional[str]*                                                                   | :heavy_minus_sign:                                                                | Cursor for previous page of results                                               |
 | `limit`                                                                           | *Optional[int]*                                                                   | :heavy_minus_sign:                                                                | Number of items per page (default 100, max 1000)                                  |
 | `start`                                                                           | [date](https://docs.python.org/3/library/datetime.html#date-objects)              | :heavy_minus_sign:                                                                | Start time filter (RFC3339 format)                                                |
 | `end`                                                                             | [date](https://docs.python.org/3/library/datetime.html#date-objects)              | :heavy_minus_sign:                                                                | End time filter (RFC3339 format)                                                  |
@@ -61,18 +60,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutErrorT         | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutErrorT         | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## get
 
@@ -80,7 +70,7 @@ Retrieves details for a specific event.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="getTenantEvent" method="get" path="/{tenant_id}/events/{event_id}" -->
+<!-- UsageSnippet language="python" operationID="getTenantEvent" method="get" path="/tenants/{tenant_id}/events/{event_id}" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -113,18 +103,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutErrorT         | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutErrorT         | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## list_deliveries
 
@@ -132,7 +113,7 @@ Retrieves a list of delivery attempts for a specific event, including response d
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="listTenantEventDeliveries" method="get" path="/{tenant_id}/events/{event_id}/deliveries" -->
+<!-- UsageSnippet language="python" operationID="listTenantEventDeliveries" method="get" path="/tenants/{tenant_id}/events/{event_id}/deliveries" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -165,18 +146,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutErrorT         | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutErrorT         | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## list_by_destination
 
@@ -184,7 +156,7 @@ Retrieves events associated with a specific destination for the tenant.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="listTenantEventsByDestination" method="get" path="/{tenant_id}/destinations/{destination_id}/events" -->
+<!-- UsageSnippet language="python" operationID="listTenantEventsByDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/events" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -212,8 +184,8 @@ with Outpost(
 | `destination_id`                                                                                            | *str*                                                                                                       | :heavy_check_mark:                                                                                          | The ID of the destination.                                                                                  |
 | `tenant_id`                                                                                                 | *Optional[str]*                                                                                             | :heavy_minus_sign:                                                                                          | The ID of the tenant. Required when using AdminApiKey authentication.                                       |
 | `status`                                                                                                    | [Optional[models.ListTenantEventsByDestinationStatus]](../../models/listtenanteventsbydestinationstatus.md) | :heavy_minus_sign:                                                                                          | Filter events by delivery status.                                                                           |
-| `next`                                                                                                      | *Optional[str]*                                                                                             | :heavy_minus_sign:                                                                                          | Cursor for next page of results                                                                             |
-| `prev`                                                                                                      | *Optional[str]*                                                                                             | :heavy_minus_sign:                                                                                          | Cursor for previous page of results                                                                         |
+| `next_cursor`                                                                                               | *Optional[str]*                                                                                             | :heavy_minus_sign:                                                                                          | Cursor for next page of results                                                                             |
+| `prev_cursor`                                                                                               | *Optional[str]*                                                                                             | :heavy_minus_sign:                                                                                          | Cursor for previous page of results                                                                         |
 | `limit`                                                                                                     | *Optional[int]*                                                                                             | :heavy_minus_sign:                                                                                          | Number of items per page (default 100, max 1000)                                                            |
 | `start`                                                                                                     | [date](https://docs.python.org/3/library/datetime.html#date-objects)                                        | :heavy_minus_sign:                                                                                          | Start time filter (RFC3339 format)                                                                          |
 | `end`                                                                                                       | [date](https://docs.python.org/3/library/datetime.html#date-objects)                                        | :heavy_minus_sign:                                                                                          | End time filter (RFC3339 format)                                                                            |
@@ -225,18 +197,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutErrorT         | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutErrorT         | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## get_by_destination
 
@@ -244,7 +207,7 @@ Retrieves a specific event associated with a specific destination for the tenant
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="getTenantEventByDestination" method="get" path="/{tenant_id}/destinations/{destination_id}/events/{event_id}" -->
+<!-- UsageSnippet language="python" operationID="getTenantEventByDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -278,18 +241,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutErrorT         | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutErrorT         | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## retry
 
@@ -297,7 +251,7 @@ Triggers a retry for a failed event delivery.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="retryTenantEvent" method="post" path="/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry" -->
+<!-- UsageSnippet language="python" operationID="retryTenantEvent" method="post" path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -326,15 +280,6 @@ with Outpost(
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutErrorT         | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutErrorT         | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |

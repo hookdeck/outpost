@@ -12,9 +12,10 @@ from outpost_sdk.types import (
     UNSET,
     UNSET_SENTINEL,
 )
+import pydantic
 from pydantic import model_serializer
-from typing import Any, Optional
-from typing_extensions import NotRequired, TypedDict
+from typing import Any, Dict, Optional
+from typing_extensions import Annotated, NotRequired, TypedDict
 
 
 class DestinationHookdeckType(str, Enum):
@@ -35,7 +36,20 @@ class DestinationHookdeckTypedDict(TypedDict):
     created_at: datetime
     r"""ISO Date when the destination was created."""
     credentials: HookdeckCredentialsTypedDict
+    filter_: NotRequired[Nullable[Dict[str, Any]]]
+    r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+    Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+    If null or empty, all events matching the topic filter will be delivered.
+    To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+
+    """
+    updated_at: NotRequired[datetime]
+    r"""ISO Date when the destination was last updated."""
     config: NotRequired[Any]
+    delivery_metadata: NotRequired[Nullable[Dict[str, str]]]
+    r"""Static key-value pairs merged into event metadata on every delivery."""
+    metadata: NotRequired[Nullable[Dict[str, str]]]
+    r"""Arbitrary contextual information stored with the destination."""
     target: NotRequired[str]
     r"""A human-readable representation of the destination target (Hookdeck). Read-only."""
     target_url: NotRequired[Nullable[str]]
@@ -60,7 +74,26 @@ class DestinationHookdeck(BaseModel):
 
     credentials: HookdeckCredentials
 
+    filter_: Annotated[
+        OptionalNullable[Dict[str, Any]], pydantic.Field(alias="filter")
+    ] = UNSET
+    r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+    Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+    If null or empty, all events matching the topic filter will be delivered.
+    To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+
+    """
+
+    updated_at: Optional[datetime] = None
+    r"""ISO Date when the destination was last updated."""
+
     config: Optional[Any] = None
+
+    delivery_metadata: OptionalNullable[Dict[str, str]] = UNSET
+    r"""Static key-value pairs merged into event metadata on every delivery."""
+
+    metadata: OptionalNullable[Dict[str, str]] = UNSET
+    r"""Arbitrary contextual information stored with the destination."""
 
     target: Optional[str] = None
     r"""A human-readable representation of the destination target (Hookdeck). Read-only."""
@@ -70,30 +103,37 @@ class DestinationHookdeck(BaseModel):
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
-        optional_fields = ["config", "target", "target_url"]
-        nullable_fields = ["disabled_at", "target_url"]
-        null_default_fields = []
-
+        optional_fields = set(
+            [
+                "filter",
+                "updated_at",
+                "config",
+                "delivery_metadata",
+                "metadata",
+                "target",
+                "target_url",
+            ]
+        )
+        nullable_fields = set(
+            ["filter", "disabled_at", "delivery_metadata", "metadata", "target_url"]
+        )
         serialized = handler(self)
-
         m = {}
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
             val = serialized.get(k)
-            serialized.pop(k, None)
+            is_nullable_and_explicitly_set = (
+                k in nullable_fields
+                and (self.__pydantic_fields_set__.intersection({n}))  # pylint: disable=no-member
+            )
 
-            optional_nullable = k in optional_fields and k in nullable_fields
-            is_set = (
-                self.__pydantic_fields_set__.intersection({n})
-                or k in null_default_fields
-            )  # pylint: disable=no-member
-
-            if val is not None and val != UNSET_SENTINEL:
-                m[k] = val
-            elif val != UNSET_SENTINEL and (
-                not k in optional_fields or (optional_nullable and is_set)
-            ):
-                m[k] = val
+            if val != UNSET_SENTINEL:
+                if (
+                    val is not None
+                    or k not in optional_fields
+                    or is_nullable_and_explicitly_set
+                ):
+                    m[k] = val
 
         return m

@@ -13,6 +13,14 @@ from .destinationupdateawssqs import (
     DestinationUpdateAWSSQS,
     DestinationUpdateAWSSQSTypedDict,
 )
+from .destinationupdateazureservicebus import (
+    DestinationUpdateAzureServiceBus,
+    DestinationUpdateAzureServiceBusTypedDict,
+)
+from .destinationupdategcppubsub import (
+    DestinationUpdateGCPPubSub,
+    DestinationUpdateGCPPubSubTypedDict,
+)
 from .destinationupdatehookdeck import (
     DestinationUpdateHookdeck,
     DestinationUpdateHookdeckTypedDict,
@@ -37,7 +45,9 @@ DestinationUpdateTypedDict = TypeAliasType(
         DestinationUpdateRabbitMQTypedDict,
         DestinationUpdateHookdeckTypedDict,
         DestinationUpdateAWSKinesisTypedDict,
+        DestinationUpdateAzureServiceBusTypedDict,
         DestinationUpdateAwss3TypedDict,
+        DestinationUpdateGCPPubSubTypedDict,
     ],
 )
 
@@ -50,6 +60,8 @@ DestinationUpdate = TypeAliasType(
         DestinationUpdateRabbitMQ,
         DestinationUpdateHookdeck,
         DestinationUpdateAWSKinesis,
+        DestinationUpdateAzureServiceBus,
         DestinationUpdateAwss3,
+        DestinationUpdateGCPPubSub,
     ],
 )

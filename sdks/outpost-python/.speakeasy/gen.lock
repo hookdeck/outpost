@@ -1,39 +1,1562 @@
 lockVersion: 2.0.0
 id: da774284-22d9-4b6c-bb26-1c3fc9f2c7ee
 management:
-  docChecksum: f88900fa0dfdee97044181ff0fbb5027
+  docChecksum: 007fd5497db3cc08790e666dfef951ae
   docVersion: 0.0.1
-  speakeasyVersion: 1.609.0
-  generationVersion: 2.692.0
-  releaseVersion: 0.4.0
-  configChecksum: 5010174e527b0e15ea785476055a0d53
+  speakeasyVersion: 1.686.1
+  generationVersion: 2.796.1
+  releaseVersion: 0.5.0
+  configChecksum: 6cab7b28c0cc7fe6c86809dc2787ee42
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-python
   installationURL: https://github.com/hookdeck/outpost.git#subdirectory=sdks/outpost-python
   published: true
+persistentEdits:
+  generation_id: a443ecc8-2cef-4eb8-ad9d-b2c530396402
+  pristine_commit_hash: ac6013bfc0f497b12d946565172ac26ff7a2009d
+  pristine_tree_hash: dcc34360b92ba53a52434ddd858ef578a4b439e2
 features:
   python:
     additionalDependencies: 1.0.0
     additionalProperties: 1.0.1
     constsAndDefaults: 1.0.5
-    core: 5.20.3
+    core: 5.23.18
     defaultEnabledRetries: 0.2.0
     enumUnions: 0.1.0
     envVarSecurityUsage: 0.3.2
     flatRequests: 1.0.1
     flattening: 3.1.1
-    globalSecurity: 3.0.3
+    globalSecurity: 3.0.4
     globalSecurityCallbacks: 1.0.0
-    globalServerURLs: 3.1.1
+    globalServerURLs: 3.2.0
     globals: 3.0.0
     methodArguments: 1.0.2
     nameOverrides: 3.0.1
-    nullables: 1.0.1
-    pagination: 3.0.5
+    nullables: 1.0.2
+    pagination: 3.0.7
     responseFormat: 1.0.1
-    retries: 3.0.2
-    sdkHooks: 1.1.0
-    unions: 3.0.4
+    retries: 3.0.3
+    sdkHooks: 1.2.1
+    unions: 3.1.2
+trackedFiles:
+  .gitattributes:
+    id: 24139dae6567
+    last_write_checksum: sha1:53134de3ada576f37c22276901e1b5b6d85cd2da
+    pristine_git_object: 4d75d59008e4d8609876d263419a9dc56c8d6f3a
+  .vscode/settings.json:
+    id: 89aa447020cd
+    last_write_checksum: sha1:f84632c81029fcdda8c3b0c768d02b836fc80526
+    pristine_git_object: 8d79f0abb72526f1fb34a4c03e5bba612c6ba2ae
+  USAGE.md:
+    id: 3aed33ce6e6f
+    last_write_checksum: sha1:a4cd3805a7312a1f65a30253846aa88f89f50054
+    pristine_git_object: 2d498d2721b86e348ff0194bfc5025d9cf09f6f7
+  docs/errors/badrequesterror.md:
+    id: 75b54f860141
+    last_write_checksum: sha1:fa7b863df5fe1369b4e64d44072b021381dc640c
+    pristine_git_object: bf9b91f6c9249f9fb0ff91799d3ecc3627fc8ba3
+  docs/errors/internalservererror.md:
+    id: eab04592354c
+    last_write_checksum: sha1:d96b094c0d34b0cc9a59947f891a1735927b971e
+    pristine_git_object: 20b85a54e4ca4fad1a6edfefb9413d1901708d5c
+  docs/errors/listtenantsbadrequesterror.md:
+    id: "975775184105"
+    last_write_checksum: sha1:b70c7e1f22e06db606976e0e3c1cf8118ce49a6d
+    pristine_git_object: 28caef5b00c207800a97ebb05c370b959906a2cd
+  docs/errors/notfounderror.md:
+    id: 2bd9ff5d704d
+    last_write_checksum: sha1:f1446daed64f9889c6f5d6c71c598449bf3ea2c5
+    pristine_git_object: dd0477d1273b8e7f215914020008b84c856c7e1d
+  docs/errors/notimplementederrort.md:
+    id: f6a21109ebc7
+    last_write_checksum: sha1:f484f18ba9ab217b514a1a7c215b9d61617fdbe0
+    pristine_git_object: 009086955ec36603f99da699ad4e8203d8c49870
+  docs/errors/ratelimitederror.md:
+    id: 66c395fa416b
+    last_write_checksum: sha1:a2448ba57a67fea9dec7344bb5570e85d4931921
+    pristine_git_object: 3f7f62b74880137ca6bcd97106250d1a28ac2e1e
+  docs/errors/timeouterrort.md:
+    id: 06f77f86e1d7
+    last_write_checksum: sha1:fb6593b1cd14f931603922e5720a66ee9ed21645
+    pristine_git_object: a2f6fc3a024dbf9a20d621c1ada6adb17db66a16
+  docs/errors/unauthorizederror.md:
+    id: c54ee3b4e5ad
+    last_write_checksum: sha1:66f3ddc85b6d26ccc3f3f091d38d0f264a12aedf
+    pristine_git_object: 09ac1d2ca6456ccec1ff23f1fdc849faee367687
+  docs/models/awskinesisconfig.md:
+    id: 1ecd0220d922
+    last_write_checksum: sha1:d1cebf7ae94ec3360968c40ad12d5bc8eb0dbd43
+    pristine_git_object: 53333e11adfcefa70162cff2031cc4b7af8d9779
+  docs/models/awskinesiscredentials.md:
+    id: 5e1b8dd2010d
+    last_write_checksum: sha1:a968a93e9c9bf7b1dcb6fd788a49c86ec43ba6f3
+    pristine_git_object: 40218890d59fdac3870939548f4aed1d4d7d50fb
+  docs/models/awss3config.md:
+    id: 679a23675f6e
+    last_write_checksum: sha1:e2da866fc702bb1893bf8618d31b68f0405dd199
+    pristine_git_object: e7daf4322bd05e7221d2c86cc495841fd34bdcb5
+  docs/models/awss3credentials.md:
+    id: 54997da063b8
+    last_write_checksum: sha1:804e34bb935aea7ee5f05171d2ba2d2b6e7db970
+    pristine_git_object: 37ed641620d9ded12582e3cc3af298b9375b3bf8
+  docs/models/awssqsconfig.md:
+    id: b1ecf85ce2b2
+    last_write_checksum: sha1:ede94a0970f19ba0924612b16c377c953bcdd766
+    pristine_git_object: 8263009b429d86782bcc12263d995be543da12cd
+  docs/models/awssqscredentials.md:
+    id: 737bdc7cb788
+    last_write_checksum: sha1:64a4ea77096ac48ee0469565650ac82deb8b6e98
+    pristine_git_object: 0000f440a1c8a6a713b5842ec06ec106158c1682
+  docs/models/azureservicebusconfig.md:
+    id: 1e83b96d9a35
+    last_write_checksum: sha1:7a6559de6b67a0cb2900d6067ee77d0e5eabc95b
+    pristine_git_object: 7e6b4d87a0022e4a463dde36b8a5f78426bb4b3d
+  docs/models/azureservicebuscredentials.md:
+    id: be69c439da24
+    last_write_checksum: sha1:9b119c1e2998621c1e366f5206df3b6817fb8bbd
+    pristine_git_object: 02f6cf43352e6c2e4c624c6fb5fd21f49d897e6f
+  docs/models/createtenantdestinationglobals.md:
+    id: a20a86817611
+    last_write_checksum: sha1:1783f3762608177857a780ae1f5dca9a8c1a0ab0
+    pristine_git_object: 1d59c3514d0bbc7bca729f4817aba3899a657d57
+  docs/models/createtenantdestinationrequest.md:
+    id: "943059858332"
+    last_write_checksum: sha1:c68ca9130dc3329c09816b151bc5b8bc1fb5aa30
+    pristine_git_object: b4dce1f8d8e5ee6e94f3f6bc463046108e1b4a94
+  docs/models/deletetenantdestinationglobals.md:
+    id: 4c41715d94ed
+    last_write_checksum: sha1:d07ab2af528456713a22845af590acf6d8251f25
+    pristine_git_object: 872d67e34487c31f9a19e2f76501920b810a81db
+  docs/models/deletetenantdestinationrequest.md:
+    id: ff17485df01b
+    last_write_checksum: sha1:2316c45ee5c837031ffaebe6bd5c15f04ad12729
+    pristine_git_object: 3513716b8d951dabbc9a4d0211b4c0693d8caf3c
+  docs/models/deletetenantglobals.md:
+    id: 7a7f30355b14
+    last_write_checksum: sha1:0f9762b48ea24832cea0dbf4b6554eb841321a08
+    pristine_git_object: 1d729768a338a51ca87a89ab938b608b058489e8
+  docs/models/deletetenantrequest.md:
+    id: 05b1a2090bf9
+    last_write_checksum: sha1:49d22bda71c632f68c33ca9f6f0435f51bbec6fd
+    pristine_git_object: 3ce81c0788d60841dc93bef4edcf5a3a993c085c
+  docs/models/deliveryattempt.md:
+    id: a7dd6c151327
+    last_write_checksum: sha1:4443fb6133edf7de62d9adcfad26ae0085d2e472
+    pristine_git_object: bf27360740c63621942df4b5e6e3a7713f249eaa
+  docs/models/deliveryattemptstatus.md:
+    id: 73d716edad48
+    last_write_checksum: sha1:d983b343b7895f7ebf6327716cb55ef2258c28b5
+    pristine_git_object: 608b73c6bd9278d8d7035c696a088591a3baa91a
+  docs/models/destination.md:
+    id: 687894272b1a
+    last_write_checksum: sha1:862dcda270fe67a3bbe7a0fc443197825fd85c46
+    pristine_git_object: 62723c1f03f46e5f2a74a2dc045244153e66396c
+  docs/models/destinationawskinesis.md:
+    id: 6d81ecea9fdc
+    last_write_checksum: sha1:d0198cfe99303855d466434bfcc0c8efd494bb84
+    pristine_git_object: 3c24ce09ba6ebfcbb73ec67821299942b15cca02
+  docs/models/destinationawskinesistype.md:
+    id: c4dd6fca8de7
+    last_write_checksum: sha1:e35cac886c3d2decdf72f09f4c3e49edb189223c
+    pristine_git_object: 268ada9a72ab2d0f1f6b58731a075e9c54252b83
+  docs/models/destinationawss3.md:
+    id: ff122e07e234
+    last_write_checksum: sha1:c60b72534457e7f351152f84c2b735c362f4afa8
+    pristine_git_object: 4733322cc0ade9e0da03d9df41ae31ec761932f2
+  docs/models/destinationawss3type.md:
+    id: d28d95d24ee2
+    last_write_checksum: sha1:f4ca8b85019718539a6b21af08cce793cb81a19a
+    pristine_git_object: dca9825f600aa8a075b8669788d783352562a114
+  docs/models/destinationawssqs.md:
+    id: be55d5a60266
+    last_write_checksum: sha1:b51118f9e5e156a60eba92b4443e229de4d08f8a
+    pristine_git_object: 236321b92110d9bd05a89b3bc172bd86f95fb59b
+  docs/models/destinationawssqstype.md:
+    id: 55d5846eccb7
+    last_write_checksum: sha1:af226e248afb3df6bd48723d4e30287221a32ba4
+    pristine_git_object: b34c57ff98fb96be7c3edd2d79eceb03042a52a3
+  docs/models/destinationazureservicebus.md:
+    id: ed697d05f286
+    last_write_checksum: sha1:7abe477f772e0d584a633001ca6f66b84202d42a
+    pristine_git_object: 62e1e3ebfe415dbd400759d493a39e986309f0e0
+  docs/models/destinationazureservicebustype.md:
+    id: 36eb1c9188a1
+    last_write_checksum: sha1:d03d1a20d25f9ccf01972d012a908dc225bebdd4
+    pristine_git_object: cd0fd55b5de0f0b5ada7c9b2dc802c1115f85516
+  docs/models/destinationcreate.md:
+    id: 753d487291de
+    last_write_checksum: sha1:34537288271ccda32c6aff997833a14c29277d1b
+    pristine_git_object: f1c670b0c7a91689e703b3cdfb4f3de4027b7981
+  docs/models/destinationcreateawskinesis.md:
+    id: 9b320c478947
+    last_write_checksum: sha1:4cd1ad02cfa11134b70d1618b6657d4f42f5de85
+    pristine_git_object: c52d7b3144f8e95722ba02225e989e3f3cb99cfb
+  docs/models/destinationcreateawskinesistype.md:
+    id: a301bfbed763
+    last_write_checksum: sha1:05c54a996bce1f516e8ea096bfc5c7b225af3b3c
+    pristine_git_object: dc4aeba1fa5dfdab35f4cf8f0ae0054fa583b2c5
+  docs/models/destinationcreateawss3.md:
+    id: bc177123074e
+    last_write_checksum: sha1:cc4cdd8db12d08dcfc9caf6e40536d05ab009bc0
+    pristine_git_object: 250fd5153b69e10792800d32560ea2743c81cf12
+  docs/models/destinationcreateawss3type.md:
+    id: cc21ccb91e67
+    last_write_checksum: sha1:09245d102fd1178e27c03a4408e073075f1aef18
+    pristine_git_object: dbcca224e0416e31d28bed1840fe1d0efcc6cf29
+  docs/models/destinationcreateawssqs.md:
+    id: a81f0a089390
+    last_write_checksum: sha1:1bd0cd3fbd1402a853a406c64f3fdf97ab8a375b
+    pristine_git_object: a59e04de2887c625254955c51d2898c39f485262
+  docs/models/destinationcreateawssqstype.md:
+    id: abd5182b8036
+    last_write_checksum: sha1:bb3a5df07834b60f78f8cc6cbc20c25342f11015
+    pristine_git_object: b2380eb23c096b7941aeb77fe3fd4227de6eec35
+  docs/models/destinationcreateazureservicebus.md:
+    id: de448d3776b9
+    last_write_checksum: sha1:9dad97140f072ae6ddf691c1066621ebfbdea5b5
+    pristine_git_object: b8a431c502fd33c419606119e32278a625f18ead
+  docs/models/destinationcreateazureservicebustype.md:
+    id: 2b44423ffb57
+    last_write_checksum: sha1:dd7cdb84af29266d2d239b871698a02bd37c7b21
+    pristine_git_object: c42a0d147aa9c463676703d12c0eafa23e3fb497
+  docs/models/destinationcreategcppubsub.md:
+    id: 4db025a094d8
+    last_write_checksum: sha1:14468f8d290468a5adad7246b8125c3daad43a8c
+    pristine_git_object: 739d1cca9c6c7729a764077f7f291a472ff30615
+  docs/models/destinationcreategcppubsubtype.md:
+    id: 2f3bb28c178a
+    last_write_checksum: sha1:8cbcf4851882a6d1859071696cd6f426b5100409
+    pristine_git_object: 60deed6e09efd660746a54386617ca8b8b4e9158
+  docs/models/destinationcreatehookdeck.md:
+    id: 313ee240253a
+    last_write_checksum: sha1:353a20ffedca194983d2748c920fd6db98490556
+    pristine_git_object: 6b0fb6f085fdcd223db3c0b736650195eab13ab4
+  docs/models/destinationcreatehookdecktype.md:
+    id: 7c14bf04c6fa
+    last_write_checksum: sha1:0461fc1dcf49ac499ce6993fbb03e57b14793fd0
+    pristine_git_object: 4c59427c474939e2378b8c239f5e5f073f9aede7
+  docs/models/destinationcreaterabbitmq.md:
+    id: 378a3117d167
+    last_write_checksum: sha1:5c96afa5297ced0bd91b0a8809da4d7e5efcef06
+    pristine_git_object: 368f52f090d759acb443918641f5710d17250ccf
+  docs/models/destinationcreaterabbitmqtype.md:
+    id: 67f573cb48fc
+    last_write_checksum: sha1:873c447668a8eff6d72407c6a5e35723cb7c4022
+    pristine_git_object: 669a286ad06e3e1d757058107a4d14c2d48f509f
+  docs/models/destinationcreatewebhook.md:
+    id: 045bdd4bfba9
+    last_write_checksum: sha1:90db0f60734ffeb8acafd90eae1d34223ad656e8
+    pristine_git_object: 07b9d716078032608008c67a351bb7d9019a2326
+  docs/models/destinationcreatewebhooktype.md:
+    id: 480c29c3c0ee
+    last_write_checksum: sha1:7d24c7e16bedde3fa49a8eaaf0653018366a0e53
+    pristine_git_object: bee08d5160ed36136133edcd858f93343d54ee67
+  docs/models/destinationgcppubsub.md:
+    id: 8d458b6431fc
+    last_write_checksum: sha1:cb51243c0868db61afd802d189772c8c7a4a0838
+    pristine_git_object: dbafb7bb95aae90e98cfe73b2deb73752c0fa6cd
+  docs/models/destinationgcppubsubtype.md:
+    id: c8ac9ab6541c
+    last_write_checksum: sha1:e92310b72964fcc0af4af7d75ffadcd10482ccf5
+    pristine_git_object: de36e971dbd2c4eb031197b4974f1716f572247d
+  docs/models/destinationhookdeck.md:
+    id: fb096a78647f
+    last_write_checksum: sha1:e3e5f0329da3b9643e573fc8f7856d9f9e5f6df3
+    pristine_git_object: b56b211039973a5968762db2eada122b3c0345ee
+  docs/models/destinationhookdecktype.md:
+    id: 1c418f6e0237
+    last_write_checksum: sha1:e471cc7edbc26f6181f4f73a1e6c7b74247e8d37
+    pristine_git_object: c2f2f2f6b58892da28eb46fb8e6c67fd3b6d97a6
+  docs/models/destinationid.md:
+    id: bc96d6ad0c9a
+    last_write_checksum: sha1:4fe3e9dc5ee7bad3c28be0c4ff21ad50839103bb
+    pristine_git_object: b046a34ad9b78d96fc2e5b477ad54a7b77aab3fd
+  docs/models/destinationrabbitmq.md:
+    id: 0e006fb4f238
+    last_write_checksum: sha1:dbea0a75e75f584c136822f94b88c982eb60b0e9
+    pristine_git_object: 843e8bcb7a989bd8e3ffffeecc788e5e1d0245c2
+  docs/models/destinationrabbitmqtype.md:
+    id: 465a84d53bc0
+    last_write_checksum: sha1:6249be7c1568fd69bef3ceb5dfafa1ee9e420f89
+    pristine_git_object: 9b6d7a4fb16438f6b02c3e397aff2d50fa2ebb97
+  docs/models/destinationschemafield.md:
+    id: df08f69d8fdf
+    last_write_checksum: sha1:3ebfd458f7ac0f8ae596ea8243001e1a0c8e4482
+    pristine_git_object: 4623c6a89a3408d38f42d1547b2c339b523dcc63
+  docs/models/destinationschemafieldtype.md:
+    id: ceba3fe4fa9e
+    last_write_checksum: sha1:09c73a936a7b6556349ee6938171e173b964933a
+    pristine_git_object: beec70a0e8e323fb07c9acf6b3abdb7a1cff2d4f
+  docs/models/destinationtype.md:
+    id: 27183f23a494
+    last_write_checksum: sha1:2303720ceaf752f56f5e3820804f02c31c52fa23
+    pristine_git_object: 3ca7e4005b5d5572b3c3c3b847a40323f5049173
+  docs/models/destinationtypeschema.md:
+    id: 046d276b4515
+    last_write_checksum: sha1:ec12eb0051c455f7a8e91c93c0780ddac08471fa
+    pristine_git_object: 844729caff36e96f445dadfc8b4df0361dc88175
+  docs/models/destinationupdate.md:
+    id: 29ededae7d93
+    last_write_checksum: sha1:66e9533952c1ef7f79f9637400dfcb5c9b57f633
+    pristine_git_object: 37cd62167fe00987ea10746f5997fb05d1e8c603
+  docs/models/destinationupdateawskinesis.md:
+    id: c735ef832904
+    last_write_checksum: sha1:479e8b404ff7f9e4e4621c2f14d5107c5c741c28
+    pristine_git_object: 0eacdce076c4e0662e9a3c2bf849d705105bb6eb
+  docs/models/destinationupdateawss3.md:
+    id: 76faf4c7812d
+    last_write_checksum: sha1:c056688910b0c7ee7dfe85251f3aa26bdb91beee
+    pristine_git_object: 6cbd6d3488827cdf95194a587d308e51ea00aed1
+  docs/models/destinationupdateawssqs.md:
+    id: 02ac773b1910
+    last_write_checksum: sha1:77b8f2f71de90c867e364022a3c8df03ecb62231
+    pristine_git_object: 009ff5332a6cc99f8124525fbe027f34119b849c
+  docs/models/destinationupdateazureservicebus.md:
+    id: ce89817ee515
+    last_write_checksum: sha1:76abdc2951b39c6e9025e06be7503404d87fba4d
+    pristine_git_object: c0edaae812968378e1b8d1d2fd6b26e36fef7f1e
+  docs/models/destinationupdategcppubsub.md:
+    id: 3aa59641195e
+    last_write_checksum: sha1:75c152e620a10850272c69677eb0a7af7413b4d4
+    pristine_git_object: 4605278ca7d7b8b7f16ca38fcd3d90237799052a
+  docs/models/destinationupdatehookdeck.md:
+    id: 68e05155df34
+    last_write_checksum: sha1:6fc24a6801dc01ec1399c188208f382f869318d8
+    pristine_git_object: fb8d4211cb1851d606f95eba5ddf43662ec46772
+  docs/models/destinationupdaterabbitmq.md:
+    id: 9f9ca90dc37d
+    last_write_checksum: sha1:09a1d73aba8aaad7b7aad685a3e8f57b3ca57391
+    pristine_git_object: db17ef6aa3130eabf1e211c6cb5ca93392909502
+  docs/models/destinationupdatewebhook.md:
+    id: eeaf368b6338
+    last_write_checksum: sha1:8848e4edc96177ad8f9afa17a6dcb80f3e0542ca
+    pristine_git_object: 3132ae923bec55f5540e858e7998d42ec160211d
+  docs/models/destinationwebhook.md:
+    id: c7672f3fe6cb
+    last_write_checksum: sha1:df98946f08391480b8b725c2032f60f1a0c55a91
+    pristine_git_object: a80231bdfeba18b58529dde05cffbfe00d66ce98
+  docs/models/destinationwebhooktype.md:
+    id: 4c9f7f92cd1b
+    last_write_checksum: sha1:35bcd14f1749058c423c190ea8072b865c648b5e
+    pristine_git_object: 73b01fa2404a327b05fc10f4f2f17257797ebd4a
+  docs/models/disabletenantdestinationglobals.md:
+    id: 3b52a15353ae
+    last_write_checksum: sha1:b15955a55f194a4ad939a7ece13e0238cf7d93d9
+    pristine_git_object: e065555a256c9b302768b10fc746a06c064efd9a
+  docs/models/disabletenantdestinationrequest.md:
+    id: 02a18ca7eb25
+    last_write_checksum: sha1:bbfe3d2b1418bf30e32b48c1c0dbbb83ea94f001
+    pristine_git_object: 549f16eac7178a233b537d0ad53f32518127b865
+  docs/models/enabletenantdestinationglobals.md:
+    id: 7894eefd4604
+    last_write_checksum: sha1:57b0948c2d7379a0979188afb58362126a8958d9
+    pristine_git_object: 6dc295ca0b67666f8f9bd0436f67c029d5194dc3
+  docs/models/enabletenantdestinationrequest.md:
+    id: 2c5a4336fe91
+    last_write_checksum: sha1:68db0e82ec04b6cb93fef367fc12e39c0f48521c
+    pristine_git_object: 5440ebe719c9ffe267a3416c40c16159f9359324
+  docs/models/event.md:
+    id: 311c22a8574a
+    last_write_checksum: sha1:33cfd478b88e1cefad47b56d85e634e27ac447d1
+    pristine_git_object: 7eaca768c38d41935e4e8786e2a7bf38eeccd9b5
+  docs/models/eventstatus.md:
+    id: 0848b1e061a2
+    last_write_checksum: sha1:c9c0a804cc02807d6e9fa7db0f0d2d9b82943352
+    pristine_git_object: d7e862741b3caace0db63936a675d8598c211e07
+  docs/models/gcppubsubconfig.md:
+    id: 73a8559c13a6
+    last_write_checksum: sha1:cc3c9973f838d2521151e9db34eedc1c732bbfd5
+    pristine_git_object: e9739d266e14e4a2248236e257368bdd11989a1a
+  docs/models/gcppubsubcredentials.md:
+    id: 680381031b8c
+    last_write_checksum: sha1:bd53ce9234d65775948655b13380f40a9a0115bc
+    pristine_git_object: c785edab1894fa93f3b5011161f15dd0caab3196
+  docs/models/getdestinationtypeschemarequest.md:
+    id: 7964f308b544
+    last_write_checksum: sha1:1cf8c0bf9c095ca337822676dacdfb6e43791c6a
+    pristine_git_object: ed2b060cec2286fdd60877337db7471644cb9e5a
+  docs/models/getdestinationtypeschematype.md:
+    id: 443fef4341c3
+    last_write_checksum: sha1:7494ddf2d53a9fda9ec92f582c32e31ad41a6e06
+    pristine_git_object: da1ac07ca51f6da4ccee3b303af5cf2c293c1042
+  docs/models/gettenantdestinationglobals.md:
+    id: f2fba6fde559
+    last_write_checksum: sha1:51045d4c2898e6902f1504c2f7cfd6b91f473ced
+    pristine_git_object: e5d2c43b1405407fa427276278b31609784e9374
+  docs/models/gettenantdestinationrequest.md:
+    id: 173425f3055d
+    last_write_checksum: sha1:f341ae5ec06c19c97ed1cb3dc4847deb0659b6c8
+    pristine_git_object: b13f98fb64ae2ba512fb7ccb4d7ce59a3bcd90fd
+  docs/models/gettenantdestinationtypeschemaglobals.md:
+    id: 10f874992547
+    last_write_checksum: sha1:d1fe501fb1f8d2b526bd5965fab8bc83a6ef9334
+    pristine_git_object: 0417f884f0f2a2578afeb0adb0dc41f2343ea091
+  docs/models/gettenantdestinationtypeschemarequest.md:
+    id: 6c72d6a01b8e
+    last_write_checksum: sha1:963c1f344b5e418156d337f1c566cb6f64f5d7ab
+    pristine_git_object: ee4eacdb5da2da97f6ad2ce46643616250bc220d
+  docs/models/gettenantdestinationtypeschematype.md:
+    id: 16d58a91204b
+    last_write_checksum: sha1:847e8ca6e9c46ddd3b382b28fa32eab5d47456ac
+    pristine_git_object: f240006d7b28d513b72b93ad94ae1ffb49fd0e70
+  docs/models/gettenanteventbydestinationglobals.md:
+    id: 22bc3be69853
+    last_write_checksum: sha1:d5da797c06bede1a8f5b636bbaafd428fa83a98e
+    pristine_git_object: 1bdb99d80af974a0225e5c9f43bab2148100f47e
+  docs/models/gettenanteventbydestinationrequest.md:
+    id: 9d7cfce778d3
+    last_write_checksum: sha1:f2faa0209c5705c0f8d562724d72d846f77c6e91
+    pristine_git_object: 9985c9cc02c3e9e8f5641ffcacfd7f3446e5fb8c
+  docs/models/gettenanteventglobals.md:
+    id: 376f81b4a788
+    last_write_checksum: sha1:b1868855e820eb4a2ce00d6f5117a17d2087af02
+    pristine_git_object: 960957a220f4e775fb4501ba7af8814e727908f9
+  docs/models/gettenanteventrequest.md:
+    id: ee5911b140a2
+    last_write_checksum: sha1:da6ed2a41d3342bb44d35aaf004ae76976111393
+    pristine_git_object: 3c0f13549dcb6f03ede155937a2cc1d9104bf2ab
+  docs/models/gettenantglobals.md:
+    id: b047609a217b
+    last_write_checksum: sha1:eea11a047bab0a21df2510781c534eea8d1edc06
+    pristine_git_object: 02bb02d091427cc1a986bab5286a9773facdfa34
+  docs/models/gettenantportalurlglobals.md:
+    id: 81ad8c57b6b2
+    last_write_checksum: sha1:8563e37a25c53d2384c0c8ed73b15bcac916c92b
+    pristine_git_object: 5020bcd668d22c94a0403de5f30f87914cfb2340
+  docs/models/gettenantportalurlrequest.md:
+    id: e0044217e8bd
+    last_write_checksum: sha1:34378ca8658411cdd16bfe4bb8660f4d0e853e89
+    pristine_git_object: d8ae191b5c79bd586eb292ace0df1f6c6a203316
+  docs/models/gettenantrequest.md:
+    id: 9db055156402
+    last_write_checksum: sha1:64d6e36cc78ce031f33a59c1a9ada2b9bae56318
+    pristine_git_object: 36d87c744560863a9ebc57f8e85bc66eae3e5434
+  docs/models/gettenanttokenglobals.md:
+    id: 6b2228c494c3
+    last_write_checksum: sha1:0a07bbf4eb9fd1d3ef440569f45abddb665cab40
+    pristine_git_object: b3a14f63d1d085a20e3cb6ad297e27c77691177b
+  docs/models/gettenanttokenrequest.md:
+    id: 32bf836a35b9
+    last_write_checksum: sha1:d83b1ffe074ae8ad00b40d0aafeb083deafea56b
+    pristine_git_object: 0ca4312ec5c0ae0a0edf8bb4deac9ae7aa41212f
+  docs/models/healthcheckresponse.md:
+    id: dbb2cc68ef9a
+    last_write_checksum: sha1:1d903b01217d05349eb60e2e5c88209490739451
+    pristine_git_object: 81362c49557d3e7fb06dd918b354bf500b535e4d
+  docs/models/healthcheckstatus1.md:
+    id: 3ff01c2abf0c
+    last_write_checksum: sha1:28a8875cc3b2d4286b0cb122130e70006e4d5c69
+    pristine_git_object: 40cb2e3cc81ac58d124191036fd12063a117668b
+  docs/models/healthcheckstatus2.md:
+    id: b357ee89ece3
+    last_write_checksum: sha1:3a5db301c6c45930826c5a04913d0d749a6292a2
+    pristine_git_object: 5eab037a79a81a00e06d21f60bda832528547103
+  docs/models/hookdeckcredentials.md:
+    id: 81b1ac6b3c47
+    last_write_checksum: sha1:0c6bdbd6b811008f476ba998cd2b18c2924b2432
+    pristine_git_object: 5b48b0e29a9892c22298413abf9e1662d4c70f6c
+  docs/models/internal/globals.md:
+    id: 9c173b87f41f
+    last_write_checksum: sha1:ab2027a3dff3b302da70b7ba13c0686e77a74463
+    pristine_git_object: a1d0aa0f05e450ed41b3c1f8cc6b13d22f24e9bb
+  docs/models/listtenantdestinationsglobals.md:
+    id: 4debca81cb79
+    last_write_checksum: sha1:8c9b8ae9633c435ede63b3f516411b43c0804ed0
+    pristine_git_object: e10dce6c573f93c74d201b25d2183d27fb1b4ea0
+  docs/models/listtenantdestinationsrequest.md:
+    id: a1c960e26be7
+    last_write_checksum: sha1:ce0bb73dc0fc969505f670eef4cdf810fa0cd711
+    pristine_git_object: d12d2e664c30eaa3203b156abcca75ee57e709d4
+  docs/models/listtenantdestinationstopics.md:
+    id: f495fffb06d5
+    last_write_checksum: sha1:f52327725b100deb9d6cb9be142594c74713f8f5
+    pristine_git_object: 4713f106a287e61f3e13a7d7805a86c2c9901f08
+  docs/models/listtenantdestinationstype.md:
+    id: a94cc1eae534
+    last_write_checksum: sha1:433f72db883050f35285a4bde018f055ea69c8e6
+    pristine_git_object: fdf4bf5254f80c08544b0295f6b5303d3dbf4cc0
+  docs/models/listtenantdestinationtypeschemasglobals.md:
+    id: cf7706da9a5a
+    last_write_checksum: sha1:8dddbb029bf801c7ec29c4b64868c67d72d081a5
+    pristine_git_object: 7e99e8292fd6a28c1bd5ae38b3e2edb158f47c47
+  docs/models/listtenantdestinationtypeschemasrequest.md:
+    id: 65f4f4a9254a
+    last_write_checksum: sha1:a9c0fb9a2bc347642d5030f61a78ce83bcc9e952
+    pristine_git_object: 9ed3477730a190bf7540e925e0f4d9eab9a8640b
+  docs/models/listtenanteventdeliveriesglobals.md:
+    id: f82f7034925b
+    last_write_checksum: sha1:4d773293be0f2e739d96e0b0bfedde7a4a2a7714
+    pristine_git_object: 08504e3b97f8ec68cb05ba948b7571ff5138e28b
+  docs/models/listtenanteventdeliveriesrequest.md:
+    id: d3373ce3e535
+    last_write_checksum: sha1:eced40f18a2ad93e18514d9d36c34899eff896d5
+    pristine_git_object: f0f86e83fa4ad12bab19865507d2ee2b67abb74f
+  docs/models/listtenanteventsbydestinationglobals.md:
+    id: 8858c34b8ac3
+    last_write_checksum: sha1:de533217e9d2af52f4acc1950d59c6299282c76e
+    pristine_git_object: 87fa91db9d5f21b57d9369a432a73f4363482c0d
+  docs/models/listtenanteventsbydestinationrequest.md:
+    id: 53d9322e951b
+    last_write_checksum: sha1:d98d213d05d7d28f9967eedbc10201b436838198
+    pristine_git_object: 6479ccdacc207d9f3538cebd40f040009ffb85b3
+  docs/models/listtenanteventsbydestinationresponse.md:
+    id: 6e4a2d7032bb
+    last_write_checksum: sha1:2376d25fb6d5b24ad9ff70d00e491db378b065cf
+    pristine_git_object: 7aff9813065dc5a6479c4e62c527708083a4c8b1
+  docs/models/listtenanteventsbydestinationresponsebody.md:
+    id: 2bdd49f0bb9c
+    last_write_checksum: sha1:31218c4b7033839fc33b7287769b85c08519b8cc
+    pristine_git_object: c00232ee90a14ac44a14821d7611609a7d89b146
+  docs/models/listtenanteventsbydestinationstatus.md:
+    id: ac2c1fc5fdd7
+    last_write_checksum: sha1:c1f306dcc21a48291db67e7abe2a9887c67c83fd
+    pristine_git_object: 921d197ec0bcb80bccc2aaf17735875c43002f79
+  docs/models/listtenanteventsglobals.md:
+    id: fc0997993812
+    last_write_checksum: sha1:edcdff733b6ffcaf29acc290cef2ad1906b67c8e
+    pristine_git_object: 4a5e6ffdb353d153a6e846fd601700429578cb71
+  docs/models/listtenanteventsrequest.md:
+    id: 2beca8462c10
+    last_write_checksum: sha1:bc764a3b88dd44e7c0f288915b38d0595bf329af
+    pristine_git_object: 70ce43875fd3deb9c5b83ca759faf678abd4bfe9
+  docs/models/listtenanteventsresponse.md:
+    id: da871141e5d2
+    last_write_checksum: sha1:096468dbc84b259a206f04c3ff4dfc7de4892fe7
+    pristine_git_object: ac9e10f45fc2df1a6fe51e3426ce7b07895dcb0c
+  docs/models/listtenanteventsresponsebody.md:
+    id: 47c25d5f0fde
+    last_write_checksum: sha1:9fe7e60d10410e844d8e779c12fd8402de6ca0d9
+    pristine_git_object: c2d859150d76fb3ee197bd1d2c43edf7acb00b50
+  docs/models/listtenanteventsstatus.md:
+    id: 5ace7b89b24a
+    last_write_checksum: sha1:a1588b94f92695d090cbb36d082d71b27128c63f
+    pristine_git_object: fe874f47f188bba9a36ded567c0f1f0995763077
+  docs/models/listtenantsrequest.md:
+    id: 39a7c6125a52
+    last_write_checksum: sha1:ce047470fd7471874ff74742a9acf1febdd24381
+    pristine_git_object: 02636c548d09dc64fa774b8bdbc8c82fc5cdac45
+  docs/models/listtenanttopicsglobals.md:
+    id: d42fce6b8741
+    last_write_checksum: sha1:62a53a4073f2374e2f7dfa25ff48a167af76e757
+    pristine_git_object: a3d9f25245b82d1d8f1ed0c5ffa5939b007c0dfe
+  docs/models/listtenanttopicsrequest.md:
+    id: 8b7f33bed2df
+    last_write_checksum: sha1:a72f5f4578e664389fa571fe3fd34e2bc09b4fa9
+    pristine_git_object: b67ebd67ca52f335f69db8b0b5026a60f72be7f2
+  docs/models/order.md:
+    id: 5d2682daf79b
+    last_write_checksum: sha1:082aabf3e2d581d9dc9fa58241fe283dc0ca2e82
+    pristine_git_object: 642ff364292a1954dce6a180076c05578acd932a
+  docs/models/portalredirect.md:
+    id: c3fc0cb823e3
+    last_write_checksum: sha1:15496013ace8b922ec2cf99c5ceade2324156ba1
+    pristine_git_object: 12bee4660a7ac3da793e4fdab5796da80956524a
+  docs/models/publishrequest.md:
+    id: c7ab0be725e8
+    last_write_checksum: sha1:5c44fe551b859eb66a76f03f5642d0bc241cff67
+    pristine_git_object: 3f93871438927dece956b07f9a220f0e1efa03b9
+  docs/models/publishresponse.md:
+    id: c623a9381358
+    last_write_checksum: sha1:a1f1c82b9b931cec1adff2c20d0e181e424822aa
+    pristine_git_object: 550350adabe5dde7c2e500f5b68ec479b40c2f32
+  docs/models/rabbitmqconfig.md:
+    id: 07b8dda5ddf2
+    last_write_checksum: sha1:29539f088754497c3a16fcaae9cf675c9d86bb5d
+    pristine_git_object: 8ca96121bece01a2c83f880b680e9e328634fa64
+  docs/models/rabbitmqcredentials.md:
+    id: 176996f7af13
+    last_write_checksum: sha1:bb9a947b04976d9a1dd0d25c5fda3ec5c4b2154e
+    pristine_git_object: c7cf5944a55902739196feefbea87f0a971eebca
+  docs/models/retrytenanteventglobals.md:
+    id: 73e00595d633
+    last_write_checksum: sha1:0d420c698de8866e547d53bbb766a5771eeca84c
+    pristine_git_object: b181050b3eb40caf19e499bf7cda92e12d43c3c3
+  docs/models/retrytenanteventrequest.md:
+    id: 47612096fa50
+    last_write_checksum: sha1:f9b56b0adbc7d4a2f8cdde6372077afd50476b0a
+    pristine_git_object: 79beee8283cdbe5b24d95b912ae1d18bb1b3f7d8
+  docs/models/security.md:
+    id: 452e4d4eb67a
+    last_write_checksum: sha1:da802b50b2022b00d7ccf30bd3ad67a510d6b19e
+    pristine_git_object: 4f1ea4adf5220086cccb27a6b76dc141dd5397f2
+  docs/models/successresponse.md:
+    id: 95d2dc3eecc0
+    last_write_checksum: sha1:9c2f61e7ea6cb7f1297ee05a59e3fcc8d9bb2829
+    pristine_git_object: c0e8059917e940b8872f0900fb30d378d7d40758
+  docs/models/tenant.md:
+    id: 5d923fdac371
+    last_write_checksum: sha1:07d66144dc8b81b22cb03d2ca42c546a650fce4a
+    pristine_git_object: 25ef14e9bb4ca77a07904c6386d14129bcf8fd35
+  docs/models/tenantlistitem.md:
+    id: f25652420a60
+    last_write_checksum: sha1:78890cbda71aecb58d2cd90296716c363ac0d663
+    pristine_git_object: beb2ea3c888f05cb4d877154e7719e673d1b3fa7
+  docs/models/tenantlistresponse.md:
+    id: c76eced417c2
+    last_write_checksum: sha1:7ec996843d41277567e687bcd7c1e8cf4238413c
+    pristine_git_object: 0ac3c092904273b8175ac27e4b2944b7be084619
+  docs/models/tenanttoken.md:
+    id: 0a6f43865892
+    last_write_checksum: sha1:9bd5e700be7e710f41fc3a41cb1a71f42b78a224
+    pristine_git_object: 94a944ae3fce8ebb70e4336d541baa6409f9ed63
+  docs/models/tenantupsert.md:
+    id: dc468f84ea2c
+    last_write_checksum: sha1:dfd6b90d179b3b70c0c20a0284354e562067ccad
+    pristine_git_object: 536a1d9e8ae653bf85cc9eef6fc355da5e46c507
+  docs/models/theme.md:
+    id: b90d5f791efe
+    last_write_checksum: sha1:f216da9bd483422786aedb7c47d379b5be36a779
+    pristine_git_object: 0614dcfb4b43e8b97cc843d75b118b3f8cac77aa
+  docs/models/tls.md:
+    id: b02be4f57050
+    last_write_checksum: sha1:1c375fdca1fcb8147898d51565822d807de95f58
+    pristine_git_object: d603f036d9956e516b2cfe5adb03692a4ac703cc
+  docs/models/topicsenum.md:
+    id: cf2a654b2451
+    last_write_checksum: sha1:79c16a529590c7be418c3b86d3fa93f61cc96a12
+    pristine_git_object: 1cd09d2e512b4df59e2359f94e8e376a08ebbff3
+  docs/models/topicsunion.md:
+    id: a8bf33e50e32
+    last_write_checksum: sha1:8f7f191427443cd4ba09dab75cdf1bd8b661de1b
+    pristine_git_object: 333ed39ceb47534ddd177aed49c2c8d5e1288a6f
+  docs/models/updatetenantdestinationglobals.md:
+    id: 35376ff5d5dc
+    last_write_checksum: sha1:7d7006aa274b673e315d4ff06be19e012646fd7d
+    pristine_git_object: a65ab79013bed26937a7751cda76a3ff2edaafa4
+  docs/models/updatetenantdestinationrequest.md:
+    id: a573c8a2ef7f
+    last_write_checksum: sha1:4c79ee580a6f57a9f5f12a355123b5e9a933326c
+    pristine_git_object: e9581e312dd85f01d3b934003868065a52645618
+  docs/models/updatetenantdestinationresponse.md:
+    id: 674595acc745
+    last_write_checksum: sha1:e727b2a45ef7fcc7090e34378f32ba2b07f1ebff
+    pristine_git_object: c63b5b37e3f0c27c765fa917cdfafcb28c0e4653
+  docs/models/upserttenantglobals.md:
+    id: e71803903523
+    last_write_checksum: sha1:e7a51b334689d96a54531a56eed04cbdb8e0a345
+    pristine_git_object: 29d23c926a6d25e45c65bdc91ed2620232d43481
+  docs/models/upserttenantrequest.md:
+    id: 9d9234f1fce9
+    last_write_checksum: sha1:9bedd51f98307c648390af656fb8446f3ba21568
+    pristine_git_object: 1bc55be44245617400b94dd500418da8bb7831e3
+  docs/models/utils/retryconfig.md:
+    id: 4343ac43161c
+    last_write_checksum: sha1:562c0f21e308ad10c27f85f75704c15592c6929d
+    pristine_git_object: 69dd549ec7f5f885101d08dd502e25748183aebf
+  docs/models/webhookconfig.md:
+    id: 84dbb4d5e052
+    last_write_checksum: sha1:89a653b1a0bffa120109d59a0f74e003ebb3179c
+    pristine_git_object: f2af882b065e73a20187a607240683483e05fad0
+  docs/models/webhookcredentials.md:
+    id: 42dbc7945a1e
+    last_write_checksum: sha1:45d9202855a23383150e0f0b3ed692718bb53ec8
+    pristine_git_object: 43d97c2cea9dc25796d1aa004eeb858d5fc9c8ac
+  docs/models/webhookcredentialsupdate.md:
+    id: c2531d2041c7
+    last_write_checksum: sha1:9c1b8a864df474e36d95a6a6d63b4d61c6db0129
+    pristine_git_object: 9e4282bf1c4d957824ec24085d0d9c7b0a8f665e
+  docs/models/workers.md:
+    id: e1c419105efc
+    last_write_checksum: sha1:d5352fa0819f731f75e8ade764e7a3cfdd7049bd
+    pristine_git_object: 36572088751475931126b4d86e8ea067ac214eed
+  docs/sdks/destinations/README.md:
+    id: e83d288899aa
+    last_write_checksum: sha1:d254d4ed7e6b77e68adebade64a95f014f2dea5c
+    pristine_git_object: b3c5e98f296454841f57f275d1a814e60c47c507
+  docs/sdks/events/README.md:
+    id: cf45a4390b9b
+    last_write_checksum: sha1:9ce8d9b929bb9ee3eede2f4bee1f86a04dfad7ba
+    pristine_git_object: 8417c68105834e9b4f9177f7023e8aeaa5905e2f
+  docs/sdks/health/README.md:
+    id: 5082c50d5e82
+    last_write_checksum: sha1:edbbd8aa126aa79f9db43884174dcadb6724b3d2
+    pristine_git_object: 450073a93bd5a48acda412a41083b545ab9c5604
+  docs/sdks/publish/README.md:
+    id: 370ef5537c93
+    last_write_checksum: sha1:a0f7d9d372b73dd78991f62a8536af053f969995
+    pristine_git_object: 3fb70cb90d30f2a7bdf6bc44fdfab705eda6ca76
+  docs/sdks/schemas/README.md:
+    id: 26a0abac640e
+    last_write_checksum: sha1:65231a3eaa2859560bc5f060e3ed710b0e38d302
+    pristine_git_object: 70a01490056cd98ecaf05db8f6b6f20b39e0cccb
+  docs/sdks/tenants/README.md:
+    id: 68a2b19779b5
+    last_write_checksum: sha1:257028549261d8b8c710a7b41145edfb9b07686a
+    pristine_git_object: 421496ba7b91648688dfc22c2c2b89c81cc64816
+  docs/sdks/topicssdk/README.md:
+    id: ee1b98e4769d
+    last_write_checksum: sha1:b5991a6ffef082c56799ef9c3977c87a3bf1bdeb
+    pristine_git_object: d603783d053454df0e62bcccc6d4ece0bff37b2f
+  poetry.toml:
+    id: a81ade82122a
+    last_write_checksum: sha1:2242305e29dc6921bdf5b200aea5d4bf67830230
+    pristine_git_object: cd3492ac9dc870fdcf23dbd94fd1d40cc753cc8e
+  py.typed:
+    id: 258c3ed47ae4
+    last_write_checksum: sha1:8efc425ffe830805ffcc0f3055871bdcdc542c60
+    pristine_git_object: 3e38f1a929f7d6b1d6de74604aa87e3d8f010544
+  pylintrc:
+    id: 7ce8b9f946e6
+    last_write_checksum: sha1:db2aebd83e553dd59d3965e79104a3fb780c403a
+    pristine_git_object: e8cd3e85682cd3d489cf3c5be75a0563d0c9f4bf
+  pyproject.toml:
+    id: 5d07e7d72637
+    last_write_checksum: sha1:fb2b829b10b6977d411a0349c70b69dc7496bc8a
+    pristine_git_object: 255213f6baf5bf9251cd9ad238d340a81559513f
+  scripts/prepare_readme.py:
+    id: e0c5957a6035
+    last_write_checksum: sha1:eb460f85c06b287fee629d997b2df75c92fa1cab
+    pristine_git_object: 2e9fa3be8114ff67bcc872fdec657e6bfca01271
+  scripts/publish.sh:
+    id: fe273b08f514
+    last_write_checksum: sha1:b31bafc19c15ab5ea925fdf8d5d4adce2b115a63
+    pristine_git_object: 2a3ead70ccc6228cbae1c5c8a319b1399f3804ea
+  src/outpost_sdk/__init__.py:
+    id: "420816085018"
+    last_write_checksum: sha1:da077c0bdfcef64a4a5aea91a17292f72fa2b088
+    pristine_git_object: 833c68cd526fe34aab2b7e7c45f974f7f4b9e120
+  src/outpost_sdk/_hooks/__init__.py:
+    id: 3c6594b52796
+    last_write_checksum: sha1:e3111289afd28ad557c21d9e2f918caabfb7037d
+    pristine_git_object: 2ee66cdd592fe41731c24ddd407c8ca31c50aec1
+  src/outpost_sdk/_hooks/sdkhooks.py:
+    id: 4b90a4b2de19
+    last_write_checksum: sha1:e60470a56ec72ad3e8a416862baf22db455b405f
+    pristine_git_object: 5a3d507e3480e79fa8a6f7f0eba76c4b3e30ca84
+  src/outpost_sdk/_hooks/types.py:
+    id: 0efcdf50e245
+    last_write_checksum: sha1:b524861d5d9ef24d6605bdfc9a1e4d37a4248245
+    pristine_git_object: b1777a2eacece4434c53b2e136158f0c1360707d
+  src/outpost_sdk/_version.py:
+    id: 22be68f35ad0
+    last_write_checksum: sha1:7d631daa4f594a68c584fb72ff55e8ce5eca90e7
+    pristine_git_object: 97d0f6a1c3e671201b09801b7af6d46da5938c1c
+  src/outpost_sdk/basesdk.py:
+    id: 06a87cb4bdaf
+    last_write_checksum: sha1:b009b4794d3bc426ab812ae401ae678c2ed8a6ed
+    pristine_git_object: 31ce35a30dfa71de49f055b40083baca20e75ced
+  src/outpost_sdk/destinations.py:
+    id: c941d7cf8960
+    last_write_checksum: sha1:c06dae3d9839d7e60865a87e2a1f303c91b32381
+    pristine_git_object: f4a57308d3563d591079af6820fc4d07a81e01c8
+  src/outpost_sdk/errors/__init__.py:
+    id: 8cd8140f4773
+    last_write_checksum: sha1:524bf1840e35a27c7675c3c37320f61f6303089b
+    pristine_git_object: c87d6cfe227e5e1cfddc54869ab6687cce6832bd
+  src/outpost_sdk/errors/apierror.py:
+    id: 615480a01233
+    last_write_checksum: sha1:547751790bbd2704372c3effd82f53bdeaaa74bd
+    pristine_git_object: 0bf469fa840b8f20710af842f8b6e7fd582353e5
+  src/outpost_sdk/errors/badrequest_error.py:
+    id: 1cc4b5489cfd
+    last_write_checksum: sha1:2199e3f8d3eb9156fd34a71a7b0559a8487b4efa
+    pristine_git_object: ec3a2abdecdfc402dfddd1381071d179f3cd242e
+  src/outpost_sdk/errors/internalservererror.py:
+    id: 6c5f91213f42
+    last_write_checksum: sha1:f379d052f165c22bf1d411c194800cf581f74086
+    pristine_git_object: a7edf4bd6c0360cf6bed25247b651cbc02fcd620
+  src/outpost_sdk/errors/listtenantsop.py:
+    id: 1aa5a73cfaec
+    last_write_checksum: sha1:a724614b63f8507e1aec3d433e594e63aa57edd8
+    pristine_git_object: d5339488b08dfd6bcbd48a6022bb64044a08a022
+  src/outpost_sdk/errors/no_response_error.py:
+    id: c5f4a1e17789
+    last_write_checksum: sha1:7f326424a7d5ae1bcd5c89a0d6b3dbda9138942f
+    pristine_git_object: 1deab64bc43e1e65bf3c412d326a4032ce342366
+  src/outpost_sdk/errors/notfound_error.py:
+    id: 1a8eff299dc0
+    last_write_checksum: sha1:fd10c9f116beaf6c573530d12082a500c6ffb2be
+    pristine_git_object: a69adcf7649688cc58fbe5c2200364c122a86400
+  src/outpost_sdk/errors/outposterror.py:
+    id: 897f8e3e5abc
+    last_write_checksum: sha1:3e45941c9c2e947d5fb448165c9f82f56f05bbf2
+    pristine_git_object: 2fdb77ce79f2e64a0ed8e5665d472fb948c23f7f
+  src/outpost_sdk/errors/ratelimited_error.py:
+    id: 4b725ec5ec92
+    last_write_checksum: sha1:74bd9144a76b400caa0355d58177edca09ce08d8
+    pristine_git_object: 0f67ceaa06b5e32566a0e55b8d1ec50f5ce72701
+  src/outpost_sdk/errors/responsevalidationerror.py:
+    id: bf0535856165
+    last_write_checksum: sha1:019a4794821826d7ff8a9736cd67663745f4db3a
+    pristine_git_object: 1505064ce9d8bc173ed2198357dc78ce99f62b64
+  src/outpost_sdk/errors/timeout_error.py:
+    id: dd56a4cb2580
+    last_write_checksum: sha1:793a806ff89da890ec2c33e0320643489bba8a3a
+    pristine_git_object: c1db32277b7b11a63f3f7f7d78a043b96b8801fa
+  src/outpost_sdk/errors/unauthorized_error.py:
+    id: 4a521084c264
+    last_write_checksum: sha1:09e228fe30c05fe04693a5da57a647c2132c5552
+    pristine_git_object: 38b68bb656c457a7801b6da04e384737dd5ffdb2
+  src/outpost_sdk/events.py:
+    id: 8b2e2ec7d8c0
+    last_write_checksum: sha1:a6e28c6cb308f2563a230db4ec700166da11288e
+    pristine_git_object: 57ce96b7b9a2b0ec243c1e5c83f9d94d41ae646a
+  src/outpost_sdk/health.py:
+    id: 10a3c4bcf747
+    last_write_checksum: sha1:aee0baed7d4d328e475db9081b1ed80615d53e15
+    pristine_git_object: f8b6eb78325393d186a6ba5388b319f5c75bf77b
+  src/outpost_sdk/httpclient.py:
+    id: "608165498304"
+    last_write_checksum: sha1:5e55338d6ee9f01ab648cad4380201a8a3da7dd7
+    pristine_git_object: 89560b566073785535643e694c112bedbd3db13d
+  src/outpost_sdk/models/__init__.py:
+    id: 690a20e1a54c
+    last_write_checksum: sha1:9124bf2f73659caa6d9c5d4290149aee97cb832b
+    pristine_git_object: bf4f35d7a5c7bd31fb9be4376e0433488c8d36df
+  src/outpost_sdk/models/awskinesisconfig.py:
+    id: fb8571913af4
+    last_write_checksum: sha1:506c97c6ee9be4aae2808a9d53c0cc327b87b8b9
+    pristine_git_object: e4d4c6e0b31939869c19b5e507f94dbb59f6371b
+  src/outpost_sdk/models/awskinesiscredentials.py:
+    id: 0578ec0c9b6e
+    last_write_checksum: sha1:22c3a71750f0c7855dcc663af8a5bb3f76a8046a
+    pristine_git_object: fd20ba04453faf4761e7b368a4538d0ffb54ac37
+  src/outpost_sdk/models/awss3config.py:
+    id: a2ed2a804efb
+    last_write_checksum: sha1:3622841fa850bd943fea719faecd40857265f463
+    pristine_git_object: 22d37583c095e4b384a59bd199e356efd85ea3dc
+  src/outpost_sdk/models/awss3credentials.py:
+    id: d64070cd6a9d
+    last_write_checksum: sha1:a09059e2fb0d4ab3c24e674dbc09c1bf2df00f93
+    pristine_git_object: 9a145cd91ea81e48637ca3b34d69b0de70feca12
+  src/outpost_sdk/models/awssqsconfig.py:
+    id: 8d2a992822e1
+    last_write_checksum: sha1:7fcee1254fd16c6476782369173ba39f7473d6aa
+    pristine_git_object: 4de8ead7679125a67def4a0b40e0d9e42ed5fa80
+  src/outpost_sdk/models/awssqscredentials.py:
+    id: 83be77c3aac0
+    last_write_checksum: sha1:4b7dab397f3c01c492eccc217cdf2bd263b8e2b7
+    pristine_git_object: 56f871ee9a650b9e12aaf5a481ecef56603e6bb8
+  src/outpost_sdk/models/azureservicebusconfig.py:
+    id: 9369230317df
+    last_write_checksum: sha1:b2015d2d8aee1a5d0047297e806d41f979005c5d
+    pristine_git_object: e57478049f03057c62b088f33898d70a17751e44
+  src/outpost_sdk/models/azureservicebuscredentials.py:
+    id: 335a5fe74daf
+    last_write_checksum: sha1:b9142ec67ffa4700e1b614cd5ccf64eac7a11278
+    pristine_git_object: 30d9b6df725736d076367450277f83c2c9829fc3
+  src/outpost_sdk/models/createtenantdestinationop.py:
+    id: 13d5940f603f
+    last_write_checksum: sha1:72ad52b600c4d6b37694db80b6328bd6640c9fa0
+    pristine_git_object: d79459c242ac76170421ccf7410c2700745c67ff
+  src/outpost_sdk/models/deletetenantdestinationop.py:
+    id: cdfdbedc82b2
+    last_write_checksum: sha1:e6eebabbe9446b59dc05c5bb730dbfbffaffa019
+    pristine_git_object: ddcf72d16e3bbeaf66ec5e9837185c20ea778a5d
+  src/outpost_sdk/models/deletetenantop.py:
+    id: 78ada8977846
+    last_write_checksum: sha1:11a7f2de718b91cf26591021dc74d45e9e982108
+    pristine_git_object: 766b94c07225fef6f434fd4aca1cf67fb802542f
+  src/outpost_sdk/models/deliveryattempt.py:
+    id: f90a38ee47ac
+    last_write_checksum: sha1:c92da084bed9e19ca36695dc5bcdc848c1f243a4
+    pristine_git_object: 9932bed4098df67d76831375ed19ab7279cbe718
+  src/outpost_sdk/models/destination.py:
+    id: 024b7643286a
+    last_write_checksum: sha1:3d69cb8b9708575c0bcd319a5e2cf1bc06dace3b
+    pristine_git_object: 590c793f35bd2473384ff6de31c60060aaedc81d
+  src/outpost_sdk/models/destinationawskinesis.py:
+    id: 55b5d40a6b01
+    last_write_checksum: sha1:92e9307e72bc072f02010ebdcb644ea0f768f7cf
+    pristine_git_object: 468a79ed3b553b2d154a27964e7c1fafa6600c2e
+  src/outpost_sdk/models/destinationawss3.py:
+    id: 8beea87159bf
+    last_write_checksum: sha1:88db432c7401badf4e0cd520ae200016caf8772b
+    pristine_git_object: 4745911a7e4ebef0368f8d33f6507aef036ba9be
+  src/outpost_sdk/models/destinationawssqs.py:
+    id: cdd8eb03e51b
+    last_write_checksum: sha1:6bbeaec8a32df522497fc749d599137df4cd681f
+    pristine_git_object: 2b1d4f1d83f594a6f7df70f6f39585dfe2ac8bde
+  src/outpost_sdk/models/destinationazureservicebus.py:
+    id: f1c2f3da46c7
+    last_write_checksum: sha1:371799b23b3cccf72502413029c68bd59c3e5d04
+    pristine_git_object: 5abccb3aae6b3235b1318dd21271d2949c97d9b4
+  src/outpost_sdk/models/destinationcreate.py:
+    id: e5897fffe64a
+    last_write_checksum: sha1:52cfabb563ef137c8df12aad66eba2813dfe695f
+    pristine_git_object: 24c3ffee86d177e46072439ea1c92379098bd76d
+  src/outpost_sdk/models/destinationcreateawskinesis.py:
+    id: c47c9be03ea9
+    last_write_checksum: sha1:2d101d017e6206197ecd88b3b6ff0f78d7e80a5b
+    pristine_git_object: f96e31ea022a7121aa960c578c5947e51c8ff3b8
+  src/outpost_sdk/models/destinationcreateawss3.py:
+    id: 2a12772aa193
+    last_write_checksum: sha1:77965addcbeceb409636852722af776acdf2604a
+    pristine_git_object: 46fde222bfd59f8cddf8f4e17b4fca6f93ccebac
+  src/outpost_sdk/models/destinationcreateawssqs.py:
+    id: d571450aa34c
+    last_write_checksum: sha1:8f88a41e49bb74ed797d4f2e8bc92e56c33ed7bb
+    pristine_git_object: 637d3538400da5b24bc22d438a14b98ac332d80e
+  src/outpost_sdk/models/destinationcreateazureservicebus.py:
+    id: 40b34cc6d212
+    last_write_checksum: sha1:6d117f805148a3447ba0cad1f7c968912c06d761
+    pristine_git_object: 2d572cef661b8c038f24857b1d995e19e4f44f22
+  src/outpost_sdk/models/destinationcreategcppubsub.py:
+    id: 175ea4a525fc
+    last_write_checksum: sha1:f1a1fd5df75b791caa04e8588e0f97292bcf958f
+    pristine_git_object: 4c7efe6dff815a1cdc467d6730cefb00de8e1576
+  src/outpost_sdk/models/destinationcreatehookdeck.py:
+    id: ff182a9732d1
+    last_write_checksum: sha1:555885a6d27d5e5ccd9505a69442ad6961e1575c
+    pristine_git_object: 8f0caee136d3111305ebd4cd85deb672672172ad
+  src/outpost_sdk/models/destinationcreaterabbitmq.py:
+    id: ef6476931b78
+    last_write_checksum: sha1:2ce88e291a9566670d6aa230dffb2f84362b560c
+    pristine_git_object: 69ff1be5063d9fe3c1793ecc3c738bc0186a94f7
+  src/outpost_sdk/models/destinationcreatewebhook.py:
+    id: 7957ca0fcac4
+    last_write_checksum: sha1:1dc4df3a5f06e38d312e74fc924928d8239cf050
+    pristine_git_object: e7a8a6a73f2d2a7ec7db922f916759e672577674
+  src/outpost_sdk/models/destinationgcppubsub.py:
+    id: b9c427853f36
+    last_write_checksum: sha1:1bfd157b1fa91aefef5b3378ae46820cae215189
+    pristine_git_object: 95bbc36c9ce981be82f9a6dfce95c02d52b19d21
+  src/outpost_sdk/models/destinationhookdeck.py:
+    id: e77c8b7fe514
+    last_write_checksum: sha1:abdec366e0a7770a6c80c213aa7516d506e7c93f
+    pristine_git_object: 284b5654f95d05d2d41939bb8466d032fbb6aec0
+  src/outpost_sdk/models/destinationrabbitmq.py:
+    id: 31e01ead2367
+    last_write_checksum: sha1:426433a10e4bc992e5adaef4964e67fd5cf16c93
+    pristine_git_object: ebbcb2657b8bf00d5872ff54b9d86c347eea8148
+  src/outpost_sdk/models/destinationschemafield.py:
+    id: 9fea102c01b8
+    last_write_checksum: sha1:fc8bf7066a02708bc67cdab25e76aca5169366e6
+    pristine_git_object: 8727389664dd12d6597837765c74d507e43217fc
+  src/outpost_sdk/models/destinationtype.py:
+    id: "314568989242"
+    last_write_checksum: sha1:7e4670afa60a4ed4bf05be1b858ed93577d1c3d4
+    pristine_git_object: 8f9c912b233d40dec83e313303befd79452c3ebe
+  src/outpost_sdk/models/destinationtypeschema.py:
+    id: 52670c29e85e
+    last_write_checksum: sha1:591450ccd0dd10d889a5deb1ad15ca103a582709
+    pristine_git_object: d6ac3382bc047ec690e67730d7cfa362a11e6333
+  src/outpost_sdk/models/destinationupdate.py:
+    id: 4791a55bcc9b
+    last_write_checksum: sha1:e03fbdac995d27c0df4680d2fe07bb6f95ec1273
+    pristine_git_object: 8af5e55b32919687a5bd097d0a0012c4543f775f
+  src/outpost_sdk/models/destinationupdateawskinesis.py:
+    id: 4fafb7c70bff
+    last_write_checksum: sha1:f04f4d2953e0d202e65b09791408a835a41fca94
+    pristine_git_object: 2bbc6d5d58f944f37fe6360c56d4491dea2f6838
+  src/outpost_sdk/models/destinationupdateawss3.py:
+    id: 46ad0c46a423
+    last_write_checksum: sha1:7e62b5247824a5df09e24a9e5743538f8330b0e3
+    pristine_git_object: aae033b983d3da1ce4979a18a40ab14298a63c3d
+  src/outpost_sdk/models/destinationupdateawssqs.py:
+    id: 26cfbd4e6127
+    last_write_checksum: sha1:1710ec83b4a756c637770dbaf7cc4efc854b8173
+    pristine_git_object: dfa5d9a5dad9248120b636cf721a7a396cf85d4d
+  src/outpost_sdk/models/destinationupdateazureservicebus.py:
+    id: 255b1dd4b368
+    last_write_checksum: sha1:55334112ff46a7417c1ff53e8ccacbcec9c87bd6
+    pristine_git_object: 9ec8df59b154fe8b252b988f398d95cf08036d1d
+  src/outpost_sdk/models/destinationupdategcppubsub.py:
+    id: 970389551c42
+    last_write_checksum: sha1:946ab460eb89d1e543c34fe510300013a0a1587f
+    pristine_git_object: a56bb0872cf5fdc882e8d81ae83f61e550fb18dc
+  src/outpost_sdk/models/destinationupdatehookdeck.py:
+    id: e1c91a86e3a2
+    last_write_checksum: sha1:d13e310f5a914683d4318a48dbe727ffe09f81b5
+    pristine_git_object: 52574c322676305f4b4da55e75bb84db80a050b4
+  src/outpost_sdk/models/destinationupdaterabbitmq.py:
+    id: 92e3f15788ed
+    last_write_checksum: sha1:3321f9655b4e8cef721d1cf06a0f8bb10e64dc5f
+    pristine_git_object: 9549e5d9ce479e7c7c330bf7defe5ce43d15c8a0
+  src/outpost_sdk/models/destinationupdatewebhook.py:
+    id: 9c02c3e9e713
+    last_write_checksum: sha1:6bdeaa022f6c930c397c7952f6f6515ccf79b590
+    pristine_git_object: 7d451420bb89c7132756453f17b9269b76ace809
+  src/outpost_sdk/models/destinationwebhook.py:
+    id: 4c4e5b9c334f
+    last_write_checksum: sha1:e501a92d10e069d30daef69234dc4edf46381f90
+    pristine_git_object: 18d7fb6bf8fcb009282983842d6734aeb09a204f
+  src/outpost_sdk/models/disabletenantdestinationop.py:
+    id: e0cea60a05fd
+    last_write_checksum: sha1:6e18dcb389996b60cef3d0b12537dc5941efb3f8
+    pristine_git_object: bbe7f77e559983fd30cff719b3d99225ebe56b4c
+  src/outpost_sdk/models/enabletenantdestinationop.py:
+    id: 2d8982ad60bf
+    last_write_checksum: sha1:a8aef4095b5673c4a23a86e93acff9f189e23813
+    pristine_git_object: fc673c20328dad3ead38ffe977e535290e97c8bd
+  src/outpost_sdk/models/event.py:
+    id: d76334f49c72
+    last_write_checksum: sha1:b3a5a2c7ec0a4d06870b393dc395b799adcaef15
+    pristine_git_object: 8990d0d934cbb4b72535f0ad94f52afa1e8bd5df
+  src/outpost_sdk/models/gcppubsubconfig.py:
+    id: 5088ceb75781
+    last_write_checksum: sha1:bdc4cdce9ff95e9b4a55c173469e7417b86dc02f
+    pristine_git_object: 8c8e730db9c2862a37f5911c2339b58343d282fb
+  src/outpost_sdk/models/gcppubsubcredentials.py:
+    id: abca05169737
+    last_write_checksum: sha1:dc8390c93bf25ac535e88256a7e4d5b4717055f1
+    pristine_git_object: 359c1110785eb1541c9db38d18edf145df04bfc6
+  src/outpost_sdk/models/getdestinationtypeschemaop.py:
+    id: c2eac8f2bbca
+    last_write_checksum: sha1:4e5a90bad84cff961d514c709c46a6e5a9e3ee5b
+    pristine_git_object: 8c99b9e519b25f7a2a7e48ee0f7476d913bf2e07
+  src/outpost_sdk/models/gettenantdestinationop.py:
+    id: 6f1966ca7278
+    last_write_checksum: sha1:65e4c9d8f48fc85c0796a27fd8474bbaba0df1c3
+    pristine_git_object: b4ab6df0e9cf2aa3289a243d6a9eb9823a9e494b
+  src/outpost_sdk/models/gettenantdestinationtypeschemaop.py:
+    id: 818c7e8d99b6
+    last_write_checksum: sha1:133119b2f9c491afc588d6b8384dceb962dc537e
+    pristine_git_object: 74cb78d37bfa821106085cff31b76c91cb35f4ac
+  src/outpost_sdk/models/gettenanteventbydestinationop.py:
+    id: e81b3b930788
+    last_write_checksum: sha1:8b419349e9f93879539c68b6f9a866e652830339
+    pristine_git_object: 5db825ba4d442ae05226f10a89f2d8391b71f26c
+  src/outpost_sdk/models/gettenanteventop.py:
+    id: a46b669ce6c0
+    last_write_checksum: sha1:fb437ddd1636131484017fce44b64a363d06473f
+    pristine_git_object: 6ed94aacffd33238295b9c66b4027c5011af49d9
+  src/outpost_sdk/models/gettenantop.py:
+    id: 0fa1186c6fdf
+    last_write_checksum: sha1:d53065d2b1e298dcd250481bffcad0b239f31cef
+    pristine_git_object: fa2fa4571d7d1fd0bd69ae42c57de4b632485ec3
+  src/outpost_sdk/models/gettenantportalurlop.py:
+    id: 3475f159387a
+    last_write_checksum: sha1:90abed39740d811c167e2c61ee9b7d7bbf0c97f0
+    pristine_git_object: 0ff178615fa8c29a1e00e3cec77508eac1fbe465
+  src/outpost_sdk/models/gettenanttokenop.py:
+    id: 4db19b635abf
+    last_write_checksum: sha1:5aca10d0637be788ff1f24587ac63947c7982e6f
+    pristine_git_object: 3da471e1d3031e3783d90c0e3e710ac6ae04a1e2
+  src/outpost_sdk/models/healthcheckop.py:
+    id: 3215956eec3e
+    last_write_checksum: sha1:f77cc945fd864aaba715ac55522c10f1622c6d14
+    pristine_git_object: 954bf84fff0ab29181741cf85c129b54e4706acc
+  src/outpost_sdk/models/hookdeckcredentials.py:
+    id: 041a365549a7
+    last_write_checksum: sha1:04adb83d109e614b3f7e7fee62ebdcf406155008
+    pristine_git_object: 090b478df5d6be4f69b4460766fb4f87411d2d43
+  src/outpost_sdk/models/internal/__init__.py:
+    id: b17f8d9540fa
+    last_write_checksum: sha1:5beaf7e5a713d3eead465c6edcfdeb7f8076175c
+    pristine_git_object: e7070a1222c2ed3fa3f6f54e6f122cae7ff9a449
+  src/outpost_sdk/models/internal/globals.py:
+    id: 0e657981f4ef
+    last_write_checksum: sha1:576a44c12395fd64e52d3a2335ef908fe0fc10e3
+    pristine_git_object: f38e029fc5cdf7ee23d024a7fb0ad7ef370e4098
+  src/outpost_sdk/models/listtenantdestinationsop.py:
+    id: 8e9d6032dbe9
+    last_write_checksum: sha1:cf610c97a1ee1092eaf792a4a8079cd65c66a82c
+    pristine_git_object: 4f0fed59d5e208ba818f23cf71e9f79750fc58e7
+  src/outpost_sdk/models/listtenantdestinationtypeschemasop.py:
+    id: d45f6132071b
+    last_write_checksum: sha1:e00f1d4bd5361ec80e9a34709f0ffe6dd8110af4
+    pristine_git_object: 79ac16559d1532a56101edf8d0ebd4f847c1c369
+  src/outpost_sdk/models/listtenanteventdeliveriesop.py:
+    id: 0bbb913adaa4
+    last_write_checksum: sha1:3488cc4840b4027b609e086193f9d1601b213b29
+    pristine_git_object: b39385b2529907aa7f08af8117d64f30fff8333d
+  src/outpost_sdk/models/listtenanteventsbydestinationop.py:
+    id: 24302558bc53
+    last_write_checksum: sha1:8e5c00762739e96813ea02990283964910cb7eaa
+    pristine_git_object: d8218bac891f0a3531933189e4836d107b1c2dbe
+  src/outpost_sdk/models/listtenanteventsop.py:
+    id: 0617998b8a18
+    last_write_checksum: sha1:3e4866919b12876e82fb208ab2321b17eb619f62
+    pristine_git_object: 1f119028425d7aec52cafa21243971391835fb96
+  src/outpost_sdk/models/listtenantsop.py:
+    id: 4f4212a7d66b
+    last_write_checksum: sha1:ac779d93cdfc356b38ddc406b898d9341b511508
+    pristine_git_object: afee00ea9a1278ff92905d9ca44312a17701d2df
+  src/outpost_sdk/models/listtenanttopicsop.py:
+    id: 4dc8762cf6d7
+    last_write_checksum: sha1:5bab0a987bd66e9e54e32dbb324e1e61c5ff768c
+    pristine_git_object: 3526a0d55086653ccba2ec32a74b7d1ffb953491
+  src/outpost_sdk/models/portalredirect.py:
+    id: 24df1cb14669
+    last_write_checksum: sha1:7ea043843217141238fad319d81660d5ca7da14c
+    pristine_git_object: b51b4dccd682e2c9e589b3eaa8fef2c9dee027ad
+  src/outpost_sdk/models/publishrequest.py:
+    id: baf66d2d3cc8
+    last_write_checksum: sha1:36597f446fe2255c180eb32e0bcc3b545d215b03
+    pristine_git_object: 289ed5e90f26caa0c97b87a315bd4bf34a815548
+  src/outpost_sdk/models/publishresponse.py:
+    id: 9654d8ee9d84
+    last_write_checksum: sha1:2e0430dda68f7a24ffdf8c87743d66975d83f35d
+    pristine_git_object: f523133f6eef90b989504a9191450130ec0cf848
+  src/outpost_sdk/models/rabbitmqconfig.py:
+    id: 9052e976265f
+    last_write_checksum: sha1:f81a2d7f793c82912f4f414844807b7637ccdd78
+    pristine_git_object: 1c7495d846a476df251424bc9a076536b6acd461
+  src/outpost_sdk/models/rabbitmqcredentials.py:
+    id: 4fd25a9a0775
+    last_write_checksum: sha1:02394a65044b85394a0a1cbdb6f63875f0142c83
+    pristine_git_object: 5cc38becb768c93078dbb09d7927c7141484b300
+  src/outpost_sdk/models/retrytenanteventop.py:
+    id: e869b381d28f
+    last_write_checksum: sha1:5e04a8c646c2bbc117ec653963bcd4be0ada8e4d
+    pristine_git_object: 9393cb06dc1639cb15097fb132ab5555f60e4d22
+  src/outpost_sdk/models/security.py:
+    id: e6e012493b56
+    last_write_checksum: sha1:0ebb912abf4790f141c3263f114abca82be22ec6
+    pristine_git_object: 3283447301e1b6981ad739401f66b120def01df3
+  src/outpost_sdk/models/successresponse.py:
+    id: 8d64048dbebc
+    last_write_checksum: sha1:49482bfbdcc3c5c20c60c31d134400b45738ebb7
+    pristine_git_object: dc3d0c321bc0686e509752e9f6f8d950fe99c9f6
+  src/outpost_sdk/models/tenant.py:
+    id: 9b3af67659ce
+    last_write_checksum: sha1:c61fc37f690dad4ab2f137cb50a754e0a5e03ebf
+    pristine_git_object: 9f076c682c513e92b0e3dc88d9d738e1de2114b3
+  src/outpost_sdk/models/tenantlistitem.py:
+    id: 078db2ac73bb
+    last_write_checksum: sha1:809e377baf51c29a1c296dd469e6ed2662a5615d
+    pristine_git_object: bb3afa5414aeef64c2b38e4284b2cbaa7f211ab8
+  src/outpost_sdk/models/tenantlistresponse.py:
+    id: aad2108aaf95
+    last_write_checksum: sha1:9f91536f0c61142c5d3bf37d0815f26ee850ef6e
+    pristine_git_object: bd5038020df3fc00af1de69a98dd1a50bfa97326
+  src/outpost_sdk/models/tenanttoken.py:
+    id: cc80422b1099
+    last_write_checksum: sha1:60674a805301142cff82e3146baaaeb7941c44c0
+    pristine_git_object: b11906d8d3fadfa12adddb28e0d80aba632d56a6
+  src/outpost_sdk/models/tenantupsert.py:
+    id: 7a3647aa74bf
+    last_write_checksum: sha1:4ad5494203c0e6602ba0024a8a9e1501a2dda723
+    pristine_git_object: 842dbeaaa4bd4585ed47fb902d57b500823547a4
+  src/outpost_sdk/models/topics_union.py:
+    id: 5f1555c3c073
+    last_write_checksum: sha1:a13581e78aed2368e38df7877d3eb01950490eaf
+    pristine_git_object: 5f812aa065ab1e8409d325052ac9cb77de353722
+  src/outpost_sdk/models/updatetenantdestinationop.py:
+    id: a50aeefe37f9
+    last_write_checksum: sha1:637de913b650d7c867ff4f81b6cc1ebd2e237246
+    pristine_git_object: 7382a36c7465016e8406b57e179ccb1a0db40e9f
+  src/outpost_sdk/models/upserttenantop.py:
+    id: 70ae30767fa8
+    last_write_checksum: sha1:8ce132982a6d04bbd02613f7b72184169bd4d180
+    pristine_git_object: a65ccc4d3cf925a2aa9188611865b37d55797671
+  src/outpost_sdk/models/webhookconfig.py:
+    id: fe92488cf40a
+    last_write_checksum: sha1:d2b3e43e90f8b573e8bccecf395fe8bc03a331d6
+    pristine_git_object: 9da323289ec68b5c083b97c57eb22888f85999d3
+  src/outpost_sdk/models/webhookcredentials.py:
+    id: b7f3472f7eaf
+    last_write_checksum: sha1:81acb1fe1fbbcc54313056bca754a54cf9f5e64b
+    pristine_git_object: f4b9e2dd1ca23b3bfcb303cbdd91cb68d94b138d
+  src/outpost_sdk/models/webhookcredentialsupdate.py:
+    id: 7d38cc3a7838
+    last_write_checksum: sha1:4a12c21f80da8f289e63fd2f0525230811337cde
+    pristine_git_object: 89b3e3f4f4c236f9ce541907a665e0e685fd568c
+  src/outpost_sdk/publish.py:
+    id: 9022d8173f51
+    last_write_checksum: sha1:63de3b1c68d957d90681b020997bf7148c4260a0
+    pristine_git_object: 34ae85714eced9b162286acf6a5d43a94d54d4ce
+  src/outpost_sdk/py.typed:
+    id: 4f30ed072a58
+    last_write_checksum: sha1:8efc425ffe830805ffcc0f3055871bdcdc542c60
+    pristine_git_object: 3e38f1a929f7d6b1d6de74604aa87e3d8f010544
+  src/outpost_sdk/schemas.py:
+    id: 8b85dbe9fc05
+    last_write_checksum: sha1:6f88c51214b0668a24125c58da8ec27f0452073f
+    pristine_git_object: b8f7a8d5eec8b5b517aafd0573af2c36485d940c
+  src/outpost_sdk/sdk.py:
+    id: 745ed80a189d
+    last_write_checksum: sha1:35e380e19931f3d39b2bb05f431f99a4fb5af8c2
+    pristine_git_object: 3a8aad5292c1dcd9f2ed73cfe40f54915f8a8dd9
+  src/outpost_sdk/sdkconfiguration.py:
+    id: 730fcc1ee551
+    last_write_checksum: sha1:5809ed20e69cde5aa5575b5bf86ae4912cebf409
+    pristine_git_object: 941298c482ace0cfd772a9e7ec51da9c5cc4886c
+  src/outpost_sdk/tenants.py:
+    id: 6575cae7064e
+    last_write_checksum: sha1:546a2dffd62de85236f1639e9d4822710f72aa78
+    pristine_git_object: 888e378535ea4a2fafbd194c82f32f626f2a9391
+  src/outpost_sdk/topics_sdk.py:
+    id: 7e5ee20344bd
+    last_write_checksum: sha1:35006451cd6d43f968e93f73d68985f6f4d71d1f
+    pristine_git_object: 6fc6f59c22bc1f1c3ea7802195466eacf8334ba3
+  src/outpost_sdk/types/__init__.py:
+    id: 6a8947a74498
+    last_write_checksum: sha1:140ebdd01a46f92ffc710c52c958c4eba3cf68ed
+    pristine_git_object: fc76fe0c5505e29859b5d2bb707d48fd27661b8c
+  src/outpost_sdk/types/basemodel.py:
+    id: a135d73a3022
+    last_write_checksum: sha1:10d84aedeb9d35edfdadf2c3020caa1d24d8b584
+    pristine_git_object: a9a640a1a7048736383f96c67c6290c86bf536ee
+  src/outpost_sdk/utils/__init__.py:
+    id: 8e61e7189087
+    last_write_checksum: sha1:398211d49b762a067ec6d10197a4b11dfd258ff5
+    pristine_git_object: c906e1e0192e9017fc13851eb23fc0c2753429c8
+  src/outpost_sdk/utils/annotations.py:
+    id: 5bb9f518a4aa
+    last_write_checksum: sha1:a4824ad65f730303e4e1e3ec1febf87b4eb46dbc
+    pristine_git_object: 12e0aa4f1151bb52474cc02e88397329b90703f6
+  src/outpost_sdk/utils/datetimes.py:
+    id: f526f90f9693
+    last_write_checksum: sha1:c721e4123000e7dc61ec52b28a739439d9e17341
+    pristine_git_object: a6c52cd61bbe2d459046c940ce5e8c469f2f0664
+  src/outpost_sdk/utils/enums.py:
+    id: 0e45cf29e59d
+    last_write_checksum: sha1:bc8c3c1285ae09ba8a094ee5c3d9c7f41fa1284d
+    pristine_git_object: 3324e1bc2668c54c4d5f5a1a845675319757a828
+  src/outpost_sdk/utils/eventstreaming.py:
+    id: 820142ef32ea
+    last_write_checksum: sha1:bababae5d54b7efc360db701daa49e18a92c2f3b
+    pristine_git_object: 0969899bfc491e5e408d05643525f347ea95e4fc
+  src/outpost_sdk/utils/forms.py:
+    id: 906e4bc25e36
+    last_write_checksum: sha1:15fa7e9ab1611e062a9984cf06cb20969713d295
+    pristine_git_object: f961e76beaf0a8b1fe0dda44754a74eebd3608e7
+  src/outpost_sdk/utils/headers.py:
+    id: bc69a402eee7
+    last_write_checksum: sha1:7c6df233ee006332b566a8afa9ce9a245941d935
+    pristine_git_object: 37864cbbbc40d1a47112bbfdd3ba79568fc8818a
+  src/outpost_sdk/utils/logger.py:
+    id: 942d188ce41b
+    last_write_checksum: sha1:f3fdb154a3f09b8cc43d74c7e9c02f899f8086e4
+    pristine_git_object: b661aff65d38b77d035149699aea09b2785d2fc6
+  src/outpost_sdk/utils/metadata.py:
+    id: 850a0e3be791
+    last_write_checksum: sha1:c6a560bd0c63ab158582f34dadb69433ea73b3d4
+    pristine_git_object: 173b3e5ce658675c2f504222a56b3daaaa68107d
+  src/outpost_sdk/utils/queryparams.py:
+    id: 31e380170c03
+    last_write_checksum: sha1:b94c3f314fd3da0d1d215afc2731f48748e2aa59
+    pristine_git_object: c04e0db82b68eca041f2cb2614d748fbac80fd41
+  src/outpost_sdk/utils/requestbodies.py:
+    id: 99737fa2de7e
+    last_write_checksum: sha1:41e2d2d2d3ecc394c8122ca4d4b85e1c3e03f054
+    pristine_git_object: 1de32b6d26f46590232f398fdba6ce0072f1659c
+  src/outpost_sdk/utils/retries.py:
+    id: febe03add039
+    last_write_checksum: sha1:5b97ac4f59357d70c2529975d50364c88bcad607
+    pristine_git_object: 88a91b10cd2076b4a2c6cff2ac6bfaa5e3c5ad13
+  src/outpost_sdk/utils/security.py:
+    id: 575c509050a4
+    last_write_checksum: sha1:a17130ace2c0db6394f38dd941ad2b700cc755c8
+    pristine_git_object: 295a3f40031dbb40073ad227fd4a355660f97ab2
+  src/outpost_sdk/utils/serializers.py:
+    id: a71d1afce9d8
+    last_write_checksum: sha1:ce1d8d7f500a9ccba0aeca5057cee9c271f4dfd7
+    pristine_git_object: 14321eb479de81d0d9580ec8291e0ff91bf29e57
+  src/outpost_sdk/utils/unmarshal_json_response.py:
+    id: 559ebd25bf1b
+    last_write_checksum: sha1:7a229b6339ba72cb62a8a15f9bce02567eeb511f
+    pristine_git_object: dd5602b7b691a9a0641f24ff5fe58d960e9450e6
+  src/outpost_sdk/utils/url.py:
+    id: d805095de3d1
+    last_write_checksum: sha1:6479961baa90432ca25626f8e40a7bbc32e73b41
+    pristine_git_object: c78ccbae426ce6d385709d97ce0b1c2813ea2418
+  src/outpost_sdk/utils/values.py:
+    id: 7ebef851af02
+    last_write_checksum: sha1:acaa178a7c41ddd000f58cc691e4632d925b2553
+    pristine_git_object: dae01a44384ac3bc13ae07453a053bf6c898ebe3
+examples:
+  healthCheck:
+    speakeasy-default-health-check:
+      responses:
+        "200":
+          text/plain: "<value>"
+          application/json: {"status": "healthy", "timestamp": "2025-11-11T10:30:00Z", "workers": {"key": {"status": "healthy"}}}
+        "404":
+          application/json: {}
+        "401":
+          application/json: {}
+        "408":
+          application/json: {}
+        "429":
+          application/json: {}
+        "400":
+          application/json: {}
+        "504":
+          application/json: {}
+        "501":
+          application/json: {}
+        "500":
+          application/json: {}
+        "510":
+          application/json: {}
+        "511":
+          application/json: {}
+  upsertTenant:
+    TenantExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+      responses:
+        "200":
+          application/json: {"id": "tenant_123", "destinations_count": 5, "topics": ["user.created", "user.deleted"], "created_at": "2024-01-01T00:00:00Z"}
+    speakeasy-default-upsert-tenant:
+      parameters:
+        path:
+          tenant_id: "<id>"
+      responses:
+        "200":
+          application/json: {"id": "123", "destinations_count": 5, "topics": ["user.created", "user.deleted"], "created_at": "2024-01-01T00:00:00Z", "updated_at": "2024-01-01T00:00:00Z"}
+  getTenant:
+    TenantExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+      responses:
+        "200":
+          application/json: {"id": "tenant_123", "destinations_count": 5, "topics": ["user.created", "user.deleted"], "created_at": "2024-01-01T00:00:00Z"}
+    speakeasy-default-get-tenant:
+      parameters:
+        path:
+          tenant_id: "<id>"
+      responses:
+        "200":
+          application/json: {"id": "123", "destinations_count": 5, "topics": ["user.created", "user.deleted"], "created_at": "2024-01-01T00:00:00Z", "updated_at": "2024-01-01T00:00:00Z"}
+  deleteTenant:
+    SuccessExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+      responses:
+        "200":
+          application/json: {"success": true}
+  getTenantPortalUrl:
+    PortalRedirectExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+        query: {}
+      responses:
+        "200":
+          application/json: {"redirect_url": "https://webhooks.acme.com/?token=JWT_TOKEN&tenant_id=tenant_123", "tenant_id": "tenant_123"}
+  getTenantToken:
+    TenantTokenExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+      responses:
+        "200":
+          application/json: {"token": "SOME_JWT_TOKEN", "tenant_id": "tenant_123"}
+  listTenantDestinations:
+    DestinationsListExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+        query:
+          type: "webhook"
+      responses:
+        "200":
+          application/json: [{"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "updated_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}, {"id": "des_sqs_456", "type": "aws_sqs", "topics": ["*"], "disabled_at": "2024-03-01T12:00:00Z", "created_at": "2024-02-20T11:30:00Z", "updated_at": "2024-02-20T11:30:00Z", "config": {"endpoint": "https://sqs.us-west-2.amazonaws.com", "queue_url": "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}, {"id": "des_s3_789", "type": "aws_s3", "topics": ["*"], "disabled_at": null, "created_at": "2024-03-20T12:00:00Z", "updated_at": "2024-03-20T12:00:00Z", "config": {"bucket": "my-bucket", "region": "us-east-1"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}]
+  createTenantDestination:
+    WebhookCreatedExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+      requestBody:
+        application/json: {"id": "user-provided-id", "type": "rabbitmq", "topics": "*", "config": {"server_url": "localhost:5672", "exchange": "my-exchange", "tls": "false"}, "credentials": {"username": "guest", "password": "guest"}}
+      responses:
+        "201":
+          application/json: {"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "updated_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456"}}
+  getTenantDestination:
+    WebhookGetExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+          destination_id: "<id>"
+      responses:
+        "200":
+          application/json: {"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "updated_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}
+  updateTenantDestination:
+    DestinationUpdatedExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+          destination_id: "<id>"
+      requestBody:
+        application/json: {"topics": "*", "config": {"server_url": "localhost:5672", "exchange": "my-exchange", "tls": "false"}, "credentials": {"username": "guest", "password": "guest"}}
+      responses:
+        "200":
+          application/json: {"id": "des_webhook_123", "type": "webhook", "topics": ["user.created"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "updated_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/new-handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}
+  deleteTenantDestination:
+    SuccessExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+          destination_id: "<id>"
+      responses:
+        "200":
+          application/json: {"success": true}
+  enableTenantDestination:
+    WebhookEnabledExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+          destination_id: "<id>"
+      responses:
+        "200":
+          application/json: {"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "updated_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}
+  disableTenantDestination:
+    WebhookDisabledExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+          destination_id: "<id>"
+      responses:
+        "200":
+          application/json: {"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": "2024-04-11T21:00:00Z", "created_at": "2024-02-15T10:00:00Z", "updated_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}
+  publishEvent:
+    speakeasy-default-publish-event:
+      requestBody:
+        application/json: {"id": "evt_custom_123", "tenant_id": "<TENANT_ID>", "destination_id": "<DESTINATION_ID>", "topic": "topic.name", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}
+      responses:
+        "404":
+          application/json: {}
+        "403":
+          application/json: {}
+        "408":
+          application/json: {}
+        "429":
+          application/json: {}
+        "413":
+          application/json: {}
+        "504":
+          application/json: {}
+        "501":
+          application/json: {}
+        "500":
+          application/json: {}
+        "510":
+          application/json: {}
+        "511":
+          application/json: {}
+        "202":
+          application/json: {"id": "evt_abc123xyz789", "duplicate": false}
+  listTenantDestinationTypeSchemas:
+    DestinationTypesExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+      responses:
+        "200":
+          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}, {"type": "aws_s3", "label": "AWS S3", "description": "Store events in an Amazon S3 bucket", "icon": "<svg />", "instructions": "Enter bucket and region...", "config_fields": [{"type": "text", "label": "Bucket Name", "description": "The name of the S3 bucket.", "required": true}, {"type": "text", "label": "AWS Region", "description": "The AWS region where the bucket is located.", "required": true}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}]}, {"type": "aws_s3", "label": "AWS S3", "description": "Store events in an Amazon S3 bucket", "icon": "<svg />", "instructions": "Enter bucket and region...", "config_fields": [{"type": "text", "label": "Bucket Name", "description": "The name of the S3 bucket.", "required": true}, {"type": "text", "label": "AWS Region", "description": "The AWS region where the bucket is located.", "required": true}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}]}]
+  getTenantDestinationTypeSchema:
+    WebhookSchemaExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+          type: "hookdeck"
+      responses:
+        "200":
+          application/json: {"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}
+  listDestinationTypeSchemasJwt:
+    DestinationTypesExample:
+      responses:
+        "200":
+          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}]
+  getDestinationTypeSchema:
+    WebhookSchemaExample:
+      parameters:
+        path:
+          type: "rabbitmq"
+      responses:
+        "200":
+          application/json: {"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}
+  listTenantTopics:
+    TopicsListExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+      responses:
+        "200":
+          application/json: ["user.created", "user.updated", "order.shipped", "inventory.updated"]
+  listTopics:
+    TopicsListExample:
+      responses:
+        "200":
+          application/json: ["user.created", "user.updated", "order.shipped", "inventory.updated"]
+  listTenantEvents:
+    EventsListExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+        query:
+          limit: 100
+      responses:
+        "200":
+          application/json: {"count": 2, "data": [{"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "destination_id": "des_456", "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "successful_at": null, "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}], "next": "", "prev": ""}
+  getTenantEvent:
+    EventExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+          event_id: "<id>"
+      responses:
+        "200":
+          application/json: {"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}
+  listTenantEventDeliveries:
+    DeliveriesListExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+          event_id: "<id>"
+      responses:
+        "200":
+          application/json: [{"delivered_at": "2024-01-01T00:00:05Z", "status": "success", "response_status_code": 200, "response_body": "{\"status\":\"ok\"}", "response_headers": {"content-type": "application/json"}}, {"delivered_at": "2024-01-01T00:00:01Z", "status": "failed", "response_status_code": 503, "response_body": "Service Unavailable", "response_headers": {"content-type": "text/plain"}}]
+  listTenantEventsByDestination:
+    EventsListExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+          destination_id: "<id>"
+        query:
+          limit: 100
+      responses:
+        "200":
+          application/json: {"count": 2, "data": [{"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "destination_id": "des_456", "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "successful_at": null, "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}], "next": "", "prev": ""}
+  getTenantEventByDestination:
+    EventExample:
+      parameters:
+        path:
+          tenant_id: "<id>"
+          destination_id: "<id>"
+          event_id: "<id>"
+      responses:
+        "200":
+          application/json: {"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}
+  retryTenantEvent:
+    speakeasy-default-retry-tenant-event:
+      parameters:
+        path:
+          tenant_id: "<id>"
+          destination_id: "<id>"
+          event_id: "<id>"
+      responses:
+        "401":
+          application/json: {}
+        "408":
+          application/json: {}
+        "429":
+          application/json: {}
+        "400":
+          application/json: {}
+        "504":
+          application/json: {}
+        "501":
+          application/json: {}
+        "500":
+          application/json: {}
+        "510":
+          application/json: {}
+        "511":
+          application/json: {}
+  listTenants:
+    speakeasy-default-list-tenants:
+      parameters:
+        query:
+          limit: 20
+          order: "desc"
+      responses:
+        "200":
+          application/json: {"data": [{"id": "123", "destinations_count": 5, "topics": ["user.created", "user.deleted"], "created_at": "2024-01-01T00:00:00Z", "updated_at": "2024-01-01T00:00:00Z"}], "next": "MTcwNDA2NzIwMA==", "prev": null, "count": 42}
+        "400":
+          application/json: {"error": "invalid cursor format"}
+        "501":
+          application/json: {"error": "list tenant not supported"}
+examplesVersion: 1.0.2
+generatedTests: {}
+releaseNotes: "## Python SDK Changes:\n* `outpost.destinations.enable()`: \n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.tenants.get_token()`: \n  *  `response.tenant_id` **Added**\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.tenants.upsert()`: \n  *  `request.params` **Added**\n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.tenants.get()`: \n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.tenants.delete()`:  `error` **Changed** **Breaking** :warning:\n* `outpost.tenants.get_portal_url()`: \n  *  `response.tenant_id` **Added**\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.destinations.delete()`:  `error` **Changed** **Breaking** :warning:\n* `outpost.destinations.list()`: \n  *  `request.type` **Changed** **Breaking** :warning:\n  *  `response.[]` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.destinations.create()`: \n  *  `request.params` **Changed**\n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.destinations.get()`: \n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.health.check()`:  `response.status[200]` **Changed** **Breaking** :warning:\n* `outpost.destinations.update()`: \n  *  `request.params` **Changed**\n  *  `response.[destination]` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.schemas.get()`:  `error` **Changed** **Breaking** :warning:\n* `outpost.destinations.disable()`: \n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.events.retry()`:  `error` **Changed** **Breaking** :warning:\n* `outpost.schemas.list_tenant_destination_types()`:  `error` **Changed** **Breaking** :warning:\n* `outpost.events.get_by_destination()`: \n  *  `response` **Changed** **Breaking** :warning:\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.topics.list()`:  `error` **Changed** **Breaking** :warning:\n* `outpost.events.list()`: \n  *  `request` **Changed** **Breaking** :warning:\n  *  `response.data.[]` **Changed** **Breaking** :warning:\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.events.get()`: \n  *  `response` **Changed** **Breaking** :warning:\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.events.list_deliveries()`:  `error` **Changed** **Breaking** :warning:\n* `outpost.events.list_by_destination()`: \n  *  `request` **Changed** **Breaking** :warning:\n  *  `response.data.[]` **Changed** **Breaking** :warning:\n  *  `error` **Changed** **Breaking** :warning:\n* `outpost.tenants.list_tenants()`: **Added**\n* `outpost.publish.event()`:  `response.duplicate` **Added**\n"
 generatedFiles:
   - .gitattributes
   - .vscode/settings.json
@@ -306,283 +1829,3 @@ generatedFiles:
   - src/outpost_sdk/utils/unmarshal_json_response.py
   - src/outpost_sdk/utils/url.py
   - src/outpost_sdk/utils/values.py
-examples:
-  healthCheck:
-    speakeasy-default-health-check:
-      responses:
-        "200":
-          text/plain: "<value>"
-        "404":
-          application/json: {}
-        "401":
-          application/json: {}
-        "408":
-          application/json: {}
-        "429":
-          application/json: {}
-        "400":
-          application/json: {}
-        "504":
-          application/json: {}
-        "501":
-          application/json: {}
-        "500":
-          application/json: {}
-        "510":
-          application/json: {}
-        "511":
-          application/json: {}
-  upsertTenant:
-    TenantExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-      responses:
-        "200":
-          application/json: {"id": "tenant_123", "destinations_count": 5, "topics": ["user.created", "user.deleted"], "created_at": "2024-01-01T00:00:00Z"}
-  getTenant:
-    TenantExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-      responses:
-        "200":
-          application/json: {"id": "tenant_123", "destinations_count": 5, "topics": ["user.created", "user.deleted"], "created_at": "2024-01-01T00:00:00Z"}
-  deleteTenant:
-    SuccessExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-      responses:
-        "200":
-          application/json: {"success": true}
-  getTenantPortalUrl:
-    PortalRedirectExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-        query: {}
-      responses:
-        "200":
-          application/json: {"redirect_url": "https://webhooks.acme.com/?token=JWT_TOKEN"}
-  getTenantToken:
-    TenantTokenExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-      responses:
-        "200":
-          application/json: {"token": "SOME_JWT_TOKEN"}
-  listTenantDestinations:
-    DestinationsListExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-        query: {}
-      responses:
-        "200":
-          application/json: [{"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}, {"id": "des_sqs_456", "type": "aws_sqs", "topics": ["*"], "disabled_at": "2024-03-01T12:00:00Z", "created_at": "2024-02-20T11:30:00Z", "config": {"endpoint": "https://sqs.us-west-2.amazonaws.com", "queue_url": "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}, {"id": "des_s3_789", "type": "aws_s3", "topics": ["*"], "disabled_at": null, "created_at": "2024-03-20T12:00:00Z", "config": {"bucket": "my-bucket", "region": "us-east-1"}, "credentials": {"key": "AKIAIOSFODNN7EXAMPLE", "secret": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}}]
-  createTenantDestination:
-    WebhookCreatedExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-      requestBody:
-        application/json: {"id": "user-provided-id", "type": "rabbitmq", "topics": "*", "config": {"server_url": "localhost:5672", "exchange": "my-exchange", "tls": "false"}, "credentials": {"username": "guest", "password": "guest"}}
-      responses:
-        "201":
-          application/json: {"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456"}}
-  getTenantDestination:
-    WebhookGetExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-          destination_id: "<id>"
-      responses:
-        "200":
-          application/json: {"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}
-  updateTenantDestination:
-    DestinationUpdatedExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-          destination_id: "<id>"
-      requestBody:
-        application/json: {"topics": "*", "config": {"server_url": "localhost:5672", "exchange": "my-exchange", "tls": "false"}, "credentials": {"username": "guest", "password": "guest"}}
-      responses:
-        "200":
-          application/json: {"id": "des_webhook_123", "type": "webhook", "topics": ["user.created"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/new-handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}
-  deleteTenantDestination:
-    SuccessExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-          destination_id: "<id>"
-      responses:
-        "200":
-          application/json: {"success": true}
-  enableTenantDestination:
-    WebhookEnabledExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-          destination_id: "<id>"
-      responses:
-        "200":
-          application/json: {"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": null, "created_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}
-  disableTenantDestination:
-    WebhookDisabledExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-          destination_id: "<id>"
-      responses:
-        "200":
-          application/json: {"id": "des_webhook_123", "type": "webhook", "topics": ["user.created", "order.shipped"], "disabled_at": "2024-04-11T21:00:00Z", "created_at": "2024-02-15T10:00:00Z", "config": {"url": "https://my-service.com/webhook/handler"}, "credentials": {"secret": "whsec_abc123def456", "previous_secret": "whsec_prev789xyz012", "previous_secret_invalid_at": "2024-02-16T10:00:00Z"}}
-  publishEvent:
-    speakeasy-default-publish-event:
-      requestBody:
-        application/json: {"id": "evt_custom_123", "tenant_id": "<TENANT_ID>", "destination_id": "<DESTINATION_ID>", "topic": "topic.name", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}
-      responses:
-        "404":
-          application/json: {}
-        "403":
-          application/json: {}
-        "408":
-          application/json: {}
-        "429":
-          application/json: {}
-        "413":
-          application/json: {}
-        "504":
-          application/json: {}
-        "501":
-          application/json: {}
-        "500":
-          application/json: {}
-        "510":
-          application/json: {}
-        "511":
-          application/json: {}
-        "202":
-          application/json: {"id": "evt_abc123xyz789"}
-  listTenantDestinationTypeSchemas:
-    DestinationTypesExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-      responses:
-        "200":
-          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}, {"type": "aws_s3", "label": "AWS S3", "description": "Store events in an Amazon S3 bucket", "icon": "<svg />", "instructions": "Enter bucket and region...", "config_fields": [{"type": "text", "label": "Bucket Name", "description": "The name of the S3 bucket.", "required": true}, {"type": "text", "label": "AWS Region", "description": "The AWS region where the bucket is located.", "required": true}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}]}, {"type": "aws_s3", "label": "AWS S3", "description": "Store events in an Amazon S3 bucket", "icon": "<svg />", "instructions": "Enter bucket and region...", "config_fields": [{"type": "text", "label": "Bucket Name", "description": "The name of the S3 bucket.", "required": true}, {"type": "text", "label": "AWS Region", "description": "The AWS region where the bucket is located.", "required": true}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}]}]
-  getTenantDestinationTypeSchema:
-    WebhookSchemaExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-          type: "hookdeck"
-      responses:
-        "200":
-          application/json: {"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}
-  listDestinationTypeSchemasJwt:
-    DestinationTypesExample:
-      responses:
-        "200":
-          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}]
-  getDestinationTypeSchema:
-    WebhookSchemaExample:
-      parameters:
-        path:
-          type: "rabbitmq"
-      responses:
-        "200":
-          application/json: {"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}
-  listTenantTopics:
-    TopicsListExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-      responses:
-        "200":
-          application/json: ["user.created", "user.updated", "order.shipped", "inventory.updated"]
-  listTopics:
-    TopicsListExample:
-      responses:
-        "200":
-          application/json: ["user.created", "user.updated", "order.shipped", "inventory.updated"]
-  listTenantEvents:
-    EventsListExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-        query:
-          limit: 100
-      responses:
-        "200":
-          application/json: {"count": 2, "data": [{"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "destination_id": "des_456", "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "successful_at": null, "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}], "next": "", "prev": ""}
-  getTenantEvent:
-    EventExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-          event_id: "<id>"
-      responses:
-        "200":
-          application/json: {"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}
-  listTenantEventDeliveries:
-    DeliveriesListExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-          event_id: "<id>"
-      responses:
-        "200":
-          application/json: [{"delivered_at": "2024-01-01T00:00:05Z", "status": "success", "response_status_code": 200, "response_body": "{\"status\":\"ok\"}", "response_headers": {"content-type": "application/json"}}, {"delivered_at": "2024-01-01T00:00:01Z", "status": "failed", "response_status_code": 503, "response_body": "Service Unavailable", "response_headers": {"content-type": "text/plain"}}]
-  listTenantEventsByDestination:
-    EventsListExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-          destination_id: "<id>"
-        query:
-          limit: 100
-      responses:
-        "200":
-          application/json: {"count": 2, "data": [{"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "destination_id": "des_456", "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "successful_at": null, "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}], "next": "", "prev": ""}
-  getTenantEventByDestination:
-    EventExample:
-      parameters:
-        path:
-          tenant_id: "<id>"
-          destination_id: "<id>"
-          event_id: "<id>"
-      responses:
-        "200":
-          application/json: {"id": "evt_123", "destination_id": "des_456", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "successful_at": "2024-01-01T00:00:05Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}
-  retryTenantEvent:
-    speakeasy-default-retry-tenant-event:
-      parameters:
-        path:
-          tenant_id: "<id>"
-          destination_id: "<id>"
-          event_id: "<id>"
-      responses:
-        "401":
-          application/json: {}
-        "408":
-          application/json: {}
-        "429":
-          application/json: {}
-        "400":
-          application/json: {}
-        "504":
-          application/json: {}
-        "501":
-          application/json: {}
-        "500":
-          application/json: {}
-        "510":
-          application/json: {}
-        "511":
-          application/json: {}
-examplesVersion: 1.0.2
-generatedTests: {}

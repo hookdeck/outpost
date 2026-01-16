@@ -5,7 +5,7 @@ from outpost_sdk import errors, models, utils
 from outpost_sdk._hooks import HookContext
 from outpost_sdk.types import OptionalNullable, UNSET
 from outpost_sdk.utils.unmarshal_json_response import unmarshal_json_response
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Union
 
 
 class Tenants(BaseSDK):
@@ -15,10 +15,231 @@ class Tenants(BaseSDK):
 
     """
 
+    def list_tenants(
+        self,
+        *,
+        limit: Optional[int] = 20,
+        order: Optional[models.Order] = models.Order.DESC,
+        next_cursor: Optional[str] = None,
+        prev_cursor: Optional[str] = None,
+        retries: OptionalNullable[utils.RetryConfig] = UNSET,
+        server_url: Optional[str] = None,
+        timeout_ms: Optional[int] = None,
+        http_headers: Optional[Mapping[str, str]] = None,
+    ) -> models.TenantListResponse:
+        r"""List Tenants
+
+        List all tenants with cursor-based pagination.
+
+        **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
+        If RediSearch is not available, this endpoint returns `501 Not Implemented`.
+
+        The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
+        Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
+
+
+        :param limit: Number of tenants to return per page (1-100, default 20).
+        :param order: Sort order by `created_at` timestamp.
+        :param next_cursor: Cursor for the next page of results. Mutually exclusive with `prev`.
+        :param prev_cursor: Cursor for the previous page of results. Mutually exclusive with `next`.
+        :param retries: Override the default retry configuration for this method
+        :param server_url: Override the default server URL for this method
+        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
+        :param http_headers: Additional headers to set or replace on requests.
+        """
+        base_url = None
+        url_variables = None
+        if timeout_ms is None:
+            timeout_ms = self.sdk_configuration.timeout_ms
+
+        if server_url is not None:
+            base_url = server_url
+        else:
+            base_url = self._get_url(base_url, url_variables)
+
+        request = models.ListTenantsRequest(
+            limit=limit,
+            order=order,
+            next_cursor=next_cursor,
+            prev_cursor=prev_cursor,
+        )
+
+        req = self._build_request(
+            method="GET",
+            path="/tenants",
+            base_url=base_url,
+            url_variables=url_variables,
+            request=request,
+            request_body_required=False,
+            request_has_path_params=False,
+            request_has_query_params=True,
+            user_agent_header="user-agent",
+            accept_header_value="application/json",
+            http_headers=http_headers,
+            security=self.sdk_configuration.security,
+            allow_empty_value=None,
+            timeout_ms=timeout_ms,
+        )
+
+        if retries == UNSET:
+            if self.sdk_configuration.retry_config is not UNSET:
+                retries = self.sdk_configuration.retry_config
+
+        retry_config = None
+        if isinstance(retries, utils.RetryConfig):
+            retry_config = (retries, ["429", "500", "502", "503", "504"])
+
+        http_res = self.do_request(
+            hook_ctx=HookContext(
+                config=self.sdk_configuration,
+                base_url=base_url or "",
+                operation_id="listTenants",
+                oauth2_scopes=None,
+                security_source=self.sdk_configuration.security,
+            ),
+            request=req,
+            error_status_codes=["400", "401", "4XX", "501", "5XX"],
+            retry_config=retry_config,
+        )
+
+        response_data: Any = None
+        if utils.match_response(http_res, "200", "application/json"):
+            return unmarshal_json_response(models.TenantListResponse, http_res)
+        if utils.match_response(http_res, "400", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.ListTenantsBadRequestErrorData, http_res
+            )
+            raise errors.ListTenantsBadRequestError(response_data, http_res)
+        if utils.match_response(http_res, "501", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.NotImplementedErrorTData, http_res
+            )
+            raise errors.NotImplementedErrorT(response_data, http_res)
+        if utils.match_response(http_res, ["401", "4XX"], "*"):
+            http_res_text = utils.stream_to_text(http_res)
+            raise errors.APIError("API error occurred", http_res, http_res_text)
+        if utils.match_response(http_res, "5XX", "*"):
+            http_res_text = utils.stream_to_text(http_res)
+            raise errors.APIError("API error occurred", http_res, http_res_text)
+
+        raise errors.APIError("Unexpected response received", http_res)
+
+    async def list_tenants_async(
+        self,
+        *,
+        limit: Optional[int] = 20,
+        order: Optional[models.Order] = models.Order.DESC,
+        next_cursor: Optional[str] = None,
+        prev_cursor: Optional[str] = None,
+        retries: OptionalNullable[utils.RetryConfig] = UNSET,
+        server_url: Optional[str] = None,
+        timeout_ms: Optional[int] = None,
+        http_headers: Optional[Mapping[str, str]] = None,
+    ) -> models.TenantListResponse:
+        r"""List Tenants
+
+        List all tenants with cursor-based pagination.
+
+        **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
+        If RediSearch is not available, this endpoint returns `501 Not Implemented`.
+
+        The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
+        Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
+
+
+        :param limit: Number of tenants to return per page (1-100, default 20).
+        :param order: Sort order by `created_at` timestamp.
+        :param next_cursor: Cursor for the next page of results. Mutually exclusive with `prev`.
+        :param prev_cursor: Cursor for the previous page of results. Mutually exclusive with `next`.
+        :param retries: Override the default retry configuration for this method
+        :param server_url: Override the default server URL for this method
+        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
+        :param http_headers: Additional headers to set or replace on requests.
+        """
+        base_url = None
+        url_variables = None
+        if timeout_ms is None:
+            timeout_ms = self.sdk_configuration.timeout_ms
+
+        if server_url is not None:
+            base_url = server_url
+        else:
+            base_url = self._get_url(base_url, url_variables)
+
+        request = models.ListTenantsRequest(
+            limit=limit,
+            order=order,
+            next_cursor=next_cursor,
+            prev_cursor=prev_cursor,
+        )
+
+        req = self._build_request_async(
+            method="GET",
+            path="/tenants",
+            base_url=base_url,
+            url_variables=url_variables,
+            request=request,
+            request_body_required=False,
+            request_has_path_params=False,
+            request_has_query_params=True,
+            user_agent_header="user-agent",
+            accept_header_value="application/json",
+            http_headers=http_headers,
+            security=self.sdk_configuration.security,
+            allow_empty_value=None,
+            timeout_ms=timeout_ms,
+        )
+
+        if retries == UNSET:
+            if self.sdk_configuration.retry_config is not UNSET:
+                retries = self.sdk_configuration.retry_config
+
+        retry_config = None
+        if isinstance(retries, utils.RetryConfig):
+            retry_config = (retries, ["429", "500", "502", "503", "504"])
+
+        http_res = await self.do_request_async(
+            hook_ctx=HookContext(
+                config=self.sdk_configuration,
+                base_url=base_url or "",
+                operation_id="listTenants",
+                oauth2_scopes=None,
+                security_source=self.sdk_configuration.security,
+            ),
+            request=req,
+            error_status_codes=["400", "401", "4XX", "501", "5XX"],
+            retry_config=retry_config,
+        )
+
+        response_data: Any = None
+        if utils.match_response(http_res, "200", "application/json"):
+            return unmarshal_json_response(models.TenantListResponse, http_res)
+        if utils.match_response(http_res, "400", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.ListTenantsBadRequestErrorData, http_res
+            )
+            raise errors.ListTenantsBadRequestError(response_data, http_res)
+        if utils.match_response(http_res, "501", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.NotImplementedErrorTData, http_res
+            )
+            raise errors.NotImplementedErrorT(response_data, http_res)
+        if utils.match_response(http_res, ["401", "4XX"], "*"):
+            http_res_text = await utils.stream_to_text_async(http_res)
+            raise errors.APIError("API error occurred", http_res, http_res_text)
+        if utils.match_response(http_res, "5XX", "*"):
+            http_res_text = await utils.stream_to_text_async(http_res)
+            raise errors.APIError("API error occurred", http_res, http_res_text)
+
+        raise errors.APIError("Unexpected response received", http_res)
+
     def upsert(
         self,
         *,
         tenant_id: Optional[str] = None,
+        params: Optional[
+            Union[models.TenantUpsert, models.TenantUpsertTypedDict]
+        ] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -29,6 +250,7 @@ class Tenants(BaseSDK):
         Idempotently creates or updates a tenant. Required before associating destinations.
 
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param params: Optional tenant metadata
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -46,11 +268,12 @@ class Tenants(BaseSDK):
 
         request = models.UpsertTenantRequest(
             tenant_id=tenant_id,
+            params=utils.get_pydantic_model(params, Optional[models.TenantUpsert]),
         )
 
         req = self._build_request(
             method="PUT",
-            path="/{tenant_id}",
+            path="/tenants/{tenant_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -64,6 +287,10 @@ class Tenants(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            get_serialized_body=lambda: utils.serialize_request_body(
+                request.params, False, True, "json", Optional[models.TenantUpsert]
+            ),
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -80,89 +307,16 @@ class Tenants(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="upsertTenant",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, ["200", "201"], "application/json"):
             return unmarshal_json_response(models.Tenant, http_res)
-        if utils.match_response(http_res, "404", "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -176,6 +330,9 @@ class Tenants(BaseSDK):
         self,
         *,
         tenant_id: Optional[str] = None,
+        params: Optional[
+            Union[models.TenantUpsert, models.TenantUpsertTypedDict]
+        ] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -186,6 +343,7 @@ class Tenants(BaseSDK):
         Idempotently creates or updates a tenant. Required before associating destinations.
 
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param params: Optional tenant metadata
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -203,11 +361,12 @@ class Tenants(BaseSDK):
 
         request = models.UpsertTenantRequest(
             tenant_id=tenant_id,
+            params=utils.get_pydantic_model(params, Optional[models.TenantUpsert]),
         )
 
         req = self._build_request_async(
             method="PUT",
-            path="/{tenant_id}",
+            path="/tenants/{tenant_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -221,6 +380,10 @@ class Tenants(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            get_serialized_body=lambda: utils.serialize_request_body(
+                request.params, False, True, "json", Optional[models.TenantUpsert]
+            ),
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -237,89 +400,16 @@ class Tenants(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="upsertTenant",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, ["200", "201"], "application/json"):
             return unmarshal_json_response(models.Tenant, http_res)
-        if utils.match_response(http_res, "404", "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -364,7 +454,7 @@ class Tenants(BaseSDK):
 
         req = self._build_request(
             method="GET",
-            path="/{tenant_id}",
+            path="/tenants/{tenant_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -378,6 +468,7 @@ class Tenants(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -394,86 +485,16 @@ class Tenants(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="getTenant",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Tenant, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -518,7 +539,7 @@ class Tenants(BaseSDK):
 
         req = self._build_request_async(
             method="GET",
-            path="/{tenant_id}",
+            path="/tenants/{tenant_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -532,6 +553,7 @@ class Tenants(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -548,86 +570,16 @@ class Tenants(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="getTenant",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Tenant, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -672,7 +624,7 @@ class Tenants(BaseSDK):
 
         req = self._build_request(
             method="DELETE",
-            path="/{tenant_id}",
+            path="/tenants/{tenant_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -686,6 +638,7 @@ class Tenants(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -702,86 +655,16 @@ class Tenants(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="deleteTenant",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.SuccessResponse, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -826,7 +709,7 @@ class Tenants(BaseSDK):
 
         req = self._build_request_async(
             method="DELETE",
-            path="/{tenant_id}",
+            path="/tenants/{tenant_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -840,6 +723,7 @@ class Tenants(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -856,86 +740,16 @@ class Tenants(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="deleteTenant",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.SuccessResponse, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -983,7 +797,7 @@ class Tenants(BaseSDK):
 
         req = self._build_request(
             method="GET",
-            path="/{tenant_id}/portal",
+            path="/tenants/{tenant_id}/portal",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -997,6 +811,7 @@ class Tenants(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1013,86 +828,16 @@ class Tenants(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="getTenantPortalUrl",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.PortalRedirect, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1140,7 +885,7 @@ class Tenants(BaseSDK):
 
         req = self._build_request_async(
             method="GET",
-            path="/{tenant_id}/portal",
+            path="/tenants/{tenant_id}/portal",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1154,6 +899,7 @@ class Tenants(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1170,86 +916,16 @@ class Tenants(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="getTenantPortalUrl",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.PortalRedirect, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1294,7 +970,7 @@ class Tenants(BaseSDK):
 
         req = self._build_request(
             method="GET",
-            path="/{tenant_id}/token",
+            path="/tenants/{tenant_id}/token",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1308,6 +984,7 @@ class Tenants(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1324,86 +1001,16 @@ class Tenants(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="getTenantToken",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.TenantToken, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1448,7 +1055,7 @@ class Tenants(BaseSDK):
 
         req = self._build_request_async(
             method="GET",
-            path="/{tenant_id}/token",
+            path="/tenants/{tenant_id}/token",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1462,6 +1069,7 @@ class Tenants(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1478,86 +1086,16 @@ class Tenants(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="getTenantToken",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.TenantToken, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
