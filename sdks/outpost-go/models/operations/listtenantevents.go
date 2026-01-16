@@ -205,9 +205,9 @@ type ListTenantEventsResponseBody struct {
 	Count int64              `json:"count"`
 	Data  []components.Event `json:"data"`
 	// Cursor for next page (empty string if no next page)
-	NextCursor string `json:"next"`
+	Next string `json:"next"`
 	// Cursor for previous page (empty string if no previous page)
-	PrevCursor string `json:"prev"`
+	Prev string `json:"prev"`
 }
 
 func (l *ListTenantEventsResponseBody) GetCount() int64 {
@@ -224,18 +224,18 @@ func (l *ListTenantEventsResponseBody) GetData() []components.Event {
 	return l.Data
 }
 
-func (l *ListTenantEventsResponseBody) GetNextCursor() string {
+func (l *ListTenantEventsResponseBody) GetNext() string {
 	if l == nil {
 		return ""
 	}
-	return l.NextCursor
+	return l.Next
 }
 
-func (l *ListTenantEventsResponseBody) GetPrevCursor() string {
+func (l *ListTenantEventsResponseBody) GetPrev() string {
 	if l == nil {
 		return ""
 	}
-	return l.PrevCursor
+	return l.Prev
 }
 
 type ListTenantEventsResponse struct {

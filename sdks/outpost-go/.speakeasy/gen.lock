@@ -1,19 +1,19 @@
 lockVersion: 2.0.0
 id: f0627709-5a00-43ac-8678-ca716d6f379c
 management:
-  docChecksum: 69b1d2171bde78e84ab6cfa4914c6bf9
+  docChecksum: 9aa6a27d328a44e041c80d25dbe5ee7f
   docVersion: 0.0.1
   speakeasyVersion: 1.686.0
   generationVersion: 2.796.1
-  releaseVersion: 0.5.0
-  configChecksum: 4cd14feb7870b13553464297b65ca701
+  releaseVersion: 0.5.1
+  configChecksum: 54dfb5f2f1b9e3dc0d3c45a533aafbe9
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-go
   installationURL: https://github.com/hookdeck/outpost/sdks/outpost-go
 persistentEdits:
-  generation_id: 8620d4f8-fde0-4516-9f97-a4788bf57870
-  pristine_commit_hash: 4297383af2e1eafc06a91ad9104a77dfde8d9a5e
-  pristine_tree_hash: 07e403e65a91efdec4264b062e7961869eddab37
+  generation_id: 92481274-a5d5-4151-a41b-90a0ee20b10f
+  pristine_commit_hash: 451a86a70e605c4a3d5e5fa42e9cc09fb7f32bb3
+  pristine_tree_hash: 1d51d2f73b6a1a95846b694058ed4a6c0c90cbad
 features:
   go:
     additionalDependencies: 0.1.0
@@ -641,8 +641,8 @@ trackedFiles:
     pristine_git_object: 7e8d820ece407b74b2b6e7fd76775829892c7d47
   docs/models/operations/listtenanteventsbydestinationresponsebody.md:
     id: 21df1a9f12ee
-    last_write_checksum: sha1:d38466d12e091fd32a9b8e1238d43159b655339f
-    pristine_git_object: 404b319d4d16b392b6a47792a8ef2f943d04bd25
+    last_write_checksum: sha1:7bc58f28ba4db36f57c9306a8ef27c66333e58eb
+    pristine_git_object: f0b9e04e33e3eb5313579ad27599f1ca8e2d681b
   docs/models/operations/listtenanteventsbydestinationstatus.md:
     id: 887bb9af7442
     last_write_checksum: sha1:11c44888c11428180e88a4c9866cb78a114f590e
@@ -661,8 +661,8 @@ trackedFiles:
     pristine_git_object: aedf50891a14a3c18af96da00ef82ba4ec7c1354
   docs/models/operations/listtenanteventsresponsebody.md:
     id: b06c193eed0f
-    last_write_checksum: sha1:ef56aa89328de913a56751eaa3a3aecf47b507b3
-    pristine_git_object: c63b5e750a8e876f49d11911a280c936fca45259
+    last_write_checksum: sha1:841a4cc34e086c1bdef5dd32bd8e25d20b1ef400
+    pristine_git_object: 1fd825b163c4e83e0f6b38a99bf39625d07dff91
   docs/models/operations/listtenanteventsstatus.md:
     id: a94fcd5ae97c
     last_write_checksum: sha1:170b653d18a29431cb482f91c71a4ef56a0c7f21
@@ -1205,12 +1205,12 @@ trackedFiles:
     pristine_git_object: da3142762db8f3f580ac96d62755bbc421f46e22
   models/operations/listtenantevents.go:
     id: b47c5316331a
-    last_write_checksum: sha1:8ab84babef1d1f441039597d25b418f9a7f2cf55
-    pristine_git_object: 9537c52d3c9ecc39d4c04349ab884af0f07c1c7e
+    last_write_checksum: sha1:5a993195a1d9846087faec19fba45044cae334f7
+    pristine_git_object: 9160720a04438f078648ef5853d7babbb09050fa
   models/operations/listtenanteventsbydestination.go:
     id: 490fbee57544
-    last_write_checksum: sha1:1eb22bd31162d5f16bc493c56b0fca2fa4630e9c
-    pristine_git_object: 54748211b8de5beadb51caa139eca88daa7c17ef
+    last_write_checksum: sha1:63bbfd3ee2e6bb74df243721356ae15080c3bb87
+    pristine_git_object: 6fa44db994362bea53f60ed18a18f2dc136d14dd
   models/operations/listtenants.go:
     id: 1d503b0f52be
     last_write_checksum: sha1:60f820282697bfa9d2c418a1e6d78025b6ae5371
@@ -1253,8 +1253,8 @@ trackedFiles:
     pristine_git_object: e6e5a01c6e721e879e24a38a1f97e3e27d4686d4
   outpost.go:
     id: 7aebc57e3f81
-    last_write_checksum: sha1:9df00493102717a8630b2560b2626513db750f72
-    pristine_git_object: 8ebcbb64f0e3cbcdf9bd360374786f953990036e
+    last_write_checksum: sha1:47a66ff1c4a543df32899ece9c45ac7ca8d17115
+    pristine_git_object: b15e049d0f7ed3fddc0bf1f39c9c98d938f6678c
   publish.go:
     id: b4cd78c909e0
     last_write_checksum: sha1:c7f08f05b5fa72f932b9d0e92952185cc67ea44c
@@ -1600,7 +1600,7 @@ examples:
           application/json: {"error": "list tenant not supported"}
 examplesVersion: 1.0.2
 generatedTests: {}
-releaseNotes: "## Go SDK Changes:\n* `Outpost.Destinations.Enable()`: \n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Tenants.GetToken()`: \n  *  `response.TenantId` **Added**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Tenants.Upsert()`: \n  *  `request.Params` **Added**\n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Tenants.Get()`: \n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Tenants.Delete()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Tenants.GetPortalUrl()`: \n  *  `response.TenantId` **Added**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Destinations.Delete()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Destinations.List()`: \n  *  `request.Type` **Changed** **Breaking** :warning:\n  *  `response.[]` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Destinations.Create()`: \n  *  `request.Params` **Changed**\n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Destinations.Get()`: \n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Health.Check()`:  `response.status[200]` **Changed** **Breaking** :warning:\n* `Outpost.Destinations.Update()`: \n  *  `request.Params` **Changed**\n  *  `response.[destination]` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Schemas.Get()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Destinations.Disable()`: \n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Events.Retry()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Schemas.ListTenantDestinationTypes()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Events.GetByDestination()`: \n  *  `response` **Changed** **Breaking** :warning:\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Topics.List()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Events.List()`: \n  *  `response` **Changed** **Breaking** :warning:\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Events.Get()`: \n  *  `response` **Changed** **Breaking** :warning:\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Events.ListDeliveries()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Events.ListByDestination()`: \n  *  `response` **Changed** **Breaking** :warning:\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Tenants.ListTenants()`: **Added**\n* `Outpost.Publish.Event()`:  `response.Duplicate` **Added**\n"
+releaseNotes: "## Go SDK Changes:\n* `Outpost.Destinations.Enable()`: \n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Tenants.GetToken()`: \n  *  `response.TenantId` **Added**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Tenants.Upsert()`: \n  *  `request.Params` **Added**\n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Tenants.Get()`: \n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Tenants.Delete()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Tenants.GetPortalUrl()`: \n  *  `response.TenantId` **Added**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Destinations.Delete()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Destinations.List()`: \n  *  `request.Type` **Changed** **Breaking** :warning:\n  *  `response.[]` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Destinations.Create()`: \n  *  `request.Params` **Changed**\n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Destinations.Get()`: \n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Health.Check()`:  `response.status[200]` **Changed** **Breaking** :warning:\n* `Outpost.Destinations.Update()`: \n  *  `request.Params` **Changed**\n  *  `response.[destination]` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Schemas.Get()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Destinations.Disable()`: \n  *  `response` **Changed**\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Events.Retry()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Schemas.ListTenantDestinationTypes()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Events.GetByDestination()`: \n  *  `response` **Changed** **Breaking** :warning:\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Topics.List()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Events.List()`: \n  *  `response.Data.[]` **Changed** **Breaking** :warning:\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Events.Get()`: \n  *  `response` **Changed** **Breaking** :warning:\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Events.ListDeliveries()`:  `error` **Changed** **Breaking** :warning:\n* `Outpost.Events.ListByDestination()`: \n  *  `response.Data.[]` **Changed** **Breaking** :warning:\n  *  `error` **Changed** **Breaking** :warning:\n* `Outpost.Tenants.ListTenants()`: **Added**\n* `Outpost.Publish.Event()`:  `response.Duplicate` **Added**\n"
 generatedFiles:
   - .gitattributes
   - /models/apierrors/badrequesterror.go
