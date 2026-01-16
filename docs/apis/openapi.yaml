@@ -2229,6 +2229,297 @@ paths:
           description: Tenant not found.
         # Add other error responses
 
+  # Admin-only endpoints (cross-tenant)
+  /events:
+    get:
+      tags: [Events]
+      summary: List Events (Admin)
+      description: |
+        Retrieves a list of events across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+
+        When `tenant_id` is not provided, returns events from all tenants. When `tenant_id` is provided, returns only events for that tenant.
+      operationId: adminListEvents
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter events by tenant ID. If not provided, returns events from all tenants.
+        - name: destination_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter events by destination ID.
+        - name: topic
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter events by topic(s). Can be specified multiple times or comma-separated.
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter events with time >= start (RFC3339 format).
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter events with time <= end (RFC3339 format).
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Number of items per page (default 100, max 1000).
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for next page of results.
+        - name: prev
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for previous page of results.
+        - name: sort_order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort order (ascending or descending).
+      responses:
+        "200":
+          description: A paginated list of events.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Event"
+              examples:
+                AdminEventsListExample:
+                  value:
+                    data:
+                      - id: "evt_123"
+                        topic: "user.created"
+                        time: "2024-01-01T00:00:00Z"
+                        eligible_for_retry: false
+                        metadata: { "source": "crm" }
+                        data: { "user_id": "userid", "status": "active" }
+                      - id: "evt_789"
+                        topic: "order.shipped"
+                        time: "2024-01-02T10:00:00Z"
+                        eligible_for_retry: true
+                        metadata: { "source": "oms" }
+                        data: { "order_id": "orderid", "tracking": "1Z..." }
+                    next: "MTcwNDA2NzIwMA=="
+                    prev: ""
+        "401":
+          description: Unauthorized (Admin API Key missing or invalid).
+        "422":
+          description: Validation error (invalid query parameters).
+
+  /deliveries:
+    get:
+      tags: [Deliveries]
+      summary: List Deliveries (Admin)
+      description: |
+        Retrieves a paginated list of deliveries across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+
+        When `tenant_id` is not provided, returns deliveries from all tenants. When `tenant_id` is provided, returns only deliveries for that tenant.
+      operationId: adminListDeliveries
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter deliveries by tenant ID. If not provided, returns deliveries from all tenants.
+        - name: event_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter deliveries by event ID.
+        - name: destination_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter deliveries by destination ID.
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [success, failed]
+          description: Filter deliveries by status.
+        - name: topic
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter deliveries by event topic(s). Can be specified multiple times or comma-separated.
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries with delivered_at >= start (RFC3339 format).
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries with delivered_at <= end (RFC3339 format).
+        - name: event_start
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries by event time >= event_start (RFC3339 format).
+        - name: event_end
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries by event time <= event_end (RFC3339 format).
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Number of items per page (default 100, max 1000).
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for next page of results.
+        - name: prev
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for previous page of results.
+        - name: include
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: |
+            Fields to include in the response. Can be specified multiple times or comma-separated.
+            - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
+            - `event.data`: Include full event with payload data
+            - `response_data`: Include response body and headers
+        - name: sort_by
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [delivery_time, event_time]
+            default: delivery_time
+          description: Sort results by delivery time or event time.
+        - name: sort_order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort order (ascending or descending).
+      responses:
+        "200":
+          description: A paginated list of deliveries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryListResponse"
+              examples:
+                AdminDeliveriesListExample:
+                  value:
+                    data:
+                      - id: "del_123"
+                        status: "success"
+                        delivered_at: "2024-01-01T00:00:05Z"
+                        code: "200"
+                        attempt: 1
+                        event: "evt_123"
+                        destination: "des_456"
+                      - id: "del_124"
+                        status: "failed"
+                        delivered_at: "2024-01-02T10:00:01Z"
+                        code: "503"
+                        attempt: 2
+                        event: "evt_789"
+                        destination: "des_789"
+                    next: "MTcwNDA2NzIwMA=="
+                    prev: ""
+                AdminDeliveriesWithIncludeExample:
+                  summary: Response with include=event
+                  value:
+                    data:
+                      - id: "del_123"
+                        status: "success"
+                        delivered_at: "2024-01-01T00:00:05Z"
+                        code: "200"
+                        attempt: 1
+                        event:
+                          id: "evt_123"
+                          topic: "user.created"
+                          time: "2024-01-01T00:00:00Z"
+                          eligible_for_retry: false
+                          metadata: { "source": "crm" }
+                        destination: "des_456"
+                    next: ""
+                    prev: ""
+        "401":
+          description: Unauthorized (Admin API Key missing or invalid).
+        "422":
+          description: Validation error (invalid query parameters).
+
   /tenants/{tenant_id}/portal:
     parameters:
       - name: tenant_id
