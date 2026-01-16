@@ -168,13 +168,15 @@ const events = response?.data || [];
 
 ## SDK Pagination Field Names
 
-TypeScript v0.6.0 and Go v0.5.0 now use `next` and `prev` for pagination fields (both query parameters and response properties), matching the OpenAPI specification. Python v0.5.0 uses `next_cursor` and `prev_cursor` consistently to avoid conflicts with Python's built-in `next()` function.
+Previously, all SDKs (TypeScript, Go, and Python) used `nextCursor`/`prevCursor` (or `next_cursor`/`prev_cursor` in Python) for pagination fields due to a shared overlay that renamed these fields to avoid Python's built-in `next()` function conflict.
+
+With this release, we've separated the pagination overlay to be Python-specific. TypeScript v0.6.0 and Go v0.5.0 now use `next` and `prev` for pagination fields (both query parameters and response properties), matching the OpenAPI specification. Python v0.5.0 continues using `next_cursor` and `prev_cursor` consistently to avoid conflicts with Python's built-in `next()` function.
 
 :::note[Examples]
 Examples shown in TypeScript, but changes apply to TypeScript and Go SDKs. Python SDK uses `next_cursor`/`prev_cursor` instead.
 :::
 
-### Before
+### Before (TypeScript & Go)
 
 ```typescript
 // Accessing pagination cursor from response
@@ -190,7 +192,7 @@ const nextPage = await outpost.events.list({
 });
 ```
 
-### After
+### After (TypeScript & Go)
 
 ```typescript
 // Accessing pagination cursor from response
@@ -208,13 +210,17 @@ const nextPage = await outpost.events.list({
 
 **Action:** Update all code that accesses pagination fields:
 
-- **TypeScript & Go**: Change `nextCursor`/`prevCursor` to `next`/`prev` in response objects
-- **Python**: No change required - continues using `next_cursor`/`prev_cursor`
+- **TypeScript & Go**: Change `nextCursor`/`prevCursor` to `next`/`prev` in response objects. Query parameters remain `next`/`prev` (no change).
+- **Python**: Update query parameters from `next`/`prev` to `next_cursor`/`prev_cursor`. Response fields already use `next_cursor`/`prev_cursor` (no change).
 
 This affects:
 
-- Response properties: `response.nextCursor` → `response.next`, `response.prevCursor` → `response.prev`
-- Query parameters remain the same: `next` and `prev` (TypeScript/Go) or `next_cursor` and `prev_cursor` (Python)
+- **Response properties**:
+  - TypeScript/Go: `response.nextCursor` → `response.next`, `response.prevCursor` → `response.prev` (reverting to OpenAPI spec)
+  - Python: No change - continues using `response.next_cursor`/`response.prev_cursor`
+- **Query parameters**:
+  - TypeScript/Go: No change - continue using `next` and `prev`
+  - Python: `next`/`prev` → `next_cursor`/`prev_cursor` (previously used `next`/`prev`)
 
 ## List Tenants & Redis Migrations
 
