@@ -239,7 +239,7 @@ See the [API Reference](/docs/api/tenants#list-tenants) for details.
 
 ### Running Migrations
 
-These migrations require downtime and must be run manually before starting Outpost v0.12.
+These migrations require a maintenance window and must be run manually before starting Outpost v0.12.
 
 :::note
 These commands require environment variables for Redis connection (`REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, etc.). You can also use `--config` to pass a config file. See the [Schema Migration Guide](/guides/migration#configuration) for details.
@@ -275,7 +275,7 @@ For detailed information on the migration workflow, safety features, and trouble
    - [ ] Back up Redis data
 
 2. **During upgrade:**
-   - [ ] Stop Outpost (migrations require downtime)
+   - [ ] Stop Outpost
    - [ ] Run migrations: `migrate apply --all`
    - [ ] Verify migrations completed: `migrate verify`
    - [ ] Set webhook signature environment variables if maintaining backward compatibility
