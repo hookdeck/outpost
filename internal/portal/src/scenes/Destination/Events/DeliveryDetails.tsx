@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { Delivery, EventFull } from "../../../typings/Event";
 import Badge from "../../../common/Badge/Badge";
 import RetryDeliveryButton from "../../../common/RetryDeliveryButton/RetryDeliveryButton";
+import { CopyButton } from "../../../common/CopyButton/CopyButton";
 
 const DeliveryDetails = ({
   navigateDelivery,
@@ -27,6 +28,7 @@ const DeliveryDetails = ({
   return (
     <div className="drawer">
       <div className="drawer__header">
+        <h3 className="drawer__header-title mono-s">{event?.topic || "Delivery"}</h3>
         <div className="drawer__header-actions">
           <RetryDeliveryButton
             deliveryId={delivery.id}
@@ -50,13 +52,8 @@ const DeliveryDetails = ({
 
       <div className="drawer__body">
         <div className="delivery-data">
-          <div className="delivery-data__overview">
-            <h3 className="subtitle-m">Delivery</h3>
+          <div className="delivery-data__fields">
             <dl className="body-m description-list">
-              <div>
-                <dt>ID</dt>
-                <dd className="mono-s">{delivery.id}</dd>
-              </div>
               <div>
                 <dt>Status</dt>
                 <dd>
@@ -93,23 +90,31 @@ const DeliveryDetails = ({
                 <dt>Attempt</dt>
                 <dd className="mono-s">{delivery.attempt}</dd>
               </div>
-            </dl>
-          </div>
-
-          {event && (
-            <div className="delivery-data__event">
-              <h3 className="subtitle-m">Event</h3>
-              <dl className="body-m description-list">
+              {event && (
+                <>
+                  <div>
+                    <dt>Topic</dt>
+                    <dd className="mono-s">{event.topic}</dd>
+                  </div>
+                  <div>
+                    <dt>Event ID</dt>
+                    <dd className="mono-s id-field">
+                      <span>{event.id}</span>
+                      <CopyButton value={event.id} />
+                    </dd>
+                  </div>
+                </>
+              )}
+              <div>
+                <dt>Delivery ID</dt>
+                <dd className="mono-s id-field">
+                  <span>{delivery.id}</span>
+                  <CopyButton value={delivery.id} />
+                </dd>
+              </div>
+              {event && (
                 <div>
-                  <dt>ID</dt>
-                  <dd className="mono-s">{event.id}</dd>
-                </div>
-                <div>
-                  <dt>Topic</dt>
-                  <dd className="mono-s">{event.topic}</dd>
-                </div>
-                <div>
-                  <dt>Received at</dt>
+                  <dt>Event Time</dt>
                   <dd className="mono-s time">
                     {new Date(event.time).toLocaleString("en-US", {
                       year: "numeric",
@@ -122,9 +127,9 @@ const DeliveryDetails = ({
                     })}
                   </dd>
                 </div>
-              </dl>
-            </div>
-          )}
+              )}
+            </dl>
+          </div>
 
           {event?.data && (
             <div className="delivery-data__data">
@@ -137,7 +142,7 @@ const DeliveryDetails = ({
 
           {event?.metadata && Object.keys(event.metadata).length > 0 && (
             <div className="delivery-data__metadata">
-              <h3 className="subtitle-m">Event Metadata</h3>
+              <h3 className="subtitle-m">Metadata</h3>
               <pre className="mono-s">
                 {JSON.stringify(event.metadata, null, 2)}
               </pre>
@@ -146,7 +151,7 @@ const DeliveryDetails = ({
 
           {delivery.response_data && (
             <div className="delivery-data__response">
-              <h3 className="subtitle-m">Response</h3>
+              <h3 className="subtitle-m">Response Data</h3>
               <pre className="mono-s">
                 {JSON.stringify(delivery.response_data, null, 2)}
               </pre>
