@@ -28,7 +28,9 @@ const DeliveryDetails = ({
   return (
     <div className="drawer">
       <div className="drawer__header">
-        <h3 className="drawer__header-title mono-s">{event?.topic || "Delivery"}</h3>
+        <h3 className="drawer__header-title mono-s">
+          {event?.topic || "Delivery"}
+        </h3>
         <div className="drawer__header-actions">
           <RetryDeliveryButton
             deliveryId={delivery.id}
@@ -52,7 +54,7 @@ const DeliveryDetails = ({
 
       <div className="drawer__body">
         <div className="delivery-data">
-          <div className="delivery-data__fields">
+          <div className="delivery-data__section">
             <dl className="body-m description-list">
               <div>
                 <dt>Status</dt>
@@ -66,6 +68,22 @@ const DeliveryDetails = ({
                   />
                 </dd>
               </div>
+              {delivery.code && (
+                <div>
+                  <dt>Response Code</dt>
+                  <dd className="mono-s">{delivery.code}</dd>
+                </div>
+              )}
+              <div>
+                <dt>Attempt</dt>
+                <dd className="mono-s">{delivery.attempt}</dd>
+              </div>
+              {event && (
+                <div>
+                  <dt>Topic</dt>
+                  <dd className="mono-s">{event.topic}</dd>
+                </div>
+              )}
               <div>
                 <dt>Delivered at</dt>
                 <dd className="mono-s time">
@@ -80,31 +98,6 @@ const DeliveryDetails = ({
                   })}
                 </dd>
               </div>
-              {delivery.code && (
-                <div>
-                  <dt>Response Code</dt>
-                  <dd className="mono-s">{delivery.code}</dd>
-                </div>
-              )}
-              <div>
-                <dt>Attempt</dt>
-                <dd className="mono-s">{delivery.attempt}</dd>
-              </div>
-              {event && (
-                <>
-                  <div>
-                    <dt>Topic</dt>
-                    <dd className="mono-s">{event.topic}</dd>
-                  </div>
-                  <div>
-                    <dt>Event ID</dt>
-                    <dd className="mono-s id-field">
-                      <span>{event.id}</span>
-                      <CopyButton value={event.id} />
-                    </dd>
-                  </div>
-                </>
-              )}
               <div>
                 <dt>Delivery ID</dt>
                 <dd className="mono-s id-field">
@@ -114,17 +107,10 @@ const DeliveryDetails = ({
               </div>
               {event && (
                 <div>
-                  <dt>Event Time</dt>
-                  <dd className="mono-s time">
-                    {new Date(event.time).toLocaleString("en-US", {
-                      year: "numeric",
-                      month: "numeric",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                      second: "2-digit",
-                      timeZoneName: "short",
-                    })}
+                  <dt>Event ID</dt>
+                  <dd className="mono-s id-field">
+                    <span>{event.id}</span>
+                    <CopyButton value={event.id} />
                   </dd>
                 </div>
               )}
@@ -132,8 +118,8 @@ const DeliveryDetails = ({
           </div>
 
           {event?.data && (
-            <div className="delivery-data__data">
-              <h3 className="subtitle-m">Event Data</h3>
+            <div className="delivery-data__section">
+              <h3 className="subtitle-m">Data</h3>
               <pre className="mono-s">
                 {JSON.stringify(event.data, null, 2)}
               </pre>
@@ -141,7 +127,7 @@ const DeliveryDetails = ({
           )}
 
           {event?.metadata && Object.keys(event.metadata).length > 0 && (
-            <div className="delivery-data__metadata">
+            <div className="delivery-data__section">
               <h3 className="subtitle-m">Metadata</h3>
               <pre className="mono-s">
                 {JSON.stringify(event.metadata, null, 2)}
@@ -150,8 +136,8 @@ const DeliveryDetails = ({
           )}
 
           {delivery.response_data && (
-            <div className="delivery-data__response">
-              <h3 className="subtitle-m">Response Data</h3>
+            <div className="delivery-data__section">
+              <h3 className="subtitle-m">Response</h3>
               <pre className="mono-s">
                 {JSON.stringify(delivery.response_data, null, 2)}
               </pre>

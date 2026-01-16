@@ -124,7 +124,6 @@ const Deliveries: React.FC<DeliveriesProps> = ({
               />
             </span>,
             <span className="mono-s">{event?.topic || "-"}</span>,
-            <span className="mono-s">{event?.id || "-"}</span>,
             <span className="mono-s">{delivery.id}</span>,
           ],
           onClick: () => navigateDelivery(`/${delivery.id}`),
@@ -250,9 +249,6 @@ const Deliveries: React.FC<DeliveriesProps> = ({
             },
             {
               header: "Topic",
-            },
-            {
-              header: "Event ID",
             },
             {
               header: "Delivery ID",

@@ -121,17 +121,13 @@
   height: 100%;
   box-sizing: border-box;
 
-  &__fields {
+  &__section {
     padding: var(--spacing-3) var(--spacing-6);
     border-bottom: 1px solid var(--colors-outline-neutral);
-  }
 
-  &__data,
-  &__metadata,
-  &__response {
-    padding: var(--spacing-3) var(--spacing-6);
-    border-bottom: 1px solid var(--colors-outline-neutral);
-    background-color: var(--colors-background-neutral-2);
+    &:last-child {
+      border-bottom: none;
+    }
 
     > h3 {
       margin-top: 0;
@@ -139,14 +135,15 @@
     }
 
     pre {
+      background-color: var(--colors-background-neutral-2);
+      padding: var(--spacing-3);
+      border-radius: var(--radius-s);
       white-space: break-spaces;
       word-wrap: break-word;
       overflow-wrap: break-word;
+      margin-top: var(--spacing-3);
+      margin-bottom: 0;
     }
-  }
-
-  &__response {
-    border-bottom: none;
   }
 }
 
