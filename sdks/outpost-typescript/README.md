@@ -26,7 +26,6 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
   * [Available Resources and Operations](#available-resources-and-operations)
   * [Standalone functions](#standalone-functions)
   * [Global Parameters](#global-parameters)
-  * [Pagination](#pagination)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
   * [Server Selection](#server-selection)
@@ -225,7 +224,7 @@ run();
 <details open>
 <summary>Available methods</summary>
 
-### [destinations](docs/sdks/destinations/README.md)
+### [Destinations](docs/sdks/destinations/README.md)
 
 * [list](docs/sdks/destinations/README.md#list) - List Destinations
 * [create](docs/sdks/destinations/README.md#create) - Create Destination
@@ -235,7 +234,7 @@ run();
 * [enable](docs/sdks/destinations/README.md#enable) - Enable Destination
 * [disable](docs/sdks/destinations/README.md#disable) - Disable Destination
 
-### [events](docs/sdks/events/README.md)
+### [Events](docs/sdks/events/README.md)
 
 * [list](docs/sdks/events/README.md#list) - List Events
 * [get](docs/sdks/events/README.md#get) - Get Event
@@ -244,30 +243,31 @@ run();
 * [getByDestination](docs/sdks/events/README.md#getbydestination) - Get Event by Destination
 * [retry](docs/sdks/events/README.md#retry) - Retry Event Delivery
 
-### [health](docs/sdks/health/README.md)
+### [Health](docs/sdks/health/README.md)
 
 * [check](docs/sdks/health/README.md#check) - Health Check
 
-### [publish](docs/sdks/publish/README.md)
+### [Publish](docs/sdks/publish/README.md)
 
 * [event](docs/sdks/publish/README.md#event) - Publish Event
 
-### [schemas](docs/sdks/schemas/README.md)
+### [Schemas](docs/sdks/schemas/README.md)
 
 * [listTenantDestinationTypes](docs/sdks/schemas/README.md#listtenantdestinationtypes) - List Destination Type Schemas (for Tenant)
 * [get](docs/sdks/schemas/README.md#get) - Get Destination Type Schema (for Tenant)
 * [listDestinationTypesJwt](docs/sdks/schemas/README.md#listdestinationtypesjwt) - List Destination Type Schemas (JWT Auth)
 * [getDestinationTypeJwt](docs/sdks/schemas/README.md#getdestinationtypejwt) - Get Destination Type Schema
 
-### [tenants](docs/sdks/tenants/README.md)
+### [Tenants](docs/sdks/tenants/README.md)
 
+* [listTenants](docs/sdks/tenants/README.md#listtenants) - List Tenants
 * [upsert](docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
 * [get](docs/sdks/tenants/README.md#get) - Get Tenant
 * [delete](docs/sdks/tenants/README.md#delete) - Delete Tenant
 * [getPortalUrl](docs/sdks/tenants/README.md#getportalurl) - Get Portal Redirect URL
 * [getToken](docs/sdks/tenants/README.md#gettoken) - Get Tenant JWT Token
 
-### [topics](docs/sdks/topics/README.md)
+### [Topics](docs/sdks/topics/README.md)
 
 * [list](docs/sdks/topics/README.md#list) - List Available Topics (for Tenant)
 * [listJwt](docs/sdks/topics/README.md#listjwt) - List Available Topics)
@@ -313,6 +313,7 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 - [`tenantsGet`](docs/sdks/tenants/README.md#get) - Get Tenant
 - [`tenantsGetPortalUrl`](docs/sdks/tenants/README.md#getportalurl) - Get Portal Redirect URL
 - [`tenantsGetToken`](docs/sdks/tenants/README.md#gettoken) - Get Tenant JWT Token
+- [`tenantsListTenants`](docs/sdks/tenants/README.md#listtenants) - List Tenants
 - [`tenantsUpsert`](docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
 - [`topicsList`](docs/sdks/topics/README.md#list) - List Available Topics (for Tenant)
 - [`topicsListJwt`](docs/sdks/topics/README.md#listjwt) - List Available Topics)
@@ -358,41 +359,6 @@ run();
 
 ```
 <!-- End Global Parameters [global-parameters] -->
-
-<!-- Start Pagination [pagination] -->
-## Pagination
-
-Some of the endpoints in this SDK support pagination. To use pagination, you
-make your SDK calls as usual, but the returned response object will also be an
-async iterable that can be consumed using the [`for await...of`][for-await-of]
-syntax.
-
-[for-await-of]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of
-
-Here's an example of one such pagination call:
-
-```typescript
-import { Outpost } from "@hookdeck/outpost-sdk";
-
-const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
-});
-
-async function run() {
-  const result = await outpost.events.list({});
-
-  for await (const page of result) {
-    console.log(page);
-  }
-}
-
-run();
-
-```
-<!-- End Pagination [pagination] -->
 
 <!-- Start Retries [retries] -->
 ## Retries
@@ -502,16 +468,10 @@ run();
 ```
 
 ### Error Classes
-**Primary errors:**
+**Primary error:**
 * [`OutpostError`](./src/models/errors/outposterror.ts): The base class for HTTP error responses.
-  * [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request.
-  * [`UnauthorizedError`](./src/models/errors/unauthorizederror.ts): A collection of codes that generally means the client was not authenticated correctly for the request they want to make.
-  * [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing.
-  * [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request.
-  * [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`.
-  * [`InternalServerError`](./src/models/errors/internalservererror.ts): A collection of status codes that generally mean the server failed in an unexpected way.
 
-<details><summary>Less common errors (6)</summary>
+<details><summary>Less common errors (14)</summary>
 
 <br />
 
@@ -524,9 +484,19 @@ run();
 
 
 **Inherit from [`OutpostError`](./src/models/errors/outposterror.ts)**:
+* [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 5 of 27 methods.*
+* [`UnauthorizedError`](./src/models/errors/unauthorizederror.ts): A collection of codes that generally means the client was not authenticated correctly for the request they want to make. Applicable to 5 of 27 methods.*
+* [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 5 of 27 methods.*
+* [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request. Applicable to 5 of 27 methods.*
+* [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 27 methods.*
+* [`InternalServerError`](./src/models/errors/internalservererror.ts): A collection of status codes that generally mean the server failed in an unexpected way. Applicable to 5 of 27 methods.*
+* [`ListTenantsBadRequestError`](./src/models/errors/listtenantsbadrequesterror.ts): Invalid request parameters (e.g., invalid cursor, both next and prev provided). Status code `400`. Applicable to 1 of 27 methods.*
+* [`NotImplementedError`](./src/models/errors/notimplementederror.ts): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 27 methods.*
 * [`ResponseValidationError`](./src/models/errors/responsevalidationerror.ts): Type mismatch between the data returned from the server and the structure expected by the SDK. See `error.rawValue` for the raw value and `error.pretty()` for a nicely formatted multi-line string.
 
 </details>
+
+\* Check [the method documentation](#available-resources-and-operations) to see if the error is applicable.
 <!-- End Error Handling [errors] -->
 
 <!-- Start Server Selection [server] -->

@@ -15,6 +15,7 @@ const value: components.DestinationWebhook = {
   ],
   disabledAt: null,
   createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
   config: {
     url: "https://my-service.com/webhook/handler",
   },
@@ -37,6 +38,7 @@ const value: components.DestinationAWSSQS = {
   ],
   disabledAt: new Date("2024-03-01T12:00:00Z"),
   createdAt: new Date("2024-02-20T11:30:00Z"),
+  updatedAt: new Date("2024-02-20T11:30:00Z"),
   config: {
     endpoint: "https://sqs.us-west-2.amazonaws.com",
     queueUrl: "https://sqs.us-west-2.amazonaws.com/123456789012/my-app-queue",
@@ -59,6 +61,7 @@ const value: components.DestinationRabbitMQ = {
   ],
   disabledAt: null,
   createdAt: new Date("2024-01-10T09:00:00Z"),
+  updatedAt: new Date("2024-01-10T09:00:00Z"),
   config: {
     serverUrl: "amqp.cloudamqp.com:5671",
     exchange: "events-exchange",
@@ -82,6 +85,7 @@ const value: components.DestinationHookdeck = {
   ],
   disabledAt: null,
   createdAt: new Date("2024-04-01T10:00:00Z"),
+  updatedAt: new Date("2024-04-01T10:00:00Z"),
   config: {},
   credentials: {
     token: "hd_token_...",
@@ -101,6 +105,7 @@ const value: components.DestinationAWSKinesis = {
   ],
   disabledAt: null,
   createdAt: new Date("2024-03-10T15:30:00Z"),
+  updatedAt: new Date("2024-03-10T15:30:00Z"),
   config: {
     streamName: "production-events",
     region: "eu-west-1",
@@ -123,6 +128,7 @@ const value: components.DestinationAzureServiceBus = {
   ],
   disabledAt: null,
   createdAt: new Date("2024-05-01T10:00:00Z"),
+  updatedAt: new Date("2024-05-01T10:00:00Z"),
   config: {
     name: "my-queue-or-topic",
   },
@@ -144,6 +150,7 @@ const value: components.DestinationAwss3 = {
   ],
   disabledAt: null,
   createdAt: new Date("2024-03-20T12:00:00Z"),
+  updatedAt: new Date("2024-03-20T12:00:00Z"),
   config: {
     bucket: "my-bucket",
     region: "us-east-1",
@@ -167,6 +174,7 @@ const value: components.DestinationGCPPubSub = {
   ],
   disabledAt: null,
   createdAt: new Date("2024-03-10T14:30:00Z"),
+  updatedAt: new Date("2024-03-10T14:30:00Z"),
   config: {
     projectId: "my-project-123",
     topic: "events-topic",

@@ -1,5 +1,4 @@
 # Schemas
-(*schemas*)
 
 ## Overview
 
@@ -18,7 +17,7 @@ Returns a list of JSON-based input schemas for each available destination type. 
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="listTenantDestinationTypeSchemas" method="get" path="/{tenant_id}/destination-types" -->
+<!-- UsageSnippet language="typescript" operationID="listTenantDestinationTypeSchemas" method="get" path="/tenants/{tenant_id}/destination-types" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -83,18 +82,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## get
 
@@ -102,7 +92,7 @@ Returns the input schema for a specific destination type. Requires Admin API Key
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="getTenantDestinationTypeSchema" method="get" path="/{tenant_id}/destination-types/{type}" -->
+<!-- UsageSnippet language="typescript" operationID="getTenantDestinationTypeSchema" method="get" path="/tenants/{tenant_id}/destination-types/{type}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -171,18 +161,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## listDestinationTypesJwt
 

@@ -7,10 +7,28 @@ import { UpdateTenantDestinationRequest } from "@hookdeck/outpost-sdk/models/ope
 
 let value: UpdateTenantDestinationRequest = {
   destinationId: "<id>",
-  destinationUpdate: {
+  params: {
     topics: "*",
+    filter: {
+      "data": {
+        "amount": {
+          "$gte": 100,
+        },
+        "customer": {
+          "tier": "premium",
+        },
+      },
+    },
     credentials: {
       token: "hd_token_...",
+    },
+    deliveryMetadata: {
+      "app-id": "my-app",
+      "region": "us-east-1",
+    },
+    metadata: {
+      "internal-id": "123",
+      "team": "platform",
     },
   },
 };
@@ -22,4 +40,4 @@ let value: UpdateTenantDestinationRequest = {
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `tenantId`                                                            | *string*                                                              | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `destinationId`                                                       | *string*                                                              | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `destinationUpdate`                                                   | *components.DestinationUpdate*                                        | :heavy_check_mark:                                                    | N/A                                                                   |
+| `params`                                                              | *components.DestinationUpdate*                                        | :heavy_check_mark:                                                    | N/A                                                                   |

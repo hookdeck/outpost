@@ -6,7 +6,7 @@ sources:
         sourceBlobDigest: sha256:e3b85ac9da28706696320ca22b6ca215624531b31c3d79474802b1dbf485bd4d
         tags:
             - latest
-            - speakeasy-sdk-regen-1768565776
+            - speakeasy-sdk-regen-1768569631
             - 0.0.1
     Outpost API (Python):
         sourceNamespace: outpost-api
@@ -37,7 +37,7 @@ targets:
         sourceRevisionDigest: sha256:1534dabb139bd405d19820be4eddbd8540fc924fa5a267332a7296f8663dd15a
         sourceBlobDigest: sha256:e3b85ac9da28706696320ca22b6ca215624531b31c3d79474802b1dbf485bd4d
         codeSamplesNamespace: outpost-api-typescript-code-samples
-        codeSamplesRevisionDigest: sha256:e84a77ce14d887b056d89141a76a7f58be0c6b48bfb370390564d1a9e58f1265
+        codeSamplesRevisionDigest: sha256:e4836ddc6ae9b814e565d258fb1c82739b633df197e95c217a595c7e09bebf2e
 workflow:
     workflowVersion: 1.0.0
     speakeasyVersion: latest

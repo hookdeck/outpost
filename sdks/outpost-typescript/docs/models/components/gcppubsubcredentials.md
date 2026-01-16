@@ -7,7 +7,7 @@ import { GCPPubSubCredentials } from "@hookdeck/outpost-sdk/models/components";
 
 let value: GCPPubSubCredentials = {
   serviceAccountJson:
-    "{\"type\":\"service_account\",\"project_id\":\"my-project\",\"private_key_id\":\"key123\",\"private_key\":\"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n\",\"client_email\":\"my-service@my-project.iam.gserviceaccount.com\"}",
+    "{\"type\":\"service_account\",\"project_id\":\"my-project\",\"private_key_id\":\"key123\",\"private_key\":\"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n\",\"client_email\":\"my-service@my-project.iam.gserviceaccount.com\"}",
 };
 ```
 

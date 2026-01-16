@@ -1,5 +1,4 @@
 # Tenants
-(*tenants*)
 
 ## Overview
 
@@ -10,11 +9,94 @@ If your system is not multi-tenant, create a single tenant with a hard-code tena
 
 ### Available Operations
 
+* [listTenants](#listtenants) - List Tenants
 * [upsert](#upsert) - Create or Update Tenant
 * [get](#get) - Get Tenant
 * [delete](#delete) - Delete Tenant
 * [getPortalUrl](#getportalurl) - Get Portal Redirect URL
 * [getToken](#gettoken) - Get Tenant JWT Token
+
+## listTenants
+
+List all tenants with cursor-based pagination.
+
+**Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
+If RediSearch is not available, this endpoint returns `501 Not Implemented`.
+
+The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
+Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
+
+
+### Example Usage
+
+<!-- UsageSnippet language="typescript" operationID="listTenants" method="get" path="/tenants" -->
+```typescript
+import { Outpost } from "@hookdeck/outpost-sdk";
+
+const outpost = new Outpost({
+  security: {
+    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
+  },
+});
+
+async function run() {
+  const result = await outpost.tenants.listTenants({});
+
+  console.log(result);
+}
+
+run();
+```
+
+### Standalone function
+
+The standalone function version of this method:
+
+```typescript
+import { OutpostCore } from "@hookdeck/outpost-sdk/core.js";
+import { tenantsListTenants } from "@hookdeck/outpost-sdk/funcs/tenantsListTenants.js";
+
+// Use `OutpostCore` for best tree-shaking performance.
+// You can create one instance of it to use across an application.
+const outpost = new OutpostCore({
+  security: {
+    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
+  },
+});
+
+async function run() {
+  const res = await tenantsListTenants(outpost, {});
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("tenantsListTenants failed:", res.error);
+  }
+}
+
+run();
+```
+
+### Parameters
+
+| Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `request`                                                                                                                                                                      | [operations.ListTenantsRequest](../../models/operations/listtenantsrequest.md)                                                                                                 | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
+| `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
+| `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
+| `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
+
+### Response
+
+**Promise\<[components.TenantListResponse](../../models/components/tenantlistresponse.md)\>**
+
+### Errors
+
+| Error Type                        | Status Code                       | Content Type                      |
+| --------------------------------- | --------------------------------- | --------------------------------- |
+| errors.ListTenantsBadRequestError | 400                               | application/json                  |
+| errors.NotImplementedError        | 501                               | application/json                  |
+| errors.APIError                   | 4XX, 5XX                          | \*/\*                             |
 
 ## upsert
 
@@ -22,7 +104,7 @@ Idempotently creates or updates a tenant. Required before associating destinatio
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="upsertTenant" method="put" path="/{tenant_id}" -->
+<!-- UsageSnippet language="typescript" operationID="upsertTenant" method="put" path="/tenants/{tenant_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -87,19 +169,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.NotFoundError         | 404                          | application/json             |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## get
 
@@ -107,7 +179,7 @@ Retrieves details for a specific tenant.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="getTenant" method="get" path="/{tenant_id}" -->
+<!-- UsageSnippet language="typescript" operationID="getTenant" method="get" path="/tenants/{tenant_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -172,18 +244,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## delete
 
@@ -191,7 +254,7 @@ Deletes the tenant and all associated destinations.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="deleteTenant" method="delete" path="/{tenant_id}" -->
+<!-- UsageSnippet language="typescript" operationID="deleteTenant" method="delete" path="/tenants/{tenant_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -256,18 +319,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## getPortalUrl
 
@@ -275,7 +329,7 @@ Returns a redirect URL containing a JWT to authenticate the user with the portal
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="getTenantPortalUrl" method="get" path="/{tenant_id}/portal" -->
+<!-- UsageSnippet language="typescript" operationID="getTenantPortalUrl" method="get" path="/tenants/{tenant_id}/portal" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -340,18 +394,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## getToken
 
@@ -359,7 +404,7 @@ Returns a JWT token scoped to the tenant for safe browser API calls.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="getTenantToken" method="get" path="/{tenant_id}/token" -->
+<!-- UsageSnippet language="typescript" operationID="getTenantToken" method="get" path="/tenants/{tenant_id}/token" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -424,15 +469,6 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |

@@ -9,7 +9,20 @@ export const tool$healthCheck: ToolDefinition = {
   name: "health-check",
   description: `Health Check
 
-Simple health check endpoint.`,
+Health check endpoint that reports the status of all workers.
+
+Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
+
+The response includes:
+- \`status\`: Overall health status ("healthy" or "failed")
+- \`timestamp\`: When this health check was performed (ISO 8601 format)
+- \`workers\`: Map of worker names to their individual health status
+
+Each worker reports:
+- \`status\`: Worker health ("healthy" or "failed")
+
+Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
+`,
   tool: async (client, ctx) => {
     const [result, apiCall] = await healthCheck(
       client,

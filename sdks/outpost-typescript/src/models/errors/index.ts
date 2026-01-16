@@ -6,6 +6,7 @@ export * from "./apierror.js";
 export * from "./badrequesterror.js";
 export * from "./httpclienterrors.js";
 export * from "./internalservererror.js";
+export * from "./listtenants.js";
 export * from "./notfounderror.js";
 export * from "./outposterror.js";
 export * from "./ratelimitederror.js";
