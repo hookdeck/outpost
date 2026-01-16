@@ -39,8 +39,14 @@ docker run --rm hookdeck/outpost migrate plan
 Execute the migration (creates new structures, preserves old ones):
 
 ```bash
+# Apply the next pending migration
 docker run --rm -it hookdeck/outpost migrate apply
+
+# Or apply all pending migrations in sequence
+docker run --rm -it hookdeck/outpost migrate apply --all
 ```
+
+The `--all` flag runs each pending migration in version order, automatically verifying each one before proceeding to the next. If any migration fails verification, the process stops immediately.
 
 :::info
 The `-it` flags enable interactive mode for confirmation prompts. Add `--yes` to skip confirmations in automated environments.
@@ -100,6 +106,58 @@ Cleanup operations require successful verification by default:
 
 - Prevents accidental data loss
 - Can be overridden with `--force` flag (use with caution)
+
+## Running in Private Environments
+
+Redis is often deployed in private networks (VPCs, internal subnets) that aren't accessible from your local machine. The migration tool needs direct network access to Redis, so you'll need to run it from within the same network.
+
+### Common Approaches
+
+**Run from an existing host in the network:**
+
+If you have SSH access to a host that can reach Redis (e.g., your application server), you can run the migration there:
+
+```bash
+# SSH into a host with Redis access
+ssh your-server
+
+# Run migration using Docker
+docker run --rm -it \
+  -e REDIS_HOST=redis.internal \
+  -e REDIS_PASSWORD=... \
+  hookdeck/outpost:v0.12.0 migrate apply --all
+```
+
+**Kubernetes:**
+
+Run the migration as a one-off pod in the same namespace/cluster:
+
+```bash
+kubectl run outpost-migrate --rm -it --restart=Never \
+  --image=hookdeck/outpost:v0.12.0 \
+  --env="REDIS_HOST=redis.internal" \
+  --env="REDIS_PASSWORD=..." \
+  -- migrate apply --all
+```
+
+**Port forwarding:**
+
+If direct access isn't possible, you can forward the Redis port to your local machine:
+
+```bash
+# Example: SSH tunnel
+ssh -L 6379:redis.internal:6379 bastion-host
+
+# Then run migration locally
+docker run --rm -it \
+  -e REDIS_HOST=host.docker.internal \
+  -e REDIS_PORT=6379 \
+  hookdeck/outpost:v0.12.0 migrate apply --all
+```
+
+:::tip
+Use the same network configuration that Outpost itself uses to connect to Redis. If Outpost can reach Redis, running the migration tool in the same environment will work.
+:::
 
 ## Configuration
 
