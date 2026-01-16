@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -94,11 +95,13 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 
 	// Cursor conditions
 	if !nextCursor.IsEmpty() {
-		cursorCond := buildEventCursorCondition(sortOrder, nextCursor.Position, false)
+		cursorCond, cursorArgs := buildEventCursorCondition(sortOrder, nextCursor.Position, false)
 		conditions = append(conditions, cursorCond)
+		args = append(args, cursorArgs...)
 	} else if !prevCursor.IsEmpty() {
-		cursorCond := buildEventCursorCondition(sortOrder, prevCursor.Position, true)
+		cursorCond, cursorArgs := buildEventCursorCondition(sortOrder, prevCursor.Position, true)
 		conditions = append(conditions, cursorCond)
+		args = append(args, cursorArgs...)
 	}
 
 	whereClause := strings.Join(conditions, " AND ")
@@ -256,14 +259,18 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 	}, nil
 }
 
-// buildEventCursorCondition builds a SQL condition for cursor-based pagination on events table
-func buildEventCursorCondition(sortOrder, position string, isBackward bool) string {
+// buildEventCursorCondition builds a SQL condition for cursor-based pagination on events table.
+// Returns the condition string with ? placeholders and the corresponding args.
+func buildEventCursorCondition(sortOrder, position string, isBackward bool) (string, []interface{}) {
 	// Parse position: eventTimeMs::eventID
 	parts := strings.SplitN(position, "::", 2)
 	if len(parts) != 2 {
-		return "1=1" // invalid cursor, return always true
+		return "1=1", nil // invalid cursor, return always true
 	}
-	eventTimeMs := parts[0]
+	eventTimeMs, err := parseTimestampMs(parts[0])
+	if err != nil {
+		return "1=1", nil // invalid timestamp, return always true
+	}
 	eventID := parts[1]
 
 	// Determine comparison direction
@@ -283,10 +290,13 @@ func buildEventCursorCondition(sortOrder, position string, isBackward bool) stri
 	}
 
 	// Build multi-column comparison for (event_time, event_id)
-	return fmt.Sprintf(`(
-		event_time %s fromUnixTimestamp64Milli(%s)
-		OR (event_time = fromUnixTimestamp64Milli(%s) AND event_id %s '%s')
-	)`, cmp, eventTimeMs, eventTimeMs, cmp, eventID)
+	// Uses parameterized queries to prevent SQL injection
+	condition := fmt.Sprintf(`(
+		event_time %s fromUnixTimestamp64Milli(?)
+		OR (event_time = fromUnixTimestamp64Milli(?) AND event_id %s ?)
+	)`, cmp, cmp)
+
+	return condition, []interface{}{eventTimeMs, eventTimeMs, eventID}
 }
 
 func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDeliveryEventRequest) (driver.ListDeliveryEventResponse, error) {
@@ -399,11 +409,13 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 
 	// Cursor conditions
 	if !nextCursor.IsEmpty() {
-		cursorCond := buildCursorCondition(sortBy, sortOrder, nextCursor.Position, false)
+		cursorCond, cursorArgs := buildCursorCondition(sortBy, sortOrder, nextCursor.Position, false)
 		conditions = append(conditions, cursorCond)
+		args = append(args, cursorArgs...)
 	} else if !prevCursor.IsEmpty() {
-		cursorCond := buildCursorCondition(sortBy, sortOrder, prevCursor.Position, true)
+		cursorCond, cursorArgs := buildCursorCondition(sortBy, sortOrder, prevCursor.Position, true)
 		conditions = append(conditions, cursorCond)
+		args = append(args, cursorArgs...)
 	}
 
 	whereClause := strings.Join(conditions, " AND ")
@@ -925,8 +937,14 @@ func (s *logStoreImpl) InsertManyDeliveryEvent(ctx context.Context, deliveryEven
 	return nil
 }
 
-// buildCursorCondition builds a SQL condition for cursor-based pagination
-func buildCursorCondition(sortBy, sortOrder, position string, isBackward bool) string {
+// parseTimestampMs parses a millisecond timestamp string to int64.
+func parseTimestampMs(s string) (int64, error) {
+	return strconv.ParseInt(s, 10, 64)
+}
+
+// buildCursorCondition builds a SQL condition for cursor-based pagination.
+// Returns the condition string with ? placeholders and the corresponding args.
+func buildCursorCondition(sortBy, sortOrder, position string, isBackward bool) (string, []interface{}) {
 	// Parse position based on sortBy
 	// For delivery_time: "timestamp::deliveryID"
 	// For event_time: "timestamp::eventID::timestamp::deliveryID"
@@ -935,11 +953,17 @@ func buildCursorCondition(sortBy, sortOrder, position string, isBackward bool) s
 		// Parse: eventTimeMs::eventID::deliveryTimeMs::deliveryID
 		parts := strings.SplitN(position, "::", 4)
 		if len(parts) != 4 {
-			return "1=1" // invalid cursor, return always true
+			return "1=1", nil // invalid cursor, return always true
 		}
-		eventTimeMs := parts[0]
+		eventTimeMs, err := parseTimestampMs(parts[0])
+		if err != nil {
+			return "1=1", nil // invalid timestamp, return always true
+		}
 		eventID := parts[1]
-		deliveryTimeMs := parts[2]
+		deliveryTimeMs, err := parseTimestampMs(parts[2])
+		if err != nil {
+			return "1=1", nil // invalid timestamp, return always true
+		}
 		deliveryID := parts[3]
 
 		// Determine comparison direction
@@ -958,27 +982,33 @@ func buildCursorCondition(sortBy, sortOrder, position string, isBackward bool) s
 			}
 		}
 
-		// Build multi-column comparison
+		// Build multi-column comparison with parameterized queries
 		// (event_time, event_id, delivery_time, delivery_id) < (cursor_values)
-		return fmt.Sprintf(`(
-			event_time %s fromUnixTimestamp64Milli(%s)
-			OR (event_time = fromUnixTimestamp64Milli(%s) AND event_id %s '%s')
-			OR (event_time = fromUnixTimestamp64Milli(%s) AND event_id = '%s' AND delivery_time %s fromUnixTimestamp64Milli(%s))
-			OR (event_time = fromUnixTimestamp64Milli(%s) AND event_id = '%s' AND delivery_time = fromUnixTimestamp64Milli(%s) AND delivery_id %s '%s')
-		)`,
-			cmp, eventTimeMs,
-			eventTimeMs, cmp, eventID,
-			eventTimeMs, eventID, cmp, deliveryTimeMs,
-			eventTimeMs, eventID, deliveryTimeMs, cmp, deliveryID,
-		)
+		condition := fmt.Sprintf(`(
+			event_time %s fromUnixTimestamp64Milli(?)
+			OR (event_time = fromUnixTimestamp64Milli(?) AND event_id %s ?)
+			OR (event_time = fromUnixTimestamp64Milli(?) AND event_id = ? AND delivery_time %s fromUnixTimestamp64Milli(?))
+			OR (event_time = fromUnixTimestamp64Milli(?) AND event_id = ? AND delivery_time = fromUnixTimestamp64Milli(?) AND delivery_id %s ?)
+		)`, cmp, cmp, cmp, cmp)
+
+		args := []interface{}{
+			eventTimeMs,
+			eventTimeMs, eventID,
+			eventTimeMs, eventID, deliveryTimeMs,
+			eventTimeMs, eventID, deliveryTimeMs, deliveryID,
+		}
+		return condition, args
 	}
 
 	// delivery_time sort: "timestamp::deliveryID"
 	parts := strings.SplitN(position, "::", 2)
 	if len(parts) != 2 {
-		return "1=1"
+		return "1=1", nil
 	}
-	deliveryTimeMs := parts[0]
+	deliveryTimeMs, err := parseTimestampMs(parts[0])
+	if err != nil {
+		return "1=1", nil // invalid timestamp, return always true
+	}
 	deliveryID := parts[1]
 
 	var cmp string
@@ -996,8 +1026,10 @@ func buildCursorCondition(sortBy, sortOrder, position string, isBackward bool) s
 		}
 	}
 
-	return fmt.Sprintf(`(
-		delivery_time %s fromUnixTimestamp64Milli(%s)
-		OR (delivery_time = fromUnixTimestamp64Milli(%s) AND delivery_id %s '%s')
-	)`, cmp, deliveryTimeMs, deliveryTimeMs, cmp, deliveryID)
+	condition := fmt.Sprintf(`(
+		delivery_time %s fromUnixTimestamp64Milli(?)
+		OR (delivery_time = fromUnixTimestamp64Milli(?) AND delivery_id %s ?)
+	)`, cmp, cmp)
+
+	return condition, []interface{}{deliveryTimeMs, deliveryTimeMs, deliveryID}
 }
