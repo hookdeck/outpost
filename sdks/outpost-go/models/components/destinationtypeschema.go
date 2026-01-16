@@ -19,58 +19,58 @@ type DestinationTypeSchema struct {
 	CredentialFields []DestinationSchemaField `json:"credential_fields,omitempty"`
 }
 
-func (o *DestinationTypeSchema) GetType() *string {
-	if o == nil {
+func (d *DestinationTypeSchema) GetType() *string {
+	if d == nil {
 		return nil
 	}
-	return o.Type
+	return d.Type
 }
 
-func (o *DestinationTypeSchema) GetLabel() *string {
-	if o == nil {
+func (d *DestinationTypeSchema) GetLabel() *string {
+	if d == nil {
 		return nil
 	}
-	return o.Label
+	return d.Label
 }
 
-func (o *DestinationTypeSchema) GetDescription() *string {
-	if o == nil {
+func (d *DestinationTypeSchema) GetDescription() *string {
+	if d == nil {
 		return nil
 	}
-	return o.Description
+	return d.Description
 }
 
-func (o *DestinationTypeSchema) GetIcon() *string {
-	if o == nil {
+func (d *DestinationTypeSchema) GetIcon() *string {
+	if d == nil {
 		return nil
 	}
-	return o.Icon
+	return d.Icon
 }
 
-func (o *DestinationTypeSchema) GetInstructions() *string {
-	if o == nil {
+func (d *DestinationTypeSchema) GetInstructions() *string {
+	if d == nil {
 		return nil
 	}
-	return o.Instructions
+	return d.Instructions
 }
 
-func (o *DestinationTypeSchema) GetRemoteSetupURL() *string {
-	if o == nil {
+func (d *DestinationTypeSchema) GetRemoteSetupURL() *string {
+	if d == nil {
 		return nil
 	}
-	return o.RemoteSetupURL
+	return d.RemoteSetupURL
 }
 
-func (o *DestinationTypeSchema) GetConfigFields() []DestinationSchemaField {
-	if o == nil {
+func (d *DestinationTypeSchema) GetConfigFields() []DestinationSchemaField {
+	if d == nil {
 		return nil
 	}
-	return o.ConfigFields
+	return d.ConfigFields
 }
 
-func (o *DestinationTypeSchema) GetCredentialFields() []DestinationSchemaField {
-	if o == nil {
+func (d *DestinationTypeSchema) GetCredentialFields() []DestinationSchemaField {
+	if d == nil {
 		return nil
 	}
-	return o.CredentialFields
+	return d.CredentialFields
 }

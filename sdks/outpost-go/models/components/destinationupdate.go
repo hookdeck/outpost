@@ -11,21 +11,25 @@ import (
 type DestinationUpdateType string
 
 const (
-	DestinationUpdateTypeDestinationUpdateWebhook    DestinationUpdateType = "DestinationUpdateWebhook"
-	DestinationUpdateTypeDestinationUpdateAWSSQS     DestinationUpdateType = "DestinationUpdateAWSSQS"
-	DestinationUpdateTypeDestinationUpdateRabbitMQ   DestinationUpdateType = "DestinationUpdateRabbitMQ"
-	DestinationUpdateTypeDestinationUpdateHookdeck   DestinationUpdateType = "DestinationUpdateHookdeck"
-	DestinationUpdateTypeDestinationUpdateAWSKinesis DestinationUpdateType = "DestinationUpdateAWSKinesis"
-	DestinationUpdateTypeDestinationUpdateAwss3      DestinationUpdateType = "DestinationUpdateAWSS3"
+	DestinationUpdateTypeDestinationUpdateWebhook         DestinationUpdateType = "DestinationUpdateWebhook"
+	DestinationUpdateTypeDestinationUpdateAWSSQS          DestinationUpdateType = "DestinationUpdateAWSSQS"
+	DestinationUpdateTypeDestinationUpdateRabbitMQ        DestinationUpdateType = "DestinationUpdateRabbitMQ"
+	DestinationUpdateTypeDestinationUpdateHookdeck        DestinationUpdateType = "DestinationUpdateHookdeck"
+	DestinationUpdateTypeDestinationUpdateAWSKinesis      DestinationUpdateType = "DestinationUpdateAWSKinesis"
+	DestinationUpdateTypeDestinationUpdateAzureServiceBus DestinationUpdateType = "DestinationUpdateAzureServiceBus"
+	DestinationUpdateTypeDestinationUpdateAwss3           DestinationUpdateType = "DestinationUpdateAWSS3"
+	DestinationUpdateTypeDestinationUpdateGCPPubSub       DestinationUpdateType = "DestinationUpdateGCPPubSub"
 )
 
 type DestinationUpdate struct {
-	DestinationUpdateWebhook    *DestinationUpdateWebhook    `queryParam:"inline" name:"DestinationUpdate"`
-	DestinationUpdateAWSSQS     *DestinationUpdateAWSSQS     `queryParam:"inline" name:"DestinationUpdate"`
-	DestinationUpdateRabbitMQ   *DestinationUpdateRabbitMQ   `queryParam:"inline" name:"DestinationUpdate"`
-	DestinationUpdateHookdeck   *DestinationUpdateHookdeck   `queryParam:"inline" name:"DestinationUpdate"`
-	DestinationUpdateAWSKinesis *DestinationUpdateAWSKinesis `queryParam:"inline" name:"DestinationUpdate"`
-	DestinationUpdateAwss3      *DestinationUpdateAwss3      `queryParam:"inline" name:"DestinationUpdate"`
+	DestinationUpdateWebhook         *DestinationUpdateWebhook         `queryParam:"inline" union:"member"`
+	DestinationUpdateAWSSQS          *DestinationUpdateAWSSQS          `queryParam:"inline" union:"member"`
+	DestinationUpdateRabbitMQ        *DestinationUpdateRabbitMQ        `queryParam:"inline" union:"member"`
+	DestinationUpdateHookdeck        *DestinationUpdateHookdeck        `queryParam:"inline" union:"member"`
+	DestinationUpdateAWSKinesis      *DestinationUpdateAWSKinesis      `queryParam:"inline" union:"member"`
+	DestinationUpdateAzureServiceBus *DestinationUpdateAzureServiceBus `queryParam:"inline" union:"member"`
+	DestinationUpdateAwss3           *DestinationUpdateAwss3           `queryParam:"inline" union:"member"`
+	DestinationUpdateGCPPubSub       *DestinationUpdateGCPPubSub       `queryParam:"inline" union:"member"`
 
 	Type DestinationUpdateType
 }
@@ -75,12 +79,30 @@ func CreateDestinationUpdateDestinationUpdateAWSKinesis(destinationUpdateAWSKine
 	}
 }
 
+func CreateDestinationUpdateDestinationUpdateAzureServiceBus(destinationUpdateAzureServiceBus DestinationUpdateAzureServiceBus) DestinationUpdate {
+	typ := DestinationUpdateTypeDestinationUpdateAzureServiceBus
+
+	return DestinationUpdate{
+		DestinationUpdateAzureServiceBus: &destinationUpdateAzureServiceBus,
+		Type:                             typ,
+	}
+}
+
 func CreateDestinationUpdateDestinationUpdateAwss3(destinationUpdateAwss3 DestinationUpdateAwss3) DestinationUpdate {
 	typ := DestinationUpdateTypeDestinationUpdateAwss3
 
 	return DestinationUpdate{
 		DestinationUpdateAwss3: &destinationUpdateAwss3,
 		Type:                   typ,
+	}
+}
+
+func CreateDestinationUpdateDestinationUpdateGCPPubSub(destinationUpdateGCPPubSub DestinationUpdateGCPPubSub) DestinationUpdate {
+	typ := DestinationUpdateTypeDestinationUpdateGCPPubSub
+
+	return DestinationUpdate{
+		DestinationUpdateGCPPubSub: &destinationUpdateGCPPubSub,
+		Type:                       typ,
 	}
 }
 
@@ -121,10 +143,24 @@ func (u *DestinationUpdate) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var destinationUpdateAzureServiceBus DestinationUpdateAzureServiceBus = DestinationUpdateAzureServiceBus{}
+	if err := utils.UnmarshalJSON(data, &destinationUpdateAzureServiceBus, "", true, nil); err == nil {
+		u.DestinationUpdateAzureServiceBus = &destinationUpdateAzureServiceBus
+		u.Type = DestinationUpdateTypeDestinationUpdateAzureServiceBus
+		return nil
+	}
+
 	var destinationUpdateAwss3 DestinationUpdateAwss3 = DestinationUpdateAwss3{}
 	if err := utils.UnmarshalJSON(data, &destinationUpdateAwss3, "", true, nil); err == nil {
 		u.DestinationUpdateAwss3 = &destinationUpdateAwss3
 		u.Type = DestinationUpdateTypeDestinationUpdateAwss3
+		return nil
+	}
+
+	var destinationUpdateGCPPubSub DestinationUpdateGCPPubSub = DestinationUpdateGCPPubSub{}
+	if err := utils.UnmarshalJSON(data, &destinationUpdateGCPPubSub, "", true, nil); err == nil {
+		u.DestinationUpdateGCPPubSub = &destinationUpdateGCPPubSub
+		u.Type = DestinationUpdateTypeDestinationUpdateGCPPubSub
 		return nil
 	}
 
@@ -152,8 +188,16 @@ func (u DestinationUpdate) MarshalJSON() ([]byte, error) {
 		return utils.MarshalJSON(u.DestinationUpdateAWSKinesis, "", true)
 	}
 
+	if u.DestinationUpdateAzureServiceBus != nil {
+		return utils.MarshalJSON(u.DestinationUpdateAzureServiceBus, "", true)
+	}
+
 	if u.DestinationUpdateAwss3 != nil {
 		return utils.MarshalJSON(u.DestinationUpdateAwss3, "", true)
+	}
+
+	if u.DestinationUpdateGCPPubSub != nil {
+		return utils.MarshalJSON(u.DestinationUpdateGCPPubSub, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type DestinationUpdate: all fields are null")

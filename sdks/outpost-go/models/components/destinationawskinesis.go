@@ -40,12 +40,24 @@ type DestinationAWSKinesis struct {
 	Type DestinationAWSKinesisType `json:"type"`
 	// "*" or an array of enabled topics.
 	Topics Topics `json:"topics"`
+	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+	// If null or empty, all events matching the topic filter will be delivered.
+	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	//
+	Filter map[string]any `json:"filter,omitempty"`
 	// ISO Date when the destination was disabled, or null if enabled.
 	DisabledAt *time.Time `json:"disabled_at"`
 	// ISO Date when the destination was created.
-	CreatedAt   time.Time             `json:"created_at"`
+	CreatedAt time.Time `json:"created_at"`
+	// ISO Date when the destination was last updated.
+	UpdatedAt   time.Time             `json:"updated_at"`
 	Config      AWSKinesisConfig      `json:"config"`
 	Credentials AWSKinesisCredentials `json:"credentials"`
+	// Static key-value pairs merged into event metadata on every delivery.
+	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination.
+	Metadata map[string]string `json:"metadata,omitempty"`
 	// A human-readable representation of the destination target (Kinesis stream name). Read-only.
 	Target *string `json:"target,omitempty"`
 	// A URL link to the destination target (AWS Console link to the stream). Read-only.
@@ -57,71 +69,99 @@ func (d DestinationAWSKinesis) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationAWSKinesis) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "disabled_at", "created_at", "config", "credentials"}); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "created_at", "updated_at", "config", "credentials"}); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (o *DestinationAWSKinesis) GetID() string {
-	if o == nil {
+func (d *DestinationAWSKinesis) GetID() string {
+	if d == nil {
 		return ""
 	}
-	return o.ID
+	return d.ID
 }
 
-func (o *DestinationAWSKinesis) GetType() DestinationAWSKinesisType {
-	if o == nil {
+func (d *DestinationAWSKinesis) GetType() DestinationAWSKinesisType {
+	if d == nil {
 		return DestinationAWSKinesisType("")
 	}
-	return o.Type
+	return d.Type
 }
 
-func (o *DestinationAWSKinesis) GetTopics() Topics {
-	if o == nil {
+func (d *DestinationAWSKinesis) GetTopics() Topics {
+	if d == nil {
 		return Topics{}
 	}
-	return o.Topics
+	return d.Topics
 }
 
-func (o *DestinationAWSKinesis) GetDisabledAt() *time.Time {
-	if o == nil {
+func (d *DestinationAWSKinesis) GetFilter() map[string]any {
+	if d == nil {
 		return nil
 	}
-	return o.DisabledAt
+	return d.Filter
 }
 
-func (o *DestinationAWSKinesis) GetCreatedAt() time.Time {
-	if o == nil {
+func (d *DestinationAWSKinesis) GetDisabledAt() *time.Time {
+	if d == nil {
+		return nil
+	}
+	return d.DisabledAt
+}
+
+func (d *DestinationAWSKinesis) GetCreatedAt() time.Time {
+	if d == nil {
 		return time.Time{}
 	}
-	return o.CreatedAt
+	return d.CreatedAt
 }
 
-func (o *DestinationAWSKinesis) GetConfig() AWSKinesisConfig {
-	if o == nil {
+func (d *DestinationAWSKinesis) GetUpdatedAt() time.Time {
+	if d == nil {
+		return time.Time{}
+	}
+	return d.UpdatedAt
+}
+
+func (d *DestinationAWSKinesis) GetConfig() AWSKinesisConfig {
+	if d == nil {
 		return AWSKinesisConfig{}
 	}
-	return o.Config
+	return d.Config
 }
 
-func (o *DestinationAWSKinesis) GetCredentials() AWSKinesisCredentials {
-	if o == nil {
+func (d *DestinationAWSKinesis) GetCredentials() AWSKinesisCredentials {
+	if d == nil {
 		return AWSKinesisCredentials{}
 	}
-	return o.Credentials
+	return d.Credentials
 }
 
-func (o *DestinationAWSKinesis) GetTarget() *string {
-	if o == nil {
+func (d *DestinationAWSKinesis) GetDeliveryMetadata() map[string]string {
+	if d == nil {
 		return nil
 	}
-	return o.Target
+	return d.DeliveryMetadata
 }
 
-func (o *DestinationAWSKinesis) GetTargetURL() *string {
-	if o == nil {
+func (d *DestinationAWSKinesis) GetMetadata() map[string]string {
+	if d == nil {
 		return nil
 	}
-	return o.TargetURL
+	return d.Metadata
+}
+
+func (d *DestinationAWSKinesis) GetTarget() *string {
+	if d == nil {
+		return nil
+	}
+	return d.Target
+}
+
+func (d *DestinationAWSKinesis) GetTargetURL() *string {
+	if d == nil {
+		return nil
+	}
+	return d.TargetURL
 }

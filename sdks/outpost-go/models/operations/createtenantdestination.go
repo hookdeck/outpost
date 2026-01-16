@@ -10,59 +10,63 @@ type CreateTenantDestinationGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *CreateTenantDestinationGlobals) GetTenantID() *string {
-	if o == nil {
+func (c *CreateTenantDestinationGlobals) GetTenantID() *string {
+	if c == nil {
 		return nil
 	}
-	return o.TenantID
+	return c.TenantID
 }
 
 type CreateTenantDestinationRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
-	TenantID          *string                      `pathParam:"style=simple,explode=false,name=tenant_id"`
-	DestinationCreate components.DestinationCreate `request:"mediaType=application/json"`
+	TenantID *string                      `pathParam:"style=simple,explode=false,name=tenant_id"`
+	Params   components.DestinationCreate `request:"mediaType=application/json"`
 }
 
-func (o *CreateTenantDestinationRequest) GetTenantID() *string {
-	if o == nil {
+func (c *CreateTenantDestinationRequest) GetTenantID() *string {
+	if c == nil {
 		return nil
 	}
-	return o.TenantID
+	return c.TenantID
 }
 
-func (o *CreateTenantDestinationRequest) GetDestinationCreate() components.DestinationCreate {
-	if o == nil {
+func (c *CreateTenantDestinationRequest) GetParams() components.DestinationCreate {
+	if c == nil {
 		return components.DestinationCreate{}
 	}
-	return o.DestinationCreate
+	return c.Params
 }
 
-func (o *CreateTenantDestinationRequest) GetDestinationCreateWebhook() *components.DestinationCreateWebhook {
-	return o.GetDestinationCreate().DestinationCreateWebhook
+func (c *CreateTenantDestinationRequest) GetParamsWebhook() *components.DestinationCreateWebhook {
+	return c.GetParams().DestinationCreateWebhook
 }
 
-func (o *CreateTenantDestinationRequest) GetDestinationCreateAwsSqs() *components.DestinationCreateAWSSQS {
-	return o.GetDestinationCreate().DestinationCreateAWSSQS
+func (c *CreateTenantDestinationRequest) GetParamsAwsSqs() *components.DestinationCreateAWSSQS {
+	return c.GetParams().DestinationCreateAWSSQS
 }
 
-func (o *CreateTenantDestinationRequest) GetDestinationCreateRabbitmq() *components.DestinationCreateRabbitMQ {
-	return o.GetDestinationCreate().DestinationCreateRabbitMQ
+func (c *CreateTenantDestinationRequest) GetParamsRabbitmq() *components.DestinationCreateRabbitMQ {
+	return c.GetParams().DestinationCreateRabbitMQ
 }
 
-func (o *CreateTenantDestinationRequest) GetDestinationCreateHookdeck() *components.DestinationCreateHookdeck {
-	return o.GetDestinationCreate().DestinationCreateHookdeck
+func (c *CreateTenantDestinationRequest) GetParamsHookdeck() *components.DestinationCreateHookdeck {
+	return c.GetParams().DestinationCreateHookdeck
 }
 
-func (o *CreateTenantDestinationRequest) GetDestinationCreateAwsKinesis() *components.DestinationCreateAWSKinesis {
-	return o.GetDestinationCreate().DestinationCreateAWSKinesis
+func (c *CreateTenantDestinationRequest) GetParamsAwsKinesis() *components.DestinationCreateAWSKinesis {
+	return c.GetParams().DestinationCreateAWSKinesis
 }
 
-func (o *CreateTenantDestinationRequest) GetDestinationCreateAzureServicebus() *components.DestinationCreateAzureServiceBus {
-	return o.GetDestinationCreate().DestinationCreateAzureServiceBus
+func (c *CreateTenantDestinationRequest) GetParamsAzureServicebus() *components.DestinationCreateAzureServiceBus {
+	return c.GetParams().DestinationCreateAzureServiceBus
 }
 
-func (o *CreateTenantDestinationRequest) GetDestinationCreateAwsS3() *components.DestinationCreateAwss3 {
-	return o.GetDestinationCreate().DestinationCreateAwss3
+func (c *CreateTenantDestinationRequest) GetParamsAwsS3() *components.DestinationCreateAwss3 {
+	return c.GetParams().DestinationCreateAwss3
+}
+
+func (c *CreateTenantDestinationRequest) GetParamsGcpPubsub() *components.DestinationCreateGCPPubSub {
+	return c.GetParams().DestinationCreateGCPPubSub
 }
 
 type CreateTenantDestinationResponse struct {
@@ -71,65 +75,72 @@ type CreateTenantDestinationResponse struct {
 	Destination *components.Destination
 }
 
-func (o *CreateTenantDestinationResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (c *CreateTenantDestinationResponse) GetHTTPMeta() components.HTTPMetadata {
+	if c == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return c.HTTPMeta
 }
 
-func (o *CreateTenantDestinationResponse) GetDestination() *components.Destination {
-	if o == nil {
+func (c *CreateTenantDestinationResponse) GetDestination() *components.Destination {
+	if c == nil {
 		return nil
 	}
-	return o.Destination
+	return c.Destination
 }
 
-func (o *CreateTenantDestinationResponse) GetDestinationWebhook() *components.DestinationWebhook {
-	if v := o.GetDestination(); v != nil {
+func (c *CreateTenantDestinationResponse) GetDestinationWebhook() *components.DestinationWebhook {
+	if v := c.GetDestination(); v != nil {
 		return v.DestinationWebhook
 	}
 	return nil
 }
 
-func (o *CreateTenantDestinationResponse) GetDestinationAwsSqs() *components.DestinationAWSSQS {
-	if v := o.GetDestination(); v != nil {
+func (c *CreateTenantDestinationResponse) GetDestinationAwsSqs() *components.DestinationAWSSQS {
+	if v := c.GetDestination(); v != nil {
 		return v.DestinationAWSSQS
 	}
 	return nil
 }
 
-func (o *CreateTenantDestinationResponse) GetDestinationRabbitmq() *components.DestinationRabbitMQ {
-	if v := o.GetDestination(); v != nil {
+func (c *CreateTenantDestinationResponse) GetDestinationRabbitmq() *components.DestinationRabbitMQ {
+	if v := c.GetDestination(); v != nil {
 		return v.DestinationRabbitMQ
 	}
 	return nil
 }
 
-func (o *CreateTenantDestinationResponse) GetDestinationHookdeck() *components.DestinationHookdeck {
-	if v := o.GetDestination(); v != nil {
+func (c *CreateTenantDestinationResponse) GetDestinationHookdeck() *components.DestinationHookdeck {
+	if v := c.GetDestination(); v != nil {
 		return v.DestinationHookdeck
 	}
 	return nil
 }
 
-func (o *CreateTenantDestinationResponse) GetDestinationAwsKinesis() *components.DestinationAWSKinesis {
-	if v := o.GetDestination(); v != nil {
+func (c *CreateTenantDestinationResponse) GetDestinationAwsKinesis() *components.DestinationAWSKinesis {
+	if v := c.GetDestination(); v != nil {
 		return v.DestinationAWSKinesis
 	}
 	return nil
 }
 
-func (o *CreateTenantDestinationResponse) GetDestinationAzureServicebus() *components.DestinationAzureServiceBus {
-	if v := o.GetDestination(); v != nil {
+func (c *CreateTenantDestinationResponse) GetDestinationAzureServicebus() *components.DestinationAzureServiceBus {
+	if v := c.GetDestination(); v != nil {
 		return v.DestinationAzureServiceBus
 	}
 	return nil
 }
 
-func (o *CreateTenantDestinationResponse) GetDestinationAwsS3() *components.DestinationAwss3 {
-	if v := o.GetDestination(); v != nil {
+func (c *CreateTenantDestinationResponse) GetDestinationAwsS3() *components.DestinationAwss3 {
+	if v := c.GetDestination(); v != nil {
 		return v.DestinationAwss3
+	}
+	return nil
+}
+
+func (c *CreateTenantDestinationResponse) GetDestinationGcpPubsub() *components.DestinationGCPPubSub {
+	if v := c.GetDestination(); v != nil {
+		return v.DestinationGCPPubSub
 	}
 	return nil
 }

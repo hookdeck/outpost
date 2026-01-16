@@ -6,9 +6,9 @@ type SuccessResponse struct {
 	Success *bool `json:"success,omitempty"`
 }
 
-func (o *SuccessResponse) GetSuccess() *bool {
-	if o == nil {
+func (s *SuccessResponse) GetSuccess() *bool {
+	if s == nil {
 		return nil
 	}
-	return o.Success
+	return s.Success
 }

@@ -19,51 +19,51 @@ type PublishRequest struct {
 	Data map[string]any `json:"data"`
 }
 
-func (o *PublishRequest) GetID() *string {
-	if o == nil {
+func (p *PublishRequest) GetID() *string {
+	if p == nil {
 		return nil
 	}
-	return o.ID
+	return p.ID
 }
 
-func (o *PublishRequest) GetTenantID() *string {
-	if o == nil {
+func (p *PublishRequest) GetTenantID() *string {
+	if p == nil {
 		return nil
 	}
-	return o.TenantID
+	return p.TenantID
 }
 
-func (o *PublishRequest) GetDestinationID() *string {
-	if o == nil {
+func (p *PublishRequest) GetDestinationID() *string {
+	if p == nil {
 		return nil
 	}
-	return o.DestinationID
+	return p.DestinationID
 }
 
-func (o *PublishRequest) GetTopic() *string {
-	if o == nil {
+func (p *PublishRequest) GetTopic() *string {
+	if p == nil {
 		return nil
 	}
-	return o.Topic
+	return p.Topic
 }
 
-func (o *PublishRequest) GetEligibleForRetry() *bool {
-	if o == nil {
+func (p *PublishRequest) GetEligibleForRetry() *bool {
+	if p == nil {
 		return nil
 	}
-	return o.EligibleForRetry
+	return p.EligibleForRetry
 }
 
-func (o *PublishRequest) GetMetadata() map[string]string {
-	if o == nil {
+func (p *PublishRequest) GetMetadata() map[string]string {
+	if p == nil {
 		return nil
 	}
-	return o.Metadata
+	return p.Metadata
 }
 
-func (o *PublishRequest) GetData() map[string]any {
-	if o == nil {
+func (p *PublishRequest) GetData() map[string]any {
+	if p == nil {
 		return map[string]any{}
 	}
-	return o.Data
+	return p.Data
 }

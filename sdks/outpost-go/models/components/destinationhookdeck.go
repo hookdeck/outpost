@@ -40,12 +40,24 @@ type DestinationHookdeck struct {
 	Type DestinationHookdeckType `json:"type"`
 	// "*" or an array of enabled topics.
 	Topics Topics `json:"topics"`
+	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+	// If null or empty, all events matching the topic filter will be delivered.
+	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	//
+	Filter map[string]any `json:"filter,omitempty"`
 	// ISO Date when the destination was disabled, or null if enabled.
 	DisabledAt *time.Time `json:"disabled_at"`
 	// ISO Date when the destination was created.
-	CreatedAt   time.Time           `json:"created_at"`
+	CreatedAt time.Time `json:"created_at"`
+	// ISO Date when the destination was last updated.
+	UpdatedAt   *time.Time          `json:"updated_at,omitempty"`
 	Config      any                 `json:"config,omitempty"`
 	Credentials HookdeckCredentials `json:"credentials"`
+	// Static key-value pairs merged into event metadata on every delivery.
+	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination.
+	Metadata map[string]string `json:"metadata,omitempty"`
 	// A human-readable representation of the destination target (Hookdeck). Read-only.
 	Target *string `json:"target,omitempty"`
 	// A URL link to the destination target (e.g., Hookdeck dashboard). Read-only.
@@ -57,71 +69,99 @@ func (d DestinationHookdeck) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationHookdeck) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "disabled_at", "created_at", "credentials"}); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "created_at", "credentials"}); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (o *DestinationHookdeck) GetID() string {
-	if o == nil {
+func (d *DestinationHookdeck) GetID() string {
+	if d == nil {
 		return ""
 	}
-	return o.ID
+	return d.ID
 }
 
-func (o *DestinationHookdeck) GetType() DestinationHookdeckType {
-	if o == nil {
+func (d *DestinationHookdeck) GetType() DestinationHookdeckType {
+	if d == nil {
 		return DestinationHookdeckType("")
 	}
-	return o.Type
+	return d.Type
 }
 
-func (o *DestinationHookdeck) GetTopics() Topics {
-	if o == nil {
+func (d *DestinationHookdeck) GetTopics() Topics {
+	if d == nil {
 		return Topics{}
 	}
-	return o.Topics
+	return d.Topics
 }
 
-func (o *DestinationHookdeck) GetDisabledAt() *time.Time {
-	if o == nil {
+func (d *DestinationHookdeck) GetFilter() map[string]any {
+	if d == nil {
 		return nil
 	}
-	return o.DisabledAt
+	return d.Filter
 }
 
-func (o *DestinationHookdeck) GetCreatedAt() time.Time {
-	if o == nil {
+func (d *DestinationHookdeck) GetDisabledAt() *time.Time {
+	if d == nil {
+		return nil
+	}
+	return d.DisabledAt
+}
+
+func (d *DestinationHookdeck) GetCreatedAt() time.Time {
+	if d == nil {
 		return time.Time{}
 	}
-	return o.CreatedAt
+	return d.CreatedAt
 }
 
-func (o *DestinationHookdeck) GetConfig() any {
-	if o == nil {
+func (d *DestinationHookdeck) GetUpdatedAt() *time.Time {
+	if d == nil {
 		return nil
 	}
-	return o.Config
+	return d.UpdatedAt
 }
 
-func (o *DestinationHookdeck) GetCredentials() HookdeckCredentials {
-	if o == nil {
+func (d *DestinationHookdeck) GetConfig() any {
+	if d == nil {
+		return nil
+	}
+	return d.Config
+}
+
+func (d *DestinationHookdeck) GetCredentials() HookdeckCredentials {
+	if d == nil {
 		return HookdeckCredentials{}
 	}
-	return o.Credentials
+	return d.Credentials
 }
 
-func (o *DestinationHookdeck) GetTarget() *string {
-	if o == nil {
+func (d *DestinationHookdeck) GetDeliveryMetadata() map[string]string {
+	if d == nil {
 		return nil
 	}
-	return o.Target
+	return d.DeliveryMetadata
 }
 
-func (o *DestinationHookdeck) GetTargetURL() *string {
-	if o == nil {
+func (d *DestinationHookdeck) GetMetadata() map[string]string {
+	if d == nil {
 		return nil
 	}
-	return o.TargetURL
+	return d.Metadata
+}
+
+func (d *DestinationHookdeck) GetTarget() *string {
+	if d == nil {
+		return nil
+	}
+	return d.Target
+}
+
+func (d *DestinationHookdeck) GetTargetURL() *string {
+	if d == nil {
+		return nil
+	}
+	return d.TargetURL
 }

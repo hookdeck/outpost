@@ -1,5 +1,4 @@
 # Tenants
-(*Tenants*)
 
 ## Overview
 
@@ -10,11 +9,79 @@ If your system is not multi-tenant, create a single tenant with a hard-code tena
 
 ### Available Operations
 
+* [ListTenants](#listtenants) - List Tenants
 * [Upsert](#upsert) - Create or Update Tenant
 * [Get](#get) - Get Tenant
 * [Delete](#delete) - Delete Tenant
 * [GetPortalURL](#getportalurl) - Get Portal Redirect URL
 * [GetToken](#gettoken) - Get Tenant JWT Token
+
+## ListTenants
+
+List all tenants with cursor-based pagination.
+
+**Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
+If RediSearch is not available, this endpoint returns `501 Not Implemented`.
+
+The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
+Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
+
+
+### Example Usage
+
+<!-- UsageSnippet language="go" operationID="listTenants" method="get" path="/tenants" -->
+```go
+package main
+
+import(
+	"context"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
+	"log"
+)
+
+func main() {
+    ctx := context.Background()
+
+    s := outpostgo.New(
+        outpostgo.WithSecurity(components.Security{
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
+
+    res, err := s.Tenants.ListTenants(ctx, outpostgo.Pointer[int64](20), operations.OrderDesc.ToPointer(), nil, nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+    if res.TenantListResponse != nil {
+        // handle response
+    }
+}
+```
+
+### Parameters
+
+| Parameter                                                                | Type                                                                     | Required                                                                 | Description                                                              |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `ctx`                                                                    | [context.Context](https://pkg.go.dev/context#Context)                    | :heavy_check_mark:                                                       | The context to use for the request.                                      |
+| `limit`                                                                  | **int64*                                                                 | :heavy_minus_sign:                                                       | Number of tenants to return per page (1-100, default 20).                |
+| `order`                                                                  | [*operations.Order](../../models/operations/order.md)                    | :heavy_minus_sign:                                                       | Sort order by `created_at` timestamp.                                    |
+| `next`                                                                   | **string*                                                                | :heavy_minus_sign:                                                       | Cursor for the next page of results. Mutually exclusive with `prev`.     |
+| `prev`                                                                   | **string*                                                                | :heavy_minus_sign:                                                       | Cursor for the previous page of results. Mutually exclusive with `next`. |
+| `opts`                                                                   | [][operations.Option](../../models/operations/option.md)                 | :heavy_minus_sign:                                                       | The options for this request.                                            |
+
+### Response
+
+**[*operations.ListTenantsResponse](../../models/operations/listtenantsresponse.md), error**
+
+### Errors
+
+| Error Type                           | Status Code                          | Content Type                         |
+| ------------------------------------ | ------------------------------------ | ------------------------------------ |
+| apierrors.ListTenantsBadRequestError | 400                                  | application/json                     |
+| apierrors.NotImplementedError        | 501                                  | application/json                     |
+| apierrors.APIError                   | 4XX, 5XX                             | \*/\*                                |
 
 ## Upsert
 
@@ -22,14 +89,14 @@ Idempotently creates or updates a tenant. Required before associating destinatio
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="upsertTenant" method="put" path="/{tenant_id}" -->
+<!-- UsageSnippet language="go" operationID="upsertTenant" method="put" path="/tenants/{tenant_id}" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -39,11 +106,11 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Tenants.Upsert(ctx)
+    res, err := s.Tenants.Upsert(ctx, nil)
     if err != nil {
         log.Fatal(err)
     }
@@ -59,6 +126,7 @@ func main() {
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `ctx`                                                                 | [context.Context](https://pkg.go.dev/context#Context)                 | :heavy_check_mark:                                                    | The context to use for the request.                                   |
 | `tenantID`                                                            | **string*                                                             | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `params`                                                              | [*components.TenantUpsert](../../models/components/tenantupsert.md)   | :heavy_minus_sign:                                                    | Optional tenant metadata                                              |
 | `opts`                                                                | [][operations.Option](../../models/operations/option.md)              | :heavy_minus_sign:                                                    | The options for this request.                                         |
 
 ### Response
@@ -67,19 +135,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.NotFoundError       | 404                           | application/json              |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## Get
 
@@ -87,14 +145,14 @@ Retrieves details for a specific tenant.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="getTenant" method="get" path="/{tenant_id}" -->
+<!-- UsageSnippet language="go" operationID="getTenant" method="get" path="/tenants/{tenant_id}" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -104,7 +162,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -132,18 +190,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## Delete
 
@@ -151,14 +200,14 @@ Deletes the tenant and all associated destinations.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="deleteTenant" method="delete" path="/{tenant_id}" -->
+<!-- UsageSnippet language="go" operationID="deleteTenant" method="delete" path="/tenants/{tenant_id}" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -168,7 +217,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -196,18 +245,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## GetPortalURL
 
@@ -215,14 +255,14 @@ Returns a redirect URL containing a JWT to authenticate the user with the portal
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="getTenantPortalUrl" method="get" path="/{tenant_id}/portal" -->
+<!-- UsageSnippet language="go" operationID="getTenantPortalUrl" method="get" path="/tenants/{tenant_id}/portal" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -232,7 +272,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -261,18 +301,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## GetToken
 
@@ -280,14 +311,14 @@ Returns a JWT token scoped to the tenant for safe browser API calls.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="getTenantToken" method="get" path="/{tenant_id}/token" -->
+<!-- UsageSnippet language="go" operationID="getTenantToken" method="get" path="/tenants/{tenant_id}/token" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -297,7 +328,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -325,15 +356,6 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |

@@ -1,5 +1,4 @@
 # Destinations
-(*Destinations*)
 
 ## Overview
 
@@ -44,14 +43,15 @@ Return a list of the destinations for the tenant. The endpoint is not paged.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="listTenantDestinations" method="get" path="/{tenant_id}/destinations" -->
+<!-- UsageSnippet language="go" operationID="listTenantDestinations" method="get" path="/tenants/{tenant_id}/destinations" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
 )
 
@@ -61,11 +61,13 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
-    res, err := s.Destinations.List(ctx, nil, nil)
+    res, err := s.Destinations.List(ctx, outpostgo.Pointer(operations.CreateListTenantDestinationsTypeDestinationType(
+        components.DestinationTypeWebhook,
+    )), nil)
     if err != nil {
         log.Fatal(err)
     }
@@ -77,13 +79,13 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `ctx`                                                                 | [context.Context](https://pkg.go.dev/context#Context)                 | :heavy_check_mark:                                                    | The context to use for the request.                                   |
-| `tenantID`                                                            | **string*                                                             | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
-| `type_`                                                               | [*operations.Type](../../models/operations/type.md)                   | :heavy_minus_sign:                                                    | Filter destinations by type(s).                                       |
-| `topics`                                                              | [*operations.Topics](../../models/operations/topics.md)               | :heavy_minus_sign:                                                    | Filter destinations by supported topic(s).                            |
-| `opts`                                                                | [][operations.Option](../../models/operations/option.md)              | :heavy_minus_sign:                                                    | The options for this request.                                         |
+| Parameter                                                                                       | Type                                                                                            | Required                                                                                        | Description                                                                                     |
+| ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `ctx`                                                                                           | [context.Context](https://pkg.go.dev/context#Context)                                           | :heavy_check_mark:                                                                              | The context to use for the request.                                                             |
+| `tenantID`                                                                                      | **string*                                                                                       | :heavy_minus_sign:                                                                              | The ID of the tenant. Required when using AdminApiKey authentication.                           |
+| `type_`                                                                                         | [*operations.ListTenantDestinationsType](../../models/operations/listtenantdestinationstype.md) | :heavy_minus_sign:                                                                              | Filter destinations by type(s).                                                                 |
+| `topics`                                                                                        | [*operations.Topics](../../models/operations/topics.md)                                         | :heavy_minus_sign:                                                                              | Filter destinations by supported topic(s).                                                      |
+| `opts`                                                                                          | [][operations.Option](../../models/operations/option.md)                                        | :heavy_minus_sign:                                                                              | The options for this request.                                                                   |
 
 ### Response
 
@@ -91,18 +93,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## Create
 
@@ -110,14 +103,14 @@ Creates a new destination for the tenant. The request body structure depends on 
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="createTenantDestination" method="post" path="/{tenant_id}/destinations" -->
+<!-- UsageSnippet language="go" operationID="createTenantDestination" method="post" path="/tenants/{tenant_id}/destinations" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -127,13 +120,13 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
     res, err := s.Destinations.Create(ctx, components.CreateDestinationCreateRabbitmq(
         components.DestinationCreateRabbitMQ{
-            ID: outpostgo.String("user-provided-id"),
+            ID: outpostgo.Pointer("user-provided-id"),
             Type: components.DestinationCreateRabbitMQTypeRabbitmq,
             Topics: components.CreateTopicsTopicsEnum(
                 components.TopicsEnumWildcard,
@@ -163,7 +156,7 @@ func main() {
 | Parameter                                                                    | Type                                                                         | Required                                                                     | Description                                                                  |
 | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `ctx`                                                                        | [context.Context](https://pkg.go.dev/context#Context)                        | :heavy_check_mark:                                                           | The context to use for the request.                                          |
-| `destinationCreate`                                                          | [components.DestinationCreate](../../models/components/destinationcreate.md) | :heavy_check_mark:                                                           | N/A                                                                          |
+| `params`                                                                     | [components.DestinationCreate](../../models/components/destinationcreate.md) | :heavy_check_mark:                                                           | N/A                                                                          |
 | `tenantID`                                                                   | **string*                                                                    | :heavy_minus_sign:                                                           | The ID of the tenant. Required when using AdminApiKey authentication.        |
 | `opts`                                                                       | [][operations.Option](../../models/operations/option.md)                     | :heavy_minus_sign:                                                           | The options for this request.                                                |
 
@@ -173,18 +166,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 413, 414, 415, 422, 431       | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## Get
 
@@ -192,14 +176,14 @@ Retrieves details for a specific destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="getTenantDestination" method="get" path="/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="go" operationID="getTenantDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -209,7 +193,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -238,18 +222,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## Update
 
@@ -257,14 +232,14 @@ Updates the configuration of an existing destination. The request body structure
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="updateTenantDestination" method="patch" path="/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="go" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -274,7 +249,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -309,7 +284,7 @@ func main() {
 | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `ctx`                                                                        | [context.Context](https://pkg.go.dev/context#Context)                        | :heavy_check_mark:                                                           | The context to use for the request.                                          |
 | `destinationID`                                                              | *string*                                                                     | :heavy_check_mark:                                                           | The ID of the destination.                                                   |
-| `destinationUpdate`                                                          | [components.DestinationUpdate](../../models/components/destinationupdate.md) | :heavy_check_mark:                                                           | N/A                                                                          |
+| `params`                                                                     | [components.DestinationUpdate](../../models/components/destinationupdate.md) | :heavy_check_mark:                                                           | N/A                                                                          |
 | `tenantID`                                                                   | **string*                                                                    | :heavy_minus_sign:                                                           | The ID of the tenant. Required when using AdminApiKey authentication.        |
 | `opts`                                                                       | [][operations.Option](../../models/operations/option.md)                     | :heavy_minus_sign:                                                           | The options for this request.                                                |
 
@@ -319,18 +294,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 413, 414, 415, 422, 431       | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## Delete
 
@@ -338,14 +304,14 @@ Deletes a specific destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="deleteTenantDestination" method="delete" path="/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="go" operationID="deleteTenantDestination" method="delete" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -355,7 +321,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -384,18 +350,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## Enable
 
@@ -403,14 +360,14 @@ Enables a previously disabled destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="enableTenantDestination" method="put" path="/{tenant_id}/destinations/{destination_id}/enable" -->
+<!-- UsageSnippet language="go" operationID="enableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/enable" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -420,7 +377,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -449,18 +406,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## Disable
 
@@ -468,14 +416,14 @@ Disables a previously enabled destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="disableTenantDestination" method="put" path="/{tenant_id}/destinations/{destination_id}/disable" -->
+<!-- UsageSnippet language="go" operationID="disableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/disable" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -485,7 +433,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -514,15 +462,6 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |

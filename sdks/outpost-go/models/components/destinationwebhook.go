@@ -40,12 +40,24 @@ type DestinationWebhook struct {
 	Type DestinationWebhookType `json:"type"`
 	// "*" or an array of enabled topics.
 	Topics Topics `json:"topics"`
+	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+	// If null or empty, all events matching the topic filter will be delivered.
+	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	//
+	Filter map[string]any `json:"filter,omitempty"`
 	// ISO Date when the destination was disabled, or null if enabled.
 	DisabledAt *time.Time `json:"disabled_at"`
 	// ISO Date when the destination was created.
-	CreatedAt   time.Time          `json:"created_at"`
+	CreatedAt time.Time `json:"created_at"`
+	// ISO Date when the destination was last updated.
+	UpdatedAt   time.Time          `json:"updated_at"`
 	Config      WebhookConfig      `json:"config"`
 	Credentials WebhookCredentials `json:"credentials"`
+	// Static key-value pairs merged into event metadata on every delivery.
+	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination.
+	Metadata map[string]string `json:"metadata,omitempty"`
 	// A human-readable representation of the destination target (e.g., URL host). Read-only.
 	Target *string `json:"target,omitempty"`
 	// A URL link to the destination target (the webhook URL). Read-only.
@@ -57,71 +69,99 @@ func (d DestinationWebhook) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationWebhook) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "disabled_at", "created_at", "config", "credentials"}); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "created_at", "updated_at", "config", "credentials"}); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (o *DestinationWebhook) GetID() string {
-	if o == nil {
+func (d *DestinationWebhook) GetID() string {
+	if d == nil {
 		return ""
 	}
-	return o.ID
+	return d.ID
 }
 
-func (o *DestinationWebhook) GetType() DestinationWebhookType {
-	if o == nil {
+func (d *DestinationWebhook) GetType() DestinationWebhookType {
+	if d == nil {
 		return DestinationWebhookType("")
 	}
-	return o.Type
+	return d.Type
 }
 
-func (o *DestinationWebhook) GetTopics() Topics {
-	if o == nil {
+func (d *DestinationWebhook) GetTopics() Topics {
+	if d == nil {
 		return Topics{}
 	}
-	return o.Topics
+	return d.Topics
 }
 
-func (o *DestinationWebhook) GetDisabledAt() *time.Time {
-	if o == nil {
+func (d *DestinationWebhook) GetFilter() map[string]any {
+	if d == nil {
 		return nil
 	}
-	return o.DisabledAt
+	return d.Filter
 }
 
-func (o *DestinationWebhook) GetCreatedAt() time.Time {
-	if o == nil {
+func (d *DestinationWebhook) GetDisabledAt() *time.Time {
+	if d == nil {
+		return nil
+	}
+	return d.DisabledAt
+}
+
+func (d *DestinationWebhook) GetCreatedAt() time.Time {
+	if d == nil {
 		return time.Time{}
 	}
-	return o.CreatedAt
+	return d.CreatedAt
 }
 
-func (o *DestinationWebhook) GetConfig() WebhookConfig {
-	if o == nil {
+func (d *DestinationWebhook) GetUpdatedAt() time.Time {
+	if d == nil {
+		return time.Time{}
+	}
+	return d.UpdatedAt
+}
+
+func (d *DestinationWebhook) GetConfig() WebhookConfig {
+	if d == nil {
 		return WebhookConfig{}
 	}
-	return o.Config
+	return d.Config
 }
 
-func (o *DestinationWebhook) GetCredentials() WebhookCredentials {
-	if o == nil {
+func (d *DestinationWebhook) GetCredentials() WebhookCredentials {
+	if d == nil {
 		return WebhookCredentials{}
 	}
-	return o.Credentials
+	return d.Credentials
 }
 
-func (o *DestinationWebhook) GetTarget() *string {
-	if o == nil {
+func (d *DestinationWebhook) GetDeliveryMetadata() map[string]string {
+	if d == nil {
 		return nil
 	}
-	return o.Target
+	return d.DeliveryMetadata
 }
 
-func (o *DestinationWebhook) GetTargetURL() *string {
-	if o == nil {
+func (d *DestinationWebhook) GetMetadata() map[string]string {
+	if d == nil {
 		return nil
 	}
-	return o.TargetURL
+	return d.Metadata
+}
+
+func (d *DestinationWebhook) GetTarget() *string {
+	if d == nil {
+		return nil
+	}
+	return d.Target
+}
+
+func (d *DestinationWebhook) GetTargetURL() *string {
+	if d == nil {
+		return nil
+	}
+	return d.TargetURL
 }

@@ -1,5 +1,4 @@
 # Events
-(*Events*)
 
 ## Overview
 
@@ -20,14 +19,14 @@ Retrieves a list of events for the tenant, supporting cursor navigation (details
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="listTenantEvents" method="get" path="/{tenant_id}/events" -->
+<!-- UsageSnippet language="go" operationID="listTenantEvents" method="get" path="/tenants/{tenant_id}/events" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
 )
@@ -38,7 +37,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -66,18 +65,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## Get
 
@@ -85,14 +75,14 @@ Retrieves details for a specific event.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="getTenantEvent" method="get" path="/{tenant_id}/events/{event_id}" -->
+<!-- UsageSnippet language="go" operationID="getTenantEvent" method="get" path="/tenants/{tenant_id}/events/{event_id}" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -102,7 +92,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -131,18 +121,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## ListDeliveries
 
@@ -150,14 +131,14 @@ Retrieves a list of delivery attempts for a specific event, including response d
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="listTenantEventDeliveries" method="get" path="/{tenant_id}/events/{event_id}/deliveries" -->
+<!-- UsageSnippet language="go" operationID="listTenantEventDeliveries" method="get" path="/tenants/{tenant_id}/events/{event_id}/deliveries" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -167,7 +148,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -196,18 +177,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## ListByDestination
 
@@ -215,14 +187,14 @@ Retrieves events associated with a specific destination for the tenant.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="listTenantEventsByDestination" method="get" path="/{tenant_id}/destinations/{destination_id}/events" -->
+<!-- UsageSnippet language="go" operationID="listTenantEventsByDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/events" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
 )
@@ -233,7 +205,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -263,18 +235,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## GetByDestination
 
@@ -282,14 +245,14 @@ Retrieves a specific event associated with a specific destination for the tenant
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="getTenantEventByDestination" method="get" path="/{tenant_id}/destinations/{destination_id}/events/{event_id}" -->
+<!-- UsageSnippet language="go" operationID="getTenantEventByDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -299,7 +262,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -329,18 +292,9 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
 
 ## Retry
 
@@ -348,14 +302,14 @@ Triggers a retry for a failed event delivery.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="retryTenantEvent" method="post" path="/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry" -->
+<!-- UsageSnippet language="go" operationID="retryTenantEvent" method="post" path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry" -->
 ```go
 package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -365,7 +319,7 @@ func main() {
     s := outpostgo.New(
         outpostgo.WithTenantID("<id>"),
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
@@ -395,15 +349,6 @@ func main() {
 
 ### Errors
 
-| Error Type                    | Status Code                   | Content Type                  |
-| ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
-| apierrors.TimeoutError        | 408                           | application/json              |
-| apierrors.RateLimitedError    | 429                           | application/json              |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
-| apierrors.TimeoutError        | 504                           | application/json              |
-| apierrors.NotFoundError       | 501, 505                      | application/json              |
-| apierrors.InternalServerError | 500, 502, 503, 506, 507, 508  | application/json              |
-| apierrors.BadRequestError     | 510                           | application/json              |
-| apierrors.UnauthorizedError   | 511                           | application/json              |
-| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |

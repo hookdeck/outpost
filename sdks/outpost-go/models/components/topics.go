@@ -41,8 +41,8 @@ const (
 
 // Topics - "*" or an array of enabled topics.
 type Topics struct {
-	TopicsEnum *TopicsEnum `queryParam:"inline" name:"Topics"`
-	ArrayOfStr []string    `queryParam:"inline" name:"Topics"`
+	TopicsEnum *TopicsEnum `queryParam:"inline" union:"member"`
+	ArrayOfStr []string    `queryParam:"inline" union:"member"`
 
 	Type TopicsType
 }

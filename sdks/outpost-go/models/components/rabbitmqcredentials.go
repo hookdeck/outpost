@@ -24,16 +24,16 @@ func (r *RabbitMQCredentials) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *RabbitMQCredentials) GetUsername() string {
-	if o == nil {
+func (r *RabbitMQCredentials) GetUsername() string {
+	if r == nil {
 		return ""
 	}
-	return o.Username
+	return r.Username
 }
 
-func (o *RabbitMQCredentials) GetPassword() string {
-	if o == nil {
+func (r *RabbitMQCredentials) GetPassword() string {
+	if r == nil {
 		return ""
 	}
-	return o.Password
+	return r.Password
 }

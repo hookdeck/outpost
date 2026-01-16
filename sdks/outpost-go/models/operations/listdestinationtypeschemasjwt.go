@@ -12,16 +12,16 @@ type ListDestinationTypeSchemasJwtResponse struct {
 	DestinationTypeSchemas []components.DestinationTypeSchema
 }
 
-func (o *ListDestinationTypeSchemasJwtResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (l *ListDestinationTypeSchemasJwtResponse) GetHTTPMeta() components.HTTPMetadata {
+	if l == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return l.HTTPMeta
 }
 
-func (o *ListDestinationTypeSchemasJwtResponse) GetDestinationTypeSchemas() []components.DestinationTypeSchema {
-	if o == nil {
+func (l *ListDestinationTypeSchemasJwtResponse) GetDestinationTypeSchemas() []components.DestinationTypeSchema {
+	if l == nil {
 		return nil
 	}
-	return o.DestinationTypeSchemas
+	return l.DestinationTypeSchemas
 }

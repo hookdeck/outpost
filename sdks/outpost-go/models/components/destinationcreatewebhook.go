@@ -38,9 +38,19 @@ type DestinationCreateWebhook struct {
 	// Type of the destination. Must be 'webhook'.
 	Type DestinationCreateWebhookType `json:"type"`
 	// "*" or an array of enabled topics.
-	Topics      Topics              `json:"topics"`
+	Topics Topics `json:"topics"`
+	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+	// If null or empty, all events matching the topic filter will be delivered.
+	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	//
+	Filter      map[string]any      `json:"filter,omitempty"`
 	Config      WebhookConfig       `json:"config"`
 	Credentials *WebhookCredentials `json:"credentials,omitempty"`
+	// Static key-value pairs merged into event metadata on every delivery.
+	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination.
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 func (d DestinationCreateWebhook) MarshalJSON() ([]byte, error) {
@@ -54,37 +64,58 @@ func (d *DestinationCreateWebhook) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *DestinationCreateWebhook) GetID() *string {
-	if o == nil {
+func (d *DestinationCreateWebhook) GetID() *string {
+	if d == nil {
 		return nil
 	}
-	return o.ID
+	return d.ID
 }
 
-func (o *DestinationCreateWebhook) GetType() DestinationCreateWebhookType {
-	if o == nil {
+func (d *DestinationCreateWebhook) GetType() DestinationCreateWebhookType {
+	if d == nil {
 		return DestinationCreateWebhookType("")
 	}
-	return o.Type
+	return d.Type
 }
 
-func (o *DestinationCreateWebhook) GetTopics() Topics {
-	if o == nil {
+func (d *DestinationCreateWebhook) GetTopics() Topics {
+	if d == nil {
 		return Topics{}
 	}
-	return o.Topics
+	return d.Topics
 }
 
-func (o *DestinationCreateWebhook) GetConfig() WebhookConfig {
-	if o == nil {
-		return WebhookConfig{}
-	}
-	return o.Config
-}
-
-func (o *DestinationCreateWebhook) GetCredentials() *WebhookCredentials {
-	if o == nil {
+func (d *DestinationCreateWebhook) GetFilter() map[string]any {
+	if d == nil {
 		return nil
 	}
-	return o.Credentials
+	return d.Filter
+}
+
+func (d *DestinationCreateWebhook) GetConfig() WebhookConfig {
+	if d == nil {
+		return WebhookConfig{}
+	}
+	return d.Config
+}
+
+func (d *DestinationCreateWebhook) GetCredentials() *WebhookCredentials {
+	if d == nil {
+		return nil
+	}
+	return d.Credentials
+}
+
+func (d *DestinationCreateWebhook) GetDeliveryMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.DeliveryMetadata
+}
+
+func (d *DestinationCreateWebhook) GetMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.Metadata
 }
