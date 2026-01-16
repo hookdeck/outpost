@@ -14,8 +14,12 @@ type Tenant struct {
 	DestinationsCount *int64 `json:"destinations_count,omitempty"`
 	// List of subscribed topics across all destinations for this tenant.
 	Topics []string `json:"topics,omitempty"`
+	// Arbitrary key-value pairs for storing contextual information about the tenant.
+	Metadata map[string]string `json:"metadata,omitempty"`
 	// ISO Date when the tenant was created.
 	CreatedAt *time.Time `json:"created_at,omitempty"`
+	// ISO Date when the tenant was last updated.
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
 
 func (t Tenant) MarshalJSON() ([]byte, error) {
@@ -29,30 +33,44 @@ func (t *Tenant) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *Tenant) GetID() *string {
-	if o == nil {
+func (t *Tenant) GetID() *string {
+	if t == nil {
 		return nil
 	}
-	return o.ID
+	return t.ID
 }
 
-func (o *Tenant) GetDestinationsCount() *int64 {
-	if o == nil {
+func (t *Tenant) GetDestinationsCount() *int64 {
+	if t == nil {
 		return nil
 	}
-	return o.DestinationsCount
+	return t.DestinationsCount
 }
 
-func (o *Tenant) GetTopics() []string {
-	if o == nil {
+func (t *Tenant) GetTopics() []string {
+	if t == nil {
 		return nil
 	}
-	return o.Topics
+	return t.Topics
 }
 
-func (o *Tenant) GetCreatedAt() *time.Time {
-	if o == nil {
+func (t *Tenant) GetMetadata() map[string]string {
+	if t == nil {
 		return nil
 	}
-	return o.CreatedAt
+	return t.Metadata
+}
+
+func (t *Tenant) GetCreatedAt() *time.Time {
+	if t == nil {
+		return nil
+	}
+	return t.CreatedAt
+}
+
+func (t *Tenant) GetUpdatedAt() *time.Time {
+	if t == nil {
+		return nil
+	}
+	return t.UpdatedAt
 }

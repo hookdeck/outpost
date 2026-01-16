@@ -52,11 +52,11 @@ type GetDestinationTypeSchemaRequest struct {
 	Type GetDestinationTypeSchemaType `pathParam:"style=simple,explode=false,name=type"`
 }
 
-func (o *GetDestinationTypeSchemaRequest) GetType() GetDestinationTypeSchemaType {
-	if o == nil {
+func (g *GetDestinationTypeSchemaRequest) GetType() GetDestinationTypeSchemaType {
+	if g == nil {
 		return GetDestinationTypeSchemaType("")
 	}
-	return o.Type
+	return g.Type
 }
 
 type GetDestinationTypeSchemaResponse struct {
@@ -65,16 +65,16 @@ type GetDestinationTypeSchemaResponse struct {
 	DestinationTypeSchema *components.DestinationTypeSchema
 }
 
-func (o *GetDestinationTypeSchemaResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (g *GetDestinationTypeSchemaResponse) GetHTTPMeta() components.HTTPMetadata {
+	if g == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return g.HTTPMeta
 }
 
-func (o *GetDestinationTypeSchemaResponse) GetDestinationTypeSchema() *components.DestinationTypeSchema {
-	if o == nil {
+func (g *GetDestinationTypeSchemaResponse) GetDestinationTypeSchema() *components.DestinationTypeSchema {
+	if g == nil {
 		return nil
 	}
-	return o.DestinationTypeSchema
+	return g.DestinationTypeSchema
 }

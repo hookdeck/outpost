@@ -10,11 +10,11 @@ type ListTenantEventDeliveriesGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *ListTenantEventDeliveriesGlobals) GetTenantID() *string {
-	if o == nil {
+func (l *ListTenantEventDeliveriesGlobals) GetTenantID() *string {
+	if l == nil {
 		return nil
 	}
-	return o.TenantID
+	return l.TenantID
 }
 
 type ListTenantEventDeliveriesRequest struct {
@@ -24,18 +24,18 @@ type ListTenantEventDeliveriesRequest struct {
 	EventID string `pathParam:"style=simple,explode=false,name=event_id"`
 }
 
-func (o *ListTenantEventDeliveriesRequest) GetTenantID() *string {
-	if o == nil {
+func (l *ListTenantEventDeliveriesRequest) GetTenantID() *string {
+	if l == nil {
 		return nil
 	}
-	return o.TenantID
+	return l.TenantID
 }
 
-func (o *ListTenantEventDeliveriesRequest) GetEventID() string {
-	if o == nil {
+func (l *ListTenantEventDeliveriesRequest) GetEventID() string {
+	if l == nil {
 		return ""
 	}
-	return o.EventID
+	return l.EventID
 }
 
 type ListTenantEventDeliveriesResponse struct {
@@ -44,16 +44,16 @@ type ListTenantEventDeliveriesResponse struct {
 	DeliveryAttempts []components.DeliveryAttempt
 }
 
-func (o *ListTenantEventDeliveriesResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (l *ListTenantEventDeliveriesResponse) GetHTTPMeta() components.HTTPMetadata {
+	if l == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return l.HTTPMeta
 }
 
-func (o *ListTenantEventDeliveriesResponse) GetDeliveryAttempts() []components.DeliveryAttempt {
-	if o == nil {
+func (l *ListTenantEventDeliveriesResponse) GetDeliveryAttempts() []components.DeliveryAttempt {
+	if l == nil {
 		return nil
 	}
-	return o.DeliveryAttempts
+	return l.DeliveryAttempts
 }

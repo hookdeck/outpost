@@ -10,11 +10,11 @@ type GetTenantTokenGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *GetTenantTokenGlobals) GetTenantID() *string {
-	if o == nil {
+func (g *GetTenantTokenGlobals) GetTenantID() *string {
+	if g == nil {
 		return nil
 	}
-	return o.TenantID
+	return g.TenantID
 }
 
 type GetTenantTokenRequest struct {
@@ -22,11 +22,11 @@ type GetTenantTokenRequest struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *GetTenantTokenRequest) GetTenantID() *string {
-	if o == nil {
+func (g *GetTenantTokenRequest) GetTenantID() *string {
+	if g == nil {
 		return nil
 	}
-	return o.TenantID
+	return g.TenantID
 }
 
 type GetTenantTokenResponse struct {
@@ -35,16 +35,16 @@ type GetTenantTokenResponse struct {
 	TenantToken *components.TenantToken
 }
 
-func (o *GetTenantTokenResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (g *GetTenantTokenResponse) GetHTTPMeta() components.HTTPMetadata {
+	if g == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return g.HTTPMeta
 }
 
-func (o *GetTenantTokenResponse) GetTenantToken() *components.TenantToken {
-	if o == nil {
+func (g *GetTenantTokenResponse) GetTenantToken() *components.TenantToken {
+	if g == nil {
 		return nil
 	}
-	return o.TenantToken
+	return g.TenantToken
 }

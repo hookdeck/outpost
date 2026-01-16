@@ -9,17 +9,17 @@ import (
 	"time"
 )
 
-type Status string
+type DeliveryAttemptStatus string
 
 const (
-	StatusSuccess Status = "success"
-	StatusFailed  Status = "failed"
+	DeliveryAttemptStatusSuccess DeliveryAttemptStatus = "success"
+	DeliveryAttemptStatusFailed  DeliveryAttemptStatus = "failed"
 )
 
-func (e Status) ToPointer() *Status {
+func (e DeliveryAttemptStatus) ToPointer() *DeliveryAttemptStatus {
 	return &e
 }
-func (e *Status) UnmarshalJSON(data []byte) error {
+func (e *DeliveryAttemptStatus) UnmarshalJSON(data []byte) error {
 	var v string
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
@@ -28,19 +28,19 @@ func (e *Status) UnmarshalJSON(data []byte) error {
 	case "success":
 		fallthrough
 	case "failed":
-		*e = Status(v)
+		*e = DeliveryAttemptStatus(v)
 		return nil
 	default:
-		return fmt.Errorf("invalid value for Status: %v", v)
+		return fmt.Errorf("invalid value for DeliveryAttemptStatus: %v", v)
 	}
 }
 
 type DeliveryAttempt struct {
-	DeliveredAt        *time.Time        `json:"delivered_at,omitempty"`
-	Status             *Status           `json:"status,omitempty"`
-	ResponseStatusCode *int64            `json:"response_status_code,omitempty"`
-	ResponseBody       *string           `json:"response_body,omitempty"`
-	ResponseHeaders    map[string]string `json:"response_headers,omitempty"`
+	DeliveredAt        *time.Time             `json:"delivered_at,omitempty"`
+	Status             *DeliveryAttemptStatus `json:"status,omitempty"`
+	ResponseStatusCode *int64                 `json:"response_status_code,omitempty"`
+	ResponseBody       *string                `json:"response_body,omitempty"`
+	ResponseHeaders    map[string]string      `json:"response_headers,omitempty"`
 }
 
 func (d DeliveryAttempt) MarshalJSON() ([]byte, error) {
@@ -54,37 +54,37 @@ func (d *DeliveryAttempt) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *DeliveryAttempt) GetDeliveredAt() *time.Time {
-	if o == nil {
+func (d *DeliveryAttempt) GetDeliveredAt() *time.Time {
+	if d == nil {
 		return nil
 	}
-	return o.DeliveredAt
+	return d.DeliveredAt
 }
 
-func (o *DeliveryAttempt) GetStatus() *Status {
-	if o == nil {
+func (d *DeliveryAttempt) GetStatus() *DeliveryAttemptStatus {
+	if d == nil {
 		return nil
 	}
-	return o.Status
+	return d.Status
 }
 
-func (o *DeliveryAttempt) GetResponseStatusCode() *int64 {
-	if o == nil {
+func (d *DeliveryAttempt) GetResponseStatusCode() *int64 {
+	if d == nil {
 		return nil
 	}
-	return o.ResponseStatusCode
+	return d.ResponseStatusCode
 }
 
-func (o *DeliveryAttempt) GetResponseBody() *string {
-	if o == nil {
+func (d *DeliveryAttempt) GetResponseBody() *string {
+	if d == nil {
 		return nil
 	}
-	return o.ResponseBody
+	return d.ResponseBody
 }
 
-func (o *DeliveryAttempt) GetResponseHeaders() map[string]string {
-	if o == nil {
+func (d *DeliveryAttempt) GetResponseHeaders() map[string]string {
+	if d == nil {
 		return nil
 	}
-	return o.ResponseHeaders
+	return d.ResponseHeaders
 }

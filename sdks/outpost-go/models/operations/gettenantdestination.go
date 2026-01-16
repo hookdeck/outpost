@@ -10,11 +10,11 @@ type GetTenantDestinationGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *GetTenantDestinationGlobals) GetTenantID() *string {
-	if o == nil {
+func (g *GetTenantDestinationGlobals) GetTenantID() *string {
+	if g == nil {
 		return nil
 	}
-	return o.TenantID
+	return g.TenantID
 }
 
 type GetTenantDestinationRequest struct {
@@ -24,18 +24,18 @@ type GetTenantDestinationRequest struct {
 	DestinationID string `pathParam:"style=simple,explode=false,name=destination_id"`
 }
 
-func (o *GetTenantDestinationRequest) GetTenantID() *string {
-	if o == nil {
+func (g *GetTenantDestinationRequest) GetTenantID() *string {
+	if g == nil {
 		return nil
 	}
-	return o.TenantID
+	return g.TenantID
 }
 
-func (o *GetTenantDestinationRequest) GetDestinationID() string {
-	if o == nil {
+func (g *GetTenantDestinationRequest) GetDestinationID() string {
+	if g == nil {
 		return ""
 	}
-	return o.DestinationID
+	return g.DestinationID
 }
 
 type GetTenantDestinationResponse struct {
@@ -44,65 +44,72 @@ type GetTenantDestinationResponse struct {
 	Destination *components.Destination
 }
 
-func (o *GetTenantDestinationResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (g *GetTenantDestinationResponse) GetHTTPMeta() components.HTTPMetadata {
+	if g == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return g.HTTPMeta
 }
 
-func (o *GetTenantDestinationResponse) GetDestination() *components.Destination {
-	if o == nil {
+func (g *GetTenantDestinationResponse) GetDestination() *components.Destination {
+	if g == nil {
 		return nil
 	}
-	return o.Destination
+	return g.Destination
 }
 
-func (o *GetTenantDestinationResponse) GetDestinationWebhook() *components.DestinationWebhook {
-	if v := o.GetDestination(); v != nil {
+func (g *GetTenantDestinationResponse) GetDestinationWebhook() *components.DestinationWebhook {
+	if v := g.GetDestination(); v != nil {
 		return v.DestinationWebhook
 	}
 	return nil
 }
 
-func (o *GetTenantDestinationResponse) GetDestinationAwsSqs() *components.DestinationAWSSQS {
-	if v := o.GetDestination(); v != nil {
+func (g *GetTenantDestinationResponse) GetDestinationAwsSqs() *components.DestinationAWSSQS {
+	if v := g.GetDestination(); v != nil {
 		return v.DestinationAWSSQS
 	}
 	return nil
 }
 
-func (o *GetTenantDestinationResponse) GetDestinationRabbitmq() *components.DestinationRabbitMQ {
-	if v := o.GetDestination(); v != nil {
+func (g *GetTenantDestinationResponse) GetDestinationRabbitmq() *components.DestinationRabbitMQ {
+	if v := g.GetDestination(); v != nil {
 		return v.DestinationRabbitMQ
 	}
 	return nil
 }
 
-func (o *GetTenantDestinationResponse) GetDestinationHookdeck() *components.DestinationHookdeck {
-	if v := o.GetDestination(); v != nil {
+func (g *GetTenantDestinationResponse) GetDestinationHookdeck() *components.DestinationHookdeck {
+	if v := g.GetDestination(); v != nil {
 		return v.DestinationHookdeck
 	}
 	return nil
 }
 
-func (o *GetTenantDestinationResponse) GetDestinationAwsKinesis() *components.DestinationAWSKinesis {
-	if v := o.GetDestination(); v != nil {
+func (g *GetTenantDestinationResponse) GetDestinationAwsKinesis() *components.DestinationAWSKinesis {
+	if v := g.GetDestination(); v != nil {
 		return v.DestinationAWSKinesis
 	}
 	return nil
 }
 
-func (o *GetTenantDestinationResponse) GetDestinationAzureServicebus() *components.DestinationAzureServiceBus {
-	if v := o.GetDestination(); v != nil {
+func (g *GetTenantDestinationResponse) GetDestinationAzureServicebus() *components.DestinationAzureServiceBus {
+	if v := g.GetDestination(); v != nil {
 		return v.DestinationAzureServiceBus
 	}
 	return nil
 }
 
-func (o *GetTenantDestinationResponse) GetDestinationAwsS3() *components.DestinationAwss3 {
-	if v := o.GetDestination(); v != nil {
+func (g *GetTenantDestinationResponse) GetDestinationAwsS3() *components.DestinationAwss3 {
+	if v := g.GetDestination(); v != nil {
 		return v.DestinationAwss3
+	}
+	return nil
+}
+
+func (g *GetTenantDestinationResponse) GetDestinationGcpPubsub() *components.DestinationGCPPubSub {
+	if v := g.GetDestination(); v != nil {
+		return v.DestinationGCPPubSub
 	}
 	return nil
 }

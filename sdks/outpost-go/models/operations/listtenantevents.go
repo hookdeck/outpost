@@ -15,11 +15,11 @@ type ListTenantEventsGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *ListTenantEventsGlobals) GetTenantID() *string {
-	if o == nil {
+func (l *ListTenantEventsGlobals) GetTenantID() *string {
+	if l == nil {
 		return nil
 	}
-	return o.TenantID
+	return l.TenantID
 }
 
 type DestinationIDType string
@@ -31,8 +31,8 @@ const (
 
 // DestinationID - Filter events by destination ID(s).
 type DestinationID struct {
-	Str        *string  `queryParam:"inline" name:"destination_id"`
-	ArrayOfStr []string `queryParam:"inline" name:"destination_id"`
+	Str        *string  `queryParam:"inline" union:"member"`
+	ArrayOfStr []string `queryParam:"inline" union:"member"`
 
 	Type DestinationIDType
 }
@@ -143,60 +143,60 @@ func (l *ListTenantEventsRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *ListTenantEventsRequest) GetTenantID() *string {
-	if o == nil {
+func (l *ListTenantEventsRequest) GetTenantID() *string {
+	if l == nil {
 		return nil
 	}
-	return o.TenantID
+	return l.TenantID
 }
 
-func (o *ListTenantEventsRequest) GetDestinationID() *DestinationID {
-	if o == nil {
+func (l *ListTenantEventsRequest) GetDestinationID() *DestinationID {
+	if l == nil {
 		return nil
 	}
-	return o.DestinationID
+	return l.DestinationID
 }
 
-func (o *ListTenantEventsRequest) GetStatus() *ListTenantEventsStatus {
-	if o == nil {
+func (l *ListTenantEventsRequest) GetStatus() *ListTenantEventsStatus {
+	if l == nil {
 		return nil
 	}
-	return o.Status
+	return l.Status
 }
 
-func (o *ListTenantEventsRequest) GetNext() *string {
-	if o == nil {
+func (l *ListTenantEventsRequest) GetNext() *string {
+	if l == nil {
 		return nil
 	}
-	return o.Next
+	return l.Next
 }
 
-func (o *ListTenantEventsRequest) GetPrev() *string {
-	if o == nil {
+func (l *ListTenantEventsRequest) GetPrev() *string {
+	if l == nil {
 		return nil
 	}
-	return o.Prev
+	return l.Prev
 }
 
-func (o *ListTenantEventsRequest) GetLimit() *int64 {
-	if o == nil {
+func (l *ListTenantEventsRequest) GetLimit() *int64 {
+	if l == nil {
 		return nil
 	}
-	return o.Limit
+	return l.Limit
 }
 
-func (o *ListTenantEventsRequest) GetStart() *time.Time {
-	if o == nil {
+func (l *ListTenantEventsRequest) GetStart() *time.Time {
+	if l == nil {
 		return nil
 	}
-	return o.Start
+	return l.Start
 }
 
-func (o *ListTenantEventsRequest) GetEnd() *time.Time {
-	if o == nil {
+func (l *ListTenantEventsRequest) GetEnd() *time.Time {
+	if l == nil {
 		return nil
 	}
-	return o.End
+	return l.End
 }
 
 // ListTenantEventsResponseBody - A paginated list of events.
@@ -205,37 +205,37 @@ type ListTenantEventsResponseBody struct {
 	Count int64              `json:"count"`
 	Data  []components.Event `json:"data"`
 	// Cursor for next page (empty string if no next page)
-	Next string `json:"next"`
+	NextCursor string `json:"next"`
 	// Cursor for previous page (empty string if no previous page)
-	Prev string `json:"prev"`
+	PrevCursor string `json:"prev"`
 }
 
-func (o *ListTenantEventsResponseBody) GetCount() int64 {
-	if o == nil {
+func (l *ListTenantEventsResponseBody) GetCount() int64 {
+	if l == nil {
 		return 0
 	}
-	return o.Count
+	return l.Count
 }
 
-func (o *ListTenantEventsResponseBody) GetData() []components.Event {
-	if o == nil {
+func (l *ListTenantEventsResponseBody) GetData() []components.Event {
+	if l == nil {
 		return []components.Event{}
 	}
-	return o.Data
+	return l.Data
 }
 
-func (o *ListTenantEventsResponseBody) GetNext() string {
-	if o == nil {
+func (l *ListTenantEventsResponseBody) GetNextCursor() string {
+	if l == nil {
 		return ""
 	}
-	return o.Next
+	return l.NextCursor
 }
 
-func (o *ListTenantEventsResponseBody) GetPrev() string {
-	if o == nil {
+func (l *ListTenantEventsResponseBody) GetPrevCursor() string {
+	if l == nil {
 		return ""
 	}
-	return o.Prev
+	return l.PrevCursor
 }
 
 type ListTenantEventsResponse struct {
@@ -244,16 +244,16 @@ type ListTenantEventsResponse struct {
 	Object *ListTenantEventsResponseBody
 }
 
-func (o *ListTenantEventsResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (l *ListTenantEventsResponse) GetHTTPMeta() components.HTTPMetadata {
+	if l == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return l.HTTPMeta
 }
 
-func (o *ListTenantEventsResponse) GetObject() *ListTenantEventsResponseBody {
-	if o == nil {
+func (l *ListTenantEventsResponse) GetObject() *ListTenantEventsResponseBody {
+	if l == nil {
 		return nil
 	}
-	return o.Object
+	return l.Object
 }

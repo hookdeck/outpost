@@ -28,30 +28,30 @@ func (a *AWSKinesisConfig) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *AWSKinesisConfig) GetStreamName() string {
-	if o == nil {
+func (a *AWSKinesisConfig) GetStreamName() string {
+	if a == nil {
 		return ""
 	}
-	return o.StreamName
+	return a.StreamName
 }
 
-func (o *AWSKinesisConfig) GetRegion() string {
-	if o == nil {
+func (a *AWSKinesisConfig) GetRegion() string {
+	if a == nil {
 		return ""
 	}
-	return o.Region
+	return a.Region
 }
 
-func (o *AWSKinesisConfig) GetEndpoint() *string {
-	if o == nil {
+func (a *AWSKinesisConfig) GetEndpoint() *string {
+	if a == nil {
 		return nil
 	}
-	return o.Endpoint
+	return a.Endpoint
 }
 
-func (o *AWSKinesisConfig) GetPartitionKeyTemplate() *string {
-	if o == nil {
+func (a *AWSKinesisConfig) GetPartitionKeyTemplate() *string {
+	if a == nil {
 		return nil
 	}
-	return o.PartitionKeyTemplate
+	return a.PartitionKeyTemplate
 }

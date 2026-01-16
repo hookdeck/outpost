@@ -45,3 +45,9 @@ destinationCreate := components.CreateDestinationCreateAzureServicebus(component
 destinationCreate := components.CreateDestinationCreateAwsS3(components.DestinationCreateAwss3{/* values here */})
 ```
 
+### DestinationCreateGCPPubSub
+
+```go
+destinationCreate := components.CreateDestinationCreateGcpPubsub(components.DestinationCreateGCPPubSub{/* values here */})
+```
+

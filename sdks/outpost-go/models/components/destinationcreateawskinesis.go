@@ -38,9 +38,19 @@ type DestinationCreateAWSKinesis struct {
 	// Type of the destination. Must be 'aws_kinesis'.
 	Type DestinationCreateAWSKinesisType `json:"type"`
 	// "*" or an array of enabled topics.
-	Topics      Topics                `json:"topics"`
+	Topics Topics `json:"topics"`
+	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+	// If null or empty, all events matching the topic filter will be delivered.
+	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	//
+	Filter      map[string]any        `json:"filter,omitempty"`
 	Config      AWSKinesisConfig      `json:"config"`
 	Credentials AWSKinesisCredentials `json:"credentials"`
+	// Static key-value pairs merged into event metadata on every delivery.
+	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination.
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 func (d DestinationCreateAWSKinesis) MarshalJSON() ([]byte, error) {
@@ -54,37 +64,58 @@ func (d *DestinationCreateAWSKinesis) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *DestinationCreateAWSKinesis) GetID() *string {
-	if o == nil {
+func (d *DestinationCreateAWSKinesis) GetID() *string {
+	if d == nil {
 		return nil
 	}
-	return o.ID
+	return d.ID
 }
 
-func (o *DestinationCreateAWSKinesis) GetType() DestinationCreateAWSKinesisType {
-	if o == nil {
+func (d *DestinationCreateAWSKinesis) GetType() DestinationCreateAWSKinesisType {
+	if d == nil {
 		return DestinationCreateAWSKinesisType("")
 	}
-	return o.Type
+	return d.Type
 }
 
-func (o *DestinationCreateAWSKinesis) GetTopics() Topics {
-	if o == nil {
+func (d *DestinationCreateAWSKinesis) GetTopics() Topics {
+	if d == nil {
 		return Topics{}
 	}
-	return o.Topics
+	return d.Topics
 }
 
-func (o *DestinationCreateAWSKinesis) GetConfig() AWSKinesisConfig {
-	if o == nil {
+func (d *DestinationCreateAWSKinesis) GetFilter() map[string]any {
+	if d == nil {
+		return nil
+	}
+	return d.Filter
+}
+
+func (d *DestinationCreateAWSKinesis) GetConfig() AWSKinesisConfig {
+	if d == nil {
 		return AWSKinesisConfig{}
 	}
-	return o.Config
+	return d.Config
 }
 
-func (o *DestinationCreateAWSKinesis) GetCredentials() AWSKinesisCredentials {
-	if o == nil {
+func (d *DestinationCreateAWSKinesis) GetCredentials() AWSKinesisCredentials {
+	if d == nil {
 		return AWSKinesisCredentials{}
 	}
-	return o.Credentials
+	return d.Credentials
+}
+
+func (d *DestinationCreateAWSKinesis) GetDeliveryMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.DeliveryMetadata
+}
+
+func (d *DestinationCreateAWSKinesis) GetMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.Metadata
 }

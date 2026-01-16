@@ -10,11 +10,11 @@ type GetTenantEventByDestinationGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *GetTenantEventByDestinationGlobals) GetTenantID() *string {
-	if o == nil {
+func (g *GetTenantEventByDestinationGlobals) GetTenantID() *string {
+	if g == nil {
 		return nil
 	}
-	return o.TenantID
+	return g.TenantID
 }
 
 type GetTenantEventByDestinationRequest struct {
@@ -26,25 +26,25 @@ type GetTenantEventByDestinationRequest struct {
 	EventID string `pathParam:"style=simple,explode=false,name=event_id"`
 }
 
-func (o *GetTenantEventByDestinationRequest) GetTenantID() *string {
-	if o == nil {
+func (g *GetTenantEventByDestinationRequest) GetTenantID() *string {
+	if g == nil {
 		return nil
 	}
-	return o.TenantID
+	return g.TenantID
 }
 
-func (o *GetTenantEventByDestinationRequest) GetDestinationID() string {
-	if o == nil {
+func (g *GetTenantEventByDestinationRequest) GetDestinationID() string {
+	if g == nil {
 		return ""
 	}
-	return o.DestinationID
+	return g.DestinationID
 }
 
-func (o *GetTenantEventByDestinationRequest) GetEventID() string {
-	if o == nil {
+func (g *GetTenantEventByDestinationRequest) GetEventID() string {
+	if g == nil {
 		return ""
 	}
-	return o.EventID
+	return g.EventID
 }
 
 type GetTenantEventByDestinationResponse struct {
@@ -53,16 +53,16 @@ type GetTenantEventByDestinationResponse struct {
 	Event *components.Event
 }
 
-func (o *GetTenantEventByDestinationResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (g *GetTenantEventByDestinationResponse) GetHTTPMeta() components.HTTPMetadata {
+	if g == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return g.HTTPMeta
 }
 
-func (o *GetTenantEventByDestinationResponse) GetEvent() *components.Event {
-	if o == nil {
+func (g *GetTenantEventByDestinationResponse) GetEvent() *components.Event {
+	if g == nil {
 		return nil
 	}
-	return o.Event
+	return g.Event
 }

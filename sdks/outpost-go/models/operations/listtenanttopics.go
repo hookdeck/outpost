@@ -10,11 +10,11 @@ type ListTenantTopicsGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *ListTenantTopicsGlobals) GetTenantID() *string {
-	if o == nil {
+func (l *ListTenantTopicsGlobals) GetTenantID() *string {
+	if l == nil {
 		return nil
 	}
-	return o.TenantID
+	return l.TenantID
 }
 
 type ListTenantTopicsRequest struct {
@@ -22,11 +22,11 @@ type ListTenantTopicsRequest struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *ListTenantTopicsRequest) GetTenantID() *string {
-	if o == nil {
+func (l *ListTenantTopicsRequest) GetTenantID() *string {
+	if l == nil {
 		return nil
 	}
-	return o.TenantID
+	return l.TenantID
 }
 
 type ListTenantTopicsResponse struct {
@@ -35,16 +35,16 @@ type ListTenantTopicsResponse struct {
 	Strings []string
 }
 
-func (o *ListTenantTopicsResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (l *ListTenantTopicsResponse) GetHTTPMeta() components.HTTPMetadata {
+	if l == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return l.HTTPMeta
 }
 
-func (o *ListTenantTopicsResponse) GetStrings() []string {
-	if o == nil {
+func (l *ListTenantTopicsResponse) GetStrings() []string {
+	if l == nil {
 		return nil
 	}
-	return o.Strings
+	return l.Strings
 }

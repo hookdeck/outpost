@@ -22,9 +22,9 @@ func (a *AzureServiceBusCredentials) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *AzureServiceBusCredentials) GetConnectionString() string {
-	if o == nil {
+func (a *AzureServiceBusCredentials) GetConnectionString() string {
+	if a == nil {
 		return ""
 	}
-	return o.ConnectionString
+	return a.ConnectionString
 }

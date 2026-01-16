@@ -10,23 +10,32 @@ type UpsertTenantGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *UpsertTenantGlobals) GetTenantID() *string {
-	if o == nil {
+func (u *UpsertTenantGlobals) GetTenantID() *string {
+	if u == nil {
 		return nil
 	}
-	return o.TenantID
+	return u.TenantID
 }
 
 type UpsertTenantRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
+	// Optional tenant metadata
+	Params *components.TenantUpsert `request:"mediaType=application/json"`
 }
 
-func (o *UpsertTenantRequest) GetTenantID() *string {
-	if o == nil {
+func (u *UpsertTenantRequest) GetTenantID() *string {
+	if u == nil {
 		return nil
 	}
-	return o.TenantID
+	return u.TenantID
+}
+
+func (u *UpsertTenantRequest) GetParams() *components.TenantUpsert {
+	if u == nil {
+		return nil
+	}
+	return u.Params
 }
 
 type UpsertTenantResponse struct {
@@ -35,16 +44,16 @@ type UpsertTenantResponse struct {
 	Tenant *components.Tenant
 }
 
-func (o *UpsertTenantResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (u *UpsertTenantResponse) GetHTTPMeta() components.HTTPMetadata {
+	if u == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return u.HTTPMeta
 }
 
-func (o *UpsertTenantResponse) GetTenant() *components.Tenant {
-	if o == nil {
+func (u *UpsertTenantResponse) GetTenant() *components.Tenant {
+	if u == nil {
 		return nil
 	}
-	return o.Tenant
+	return u.Tenant
 }

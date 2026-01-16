@@ -8,9 +8,19 @@ import (
 
 type DestinationUpdateAwss3 struct {
 	// "*" or an array of enabled topics.
-	Topics      *Topics           `json:"topics,omitempty"`
+	Topics *Topics `json:"topics,omitempty"`
+	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+	// If null or empty, all events matching the topic filter will be delivered.
+	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	//
+	Filter      map[string]any    `json:"filter,omitempty"`
 	Config      *Awss3Config      `json:"config,omitempty"`
 	Credentials *Awss3Credentials `json:"credentials,omitempty"`
+	// Static key-value pairs merged into event metadata on every delivery.
+	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination.
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 func (d DestinationUpdateAwss3) MarshalJSON() ([]byte, error) {
@@ -24,23 +34,44 @@ func (d *DestinationUpdateAwss3) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *DestinationUpdateAwss3) GetTopics() *Topics {
-	if o == nil {
+func (d *DestinationUpdateAwss3) GetTopics() *Topics {
+	if d == nil {
 		return nil
 	}
-	return o.Topics
+	return d.Topics
 }
 
-func (o *DestinationUpdateAwss3) GetConfig() *Awss3Config {
-	if o == nil {
+func (d *DestinationUpdateAwss3) GetFilter() map[string]any {
+	if d == nil {
 		return nil
 	}
-	return o.Config
+	return d.Filter
 }
 
-func (o *DestinationUpdateAwss3) GetCredentials() *Awss3Credentials {
-	if o == nil {
+func (d *DestinationUpdateAwss3) GetConfig() *Awss3Config {
+	if d == nil {
 		return nil
 	}
-	return o.Credentials
+	return d.Config
+}
+
+func (d *DestinationUpdateAwss3) GetCredentials() *Awss3Credentials {
+	if d == nil {
+		return nil
+	}
+	return d.Credentials
+}
+
+func (d *DestinationUpdateAwss3) GetDeliveryMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.DeliveryMetadata
+}
+
+func (d *DestinationUpdateAwss3) GetMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.Metadata
 }

@@ -3,7 +3,6 @@
 package operations
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
@@ -14,151 +13,75 @@ type ListTenantDestinationsGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *ListTenantDestinationsGlobals) GetTenantID() *string {
-	if o == nil {
+func (l *ListTenantDestinationsGlobals) GetTenantID() *string {
+	if l == nil {
 		return nil
 	}
-	return o.TenantID
+	return l.TenantID
 }
 
-type ListTenantDestinationsTypeEnum2 string
+type ListTenantDestinationsTypeType string
 
 const (
-	ListTenantDestinationsTypeEnum2Webhook    ListTenantDestinationsTypeEnum2 = "webhook"
-	ListTenantDestinationsTypeEnum2AwsSqs     ListTenantDestinationsTypeEnum2 = "aws_sqs"
-	ListTenantDestinationsTypeEnum2Rabbitmq   ListTenantDestinationsTypeEnum2 = "rabbitmq"
-	ListTenantDestinationsTypeEnum2Hookdeck   ListTenantDestinationsTypeEnum2 = "hookdeck"
-	ListTenantDestinationsTypeEnum2AwsKinesis ListTenantDestinationsTypeEnum2 = "aws_kinesis"
-	ListTenantDestinationsTypeEnum2AwsS3      ListTenantDestinationsTypeEnum2 = "aws_s3"
+	ListTenantDestinationsTypeTypeDestinationType        ListTenantDestinationsTypeType = "DestinationType"
+	ListTenantDestinationsTypeTypeArrayOfDestinationType ListTenantDestinationsTypeType = "arrayOfDestinationType"
 )
 
-func (e ListTenantDestinationsTypeEnum2) ToPointer() *ListTenantDestinationsTypeEnum2 {
-	return &e
+// ListTenantDestinationsType - Filter destinations by type(s).
+type ListTenantDestinationsType struct {
+	DestinationType        *components.DestinationType  `queryParam:"inline" union:"member"`
+	ArrayOfDestinationType []components.DestinationType `queryParam:"inline" union:"member"`
+
+	Type ListTenantDestinationsTypeType
 }
-func (e *ListTenantDestinationsTypeEnum2) UnmarshalJSON(data []byte) error {
-	var v string
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
-	}
-	switch v {
-	case "webhook":
-		fallthrough
-	case "aws_sqs":
-		fallthrough
-	case "rabbitmq":
-		fallthrough
-	case "hookdeck":
-		fallthrough
-	case "aws_kinesis":
-		fallthrough
-	case "aws_s3":
-		*e = ListTenantDestinationsTypeEnum2(v)
-		return nil
-	default:
-		return fmt.Errorf("invalid value for ListTenantDestinationsTypeEnum2: %v", v)
+
+func CreateListTenantDestinationsTypeDestinationType(destinationType components.DestinationType) ListTenantDestinationsType {
+	typ := ListTenantDestinationsTypeTypeDestinationType
+
+	return ListTenantDestinationsType{
+		DestinationType: &destinationType,
+		Type:            typ,
 	}
 }
 
-type ListTenantDestinationsTypeEnum1 string
+func CreateListTenantDestinationsTypeArrayOfDestinationType(arrayOfDestinationType []components.DestinationType) ListTenantDestinationsType {
+	typ := ListTenantDestinationsTypeTypeArrayOfDestinationType
 
-const (
-	ListTenantDestinationsTypeEnum1Webhook    ListTenantDestinationsTypeEnum1 = "webhook"
-	ListTenantDestinationsTypeEnum1AwsSqs     ListTenantDestinationsTypeEnum1 = "aws_sqs"
-	ListTenantDestinationsTypeEnum1Rabbitmq   ListTenantDestinationsTypeEnum1 = "rabbitmq"
-	ListTenantDestinationsTypeEnum1Hookdeck   ListTenantDestinationsTypeEnum1 = "hookdeck"
-	ListTenantDestinationsTypeEnum1AwsKinesis ListTenantDestinationsTypeEnum1 = "aws_kinesis"
-	ListTenantDestinationsTypeEnum1AwsS3      ListTenantDestinationsTypeEnum1 = "aws_s3"
-)
-
-func (e ListTenantDestinationsTypeEnum1) ToPointer() *ListTenantDestinationsTypeEnum1 {
-	return &e
-}
-func (e *ListTenantDestinationsTypeEnum1) UnmarshalJSON(data []byte) error {
-	var v string
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
-	}
-	switch v {
-	case "webhook":
-		fallthrough
-	case "aws_sqs":
-		fallthrough
-	case "rabbitmq":
-		fallthrough
-	case "hookdeck":
-		fallthrough
-	case "aws_kinesis":
-		fallthrough
-	case "aws_s3":
-		*e = ListTenantDestinationsTypeEnum1(v)
-		return nil
-	default:
-		return fmt.Errorf("invalid value for ListTenantDestinationsTypeEnum1: %v", v)
+	return ListTenantDestinationsType{
+		ArrayOfDestinationType: arrayOfDestinationType,
+		Type:                   typ,
 	}
 }
 
-type TypeType string
+func (u *ListTenantDestinationsType) UnmarshalJSON(data []byte) error {
 
-const (
-	TypeTypeListTenantDestinationsTypeEnum1        TypeType = "listTenantDestinations_type_enum_1"
-	TypeTypeArrayOfListTenantDestinationsTypeEnum2 TypeType = "arrayOfListTenantDestinationsTypeEnum2"
-)
-
-// Type - Filter destinations by type(s).
-type Type struct {
-	ListTenantDestinationsTypeEnum1        *ListTenantDestinationsTypeEnum1  `queryParam:"inline" name:"type"`
-	ArrayOfListTenantDestinationsTypeEnum2 []ListTenantDestinationsTypeEnum2 `queryParam:"inline" name:"type"`
-
-	Type TypeType
-}
-
-func CreateTypeListTenantDestinationsTypeEnum1(listTenantDestinationsTypeEnum1 ListTenantDestinationsTypeEnum1) Type {
-	typ := TypeTypeListTenantDestinationsTypeEnum1
-
-	return Type{
-		ListTenantDestinationsTypeEnum1: &listTenantDestinationsTypeEnum1,
-		Type:                            typ,
-	}
-}
-
-func CreateTypeArrayOfListTenantDestinationsTypeEnum2(arrayOfListTenantDestinationsTypeEnum2 []ListTenantDestinationsTypeEnum2) Type {
-	typ := TypeTypeArrayOfListTenantDestinationsTypeEnum2
-
-	return Type{
-		ArrayOfListTenantDestinationsTypeEnum2: arrayOfListTenantDestinationsTypeEnum2,
-		Type:                                   typ,
-	}
-}
-
-func (u *Type) UnmarshalJSON(data []byte) error {
-
-	var listTenantDestinationsTypeEnum1 ListTenantDestinationsTypeEnum1 = ListTenantDestinationsTypeEnum1("")
-	if err := utils.UnmarshalJSON(data, &listTenantDestinationsTypeEnum1, "", true, nil); err == nil {
-		u.ListTenantDestinationsTypeEnum1 = &listTenantDestinationsTypeEnum1
-		u.Type = TypeTypeListTenantDestinationsTypeEnum1
+	var destinationType components.DestinationType = components.DestinationType("")
+	if err := utils.UnmarshalJSON(data, &destinationType, "", true, nil); err == nil {
+		u.DestinationType = &destinationType
+		u.Type = ListTenantDestinationsTypeTypeDestinationType
 		return nil
 	}
 
-	var arrayOfListTenantDestinationsTypeEnum2 []ListTenantDestinationsTypeEnum2 = []ListTenantDestinationsTypeEnum2{}
-	if err := utils.UnmarshalJSON(data, &arrayOfListTenantDestinationsTypeEnum2, "", true, nil); err == nil {
-		u.ArrayOfListTenantDestinationsTypeEnum2 = arrayOfListTenantDestinationsTypeEnum2
-		u.Type = TypeTypeArrayOfListTenantDestinationsTypeEnum2
+	var arrayOfDestinationType []components.DestinationType = []components.DestinationType{}
+	if err := utils.UnmarshalJSON(data, &arrayOfDestinationType, "", true, nil); err == nil {
+		u.ArrayOfDestinationType = arrayOfDestinationType
+		u.Type = ListTenantDestinationsTypeTypeArrayOfDestinationType
 		return nil
 	}
 
-	return fmt.Errorf("could not unmarshal `%s` into any supported union types for Type", string(data))
+	return fmt.Errorf("could not unmarshal `%s` into any supported union types for ListTenantDestinationsType", string(data))
 }
 
-func (u Type) MarshalJSON() ([]byte, error) {
-	if u.ListTenantDestinationsTypeEnum1 != nil {
-		return utils.MarshalJSON(u.ListTenantDestinationsTypeEnum1, "", true)
+func (u ListTenantDestinationsType) MarshalJSON() ([]byte, error) {
+	if u.DestinationType != nil {
+		return utils.MarshalJSON(u.DestinationType, "", true)
 	}
 
-	if u.ArrayOfListTenantDestinationsTypeEnum2 != nil {
-		return utils.MarshalJSON(u.ArrayOfListTenantDestinationsTypeEnum2, "", true)
+	if u.ArrayOfDestinationType != nil {
+		return utils.MarshalJSON(u.ArrayOfDestinationType, "", true)
 	}
 
-	return nil, errors.New("could not marshal union type Type: all fields are null")
+	return nil, errors.New("could not marshal union type ListTenantDestinationsType: all fields are null")
 }
 
 type TopicsType string
@@ -170,8 +93,8 @@ const (
 
 // Topics - Filter destinations by supported topic(s).
 type Topics struct {
-	Str        *string  `queryParam:"inline" name:"topics"`
-	ArrayOfStr []string `queryParam:"inline" name:"topics"`
+	Str        *string  `queryParam:"inline" union:"member"`
+	ArrayOfStr []string `queryParam:"inline" union:"member"`
 
 	Type TopicsType
 }
@@ -229,30 +152,30 @@ type ListTenantDestinationsRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 	// Filter destinations by type(s).
-	Type *Type `queryParam:"style=form,explode=true,name=type"`
+	Type *ListTenantDestinationsType `queryParam:"style=form,explode=true,name=type"`
 	// Filter destinations by supported topic(s).
 	Topics *Topics `queryParam:"style=form,explode=true,name=topics"`
 }
 
-func (o *ListTenantDestinationsRequest) GetTenantID() *string {
-	if o == nil {
+func (l *ListTenantDestinationsRequest) GetTenantID() *string {
+	if l == nil {
 		return nil
 	}
-	return o.TenantID
+	return l.TenantID
 }
 
-func (o *ListTenantDestinationsRequest) GetType() *Type {
-	if o == nil {
+func (l *ListTenantDestinationsRequest) GetType() *ListTenantDestinationsType {
+	if l == nil {
 		return nil
 	}
-	return o.Type
+	return l.Type
 }
 
-func (o *ListTenantDestinationsRequest) GetTopics() *Topics {
-	if o == nil {
+func (l *ListTenantDestinationsRequest) GetTopics() *Topics {
+	if l == nil {
 		return nil
 	}
-	return o.Topics
+	return l.Topics
 }
 
 type ListTenantDestinationsResponse struct {
@@ -261,16 +184,16 @@ type ListTenantDestinationsResponse struct {
 	Destinations []components.Destination
 }
 
-func (o *ListTenantDestinationsResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (l *ListTenantDestinationsResponse) GetHTTPMeta() components.HTTPMetadata {
+	if l == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return l.HTTPMeta
 }
 
-func (o *ListTenantDestinationsResponse) GetDestinations() []components.Destination {
-	if o == nil {
+func (l *ListTenantDestinationsResponse) GetDestinations() []components.Destination {
+	if l == nil {
 		return nil
 	}
-	return o.Destinations
+	return l.Destinations
 }

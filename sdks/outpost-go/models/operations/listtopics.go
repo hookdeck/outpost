@@ -12,16 +12,16 @@ type ListTopicsResponse struct {
 	Strings []string
 }
 
-func (o *ListTopicsResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (l *ListTopicsResponse) GetHTTPMeta() components.HTTPMetadata {
+	if l == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return l.HTTPMeta
 }
 
-func (o *ListTopicsResponse) GetStrings() []string {
-	if o == nil {
+func (l *ListTopicsResponse) GetStrings() []string {
+	if l == nil {
 		return nil
 	}
-	return o.Strings
+	return l.Strings
 }
