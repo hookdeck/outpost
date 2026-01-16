@@ -17,13 +17,14 @@ SDK versions may not always match platform versions, as SDKs can have their own 
 
 ## Breaking Changes Overview
 
-| Change                                                                 | Impact                      | Action Required                                                               |
-| ---------------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------- |
-| [API route prefix](#api-route-prefix)                                  | All tenant-scoped endpoints | Update API client paths                                                       |
-| [Webhook signature defaults](#webhook-signature-defaults)              | Signature verification      | Update receivers or configure for backward compatibility                      |
-| [List Tenants & Redis migrations](#list-tenants--redis-migrations)     | New feature + data format   | Run migrations                                                                |
-| [SDK request body field names](#sdk-request-body-field-names-all-sdks) | All SDK methods             | Update method calls to use `params` instead of operation-specific field names |
-| [SDK response structure](#sdk-response-structure-all-sdks)             | All SDK response access     | Update response access from `response.result.data` to `response.data`         |
+| Change                                                                 | Impact                      | Action Required                                                                |
+| ---------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------ |
+| [API route prefix](#api-route-prefix)                                  | All tenant-scoped endpoints | Update API client paths                                                        |
+| [Webhook signature defaults](#webhook-signature-defaults)              | Signature verification      | Update receivers or configure for backward compatibility                       |
+| [List Tenants & Redis migrations](#list-tenants--redis-migrations)     | New feature + data format   | Run migrations                                                                 |
+| [SDK request body field names](#sdk-request-body-field-names-all-sdks) | All SDK methods             | Update method calls to use `params` instead of operation-specific field names  |
+| [SDK response structure](#sdk-response-structure-all-sdks)             | All SDK response access     | Update response access from `response.result.data` to `response.data`          |
+| [SDK pagination field names](#sdk-pagination-field-names)              | TypeScript & Go SDKs        | Update pagination field access from `nextCursor`/`prevCursor` to `next`/`prev` |
 
 ## API Route Prefix
 
@@ -165,6 +166,56 @@ const events = response?.data || [];
 - `events.list()` - returns `ListTenantEventsResponse` with `data` directly
 - Other paginated list endpoints
 
+## SDK Pagination Field Names
+
+TypeScript v0.6.0 and Go v0.5.0 now use `next` and `prev` for pagination fields (both query parameters and response properties), matching the OpenAPI specification. Python v0.5.0 uses `next_cursor` and `prev_cursor` consistently to avoid conflicts with Python's built-in `next()` function.
+
+:::note[Examples]
+Examples shown in TypeScript, but changes apply to TypeScript and Go SDKs. Python SDK uses `next_cursor`/`prev_cursor` instead.
+:::
+
+### Before
+
+```typescript
+// Accessing pagination cursor from response
+const response = await outpost.events.list({
+  tenantId: "acme-corp",
+});
+const nextCursor = response?.nextCursor; // or response?.prevCursor
+
+// Using pagination cursor in next request
+const nextPage = await outpost.events.list({
+  tenantId: "acme-corp",
+  next: nextCursor,
+});
+```
+
+### After
+
+```typescript
+// Accessing pagination cursor from response
+const response = await outpost.events.list({
+  tenantId: "acme-corp",
+});
+const nextCursor = response?.next; // or response?.prev
+
+// Using pagination cursor in next request
+const nextPage = await outpost.events.list({
+  tenantId: "acme-corp",
+  next: nextCursor,
+});
+```
+
+**Action:** Update all code that accesses pagination fields:
+
+- **TypeScript & Go**: Change `nextCursor`/`prevCursor` to `next`/`prev` in response objects
+- **Python**: No change required - continues using `next_cursor`/`prev_cursor`
+
+This affects:
+
+- Response properties: `response.nextCursor` → `response.next`, `response.prevCursor` → `response.prev`
+- Query parameters remain the same: `next` and `prev` (TypeScript/Go) or `next_cursor` and `prev_cursor` (Python)
+
 ## List Tenants & Redis Migrations
 
 v0.12 introduces a new `GET /api/v1/tenants` endpoint for listing all tenants with cursor-based pagination. This feature requires Redis migrations to be run.
@@ -216,6 +267,7 @@ For detailed information on the migration workflow, safety features, and trouble
    - [ ] Update API clients to use `/tenants/` prefix paths
    - [ ] Update SDK calls (all languages) to use `params` instead of operation-specific field names
    - [ ] Update SDK response access (all languages) from `response.result.data` to `response.data`
+   - [ ] Update pagination field names (TypeScript/Go: `nextCursor`/`prevCursor` → `next`/`prev`)
    - [ ] Decide on webhook signature format (keep old or adopt new)
    - [ ] Back up Redis data
 

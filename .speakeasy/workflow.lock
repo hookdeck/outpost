@@ -1,9 +1,9 @@
-speakeasyVersion: 1.636.3
+speakeasyVersion: 1.686.0
 sources:
     Outpost API:
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:abcb227d706ddbbb55ab9a423da413260c4d83c247616a9f6067890ff4bfa997
-        sourceBlobDigest: sha256:b8f43e14862cadf618bc568c76cec68ed15da6c4c7fec0541edd4671a3b26815
+        sourceRevisionDigest: sha256:1534dabb139bd405d19820be4eddbd8540fc924fa5a267332a7296f8663dd15a
+        sourceBlobDigest: sha256:e3b85ac9da28706696320ca22b6ca215624531b31c3d79474802b1dbf485bd4d
         tags:
             - latest
             - 0.0.1
@@ -25,15 +25,23 @@ targets:
     outpost-ts:
         source: Outpost API
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:abcb227d706ddbbb55ab9a423da413260c4d83c247616a9f6067890ff4bfa997
-        sourceBlobDigest: sha256:b8f43e14862cadf618bc568c76cec68ed15da6c4c7fec0541edd4671a3b26815
+        sourceRevisionDigest: sha256:1534dabb139bd405d19820be4eddbd8540fc924fa5a267332a7296f8663dd15a
+        sourceBlobDigest: sha256:e3b85ac9da28706696320ca22b6ca215624531b31c3d79474802b1dbf485bd4d
         codeSamplesNamespace: outpost-api-typescript-code-samples
-        codeSamplesRevisionDigest: sha256:58c8e1b33a4de342b37a90c0c490a21c795e4b5c6c4f2ceef9f8c45b817a56f3
+        codeSamplesRevisionDigest: sha256:e84a77ce14d887b056d89141a76a7f58be0c6b48bfb370390564d1a9e58f1265
 workflow:
     workflowVersion: 1.0.0
     speakeasyVersion: latest
     sources:
         Outpost API:
+            inputs:
+                - location: ./docs/apis/openapi.yaml
+            overlays:
+                - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
+                - location: ./sdks/schemas/error-types.yaml
+            registry:
+                location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api
+        Outpost API (Python):
             inputs:
                 - location: ./docs/apis/openapi.yaml
             overlays:
@@ -55,7 +63,7 @@ workflow:
                 blocking: false
         outpost-python:
             target: python
-            source: Outpost API
+            source: Outpost API (Python)
             output: ./sdks/outpost-python
             publish:
                 pypi:
