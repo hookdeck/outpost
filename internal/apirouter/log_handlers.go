@@ -130,13 +130,13 @@ type ListEventsResponse struct {
 // toAPIDelivery converts a DeliveryEvent to APIDelivery with expand options
 func toAPIDelivery(de *models.DeliveryEvent, opts ExpandOptions) APIDelivery {
 	api := APIDelivery{
-		ID:          de.Delivery.ID,
 		Attempt:     de.Attempt,
 		Destination: de.DestinationID,
 	}
 
 	// Set delivery fields if delivery exists
 	if de.Delivery != nil {
+		api.ID = de.Delivery.ID
 		api.Status = de.Delivery.Status
 		api.DeliveredAt = de.Delivery.Time
 		api.Code = de.Delivery.Code
