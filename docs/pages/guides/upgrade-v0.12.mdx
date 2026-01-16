@@ -4,27 +4,40 @@ title: "Upgrade to v0.12"
 
 This guide covers breaking changes and migration steps when upgrading from v0.11 to v0.12.
 
+## Version Information
+
+This guide covers upgrading **Outpost platform** from v0.11 to v0.12.
+
+**Important**: Outpost platform versions (v0.12) are separate from SDK versions.
+
+- **Outpost Platform**: The server/API version (currently v0.12)
+- **SDKs**: Client library versions (TypeScript v0.6.0, Python v0.5.0, Go v0.5.0)
+
+SDK versions may not always match platform versions, as SDKs can have their own release cycle.
+
 ## Breaking Changes Overview
 
-| Change | Impact | Action Required |
-|--------|--------|-----------------|
-| [API route prefix](#api-route-prefix) | All tenant-scoped endpoints | Update API client paths |
-| [Webhook signature defaults](#webhook-signature-defaults) | Signature verification | Update receivers or configure for backward compatibility |
-| [List Tenants & Redis migrations](#list-tenants--redis-migrations) | New feature + data format | Run migrations |
+| Change                                                                 | Impact                      | Action Required                                                               |
+| ---------------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------- |
+| [API route prefix](#api-route-prefix)                                  | All tenant-scoped endpoints | Update API client paths                                                       |
+| [Webhook signature defaults](#webhook-signature-defaults)              | Signature verification      | Update receivers or configure for backward compatibility                      |
+| [List Tenants & Redis migrations](#list-tenants--redis-migrations)     | New feature + data format   | Run migrations                                                                |
+| [SDK request body field names](#sdk-request-body-field-names-all-sdks) | All SDK methods             | Update method calls to use `params` instead of operation-specific field names |
+| [SDK response structure](#sdk-response-structure-all-sdks)             | All SDK response access     | Update response access from `response.result.data` to `response.data`         |
 
 ## API Route Prefix
 
 All tenant-scoped API endpoints now use a `/tenants/` prefix.
 
-| Old Path | New Path |
-|----------|----------|
-| `PUT /api/v1/:tenant_id` | `PUT /api/v1/tenants/:tenant_id` |
-| `GET /api/v1/:tenant_id` | `GET /api/v1/tenants/:tenant_id` |
-| `DELETE /api/v1/:tenant_id` | `DELETE /api/v1/tenants/:tenant_id` |
-| `GET /api/v1/:tenant_id/destinations` | `GET /api/v1/tenants/:tenant_id/destinations` |
+| Old Path                               | New Path                                       |
+| -------------------------------------- | ---------------------------------------------- |
+| `PUT /api/v1/:tenant_id`               | `PUT /api/v1/tenants/:tenant_id`               |
+| `GET /api/v1/:tenant_id`               | `GET /api/v1/tenants/:tenant_id`               |
+| `DELETE /api/v1/:tenant_id`            | `DELETE /api/v1/tenants/:tenant_id`            |
+| `GET /api/v1/:tenant_id/destinations`  | `GET /api/v1/tenants/:tenant_id/destinations`  |
 | `POST /api/v1/:tenant_id/destinations` | `POST /api/v1/tenants/:tenant_id/destinations` |
-| `GET /api/v1/:tenant_id/events` | `GET /api/v1/tenants/:tenant_id/events` |
-| ... | ... |
+| `GET /api/v1/:tenant_id/events`        | `GET /api/v1/tenants/:tenant_id/events`        |
+| ...                                    | ...                                            |
 
 The pattern applies to all endpoints that previously started with `/:tenant_id`.
 
@@ -34,10 +47,10 @@ The pattern applies to all endpoints that previously started with `/:tenant_id`.
 
 The default webhook signature templates have changed to a simpler format without timestamps.
 
-| Setting | Old Default (v0.11) | New Default (v0.12) |
-|---------|---------------------|---------------------|
-| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Timestamp.Unix}}.{{.Body}}` | `{{.Body}}` |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` | `v0={{.Signatures \| join ","}}` |
+| Setting                                           | Old Default (v0.11)                                    | New Default (v0.12)              |
+| ------------------------------------------------- | ------------------------------------------------------ | -------------------------------- |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Timestamp.Unix}}.{{.Body}}`                        | `{{.Body}}`                      |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`  | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` | `v0={{.Signatures \| join ","}}` |
 
 If your webhook receivers verify signatures using the old format, signature verification will fail after upgrading.
 
@@ -47,6 +60,110 @@ If your webhook receivers verify signatures using the old format, signature veri
 DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE="{{.Timestamp.Unix}}.{{.Body}}"
 DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE="t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
 ```
+
+## SDK Request Body Field Names (All SDKs)
+
+All SDKs (TypeScript v0.6.0, Python v0.5.0, Go v0.5.0) now use a consistent `params` field name for request bodies instead of operation-specific names like `destinationCreate` or `destinationUpdate`.
+
+:::note[Examples]
+Examples shown in TypeScript, but changes apply to all SDKs (TypeScript, Python, Go).
+:::
+
+### Before
+
+```typescript
+// Creating a destination
+await outpost.destinations.create({
+  tenantId: "acme-corp",
+  destinationCreate: {
+    type: "webhook",
+    topics: ["order.created"],
+    config: { url: "https://acme.com/webhooks" },
+  },
+});
+
+// Updating a destination
+await outpost.destinations.update({
+  tenantId: "acme-corp",
+  destinationId: "des_123",
+  destinationUpdate: {
+    topics: ["order.updated"],
+  },
+});
+```
+
+### After
+
+```typescript
+// Creating a destination
+await outpost.destinations.create({
+  tenantId: "acme-corp",
+  params: {
+    type: "webhook",
+    topics: ["order.created"],
+    config: { url: "https://acme.com/webhooks" },
+  },
+});
+
+// Updating a destination
+await outpost.destinations.update({
+  tenantId: "acme-corp",
+  destinationId: "des_123",
+  params: {
+    topics: ["order.updated"],
+  },
+});
+```
+
+**Action:** Update all SDK method calls that use `destinationCreate`, `destinationUpdate`, or similar operation-specific field names to use `params` instead.
+
+## SDK Response Structure (All SDKs)
+
+All SDKs (TypeScript v0.6.0, Python v0.5.0, Go v0.5.0) response structure has changed. Paginated responses (like events lists) now return data directly on the response object instead of nested under a `result` property.
+
+:::note[Examples]
+Examples shown in TypeScript, but changes apply to all SDKs (TypeScript, Python, Go).
+:::
+
+### Before
+
+```typescript
+// Listing events by destination
+const response = await outpost.events.listByDestination({
+  tenantId: "acme-corp",
+  destinationId: "des_123",
+});
+const events = response?.result?.data || [];
+
+// Listing tenant events
+const response = await outpost.events.list({
+  tenantId: "acme-corp",
+});
+const events = response?.result?.data || [];
+```
+
+### After
+
+```typescript
+// Listing events by destination
+const response = await outpost.events.listByDestination({
+  tenantId: "acme-corp",
+  destinationId: "des_123",
+});
+const events = response?.data || [];
+
+// Listing tenant events
+const response = await outpost.events.list({
+  tenantId: "acme-corp",
+});
+const events = response?.data || [];
+```
+
+**Action:** Update all code that accesses paginated response data from `response.result.data` to `response.data`. This affects:
+
+- `events.listByDestination()` - returns `ListTenantEventsByDestinationResponse` with `data` directly
+- `events.list()` - returns `ListTenantEventsResponse` with `data` directly
+- Other paginated list endpoints
 
 ## List Tenants & Redis Migrations
 
@@ -95,11 +212,15 @@ For detailed information on the migration workflow, safety features, and trouble
 ## Upgrade Checklist
 
 1. **Before upgrading:**
+
    - [ ] Update API clients to use `/tenants/` prefix paths
+   - [ ] Update SDK calls (all languages) to use `params` instead of operation-specific field names
+   - [ ] Update SDK response access (all languages) from `response.result.data` to `response.data`
    - [ ] Decide on webhook signature format (keep old or adopt new)
    - [ ] Back up Redis data
 
 2. **During upgrade:**
+
    - [ ] Set webhook signature environment variables if maintaining backward compatibility
    - [ ] Run migrations (automatic or manual)
 

@@ -6,6 +6,7 @@ import type {
   Destination,
   DestinationCreate,
   DestinationUpdate,
+  DestinationType,
   Tenant,
 } from '../../sdks/outpost-typescript/dist/commonjs/models/components';
 
@@ -30,11 +31,11 @@ export type { Destination, DestinationCreate, DestinationUpdate, Tenant };
  * Validation errors are thrown as SDKValidationError or ResponseValidationError.
  */
 export class SdkClient {
-  private sdk: any;
+  private sdk: Outpost;
   private tenantId: string;
 
   constructor(config: SdkClientConfig = {}) {
-    const baseURL = config.baseURL || process.env.API_BASE_URL || 'http://localhost:3333';
+    const baseURL = config.baseURL || process.env.API_BASE_URL || 'http://localhost:3333/api/v1';
     this.tenantId = config.tenantId || process.env.TENANT_ID || 'test-tenant';
 
     if (process.env.DEBUG_API_REQUESTS === 'true') {
@@ -43,7 +44,6 @@ export class SdkClient {
 
     this.sdk = new Outpost({
       serverURL: baseURL,
-      tenantId: this.tenantId,
       security: {
         adminApiKey: config.apiKey || process.env.API_KEY || '',
       },
@@ -76,7 +76,7 @@ export class SdkClient {
   async createDestination(data: DestinationCreate): Promise<Destination> {
     return await this.sdk.destinations.create({
       tenantId: this.tenantId,
-      destinationCreate: data,
+      params: data,
     });
   }
 
@@ -93,7 +93,9 @@ export class SdkClient {
   /**
    * List all destinations
    */
-  async listDestinations(params?: { type?: string }): Promise<Destination[]> {
+  async listDestinations(params?: {
+    type?: DestinationType | DestinationType[];
+  }): Promise<Destination[]> {
     return await this.sdk.destinations.list({
       tenantId: this.tenantId,
       type: params?.type,
@@ -112,7 +114,7 @@ export class SdkClient {
     return await this.sdk.destinations.update({
       tenantId: tenantId || this.tenantId,
       destinationId,
-      destinationUpdate: data,
+      params: data,
     });
   }
 
@@ -155,7 +157,7 @@ export class SdkClient {
 export function createSdkClient(config: SdkClientConfig = {}): SdkClient {
   return new SdkClient({
     ...config,
-    baseURL: config.baseURL || process.env.API_BASE_URL || 'http://localhost:3333',
+    baseURL: config.baseURL || process.env.API_BASE_URL || 'http://localhost:3333/api/v1',
     apiKey: config.apiKey || process.env.API_KEY,
   });
 }

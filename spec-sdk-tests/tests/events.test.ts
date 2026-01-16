@@ -158,7 +158,7 @@ describe('Events - Status Field Tests (PR #491)', () => {
             tenantId: client.getTenantId(),
             destinationId: destinationId,
           });
-          return response?.result?.data || [];
+          return response?.data || [];
         },
         30000,
         5000
@@ -193,8 +193,8 @@ describe('Events - Status Field Tests (PR #491)', () => {
         destinationId: destinationId,
       });
 
-      // The SDK wraps the API response in a 'result' object
-      const events = response?.result?.data || [];
+      // The SDK wraps the API response in a 'data' property
+      const events = response?.data || [];
 
       if (events.length === 0) {
         console.warn('No events found - skipping single event test');
@@ -243,13 +243,13 @@ describe('Events - Status Field Tests (PR #491)', () => {
       });
       console.log('Event published successfully');
 
-      // Poll for events with 5s intervals, max 30s wait
+      // Poll for events with 5s intervals
       const events = await pollForEvents(
         async () => {
           const response = await sdk.events.list({
             tenantId: client.getTenantId(),
           });
-          return response?.result?.data || [];
+          return response?.data || [];
         },
         30000,
         5000
