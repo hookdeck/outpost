@@ -174,9 +174,9 @@ func WithTimeout(timeout time.Duration) SDKOption {
 // New creates a new instance of the SDK with the provided options
 func New(opts ...SDKOption) *Outpost {
 	sdk := &Outpost{
-		SDKVersion: "0.5.0",
+		SDKVersion: "0.5.1",
 		sdkConfiguration: config.SDKConfiguration{
-			UserAgent:  "speakeasy-sdk/go 0.5.0 2.796.1 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
+			UserAgent:  "speakeasy-sdk/go 0.5.1 2.796.1 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
 			Globals:    globals.Globals{},
 			ServerList: ServerList,
 		},
