@@ -27,23 +27,23 @@ func (w *WebhookCredentials) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *WebhookCredentials) GetSecret() *string {
-	if o == nil {
+func (w *WebhookCredentials) GetSecret() *string {
+	if w == nil {
 		return nil
 	}
-	return o.Secret
+	return w.Secret
 }
 
-func (o *WebhookCredentials) GetPreviousSecret() *string {
-	if o == nil {
+func (w *WebhookCredentials) GetPreviousSecret() *string {
+	if w == nil {
 		return nil
 	}
-	return o.PreviousSecret
+	return w.PreviousSecret
 }
 
-func (o *WebhookCredentials) GetPreviousSecretInvalidAt() *time.Time {
-	if o == nil {
+func (w *WebhookCredentials) GetPreviousSecretInvalidAt() *time.Time {
+	if w == nil {
 		return nil
 	}
-	return o.PreviousSecretInvalidAt
+	return w.PreviousSecretInvalidAt
 }

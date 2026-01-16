@@ -14,8 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/ericlagergren/decimal"
 )
 
 const (
@@ -183,8 +181,6 @@ func valToString(val interface{}) string {
 		return v.Format(time.RFC3339Nano)
 	case big.Int:
 		return v.String()
-	case decimal.Big:
-		return v.String()
 	default:
 		return fmt.Sprintf("%v", v)
 	}
@@ -243,6 +239,21 @@ func isNil(typ reflect.Type, val reflect.Value) bool {
 	}
 
 	return false
+}
+
+func isEmptyContainer(typ reflect.Type, val reflect.Value) bool {
+	if isNil(typ, val) {
+		return true
+	}
+
+	switch typ.Kind() {
+	case reflect.Slice, reflect.Array:
+		return val.Len() == 0
+	case reflect.Map:
+		return val.Len() == 0
+	default:
+		return false
+	}
 }
 
 func contains(arr []string, str string) bool {

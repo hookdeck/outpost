@@ -5,11 +5,20 @@ package components
 type PublishResponse struct {
 	// The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated UUID.
 	ID string `json:"id"`
+	// Whether this event was already processed (idempotency hit). If true, the event was not queued again.
+	Duplicate bool `json:"duplicate"`
 }
 
-func (o *PublishResponse) GetID() string {
-	if o == nil {
+func (p *PublishResponse) GetID() string {
+	if p == nil {
 		return ""
 	}
-	return o.ID
+	return p.ID
+}
+
+func (p *PublishResponse) GetDuplicate() bool {
+	if p == nil {
+		return false
+	}
+	return p.Duplicate
 }

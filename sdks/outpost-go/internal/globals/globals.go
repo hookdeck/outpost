@@ -6,9 +6,9 @@ type Globals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *Globals) GetTenantID() *string {
-	if o == nil {
+func (g *Globals) GetTenantID() *string {
+	if g == nil {
 		return nil
 	}
-	return o.TenantID
+	return g.TenantID
 }

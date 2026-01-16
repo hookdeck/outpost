@@ -38,9 +38,19 @@ type DestinationCreateAzureServiceBus struct {
 	// Type of the destination. Must be 'azure_servicebus'.
 	Type DestinationCreateAzureServiceBusType `json:"type"`
 	// "*" or an array of enabled topics.
-	Topics      Topics                     `json:"topics"`
+	Topics Topics `json:"topics"`
+	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+	// If null or empty, all events matching the topic filter will be delivered.
+	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	//
+	Filter      map[string]any             `json:"filter,omitempty"`
 	Config      AzureServiceBusConfig      `json:"config"`
 	Credentials AzureServiceBusCredentials `json:"credentials"`
+	// Static key-value pairs merged into event metadata on every delivery.
+	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination.
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 func (d DestinationCreateAzureServiceBus) MarshalJSON() ([]byte, error) {
@@ -54,37 +64,58 @@ func (d *DestinationCreateAzureServiceBus) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *DestinationCreateAzureServiceBus) GetID() *string {
-	if o == nil {
+func (d *DestinationCreateAzureServiceBus) GetID() *string {
+	if d == nil {
 		return nil
 	}
-	return o.ID
+	return d.ID
 }
 
-func (o *DestinationCreateAzureServiceBus) GetType() DestinationCreateAzureServiceBusType {
-	if o == nil {
+func (d *DestinationCreateAzureServiceBus) GetType() DestinationCreateAzureServiceBusType {
+	if d == nil {
 		return DestinationCreateAzureServiceBusType("")
 	}
-	return o.Type
+	return d.Type
 }
 
-func (o *DestinationCreateAzureServiceBus) GetTopics() Topics {
-	if o == nil {
+func (d *DestinationCreateAzureServiceBus) GetTopics() Topics {
+	if d == nil {
 		return Topics{}
 	}
-	return o.Topics
+	return d.Topics
 }
 
-func (o *DestinationCreateAzureServiceBus) GetConfig() AzureServiceBusConfig {
-	if o == nil {
+func (d *DestinationCreateAzureServiceBus) GetFilter() map[string]any {
+	if d == nil {
+		return nil
+	}
+	return d.Filter
+}
+
+func (d *DestinationCreateAzureServiceBus) GetConfig() AzureServiceBusConfig {
+	if d == nil {
 		return AzureServiceBusConfig{}
 	}
-	return o.Config
+	return d.Config
 }
 
-func (o *DestinationCreateAzureServiceBus) GetCredentials() AzureServiceBusCredentials {
-	if o == nil {
+func (d *DestinationCreateAzureServiceBus) GetCredentials() AzureServiceBusCredentials {
+	if d == nil {
 		return AzureServiceBusCredentials{}
 	}
-	return o.Credentials
+	return d.Credentials
+}
+
+func (d *DestinationCreateAzureServiceBus) GetDeliveryMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.DeliveryMetadata
+}
+
+func (d *DestinationCreateAzureServiceBus) GetMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.Metadata
 }

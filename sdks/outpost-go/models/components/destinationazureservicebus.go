@@ -40,12 +40,24 @@ type DestinationAzureServiceBus struct {
 	Type DestinationAzureServiceBusType `json:"type"`
 	// "*" or an array of enabled topics.
 	Topics Topics `json:"topics"`
+	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+	// If null or empty, all events matching the topic filter will be delivered.
+	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	//
+	Filter map[string]any `json:"filter,omitempty"`
 	// ISO Date when the destination was disabled, or null if enabled.
 	DisabledAt *time.Time `json:"disabled_at"`
 	// ISO Date when the destination was created.
-	CreatedAt   time.Time                  `json:"created_at"`
+	CreatedAt time.Time `json:"created_at"`
+	// ISO Date when the destination was last updated.
+	UpdatedAt   *time.Time                 `json:"updated_at,omitempty"`
 	Config      AzureServiceBusConfig      `json:"config"`
 	Credentials AzureServiceBusCredentials `json:"credentials"`
+	// Static key-value pairs merged into event metadata on every delivery.
+	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination.
+	Metadata map[string]string `json:"metadata,omitempty"`
 	// A human-readable representation of the destination target (Azure Service Bus queue/topic name). Read-only.
 	Target *string `json:"target,omitempty"`
 	// A URL link to the destination target (Azure Portal link to the Service Bus). Read-only.
@@ -57,71 +69,99 @@ func (d DestinationAzureServiceBus) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationAzureServiceBus) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "disabled_at", "created_at", "config", "credentials"}); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "created_at", "config", "credentials"}); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (o *DestinationAzureServiceBus) GetID() string {
-	if o == nil {
+func (d *DestinationAzureServiceBus) GetID() string {
+	if d == nil {
 		return ""
 	}
-	return o.ID
+	return d.ID
 }
 
-func (o *DestinationAzureServiceBus) GetType() DestinationAzureServiceBusType {
-	if o == nil {
+func (d *DestinationAzureServiceBus) GetType() DestinationAzureServiceBusType {
+	if d == nil {
 		return DestinationAzureServiceBusType("")
 	}
-	return o.Type
+	return d.Type
 }
 
-func (o *DestinationAzureServiceBus) GetTopics() Topics {
-	if o == nil {
+func (d *DestinationAzureServiceBus) GetTopics() Topics {
+	if d == nil {
 		return Topics{}
 	}
-	return o.Topics
+	return d.Topics
 }
 
-func (o *DestinationAzureServiceBus) GetDisabledAt() *time.Time {
-	if o == nil {
+func (d *DestinationAzureServiceBus) GetFilter() map[string]any {
+	if d == nil {
 		return nil
 	}
-	return o.DisabledAt
+	return d.Filter
 }
 
-func (o *DestinationAzureServiceBus) GetCreatedAt() time.Time {
-	if o == nil {
+func (d *DestinationAzureServiceBus) GetDisabledAt() *time.Time {
+	if d == nil {
+		return nil
+	}
+	return d.DisabledAt
+}
+
+func (d *DestinationAzureServiceBus) GetCreatedAt() time.Time {
+	if d == nil {
 		return time.Time{}
 	}
-	return o.CreatedAt
+	return d.CreatedAt
 }
 
-func (o *DestinationAzureServiceBus) GetConfig() AzureServiceBusConfig {
-	if o == nil {
+func (d *DestinationAzureServiceBus) GetUpdatedAt() *time.Time {
+	if d == nil {
+		return nil
+	}
+	return d.UpdatedAt
+}
+
+func (d *DestinationAzureServiceBus) GetConfig() AzureServiceBusConfig {
+	if d == nil {
 		return AzureServiceBusConfig{}
 	}
-	return o.Config
+	return d.Config
 }
 
-func (o *DestinationAzureServiceBus) GetCredentials() AzureServiceBusCredentials {
-	if o == nil {
+func (d *DestinationAzureServiceBus) GetCredentials() AzureServiceBusCredentials {
+	if d == nil {
 		return AzureServiceBusCredentials{}
 	}
-	return o.Credentials
+	return d.Credentials
 }
 
-func (o *DestinationAzureServiceBus) GetTarget() *string {
-	if o == nil {
+func (d *DestinationAzureServiceBus) GetDeliveryMetadata() map[string]string {
+	if d == nil {
 		return nil
 	}
-	return o.Target
+	return d.DeliveryMetadata
 }
 
-func (o *DestinationAzureServiceBus) GetTargetURL() *string {
-	if o == nil {
+func (d *DestinationAzureServiceBus) GetMetadata() map[string]string {
+	if d == nil {
 		return nil
 	}
-	return o.TargetURL
+	return d.Metadata
+}
+
+func (d *DestinationAzureServiceBus) GetTarget() *string {
+	if d == nil {
+		return nil
+	}
+	return d.Target
+}
+
+func (d *DestinationAzureServiceBus) GetTargetURL() *string {
+	if d == nil {
+		return nil
+	}
+	return d.TargetURL
 }

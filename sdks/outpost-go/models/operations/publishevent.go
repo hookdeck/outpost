@@ -12,16 +12,16 @@ type PublishEventResponse struct {
 	PublishResponse *components.PublishResponse
 }
 
-func (o *PublishEventResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (p *PublishEventResponse) GetHTTPMeta() components.HTTPMetadata {
+	if p == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return p.HTTPMeta
 }
 
-func (o *PublishEventResponse) GetPublishResponse() *components.PublishResponse {
-	if o == nil {
+func (p *PublishEventResponse) GetPublishResponse() *components.PublishResponse {
+	if p == nil {
 		return nil
 	}
-	return o.PublishResponse
+	return p.PublishResponse
 }

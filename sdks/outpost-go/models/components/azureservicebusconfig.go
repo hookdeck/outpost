@@ -22,9 +22,9 @@ func (a *AzureServiceBusConfig) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *AzureServiceBusConfig) GetName() string {
-	if o == nil {
+func (a *AzureServiceBusConfig) GetName() string {
+	if a == nil {
 		return ""
 	}
-	return o.Name
+	return a.Name
 }

@@ -13,40 +13,40 @@ type UpdateTenantDestinationGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *UpdateTenantDestinationGlobals) GetTenantID() *string {
-	if o == nil {
+func (u *UpdateTenantDestinationGlobals) GetTenantID() *string {
+	if u == nil {
 		return nil
 	}
-	return o.TenantID
+	return u.TenantID
 }
 
 type UpdateTenantDestinationRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 	// The ID of the destination.
-	DestinationID     string                       `pathParam:"style=simple,explode=false,name=destination_id"`
-	DestinationUpdate components.DestinationUpdate `request:"mediaType=application/json"`
+	DestinationID string                       `pathParam:"style=simple,explode=false,name=destination_id"`
+	Params        components.DestinationUpdate `request:"mediaType=application/json"`
 }
 
-func (o *UpdateTenantDestinationRequest) GetTenantID() *string {
-	if o == nil {
+func (u *UpdateTenantDestinationRequest) GetTenantID() *string {
+	if u == nil {
 		return nil
 	}
-	return o.TenantID
+	return u.TenantID
 }
 
-func (o *UpdateTenantDestinationRequest) GetDestinationID() string {
-	if o == nil {
+func (u *UpdateTenantDestinationRequest) GetDestinationID() string {
+	if u == nil {
 		return ""
 	}
-	return o.DestinationID
+	return u.DestinationID
 }
 
-func (o *UpdateTenantDestinationRequest) GetDestinationUpdate() components.DestinationUpdate {
-	if o == nil {
+func (u *UpdateTenantDestinationRequest) GetParams() components.DestinationUpdate {
+	if u == nil {
 		return components.DestinationUpdate{}
 	}
-	return o.DestinationUpdate
+	return u.Params
 }
 
 type UpdateTenantDestinationResponseBodyType string
@@ -57,7 +57,7 @@ const (
 
 // UpdateTenantDestinationResponseBody - Destination updated successfully or OAuth redirect needed.
 type UpdateTenantDestinationResponseBody struct {
-	Destination *components.Destination `queryParam:"inline" name:"ResponseBody"`
+	Destination *components.Destination `queryParam:"inline" union:"member"`
 
 	Type UpdateTenantDestinationResponseBodyType
 }
@@ -97,16 +97,16 @@ type UpdateTenantDestinationResponse struct {
 	OneOf *UpdateTenantDestinationResponseBody
 }
 
-func (o *UpdateTenantDestinationResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (u *UpdateTenantDestinationResponse) GetHTTPMeta() components.HTTPMetadata {
+	if u == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return u.HTTPMeta
 }
 
-func (o *UpdateTenantDestinationResponse) GetOneOf() *UpdateTenantDestinationResponseBody {
-	if o == nil {
+func (u *UpdateTenantDestinationResponse) GetOneOf() *UpdateTenantDestinationResponseBody {
+	if u == nil {
 		return nil
 	}
-	return o.OneOf
+	return u.OneOf
 }

@@ -9,32 +9,34 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 )
 
-type DestinationType string
+type DestinationUnionType string
 
 const (
-	DestinationTypeWebhook         DestinationType = "webhook"
-	DestinationTypeAwsSqs          DestinationType = "aws_sqs"
-	DestinationTypeRabbitmq        DestinationType = "rabbitmq"
-	DestinationTypeHookdeck        DestinationType = "hookdeck"
-	DestinationTypeAwsKinesis      DestinationType = "aws_kinesis"
-	DestinationTypeAzureServicebus DestinationType = "azure_servicebus"
-	DestinationTypeAwsS3           DestinationType = "aws_s3"
+	DestinationUnionTypeWebhook         DestinationUnionType = "webhook"
+	DestinationUnionTypeAwsSqs          DestinationUnionType = "aws_sqs"
+	DestinationUnionTypeRabbitmq        DestinationUnionType = "rabbitmq"
+	DestinationUnionTypeHookdeck        DestinationUnionType = "hookdeck"
+	DestinationUnionTypeAwsKinesis      DestinationUnionType = "aws_kinesis"
+	DestinationUnionTypeAzureServicebus DestinationUnionType = "azure_servicebus"
+	DestinationUnionTypeAwsS3           DestinationUnionType = "aws_s3"
+	DestinationUnionTypeGcpPubsub       DestinationUnionType = "gcp_pubsub"
 )
 
 type Destination struct {
-	DestinationWebhook         *DestinationWebhook         `queryParam:"inline" name:"Destination"`
-	DestinationAWSSQS          *DestinationAWSSQS          `queryParam:"inline" name:"Destination"`
-	DestinationRabbitMQ        *DestinationRabbitMQ        `queryParam:"inline" name:"Destination"`
-	DestinationHookdeck        *DestinationHookdeck        `queryParam:"inline" name:"Destination"`
-	DestinationAWSKinesis      *DestinationAWSKinesis      `queryParam:"inline" name:"Destination"`
-	DestinationAzureServiceBus *DestinationAzureServiceBus `queryParam:"inline" name:"Destination"`
-	DestinationAwss3           *DestinationAwss3           `queryParam:"inline" name:"Destination"`
+	DestinationWebhook         *DestinationWebhook         `queryParam:"inline" union:"member"`
+	DestinationAWSSQS          *DestinationAWSSQS          `queryParam:"inline" union:"member"`
+	DestinationRabbitMQ        *DestinationRabbitMQ        `queryParam:"inline" union:"member"`
+	DestinationHookdeck        *DestinationHookdeck        `queryParam:"inline" union:"member"`
+	DestinationAWSKinesis      *DestinationAWSKinesis      `queryParam:"inline" union:"member"`
+	DestinationAzureServiceBus *DestinationAzureServiceBus `queryParam:"inline" union:"member"`
+	DestinationAwss3           *DestinationAwss3           `queryParam:"inline" union:"member"`
+	DestinationGCPPubSub       *DestinationGCPPubSub       `queryParam:"inline" union:"member"`
 
-	Type DestinationType
+	Type DestinationUnionType
 }
 
 func CreateDestinationWebhook(webhook DestinationWebhook) Destination {
-	typ := DestinationTypeWebhook
+	typ := DestinationUnionTypeWebhook
 
 	typStr := DestinationWebhookType(typ)
 	webhook.Type = typStr
@@ -46,7 +48,7 @@ func CreateDestinationWebhook(webhook DestinationWebhook) Destination {
 }
 
 func CreateDestinationAwsSqs(awsSqs DestinationAWSSQS) Destination {
-	typ := DestinationTypeAwsSqs
+	typ := DestinationUnionTypeAwsSqs
 
 	typStr := DestinationAWSSQSType(typ)
 	awsSqs.Type = typStr
@@ -58,7 +60,7 @@ func CreateDestinationAwsSqs(awsSqs DestinationAWSSQS) Destination {
 }
 
 func CreateDestinationRabbitmq(rabbitmq DestinationRabbitMQ) Destination {
-	typ := DestinationTypeRabbitmq
+	typ := DestinationUnionTypeRabbitmq
 
 	typStr := DestinationRabbitMQType(typ)
 	rabbitmq.Type = typStr
@@ -70,7 +72,7 @@ func CreateDestinationRabbitmq(rabbitmq DestinationRabbitMQ) Destination {
 }
 
 func CreateDestinationHookdeck(hookdeck DestinationHookdeck) Destination {
-	typ := DestinationTypeHookdeck
+	typ := DestinationUnionTypeHookdeck
 
 	typStr := DestinationHookdeckType(typ)
 	hookdeck.Type = typStr
@@ -82,7 +84,7 @@ func CreateDestinationHookdeck(hookdeck DestinationHookdeck) Destination {
 }
 
 func CreateDestinationAwsKinesis(awsKinesis DestinationAWSKinesis) Destination {
-	typ := DestinationTypeAwsKinesis
+	typ := DestinationUnionTypeAwsKinesis
 
 	typStr := DestinationAWSKinesisType(typ)
 	awsKinesis.Type = typStr
@@ -94,7 +96,7 @@ func CreateDestinationAwsKinesis(awsKinesis DestinationAWSKinesis) Destination {
 }
 
 func CreateDestinationAzureServicebus(azureServicebus DestinationAzureServiceBus) Destination {
-	typ := DestinationTypeAzureServicebus
+	typ := DestinationUnionTypeAzureServicebus
 
 	typStr := DestinationAzureServiceBusType(typ)
 	azureServicebus.Type = typStr
@@ -106,7 +108,7 @@ func CreateDestinationAzureServicebus(azureServicebus DestinationAzureServiceBus
 }
 
 func CreateDestinationAwsS3(awsS3 DestinationAwss3) Destination {
-	typ := DestinationTypeAwsS3
+	typ := DestinationUnionTypeAwsS3
 
 	typStr := DestinationAwss3Type(typ)
 	awsS3.Type = typStr
@@ -114,6 +116,18 @@ func CreateDestinationAwsS3(awsS3 DestinationAwss3) Destination {
 	return Destination{
 		DestinationAwss3: &awsS3,
 		Type:             typ,
+	}
+}
+
+func CreateDestinationGcpPubsub(gcpPubsub DestinationGCPPubSub) Destination {
+	typ := DestinationUnionTypeGcpPubsub
+
+	typStr := DestinationGCPPubSubType(typ)
+	gcpPubsub.Type = typStr
+
+	return Destination{
+		DestinationGCPPubSub: &gcpPubsub,
+		Type:                 typ,
 	}
 }
 
@@ -136,7 +150,7 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 		}
 
 		u.DestinationWebhook = destinationWebhook
-		u.Type = DestinationTypeWebhook
+		u.Type = DestinationUnionTypeWebhook
 		return nil
 	case "aws_sqs":
 		destinationAWSSQS := new(DestinationAWSSQS)
@@ -145,7 +159,7 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 		}
 
 		u.DestinationAWSSQS = destinationAWSSQS
-		u.Type = DestinationTypeAwsSqs
+		u.Type = DestinationUnionTypeAwsSqs
 		return nil
 	case "rabbitmq":
 		destinationRabbitMQ := new(DestinationRabbitMQ)
@@ -154,7 +168,7 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 		}
 
 		u.DestinationRabbitMQ = destinationRabbitMQ
-		u.Type = DestinationTypeRabbitmq
+		u.Type = DestinationUnionTypeRabbitmq
 		return nil
 	case "hookdeck":
 		destinationHookdeck := new(DestinationHookdeck)
@@ -163,7 +177,7 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 		}
 
 		u.DestinationHookdeck = destinationHookdeck
-		u.Type = DestinationTypeHookdeck
+		u.Type = DestinationUnionTypeHookdeck
 		return nil
 	case "aws_kinesis":
 		destinationAWSKinesis := new(DestinationAWSKinesis)
@@ -172,7 +186,7 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 		}
 
 		u.DestinationAWSKinesis = destinationAWSKinesis
-		u.Type = DestinationTypeAwsKinesis
+		u.Type = DestinationUnionTypeAwsKinesis
 		return nil
 	case "azure_servicebus":
 		destinationAzureServiceBus := new(DestinationAzureServiceBus)
@@ -181,7 +195,7 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 		}
 
 		u.DestinationAzureServiceBus = destinationAzureServiceBus
-		u.Type = DestinationTypeAzureServicebus
+		u.Type = DestinationUnionTypeAzureServicebus
 		return nil
 	case "aws_s3":
 		destinationAwss3 := new(DestinationAwss3)
@@ -190,7 +204,16 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 		}
 
 		u.DestinationAwss3 = destinationAwss3
-		u.Type = DestinationTypeAwsS3
+		u.Type = DestinationUnionTypeAwsS3
+		return nil
+	case "gcp_pubsub":
+		destinationGCPPubSub := new(DestinationGCPPubSub)
+		if err := utils.UnmarshalJSON(data, &destinationGCPPubSub, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == gcp_pubsub) type DestinationGCPPubSub within Destination: %w", string(data), err)
+		}
+
+		u.DestinationGCPPubSub = destinationGCPPubSub
+		u.Type = DestinationUnionTypeGcpPubsub
 		return nil
 	}
 
@@ -224,6 +247,10 @@ func (u Destination) MarshalJSON() ([]byte, error) {
 
 	if u.DestinationAwss3 != nil {
 		return utils.MarshalJSON(u.DestinationAwss3, "", true)
+	}
+
+	if u.DestinationGCPPubSub != nil {
+		return utils.MarshalJSON(u.DestinationGCPPubSub, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type Destination: all fields are null")

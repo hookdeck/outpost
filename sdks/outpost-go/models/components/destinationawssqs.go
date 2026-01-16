@@ -40,12 +40,24 @@ type DestinationAWSSQS struct {
 	Type DestinationAWSSQSType `json:"type"`
 	// "*" or an array of enabled topics.
 	Topics Topics `json:"topics"`
+	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+	// If null or empty, all events matching the topic filter will be delivered.
+	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	//
+	Filter map[string]any `json:"filter,omitempty"`
 	// ISO Date when the destination was disabled, or null if enabled.
 	DisabledAt *time.Time `json:"disabled_at"`
 	// ISO Date when the destination was created.
-	CreatedAt   time.Time         `json:"created_at"`
+	CreatedAt time.Time `json:"created_at"`
+	// ISO Date when the destination was last updated.
+	UpdatedAt   time.Time         `json:"updated_at"`
 	Config      AWSSQSConfig      `json:"config"`
 	Credentials AWSSQSCredentials `json:"credentials"`
+	// Static key-value pairs merged into event metadata on every delivery.
+	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination.
+	Metadata map[string]string `json:"metadata,omitempty"`
 	// A human-readable representation of the destination target (SQS queue name). Read-only.
 	Target *string `json:"target,omitempty"`
 	// A URL link to the destination target (AWS Console link to the queue). Read-only.
@@ -57,71 +69,99 @@ func (d DestinationAWSSQS) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationAWSSQS) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "disabled_at", "created_at", "config", "credentials"}); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "created_at", "updated_at", "config", "credentials"}); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (o *DestinationAWSSQS) GetID() string {
-	if o == nil {
+func (d *DestinationAWSSQS) GetID() string {
+	if d == nil {
 		return ""
 	}
-	return o.ID
+	return d.ID
 }
 
-func (o *DestinationAWSSQS) GetType() DestinationAWSSQSType {
-	if o == nil {
+func (d *DestinationAWSSQS) GetType() DestinationAWSSQSType {
+	if d == nil {
 		return DestinationAWSSQSType("")
 	}
-	return o.Type
+	return d.Type
 }
 
-func (o *DestinationAWSSQS) GetTopics() Topics {
-	if o == nil {
+func (d *DestinationAWSSQS) GetTopics() Topics {
+	if d == nil {
 		return Topics{}
 	}
-	return o.Topics
+	return d.Topics
 }
 
-func (o *DestinationAWSSQS) GetDisabledAt() *time.Time {
-	if o == nil {
+func (d *DestinationAWSSQS) GetFilter() map[string]any {
+	if d == nil {
 		return nil
 	}
-	return o.DisabledAt
+	return d.Filter
 }
 
-func (o *DestinationAWSSQS) GetCreatedAt() time.Time {
-	if o == nil {
+func (d *DestinationAWSSQS) GetDisabledAt() *time.Time {
+	if d == nil {
+		return nil
+	}
+	return d.DisabledAt
+}
+
+func (d *DestinationAWSSQS) GetCreatedAt() time.Time {
+	if d == nil {
 		return time.Time{}
 	}
-	return o.CreatedAt
+	return d.CreatedAt
 }
 
-func (o *DestinationAWSSQS) GetConfig() AWSSQSConfig {
-	if o == nil {
+func (d *DestinationAWSSQS) GetUpdatedAt() time.Time {
+	if d == nil {
+		return time.Time{}
+	}
+	return d.UpdatedAt
+}
+
+func (d *DestinationAWSSQS) GetConfig() AWSSQSConfig {
+	if d == nil {
 		return AWSSQSConfig{}
 	}
-	return o.Config
+	return d.Config
 }
 
-func (o *DestinationAWSSQS) GetCredentials() AWSSQSCredentials {
-	if o == nil {
+func (d *DestinationAWSSQS) GetCredentials() AWSSQSCredentials {
+	if d == nil {
 		return AWSSQSCredentials{}
 	}
-	return o.Credentials
+	return d.Credentials
 }
 
-func (o *DestinationAWSSQS) GetTarget() *string {
-	if o == nil {
+func (d *DestinationAWSSQS) GetDeliveryMetadata() map[string]string {
+	if d == nil {
 		return nil
 	}
-	return o.Target
+	return d.DeliveryMetadata
 }
 
-func (o *DestinationAWSSQS) GetTargetURL() *string {
-	if o == nil {
+func (d *DestinationAWSSQS) GetMetadata() map[string]string {
+	if d == nil {
 		return nil
 	}
-	return o.TargetURL
+	return d.Metadata
+}
+
+func (d *DestinationAWSSQS) GetTarget() *string {
+	if d == nil {
+		return nil
+	}
+	return d.Target
+}
+
+func (d *DestinationAWSSQS) GetTargetURL() *string {
+	if d == nil {
+		return nil
+	}
+	return d.TargetURL
 }

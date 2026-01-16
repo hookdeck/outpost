@@ -12,11 +12,11 @@ type GetTenantPortalURLGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *GetTenantPortalURLGlobals) GetTenantID() *string {
-	if o == nil {
+func (g *GetTenantPortalURLGlobals) GetTenantID() *string {
+	if g == nil {
 		return nil
 	}
-	return o.TenantID
+	return g.TenantID
 }
 
 // Theme - Optional theme preference for the portal.
@@ -53,18 +53,18 @@ type GetTenantPortalURLRequest struct {
 	Theme *Theme `queryParam:"style=form,explode=true,name=theme"`
 }
 
-func (o *GetTenantPortalURLRequest) GetTenantID() *string {
-	if o == nil {
+func (g *GetTenantPortalURLRequest) GetTenantID() *string {
+	if g == nil {
 		return nil
 	}
-	return o.TenantID
+	return g.TenantID
 }
 
-func (o *GetTenantPortalURLRequest) GetTheme() *Theme {
-	if o == nil {
+func (g *GetTenantPortalURLRequest) GetTheme() *Theme {
+	if g == nil {
 		return nil
 	}
-	return o.Theme
+	return g.Theme
 }
 
 type GetTenantPortalURLResponse struct {
@@ -73,16 +73,16 @@ type GetTenantPortalURLResponse struct {
 	PortalRedirect *components.PortalRedirect
 }
 
-func (o *GetTenantPortalURLResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (g *GetTenantPortalURLResponse) GetHTTPMeta() components.HTTPMetadata {
+	if g == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return g.HTTPMeta
 }
 
-func (o *GetTenantPortalURLResponse) GetPortalRedirect() *components.PortalRedirect {
-	if o == nil {
+func (g *GetTenantPortalURLResponse) GetPortalRedirect() *components.PortalRedirect {
+	if g == nil {
 		return nil
 	}
-	return o.PortalRedirect
+	return g.PortalRedirect
 }

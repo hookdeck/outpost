@@ -33,7 +33,19 @@ func newHealth(rootSDK *Outpost, sdkConfig config.SDKConfiguration, hooks *hooks
 }
 
 // Health Check
-// Simple health check endpoint.
+// Health check endpoint that reports the status of all workers.
+//
+// Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
+//
+// The response includes:
+// - `status`: Overall health status ("healthy" or "failed")
+// - `timestamp`: When this health check was performed (ISO 8601 format)
+// - `workers`: Map of worker names to their individual health status
+//
+// Each worker reports:
+// - `status`: Worker health ("healthy" or "failed")
+//
+// Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
 func (s *Health) Check(ctx context.Context, opts ...operations.Option) (*operations.HealthCheckResponse, error) {
 	o := operations.Options{}
 	supportedOptions := []string{
@@ -64,7 +76,7 @@ func (s *Health) Check(ctx context.Context, opts ...operations.Option) (*operati
 		BaseURL:          baseURL,
 		Context:          ctx,
 		OperationID:      "healthCheck",
-		OAuth2Scopes:     []string{},
+		OAuth2Scopes:     nil,
 		SecuritySource:   nil,
 	}
 
@@ -83,7 +95,7 @@ func (s *Health) Check(ctx context.Context, opts ...operations.Option) (*operati
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
-	req.Header.Set("Accept", "text/plain")
+	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", s.sdkConfiguration.UserAgent)
 
 	for k, v := range o.SetHeaders {
@@ -191,14 +203,18 @@ func (s *Health) Check(ctx context.Context, opts ...operations.Option) (*operati
 	switch {
 	case httpRes.StatusCode == 200:
 		switch {
-		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `text/plain`):
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
 			rawBody, err := utils.ConsumeRawBody(httpRes)
 			if err != nil {
 				return nil, err
 			}
 
-			out := string(rawBody)
-			res.Res = &out
+			var out operations.HealthCheckResponseBody
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			res.Object = &out
 		default:
 			rawBody, err := utils.ConsumeRawBody(httpRes)
 			if err != nil {

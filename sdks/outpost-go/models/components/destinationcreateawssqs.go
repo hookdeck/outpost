@@ -38,9 +38,19 @@ type DestinationCreateAWSSQS struct {
 	// Type of the destination. Must be 'aws_sqs'.
 	Type DestinationCreateAWSSQSType `json:"type"`
 	// "*" or an array of enabled topics.
-	Topics      Topics            `json:"topics"`
+	Topics Topics `json:"topics"`
+	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+	// If null or empty, all events matching the topic filter will be delivered.
+	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	//
+	Filter      map[string]any    `json:"filter,omitempty"`
 	Config      AWSSQSConfig      `json:"config"`
 	Credentials AWSSQSCredentials `json:"credentials"`
+	// Static key-value pairs merged into event metadata on every delivery.
+	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination.
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 func (d DestinationCreateAWSSQS) MarshalJSON() ([]byte, error) {
@@ -54,37 +64,58 @@ func (d *DestinationCreateAWSSQS) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *DestinationCreateAWSSQS) GetID() *string {
-	if o == nil {
+func (d *DestinationCreateAWSSQS) GetID() *string {
+	if d == nil {
 		return nil
 	}
-	return o.ID
+	return d.ID
 }
 
-func (o *DestinationCreateAWSSQS) GetType() DestinationCreateAWSSQSType {
-	if o == nil {
+func (d *DestinationCreateAWSSQS) GetType() DestinationCreateAWSSQSType {
+	if d == nil {
 		return DestinationCreateAWSSQSType("")
 	}
-	return o.Type
+	return d.Type
 }
 
-func (o *DestinationCreateAWSSQS) GetTopics() Topics {
-	if o == nil {
+func (d *DestinationCreateAWSSQS) GetTopics() Topics {
+	if d == nil {
 		return Topics{}
 	}
-	return o.Topics
+	return d.Topics
 }
 
-func (o *DestinationCreateAWSSQS) GetConfig() AWSSQSConfig {
-	if o == nil {
+func (d *DestinationCreateAWSSQS) GetFilter() map[string]any {
+	if d == nil {
+		return nil
+	}
+	return d.Filter
+}
+
+func (d *DestinationCreateAWSSQS) GetConfig() AWSSQSConfig {
+	if d == nil {
 		return AWSSQSConfig{}
 	}
-	return o.Config
+	return d.Config
 }
 
-func (o *DestinationCreateAWSSQS) GetCredentials() AWSSQSCredentials {
-	if o == nil {
+func (d *DestinationCreateAWSSQS) GetCredentials() AWSSQSCredentials {
+	if d == nil {
 		return AWSSQSCredentials{}
 	}
-	return o.Credentials
+	return d.Credentials
+}
+
+func (d *DestinationCreateAWSSQS) GetDeliveryMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.DeliveryMetadata
+}
+
+func (d *DestinationCreateAWSSQS) GetMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.Metadata
 }

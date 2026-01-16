@@ -3,9 +3,37 @@
 package components
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"time"
 )
+
+type EventStatus string
+
+const (
+	EventStatusSuccess EventStatus = "success"
+	EventStatusFailed  EventStatus = "failed"
+)
+
+func (e EventStatus) ToPointer() *EventStatus {
+	return &e
+}
+func (e *EventStatus) UnmarshalJSON(data []byte) error {
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch v {
+	case "success":
+		fallthrough
+	case "failed":
+		*e = EventStatus(v)
+		return nil
+	default:
+		return fmt.Errorf("invalid value for EventStatus: %v", v)
+	}
+}
 
 type Event struct {
 	ID            *string `json:"id,omitempty"`
@@ -17,6 +45,7 @@ type Event struct {
 	SuccessfulAt *time.Time `json:"successful_at,omitempty"`
 	// Key-value string pairs of metadata associated with the event.
 	Metadata map[string]string `json:"metadata,omitempty"`
+	Status   *EventStatus      `json:"status,omitempty"`
 	// Freeform JSON data of the event.
 	Data map[string]any `json:"data,omitempty"`
 }
@@ -32,51 +61,58 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *Event) GetID() *string {
-	if o == nil {
+func (e *Event) GetID() *string {
+	if e == nil {
 		return nil
 	}
-	return o.ID
+	return e.ID
 }
 
-func (o *Event) GetDestinationID() *string {
-	if o == nil {
+func (e *Event) GetDestinationID() *string {
+	if e == nil {
 		return nil
 	}
-	return o.DestinationID
+	return e.DestinationID
 }
 
-func (o *Event) GetTopic() *string {
-	if o == nil {
+func (e *Event) GetTopic() *string {
+	if e == nil {
 		return nil
 	}
-	return o.Topic
+	return e.Topic
 }
 
-func (o *Event) GetTime() *time.Time {
-	if o == nil {
+func (e *Event) GetTime() *time.Time {
+	if e == nil {
 		return nil
 	}
-	return o.Time
+	return e.Time
 }
 
-func (o *Event) GetSuccessfulAt() *time.Time {
-	if o == nil {
+func (e *Event) GetSuccessfulAt() *time.Time {
+	if e == nil {
 		return nil
 	}
-	return o.SuccessfulAt
+	return e.SuccessfulAt
 }
 
-func (o *Event) GetMetadata() map[string]string {
-	if o == nil {
+func (e *Event) GetMetadata() map[string]string {
+	if e == nil {
 		return nil
 	}
-	return o.Metadata
+	return e.Metadata
 }
 
-func (o *Event) GetData() map[string]any {
-	if o == nil {
+func (e *Event) GetStatus() *EventStatus {
+	if e == nil {
 		return nil
 	}
-	return o.Data
+	return e.Status
+}
+
+func (e *Event) GetData() map[string]any {
+	if e == nil {
+		return nil
+	}
+	return e.Data
 }

@@ -1,5 +1,4 @@
 # Publish
-(*Publish*)
 
 ## Overview
 
@@ -21,8 +20,8 @@ package main
 
 import(
 	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
 
@@ -31,15 +30,15 @@ func main() {
 
     s := outpostgo.New(
         outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
         }),
     )
 
     res, err := s.Publish.Event(ctx, components.PublishRequest{
-        ID: outpostgo.String("evt_custom_123"),
-        TenantID: outpostgo.String("<TENANT_ID>"),
-        DestinationID: outpostgo.String("<DESTINATION_ID>"),
-        Topic: outpostgo.String("topic.name"),
+        ID: outpostgo.Pointer("evt_custom_123"),
+        TenantID: outpostgo.Pointer("<TENANT_ID>"),
+        DestinationID: outpostgo.Pointer("<DESTINATION_ID>"),
+        Topic: outpostgo.Pointer("topic.name"),
         Metadata: map[string]string{
             "source": "crm",
         },

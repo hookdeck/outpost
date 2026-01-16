@@ -38,9 +38,19 @@ type DestinationCreateAwss3 struct {
 	// Type of the destination. Must be 'aws_s3'.
 	Type DestinationCreateAwss3Type `json:"type"`
 	// "*" or an array of enabled topics.
-	Topics      Topics           `json:"topics"`
+	Topics Topics `json:"topics"`
+	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+	// If null or empty, all events matching the topic filter will be delivered.
+	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	//
+	Filter      map[string]any   `json:"filter,omitempty"`
 	Config      Awss3Config      `json:"config"`
 	Credentials Awss3Credentials `json:"credentials"`
+	// Static key-value pairs merged into event metadata on every delivery.
+	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination.
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 func (d DestinationCreateAwss3) MarshalJSON() ([]byte, error) {
@@ -54,37 +64,58 @@ func (d *DestinationCreateAwss3) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *DestinationCreateAwss3) GetID() *string {
-	if o == nil {
+func (d *DestinationCreateAwss3) GetID() *string {
+	if d == nil {
 		return nil
 	}
-	return o.ID
+	return d.ID
 }
 
-func (o *DestinationCreateAwss3) GetType() DestinationCreateAwss3Type {
-	if o == nil {
+func (d *DestinationCreateAwss3) GetType() DestinationCreateAwss3Type {
+	if d == nil {
 		return DestinationCreateAwss3Type("")
 	}
-	return o.Type
+	return d.Type
 }
 
-func (o *DestinationCreateAwss3) GetTopics() Topics {
-	if o == nil {
+func (d *DestinationCreateAwss3) GetTopics() Topics {
+	if d == nil {
 		return Topics{}
 	}
-	return o.Topics
+	return d.Topics
 }
 
-func (o *DestinationCreateAwss3) GetConfig() Awss3Config {
-	if o == nil {
+func (d *DestinationCreateAwss3) GetFilter() map[string]any {
+	if d == nil {
+		return nil
+	}
+	return d.Filter
+}
+
+func (d *DestinationCreateAwss3) GetConfig() Awss3Config {
+	if d == nil {
 		return Awss3Config{}
 	}
-	return o.Config
+	return d.Config
 }
 
-func (o *DestinationCreateAwss3) GetCredentials() Awss3Credentials {
-	if o == nil {
+func (d *DestinationCreateAwss3) GetCredentials() Awss3Credentials {
+	if d == nil {
 		return Awss3Credentials{}
 	}
-	return o.Credentials
+	return d.Credentials
+}
+
+func (d *DestinationCreateAwss3) GetDeliveryMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.DeliveryMetadata
+}
+
+func (d *DestinationCreateAwss3) GetMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.Metadata
 }

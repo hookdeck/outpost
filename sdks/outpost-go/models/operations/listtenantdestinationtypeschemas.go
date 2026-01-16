@@ -10,11 +10,11 @@ type ListTenantDestinationTypeSchemasGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *ListTenantDestinationTypeSchemasGlobals) GetTenantID() *string {
-	if o == nil {
+func (l *ListTenantDestinationTypeSchemasGlobals) GetTenantID() *string {
+	if l == nil {
 		return nil
 	}
-	return o.TenantID
+	return l.TenantID
 }
 
 type ListTenantDestinationTypeSchemasRequest struct {
@@ -22,11 +22,11 @@ type ListTenantDestinationTypeSchemasRequest struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *ListTenantDestinationTypeSchemasRequest) GetTenantID() *string {
-	if o == nil {
+func (l *ListTenantDestinationTypeSchemasRequest) GetTenantID() *string {
+	if l == nil {
 		return nil
 	}
-	return o.TenantID
+	return l.TenantID
 }
 
 type ListTenantDestinationTypeSchemasResponse struct {
@@ -35,16 +35,16 @@ type ListTenantDestinationTypeSchemasResponse struct {
 	DestinationTypeSchemas []components.DestinationTypeSchema
 }
 
-func (o *ListTenantDestinationTypeSchemasResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (l *ListTenantDestinationTypeSchemasResponse) GetHTTPMeta() components.HTTPMetadata {
+	if l == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return l.HTTPMeta
 }
 
-func (o *ListTenantDestinationTypeSchemasResponse) GetDestinationTypeSchemas() []components.DestinationTypeSchema {
-	if o == nil {
+func (l *ListTenantDestinationTypeSchemasResponse) GetDestinationTypeSchemas() []components.DestinationTypeSchema {
+	if l == nil {
 		return nil
 	}
-	return o.DestinationTypeSchemas
+	return l.DestinationTypeSchemas
 }

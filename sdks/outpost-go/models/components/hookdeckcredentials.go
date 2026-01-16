@@ -22,9 +22,9 @@ func (h *HookdeckCredentials) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *HookdeckCredentials) GetToken() string {
-	if o == nil {
+func (h *HookdeckCredentials) GetToken() string {
+	if h == nil {
 		return ""
 	}
-	return o.Token
+	return h.Token
 }

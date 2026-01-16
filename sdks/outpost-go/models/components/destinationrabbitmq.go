@@ -40,12 +40,24 @@ type DestinationRabbitMQ struct {
 	Type DestinationRabbitMQType `json:"type"`
 	// "*" or an array of enabled topics.
 	Topics Topics `json:"topics"`
+	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+	// If null or empty, all events matching the topic filter will be delivered.
+	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	//
+	Filter map[string]any `json:"filter,omitempty"`
 	// ISO Date when the destination was disabled, or null if enabled.
 	DisabledAt *time.Time `json:"disabled_at"`
 	// ISO Date when the destination was created.
-	CreatedAt   time.Time           `json:"created_at"`
+	CreatedAt time.Time `json:"created_at"`
+	// ISO Date when the destination was last updated.
+	UpdatedAt   time.Time           `json:"updated_at"`
 	Config      RabbitMQConfig      `json:"config"`
 	Credentials RabbitMQCredentials `json:"credentials"`
+	// Static key-value pairs merged into event metadata on every delivery.
+	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination.
+	Metadata map[string]string `json:"metadata,omitempty"`
 	// A human-readable representation of the destination target (RabbitMQ exchange). Read-only.
 	Target *string `json:"target,omitempty"`
 	// A URL link to the destination target (not applicable for RabbitMQ exchange). Read-only.
@@ -57,71 +69,99 @@ func (d DestinationRabbitMQ) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationRabbitMQ) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "disabled_at", "created_at", "config", "credentials"}); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"id", "type", "topics", "created_at", "updated_at", "config", "credentials"}); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (o *DestinationRabbitMQ) GetID() string {
-	if o == nil {
+func (d *DestinationRabbitMQ) GetID() string {
+	if d == nil {
 		return ""
 	}
-	return o.ID
+	return d.ID
 }
 
-func (o *DestinationRabbitMQ) GetType() DestinationRabbitMQType {
-	if o == nil {
+func (d *DestinationRabbitMQ) GetType() DestinationRabbitMQType {
+	if d == nil {
 		return DestinationRabbitMQType("")
 	}
-	return o.Type
+	return d.Type
 }
 
-func (o *DestinationRabbitMQ) GetTopics() Topics {
-	if o == nil {
+func (d *DestinationRabbitMQ) GetTopics() Topics {
+	if d == nil {
 		return Topics{}
 	}
-	return o.Topics
+	return d.Topics
 }
 
-func (o *DestinationRabbitMQ) GetDisabledAt() *time.Time {
-	if o == nil {
+func (d *DestinationRabbitMQ) GetFilter() map[string]any {
+	if d == nil {
 		return nil
 	}
-	return o.DisabledAt
+	return d.Filter
 }
 
-func (o *DestinationRabbitMQ) GetCreatedAt() time.Time {
-	if o == nil {
+func (d *DestinationRabbitMQ) GetDisabledAt() *time.Time {
+	if d == nil {
+		return nil
+	}
+	return d.DisabledAt
+}
+
+func (d *DestinationRabbitMQ) GetCreatedAt() time.Time {
+	if d == nil {
 		return time.Time{}
 	}
-	return o.CreatedAt
+	return d.CreatedAt
 }
 
-func (o *DestinationRabbitMQ) GetConfig() RabbitMQConfig {
-	if o == nil {
+func (d *DestinationRabbitMQ) GetUpdatedAt() time.Time {
+	if d == nil {
+		return time.Time{}
+	}
+	return d.UpdatedAt
+}
+
+func (d *DestinationRabbitMQ) GetConfig() RabbitMQConfig {
+	if d == nil {
 		return RabbitMQConfig{}
 	}
-	return o.Config
+	return d.Config
 }
 
-func (o *DestinationRabbitMQ) GetCredentials() RabbitMQCredentials {
-	if o == nil {
+func (d *DestinationRabbitMQ) GetCredentials() RabbitMQCredentials {
+	if d == nil {
 		return RabbitMQCredentials{}
 	}
-	return o.Credentials
+	return d.Credentials
 }
 
-func (o *DestinationRabbitMQ) GetTarget() *string {
-	if o == nil {
+func (d *DestinationRabbitMQ) GetDeliveryMetadata() map[string]string {
+	if d == nil {
 		return nil
 	}
-	return o.Target
+	return d.DeliveryMetadata
 }
 
-func (o *DestinationRabbitMQ) GetTargetURL() *string {
-	if o == nil {
+func (d *DestinationRabbitMQ) GetMetadata() map[string]string {
+	if d == nil {
 		return nil
 	}
-	return o.TargetURL
+	return d.Metadata
+}
+
+func (d *DestinationRabbitMQ) GetTarget() *string {
+	if d == nil {
+		return nil
+	}
+	return d.Target
+}
+
+func (d *DestinationRabbitMQ) GetTargetURL() *string {
+	if d == nil {
+		return nil
+	}
+	return d.TargetURL
 }

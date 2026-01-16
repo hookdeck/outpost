@@ -50,65 +50,65 @@ type DestinationSchemaField struct {
 	Pattern *string `json:"pattern,omitempty"`
 }
 
-func (o *DestinationSchemaField) GetType() DestinationSchemaFieldType {
-	if o == nil {
+func (d *DestinationSchemaField) GetType() DestinationSchemaFieldType {
+	if d == nil {
 		return DestinationSchemaFieldType("")
 	}
-	return o.Type
+	return d.Type
 }
 
-func (o *DestinationSchemaField) GetLabel() *string {
-	if o == nil {
+func (d *DestinationSchemaField) GetLabel() *string {
+	if d == nil {
 		return nil
 	}
-	return o.Label
+	return d.Label
 }
 
-func (o *DestinationSchemaField) GetDescription() *string {
-	if o == nil {
+func (d *DestinationSchemaField) GetDescription() *string {
+	if d == nil {
 		return nil
 	}
-	return o.Description
+	return d.Description
 }
 
-func (o *DestinationSchemaField) GetRequired() bool {
-	if o == nil {
+func (d *DestinationSchemaField) GetRequired() bool {
+	if d == nil {
 		return false
 	}
-	return o.Required
+	return d.Required
 }
 
-func (o *DestinationSchemaField) GetSensitive() *bool {
-	if o == nil {
+func (d *DestinationSchemaField) GetSensitive() *bool {
+	if d == nil {
 		return nil
 	}
-	return o.Sensitive
+	return d.Sensitive
 }
 
-func (o *DestinationSchemaField) GetDefault() *string {
-	if o == nil {
+func (d *DestinationSchemaField) GetDefault() *string {
+	if d == nil {
 		return nil
 	}
-	return o.Default
+	return d.Default
 }
 
-func (o *DestinationSchemaField) GetMinlength() *int64 {
-	if o == nil {
+func (d *DestinationSchemaField) GetMinlength() *int64 {
+	if d == nil {
 		return nil
 	}
-	return o.Minlength
+	return d.Minlength
 }
 
-func (o *DestinationSchemaField) GetMaxlength() *int64 {
-	if o == nil {
+func (d *DestinationSchemaField) GetMaxlength() *int64 {
+	if d == nil {
 		return nil
 	}
-	return o.Maxlength
+	return d.Maxlength
 }
 
-func (o *DestinationSchemaField) GetPattern() *string {
-	if o == nil {
+func (d *DestinationSchemaField) GetPattern() *string {
+	if d == nil {
 		return nil
 	}
-	return o.Pattern
+	return d.Pattern
 }

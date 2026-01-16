@@ -26,23 +26,23 @@ func (a *AWSSQSCredentials) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *AWSSQSCredentials) GetKey() string {
-	if o == nil {
+func (a *AWSSQSCredentials) GetKey() string {
+	if a == nil {
 		return ""
 	}
-	return o.Key
+	return a.Key
 }
 
-func (o *AWSSQSCredentials) GetSecret() string {
-	if o == nil {
+func (a *AWSSQSCredentials) GetSecret() string {
+	if a == nil {
 		return ""
 	}
-	return o.Secret
+	return a.Secret
 }
 
-func (o *AWSSQSCredentials) GetSession() *string {
-	if o == nil {
+func (a *AWSSQSCredentials) GetSession() *string {
+	if a == nil {
 		return nil
 	}
-	return o.Session
+	return a.Session
 }

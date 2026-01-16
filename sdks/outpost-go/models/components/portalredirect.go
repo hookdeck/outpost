@@ -5,11 +5,20 @@ package components
 type PortalRedirect struct {
 	// Redirect URL containing a JWT to authenticate the user with the portal.
 	RedirectURL *string `json:"redirect_url,omitempty"`
+	// The ID of the tenant associated with this portal session.
+	TenantID *string `json:"tenant_id,omitempty"`
 }
 
-func (o *PortalRedirect) GetRedirectURL() *string {
-	if o == nil {
+func (p *PortalRedirect) GetRedirectURL() *string {
+	if p == nil {
 		return nil
 	}
-	return o.RedirectURL
+	return p.RedirectURL
+}
+
+func (p *PortalRedirect) GetTenantID() *string {
+	if p == nil {
+		return nil
+	}
+	return p.TenantID
 }
