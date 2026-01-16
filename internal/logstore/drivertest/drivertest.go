@@ -63,6 +63,9 @@ func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 	t.Run("TestCursorValidation", func(t *testing.T) {
 		testCursorValidation(t, newHarness)
 	})
+	t.Run("TestCrossTenantQueries", func(t *testing.T) {
+		testCrossTenantQueries(t, newHarness)
+	})
 }
 
 // testInsertManyDeliveryEvent tests the InsertManyDeliveryEvent method
@@ -3089,4 +3092,152 @@ func testCursorMatchingSortParams(t *testing.T, newHarness HarnessMaker) {
 			}
 		})
 	}
+}
+
+// =============================================================================
+// CROSS-TENANT QUERY TESTS
+// =============================================================================
+//
+// Tests that queries with empty TenantID return records from all tenants.
+// This supports admin-level queries that need to view data across the system.
+// =============================================================================
+
+func testCrossTenantQueries(t *testing.T, newHarness HarnessMaker) {
+	t.Helper()
+
+	ctx := context.Background()
+	h, err := newHarness(ctx, t)
+	require.NoError(t, err)
+	t.Cleanup(h.Close)
+
+	logStore, err := h.MakeDriver(ctx)
+	require.NoError(t, err)
+
+	// Create data for two different tenants
+	tenant1ID := idgen.String()
+	tenant2ID := idgen.String()
+	destinationID := idgen.Destination()
+	baseTime := time.Now().Truncate(time.Second)
+	startTime := baseTime.Add(-1 * time.Hour)
+
+	// Create event and delivery for tenant1
+	event1 := testutil.EventFactory.AnyPointer(
+		testutil.EventFactory.WithID("cross-tenant-event-1"),
+		testutil.EventFactory.WithTenantID(tenant1ID),
+		testutil.EventFactory.WithDestinationID(destinationID),
+		testutil.EventFactory.WithTopic("test.topic"),
+		testutil.EventFactory.WithTime(baseTime.Add(-10*time.Minute)),
+	)
+	delivery1 := testutil.DeliveryFactory.AnyPointer(
+		testutil.DeliveryFactory.WithID("cross-tenant-delivery-1"),
+		testutil.DeliveryFactory.WithEventID(event1.ID),
+		testutil.DeliveryFactory.WithDestinationID(destinationID),
+		testutil.DeliveryFactory.WithStatus("success"),
+		testutil.DeliveryFactory.WithTime(baseTime.Add(-10*time.Minute)),
+	)
+
+	// Create event and delivery for tenant2
+	event2 := testutil.EventFactory.AnyPointer(
+		testutil.EventFactory.WithID("cross-tenant-event-2"),
+		testutil.EventFactory.WithTenantID(tenant2ID),
+		testutil.EventFactory.WithDestinationID(destinationID),
+		testutil.EventFactory.WithTopic("test.topic"),
+		testutil.EventFactory.WithTime(baseTime.Add(-5*time.Minute)),
+	)
+	delivery2 := testutil.DeliveryFactory.AnyPointer(
+		testutil.DeliveryFactory.WithID("cross-tenant-delivery-2"),
+		testutil.DeliveryFactory.WithEventID(event2.ID),
+		testutil.DeliveryFactory.WithDestinationID(destinationID),
+		testutil.DeliveryFactory.WithStatus("failed"),
+		testutil.DeliveryFactory.WithTime(baseTime.Add(-5*time.Minute)),
+	)
+
+	// Insert both delivery events
+	require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, []*models.DeliveryEvent{
+		{ID: idgen.DeliveryEvent(), DestinationID: destinationID, Event: *event1, Delivery: delivery1},
+		{ID: idgen.DeliveryEvent(), DestinationID: destinationID, Event: *event2, Delivery: delivery2},
+	}))
+	require.NoError(t, h.FlushWrites(ctx))
+
+	t.Run("ListEvent returns all tenants when TenantID empty", func(t *testing.T) {
+		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:       "", // Empty TenantID for cross-tenant query
+			DestinationIDs: []string{destinationID},
+			Limit:          100,
+			EventStart:     &startTime,
+		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, 2)
+
+		// Verify we got events from both tenants
+		tenantsSeen := map[string]bool{}
+		for _, event := range response.Data {
+			tenantsSeen[event.TenantID] = true
+		}
+		assert.True(t, tenantsSeen[tenant1ID], "should include tenant1 events")
+		assert.True(t, tenantsSeen[tenant2ID], "should include tenant2 events")
+	})
+
+	t.Run("ListDeliveryEvent returns all tenants when TenantID empty", func(t *testing.T) {
+		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			TenantID:       "", // Empty TenantID for cross-tenant query
+			DestinationIDs: []string{destinationID},
+			Limit:          100,
+			EventStart:     &startTime,
+		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, 2)
+
+		// Verify we got deliveries from both tenants
+		tenantsSeen := map[string]bool{}
+		for _, de := range response.Data {
+			tenantsSeen[de.Event.TenantID] = true
+		}
+		assert.True(t, tenantsSeen[tenant1ID], "should include tenant1 deliveries")
+		assert.True(t, tenantsSeen[tenant2ID], "should include tenant2 deliveries")
+	})
+
+	t.Run("RetrieveEvent finds event across tenants when TenantID empty", func(t *testing.T) {
+		// Retrieve tenant1's event without specifying tenant
+		retrieved1, err := logStore.RetrieveEvent(ctx, driver.RetrieveEventRequest{
+			TenantID: "", // Empty TenantID for cross-tenant query
+			EventID:  "cross-tenant-event-1",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, retrieved1)
+		assert.Equal(t, "cross-tenant-event-1", retrieved1.ID)
+		assert.Equal(t, tenant1ID, retrieved1.TenantID)
+
+		// Retrieve tenant2's event without specifying tenant
+		retrieved2, err := logStore.RetrieveEvent(ctx, driver.RetrieveEventRequest{
+			TenantID: "", // Empty TenantID for cross-tenant query
+			EventID:  "cross-tenant-event-2",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, retrieved2)
+		assert.Equal(t, "cross-tenant-event-2", retrieved2.ID)
+		assert.Equal(t, tenant2ID, retrieved2.TenantID)
+	})
+
+	t.Run("RetrieveDeliveryEvent finds delivery across tenants when TenantID empty", func(t *testing.T) {
+		// Retrieve tenant1's delivery without specifying tenant
+		retrieved1, err := logStore.RetrieveDeliveryEvent(ctx, driver.RetrieveDeliveryEventRequest{
+			TenantID:   "", // Empty TenantID for cross-tenant query
+			DeliveryID: "cross-tenant-delivery-1",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, retrieved1)
+		assert.Equal(t, "cross-tenant-delivery-1", retrieved1.Delivery.ID)
+		assert.Equal(t, tenant1ID, retrieved1.Event.TenantID)
+
+		// Retrieve tenant2's delivery without specifying tenant
+		retrieved2, err := logStore.RetrieveDeliveryEvent(ctx, driver.RetrieveDeliveryEventRequest{
+			TenantID:   "", // Empty TenantID for cross-tenant query
+			DeliveryID: "cross-tenant-delivery-2",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, retrieved2)
+		assert.Equal(t, "cross-tenant-delivery-2", retrieved2.Delivery.ID)
+		assert.Equal(t, tenant2ID, retrieved2.Event.TenantID)
+	})
 }
