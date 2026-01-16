@@ -162,6 +162,20 @@ func NewRouter(
 			AuthScope: AuthScopeAdmin,
 			Mode:      RouteModeAlways,
 		},
+		{
+			Method:    http.MethodGet,
+			Path:      "/events",
+			Handler:   logHandlers.AdminListEvents,
+			AuthScope: AuthScopeAdmin,
+			Mode:      RouteModeAlways,
+		},
+		{
+			Method:    http.MethodGet,
+			Path:      "/deliveries",
+			Handler:   logHandlers.AdminListDeliveries,
+			AuthScope: AuthScopeAdmin,
+			Mode:      RouteModeAlways,
+		},
 	}
 
 	// Tenant upsert route (admin-only, but has :tenantID in path)
