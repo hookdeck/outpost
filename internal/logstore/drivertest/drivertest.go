@@ -493,6 +493,9 @@ func testListEvent(t *testing.T, newHarness HarnessMaker) {
 		err := logStore.InsertManyDeliveryEvent(ctx, []*models.DeliveryEvent{de})
 		require.NoError(t, err)
 
+		// Flush writes to ensure deduplication has occurred (eventual consistency)
+		require.NoError(t, h.FlushWrites(ctx))
+
 		// ListEvent should still return the same number of events (no duplicates)
 		response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 			TenantID:   tenantID,
