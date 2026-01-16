@@ -57,17 +57,17 @@ func parseLimit(c *gin.Context, defaultLimit, maxLimit int) int {
 	return limit
 }
 
-// ExpandOptions represents which fields to expand in the response
-type ExpandOptions struct {
+// IncludeOptions represents which fields to include in the response
+type IncludeOptions struct {
 	Event        bool
 	EventData    bool
 	Destination  bool
 	ResponseData bool
 }
 
-func parseExpandOptions(c *gin.Context) ExpandOptions {
-	opts := ExpandOptions{}
-	for _, e := range parseQueryArray(c, "expand") {
+func parseIncludeOptions(c *gin.Context) IncludeOptions {
+	opts := IncludeOptions{}
+	for _, e := range parseQueryArray(c, "include") {
 		switch e {
 		case "event":
 			opts.Event = true
@@ -143,7 +143,7 @@ type ListEventsResponse struct {
 }
 
 // toAPIDelivery converts a DeliveryEvent to APIDelivery with expand options
-func toAPIDelivery(de *models.DeliveryEvent, opts ExpandOptions) APIDelivery {
+func toAPIDelivery(de *models.DeliveryEvent, opts IncludeOptions) APIDelivery {
 	api := APIDelivery{
 		Attempt:     de.Attempt,
 		Destination: de.DestinationID,
@@ -326,13 +326,13 @@ func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 		return
 	}
 
-	// Parse expand options
-	expandOpts := parseExpandOptions(c)
+	// Parse include options
+	includeOpts := parseIncludeOptions(c)
 
 	// Transform to API response
 	apiDeliveries := make([]APIDelivery, len(response.Data))
 	for i, de := range response.Data {
-		apiDeliveries[i] = toAPIDelivery(de, expandOpts)
+		apiDeliveries[i] = toAPIDelivery(de, includeOpts)
 	}
 
 	c.JSON(http.StatusOK, ListDeliveriesResponse{
@@ -392,10 +392,10 @@ func (h *LogHandlers) RetrieveDelivery(c *gin.Context) {
 		return
 	}
 
-	// Parse expand options
-	expandOpts := parseExpandOptions(c)
+	// Parse include options
+	includeOpts := parseIncludeOptions(c)
 
-	c.JSON(http.StatusOK, toAPIDelivery(deliveryEvent, expandOpts))
+	c.JSON(http.StatusOK, toAPIDelivery(deliveryEvent, includeOpts))
 }
 
 // ListEvents handles GET /:tenantID/events

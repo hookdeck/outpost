@@ -97,13 +97,13 @@ func TestListDeliveries(t *testing.T) {
 		firstDelivery := data[0].(map[string]interface{})
 		assert.Equal(t, deliveryID, firstDelivery["id"])
 		assert.Equal(t, "success", firstDelivery["status"])
-		assert.Equal(t, eventID, firstDelivery["event"]) // Not expanded
+		assert.Equal(t, eventID, firstDelivery["event"]) // Not included
 		assert.Equal(t, destinationID, firstDelivery["destination"])
 	})
 
-	t.Run("should expand event when expand=event", func(t *testing.T) {
+	t.Run("should include event when include=event", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?expand=event", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?include=event", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -118,13 +118,13 @@ func TestListDeliveries(t *testing.T) {
 		event := firstDelivery["event"].(map[string]interface{})
 		assert.NotNil(t, event["id"])
 		assert.Equal(t, "user.created", event["topic"])
-		// data should not be present without expand=event.data
+		// data should not be present without include=event.data
 		assert.Nil(t, event["data"])
 	})
 
-	t.Run("should expand event.data when expand=event.data", func(t *testing.T) {
+	t.Run("should include event.data when include=event.data", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?expand=event.data", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?include=event.data", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -194,7 +194,7 @@ func TestListDeliveries(t *testing.T) {
 		assert.Nil(t, firstDelivery["response_data"])
 	})
 
-	t.Run("should include response_data with expand=response_data", func(t *testing.T) {
+	t.Run("should include response_data with include=response_data", func(t *testing.T) {
 		// Seed a delivery with response_data
 		eventID := idgen.Event()
 		deliveryID := idgen.Delivery()
@@ -231,7 +231,7 @@ func TestListDeliveries(t *testing.T) {
 		require.NoError(t, result.logStore.InsertManyDeliveryEvent(context.Background(), []*models.DeliveryEvent{de}))
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?expand=response_data", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?include=response_data", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -256,9 +256,9 @@ func TestListDeliveries(t *testing.T) {
 		assert.Equal(t, float64(200), respData["status"])
 	})
 
-	t.Run("should support comma-separated expand param", func(t *testing.T) {
+	t.Run("should support comma-separated include param", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?expand=event,response_data", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?include=event,response_data", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -270,7 +270,7 @@ func TestListDeliveries(t *testing.T) {
 		require.GreaterOrEqual(t, len(data), 1)
 
 		firstDelivery := data[0].(map[string]interface{})
-		// event should be expanded (object, not string)
+		// event should be included (object, not string)
 		event := firstDelivery["event"].(map[string]interface{})
 		assert.NotNil(t, event["id"])
 		assert.NotNil(t, event["topic"])
@@ -401,13 +401,13 @@ func TestRetrieveDelivery(t *testing.T) {
 
 		assert.Equal(t, deliveryID, response["id"])
 		assert.Equal(t, "failed", response["status"])
-		assert.Equal(t, eventID, response["event"]) // Not expanded
+		assert.Equal(t, eventID, response["event"]) // Not included
 		assert.Equal(t, destinationID, response["destination"])
 	})
 
-	t.Run("should expand event when expand=event", func(t *testing.T) {
+	t.Run("should include event when include=event", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries/"+deliveryID+"?expand=event", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries/"+deliveryID+"?include=event", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -418,13 +418,13 @@ func TestRetrieveDelivery(t *testing.T) {
 		event := response["event"].(map[string]interface{})
 		assert.Equal(t, eventID, event["id"])
 		assert.Equal(t, "order.created", event["topic"])
-		// data should not be present without expand=event.data
+		// data should not be present without include=event.data
 		assert.Nil(t, event["data"])
 	})
 
-	t.Run("should expand event.data when expand=event.data", func(t *testing.T) {
+	t.Run("should include event.data when include=event.data", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries/"+deliveryID+"?expand=event.data", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries/"+deliveryID+"?include=event.data", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)

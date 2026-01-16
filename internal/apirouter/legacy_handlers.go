@@ -111,9 +111,9 @@ func (h *LegacyHandlers) RetryByEventDestination(c *gin.Context) {
 // GET /:tenantID/destinations/:destinationID/events
 //
 // This shim queries deliveries filtered by destination and returns unique events.
-// Deprecated: Use GET /:tenantID/deliveries?destination_id=X&expand=event instead.
+// Deprecated: Use GET /:tenantID/deliveries?destination_id=X&include=event instead.
 func (h *LegacyHandlers) ListEventsByDestination(c *gin.Context) {
-	setDeprecationHeader(c, "GET /:tenantID/deliveries?destination_id=X&expand=event")
+	setDeprecationHeader(c, "GET /:tenantID/deliveries?destination_id=X&include=event")
 
 	tenant := mustTenantFromContext(c)
 	if tenant == nil {

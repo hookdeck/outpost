@@ -72,7 +72,7 @@ const Deliveries: React.FC<DeliveriesProps> = ({
     }
 
     searchParams.set("destination_id", destination.id);
-    searchParams.set("expand", "event");
+    searchParams.set("include", "event");
 
     return `deliveries?${searchParams.toString()}`;
   }, [destination.id, timeRange, urlSearchParams]);

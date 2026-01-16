@@ -14,7 +14,7 @@ const DeliveryDetails = ({
   const { delivery_id: deliveryId } = useParams();
 
   const { data: delivery } = useSWR<Delivery>(
-    `deliveries/${deliveryId}?expand=event.data,response_data`,
+    `deliveries/${deliveryId}?include=event.data,response_data`,
   );
 
   if (!delivery) {
