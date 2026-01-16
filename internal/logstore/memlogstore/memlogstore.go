@@ -138,8 +138,8 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 }
 
 func (s *memLogStore) matchesEventFilter(event *models.Event, req driver.ListEventRequest) bool {
-	// Tenant filter (required)
-	if event.TenantID != req.TenantID {
+	// Tenant filter (optional - skip if empty)
+	if req.TenantID != "" && event.TenantID != req.TenantID {
 		return false
 	}
 
@@ -372,7 +372,11 @@ func (s *memLogStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEven
 	defer s.mu.RUnlock()
 
 	for _, de := range s.deliveryEvents {
-		if de.Event.ID == req.EventID && de.Event.TenantID == req.TenantID {
+		if de.Event.ID == req.EventID {
+			// Tenant filter (optional - skip if empty)
+			if req.TenantID != "" && de.Event.TenantID != req.TenantID {
+				continue
+			}
 			if req.DestinationID != "" && de.Event.DestinationID != req.DestinationID {
 				continue
 			}
@@ -389,7 +393,11 @@ func (s *memLogStore) RetrieveDeliveryEvent(ctx context.Context, req driver.Retr
 	defer s.mu.RUnlock()
 
 	for _, de := range s.deliveryEvents {
-		if de.Event.TenantID == req.TenantID && de.Delivery != nil && de.Delivery.ID == req.DeliveryID {
+		if de.Delivery != nil && de.Delivery.ID == req.DeliveryID {
+			// Tenant filter (optional - skip if empty)
+			if req.TenantID != "" && de.Event.TenantID != req.TenantID {
+				continue
+			}
 			return copyDeliveryEvent(de), nil
 		}
 	}
@@ -397,8 +405,8 @@ func (s *memLogStore) RetrieveDeliveryEvent(ctx context.Context, req driver.Retr
 }
 
 func (s *memLogStore) matchesFilter(de *models.DeliveryEvent, req driver.ListDeliveryEventRequest) bool {
-	// Tenant filter (required)
-	if de.Event.TenantID != req.TenantID {
+	// Tenant filter (optional - skip if empty)
+	if req.TenantID != "" && de.Event.TenantID != req.TenantID {
 		return false
 	}
 

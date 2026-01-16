@@ -65,9 +65,11 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 	var conditions []string
 	var args []interface{}
 
-	// Required: tenant_id
-	conditions = append(conditions, "tenant_id = ?")
-	args = append(args, req.TenantID)
+	// Optional: tenant_id filter (skip if empty to query across all tenants)
+	if req.TenantID != "" {
+		conditions = append(conditions, "tenant_id = ?")
+		args = append(args, req.TenantID)
+	}
 
 	// Optional filters
 	if len(req.DestinationIDs) > 0 {
@@ -100,6 +102,9 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 	}
 
 	whereClause := strings.Join(conditions, " AND ")
+	if whereClause == "" {
+		whereClause = "1=1"
+	}
 
 	// Note: We intentionally omit FINAL to avoid forcing ClickHouse to merge all parts
 	// before returning results. The events table uses ReplacingMergeTree, so duplicates
@@ -347,9 +352,11 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 	var conditions []string
 	var args []interface{}
 
-	// Required: tenant_id
-	conditions = append(conditions, "tenant_id = ?")
-	args = append(args, req.TenantID)
+	// Optional: tenant_id filter (skip if empty to query across all tenants)
+	if req.TenantID != "" {
+		conditions = append(conditions, "tenant_id = ?")
+		args = append(args, req.TenantID)
+	}
 
 	// Optional filters
 	if req.EventID != "" {
@@ -400,6 +407,9 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 	}
 
 	whereClause := strings.Join(conditions, " AND ")
+	if whereClause == "" {
+		whereClause = "1=1"
+	}
 
 	query := fmt.Sprintf(`
 		SELECT
@@ -595,40 +605,41 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 }
 
 func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRequest) (*models.Event, error) {
-	var query string
+	// Build conditions dynamically to support optional tenant_id
+	var conditions []string
 	var args []interface{}
 
-	if req.DestinationID != "" {
-		query = `
-			SELECT
-				event_id,
-				tenant_id,
-				destination_id,
-				topic,
-				eligible_for_retry,
-				event_time,
-				metadata,
-				data
-			FROM event_log
-			WHERE tenant_id = ? AND event_id = ? AND destination_id = ?
-			LIMIT 1`
-		args = []interface{}{req.TenantID, req.EventID, req.DestinationID}
-	} else {
-		query = `
-			SELECT
-				event_id,
-				tenant_id,
-				destination_id,
-				topic,
-				eligible_for_retry,
-				event_time,
-				metadata,
-				data
-			FROM event_log
-			WHERE tenant_id = ? AND event_id = ?
-			LIMIT 1`
-		args = []interface{}{req.TenantID, req.EventID}
+	// Optional: tenant_id filter (skip if empty to search across all tenants)
+	if req.TenantID != "" {
+		conditions = append(conditions, "tenant_id = ?")
+		args = append(args, req.TenantID)
 	}
+
+	// Required: event_id
+	conditions = append(conditions, "event_id = ?")
+	args = append(args, req.EventID)
+
+	// Optional: destination_id filter
+	if req.DestinationID != "" {
+		conditions = append(conditions, "destination_id = ?")
+		args = append(args, req.DestinationID)
+	}
+
+	whereClause := strings.Join(conditions, " AND ")
+
+	query := fmt.Sprintf(`
+		SELECT
+			event_id,
+			tenant_id,
+			destination_id,
+			topic,
+			eligible_for_retry,
+			event_time,
+			metadata,
+			data
+		FROM event_log
+		WHERE %s
+		LIMIT 1`, whereClause)
 
 	rows, err := s.chDB.Query(ctx, query, args...)
 	if err != nil {
@@ -673,7 +684,23 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 
 // RetrieveDeliveryEvent retrieves a single delivery event by delivery ID.
 func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error) {
-	query := `
+	// Build conditions dynamically to support optional tenant_id
+	var conditions []string
+	var args []interface{}
+
+	// Optional: tenant_id filter (skip if empty to search across all tenants)
+	if req.TenantID != "" {
+		conditions = append(conditions, "tenant_id = ?")
+		args = append(args, req.TenantID)
+	}
+
+	// Required: delivery_id
+	conditions = append(conditions, "delivery_id = ?")
+	args = append(args, req.DeliveryID)
+
+	whereClause := strings.Join(conditions, " AND ")
+
+	query := fmt.Sprintf(`
 		SELECT
 			event_id,
 			tenant_id,
@@ -690,10 +717,10 @@ func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.Ret
 			code,
 			response_data
 		FROM event_log
-		WHERE tenant_id = ? AND delivery_id = ?
-		LIMIT 1`
+		WHERE %s
+		LIMIT 1`, whereClause)
 
-	rows, err := s.chDB.Query(ctx, query, req.TenantID, req.DeliveryID)
+	rows, err := s.chDB.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

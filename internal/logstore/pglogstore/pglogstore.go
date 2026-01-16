@@ -85,7 +85,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 				metadata,
 				time_id
 			FROM events
-			WHERE tenant_id = $1
+			WHERE ($1::text = '' OR tenant_id = $1)
 			AND (array_length($2::text[], 1) IS NULL OR destination_id = ANY($2))
 			AND (array_length($3::text[], 1) IS NULL OR topic = ANY($3))
 			AND ($4::timestamptz IS NULL OR time >= $4)
@@ -340,7 +340,7 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 				idx.time_event_id,
 				idx.time_delivery_id
 			FROM event_delivery_index idx
-			WHERE idx.tenant_id = $1
+			WHERE ($1::text = '' OR idx.tenant_id = $1)
 			AND ($2::text = '' OR idx.event_id = $2)
 			AND (array_length($3::text[], 1) IS NULL OR idx.destination_id = ANY($3))
 			AND ($4::text = '' OR idx.status = $4)
@@ -560,10 +560,10 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 				e.data,
 				e.metadata
 			FROM events e
-			WHERE e.tenant_id = $1 AND e.id = $2
+			WHERE ($1::text = '' OR e.tenant_id = $1) AND e.id = $2
 			AND EXISTS (
 				SELECT 1 FROM event_delivery_index idx
-				WHERE idx.tenant_id = $1 AND idx.event_id = $2 AND idx.destination_id = $3
+				WHERE ($1::text = '' OR idx.tenant_id = $1) AND idx.event_id = $2 AND idx.destination_id = $3
 			)`
 		args = []interface{}{req.TenantID, req.EventID, req.DestinationID}
 	} else {
@@ -578,7 +578,7 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 				e.data,
 				e.metadata
 			FROM events e
-			WHERE e.tenant_id = $1 AND e.id = $2`
+			WHERE ($1::text = '' OR e.tenant_id = $1) AND e.id = $2`
 		args = []interface{}{req.TenantID, req.EventID}
 	}
 
@@ -625,7 +625,7 @@ func (s *logStore) RetrieveDeliveryEvent(ctx context.Context, req driver.Retriev
 		FROM event_delivery_index idx
 		JOIN events e ON e.id = idx.event_id AND e.time = idx.event_time
 		JOIN deliveries d ON d.id = idx.delivery_id AND d.time = idx.delivery_time
-		WHERE idx.tenant_id = $1 AND idx.delivery_id = $2
+		WHERE ($1::text = '' OR idx.tenant_id = $1) AND idx.delivery_id = $2
 		LIMIT 1`
 
 	row := s.db.QueryRow(ctx, query, req.TenantID, req.DeliveryID)

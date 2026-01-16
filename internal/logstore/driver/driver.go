@@ -26,7 +26,7 @@ type ListEventRequest struct {
 	Limit          int
 	EventStart     *time.Time // optional - filter events created after this time
 	EventEnd       *time.Time // optional - filter events created before this time
-	TenantID       string     // required
+	TenantID       string     // optional - filter by tenant (if empty, returns all tenants)
 	DestinationIDs []string   // optional
 	Topics         []string   // optional
 	SortOrder      string     // optional: "asc", "desc" (default: "desc")
@@ -46,7 +46,7 @@ type ListDeliveryEventRequest struct {
 	EventEnd       *time.Time // optional - filter events created before this time
 	DeliveryStart  *time.Time // optional - filter deliveries after this time
 	DeliveryEnd    *time.Time // optional - filter deliveries before this time
-	TenantID       string     // required
+	TenantID       string     // optional - filter by tenant (if empty, returns all tenants)
 	EventID        string     // optional - filter for specific event
 	DestinationIDs []string   // optional
 	Status         string     // optional: "success", "failed"
@@ -62,12 +62,12 @@ type ListDeliveryEventResponse struct {
 }
 
 type RetrieveEventRequest struct {
-	TenantID      string // required
+	TenantID      string // optional - filter by tenant (if empty, searches all tenants)
 	EventID       string // required
 	DestinationID string // optional - if provided, scopes to that destination
 }
 
 type RetrieveDeliveryEventRequest struct {
-	TenantID   string // required
+	TenantID   string // optional - filter by tenant (if empty, searches all tenants)
 	DeliveryID string // required
 }
