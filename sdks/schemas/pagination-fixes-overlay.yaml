@@ -75,12 +75,14 @@ actions:
       description: "Rename 'prev' query parameter to 'prev_cursor' for consistency"
       
   # Add pagination configuration for events endpoint
+  # Note: The pagination config references the original parameter name 'next' (not 'next_cursor')
+  # because x-speakeasy-name-override only affects generated code, not the OpenAPI spec
   - target: $["paths"]["/tenants/{tenant_id}/events"]["get"]
     update:
       x-speakeasy-pagination:
         type: cursor
         inputs:
-          - name: next_cursor
+          - name: next
             in: parameters
             type: cursor
           - name: limit
@@ -93,13 +95,15 @@ actions:
       type: pagination-config
       description: "Configure cursor-based pagination for events listing"
       
-  # Add pagination configuration for destination events endpoint  
+  # Add pagination configuration for destination events endpoint
+  # Note: The pagination config references the original parameter name 'next' (not 'next_cursor')
+  # because x-speakeasy-name-override only affects generated code, not the OpenAPI spec
   - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/events"]["get"]
     update:
       x-speakeasy-pagination:
         type: cursor
         inputs:
-          - name: next_cursor
+          - name: next
             in: parameters
             type: cursor
           - name: limit
