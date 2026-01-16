@@ -208,13 +208,15 @@ const nextPage = await outpost.events.list({
 
 **Action:** Update all code that accesses pagination fields:
 
-- **TypeScript & Go**: Change `nextCursor`/`prevCursor` to `next`/`prev` in response objects
-- **Python**: No change required - continues using `next_cursor`/`prev_cursor`
+- **TypeScript & Go**: Change `nextCursor`/`prevCursor` to `next`/`prev` in response objects. Query parameters remain `next`/`prev`.
+- **Python**: Response fields remain `next_cursor`/`prev_cursor` (unchanged). Query parameters change from `next`/`prev` to `next_cursor`/`prev_cursor`.
 
-This affects:
+Summary of changes by SDK:
 
-- Response properties: `response.nextCursor` → `response.next`, `response.prevCursor` → `response.prev`
-- Query parameters remain the same: `next` and `prev` (TypeScript/Go) or `next_cursor` and `prev_cursor` (Python)
+| SDK | Response Fields | Query Parameters |
+|-----|----------------|------------------|
+| **TypeScript/Go** | `nextCursor`/`prevCursor` → `next`/`prev` | `next`/`prev` (unchanged) |
+| **Python** | `next_cursor`/`prev_cursor` (unchanged) | `next`/`prev` → `next_cursor`/`prev_cursor` |
 
 ## List Tenants & Redis Migrations
 
