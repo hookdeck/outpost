@@ -17,6 +17,7 @@ const value: components.Destination = {
   ],
   disabledAt: null,
   createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
   config: {
     url: "https://my-service.com/webhook/handler",
   },

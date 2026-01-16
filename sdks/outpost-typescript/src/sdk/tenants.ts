@@ -6,6 +6,7 @@ import { tenantsDelete } from "../funcs/tenantsDelete.js";
 import { tenantsGet } from "../funcs/tenantsGet.js";
 import { tenantsGetPortalUrl } from "../funcs/tenantsGetPortalUrl.js";
 import { tenantsGetToken } from "../funcs/tenantsGetToken.js";
+import { tenantsListTenants } from "../funcs/tenantsListTenants.js";
 import { tenantsUpsert } from "../funcs/tenantsUpsert.js";
 import { ClientSDK, RequestOptions } from "../lib/sdks.js";
 import * as components from "../models/components/index.js";
@@ -13,6 +14,29 @@ import * as operations from "../models/operations/index.js";
 import { unwrapAsync } from "../types/fp.js";
 
 export class Tenants extends ClientSDK {
+  /**
+   * List Tenants
+   *
+   * @remarks
+   * List all tenants with cursor-based pagination.
+   *
+   * **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
+   * If RediSearch is not available, this endpoint returns `501 Not Implemented`.
+   *
+   * The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
+   * Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
+   */
+  async listTenants(
+    request: operations.ListTenantsRequest,
+    options?: RequestOptions,
+  ): Promise<components.TenantListResponse> {
+    return unwrapAsync(tenantsListTenants(
+      this,
+      request,
+      options,
+    ));
+  }
+
   /**
    * Create or Update Tenant
    *

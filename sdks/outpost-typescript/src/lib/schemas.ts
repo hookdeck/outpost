@@ -9,7 +9,7 @@ import {
   ZodObject,
   ZodRawShape,
   ZodTypeAny,
-} from "zod";
+} from "zod/v3";
 import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
 import { ERR, OK, Result } from "../types/fp.js";
 

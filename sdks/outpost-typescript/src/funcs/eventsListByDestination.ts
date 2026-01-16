@@ -3,7 +3,6 @@
  */
 
 import { OutpostCore } from "../core.js";
-import { dlv } from "../lib/dlv.js";
 import { encodeFormQuery, encodeSimple } from "../lib/encodings.js";
 import * as M from "../lib/matchers.js";
 import { compactMap } from "../lib/primitives.js";
@@ -18,19 +17,12 @@ import {
   RequestTimeoutError,
   UnexpectedClientError,
 } from "../models/errors/httpclienterrors.js";
-import * as errors from "../models/errors/index.js";
 import { OutpostError } from "../models/errors/outposterror.js";
 import { ResponseValidationError } from "../models/errors/responsevalidationerror.js";
 import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
 import * as operations from "../models/operations/index.js";
 import { APICall, APIPromise } from "../types/async.js";
 import { Result } from "../types/fp.js";
-import {
-  createPageIterator,
-  haltIterator,
-  PageIterator,
-  Paginator,
-} from "../types/operations.js";
 
 /**
  * List Events by Destination
@@ -43,25 +35,16 @@ export function eventsListByDestination(
   request: operations.ListTenantEventsByDestinationRequest,
   options?: RequestOptions,
 ): APIPromise<
-  PageIterator<
-    Result<
-      operations.ListTenantEventsByDestinationResponse,
-      | errors.UnauthorizedError
-      | errors.TimeoutError
-      | errors.RateLimitedError
-      | errors.BadRequestError
-      | errors.NotFoundError
-      | errors.InternalServerError
-      | OutpostError
-      | ResponseValidationError
-      | ConnectionError
-      | RequestAbortedError
-      | RequestTimeoutError
-      | InvalidRequestError
-      | UnexpectedClientError
-      | SDKValidationError
-    >,
-    { cursor: string }
+  Result<
+    operations.ListTenantEventsByDestinationResponse,
+    | OutpostError
+    | ResponseValidationError
+    | ConnectionError
+    | RequestAbortedError
+    | RequestTimeoutError
+    | InvalidRequestError
+    | UnexpectedClientError
+    | SDKValidationError
   >
 > {
   return new APIPromise($do(
@@ -77,25 +60,16 @@ async function $do(
   options?: RequestOptions,
 ): Promise<
   [
-    PageIterator<
-      Result<
-        operations.ListTenantEventsByDestinationResponse,
-        | errors.UnauthorizedError
-        | errors.TimeoutError
-        | errors.RateLimitedError
-        | errors.BadRequestError
-        | errors.NotFoundError
-        | errors.InternalServerError
-        | OutpostError
-        | ResponseValidationError
-        | ConnectionError
-        | RequestAbortedError
-        | RequestTimeoutError
-        | InvalidRequestError
-        | UnexpectedClientError
-        | SDKValidationError
-      >,
-      { cursor: string }
+    Result<
+      operations.ListTenantEventsByDestinationResponse,
+      | OutpostError
+      | ResponseValidationError
+      | ConnectionError
+      | RequestAbortedError
+      | RequestTimeoutError
+      | InvalidRequestError
+      | UnexpectedClientError
+      | SDKValidationError
     >,
     APICall,
   ]
@@ -109,7 +83,7 @@ async function $do(
     "Input validation failed",
   );
   if (!parsed.ok) {
-    return [haltIterator(parsed), { status: "invalid" }];
+    return [parsed, { status: "invalid" }];
   }
   const payload = parsed.value;
   const body = null;
@@ -126,9 +100,9 @@ async function $do(
     ),
   };
 
-  const path = pathToFunc("/{tenant_id}/destinations/{destination_id}/events")(
-    pathParams,
-  );
+  const path = pathToFunc(
+    "/tenants/{tenant_id}/destinations/{destination_id}/events",
+  )(pathParams);
 
   const query = encodeFormQuery({
     "end": payload.end,
@@ -173,59 +147,23 @@ async function $do(
     timeoutMs: options?.timeoutMs || client._options.timeoutMs || -1,
   }, options);
   if (!requestRes.ok) {
-    return [haltIterator(requestRes), { status: "invalid" }];
+    return [requestRes, { status: "invalid" }];
   }
   const req = requestRes.value;
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: [
-      "400",
-      "401",
-      "403",
-      "404",
-      "407",
-      "408",
-      "413",
-      "414",
-      "415",
-      "422",
-      "429",
-      "431",
-      "4XX",
-      "500",
-      "501",
-      "502",
-      "503",
-      "504",
-      "505",
-      "506",
-      "507",
-      "508",
-      "510",
-      "511",
-      "5XX",
-    ],
+    errorCodes: ["404", "4XX", "5XX"],
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });
   if (!doResult.ok) {
-    return [haltIterator(doResult), { status: "request-error", request: req }];
+    return [doResult, { status: "request-error", request: req }];
   }
   const response = doResult.value;
 
-  const responseFields = {
-    HttpMeta: { Response: response, Request: req },
-  };
-
-  const [result, raw] = await M.match<
+  const [result] = await M.match<
     operations.ListTenantEventsByDestinationResponse,
-    | errors.UnauthorizedError
-    | errors.TimeoutError
-    | errors.RateLimitedError
-    | errors.BadRequestError
-    | errors.NotFoundError
-    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -235,94 +173,13 @@ async function $do(
     | UnexpectedClientError
     | SDKValidationError
   >(
-    M.json(
-      200,
-      operations.ListTenantEventsByDestinationResponse$inboundSchema,
-      { key: "Result" },
-    ),
-    M.jsonErr([401, 403, 407], errors.UnauthorizedError$inboundSchema),
-    M.jsonErr(408, errors.TimeoutError$inboundSchema),
-    M.jsonErr(429, errors.RateLimitedError$inboundSchema),
-    M.jsonErr(
-      [400, 413, 414, 415, 422, 431],
-      errors.BadRequestError$inboundSchema,
-    ),
-    M.jsonErr(504, errors.TimeoutError$inboundSchema),
-    M.jsonErr([501, 505], errors.NotFoundError$inboundSchema),
-    M.jsonErr(
-      [500, 502, 503, 506, 507, 508],
-      errors.InternalServerError$inboundSchema,
-    ),
-    M.jsonErr(510, errors.BadRequestError$inboundSchema),
-    M.jsonErr(511, errors.UnauthorizedError$inboundSchema),
+    M.json(200, operations.ListTenantEventsByDestinationResponse$inboundSchema),
     M.fail([404, "4XX"]),
     M.fail("5XX"),
-  )(response, req, { extraFields: responseFields });
+  )(response, req);
   if (!result.ok) {
-    return [haltIterator(result), {
-      status: "complete",
-      request: req,
-      response,
-    }];
+    return [result, { status: "complete", request: req, response }];
   }
 
-  const nextFunc = (
-    responseData: unknown,
-  ): {
-    next: Paginator<
-      Result<
-        operations.ListTenantEventsByDestinationResponse,
-        | errors.UnauthorizedError
-        | errors.TimeoutError
-        | errors.RateLimitedError
-        | errors.BadRequestError
-        | errors.NotFoundError
-        | errors.InternalServerError
-        | OutpostError
-        | ResponseValidationError
-        | ConnectionError
-        | RequestAbortedError
-        | RequestTimeoutError
-        | InvalidRequestError
-        | UnexpectedClientError
-        | SDKValidationError
-      >
-    >;
-    "~next"?: { cursor: string };
-  } => {
-    const nextCursor = dlv(responseData, "next");
-    if (typeof nextCursor !== "string") {
-      return { next: () => null };
-    }
-    if (nextCursor.trim() === "") {
-      return { next: () => null };
-    }
-    const results = dlv(responseData, "data");
-    if (!Array.isArray(results) || !results.length) {
-      return { next: () => null };
-    }
-    const limit = request?.limit ?? 100;
-    if (results.length < limit) {
-      return { next: () => null };
-    }
-
-    const nextVal = () =>
-      eventsListByDestination(
-        client,
-        {
-          ...request,
-          next: nextCursor,
-        },
-        options,
-      );
-
-    return { next: nextVal, "~next": { cursor: nextCursor } };
-  };
-
-  const page = { ...result, ...nextFunc(raw) };
-  return [{ ...page, ...createPageIterator(page, (v) => !v.ok) }, {
-    status: "complete",
-    request: req,
-    response,
-  }];
+  return [result, { status: "complete", request: req, response }];
 }

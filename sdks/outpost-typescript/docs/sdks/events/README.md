@@ -1,5 +1,4 @@
 # Events
-(*events*)
 
 ## Overview
 
@@ -20,7 +19,7 @@ Retrieves a list of events for the tenant, supporting cursor navigation (details
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="listTenantEvents" method="get" path="/{tenant_id}/events" -->
+<!-- UsageSnippet language="typescript" operationID="listTenantEvents" method="get" path="/tenants/{tenant_id}/events" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -34,9 +33,7 @@ const outpost = new Outpost({
 async function run() {
   const result = await outpost.events.list({});
 
-  for await (const page of result) {
-    console.log(page);
-  }
+  console.log(result);
 }
 
 run();
@@ -63,9 +60,7 @@ async function run() {
   const res = await eventsList(outpost, {});
   if (res.ok) {
     const { value: result } = res;
-    for await (const page of result) {
-    console.log(page);
-  }
+    console.log(result);
   } else {
     console.log("eventsList failed:", res.error);
   }
@@ -89,18 +84,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## get
 
@@ -108,7 +94,7 @@ Retrieves details for a specific event.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="getTenantEvent" method="get" path="/{tenant_id}/events/{event_id}" -->
+<!-- UsageSnippet language="typescript" operationID="getTenantEvent" method="get" path="/tenants/{tenant_id}/events/{event_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -177,18 +163,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## listDeliveries
 
@@ -196,7 +173,7 @@ Retrieves a list of delivery attempts for a specific event, including response d
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="listTenantEventDeliveries" method="get" path="/{tenant_id}/events/{event_id}/deliveries" -->
+<!-- UsageSnippet language="typescript" operationID="listTenantEventDeliveries" method="get" path="/tenants/{tenant_id}/events/{event_id}/deliveries" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -265,18 +242,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## listByDestination
 
@@ -284,7 +252,7 @@ Retrieves events associated with a specific destination for the tenant.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="listTenantEventsByDestination" method="get" path="/{tenant_id}/destinations/{destination_id}/events" -->
+<!-- UsageSnippet language="typescript" operationID="listTenantEventsByDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/events" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -300,9 +268,7 @@ async function run() {
     destinationId: "<id>",
   });
 
-  for await (const page of result) {
-    console.log(page);
-  }
+  console.log(result);
 }
 
 run();
@@ -331,9 +297,7 @@ async function run() {
   });
   if (res.ok) {
     const { value: result } = res;
-    for await (const page of result) {
-    console.log(page);
-  }
+    console.log(result);
   } else {
     console.log("eventsListByDestination failed:", res.error);
   }
@@ -357,18 +321,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## getByDestination
 
@@ -376,7 +331,7 @@ Retrieves a specific event associated with a specific destination for the tenant
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="getTenantEventByDestination" method="get" path="/{tenant_id}/destinations/{destination_id}/events/{event_id}" -->
+<!-- UsageSnippet language="typescript" operationID="getTenantEventByDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -447,18 +402,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## retry
 
@@ -466,7 +412,7 @@ Triggers a retry for a failed event delivery.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="retryTenantEvent" method="post" path="/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry" -->
+<!-- UsageSnippet language="typescript" operationID="retryTenantEvent" method="post" path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -537,15 +483,6 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |

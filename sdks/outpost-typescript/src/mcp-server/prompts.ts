@@ -4,14 +4,18 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
-import { GetPromptResult } from "@modelcontextprotocol/sdk/types.js";
+import {
+  GetPromptResult,
+  ServerNotification,
+  ServerRequest,
+} from "@modelcontextprotocol/sdk/types.js";
 import {
   objectOutputType,
   ZodOptional,
   ZodType,
   ZodTypeAny,
   ZodTypeDef,
-} from "zod";
+} from "zod/v3";
 import { OutpostCore } from "../core.js";
 import { ConsoleLogger } from "./console-logger.js";
 import { MCPScope } from "./scopes.js";
@@ -33,7 +37,7 @@ export type PromptDefinition<
     prompt: (
       client: OutpostCore,
       args: objectOutputType<Args, ZodTypeAny>,
-      extra: RequestHandlerExtra,
+      extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
     ) => GetPromptResult | Promise<GetPromptResult>;
   }
   : {
@@ -43,7 +47,7 @@ export type PromptDefinition<
     args?: undefined;
     prompt: (
       client: OutpostCore,
-      extra: RequestHandlerExtra,
+      extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
     ) => GetPromptResult | Promise<GetPromptResult>;
   };
 

@@ -18,7 +18,6 @@ import {
   RequestTimeoutError,
   UnexpectedClientError,
 } from "../models/errors/httpclienterrors.js";
-import * as errors from "../models/errors/index.js";
 import { OutpostError } from "../models/errors/outposterror.js";
 import { ResponseValidationError } from "../models/errors/responsevalidationerror.js";
 import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
@@ -39,12 +38,6 @@ export function destinationsCreate(
 ): APIPromise<
   Result<
     components.Destination,
-    | errors.UnauthorizedError
-    | errors.TimeoutError
-    | errors.RateLimitedError
-    | errors.BadRequestError
-    | errors.NotFoundError
-    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -70,12 +63,6 @@ async function $do(
   [
     Result<
       components.Destination,
-      | errors.UnauthorizedError
-      | errors.TimeoutError
-      | errors.RateLimitedError
-      | errors.BadRequestError
-      | errors.NotFoundError
-      | errors.InternalServerError
       | OutpostError
       | ResponseValidationError
       | ConnectionError
@@ -98,7 +85,7 @@ async function $do(
     return [parsed, { status: "invalid" }];
   }
   const payload = parsed.value;
-  const body = encodeJSON("body", payload.DestinationCreate, { explode: true });
+  const body = encodeJSON("body", payload.params, { explode: true });
 
   const pathParams = {
     tenant_id: encodeSimple(
@@ -108,7 +95,7 @@ async function $do(
     ),
   };
 
-  const path = pathToFunc("/{tenant_id}/destinations")(pathParams);
+  const path = pathToFunc("/tenants/{tenant_id}/destinations")(pathParams);
 
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
@@ -150,33 +137,7 @@ async function $do(
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: [
-      "400",
-      "401",
-      "403",
-      "404",
-      "407",
-      "408",
-      "413",
-      "414",
-      "415",
-      "422",
-      "429",
-      "431",
-      "4XX",
-      "500",
-      "501",
-      "502",
-      "503",
-      "504",
-      "505",
-      "506",
-      "507",
-      "508",
-      "510",
-      "511",
-      "5XX",
-    ],
+    errorCodes: ["400", "404", "4XX", "5XX"],
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });
@@ -185,18 +146,8 @@ async function $do(
   }
   const response = doResult.value;
 
-  const responseFields = {
-    HttpMeta: { Response: response, Request: req },
-  };
-
   const [result] = await M.match<
     components.Destination,
-    | errors.UnauthorizedError
-    | errors.TimeoutError
-    | errors.RateLimitedError
-    | errors.BadRequestError
-    | errors.NotFoundError
-    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -207,21 +158,9 @@ async function $do(
     | SDKValidationError
   >(
     M.json(201, components.Destination$inboundSchema),
-    M.jsonErr([401, 403, 407], errors.UnauthorizedError$inboundSchema),
-    M.jsonErr(408, errors.TimeoutError$inboundSchema),
-    M.jsonErr(429, errors.RateLimitedError$inboundSchema),
-    M.jsonErr([413, 414, 415, 422, 431], errors.BadRequestError$inboundSchema),
-    M.jsonErr(504, errors.TimeoutError$inboundSchema),
-    M.jsonErr([501, 505], errors.NotFoundError$inboundSchema),
-    M.jsonErr(
-      [500, 502, 503, 506, 507, 508],
-      errors.InternalServerError$inboundSchema,
-    ),
-    M.jsonErr(510, errors.BadRequestError$inboundSchema),
-    M.jsonErr(511, errors.UnauthorizedError$inboundSchema),
     M.fail([400, 404, "4XX"]),
     M.fail("5XX"),
-  )(response, req, { extraFields: responseFields });
+  )(response, req);
   if (!result.ok) {
     return [result, { status: "complete", request: req, response }];
   }

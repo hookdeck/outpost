@@ -4,6 +4,7 @@
 
 import { healthCheck } from "../funcs/healthCheck.js";
 import { ClientSDK, RequestOptions } from "../lib/sdks.js";
+import * as operations from "../models/operations/index.js";
 import { unwrapAsync } from "../types/fp.js";
 
 export class Health extends ClientSDK {
@@ -11,11 +12,23 @@ export class Health extends ClientSDK {
    * Health Check
    *
    * @remarks
-   * Simple health check endpoint.
+   * Health check endpoint that reports the status of all workers.
+   *
+   * Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
+   *
+   * The response includes:
+   * - `status`: Overall health status ("healthy" or "failed")
+   * - `timestamp`: When this health check was performed (ISO 8601 format)
+   * - `workers`: Map of worker names to their individual health status
+   *
+   * Each worker reports:
+   * - `status`: Worker health ("healthy" or "failed")
+   *
+   * Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
    */
   async check(
     options?: RequestOptions,
-  ): Promise<string> {
+  ): Promise<operations.HealthCheckResponse> {
     return unwrapAsync(healthCheck(
       this,
       options,
