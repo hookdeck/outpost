@@ -197,7 +197,12 @@ func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 	if tenant == nil {
 		return
 	}
+	h.listDeliveriesInternal(c, tenant.ID)
+}
 
+// listDeliveriesInternal is the shared implementation for ListDeliveries and AdminListDeliveries.
+// tenantID can be empty to query across all tenants (admin use case).
+func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 	// Parse time filters
 	var start, end *time.Time
 	if startStr := c.Query("start"); startStr != "" {
@@ -303,7 +308,7 @@ func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 
 	// Build request
 	req := logstore.ListDeliveryEventRequest{
-		TenantID:       tenant.ID,
+		TenantID:       tenantID,
 		EventID:        c.Query("event_id"),
 		DestinationIDs: destinationIDs,
 		Status:         c.Query("status"),
@@ -401,253 +406,13 @@ func (h *LogHandlers) RetrieveDelivery(c *gin.Context) {
 // AdminListEvents handles GET /events (admin-only, cross-tenant)
 // Query params: tenant_id (optional), destination_id, topic[], start, end, limit, next, prev, sort_order
 func (h *LogHandlers) AdminListEvents(c *gin.Context) {
-	// Get optional tenant_id from query param
-	tenantID := c.Query("tenant_id")
-
-	// Parse time filters
-	var start, end *time.Time
-	if startStr := c.Query("start"); startStr != "" {
-		t, err := time.Parse(time.RFC3339, startStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.start": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		start = &t
-	}
-	if endStr := c.Query("end"); endStr != "" {
-		t, err := time.Parse(time.RFC3339, endStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.end": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		end = &t
-	}
-
-	// Parse limit (default 100, max 1000)
-	limit := parseLimit(c, 100, 1000)
-
-	// Parse destination_id (single value for now)
-	var destinationIDs []string
-	if destID := c.Query("destination_id"); destID != "" {
-		destinationIDs = []string{destID}
-	}
-
-	// Parse sort_order (default: desc)
-	sortOrder := c.Query("sort_order")
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	if sortOrder != "asc" && sortOrder != "desc" {
-		AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-			Code:    http.StatusUnprocessableEntity,
-			Message: "validation error",
-			Data: map[string]string{
-				"query.sort_order": "must be 'asc' or 'desc'",
-			},
-		})
-		return
-	}
-
-	// Build request
-	req := logstore.ListEventRequest{
-		TenantID:       tenantID, // empty string means all tenants
-		DestinationIDs: destinationIDs,
-		Topics:         parseQueryArray(c, "topic"),
-		EventStart:     start,
-		EventEnd:       end,
-		Limit:          limit,
-		Next:           c.Query("next"),
-		Prev:           c.Query("prev"),
-		SortOrder:      sortOrder,
-	}
-
-	// Call logstore
-	response, err := h.logStore.ListEvent(c.Request.Context(), req)
-	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-		return
-	}
-
-	// Transform to API response
-	apiEvents := make([]APIEvent, len(response.Data))
-	for i, e := range response.Data {
-		apiEvents[i] = APIEvent{
-			ID:               e.ID,
-			Topic:            e.Topic,
-			Time:             e.Time,
-			EligibleForRetry: e.EligibleForRetry,
-			Metadata:         e.Metadata,
-			Data:             e.Data,
-		}
-	}
-
-	c.JSON(http.StatusOK, ListEventsResponse{
-		Data: apiEvents,
-		Next: response.Next,
-		Prev: response.Prev,
-	})
+	h.listEventsInternal(c, c.Query("tenant_id"))
 }
 
 // AdminListDeliveries handles GET /deliveries (admin-only, cross-tenant)
 // Query params: tenant_id (optional), event_id, destination_id, status, topic[], start, end, event_start, event_end, limit, next, prev, expand[], sort_by, sort_order
 func (h *LogHandlers) AdminListDeliveries(c *gin.Context) {
-	// Get optional tenant_id from query param
-	tenantID := c.Query("tenant_id")
-
-	// Parse time filters
-	var start, end *time.Time
-	if startStr := c.Query("start"); startStr != "" {
-		t, err := time.Parse(time.RFC3339, startStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.start": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		start = &t
-	}
-	if endStr := c.Query("end"); endStr != "" {
-		t, err := time.Parse(time.RFC3339, endStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.end": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		end = &t
-	}
-
-	// Parse event time filters (event_start, event_end)
-	var eventStart, eventEnd *time.Time
-	if eventStartStr := c.Query("event_start"); eventStartStr != "" {
-		t, err := time.Parse(time.RFC3339, eventStartStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.event_start": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		eventStart = &t
-	}
-	if eventEndStr := c.Query("event_end"); eventEndStr != "" {
-		t, err := time.Parse(time.RFC3339, eventEndStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.event_end": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		eventEnd = &t
-	}
-
-	// Parse limit (default 100, max 1000)
-	limit := parseLimit(c, 100, 1000)
-
-	// Parse destination_id (single value for now)
-	var destinationIDs []string
-	if destID := c.Query("destination_id"); destID != "" {
-		destinationIDs = []string{destID}
-	}
-
-	// Parse sort_by (default: delivery_time)
-	sortBy := c.Query("sort_by")
-	if sortBy == "" {
-		sortBy = "delivery_time"
-	}
-	if sortBy != "delivery_time" && sortBy != "event_time" {
-		AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-			Code:    http.StatusUnprocessableEntity,
-			Message: "validation error",
-			Data: map[string]string{
-				"query.sort_by": "must be 'delivery_time' or 'event_time'",
-			},
-		})
-		return
-	}
-
-	// Parse sort_order (default: desc)
-	sortOrder := c.Query("sort_order")
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	if sortOrder != "asc" && sortOrder != "desc" {
-		AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-			Code:    http.StatusUnprocessableEntity,
-			Message: "validation error",
-			Data: map[string]string{
-				"query.sort_order": "must be 'asc' or 'desc'",
-			},
-		})
-		return
-	}
-
-	// Build request
-	req := logstore.ListDeliveryEventRequest{
-		TenantID:       tenantID, // empty string means all tenants
-		EventID:        c.Query("event_id"),
-		DestinationIDs: destinationIDs,
-		Status:         c.Query("status"),
-		Topics:         parseQueryArray(c, "topic"),
-		DeliveryStart:  start,
-		DeliveryEnd:    end,
-		EventStart:     eventStart,
-		EventEnd:       eventEnd,
-		Limit:          limit,
-		Next:           c.Query("next"),
-		Prev:           c.Query("prev"),
-		SortBy:         sortBy,
-		SortOrder:      sortOrder,
-	}
-
-	// Call logstore
-	response, err := h.logStore.ListDeliveryEvent(c.Request.Context(), req)
-	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-		return
-	}
-
-	// Parse include options
-	includeOpts := parseIncludeOptions(c)
-
-	// Transform to API response
-	apiDeliveries := make([]APIDelivery, len(response.Data))
-	for i, de := range response.Data {
-		apiDeliveries[i] = toAPIDelivery(de, includeOpts)
-	}
-
-	c.JSON(http.StatusOK, ListDeliveriesResponse{
-		Data: apiDeliveries,
-		Next: response.Next,
-		Prev: response.Prev,
-	})
+	h.listDeliveriesInternal(c, c.Query("tenant_id"))
 }
 
 // ListEvents handles GET /:tenantID/events
@@ -657,7 +422,12 @@ func (h *LogHandlers) ListEvents(c *gin.Context) {
 	if tenant == nil {
 		return
 	}
+	h.listEventsInternal(c, tenant.ID)
+}
 
+// listEventsInternal is the shared implementation for ListEvents and AdminListEvents.
+// tenantID can be empty to query across all tenants (admin use case).
+func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 	// Parse time filters
 	var start, end *time.Time
 	if startStr := c.Query("start"); startStr != "" {
@@ -716,7 +486,7 @@ func (h *LogHandlers) ListEvents(c *gin.Context) {
 
 	// Build request
 	req := logstore.ListEventRequest{
-		TenantID:       tenant.ID,
+		TenantID:       tenantID,
 		DestinationIDs: destinationIDs,
 		Topics:         parseQueryArray(c, "topic"),
 		EventStart:     start,
