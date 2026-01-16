@@ -33,7 +33,7 @@ run_tests() {
     fi
 
     if [ "$RUNNER" = "gotestsum" ]; then
-        gotestsum --rerun-fails=2 --hide-summary=skipped --format-hide-empty-pkg \
+        gotestsum --rerun-fails="${GOTESTSUM_RERUN_FAILS:-2}" --hide-summary=skipped --format-hide-empty-pkg \
             --packages="$pkg" -- $TESTARGS "${extra_flags[@]}" "${run_flag[@]}"
     else
         go test "$pkg" $TESTARGS "${extra_flags[@]}" "${run_flag[@]}"
@@ -96,6 +96,7 @@ case "${1:-test}" in
         echo "  TESTCOMPAT    Set to 1 to run full backend compatibility suite"
         echo "  TESTREDISCLUSTER  Set to 1 to enable Redis cluster tests"
         echo "  RUNNER        Force test runner: 'gotestsum' or 'go' (default: auto-detect)"
+        echo "  GOTESTSUM_RERUN_FAILS  Number of times to rerun failed tests (default: 2)"
         exit 1
         ;;
 esac
