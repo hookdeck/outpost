@@ -1,5 +1,4 @@
 # Destinations
-(*destinations*)
 
 ## Overview
 
@@ -44,7 +43,7 @@ Return a list of the destinations for the tenant. The endpoint is not paged.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="listTenantDestinations" method="get" path="/{tenant_id}/destinations" -->
+<!-- UsageSnippet language="python" operationID="listTenantDestinations" method="get" path="/tenants/{tenant_id}/destinations" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -56,7 +55,7 @@ with Outpost(
     ),
 ) as outpost:
 
-    res = outpost.destinations.list()
+    res = outpost.destinations.list(type_=models.DestinationType.WEBHOOK)
 
     # Handle response
     print(res)
@@ -68,7 +67,7 @@ with Outpost(
 | Parameter                                                                                     | Type                                                                                          | Required                                                                                      | Description                                                                                   |
 | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `tenant_id`                                                                                   | *Optional[str]*                                                                               | :heavy_minus_sign:                                                                            | The ID of the tenant. Required when using AdminApiKey authentication.                         |
-| `type`                                                                                        | [Optional[models.Type]](../../models/type.md)                                                 | :heavy_minus_sign:                                                                            | Filter destinations by type(s).                                                               |
+| `type`                                                                                        | [Optional[models.ListTenantDestinationsType]](../../models/listtenantdestinationstype.md)     | :heavy_minus_sign:                                                                            | Filter destinations by type(s).                                                               |
 | `topics`                                                                                      | [Optional[models.ListTenantDestinationsTopics]](../../models/listtenantdestinationstopics.md) | :heavy_minus_sign:                                                                            | Filter destinations by supported topic(s).                                                    |
 | `retries`                                                                                     | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                              | :heavy_minus_sign:                                                                            | Configuration to override the default retry behavior of the client.                           |
 
@@ -78,18 +77,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutErrorT         | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutErrorT         | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## create
 
@@ -97,7 +87,7 @@ Creates a new destination for the tenant. The request body structure depends on 
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="createTenantDestination" method="post" path="/{tenant_id}/destinations" -->
+<!-- UsageSnippet language="python" operationID="createTenantDestination" method="post" path="/tenants/{tenant_id}/destinations" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -109,7 +99,7 @@ with Outpost(
     ),
 ) as outpost:
 
-    res = outpost.destinations.create(destination_create={
+    res = outpost.destinations.create(params={
         "id": "user-provided-id",
         "type": models.DestinationCreateRabbitMQType.RABBITMQ,
         "topics": models.TopicsEnum.WILDCARD_,
@@ -133,7 +123,7 @@ with Outpost(
 
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `destination_create`                                                  | [models.DestinationCreate](../../models/destinationcreate.md)         | :heavy_check_mark:                                                    | N/A                                                                   |
+| `params`                                                              | [models.DestinationCreate](../../models/destinationcreate.md)         | :heavy_check_mark:                                                    | N/A                                                                   |
 | `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
@@ -143,18 +133,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutErrorT         | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 413, 414, 415, 422, 431      | application/json             |
-| errors.TimeoutErrorT         | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## get
 
@@ -162,7 +143,7 @@ Retrieves details for a specific destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="getTenantDestination" method="get" path="/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="python" operationID="getTenantDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -195,18 +176,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutErrorT         | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutErrorT         | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## update
 
@@ -214,7 +186,7 @@ Updates the configuration of an existing destination. The request body structure
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="updateTenantDestination" method="patch" path="/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="python" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -226,7 +198,7 @@ with Outpost(
     ),
 ) as outpost:
 
-    res = outpost.destinations.update(destination_id="<id>", destination_update={
+    res = outpost.destinations.update(destination_id="<id>", params={
         "topics": models.TopicsEnum.WILDCARD_,
         "config": {
             "server_url": "localhost:5672",
@@ -249,7 +221,7 @@ with Outpost(
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `destination_id`                                                      | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `destination_update`                                                  | [models.DestinationUpdate](../../models/destinationupdate.md)         | :heavy_check_mark:                                                    | N/A                                                                   |
+| `params`                                                              | [models.DestinationUpdate](../../models/destinationupdate.md)         | :heavy_check_mark:                                                    | N/A                                                                   |
 | `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
@@ -259,18 +231,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutErrorT         | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 413, 414, 415, 422, 431      | application/json             |
-| errors.TimeoutErrorT         | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## delete
 
@@ -278,7 +241,7 @@ Deletes a specific destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="deleteTenantDestination" method="delete" path="/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="python" operationID="deleteTenantDestination" method="delete" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -311,18 +274,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutErrorT         | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutErrorT         | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## enable
 
@@ -330,7 +284,7 @@ Enables a previously disabled destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="enableTenantDestination" method="put" path="/{tenant_id}/destinations/{destination_id}/enable" -->
+<!-- UsageSnippet language="python" operationID="enableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/enable" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -363,18 +317,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutErrorT         | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutErrorT         | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## disable
 
@@ -382,7 +327,7 @@ Disables a previously enabled destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="disableTenantDestination" method="put" path="/{tenant_id}/destinations/{destination_id}/disable" -->
+<!-- UsageSnippet language="python" operationID="disableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/disable" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -415,15 +360,6 @@ with Outpost(
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutErrorT         | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutErrorT         | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |

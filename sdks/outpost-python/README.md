@@ -135,6 +135,7 @@ with Outpost() as outpost:
 </br>
 
 The same SDK client can also be used to make asynchronous requests by importing asyncio.
+
 ```python
 # Asynchronous Example
 import asyncio
@@ -190,7 +191,7 @@ with Outpost(
 <details open>
 <summary>Available methods</summary>
 
-### [destinations](docs/sdks/destinations/README.md)
+### [Destinations](docs/sdks/destinations/README.md)
 
 * [list](docs/sdks/destinations/README.md#list) - List Destinations
 * [create](docs/sdks/destinations/README.md#create) - Create Destination
@@ -200,7 +201,7 @@ with Outpost(
 * [enable](docs/sdks/destinations/README.md#enable) - Enable Destination
 * [disable](docs/sdks/destinations/README.md#disable) - Disable Destination
 
-### [events](docs/sdks/events/README.md)
+### [Events](docs/sdks/events/README.md)
 
 * [list](docs/sdks/events/README.md#list) - List Events
 * [get](docs/sdks/events/README.md#get) - Get Event
@@ -209,31 +210,31 @@ with Outpost(
 * [get_by_destination](docs/sdks/events/README.md#get_by_destination) - Get Event by Destination
 * [retry](docs/sdks/events/README.md#retry) - Retry Event Delivery
 
-### [health](docs/sdks/health/README.md)
+### [Health](docs/sdks/health/README.md)
 
 * [check](docs/sdks/health/README.md#check) - Health Check
 
-
-### [publish](docs/sdks/publish/README.md)
+### [Publish](docs/sdks/publish/README.md)
 
 * [event](docs/sdks/publish/README.md#event) - Publish Event
 
-### [schemas](docs/sdks/schemas/README.md)
+### [Schemas](docs/sdks/schemas/README.md)
 
 * [list_tenant_destination_types](docs/sdks/schemas/README.md#list_tenant_destination_types) - List Destination Type Schemas (for Tenant)
 * [get](docs/sdks/schemas/README.md#get) - Get Destination Type Schema (for Tenant)
 * [list_destination_types_jwt](docs/sdks/schemas/README.md#list_destination_types_jwt) - List Destination Type Schemas (JWT Auth)
 * [get_destination_type_jwt](docs/sdks/schemas/README.md#get_destination_type_jwt) - Get Destination Type Schema
 
-### [tenants](docs/sdks/tenants/README.md)
+### [Tenants](docs/sdks/tenants/README.md)
 
+* [list_tenants](docs/sdks/tenants/README.md#list_tenants) - List Tenants
 * [upsert](docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
 * [get](docs/sdks/tenants/README.md#get) - Get Tenant
 * [delete](docs/sdks/tenants/README.md#delete) - Delete Tenant
 * [get_portal_url](docs/sdks/tenants/README.md#get_portal_url) - Get Portal Redirect URL
 * [get_token](docs/sdks/tenants/README.md#get_token) - Get Tenant JWT Token
 
-### [topics](docs/sdks/topicssdk/README.md)
+### [Topics](docs/sdks/topicssdk/README.md)
 
 * [list](docs/sdks/topicssdk/README.md#list) - List Available Topics (for Tenant)
 * [list_jwt](docs/sdks/topicssdk/README.md#list_jwt) - List Available Topics)
@@ -390,16 +391,10 @@ with Outpost() as outpost:
 ```
 
 ### Error Classes
-**Primary errors:**
+**Primary error:**
 * [`OutpostError`](./src/outpost_sdk/errors/outposterror.py): The base class for HTTP error responses.
-  * [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request.
-  * [`UnauthorizedError`](./src/outpost_sdk/errors/unauthorizederror.py): A collection of codes that generally means the client was not authenticated correctly for the request they want to make.
-  * [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing.
-  * [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request.
-  * [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`.
-  * [`InternalServerError`](./src/outpost_sdk/errors/internalservererror.py): A collection of status codes that generally mean the server failed in an unexpected way.
 
-<details><summary>Less common errors (5)</summary>
+<details><summary>Less common errors (13)</summary>
 
 <br />
 
@@ -410,9 +405,19 @@ with Outpost() as outpost:
 
 
 **Inherit from [`OutpostError`](./src/outpost_sdk/errors/outposterror.py)**:
+* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 5 of 27 methods.*
+* [`UnauthorizedError`](./src/outpost_sdk/errors/unauthorizederror.py): A collection of codes that generally means the client was not authenticated correctly for the request they want to make. Applicable to 5 of 27 methods.*
+* [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 5 of 27 methods.*
+* [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 27 methods.*
+* [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 27 methods.*
+* [`InternalServerError`](./src/outpost_sdk/errors/internalservererror.py): A collection of status codes that generally mean the server failed in an unexpected way. Applicable to 5 of 27 methods.*
+* [`ListTenantsBadRequestError`](./src/outpost_sdk/errors/listtenantsbadrequesterror.py): Invalid request parameters (e.g., invalid cursor, both next and prev provided). Status code `400`. Applicable to 1 of 27 methods.*
+* [`NotImplementedErrorT`](./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 27 methods.*
 * [`ResponseValidationError`](./src/outpost_sdk/errors/responsevalidationerror.py): Type mismatch between the response data and the expected Pydantic model. Provides access to the Pydantic validation error via the `cause` attribute.
 
 </details>
+
+\* Check [the method documentation](#available-resources-and-operations) to see if the error is applicable.
 <!-- End Error Handling [errors] -->
 
 <!-- Start Server Selection [server] -->

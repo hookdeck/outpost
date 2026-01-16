@@ -33,9 +33,21 @@ value: models.DestinationUpdateHookdeck = /* values here */
 value: models.DestinationUpdateAWSKinesis = /* values here */
 ```
 
+### `models.DestinationUpdateAzureServiceBus`
+
+```python
+value: models.DestinationUpdateAzureServiceBus = /* values here */
+```
+
 ### `models.DestinationUpdateAwss3`
 
 ```python
 value: models.DestinationUpdateAwss3 = /* values here */
+```
+
+### `models.DestinationUpdateGCPPubSub`
+
+```python
+value: models.DestinationUpdateGCPPubSub = /* values here */
 ```
 

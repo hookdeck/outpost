@@ -102,26 +102,6 @@ def validate_int(b):
     return int(b)
 
 
-def validate_open_enum(is_int: bool):
-    def validate(e):
-        if e is None:
-            return None
-
-        if isinstance(e, Unset):
-            return e
-
-        if is_int:
-            if not isinstance(e, int):
-                raise ValueError("Expected int")
-        else:
-            if not isinstance(e, str):
-                raise ValueError("Expected string")
-
-        return e
-
-    return validate
-
-
 def validate_const(v):
     def validate(c):
         # Optional[T] is a Union[T, None]
