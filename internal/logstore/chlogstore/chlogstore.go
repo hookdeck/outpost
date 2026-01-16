@@ -101,6 +101,10 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 
 	whereClause := strings.Join(conditions, " AND ")
 
+	// Note: We intentionally omit FINAL to avoid forcing ClickHouse to merge all parts
+	// before returning results. The events table uses ReplacingMergeTree, so duplicates
+	// may briefly appear before background merges consolidate them. This is acceptable
+	// for log viewing and maintains O(limit) query performance.
 	query := fmt.Sprintf(`
 		SELECT
 			event_id,
@@ -111,7 +115,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 			event_time,
 			metadata,
 			data
-		FROM events FINAL
+		FROM events
 		WHERE %s
 		%s
 		LIMIT %d
