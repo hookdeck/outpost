@@ -111,7 +111,7 @@ func (suite *basicSuite) TestLogAPI() {
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	// Wait for all deliveries
+	// Wait for all deliveries (30s timeout for slow CI environments)
 	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries", 10, 10*time.Second)
 
 	// =========================================================================
@@ -165,10 +165,10 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Len(data, 1)
 		})
 
-		suite.Run("expand=event returns event object without data", func() {
+		suite.Run("include=event returns event object without data", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?expand=event&limit=1",
+				Path:   "/tenants/" + tenantID + "/deliveries?include=event&limit=1",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -182,13 +182,13 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.NotEmpty(event["id"])
 			suite.NotEmpty(event["topic"])
 			suite.NotEmpty(event["time"])
-			suite.Nil(event["data"]) // expand=event should NOT include data
+			suite.Nil(event["data"]) // include=event should NOT include data
 		})
 
-		suite.Run("expand=event.data returns event object with data", func() {
+		suite.Run("include=event.data returns event object with data", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?expand=event.data&limit=1",
+				Path:   "/tenants/" + tenantID + "/deliveries?include=event.data&limit=1",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -200,13 +200,13 @@ func (suite *basicSuite) TestLogAPI() {
 			delivery := data[0].(map[string]interface{})
 			event := delivery["event"].(map[string]interface{})
 			suite.NotEmpty(event["id"])
-			suite.NotNil(event["data"]) // expand=event.data SHOULD include data
+			suite.NotNil(event["data"]) // include=event.data SHOULD include data
 		})
 
-		suite.Run("expand=response_data returns response data", func() {
+		suite.Run("include=response_data returns response data", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?expand=response_data&limit=1",
+				Path:   "/tenants/" + tenantID + "/deliveries?include=response_data&limit=1",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -352,7 +352,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("deliveries sort_by=event_time sorts by event time", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?sort_by=event_time&sort_order=asc&expand=event",
+				Path:   "/tenants/" + tenantID + "/deliveries?sort_by=event_time&sort_order=asc&include=event",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
