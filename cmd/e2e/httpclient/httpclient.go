@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"reflect"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -204,7 +205,9 @@ func (c *client) Do(req Request) (Response, error) {
 
 func New(baseURL string, apiKey string) Client {
 	return &client{
-		client:  http.DefaultClient,
+		client: &http.Client{
+			Timeout: 10 * time.Second,
+		},
 		baseURL: baseURL,
 		apiKey:  apiKey,
 	}

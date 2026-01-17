@@ -222,7 +222,6 @@ const DestinationConfigFields = ({
             )}
           </div>
         ))}
-
     </>
   );
 };

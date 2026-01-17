@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -20,6 +21,7 @@ func NewMQAWSConfig(t *testing.T, attributes map[string]string) mqs.QueueConfig 
 			Region:                    "us-east-1",
 			ServiceAccountCredentials: "test:test:",
 			Topic:                     uuid.New().String(),
+			WaitTime:                  1 * time.Second, // Short wait for tests
 		},
 	}
 	ctx := context.Background()

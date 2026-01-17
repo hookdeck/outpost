@@ -9,15 +9,16 @@ import (
 	"github.com/hookdeck/outpost/internal/logstore/drivertest"
 	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/require"
 )
 
-// func TestConformance(t *testing.T) {
-// 	testutil.CheckIntegrationTest(t)
-// 	t.Parallel()
+func TestConformance(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	t.Parallel()
 
-// 	drivertest.RunConformanceTests(t, newHarness)
-// }
+	drivertest.RunConformanceTests(t, newHarness)
+}
 
 type harness struct {
 	chDB   clickhouse.DB
@@ -70,6 +71,14 @@ func newHarness(_ context.Context, t *testing.T) (drivertest.Harness, error) {
 
 func (h *harness) Close() {
 	h.closer()
+}
+
+func (h *harness) FlushWrites(ctx context.Context) error {
+	// Force ClickHouse to merge parts and deduplicate rows on both tables
+	if err := h.chDB.Exec(ctx, "OPTIMIZE TABLE events FINAL"); err != nil {
+		return err
+	}
+	return h.chDB.Exec(ctx, "OPTIMIZE TABLE deliveries FINAL")
 }
 
 func (h *harness) MakeDriver(ctx context.Context) (driver.LogStore, error) {

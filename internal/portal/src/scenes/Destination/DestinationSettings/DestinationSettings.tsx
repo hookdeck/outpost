@@ -38,7 +38,7 @@ const DestinationSettings = ({
   const [selectedTopics, setSelectedTopics] = useState(destination.topics);
   const [filter, setFilter] = useState<Filter>(destination.filter || null);
   const [isFilterEnabled, setIsFilterEnabled] = useState(
-    !!(destination.filter && Object.keys(destination.filter).length > 0)
+    !!(destination.filter && Object.keys(destination.filter).length > 0),
   );
   const apiClient = useContext(ApiContext);
   const navigate = useNavigate();
@@ -54,7 +54,7 @@ const DestinationSettings = ({
   const handleToggleEnabled = () => {
     if (!destination.disabled_at) {
       const confirmed = window.confirm(
-        "Are you sure you want to disable this destination? You will no longer receive any events while it is disabled."
+        "Are you sure you want to disable this destination? You will no longer receive any events while it is disabled.",
       );
       if (!confirmed) return;
     }
@@ -67,19 +67,19 @@ const DestinationSettings = ({
         }`,
         {
           method: "PUT",
-        }
+        },
       )
       .then((data) => {
         showToast(
           "success",
-          `Destination ${data.disabled_at ? "disabled" : "enabled"}`
+          `Destination ${data.disabled_at ? "disabled" : "enabled"}`,
         );
         mutate(`destinations/${destination.id}`, data, false);
       })
       .catch((error) => {
         showToast(
           "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`
+          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
         );
       })
       .finally(() => {
@@ -104,7 +104,7 @@ const DestinationSettings = ({
       .catch((error) => {
         showToast(
           "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`
+          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
         );
       })
       .finally(() => {
@@ -146,7 +146,7 @@ const DestinationSettings = ({
       .catch((error) => {
         showToast(
           "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`
+          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
         );
       })
       .finally(() => {
@@ -176,7 +176,7 @@ const DestinationSettings = ({
       .catch((error) => {
         showToast(
           "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`
+          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
         );
       })
       .finally(() => {
@@ -215,7 +215,7 @@ const DestinationSettings = ({
       .catch((error) => {
         showToast(
           "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`
+          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
         );
       })
       .finally(() => {
@@ -241,7 +241,7 @@ const DestinationSettings = ({
       .catch((error) => {
         showToast(
           "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`
+          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
         );
       })
       .finally(() => {
@@ -261,7 +261,7 @@ const DestinationSettings = ({
 
   const handleDelete = () => {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this destination? This action cannot be undone and all associated events will be deleted."
+      "Are you sure you want to delete this destination? This action cannot be undone and all associated events will be deleted.",
     );
     if (!confirmed) return;
 
@@ -277,7 +277,7 @@ const DestinationSettings = ({
       .catch((error) => {
         showToast(
           "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`
+          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
         );
       })
       .finally(() => {

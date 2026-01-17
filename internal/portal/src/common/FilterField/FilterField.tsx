@@ -70,7 +70,7 @@ const FilterField = ({
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${Math.max(
         120,
-        textareaRef.current.scrollHeight
+        textareaRef.current.scrollHeight,
       )}px`;
     }
   }, [jsonText]);

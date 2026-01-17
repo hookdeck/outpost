@@ -2,16 +2,21 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/models"
 )
 
+// ErrInvalidCursor is returned when the cursor is malformed or doesn't match
+// the current query parameters (e.g., different sort order).
+var ErrInvalidCursor = errors.New("invalid cursor")
+
 type LogStore interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
-	RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error)
-	RetrieveEventByDestination(ctx context.Context, tenantID, destinationID, eventID string) (*models.Event, error)
-	ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*models.Delivery, error)
+	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
+	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
+	RetrieveDeliveryEvent(ctx context.Context, request RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error)
 	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
 }
 
@@ -19,30 +24,47 @@ type ListEventRequest struct {
 	Next           string
 	Prev           string
 	Limit          int
-	Start          *time.Time // optional - lower bound, default End - 1h
-	End            *time.Time // optional - upper bound, default now()
-	TenantID       string     // required
+	EventStart     *time.Time // optional - filter events created after this time
+	EventEnd       *time.Time // optional - filter events created before this time
+	TenantID       string     // optional - filter by tenant (if empty, returns all tenants)
 	DestinationIDs []string   // optional
-	Status         string     // optional, "success", "failed"
 	Topics         []string   // optional
-}
-
-type ListEventByDestinationRequest struct {
-	TenantID      string // required
-	DestinationID string // required
-	Status        string // optional, "success", "failed"
-	Cursor        string
-	Limit         int
-}
-
-type ListDeliveryRequest struct {
-	EventID       string
-	DestinationID string
+	SortOrder      string     // optional: "asc", "desc" (default: "desc")
 }
 
 type ListEventResponse struct {
-	Data  []*models.Event
-	Next  string
-	Prev  string
-	Count int64
+	Data []*models.Event
+	Next string
+	Prev string
+}
+
+type ListDeliveryEventRequest struct {
+	Next           string
+	Prev           string
+	Limit          int
+	Start          *time.Time // optional - filter deliveries after this time
+	End            *time.Time // optional - filter deliveries before this time
+	TenantID       string     // optional - filter by tenant (if empty, returns all tenants)
+	EventID        string     // optional - filter for specific event
+	DestinationIDs []string   // optional
+	Status         string     // optional: "success", "failed"
+	Topics         []string   // optional
+	SortOrder      string     // optional: "asc", "desc" (default: "desc")
+}
+
+type ListDeliveryEventResponse struct {
+	Data []*models.DeliveryEvent
+	Next string
+	Prev string
+}
+
+type RetrieveEventRequest struct {
+	TenantID      string // optional - filter by tenant (if empty, searches all tenants)
+	EventID       string // required
+	DestinationID string // optional - if provided, scopes to that destination
+}
+
+type RetrieveDeliveryEventRequest struct {
+	TenantID   string // optional - filter by tenant (if empty, searches all tenants)
+	DeliveryID string // required
 }

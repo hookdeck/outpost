@@ -1,7 +1,7 @@
-import { useEffect, useState, createContext } from "react";
+import { useEffect, useState, createContext, useMemo } from "react";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import DestinationList from "./scenes/DestinationsList/DestinationList";
-import { SWRConfig } from "swr";
+import useSWR, { SWRConfig } from "swr";
 
 import "./global.scss";
 import "./app.scss";
@@ -18,6 +18,11 @@ type ApiClient = {
 };
 
 export const ApiContext = createContext<ApiClient>({} as ApiClient);
+
+type TenantResponse = {
+  id: string;
+  created_at: string;
+};
 
 function NotFound() {
   return (
@@ -50,9 +55,13 @@ function NotFound() {
   );
 }
 
-type Tenant = { id: string };
-
-function AuthenticatedApp({ tenant, token }: { tenant: Tenant; token: string }) {
+function AuthenticatedApp({
+  tenant,
+  token,
+}: {
+  tenant: TenantResponse;
+  token: string;
+}) {
   const apiClient: ApiClient = {
     fetch: (path: string, init?: RequestInit) => {
       return fetch(`/api/v1/tenants/${tenant.id}/${path}`, {
@@ -165,43 +174,33 @@ function useToken() {
   return token;
 }
 
-type Tenant = {
-  id: string;
-  created_at: string;
-};
-
-function useTenant(token?: string): Tenant | undefined {
-  const [tenant, setTenant] = useState<Tenant | undefined>();
-
-  useEffect(() => {
-    run();
-
-    async function run() {
-      if (!token) {
-        return;
-      }
-      const value = decodeJWT(token);
-      if (!value.sub) {
-        console.error("Invalid token");
-        return;
-      }
-      const tenantId = value.sub;
-      // TODO: Replace to use SWR
-      const response = await fetch(`/api/v1/tenants/${tenantId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) {
-        window.location.replace(CONFIGS.REFERER_URL);
-        return;
-      }
-      const tenant = await response.json();
-      setTenant(tenant);
+function useTenant(token?: string): TenantResponse | undefined {
+  const tenantId = useMemo(() => {
+    if (!token) return null;
+    const value = decodeJWT(token);
+    if (!value.sub) {
+      console.error("Invalid token");
+      return null;
     }
+    return value.sub;
   }, [token]);
 
-  return tenant;
+  const { data } = useSWR<TenantResponse>(
+    tenantId && token ? [`/api/v1/tenants/${tenantId}`, token] : null,
+    ([url, token]: [string, string]) =>
+      fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((res) => {
+        if (!res.ok) {
+          window.location.replace(CONFIGS.REFERER_URL);
+          throw new Error("Failed to fetch tenant");
+        }
+        return res.json();
+      }),
+    { revalidateOnFocus: false },
+  );
+
+  return data;
 }
 
 function decodeJWT(token: string) {
@@ -214,7 +213,7 @@ function decodeJWT(token: string) {
         .map(function (c) {
           return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
         })
-        .join("")
+        .join(""),
     );
     return JSON.parse(jsonPayload);
   } catch (e) {

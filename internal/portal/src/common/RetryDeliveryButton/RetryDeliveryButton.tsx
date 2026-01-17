@@ -4,35 +4,34 @@ import { ReplayIcon } from "../Icons";
 import { showToast } from "../Toast/Toast";
 import { ApiContext } from "../../app";
 
-interface RetryEventButtonProps {
-  eventId: string;
-  destinationId: string;
+interface RetryDeliveryButtonProps {
+  deliveryId: string;
   disabled: boolean;
   loading: boolean;
   completed: (success: boolean) => void;
+  icon?: boolean;
+  iconLabel?: string;
 }
 
-const RetryEventButton: React.FC<RetryEventButtonProps> = ({
-  eventId,
-  destinationId,
+const RetryDeliveryButton: React.FC<RetryDeliveryButtonProps> = ({
+  deliveryId,
   disabled,
   loading,
   completed,
+  icon,
+  iconLabel,
 }) => {
   const apiClient = useContext(ApiContext);
   const [retrying, setRetrying] = useState<boolean>(false);
 
-  const retryEvent = useCallback(
+  const retryDelivery = useCallback(
     async (e: MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
       setRetrying(true);
       try {
-        await apiClient.fetch(
-          `destinations/${destinationId}/events/${eventId}/retry`,
-          {
-            method: "POST",
-          },
-        );
+        await apiClient.fetch(`deliveries/${deliveryId}/retry`, {
+          method: "POST",
+        });
         showToast("success", "Retry successful.");
         completed(true);
       } catch (error: any) {
@@ -46,13 +45,15 @@ const RetryEventButton: React.FC<RetryEventButtonProps> = ({
 
       setRetrying(false);
     },
-    [apiClient, destinationId, eventId, completed],
+    [apiClient, deliveryId, completed],
   );
 
   return (
     <Button
       minimal
-      onClick={(e) => retryEvent(e)}
+      icon={icon}
+      iconLabel={iconLabel}
+      onClick={(e) => retryDelivery(e)}
       disabled={disabled || retrying}
       loading={loading || retrying}
     >
@@ -61,4 +62,4 @@ const RetryEventButton: React.FC<RetryEventButtonProps> = ({
   );
 };
 
-export default RetryEventButton;
+export default RetryDeliveryButton;

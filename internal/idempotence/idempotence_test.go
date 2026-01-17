@@ -18,14 +18,17 @@ import (
 )
 
 func setupCountExec(_ *testing.T, ctx context.Context, timeout time.Duration, ex func() error) (exec func(context.Context) error, countexec func(count *int), cleanup func()) {
-	execchan := make(chan struct{})
+	execchan := make(chan struct{}, 10) // buffered to prevent blocking senders
 	exec = func(_ context.Context) error {
 		time.Sleep(timeout)
-		execchan <- struct{}{}
+		select {
+		case execchan <- struct{}{}:
+		default: // don't block if channel is full
+		}
 		return ex()
 	}
 	cleanup = func() {
-		close(execchan)
+		// no-op: let channel be garbage collected
 	}
 	countexec = func(count *int) {
 		for {
@@ -44,7 +47,7 @@ func TestIdempotence_Success(t *testing.T) {
 	t.Parallel()
 
 	i := idempotence.New(testutil.CreateTestRedisClient(t),
-		idempotence.WithTimeout(3*time.Second),
+		idempotence.WithTimeout(1*time.Second), // Short timeout for unit tests
 		idempotence.WithSuccessfulTTL(24*time.Hour),
 	)
 
@@ -71,54 +74,63 @@ func TestIdempotence_Success(t *testing.T) {
 
 	t.Run("when 2nd exec is within processing window", func(t *testing.T) {
 		t.Parallel()
-		// Arange
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// Arrange
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		exec, countexec, cleanup := setupCountExec(t, ctx, 1*time.Second, func() error { return nil })
+		exec, countexec, cleanup := setupCountExec(t, ctx, 200*time.Millisecond, func() error { return nil })
 		defer cleanup()
 		// Act
 		key := testutil.RandomString(5)
 		go func() {
 			i.Exec(ctx, key, exec) // 1st exec
 		}()
-		errchan := make(chan error)
+		errchan := make(chan error, 1)
 		go func() {
-			time.Sleep(time.Second / 2)
+			time.Sleep(100 * time.Millisecond)
 			errchan <- i.Exec(ctx, key, exec) // 2nd exec
 		}()
-		// Assert
+		// Assert - wait for 2nd exec to complete
+		// Note: idempotence waits for full timeout (1s) when it detects a concurrent operation
 		count := 0
 		go countexec(&count)
-		<-ctx.Done()
-		err := <-errchan
-		assert.Nil(t, err, "should not return error")
-		assert.Equal(t, 1, count, "should execute once")
+		select {
+		case err := <-errchan:
+			time.Sleep(50 * time.Millisecond) // let countexec collect
+			assert.Nil(t, err, "should not return error")
+			assert.Equal(t, 1, count, "should execute once")
+		case <-time.After(2 * time.Second):
+			require.Fail(t, "timeout waiting for 2nd exec")
+		}
 	})
 
 	t.Run("when 2nd exec is after processed", func(t *testing.T) {
 		t.Parallel()
-		// Arange
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// Arrange
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		exec, countexec, cleanup := setupCountExec(t, ctx, 1*time.Second, func() error { return nil })
+		exec, countexec, cleanup := setupCountExec(t, ctx, 200*time.Millisecond, func() error { return nil })
 		defer cleanup()
 		// Act
 		key := testutil.RandomString(5)
 		go func() {
 			i.Exec(ctx, key, exec) // 1st exec
 		}()
-		errchan := make(chan error)
+		errchan := make(chan error, 1)
 		go func() {
-			time.Sleep(2 * time.Second)       // wait for 1st exec to finish
-			errchan <- i.Exec(ctx, key, exec) // 2nd exec
+			time.Sleep(500 * time.Millisecond) // wait for 1st exec to finish
+			errchan <- i.Exec(ctx, key, exec)  // 2nd exec
 		}()
-		// Assert
+		// Assert - wait for 2nd exec to complete
 		count := 0
 		go countexec(&count)
-		<-ctx.Done()
-		err := <-errchan
-		assert.Nil(t, err, "should not return error")
-		assert.Equal(t, 1, count, "should execute once")
+		select {
+		case err := <-errchan:
+			time.Sleep(50 * time.Millisecond) // let countexec collect
+			assert.Nil(t, err, "should not return error")
+			assert.Equal(t, 1, count, "should execute once")
+		case <-time.After(2 * time.Second):
+			require.Fail(t, "timeout waiting for 2nd exec")
+		}
 	})
 }
 
@@ -128,36 +140,46 @@ func TestIdempotence_Failure(t *testing.T) {
 	errExec := errors.New("exec error")
 
 	i := idempotence.New(testutil.CreateTestRedisClient(t),
-		idempotence.WithTimeout(3*time.Second),
+		idempotence.WithTimeout(1*time.Second), // Short timeout for unit tests
 		idempotence.WithSuccessfulTTL(24*time.Hour),
 	)
 
 	t.Run("when 2nd exec is within processing window", func(t *testing.T) {
 		t.Parallel()
 		// Arrange
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		exec, countexec, cleanup := setupCountExec(t, ctx, 1*time.Second, func() error { return errExec })
+		exec, countexec, cleanup := setupCountExec(t, ctx, 200*time.Millisecond, func() error { return errExec })
 		defer cleanup()
 
 		// Act
 		key := testutil.RandomString(5)
-		err1chan := make(chan error)
-		err2chan := make(chan error)
+		err1chan := make(chan error, 1)
+		err2chan := make(chan error, 1)
 		go func() {
 			err1chan <- i.Exec(ctx, key, exec) // 1st exec
 		}()
 		go func() {
-			time.Sleep(time.Second / 2)        // wait to make sure 1st exec has started
+			time.Sleep(50 * time.Millisecond)  // wait to make sure 1st exec has started
 			err2chan <- i.Exec(ctx, key, exec) // 2nd exec
 		}()
 
-		// Assert
+		// Assert - wait for both to complete with timeout
+		var err1, err2 error
+		select {
+		case err1 = <-err1chan:
+		case <-time.After(2 * time.Second):
+			require.Fail(t, "timeout waiting for err1")
+		}
+		select {
+		case err2 = <-err2chan:
+		case <-time.After(2 * time.Second):
+			require.Fail(t, "timeout waiting for err2")
+		}
 		count := 0
 		go countexec(&count)
-		<-ctx.Done()
-		err1 := <-err1chan
-		err2 := <-err2chan
+		time.Sleep(50 * time.Millisecond) // let countexec collect
+		cancel()                          // stop countexec
 		assert.Equal(t, errExec, err1, "first execution should return exec error")
 		assert.Equal(t, idempotence.ErrConflict, err2, "second execution should return conflict error")
 		assert.Equal(t, 1, count, "should execute once")
@@ -165,28 +187,38 @@ func TestIdempotence_Failure(t *testing.T) {
 
 	t.Run("when 2nd exec is after 1st exec completion", func(t *testing.T) {
 		t.Parallel()
-		// Arange
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// Arrange
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		exec, countexec, cleanup := setupCountExec(t, ctx, 1*time.Second, func() error { return errExec })
+		exec, countexec, cleanup := setupCountExec(t, ctx, 100*time.Millisecond, func() error { return errExec })
 		defer cleanup()
 		// Act
 		key := testutil.RandomString(5)
-		err1chan := make(chan error)
-		err2chan := make(chan error)
+		err1chan := make(chan error, 1)
+		err2chan := make(chan error, 1)
 		go func() {
 			err1chan <- i.Exec(ctx, key, exec) // 1st exec
 		}()
+		// Wait for 1st exec to complete with timeout
+		var err1, err2 error
+		select {
+		case err1 = <-err1chan:
+		case <-time.After(2 * time.Second):
+			require.Fail(t, "timeout waiting for err1")
+		}
 		go func() {
-			time.Sleep(2 * time.Second)        // wait for 1st exec to finish
-			err2chan <- i.Exec(ctx, key, exec) // 2nd exec
+			err2chan <- i.Exec(ctx, key, exec) // 2nd exec (after 1st completed)
 		}()
+		select {
+		case err2 = <-err2chan:
+		case <-time.After(2 * time.Second):
+			require.Fail(t, "timeout waiting for err2")
+		}
 		// Assert
 		count := 0
 		go countexec(&count)
-		<-ctx.Done()
-		err1 := <-err1chan
-		err2 := <-err2chan
+		time.Sleep(50 * time.Millisecond) // let countexec collect
+		cancel()                          // stop countexec
 		assert.Equal(t, errExec, err1, "first execution should return exec error")
 		assert.Equal(t, errExec, err2, "second execution should return exec error")
 		assert.Equal(t, 2, count, "should execute twice")
@@ -200,10 +232,10 @@ func TestIdempotence_Failure(t *testing.T) {
 func TestIntegrationIdempotence_WithUnackedFailures(t *testing.T) {
 	t.Parallel()
 
-	visibilityTimeout := 5 * time.Second
+	visibilityTimeout := 2 * time.Second
 	mq := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
 
-	ctx, cancel := context.WithTimeout(context.Background(), visibilityTimeout*3-visibilityTimeout/2)
+	ctx, cancel := context.WithTimeout(context.Background(), visibilityTimeout*3+time.Second)
 	defer cancel()
 
 	subscription, err := mq.Subscribe(ctx)
@@ -253,15 +285,15 @@ func TestIntegrationIdempotence_WithUnackedFailures(t *testing.T) {
 
 // Setup:
 // - 2 subscriber, 1 publisher
-// - message will sleep for 2s before success
+// - message will sleep for 500ms before success
 // - publisher will publish the same message twice to test idempotency
 func TestIntegrationIdempotence_WithConcurrentHandlerAndSuccess(t *testing.T) {
 	t.Parallel()
 
-	visibilityTimeout := 5 * time.Second
+	visibilityTimeout := 2 * time.Second
 	mq := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second) // exec should only take 2-4s
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second) // exec should only take ~1s
 	defer cancel()
 
 	subscription, err := mq.Subscribe(ctx)
@@ -289,7 +321,7 @@ func TestIntegrationIdempotence_WithConcurrentHandlerAndSuccess(t *testing.T) {
 			mockMsg.FromMessage(msg)
 			err = i.Exec(ctx, mockMsg.ID, func(context.Context) error {
 				start := time.Now()
-				time.Sleep(2 * time.Second)
+				time.Sleep(500 * time.Millisecond)
 				end := time.Now()
 				execTimestamps = append(execTimestamps, struct {
 					Start time.Time
@@ -337,15 +369,15 @@ func TestIntegrationIdempotence_WithConcurrentHandlerAndSuccess(t *testing.T) {
 
 // Setup:
 // - 2 subscriber, 1 publisher
-// - message will failed twice, each exec taking 2s
+// - message will failed twice, each exec taking 500ms
 // - publisher will publish the same message twice to test idempotency
 func TestIntegrationIdempotence_WithConcurrentHandlerAndFailedExecution(t *testing.T) {
 	t.Parallel()
 
-	visibilityTimeout := 5 * time.Second
+	visibilityTimeout := 2 * time.Second
 	mq := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
 
-	ctx, cancel := context.WithTimeout(context.Background(), visibilityTimeout*3-visibilityTimeout/2)
+	ctx, cancel := context.WithTimeout(context.Background(), visibilityTimeout*3+time.Second)
 	defer cancel()
 
 	subscription, err := mq.Subscribe(ctx)
@@ -372,7 +404,7 @@ func TestIntegrationIdempotence_WithConcurrentHandlerAndFailedExecution(t *testi
 			mockMsg.FromMessage(msg)
 			err = i.Exec(ctx, mockMsg.ID, func(context.Context) error {
 				start := time.Now()
-				time.Sleep(2 * time.Second)
+				time.Sleep(500 * time.Millisecond)
 				end := time.Now()
 				execTimestamps = append(execTimestamps, struct {
 					Start time.Time

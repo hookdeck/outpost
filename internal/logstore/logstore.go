@@ -7,6 +7,7 @@ import (
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/logstore/chlogstore"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
+	"github.com/hookdeck/outpost/internal/logstore/memlogstore"
 	"github.com/hookdeck/outpost/internal/logstore/pglogstore"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,13 +15,16 @@ import (
 
 type ListEventRequest = driver.ListEventRequest
 type ListEventResponse = driver.ListEventResponse
-type ListDeliveryRequest = driver.ListDeliveryRequest
+type ListDeliveryEventRequest = driver.ListDeliveryEventRequest
+type ListDeliveryEventResponse = driver.ListDeliveryEventResponse
+type RetrieveEventRequest = driver.RetrieveEventRequest
+type RetrieveDeliveryEventRequest = driver.RetrieveDeliveryEventRequest
 
 type LogStore interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
-	RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error)
-	RetrieveEventByDestination(ctx context.Context, tenantID, destinationID, eventID string) (*models.Event, error)
-	ListDelivery(ctx context.Context, request ListDeliveryRequest) ([]*models.Delivery, error)
+	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
+	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
+	RetrieveDeliveryEvent(ctx context.Context, request RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error)
 	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
 }
 
@@ -50,21 +54,26 @@ func NewLogStore(ctx context.Context, driverOpts DriverOpts) (LogStore, error) {
 	return nil, errors.New("no driver provided")
 }
 
+// NewMemLogStore returns an in-memory log store for testing.
+func NewMemLogStore() LogStore {
+	return memlogstore.NewLogStore()
+}
+
 type Config struct {
-	// ClickHouse *clickhouse.ClickHouseConfig
-	Postgres *string
+	ClickHouse *clickhouse.ClickHouseConfig
+	Postgres   *string
 }
 
 func MakeDriverOpts(cfg Config) (DriverOpts, error) {
 	driverOpts := DriverOpts{}
 
-	// if cfg.ClickHouse != nil {
-	// 	chDB, err := clickhouse.New(cfg.ClickHouse)
-	// 	if err != nil {
-	// 		return DriverOpts{}, err
-	// 	}
-	// 	driverOpts.CH = chDB
-	// }
+	if cfg.ClickHouse != nil {
+		chDB, err := clickhouse.New(cfg.ClickHouse)
+		if err != nil {
+			return DriverOpts{}, err
+		}
+		driverOpts.CH = chDB
+	}
 
 	if cfg.Postgres != nil && *cfg.Postgres != "" {
 		pgDB, err := pgxpool.New(context.Background(), *cfg.Postgres)
