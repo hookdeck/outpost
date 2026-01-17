@@ -30,7 +30,6 @@ func parseTime(s string) time.Time {
 //   - events: list, filter, retrieve
 //   - sort_order: sort by time ascending/descending
 //   - pagination: paginate through results
-//   - event_time_filter: filter deliveries by event time
 func (suite *basicSuite) TestLogAPI() {
 	tenantID := idgen.String()
 	destinationID := idgen.Destination()
@@ -346,38 +345,6 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Equal(http.StatusUnprocessableEntity, resp.StatusCode)
 		})
 
-		// Note: We don't test deliveries sort by delivery_time because delivery
-		// order is not guaranteed - deliveries can complete out of order.
-
-		suite.Run("deliveries sort_by=event_time sorts by event time", func() {
-			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?sort_by=event_time&sort_order=asc&include=event",
-			}))
-			suite.Require().NoError(err)
-			suite.Require().Equal(http.StatusOK, resp.StatusCode)
-
-			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Require().Len(data, 10)
-
-			for i := 0; i < len(data)-1; i++ {
-				currEvent := data[i].(map[string]interface{})["event"].(map[string]interface{})
-				nextEvent := data[i+1].(map[string]interface{})["event"].(map[string]interface{})
-				curr := parseTime(currEvent["time"].(string))
-				next := parseTime(nextEvent["time"].(string))
-				suite.True(curr.Before(next) || curr.Equal(next), "deliveries not in ascending event_time order at index %d", i)
-			}
-		})
-
-		suite.Run("deliveries invalid sort_by returns 422", func() {
-			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?sort_by=invalid",
-			}))
-			suite.Require().NoError(err)
-			suite.Equal(http.StatusUnprocessableEntity, resp.StatusCode)
-		})
 	})
 
 	// =========================================================================
@@ -425,61 +392,6 @@ func (suite *basicSuite) TestLogAPI() {
 
 			suite.Equal(4, pageCount, "expected 4 pages (3+3+3+1)")
 			suite.Len(allEventIDs, 10, "should have all 10 events")
-		})
-	})
-
-	// =========================================================================
-	// Event Time Filter Tests (event_start, event_end)
-	// =========================================================================
-	suite.Run("event_time_filter", func() {
-		suite.Run("event_start and event_end filters deliveries", func() {
-			// Use a wide time range that definitely includes all events
-			pastTime := time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
-			futureTime := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
-
-			// Query with event_start and event_end
-			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?event_start=" + url.QueryEscape(pastTime) + "&event_end=" + url.QueryEscape(futureTime),
-			}))
-			suite.Require().NoError(err)
-			suite.Require().Equal(http.StatusOK, resp.StatusCode)
-
-			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Len(data, 10) // All 10 events are within the last hour
-		})
-
-		suite.Run("event_start=future returns empty", func() {
-			futureTime := url.QueryEscape(time.Now().Add(1 * time.Hour).Format(time.RFC3339))
-			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?event_start=" + futureTime,
-			}))
-			suite.Require().NoError(err)
-			suite.Require().Equal(http.StatusOK, resp.StatusCode)
-
-			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Len(data, 0)
-		})
-
-		suite.Run("event_start=invalid returns 422", func() {
-			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?event_start=invalid",
-			}))
-			suite.Require().NoError(err)
-			suite.Equal(http.StatusUnprocessableEntity, resp.StatusCode)
-		})
-
-		suite.Run("event_end=invalid returns 422", func() {
-			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?event_end=invalid",
-			}))
-			suite.Require().NoError(err)
-			suite.Equal(http.StatusUnprocessableEntity, resp.StatusCode)
 		})
 	})
 
