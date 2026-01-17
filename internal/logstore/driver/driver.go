@@ -51,7 +51,6 @@ type ListDeliveryEventRequest struct {
 	DestinationIDs []string   // optional
 	Status         string     // optional: "success", "failed"
 	Topics         []string   // optional
-	SortBy         string     // optional: "event_time", "delivery_time" (default: "delivery_time")
 	SortOrder      string     // optional: "asc", "desc" (default: "desc")
 }
 

@@ -220,11 +220,8 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Validate and set defaults for sort parameters
-	sortBy := req.SortBy
-	if sortBy != "event_time" && sortBy != "delivery_time" {
-		sortBy = "delivery_time"
-	}
+	// Always sort by delivery_time
+	sortBy := "delivery_time"
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
@@ -245,48 +242,10 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 		filtered = append(filtered, de)
 	}
 
-	// Sort using multi-column ordering for deterministic pagination.
-	// See drivertest.go for detailed documentation on sorting logic.
-	//
-	// Summary:
-	// - delivery_time: ORDER BY delivery_time, delivery_id
-	// - event_time:    ORDER BY event_time, event_id, delivery_time
-	//
-	// The secondary/tertiary columns ensure deterministic ordering when
-	// primary sort values are identical (e.g., multiple deliveries for same event).
+	// Sort by delivery_time with delivery_id as tiebreaker for deterministic pagination.
 	isDesc := sortOrder == "desc"
 
 	sort.Slice(filtered, func(i, j int) bool {
-		if sortBy == "event_time" {
-			// Primary: event_time
-			if !filtered[i].Event.Time.Equal(filtered[j].Event.Time) {
-				if isDesc {
-					return filtered[i].Event.Time.After(filtered[j].Event.Time)
-				}
-				return filtered[i].Event.Time.Before(filtered[j].Event.Time)
-			}
-			// Secondary: event_id (groups deliveries for same event)
-			if filtered[i].Event.ID != filtered[j].Event.ID {
-				if isDesc {
-					return filtered[i].Event.ID > filtered[j].Event.ID
-				}
-				return filtered[i].Event.ID < filtered[j].Event.ID
-			}
-			// Tertiary: delivery_time
-			if !filtered[i].Delivery.Time.Equal(filtered[j].Delivery.Time) {
-				if isDesc {
-					return filtered[i].Delivery.Time.After(filtered[j].Delivery.Time)
-				}
-				return filtered[i].Delivery.Time.Before(filtered[j].Delivery.Time)
-			}
-			// Quaternary: delivery_id (for deterministic ordering when all above are equal)
-			if isDesc {
-				return filtered[i].Delivery.ID > filtered[j].Delivery.ID
-			}
-			return filtered[i].Delivery.ID < filtered[j].Delivery.ID
-		}
-
-		// Default: delivery_time
 		// Primary: delivery_time
 		if !filtered[i].Delivery.Time.Equal(filtered[j].Delivery.Time) {
 			if isDesc {

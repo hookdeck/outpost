@@ -191,7 +191,7 @@ func toAPIDelivery(de *models.DeliveryEvent, opts IncludeOptions) APIDelivery {
 }
 
 // ListDeliveries handles GET /:tenantID/deliveries
-// Query params: event_id, destination_id, status, topic[], start, end, event_start, event_end, limit, next, prev, expand[], sort_by, sort_order
+// Query params: event_id, destination_id, status, topic[], start, end, event_start, event_end, limit, next, prev, expand[], sort_order
 func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 	if tenant == nil {
@@ -274,22 +274,6 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		destinationIDs = []string{destID}
 	}
 
-	// Parse sort_by (default: delivery_time)
-	sortBy := c.Query("sort_by")
-	if sortBy == "" {
-		sortBy = "delivery_time"
-	}
-	if sortBy != "delivery_time" && sortBy != "event_time" {
-		AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-			Code:    http.StatusUnprocessableEntity,
-			Message: "validation error",
-			Data: map[string]string{
-				"query.sort_by": "must be 'delivery_time' or 'event_time'",
-			},
-		})
-		return
-	}
-
 	// Parse sort_order (default: desc)
 	sortOrder := c.Query("sort_order")
 	if sortOrder == "" {
@@ -320,7 +304,6 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		Limit:          limit,
 		Next:           c.Query("next"),
 		Prev:           c.Query("prev"),
-		SortBy:         sortBy,
 		SortOrder:      sortOrder,
 	}
 
@@ -410,7 +393,7 @@ func (h *LogHandlers) AdminListEvents(c *gin.Context) {
 }
 
 // AdminListDeliveries handles GET /deliveries (admin-only, cross-tenant)
-// Query params: tenant_id (optional), event_id, destination_id, status, topic[], start, end, event_start, event_end, limit, next, prev, expand[], sort_by, sort_order
+// Query params: tenant_id (optional), event_id, destination_id, status, topic[], start, end, event_start, event_end, limit, next, prev, expand[], sort_order
 func (h *LogHandlers) AdminListDeliveries(c *gin.Context) {
 	h.listDeliveriesInternal(c, c.Query("tenant_id"))
 }

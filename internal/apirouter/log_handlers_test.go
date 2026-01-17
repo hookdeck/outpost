@@ -276,14 +276,6 @@ func TestListDeliveries(t *testing.T) {
 		assert.NotNil(t, event["topic"])
 	})
 
-	t.Run("should return validation error for invalid sort_by", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?sort_by=invalid", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
-	})
-
 	t.Run("should return validation error for invalid sort_order", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?sort_order=invalid", nil)
@@ -292,9 +284,9 @@ func TestListDeliveries(t *testing.T) {
 		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
 	})
 
-	t.Run("should accept valid sort_by and sort_order params", func(t *testing.T) {
+	t.Run("should accept valid sort_order param", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?sort_by=event_time&sort_order=asc", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?sort_order=asc", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)

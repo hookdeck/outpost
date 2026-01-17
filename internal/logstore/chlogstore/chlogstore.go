@@ -300,11 +300,8 @@ func buildEventCursorCondition(sortOrder, position string, isBackward bool) (str
 }
 
 func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDeliveryEventRequest) (driver.ListDeliveryEventResponse, error) {
-	// Validate and set defaults
-	sortBy := req.SortBy
-	if sortBy != "event_time" && sortBy != "delivery_time" {
-		sortBy = "delivery_time"
-	}
+	// Always sort by delivery_time
+	sortBy := "delivery_time"
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
@@ -324,37 +321,19 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 	// Determine if we're going backward (using prev cursor)
 	goingBackward := !prevCursor.IsEmpty()
 
-	// Build ORDER BY clause
-	// For delivery_time sort: ORDER BY delivery_time, delivery_id
-	// For event_time sort: ORDER BY event_time, event_id, delivery_time, delivery_id
+	// Build ORDER BY clause: ORDER BY delivery_time, delivery_id
 	var orderByClause string
-	if sortBy == "event_time" {
-		if sortOrder == "desc" {
-			if goingBackward {
-				orderByClause = "ORDER BY event_time ASC, event_id ASC, delivery_time ASC, delivery_id ASC"
-			} else {
-				orderByClause = "ORDER BY event_time DESC, event_id DESC, delivery_time DESC, delivery_id DESC"
-			}
+	if sortOrder == "desc" {
+		if goingBackward {
+			orderByClause = "ORDER BY delivery_time ASC, delivery_id ASC"
 		} else {
-			if goingBackward {
-				orderByClause = "ORDER BY event_time DESC, event_id DESC, delivery_time DESC, delivery_id DESC"
-			} else {
-				orderByClause = "ORDER BY event_time ASC, event_id ASC, delivery_time ASC, delivery_id ASC"
-			}
+			orderByClause = "ORDER BY delivery_time DESC, delivery_id DESC"
 		}
 	} else {
-		if sortOrder == "desc" {
-			if goingBackward {
-				orderByClause = "ORDER BY delivery_time ASC, delivery_id ASC"
-			} else {
-				orderByClause = "ORDER BY delivery_time DESC, delivery_id DESC"
-			}
+		if goingBackward {
+			orderByClause = "ORDER BY delivery_time DESC, delivery_id DESC"
 		} else {
-			if goingBackward {
-				orderByClause = "ORDER BY delivery_time DESC, delivery_id DESC"
-			} else {
-				orderByClause = "ORDER BY delivery_time ASC, delivery_id ASC"
-			}
+			orderByClause = "ORDER BY delivery_time ASC, delivery_id ASC"
 		}
 	}
 
@@ -409,11 +388,11 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 
 	// Cursor conditions
 	if !nextCursor.IsEmpty() {
-		cursorCond, cursorArgs := buildCursorCondition(sortBy, sortOrder, nextCursor.Position, false)
+		cursorCond, cursorArgs := buildCursorCondition(sortOrder, nextCursor.Position, false)
 		conditions = append(conditions, cursorCond)
 		args = append(args, cursorArgs...)
 	} else if !prevCursor.IsEmpty() {
-		cursorCond, cursorArgs := buildCursorCondition(sortBy, sortOrder, prevCursor.Position, true)
+		cursorCond, cursorArgs := buildCursorCondition(sortOrder, prevCursor.Position, true)
 		conditions = append(conditions, cursorCond)
 		args = append(args, cursorArgs...)
 	}
@@ -570,17 +549,8 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 
 	var nextEncoded, prevEncoded string
 	if len(results) > 0 {
+		// delivery_time cursor: deliveryTime::deliveryID
 		getPosition := func(r rowData) string {
-			if sortBy == "event_time" {
-				// Composite cursor: eventTime::eventID::deliveryTime::deliveryID
-				return fmt.Sprintf("%d::%s::%d::%s",
-					r.eventTime.UnixMilli(),
-					r.de.Event.ID,
-					r.deliveryTime.UnixMilli(),
-					r.de.Delivery.ID,
-				)
-			}
-			// delivery_time cursor: deliveryTime::deliveryID
 			return fmt.Sprintf("%d::%s", r.deliveryTime.UnixMilli(), r.de.Delivery.ID)
 		}
 
@@ -942,65 +912,10 @@ func parseTimestampMs(s string) (int64, error) {
 	return strconv.ParseInt(s, 10, 64)
 }
 
-// buildCursorCondition builds a SQL condition for cursor-based pagination.
+// buildCursorCondition builds a SQL condition for cursor-based pagination on delivery_time.
 // Returns the condition string with ? placeholders and the corresponding args.
-func buildCursorCondition(sortBy, sortOrder, position string, isBackward bool) (string, []interface{}) {
-	// Parse position based on sortBy
-	// For delivery_time: "timestamp::deliveryID"
-	// For event_time: "timestamp::eventID::timestamp::deliveryID"
-
-	if sortBy == "event_time" {
-		// Parse: eventTimeMs::eventID::deliveryTimeMs::deliveryID
-		parts := strings.SplitN(position, "::", 4)
-		if len(parts) != 4 {
-			return "1=1", nil // invalid cursor, return always true
-		}
-		eventTimeMs, err := parseTimestampMs(parts[0])
-		if err != nil {
-			return "1=1", nil // invalid timestamp, return always true
-		}
-		eventID := parts[1]
-		deliveryTimeMs, err := parseTimestampMs(parts[2])
-		if err != nil {
-			return "1=1", nil // invalid timestamp, return always true
-		}
-		deliveryID := parts[3]
-
-		// Determine comparison direction
-		var cmp string
-		if sortOrder == "desc" {
-			if isBackward {
-				cmp = ">"
-			} else {
-				cmp = "<"
-			}
-		} else {
-			if isBackward {
-				cmp = "<"
-			} else {
-				cmp = ">"
-			}
-		}
-
-		// Build multi-column comparison with parameterized queries
-		// (event_time, event_id, delivery_time, delivery_id) < (cursor_values)
-		condition := fmt.Sprintf(`(
-			event_time %s fromUnixTimestamp64Milli(?)
-			OR (event_time = fromUnixTimestamp64Milli(?) AND event_id %s ?)
-			OR (event_time = fromUnixTimestamp64Milli(?) AND event_id = ? AND delivery_time %s fromUnixTimestamp64Milli(?))
-			OR (event_time = fromUnixTimestamp64Milli(?) AND event_id = ? AND delivery_time = fromUnixTimestamp64Milli(?) AND delivery_id %s ?)
-		)`, cmp, cmp, cmp, cmp)
-
-		args := []interface{}{
-			eventTimeMs,
-			eventTimeMs, eventID,
-			eventTimeMs, eventID, deliveryTimeMs,
-			eventTimeMs, eventID, deliveryTimeMs, deliveryID,
-		}
-		return condition, args
-	}
-
-	// delivery_time sort: "timestamp::deliveryID"
+func buildCursorCondition(sortOrder, position string, isBackward bool) (string, []interface{}) {
+	// Parse position: "timestamp::deliveryID"
 	parts := strings.SplitN(position, "::", 2)
 	if len(parts) != 2 {
 		return "1=1", nil

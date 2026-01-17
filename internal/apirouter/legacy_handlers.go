@@ -136,7 +136,6 @@ func (h *LegacyHandlers) ListEventsByDestination(c *gin.Context) {
 		Limit:          limit,
 		Next:           c.Query("next"),
 		Prev:           c.Query("prev"),
-		SortBy:         "event_time",
 		SortOrder:      "desc",
 	})
 	if err != nil {
@@ -230,7 +229,6 @@ func (h *LegacyHandlers) ListDeliveriesByEvent(c *gin.Context) {
 		TenantID:  tenant.ID,
 		EventID:   eventID,
 		Limit:     100,
-		SortBy:    "delivery_time",
 		SortOrder: "desc",
 	})
 	if err != nil {

@@ -1722,8 +1722,6 @@ func generateRealisticTimestampData(t *testing.T, logStore driver.LogStore) *Pag
 	// Pre-compute sorted lists
 	sortedByDeliveryTimeDesc := sortDeliveryEvents(allDeliveryEvents, "delivery_time", true)
 	sortedByDeliveryTimeAsc := sortDeliveryEvents(allDeliveryEvents, "delivery_time", false)
-	sortedByEventTimeDesc := sortDeliveryEvents(allDeliveryEvents, "event_time", true)
-	sortedByEventTimeAsc := sortDeliveryEvents(allDeliveryEvents, "event_time", false)
 
 	// Pre-compute filtered subsets
 	sixHoursAgo := baseTime.Add(-6 * time.Hour)
@@ -1760,7 +1758,6 @@ func generateRealisticTimestampData(t *testing.T, logStore driver.LogStore) *Pag
 	for status := range byStatus {
 		byStatus[status] = sortDeliveryEvents(byStatus[status], "delivery_time", true)
 	}
-	successSortedByEventTime := sortDeliveryEvents(byStatus["success"], "event_time", true)
 
 	// Build test cases
 	return &PaginationSuiteData{
@@ -1773,19 +1770,9 @@ func generateRealisticTimestampData(t *testing.T, logStore driver.LogStore) *Pag
 				Expected: sortedByDeliveryTimeDesc,
 			},
 			{
-				Name:     "sort by event_time DESC",
-				Request:  driver.ListDeliveryEventRequest{EventStart: &farPast, SortBy: "event_time"},
-				Expected: sortedByEventTimeDesc,
-			},
-			{
 				Name:     "sort by delivery_time ASC",
 				Request:  driver.ListDeliveryEventRequest{EventStart: &farPast, SortOrder: "asc"},
 				Expected: sortedByDeliveryTimeAsc,
-			},
-			{
-				Name:     "sort by event_time ASC",
-				Request:  driver.ListDeliveryEventRequest{EventStart: &farPast, SortBy: "event_time", SortOrder: "asc"},
-				Expected: sortedByEventTimeAsc,
 			},
 			{
 				Name:     "filter by event time (last 6 hours)",
@@ -1816,11 +1803,6 @@ func generateRealisticTimestampData(t *testing.T, logStore driver.LogStore) *Pag
 				Name:     "filter by status (success)",
 				Request:  driver.ListDeliveryEventRequest{Status: "success", EventStart: &farPast},
 				Expected: byStatus["success"],
-			},
-			{
-				Name:     "filter by status with event_time sort",
-				Request:  driver.ListDeliveryEventRequest{Status: "success", SortBy: "event_time", EventStart: &farPast},
-				Expected: successSortedByEventTime,
 			},
 		},
 	}
@@ -1888,8 +1870,6 @@ func generateIdenticalTimestampData(t *testing.T, logStore driver.LogStore) *Pag
 	// With identical timestamps, sorting falls back to ID columns
 	sortedByDeliveryTimeDesc := sortDeliveryEvents(allDeliveryEvents, "delivery_time", true)
 	sortedByDeliveryTimeAsc := sortDeliveryEvents(allDeliveryEvents, "delivery_time", false)
-	sortedByEventTimeDesc := sortDeliveryEvents(allDeliveryEvents, "event_time", true)
-	sortedByEventTimeAsc := sortDeliveryEvents(allDeliveryEvents, "event_time", false)
 
 	return &PaginationSuiteData{
 		Name:     "identical_timestamps",
@@ -1904,16 +1884,6 @@ func generateIdenticalTimestampData(t *testing.T, logStore driver.LogStore) *Pag
 				Name:     "delivery_time ASC (falls back to delivery_id)",
 				Request:  driver.ListDeliveryEventRequest{EventStart: &farPast, SortOrder: "asc"},
 				Expected: sortedByDeliveryTimeAsc,
-			},
-			{
-				Name:     "event_time DESC (falls back to event_id)",
-				Request:  driver.ListDeliveryEventRequest{EventStart: &farPast, SortBy: "event_time"},
-				Expected: sortedByEventTimeDesc,
-			},
-			{
-				Name:     "event_time ASC (falls back to event_id)",
-				Request:  driver.ListDeliveryEventRequest{EventStart: &farPast, SortBy: "event_time", SortOrder: "asc"},
-				Expected: sortedByEventTimeAsc,
 			},
 		},
 	}
@@ -2265,23 +2235,6 @@ func testInvalidSortValues(t *testing.T, newHarness HarnessMaker) {
 
 	startTime := baseTime.Add(-48 * time.Hour)
 
-	t.Run("invalid SortBy uses default (delivery_time)", func(t *testing.T) {
-		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			SortBy:     "invalid_column",
-			EventStart: &startTime,
-			Limit:      10,
-		})
-		require.NoError(t, err)
-		require.Len(t, response.Data, 3)
-
-		// Should be sorted by delivery_time DESC (default)
-		// del_0 is most recent, del_2 is oldest
-		assert.Equal(t, "del_0", response.Data[0].Delivery.ID)
-		assert.Equal(t, "del_1", response.Data[1].Delivery.ID)
-		assert.Equal(t, "del_2", response.Data[2].Delivery.ID)
-	})
-
 	t.Run("invalid SortOrder uses default (desc)", func(t *testing.T) {
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
 			TenantID:   tenantID,
@@ -2295,18 +2248,6 @@ func testInvalidSortValues(t *testing.T, newHarness HarnessMaker) {
 		// Should be sorted DESC (default)
 		assert.Equal(t, "del_0", response.Data[0].Delivery.ID)
 		assert.Equal(t, "del_2", response.Data[2].Delivery.ID)
-	})
-
-	t.Run("empty SortBy uses default", func(t *testing.T) {
-		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			SortBy:     "",
-			EventStart: &startTime,
-			Limit:      10,
-		})
-		require.NoError(t, err)
-		require.Len(t, response.Data, 3)
-		assert.Equal(t, "del_0", response.Data[0].Delivery.ID)
 	})
 }
 
@@ -2815,9 +2756,6 @@ func extractDeliveryIDs(des []*models.DeliveryEvent) []string {
 func testCursorValidation(t *testing.T, newHarness HarnessMaker) {
 	t.Helper()
 
-	t.Run("cursor with mismatched sortBy returns error", func(t *testing.T) {
-		testCursorMismatchedSortBy(t, newHarness)
-	})
 	t.Run("cursor with mismatched sortOrder returns error", func(t *testing.T) {
 		testCursorMismatchedSortOrder(t, newHarness)
 	})
@@ -2827,73 +2765,6 @@ func testCursorValidation(t *testing.T, newHarness HarnessMaker) {
 	t.Run("cursor works with matching sort params", func(t *testing.T) {
 		testCursorMatchingSortParams(t, newHarness)
 	})
-}
-
-// testCursorMismatchedSortBy verifies that using a cursor generated with one
-// sortBy value with a different sortBy value returns ErrInvalidCursor.
-func testCursorMismatchedSortBy(t *testing.T, newHarness HarnessMaker) {
-	t.Helper()
-
-	ctx := context.Background()
-	h, err := newHarness(ctx, t)
-	require.NoError(t, err)
-	t.Cleanup(h.Close)
-
-	logStore, err := h.MakeDriver(ctx)
-	require.NoError(t, err)
-
-	tenantID := idgen.String()
-	destinationID := idgen.Destination()
-	baseTime := time.Now().Truncate(time.Second)
-	startTime := baseTime.Add(-48 * time.Hour)
-
-	// Insert enough data to get a next cursor
-	var deliveryEvents []*models.DeliveryEvent
-	for i := 0; i < 5; i++ {
-		event := testutil.EventFactory.AnyPointer(
-			testutil.EventFactory.WithID(fmt.Sprintf("evt_cursor_%d", i)),
-			testutil.EventFactory.WithTenantID(tenantID),
-			testutil.EventFactory.WithDestinationID(destinationID),
-			testutil.EventFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
-		)
-		delivery := testutil.DeliveryFactory.AnyPointer(
-			testutil.DeliveryFactory.WithID(fmt.Sprintf("del_cursor_%d", i)),
-			testutil.DeliveryFactory.WithEventID(event.ID),
-			testutil.DeliveryFactory.WithDestinationID(destinationID),
-			testutil.DeliveryFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
-		)
-		deliveryEvents = append(deliveryEvents, &models.DeliveryEvent{
-			ID:            fmt.Sprintf("de_cursor_%d", i),
-			DestinationID: destinationID,
-			Event:         *event,
-			Delivery:      delivery,
-		})
-	}
-	require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, deliveryEvents))
-
-	// Get a cursor with sortBy=delivery_time
-	response1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-		TenantID:   tenantID,
-		SortBy:     "delivery_time",
-		SortOrder:  "desc",
-		EventStart: &startTime,
-		Limit:      2,
-	})
-	require.NoError(t, err)
-	require.NotEmpty(t, response1.Next, "expected next cursor")
-
-	// Try to use the cursor with sortBy=event_time - should fail
-	_, err = logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-		TenantID:   tenantID,
-		SortBy:     "event_time", // Different from cursor
-		SortOrder:  "desc",
-		EventStart: &startTime,
-		Next:       response1.Next,
-		Limit:      2,
-	})
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, driver.ErrInvalidCursor),
-		"expected ErrInvalidCursor, got: %v", err)
 }
 
 // testCursorMismatchedSortOrder verifies that using a cursor generated with one
@@ -2941,7 +2812,6 @@ func testCursorMismatchedSortOrder(t *testing.T, newHarness HarnessMaker) {
 	// Get a cursor with sortOrder=desc
 	response1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
 		TenantID:   tenantID,
-		SortBy:     "delivery_time",
 		SortOrder:  "desc",
 		EventStart: &startTime,
 		Limit:      2,
@@ -2952,7 +2822,6 @@ func testCursorMismatchedSortOrder(t *testing.T, newHarness HarnessMaker) {
 	// Try to use the cursor with sortOrder=asc - should fail
 	_, err = logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
 		TenantID:   tenantID,
-		SortBy:     "delivery_time",
 		SortOrder:  "asc", // Different from cursor
 		EventStart: &startTime,
 		Next:       response1.Next,
@@ -2991,7 +2860,6 @@ func testMalformedCursor(t *testing.T, newHarness HarnessMaker) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
 				TenantID:   tenantID,
-				SortBy:     "delivery_time",
 				SortOrder:  "desc",
 				EventStart: &startTime,
 				Next:       tc.cursor,
@@ -3050,39 +2918,29 @@ func testCursorMatchingSortParams(t *testing.T, newHarness HarnessMaker) {
 	}
 	require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, deliveryEvents))
 
-	sortConfigs := []struct {
-		sortBy    string
-		sortOrder string
-	}{
-		{"delivery_time", "desc"},
-		{"delivery_time", "asc"},
-		{"event_time", "desc"},
-		{"event_time", "asc"},
-	}
+	sortOrders := []string{"desc", "asc"}
 
-	for _, sc := range sortConfigs {
-		t.Run(fmt.Sprintf("%s_%s", sc.sortBy, sc.sortOrder), func(t *testing.T) {
+	for _, sortOrder := range sortOrders {
+		t.Run(fmt.Sprintf("delivery_time_%s", sortOrder), func(t *testing.T) {
 			// Get first page with cursor
 			response1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
 				TenantID:   tenantID,
-				SortBy:     sc.sortBy,
-				SortOrder:  sc.sortOrder,
+				SortOrder:  sortOrder,
 				EventStart: &startTime,
 				Limit:      2,
 			})
 			require.NoError(t, err)
-			require.NotEmpty(t, response1.Next, "expected next cursor for %s %s", sc.sortBy, sc.sortOrder)
+			require.NotEmpty(t, response1.Next, "expected next cursor for delivery_time %s", sortOrder)
 
 			// Use cursor with same sort params - should succeed
 			response2, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
 				TenantID:   tenantID,
-				SortBy:     sc.sortBy,
-				SortOrder:  sc.sortOrder,
+				SortOrder:  sortOrder,
 				EventStart: &startTime,
 				Next:       response1.Next,
 				Limit:      2,
 			})
-			require.NoError(t, err, "cursor should work with matching sort params for %s %s", sc.sortBy, sc.sortOrder)
+			require.NoError(t, err, "cursor should work with matching sort params for delivery_time %s", sortOrder)
 			require.NotEmpty(t, response2.Data, "should return data for second page")
 
 			// Verify we got different data (not the same page)

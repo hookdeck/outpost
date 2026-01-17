@@ -234,15 +234,10 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 // It joins event_delivery_index with events and deliveries tables to return
 // complete DeliveryEvent records.
 //
-// Sorting uses multi-column ordering for deterministic pagination:
-// - delivery_time: ORDER BY delivery_time, delivery_id
-// - event_time: ORDER BY event_time, event_id, delivery_time
+// Sorting is by delivery_time with delivery_id as tiebreaker for deterministic pagination.
 func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliveryEventRequest) (driver.ListDeliveryEventResponse, error) {
-	// Validate and set defaults
-	sortBy := req.SortBy
-	if sortBy != "event_time" && sortBy != "delivery_time" {
-		sortBy = "delivery_time"
-	}
+	// Always sort by delivery_time
+	sortBy := "delivery_time"
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
@@ -259,57 +254,28 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 		return driver.ListDeliveryEventResponse{}, err
 	}
 
-	// Build the cursor column expression
-	// For event_time sort, we need a cursor that captures the full sort key
-	// since multiple deliveries for the same event share time_event_id.
-	// We concatenate time_event_id with time_delivery_id to ensure uniqueness.
+	// Cursor column for delivery_time sort
 	cursorCol := "time_delivery_id"
-	if sortBy == "event_time" {
-		// Composite cursor: time_event_id || '_' || time_delivery_id
-		// This ensures uniqueness while maintaining lexicographic sort order
-		cursorCol = "(time_event_id || '_' || time_delivery_id)"
-	}
 
 	// Determine if we're going backward (using prev cursor)
 	goingBackward := !prevCursor.IsEmpty()
 
-	// Build ORDER BY clause with tiebreakers for deterministic pagination
-	// When going backward, we flip the order in the query and reverse results after
-	// For event_time sort: ORDER BY event_time, event_id, delivery_time, delivery_id
-	// For delivery_time sort: ORDER BY delivery_time, delivery_id
+	// Build ORDER BY clause: ORDER BY delivery_time, delivery_id
 	var orderByClause, finalOrderByClause string
-	if sortBy == "event_time" {
-		if sortOrder == "desc" {
-			if goingBackward {
-				orderByClause = "event_time ASC, event_id ASC, delivery_time ASC, delivery_id ASC"
-			} else {
-				orderByClause = "event_time DESC, event_id DESC, delivery_time DESC, delivery_id DESC"
-			}
-			finalOrderByClause = "event_time DESC, event_id DESC, delivery_time DESC, delivery_id DESC"
+	if sortOrder == "desc" {
+		if goingBackward {
+			orderByClause = "delivery_time ASC, delivery_id ASC"
 		} else {
-			if goingBackward {
-				orderByClause = "event_time DESC, event_id DESC, delivery_time DESC, delivery_id DESC"
-			} else {
-				orderByClause = "event_time ASC, event_id ASC, delivery_time ASC, delivery_id ASC"
-			}
-			finalOrderByClause = "event_time ASC, event_id ASC, delivery_time ASC, delivery_id ASC"
+			orderByClause = "delivery_time DESC, delivery_id DESC"
 		}
+		finalOrderByClause = "delivery_time DESC, delivery_id DESC"
 	} else {
-		if sortOrder == "desc" {
-			if goingBackward {
-				orderByClause = "delivery_time ASC, delivery_id ASC"
-			} else {
-				orderByClause = "delivery_time DESC, delivery_id DESC"
-			}
-			finalOrderByClause = "delivery_time DESC, delivery_id DESC"
+		if goingBackward {
+			orderByClause = "delivery_time DESC, delivery_id DESC"
 		} else {
-			if goingBackward {
-				orderByClause = "delivery_time DESC, delivery_id DESC"
-			} else {
-				orderByClause = "delivery_time ASC, delivery_id ASC"
-			}
-			finalOrderByClause = "delivery_time ASC, delivery_id ASC"
+			orderByClause = "delivery_time ASC, delivery_id ASC"
 		}
+		finalOrderByClause = "delivery_time ASC, delivery_id ASC"
 	}
 
 	// Build cursor conditions - always include both conditions but use empty string check
@@ -495,13 +461,8 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 
 	var nextEncoded, prevEncoded string
 	if len(results) > 0 {
-		// Position value depends on sortBy
-		// Must match the cursorCol expression used in the query
+		// Position value is timeDeliveryID (matches cursorCol)
 		getPosition := func(r rowData) string {
-			if sortBy == "event_time" {
-				// Composite cursor matching the SQL expression
-				return r.timeEventID + "_" + r.timeDeliveryID
-			}
 			return r.timeDeliveryID
 		}
 
