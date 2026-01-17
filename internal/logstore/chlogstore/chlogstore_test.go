@@ -78,7 +78,7 @@ func (h *harness) FlushWrites(ctx context.Context) error {
 	if err := h.chDB.Exec(ctx, "OPTIMIZE TABLE events FINAL"); err != nil {
 		return err
 	}
-	return h.chDB.Exec(ctx, "OPTIMIZE TABLE event_log FINAL")
+	return h.chDB.Exec(ctx, "OPTIMIZE TABLE deliveries FINAL")
 }
 
 func (h *harness) MakeDriver(ctx context.Context) (driver.LogStore, error) {

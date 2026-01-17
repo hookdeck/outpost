@@ -93,6 +93,7 @@ type APIDelivery struct {
 	Code         string                 `json:"code,omitempty"`
 	ResponseData map[string]interface{} `json:"response_data,omitempty"`
 	Attempt      int                    `json:"attempt"`
+	Manual       bool                   `json:"manual"`
 
 	// Expandable fields - string (ID) or object depending on expand
 	Event       interface{} `json:"event"`
@@ -146,6 +147,7 @@ type ListEventsResponse struct {
 func toAPIDelivery(de *models.DeliveryEvent, opts IncludeOptions) APIDelivery {
 	api := APIDelivery{
 		Attempt:     de.Attempt,
+		Manual:      de.Manual,
 		Destination: de.DestinationID,
 	}
 

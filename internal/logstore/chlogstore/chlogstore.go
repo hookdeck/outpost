@@ -409,8 +409,10 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 			status,
 			delivery_time,
 			code,
-			response_data
-		FROM event_log
+			response_data,
+			manual,
+			attempt
+		FROM deliveries
 		WHERE %s
 		%s
 		LIMIT %d
@@ -445,6 +447,8 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 			deliveryTime     time.Time
 			code             string
 			responseDataStr  string
+			manual           bool
+			attempt          uint32
 		)
 
 		err := rows.Scan(
@@ -462,6 +466,8 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 			&deliveryTime,
 			&code,
 			&responseDataStr,
+			&manual,
+			&attempt,
 		)
 		if err != nil {
 			return driver.ListDeliveryEventResponse{}, fmt.Errorf("scan failed: %w", err)
@@ -491,6 +497,8 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 		de := &models.DeliveryEvent{
 			ID:            deliveryEventID,
 			DestinationID: destinationID,
+			Manual:        manual,
+			Attempt:       int(attempt),
 			Event: models.Event{
 				ID:               eventID,
 				TenantID:         tenantID,
@@ -611,7 +619,7 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 			event_time,
 			metadata,
 			data
-		FROM event_log
+		FROM deliveries
 		WHERE %s
 		LIMIT 1`, whereClause)
 
@@ -689,8 +697,10 @@ func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.Ret
 			status,
 			delivery_time,
 			code,
-			response_data
-		FROM event_log
+			response_data,
+			manual,
+			attempt
+		FROM deliveries
 		WHERE %s
 		LIMIT 1`, whereClause)
 
@@ -719,6 +729,8 @@ func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.Ret
 		deliveryTime     time.Time
 		code             string
 		responseDataStr  string
+		manual           bool
+		attempt          uint32
 	)
 
 	err = rows.Scan(
@@ -736,6 +748,8 @@ func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.Ret
 		&deliveryTime,
 		&code,
 		&responseDataStr,
+		&manual,
+		&attempt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan failed: %w", err)
@@ -765,6 +779,8 @@ func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.Ret
 	return &models.DeliveryEvent{
 		ID:            deliveryEventID,
 		DestinationID: destinationID,
+		Manual:        manual,
+		Attempt:       int(attempt),
 		Event: models.Event{
 			ID:               eventID,
 			TenantID:         tenantID,
@@ -830,15 +846,15 @@ func (s *logStoreImpl) InsertManyDeliveryEvent(ctx context.Context, deliveryEven
 		return fmt.Errorf("events batch send failed: %w", err)
 	}
 
-	// Write to event_log table (deliveries)
+	// Write to deliveries table
 	deliveryBatch, err := s.chDB.PrepareBatch(ctx,
-		`INSERT INTO event_log (
+		`INSERT INTO deliveries (
 			event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
-			delivery_id, delivery_event_id, status, delivery_time, code, response_data
+			delivery_id, delivery_event_id, status, delivery_time, code, response_data, manual, attempt
 		)`,
 	)
 	if err != nil {
-		return fmt.Errorf("prepare event_log batch failed: %w", err)
+		return fmt.Errorf("prepare deliveries batch failed: %w", err)
 	}
 
 	for _, de := range deliveryEvents {
@@ -887,13 +903,15 @@ func (s *logStoreImpl) InsertManyDeliveryEvent(ctx context.Context, deliveryEven
 			deliveryTime,
 			code,
 			string(responseDataJSON),
+			de.Manual,
+			uint32(de.Attempt),
 		); err != nil {
-			return fmt.Errorf("event_log batch append failed: %w", err)
+			return fmt.Errorf("deliveries batch append failed: %w", err)
 		}
 	}
 
 	if err := deliveryBatch.Send(); err != nil {
-		return fmt.Errorf("event_log batch send failed: %w", err)
+		return fmt.Errorf("deliveries batch send failed: %w", err)
 	}
 
 	return nil

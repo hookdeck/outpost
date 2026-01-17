@@ -1747,6 +1747,10 @@ components:
           type: integer
           description: The attempt number (1 for first attempt, 2+ for retries).
           example: 1
+        manual:
+          type: boolean
+          description: Whether this delivery was manually triggered (e.g., a retry initiated by a user).
+          example: false
         event:
           oneOf:
             - type: string
