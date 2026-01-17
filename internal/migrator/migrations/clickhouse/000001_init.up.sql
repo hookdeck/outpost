@@ -13,12 +13,12 @@ CREATE TABLE IF NOT EXISTS events (
     data String,          -- JSON serialized
 
     -- Indexes for filtering (bloom filters help skip granules)
-    INDEX idx_tenant_id tenant_id TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_destination_id destination_id TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_event_id event_id TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_topic topic TYPE bloom_filter GRANULARITY 4
+    INDEX idx_tenant_id tenant_id TYPE bloom_filter GRANULARITY 1,
+    INDEX idx_destination_id destination_id TYPE bloom_filter GRANULARITY 1,
+    INDEX idx_event_id event_id TYPE bloom_filter GRANULARITY 1,
+    INDEX idx_topic topic TYPE bloom_filter GRANULARITY 1
 ) ENGINE = ReplacingMergeTree
-PARTITION BY toYYYYMMDD(event_time)
+PARTITION BY toYYYYMM(event_time)
 ORDER BY (event_time, event_id);
 
 -- Deliveries table for delivery queries
@@ -47,12 +47,12 @@ CREATE TABLE IF NOT EXISTS deliveries (
     attempt UInt32 DEFAULT 0,
 
     -- Indexes for filtering (bloom filters help skip granules)
-    INDEX idx_tenant_id tenant_id TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_destination_id destination_id TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_event_id event_id TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_delivery_id delivery_id TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_topic topic TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_status status TYPE set(100) GRANULARITY 4
+    INDEX idx_tenant_id tenant_id TYPE bloom_filter GRANULARITY 1,
+    INDEX idx_destination_id destination_id TYPE bloom_filter GRANULARITY 1,
+    INDEX idx_event_id event_id TYPE bloom_filter GRANULARITY 1,
+    INDEX idx_delivery_id delivery_id TYPE bloom_filter GRANULARITY 1,
+    INDEX idx_topic topic TYPE bloom_filter GRANULARITY 1,
+    INDEX idx_status status TYPE set(100) GRANULARITY 1
 ) ENGINE = ReplacingMergeTree
-PARTITION BY toYYYYMMDD(delivery_time)
+PARTITION BY toYYYYMM(delivery_time)
 ORDER BY (delivery_time, delivery_id);
