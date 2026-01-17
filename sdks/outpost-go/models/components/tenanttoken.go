@@ -5,11 +5,20 @@ package components
 type TenantToken struct {
 	// JWT token scoped to the tenant for safe browser API calls.
 	Token *string `json:"token,omitempty"`
+	// The ID of the tenant this token is scoped to.
+	TenantID *string `json:"tenant_id,omitempty"`
 }
 
-func (o *TenantToken) GetToken() *string {
-	if o == nil {
+func (t *TenantToken) GetToken() *string {
+	if t == nil {
 		return nil
 	}
-	return o.Token
+	return t.Token
+}
+
+func (t *TenantToken) GetTenantID() *string {
+	if t == nil {
+		return nil
+	}
+	return t.TenantID
 }

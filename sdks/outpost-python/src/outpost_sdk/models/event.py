@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from datetime import datetime
+from enum import Enum
 from outpost_sdk.types import (
     BaseModel,
     Nullable,
@@ -14,6 +15,11 @@ from typing import Any, Dict, Optional
 from typing_extensions import NotRequired, TypedDict
 
 
+class EventStatus(str, Enum):
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
 class EventTypedDict(TypedDict):
     id: NotRequired[str]
     destination_id: NotRequired[str]
@@ -22,8 +28,9 @@ class EventTypedDict(TypedDict):
     r"""Time the event was received/processed."""
     successful_at: NotRequired[Nullable[datetime]]
     r"""Time the event was successfully delivered."""
-    metadata: NotRequired[Dict[str, str]]
+    metadata: NotRequired[Nullable[Dict[str, str]]]
     r"""Key-value string pairs of metadata associated with the event."""
+    status: NotRequired[EventStatus]
     data: NotRequired[Dict[str, Any]]
     r"""Freeform JSON data of the event."""
 
@@ -41,46 +48,46 @@ class Event(BaseModel):
     successful_at: OptionalNullable[datetime] = UNSET
     r"""Time the event was successfully delivered."""
 
-    metadata: Optional[Dict[str, str]] = None
+    metadata: OptionalNullable[Dict[str, str]] = UNSET
     r"""Key-value string pairs of metadata associated with the event."""
+
+    status: Optional[EventStatus] = None
 
     data: Optional[Dict[str, Any]] = None
     r"""Freeform JSON data of the event."""
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
-        optional_fields = [
-            "id",
-            "destination_id",
-            "topic",
-            "time",
-            "successful_at",
-            "metadata",
-            "data",
-        ]
-        nullable_fields = ["successful_at"]
-        null_default_fields = []
-
+        optional_fields = set(
+            [
+                "id",
+                "destination_id",
+                "topic",
+                "time",
+                "successful_at",
+                "metadata",
+                "status",
+                "data",
+            ]
+        )
+        nullable_fields = set(["successful_at", "metadata"])
         serialized = handler(self)
-
         m = {}
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
             val = serialized.get(k)
-            serialized.pop(k, None)
+            is_nullable_and_explicitly_set = (
+                k in nullable_fields
+                and (self.__pydantic_fields_set__.intersection({n}))  # pylint: disable=no-member
+            )
 
-            optional_nullable = k in optional_fields and k in nullable_fields
-            is_set = (
-                self.__pydantic_fields_set__.intersection({n})
-                or k in null_default_fields
-            )  # pylint: disable=no-member
-
-            if val is not None and val != UNSET_SENTINEL:
-                m[k] = val
-            elif val != UNSET_SENTINEL and (
-                not k in optional_fields or (optional_nullable and is_set)
-            ):
-                m[k] = val
+            if val != UNSET_SENTINEL:
+                if (
+                    val is not None
+                    or k not in optional_fields
+                    or is_nullable_and_explicitly_set
+                ):
+                    m[k] = val
 
         return m

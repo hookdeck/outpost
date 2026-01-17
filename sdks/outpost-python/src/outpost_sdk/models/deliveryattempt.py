@@ -3,19 +3,20 @@
 from __future__ import annotations
 from datetime import datetime
 from enum import Enum
-from outpost_sdk.types import BaseModel
+from outpost_sdk.types import BaseModel, UNSET_SENTINEL
+from pydantic import model_serializer
 from typing import Dict, Optional
 from typing_extensions import NotRequired, TypedDict
 
 
-class Status(str, Enum):
+class DeliveryAttemptStatus(str, Enum):
     SUCCESS = "success"
     FAILED = "failed"
 
 
 class DeliveryAttemptTypedDict(TypedDict):
     delivered_at: NotRequired[datetime]
-    status: NotRequired[Status]
+    status: NotRequired[DeliveryAttemptStatus]
     response_status_code: NotRequired[int]
     response_body: NotRequired[str]
     response_headers: NotRequired[Dict[str, str]]
@@ -24,10 +25,34 @@ class DeliveryAttemptTypedDict(TypedDict):
 class DeliveryAttempt(BaseModel):
     delivered_at: Optional[datetime] = None
 
-    status: Optional[Status] = None
+    status: Optional[DeliveryAttemptStatus] = None
 
     response_status_code: Optional[int] = None
 
     response_body: Optional[str] = None
 
     response_headers: Optional[Dict[str, str]] = None
+
+    @model_serializer(mode="wrap")
+    def serialize_model(self, handler):
+        optional_fields = set(
+            [
+                "delivered_at",
+                "status",
+                "response_status_code",
+                "response_body",
+                "response_headers",
+            ]
+        )
+        serialized = handler(self)
+        m = {}
+
+        for n, f in type(self).model_fields.items():
+            k = f.alias or n
+            val = serialized.get(k)
+
+            if val != UNSET_SENTINEL:
+                if val is not None or k not in optional_fields:
+                    m[k] = val
+
+        return m

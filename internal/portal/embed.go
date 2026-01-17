@@ -36,6 +36,7 @@ func AddRoutes(router *gin.Engine, config PortalConfig) {
 		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 		c.Header("Pragma", "no-cache")
 		c.Header("Expires", "0")
+		c.Header("Content-Type", "application/javascript")
 		c.String(http.StatusOK, "window.PORTAL_CONFIGS = "+createJSONFromConfigs(config.Configs)+";")
 	})
 

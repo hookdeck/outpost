@@ -23,9 +23,61 @@ actions:
     x-speakeasy-metadata:
       type: field-name-override
       description: "Rename 'prev' to 'prev_cursor' for consistency"
+
+  # Fix 'next' query parameter in /tenants endpoint (index 2: limit=0, order=1, next=2, prev=3)
+  - target: $["paths"]["/tenants"]["get"]["parameters"][2]
+    update:
+      x-speakeasy-name-override: "next_cursor"
+    x-speakeasy-metadata:
+      type: parameter-name-override
+      description: "Rename 'next' query parameter to 'next_cursor' to avoid Python built-in conflict"
+
+  # Fix 'prev' query parameter in /tenants endpoint
+  - target: $["paths"]["/tenants"]["get"]["parameters"][3]
+    update:
+      x-speakeasy-name-override: "prev_cursor"
+    x-speakeasy-metadata:
+      type: parameter-name-override
+      description: "Rename 'prev' query parameter to 'prev_cursor' for consistency"
+
+  # Fix 'next' query parameter in /tenants/{tenant_id}/events endpoint
+  # Parameters: destination_id=0, status=1, next=2, prev=3, limit=4, start=5, end=6
+  - target: $["paths"]["/tenants/{tenant_id}/events"]["get"]["parameters"][2]
+    update:
+      x-speakeasy-name-override: "next_cursor"
+    x-speakeasy-metadata:
+      type: parameter-name-override
+      description: "Rename 'next' query parameter to 'next_cursor' to avoid Python built-in conflict"
+
+  # Fix 'prev' query parameter in /tenants/{tenant_id}/events endpoint
+  - target: $["paths"]["/tenants/{tenant_id}/events"]["get"]["parameters"][3]
+    update:
+      x-speakeasy-name-override: "prev_cursor"
+    x-speakeasy-metadata:
+      type: parameter-name-override
+      description: "Rename 'prev' query parameter to 'prev_cursor' for consistency"
+
+  # Fix 'next' query parameter in /tenants/{tenant_id}/destinations/{destination_id}/events endpoint
+  # Parameters: status=0, next=1, prev=2, limit=3, start=4, end=5
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/events"]["get"]["parameters"][1]
+    update:
+      x-speakeasy-name-override: "next_cursor"
+    x-speakeasy-metadata:
+      type: parameter-name-override
+      description: "Rename 'next' query parameter to 'next_cursor' to avoid Python built-in conflict"
+
+  # Fix 'prev' query parameter in /tenants/{tenant_id}/destinations/{destination_id}/events endpoint
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/events"]["get"]["parameters"][2]
+    update:
+      x-speakeasy-name-override: "prev_cursor"
+    x-speakeasy-metadata:
+      type: parameter-name-override
+      description: "Rename 'prev' query parameter to 'prev_cursor' for consistency"
       
   # Add pagination configuration for events endpoint
-  - target: $["paths"]["/{tenant_id}/events"]["get"]
+  # Note: The pagination config references the original parameter name 'next' (not 'next_cursor')
+  # because x-speakeasy-name-override only affects generated code, not the OpenAPI spec
+  - target: $["paths"]["/tenants/{tenant_id}/events"]["get"]
     update:
       x-speakeasy-pagination:
         type: cursor
@@ -43,8 +95,10 @@ actions:
       type: pagination-config
       description: "Configure cursor-based pagination for events listing"
       
-  # Add pagination configuration for destination events endpoint  
-  - target: $["paths"]["/{tenant_id}/destinations/{destination_id}/events"]["get"]
+  # Add pagination configuration for destination events endpoint
+  # Note: The pagination config references the original parameter name 'next' (not 'next_cursor')
+  # because x-speakeasy-name-override only affects generated code, not the OpenAPI spec
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/events"]["get"]
     update:
       x-speakeasy-pagination:
         type: cursor

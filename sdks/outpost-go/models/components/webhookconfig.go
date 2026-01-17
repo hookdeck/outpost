@@ -9,6 +9,8 @@ import (
 type WebhookConfig struct {
 	// The URL to send the webhook events to.
 	URL string `json:"url"`
+	// JSON string of custom HTTP headers to include with every webhook request. Header names must be valid HTTP header tokens (alphanumeric, hyphens, underscores). Reserved headers (Content-Type, Host, etc.) cannot be overridden.
+	CustomHeaders *string `json:"custom_headers,omitempty"`
 }
 
 func (w WebhookConfig) MarshalJSON() ([]byte, error) {
@@ -22,9 +24,16 @@ func (w *WebhookConfig) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *WebhookConfig) GetURL() string {
-	if o == nil {
+func (w *WebhookConfig) GetURL() string {
+	if w == nil {
 		return ""
 	}
-	return o.URL
+	return w.URL
+}
+
+func (w *WebhookConfig) GetCustomHeaders() *string {
+	if w == nil {
+		return nil
+	}
+	return w.CustomHeaders
 }

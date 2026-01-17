@@ -28,30 +28,30 @@ func (a *Awss3Config) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *Awss3Config) GetBucket() string {
-	if o == nil {
+func (a *Awss3Config) GetBucket() string {
+	if a == nil {
 		return ""
 	}
-	return o.Bucket
+	return a.Bucket
 }
 
-func (o *Awss3Config) GetRegion() string {
-	if o == nil {
+func (a *Awss3Config) GetRegion() string {
+	if a == nil {
 		return ""
 	}
-	return o.Region
+	return a.Region
 }
 
-func (o *Awss3Config) GetKeyTemplate() *string {
-	if o == nil {
+func (a *Awss3Config) GetKeyTemplate() *string {
+	if a == nil {
 		return nil
 	}
-	return o.KeyTemplate
+	return a.KeyTemplate
 }
 
-func (o *Awss3Config) GetStorageClass() *string {
-	if o == nil {
+func (a *Awss3Config) GetStorageClass() *string {
+	if a == nil {
 		return nil
 	}
-	return o.StorageClass
+	return a.StorageClass
 }

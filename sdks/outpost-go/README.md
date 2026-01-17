@@ -66,7 +66,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Res != nil {
+	if res.Object != nil {
 		// handle response
 	}
 }
@@ -102,7 +102,7 @@ func main() {
 
 	s := outpostgo.New(
 		outpostgo.WithSecurity(components.Security{
-			AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+			AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
 		}),
 	)
 
@@ -110,7 +110,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Res != nil {
+	if res.Object != nil {
 		// handle response
 	}
 }
@@ -147,7 +147,6 @@ func main() {
 
 * [Check](docs/sdks/health/README.md#check) - Health Check
 
-
 ### [Publish](docs/sdks/publish/README.md)
 
 * [Event](docs/sdks/publish/README.md#event) - Publish Event
@@ -161,6 +160,7 @@ func main() {
 
 ### [Tenants](docs/sdks/tenants/README.md)
 
+* [ListTenants](docs/sdks/tenants/README.md#listtenants) - List Tenants
 * [Upsert](docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
 * [Get](docs/sdks/tenants/README.md#get) - Get Tenant
 * [Delete](docs/sdks/tenants/README.md#delete) - Delete Tenant
@@ -209,11 +209,11 @@ func main() {
 	s := outpostgo.New(
 		outpostgo.WithTenantID("<id>"),
 		outpostgo.WithSecurity(components.Security{
-			AdminAPIKey: outpostgo.String("<YOUR_BEARER_TOKEN_HERE>"),
+			AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
 		}),
 	)
 
-	res, err := s.Tenants.Upsert(ctx)
+	res, err := s.Tenants.Upsert(ctx, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Res != nil {
+	if res.Object != nil {
 		// handle response
 	}
 }
@@ -300,7 +300,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Res != nil {
+	if res.Object != nil {
 		// handle response
 	}
 }
@@ -449,7 +449,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Res != nil {
+	if res.Object != nil {
 		// handle response
 	}
 }

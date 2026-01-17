@@ -7,16 +7,16 @@ type Security struct {
 	TenantJwt   *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
 }
 
-func (o *Security) GetAdminAPIKey() *string {
-	if o == nil {
+func (s *Security) GetAdminAPIKey() *string {
+	if s == nil {
 		return nil
 	}
-	return o.AdminAPIKey
+	return s.AdminAPIKey
 }
 
-func (o *Security) GetTenantJwt() *string {
-	if o == nil {
+func (s *Security) GetTenantJwt() *string {
+	if s == nil {
 		return nil
 	}
-	return o.TenantJwt
+	return s.TenantJwt
 }

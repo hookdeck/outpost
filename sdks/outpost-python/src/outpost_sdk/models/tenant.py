@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 from datetime import datetime
-from outpost_sdk.types import BaseModel
-from typing import List, Optional
+from outpost_sdk.types import (
+    BaseModel,
+    Nullable,
+    OptionalNullable,
+    UNSET,
+    UNSET_SENTINEL,
+)
+from pydantic import model_serializer
+from typing import Dict, List, Optional
 from typing_extensions import NotRequired, TypedDict
 
 
@@ -14,8 +21,12 @@ class TenantTypedDict(TypedDict):
     r"""Number of destinations associated with the tenant."""
     topics: NotRequired[List[str]]
     r"""List of subscribed topics across all destinations for this tenant."""
+    metadata: NotRequired[Nullable[Dict[str, str]]]
+    r"""Arbitrary key-value pairs for storing contextual information about the tenant."""
     created_at: NotRequired[datetime]
     r"""ISO Date when the tenant was created."""
+    updated_at: NotRequired[datetime]
+    r"""ISO Date when the tenant was last updated."""
 
 
 class Tenant(BaseModel):
@@ -28,5 +39,45 @@ class Tenant(BaseModel):
     topics: Optional[List[str]] = None
     r"""List of subscribed topics across all destinations for this tenant."""
 
+    metadata: OptionalNullable[Dict[str, str]] = UNSET
+    r"""Arbitrary key-value pairs for storing contextual information about the tenant."""
+
     created_at: Optional[datetime] = None
     r"""ISO Date when the tenant was created."""
+
+    updated_at: Optional[datetime] = None
+    r"""ISO Date when the tenant was last updated."""
+
+    @model_serializer(mode="wrap")
+    def serialize_model(self, handler):
+        optional_fields = set(
+            [
+                "id",
+                "destinations_count",
+                "topics",
+                "metadata",
+                "created_at",
+                "updated_at",
+            ]
+        )
+        nullable_fields = set(["metadata"])
+        serialized = handler(self)
+        m = {}
+
+        for n, f in type(self).model_fields.items():
+            k = f.alias or n
+            val = serialized.get(k)
+            is_nullable_and_explicitly_set = (
+                k in nullable_fields
+                and (self.__pydantic_fields_set__.intersection({n}))  # pylint: disable=no-member
+            )
+
+            if val != UNSET_SENTINEL:
+                if (
+                    val is not None
+                    or k not in optional_fields
+                    or is_nullable_and_explicitly_set
+                ):
+                    m[k] = val
+
+        return m

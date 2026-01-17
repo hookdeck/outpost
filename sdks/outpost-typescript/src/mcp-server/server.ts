@@ -36,6 +36,7 @@ import { tool$tenantsDelete } from "./tools/tenantsDelete.js";
 import { tool$tenantsGet } from "./tools/tenantsGet.js";
 import { tool$tenantsGetPortalUrl } from "./tools/tenantsGetPortalUrl.js";
 import { tool$tenantsGetToken } from "./tools/tenantsGetToken.js";
+import { tool$tenantsListTenants } from "./tools/tenantsListTenants.js";
 import { tool$tenantsUpsert } from "./tools/tenantsUpsert.js";
 import { tool$topicsList } from "./tools/topicsList.js";
 import { tool$topicsListJwt } from "./tools/topicsListJwt.js";
@@ -51,7 +52,7 @@ export function createMCPServer(deps: {
 }) {
   const server = new McpServer({
     name: "Outpost",
-    version: "0.5.0",
+    version: "0.6.0",
   });
 
   const client = new OutpostCore({
@@ -83,6 +84,7 @@ export function createMCPServer(deps: {
   void register; // suppress unused warnings
 
   tool(tool$healthCheck);
+  tool(tool$tenantsListTenants);
   tool(tool$tenantsUpsert);
   tool(tool$tenantsGet);
   tool(tool$tenantsDelete);

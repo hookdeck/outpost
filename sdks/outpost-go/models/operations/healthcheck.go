@@ -3,25 +3,126 @@
 package operations
 
 import (
+	"encoding/json"
+	"fmt"
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	"time"
 )
+
+type HealthCheckStatus1 string
+
+const (
+	HealthCheckStatus1Healthy HealthCheckStatus1 = "healthy"
+)
+
+func (e HealthCheckStatus1) ToPointer() *HealthCheckStatus1 {
+	return &e
+}
+func (e *HealthCheckStatus1) UnmarshalJSON(data []byte) error {
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch v {
+	case "healthy":
+		*e = HealthCheckStatus1(v)
+		return nil
+	default:
+		return fmt.Errorf("invalid value for HealthCheckStatus1: %v", v)
+	}
+}
+
+type HealthCheckStatus2 string
+
+const (
+	HealthCheckStatus2Healthy HealthCheckStatus2 = "healthy"
+)
+
+func (e HealthCheckStatus2) ToPointer() *HealthCheckStatus2 {
+	return &e
+}
+func (e *HealthCheckStatus2) UnmarshalJSON(data []byte) error {
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch v {
+	case "healthy":
+		*e = HealthCheckStatus2(v)
+		return nil
+	default:
+		return fmt.Errorf("invalid value for HealthCheckStatus2: %v", v)
+	}
+}
+
+type Workers struct {
+	Status HealthCheckStatus2 `json:"status"`
+}
+
+func (w *Workers) GetStatus() HealthCheckStatus2 {
+	if w == nil {
+		return HealthCheckStatus2("")
+	}
+	return w.Status
+}
+
+// HealthCheckResponseBody - Service is healthy - all workers are operational.
+type HealthCheckResponseBody struct {
+	Status HealthCheckStatus1 `json:"status"`
+	// When this health check was performed
+	Timestamp time.Time          `json:"timestamp"`
+	Workers   map[string]Workers `json:"workers"`
+}
+
+func (h HealthCheckResponseBody) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(h, "", false)
+}
+
+func (h *HealthCheckResponseBody) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &h, "", false, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (h *HealthCheckResponseBody) GetStatus() HealthCheckStatus1 {
+	if h == nil {
+		return HealthCheckStatus1("")
+	}
+	return h.Status
+}
+
+func (h *HealthCheckResponseBody) GetTimestamp() time.Time {
+	if h == nil {
+		return time.Time{}
+	}
+	return h.Timestamp
+}
+
+func (h *HealthCheckResponseBody) GetWorkers() map[string]Workers {
+	if h == nil {
+		return map[string]Workers{}
+	}
+	return h.Workers
+}
 
 type HealthCheckResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
-	// Service is healthy.
-	Res *string
+	// Service is healthy - all workers are operational.
+	Object *HealthCheckResponseBody
 }
 
-func (o *HealthCheckResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (h *HealthCheckResponse) GetHTTPMeta() components.HTTPMetadata {
+	if h == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return h.HTTPMeta
 }
 
-func (o *HealthCheckResponse) GetRes() *string {
-	if o == nil {
+func (h *HealthCheckResponse) GetObject() *HealthCheckResponseBody {
+	if h == nil {
 		return nil
 	}
-	return o.Res
+	return h.Object
 }

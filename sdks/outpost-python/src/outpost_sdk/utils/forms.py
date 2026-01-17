@@ -142,16 +142,21 @@ def serialize_multipart_form(
         if field_metadata.file:
             if isinstance(val, List):
                 # Handle array of files
+                array_field_name = f_name + "[]"
                 for file_obj in val:
                     if not _is_set(file_obj):
                         continue
-                        
-                    file_name, content, content_type = _extract_file_properties(file_obj)
+
+                    file_name, content, content_type = _extract_file_properties(
+                        file_obj
+                    )
 
                     if content_type is not None:
-                        files.append((f_name + "[]", (file_name, content, content_type)))
+                        files.append(
+                            (array_field_name, (file_name, content, content_type))
+                        )
                     else:
-                        files.append((f_name + "[]", (file_name, content)))
+                        files.append((array_field_name, (file_name, content)))
             else:
                 # Handle single file
                 file_name, content, content_type = _extract_file_properties(val)
@@ -161,11 +166,16 @@ def serialize_multipart_form(
                 else:
                     files.append((f_name, (file_name, content)))
         elif field_metadata.json:
-            files.append((f_name, (
-                None,
-                marshal_json(val, request_field_types[name]),
-                "application/json",
-            )))
+            files.append(
+                (
+                    f_name,
+                    (
+                        None,
+                        marshal_json(val, request_field_types[name]),
+                        "application/json",
+                    ),
+                )
+            )
         else:
             if isinstance(val, List):
                 values = []
@@ -175,7 +185,8 @@ def serialize_multipart_form(
                         continue
                     values.append(_val_to_string(value))
 
-                form[f_name + "[]"] = values
+                array_field_name = f_name + "[]"
+                form[array_field_name] = values
             else:
                 form[f_name] = _val_to_string(val)
     return media_type, form, files

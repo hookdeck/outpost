@@ -10,11 +10,11 @@ type DeleteTenantGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *DeleteTenantGlobals) GetTenantID() *string {
-	if o == nil {
+func (d *DeleteTenantGlobals) GetTenantID() *string {
+	if d == nil {
 		return nil
 	}
-	return o.TenantID
+	return d.TenantID
 }
 
 type DeleteTenantRequest struct {
@@ -22,11 +22,11 @@ type DeleteTenantRequest struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *DeleteTenantRequest) GetTenantID() *string {
-	if o == nil {
+func (d *DeleteTenantRequest) GetTenantID() *string {
+	if d == nil {
 		return nil
 	}
-	return o.TenantID
+	return d.TenantID
 }
 
 type DeleteTenantResponse struct {
@@ -35,16 +35,16 @@ type DeleteTenantResponse struct {
 	SuccessResponse *components.SuccessResponse
 }
 
-func (o *DeleteTenantResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (d *DeleteTenantResponse) GetHTTPMeta() components.HTTPMetadata {
+	if d == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return d.HTTPMeta
 }
 
-func (o *DeleteTenantResponse) GetSuccessResponse() *components.SuccessResponse {
-	if o == nil {
+func (d *DeleteTenantResponse) GetSuccessResponse() *components.SuccessResponse {
+	if d == nil {
 		return nil
 	}
-	return o.SuccessResponse
+	return d.SuccessResponse
 }

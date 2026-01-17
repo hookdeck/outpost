@@ -4,22 +4,91 @@ from __future__ import annotations
 from .awskinesisconfig import AWSKinesisConfig, AWSKinesisConfigTypedDict
 from .awskinesiscredentials import AWSKinesisCredentials, AWSKinesisCredentialsTypedDict
 from .topics_union import TopicsUnion, TopicsUnionTypedDict
-from outpost_sdk.types import BaseModel
-from typing import Optional
-from typing_extensions import NotRequired, TypedDict
+from outpost_sdk.types import (
+    BaseModel,
+    Nullable,
+    OptionalNullable,
+    UNSET,
+    UNSET_SENTINEL,
+)
+import pydantic
+from pydantic import model_serializer
+from typing import Any, Dict, Optional
+from typing_extensions import Annotated, NotRequired, TypedDict
 
 
 class DestinationUpdateAWSKinesisTypedDict(TypedDict):
     topics: NotRequired[TopicsUnionTypedDict]
     r"""\"*\" or an array of enabled topics."""
+    filter_: NotRequired[Nullable[Dict[str, Any]]]
+    r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+    Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+    If null or empty, all events matching the topic filter will be delivered.
+    To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+
+    """
     config: NotRequired[AWSKinesisConfigTypedDict]
     credentials: NotRequired[AWSKinesisCredentialsTypedDict]
+    delivery_metadata: NotRequired[Nullable[Dict[str, str]]]
+    r"""Static key-value pairs merged into event metadata on every delivery."""
+    metadata: NotRequired[Nullable[Dict[str, str]]]
+    r"""Arbitrary contextual information stored with the destination."""
 
 
 class DestinationUpdateAWSKinesis(BaseModel):
     topics: Optional[TopicsUnion] = None
     r"""\"*\" or an array of enabled topics."""
 
+    filter_: Annotated[
+        OptionalNullable[Dict[str, Any]], pydantic.Field(alias="filter")
+    ] = UNSET
+    r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+    Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+    If null or empty, all events matching the topic filter will be delivered.
+    To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+
+    """
+
     config: Optional[AWSKinesisConfig] = None
 
     credentials: Optional[AWSKinesisCredentials] = None
+
+    delivery_metadata: OptionalNullable[Dict[str, str]] = UNSET
+    r"""Static key-value pairs merged into event metadata on every delivery."""
+
+    metadata: OptionalNullable[Dict[str, str]] = UNSET
+    r"""Arbitrary contextual information stored with the destination."""
+
+    @model_serializer(mode="wrap")
+    def serialize_model(self, handler):
+        optional_fields = set(
+            [
+                "topics",
+                "filter",
+                "config",
+                "credentials",
+                "delivery_metadata",
+                "metadata",
+            ]
+        )
+        nullable_fields = set(["filter", "delivery_metadata", "metadata"])
+        serialized = handler(self)
+        m = {}
+
+        for n, f in type(self).model_fields.items():
+            k = f.alias or n
+            val = serialized.get(k)
+            is_nullable_and_explicitly_set = (
+                k in nullable_fields
+                and (self.__pydantic_fields_set__.intersection({n}))  # pylint: disable=no-member
+            )
+
+            if val != UNSET_SENTINEL:
+                if (
+                    val is not None
+                    or k not in optional_fields
+                    or is_nullable_and_explicitly_set
+                ):
+                    m[k] = val
+
+        return m

@@ -8,6 +8,7 @@ from .destinationazureservicebus import (
     DestinationAzureServiceBus,
     DestinationAzureServiceBusTypedDict,
 )
+from .destinationgcppubsub import DestinationGCPPubSub, DestinationGCPPubSubTypedDict
 from .destinationhookdeck import DestinationHookdeck, DestinationHookdeckTypedDict
 from .destinationrabbitmq import DestinationRabbitMQ, DestinationRabbitMQTypedDict
 from .destinationwebhook import DestinationWebhook, DestinationWebhookTypedDict
@@ -27,6 +28,7 @@ DestinationTypedDict = TypeAliasType(
         DestinationAWSKinesisTypedDict,
         DestinationAzureServiceBusTypedDict,
         DestinationAwss3TypedDict,
+        DestinationGCPPubSubTypedDict,
     ],
 )
 
@@ -40,6 +42,7 @@ Destination = Annotated[
         Annotated[DestinationAWSKinesis, Tag("aws_kinesis")],
         Annotated[DestinationAzureServiceBus, Tag("azure_servicebus")],
         Annotated[DestinationAwss3, Tag("aws_s3")],
+        Annotated[DestinationGCPPubSub, Tag("gcp_pubsub")],
     ],
     Discriminator(lambda m: get_discriminator(m, "type", "type")),
 ]

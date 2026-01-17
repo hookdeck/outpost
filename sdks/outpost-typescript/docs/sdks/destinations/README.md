@@ -1,5 +1,4 @@
 # Destinations
-(*destinations*)
 
 ## Overview
 
@@ -44,7 +43,7 @@ Return a list of the destinations for the tenant. The endpoint is not paged.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="listTenantDestinations" method="get" path="/{tenant_id}/destinations" -->
+<!-- UsageSnippet language="typescript" operationID="listTenantDestinations" method="get" path="/tenants/{tenant_id}/destinations" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -56,7 +55,9 @@ const outpost = new Outpost({
 });
 
 async function run() {
-  const result = await outpost.destinations.list({});
+  const result = await outpost.destinations.list({
+    type: "webhook",
+  });
 
   console.log(result);
 }
@@ -82,7 +83,9 @@ const outpost = new OutpostCore({
 });
 
 async function run() {
-  const res = await destinationsList(outpost, {});
+  const res = await destinationsList(outpost, {
+    type: "webhook",
+  });
   if (res.ok) {
     const { value: result } = res;
     console.log(result);
@@ -109,18 +112,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## create
 
@@ -128,7 +122,7 @@ Creates a new destination for the tenant. The request body structure depends on 
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="createTenantDestination" method="post" path="/{tenant_id}/destinations" -->
+<!-- UsageSnippet language="typescript" operationID="createTenantDestination" method="post" path="/tenants/{tenant_id}/destinations" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -141,7 +135,7 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.destinations.create({
-    destinationCreate: {
+    params: {
       id: "user-provided-id",
       type: "rabbitmq",
       topics: "*",
@@ -182,7 +176,7 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await destinationsCreate(outpost, {
-    destinationCreate: {
+    params: {
       id: "user-provided-id",
       type: "rabbitmq",
       topics: "*",
@@ -223,18 +217,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 413, 414, 415, 422, 431      | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## get
 
@@ -242,7 +227,7 @@ Retrieves details for a specific destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="getTenantDestination" method="get" path="/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="typescript" operationID="getTenantDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -311,18 +296,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## update
 
@@ -330,7 +306,7 @@ Updates the configuration of an existing destination. The request body structure
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="updateTenantDestination" method="patch" path="/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="typescript" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -344,7 +320,7 @@ const outpost = new Outpost({
 async function run() {
   const result = await outpost.destinations.update({
     destinationId: "<id>",
-    destinationUpdate: {
+    params: {
       topics: "*",
       config: {
         serverUrl: "localhost:5672",
@@ -384,7 +360,7 @@ const outpost = new OutpostCore({
 async function run() {
   const res = await destinationsUpdate(outpost, {
     destinationId: "<id>",
-    destinationUpdate: {
+    params: {
       topics: "*",
       config: {
         serverUrl: "localhost:5672",
@@ -423,18 +399,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 413, 414, 415, 422, 431      | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## delete
 
@@ -442,7 +409,7 @@ Deletes a specific destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="deleteTenantDestination" method="delete" path="/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="typescript" operationID="deleteTenantDestination" method="delete" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -511,18 +478,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## enable
 
@@ -530,7 +488,7 @@ Enables a previously disabled destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="enableTenantDestination" method="put" path="/{tenant_id}/destinations/{destination_id}/enable" -->
+<!-- UsageSnippet language="typescript" operationID="enableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/enable" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -599,18 +557,9 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## disable
 
@@ -618,7 +567,7 @@ Disables a previously enabled destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="disableTenantDestination" method="put" path="/{tenant_id}/destinations/{destination_id}/disable" -->
+<!-- UsageSnippet language="typescript" operationID="disableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/disable" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -687,15 +636,6 @@ run();
 
 ### Errors
 
-| Error Type                   | Status Code                  | Content Type                 |
-| ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
-| errors.TimeoutError          | 408                          | application/json             |
-| errors.RateLimitedError      | 429                          | application/json             |
-| errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
-| errors.TimeoutError          | 504                          | application/json             |
-| errors.NotFoundError         | 501, 505                     | application/json             |
-| errors.InternalServerError   | 500, 502, 503, 506, 507, 508 | application/json             |
-| errors.BadRequestError       | 510                          | application/json             |
-| errors.UnauthorizedError     | 511                          | application/json             |
-| errors.APIError              | 4XX, 5XX                     | \*/\*                        |
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |

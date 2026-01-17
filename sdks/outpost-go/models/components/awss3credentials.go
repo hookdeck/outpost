@@ -26,23 +26,23 @@ func (a *Awss3Credentials) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *Awss3Credentials) GetKey() string {
-	if o == nil {
+func (a *Awss3Credentials) GetKey() string {
+	if a == nil {
 		return ""
 	}
-	return o.Key
+	return a.Key
 }
 
-func (o *Awss3Credentials) GetSecret() string {
-	if o == nil {
+func (a *Awss3Credentials) GetSecret() string {
+	if a == nil {
 		return ""
 	}
-	return o.Secret
+	return a.Secret
 }
 
-func (o *Awss3Credentials) GetSession() *string {
-	if o == nil {
+func (a *Awss3Credentials) GetSession() *string {
+	if a == nil {
 		return nil
 	}
-	return o.Session
+	return a.Session
 }

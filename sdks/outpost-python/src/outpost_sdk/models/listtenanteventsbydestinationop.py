@@ -4,9 +4,10 @@ from __future__ import annotations
 from .event import Event, EventTypedDict
 from datetime import datetime
 from enum import Enum
-from outpost_sdk.types import BaseModel
+from outpost_sdk.types import BaseModel, UNSET_SENTINEL
 from outpost_sdk.utils import FieldMetadata, PathParamMetadata, QueryParamMetadata
 import pydantic
+from pydantic import model_serializer
 from typing import Callable, List, Optional
 from typing_extensions import Annotated, NotRequired, TypedDict
 
@@ -20,6 +21,22 @@ class ListTenantEventsByDestinationGlobals(BaseModel):
         Optional[str],
         FieldMetadata(path=PathParamMetadata(style="simple", explode=False)),
     ] = None
+
+    @model_serializer(mode="wrap")
+    def serialize_model(self, handler):
+        optional_fields = set(["tenant_id"])
+        serialized = handler(self)
+        m = {}
+
+        for n, f in type(self).model_fields.items():
+            k = f.alias or n
+            val = serialized.get(k)
+
+            if val != UNSET_SENTINEL:
+                if val is not None or k not in optional_fields:
+                    m[k] = val
+
+        return m
 
 
 class ListTenantEventsByDestinationStatus(str, Enum):
@@ -36,9 +53,9 @@ class ListTenantEventsByDestinationRequestTypedDict(TypedDict):
     r"""The ID of the tenant. Required when using AdminApiKey authentication."""
     status: NotRequired[ListTenantEventsByDestinationStatus]
     r"""Filter events by delivery status."""
-    next: NotRequired[str]
+    next_cursor: NotRequired[str]
     r"""Cursor for next page of results"""
-    prev: NotRequired[str]
+    prev_cursor: NotRequired[str]
     r"""Cursor for previous page of results"""
     limit: NotRequired[int]
     r"""Number of items per page (default 100, max 1000)"""
@@ -66,14 +83,16 @@ class ListTenantEventsByDestinationRequest(BaseModel):
     ] = None
     r"""Filter events by delivery status."""
 
-    next: Annotated[
+    next_cursor: Annotated[
         Optional[str],
+        pydantic.Field(alias="next"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Cursor for next page of results"""
 
-    prev: Annotated[
+    prev_cursor: Annotated[
         Optional[str],
+        pydantic.Field(alias="prev"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Cursor for previous page of results"""
@@ -95,6 +114,32 @@ class ListTenantEventsByDestinationRequest(BaseModel):
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""End time filter (RFC3339 format)"""
+
+    @model_serializer(mode="wrap")
+    def serialize_model(self, handler):
+        optional_fields = set(
+            [
+                "tenant_id",
+                "status",
+                "next_cursor",
+                "prev_cursor",
+                "limit",
+                "start",
+                "end",
+            ]
+        )
+        serialized = handler(self)
+        m = {}
+
+        for n, f in type(self).model_fields.items():
+            k = f.alias or n
+            val = serialized.get(k)
+
+            if val != UNSET_SENTINEL:
+                if val is not None or k not in optional_fields:
+                    m[k] = val
+
+        return m
 
 
 class ListTenantEventsByDestinationResponseBodyTypedDict(TypedDict):

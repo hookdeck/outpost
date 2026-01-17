@@ -8,8 +8,8 @@
     "test:validation": "mocha --require ts-node/register --extensions ts --timeout 10000 'tests/**/*.test.ts'",
     "test:watch": "mocha --require ts-node/register --extensions ts --watch --watch-files 'tests/**/*.ts' 'tests/**/*.test.ts'",
     "test:coverage": "nyc npm run test:validation",
-    "lint:spec": "spectral lint ../apis/openapi.yaml",
-    "validate:spec": "swagger-cli validate ../apis/openapi.yaml",
+    "lint:spec": "spectral lint ../docs/apis/openapi.yaml",
+    "validate:spec": "swagger-cli validate ../docs/apis/openapi.yaml",
     "format": "prettier --write 'tests/**/*.ts' 'utils/**/*.ts'",
     "format:check": "prettier --check 'tests/**/*.ts' 'utils/**/*.ts'",
     "type-check": "tsc --noEmit"

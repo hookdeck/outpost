@@ -5,7 +5,8 @@ from .destinationschemafield import (
     DestinationSchemaField,
     DestinationSchemaFieldTypedDict,
 )
-from outpost_sdk.types import BaseModel
+from outpost_sdk.types import BaseModel, UNSET_SENTINEL
+from pydantic import model_serializer
 from typing import List, Optional
 from typing_extensions import NotRequired, TypedDict
 
@@ -51,3 +52,30 @@ class DestinationTypeSchema(BaseModel):
 
     credential_fields: Optional[List[DestinationSchemaField]] = None
     r"""Credential fields are secret values that will be AES encrypted and obfuscated to the user. Some credentials may not be obfuscated; the destination type dictates the obfuscation logic."""
+
+    @model_serializer(mode="wrap")
+    def serialize_model(self, handler):
+        optional_fields = set(
+            [
+                "type",
+                "label",
+                "description",
+                "icon",
+                "instructions",
+                "remote_setup_url",
+                "config_fields",
+                "credential_fields",
+            ]
+        )
+        serialized = handler(self)
+        m = {}
+
+        for n, f in type(self).model_fields.items():
+            k = f.alias or n
+            val = serialized.get(k)
+
+            if val != UNSET_SENTINEL:
+                if val is not None or k not in optional_fields:
+                    m[k] = val
+
+        return m

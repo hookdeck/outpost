@@ -21,8 +21,8 @@ class Events(BaseSDK):
             Union[models.DestinationID, models.DestinationIDTypedDict]
         ] = None,
         status: Optional[models.ListTenantEventsStatus] = None,
-        next: Optional[str] = None,
-        prev: Optional[str] = None,
+        next_cursor: Optional[str] = None,
+        prev_cursor: Optional[str] = None,
         limit: Optional[int] = 100,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
@@ -38,8 +38,8 @@ class Events(BaseSDK):
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param destination_id: Filter events by destination ID(s).
         :param status: Filter events by delivery status.
-        :param next: Cursor for next page of results
-        :param prev: Cursor for previous page of results
+        :param next_cursor: Cursor for next page of results
+        :param prev_cursor: Cursor for previous page of results
         :param limit: Number of items per page (default 100, max 1000)
         :param start: Start time filter (RFC3339 format)
         :param end: End time filter (RFC3339 format)
@@ -62,8 +62,8 @@ class Events(BaseSDK):
             tenant_id=tenant_id,
             destination_id=destination_id,
             status=status,
-            next=next,
-            prev=prev,
+            next_cursor=next_cursor,
+            prev_cursor=prev_cursor,
             limit=limit,
             start=start,
             end=end,
@@ -71,7 +71,7 @@ class Events(BaseSDK):
 
         req = self._build_request(
             method="GET",
-            path="/{tenant_id}/events",
+            path="/tenants/{tenant_id}/events",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -85,6 +85,7 @@ class Events(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -101,37 +102,11 @@ class Events(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="listTenantEvents",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
@@ -156,15 +131,14 @@ class Events(BaseSDK):
                 tenant_id=tenant_id,
                 destination_id=destination_id,
                 status=status,
-                next=next_cursor,
-                prev=prev,
+                next_cursor=next_cursor,
+                prev_cursor=prev_cursor,
                 limit=limit,
                 start=start,
                 end=end,
                 retries=retries,
             )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return models.ListTenantEventsResponse(
                 result=unmarshal_json_response(
@@ -172,49 +146,6 @@ class Events(BaseSDK):
                 ),
                 next=next_func,
             )
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -232,8 +163,8 @@ class Events(BaseSDK):
             Union[models.DestinationID, models.DestinationIDTypedDict]
         ] = None,
         status: Optional[models.ListTenantEventsStatus] = None,
-        next: Optional[str] = None,
-        prev: Optional[str] = None,
+        next_cursor: Optional[str] = None,
+        prev_cursor: Optional[str] = None,
         limit: Optional[int] = 100,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
@@ -249,8 +180,8 @@ class Events(BaseSDK):
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param destination_id: Filter events by destination ID(s).
         :param status: Filter events by delivery status.
-        :param next: Cursor for next page of results
-        :param prev: Cursor for previous page of results
+        :param next_cursor: Cursor for next page of results
+        :param prev_cursor: Cursor for previous page of results
         :param limit: Number of items per page (default 100, max 1000)
         :param start: Start time filter (RFC3339 format)
         :param end: End time filter (RFC3339 format)
@@ -273,8 +204,8 @@ class Events(BaseSDK):
             tenant_id=tenant_id,
             destination_id=destination_id,
             status=status,
-            next=next,
-            prev=prev,
+            next_cursor=next_cursor,
+            prev_cursor=prev_cursor,
             limit=limit,
             start=start,
             end=end,
@@ -282,7 +213,7 @@ class Events(BaseSDK):
 
         req = self._build_request_async(
             method="GET",
-            path="/{tenant_id}/events",
+            path="/tenants/{tenant_id}/events",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -296,6 +227,7 @@ class Events(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -312,37 +244,11 @@ class Events(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="listTenantEvents",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
@@ -367,15 +273,14 @@ class Events(BaseSDK):
                 tenant_id=tenant_id,
                 destination_id=destination_id,
                 status=status,
-                next=next_cursor,
-                prev=prev,
+                next_cursor=next_cursor,
+                prev_cursor=prev_cursor,
                 limit=limit,
                 start=start,
                 end=end,
                 retries=retries,
             )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return models.ListTenantEventsResponse(
                 result=unmarshal_json_response(
@@ -383,49 +288,6 @@ class Events(BaseSDK):
                 ),
                 next=next_func,
             )
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -473,7 +335,7 @@ class Events(BaseSDK):
 
         req = self._build_request(
             method="GET",
-            path="/{tenant_id}/events/{event_id}",
+            path="/tenants/{tenant_id}/events/{event_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -487,6 +349,7 @@ class Events(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -503,86 +366,16 @@ class Events(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="getTenantEvent",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Event, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -630,7 +423,7 @@ class Events(BaseSDK):
 
         req = self._build_request_async(
             method="GET",
-            path="/{tenant_id}/events/{event_id}",
+            path="/tenants/{tenant_id}/events/{event_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -644,6 +437,7 @@ class Events(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -660,86 +454,16 @@ class Events(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="getTenantEvent",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Event, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -787,7 +511,7 @@ class Events(BaseSDK):
 
         req = self._build_request(
             method="GET",
-            path="/{tenant_id}/events/{event_id}/deliveries",
+            path="/tenants/{tenant_id}/events/{event_id}/deliveries",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -801,6 +525,7 @@ class Events(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -817,86 +542,16 @@ class Events(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="listTenantEventDeliveries",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(List[models.DeliveryAttempt], http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -944,7 +599,7 @@ class Events(BaseSDK):
 
         req = self._build_request_async(
             method="GET",
-            path="/{tenant_id}/events/{event_id}/deliveries",
+            path="/tenants/{tenant_id}/events/{event_id}/deliveries",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -958,6 +613,7 @@ class Events(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -974,86 +630,16 @@ class Events(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="listTenantEventDeliveries",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(List[models.DeliveryAttempt], http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1069,8 +655,8 @@ class Events(BaseSDK):
         destination_id: str,
         tenant_id: Optional[str] = None,
         status: Optional[models.ListTenantEventsByDestinationStatus] = None,
-        next: Optional[str] = None,
-        prev: Optional[str] = None,
+        next_cursor: Optional[str] = None,
+        prev_cursor: Optional[str] = None,
         limit: Optional[int] = 100,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
@@ -1086,8 +672,8 @@ class Events(BaseSDK):
         :param destination_id: The ID of the destination.
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param status: Filter events by delivery status.
-        :param next: Cursor for next page of results
-        :param prev: Cursor for previous page of results
+        :param next_cursor: Cursor for next page of results
+        :param prev_cursor: Cursor for previous page of results
         :param limit: Number of items per page (default 100, max 1000)
         :param start: Start time filter (RFC3339 format)
         :param end: End time filter (RFC3339 format)
@@ -1110,8 +696,8 @@ class Events(BaseSDK):
             tenant_id=tenant_id,
             destination_id=destination_id,
             status=status,
-            next=next,
-            prev=prev,
+            next_cursor=next_cursor,
+            prev_cursor=prev_cursor,
             limit=limit,
             start=start,
             end=end,
@@ -1119,7 +705,7 @@ class Events(BaseSDK):
 
         req = self._build_request(
             method="GET",
-            path="/{tenant_id}/destinations/{destination_id}/events",
+            path="/tenants/{tenant_id}/destinations/{destination_id}/events",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1133,6 +719,7 @@ class Events(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1149,37 +736,11 @@ class Events(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="listTenantEventsByDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
@@ -1204,15 +765,14 @@ class Events(BaseSDK):
                 destination_id=destination_id,
                 tenant_id=tenant_id,
                 status=status,
-                next=next_cursor,
-                prev=prev,
+                next_cursor=next_cursor,
+                prev_cursor=prev_cursor,
                 limit=limit,
                 start=start,
                 end=end,
                 retries=retries,
             )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return models.ListTenantEventsByDestinationResponse(
                 result=unmarshal_json_response(
@@ -1220,49 +780,6 @@ class Events(BaseSDK):
                 ),
                 next=next_func,
             )
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1278,8 +795,8 @@ class Events(BaseSDK):
         destination_id: str,
         tenant_id: Optional[str] = None,
         status: Optional[models.ListTenantEventsByDestinationStatus] = None,
-        next: Optional[str] = None,
-        prev: Optional[str] = None,
+        next_cursor: Optional[str] = None,
+        prev_cursor: Optional[str] = None,
         limit: Optional[int] = 100,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
@@ -1295,8 +812,8 @@ class Events(BaseSDK):
         :param destination_id: The ID of the destination.
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param status: Filter events by delivery status.
-        :param next: Cursor for next page of results
-        :param prev: Cursor for previous page of results
+        :param next_cursor: Cursor for next page of results
+        :param prev_cursor: Cursor for previous page of results
         :param limit: Number of items per page (default 100, max 1000)
         :param start: Start time filter (RFC3339 format)
         :param end: End time filter (RFC3339 format)
@@ -1319,8 +836,8 @@ class Events(BaseSDK):
             tenant_id=tenant_id,
             destination_id=destination_id,
             status=status,
-            next=next,
-            prev=prev,
+            next_cursor=next_cursor,
+            prev_cursor=prev_cursor,
             limit=limit,
             start=start,
             end=end,
@@ -1328,7 +845,7 @@ class Events(BaseSDK):
 
         req = self._build_request_async(
             method="GET",
-            path="/{tenant_id}/destinations/{destination_id}/events",
+            path="/tenants/{tenant_id}/destinations/{destination_id}/events",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1342,6 +859,7 @@ class Events(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1358,37 +876,11 @@ class Events(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="listTenantEventsByDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
@@ -1413,15 +905,14 @@ class Events(BaseSDK):
                 destination_id=destination_id,
                 tenant_id=tenant_id,
                 status=status,
-                next=next_cursor,
-                prev=prev,
+                next_cursor=next_cursor,
+                prev_cursor=prev_cursor,
                 limit=limit,
                 start=start,
                 end=end,
                 retries=retries,
             )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return models.ListTenantEventsByDestinationResponse(
                 result=unmarshal_json_response(
@@ -1429,49 +920,6 @@ class Events(BaseSDK):
                 ),
                 next=next_func,
             )
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1522,7 +970,7 @@ class Events(BaseSDK):
 
         req = self._build_request(
             method="GET",
-            path="/{tenant_id}/destinations/{destination_id}/events/{event_id}",
+            path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1536,6 +984,7 @@ class Events(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1552,86 +1001,16 @@ class Events(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="getTenantEventByDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Event, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1682,7 +1061,7 @@ class Events(BaseSDK):
 
         req = self._build_request_async(
             method="GET",
-            path="/{tenant_id}/destinations/{destination_id}/events/{event_id}",
+            path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1696,6 +1075,7 @@ class Events(BaseSDK):
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1712,86 +1092,16 @@ class Events(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="getTenantEventByDestination",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Event, http_res)
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -1842,7 +1152,7 @@ class Events(BaseSDK):
 
         req = self._build_request(
             method="POST",
-            path="/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry",
+            path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -1850,12 +1160,13 @@ class Events(BaseSDK):
             request_has_path_params=True,
             request_has_query_params=True,
             user_agent_header="user-agent",
-            accept_header_value="application/json",
+            accept_header_value="*/*",
             http_headers=http_headers,
             _globals=models.RetryTenantEventGlobals(
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -1872,87 +1183,16 @@ class Events(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="retryTenantEvent",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "409",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "409", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "202", "*"):
             return
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "409", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
@@ -2003,7 +1243,7 @@ class Events(BaseSDK):
 
         req = self._build_request_async(
             method="POST",
-            path="/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry",
+            path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -2011,12 +1251,13 @@ class Events(BaseSDK):
             request_has_path_params=True,
             request_has_query_params=True,
             user_agent_header="user-agent",
-            accept_header_value="application/json",
+            accept_header_value="*/*",
             http_headers=http_headers,
             _globals=models.RetryTenantEventGlobals(
                 tenant_id=self.sdk_configuration.globals.tenant_id,
             ),
             security=self.sdk_configuration.security,
+            allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
 
@@ -2033,87 +1274,16 @@ class Events(BaseSDK):
                 config=self.sdk_configuration,
                 base_url=base_url or "",
                 operation_id="retryTenantEvent",
-                oauth2_scopes=[],
+                oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "409",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            error_status_codes=["404", "409", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        response_data: Any = None
         if utils.match_response(http_res, "202", "*"):
             return
-        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "408", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, "429", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.RateLimitedErrorData, http_res
-            )
-            raise errors.RateLimitedError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["400", "413", "414", "415", "422", "431"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "504", "application/json"):
-            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
-            raise errors.TimeoutErrorT(response_data, http_res)
-        if utils.match_response(http_res, ["501", "505"], "application/json"):
-            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
-            raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(
-            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
-        ):
-            response_data = unmarshal_json_response(
-                errors.InternalServerErrorData, http_res
-            )
-            raise errors.InternalServerError(response_data, http_res)
-        if utils.match_response(http_res, "510", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
-        if utils.match_response(http_res, "511", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.UnauthorizedErrorData, http_res
-            )
-            raise errors.UnauthorizedError(response_data, http_res)
         if utils.match_response(http_res, ["404", "409", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)

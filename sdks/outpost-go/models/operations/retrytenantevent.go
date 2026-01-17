@@ -10,11 +10,11 @@ type RetryTenantEventGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *RetryTenantEventGlobals) GetTenantID() *string {
-	if o == nil {
+func (r *RetryTenantEventGlobals) GetTenantID() *string {
+	if r == nil {
 		return nil
 	}
-	return o.TenantID
+	return r.TenantID
 }
 
 type RetryTenantEventRequest struct {
@@ -26,34 +26,34 @@ type RetryTenantEventRequest struct {
 	EventID string `pathParam:"style=simple,explode=false,name=event_id"`
 }
 
-func (o *RetryTenantEventRequest) GetTenantID() *string {
-	if o == nil {
+func (r *RetryTenantEventRequest) GetTenantID() *string {
+	if r == nil {
 		return nil
 	}
-	return o.TenantID
+	return r.TenantID
 }
 
-func (o *RetryTenantEventRequest) GetDestinationID() string {
-	if o == nil {
+func (r *RetryTenantEventRequest) GetDestinationID() string {
+	if r == nil {
 		return ""
 	}
-	return o.DestinationID
+	return r.DestinationID
 }
 
-func (o *RetryTenantEventRequest) GetEventID() string {
-	if o == nil {
+func (r *RetryTenantEventRequest) GetEventID() string {
+	if r == nil {
 		return ""
 	}
-	return o.EventID
+	return r.EventID
 }
 
 type RetryTenantEventResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
 }
 
-func (o *RetryTenantEventResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (r *RetryTenantEventResponse) GetHTTPMeta() components.HTTPMetadata {
+	if r == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return r.HTTPMeta
 }

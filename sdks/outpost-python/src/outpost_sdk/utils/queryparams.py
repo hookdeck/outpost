@@ -27,12 +27,13 @@ from .forms import _populate_form
 def get_query_params(
     query_params: Any,
     gbls: Optional[Any] = None,
+    allow_empty_value: Optional[List[str]] = None,
 ) -> Dict[str, List[str]]:
     params: Dict[str, List[str]] = {}
 
-    globals_already_populated = _populate_query_params(query_params, gbls, params, [])
+    globals_already_populated = _populate_query_params(query_params, gbls, params, [], allow_empty_value)
     if _is_set(gbls):
-        _populate_query_params(gbls, None, params, globals_already_populated)
+        _populate_query_params(gbls, None, params, globals_already_populated, allow_empty_value)
 
     return params
 
@@ -42,6 +43,7 @@ def _populate_query_params(
     gbls: Any,
     query_param_values: Dict[str, List[str]],
     skip_fields: List[str],
+    allow_empty_value: Optional[List[str]] = None,
 ) -> List[str]:
     globals_already_populated: List[str] = []
 
@@ -69,6 +71,16 @@ def _populate_query_params(
             globals_already_populated.append(name)
 
         f_name = field.alias if field.alias is not None else name
+
+        allow_empty_set = set(allow_empty_value or [])
+        should_include_empty = f_name in allow_empty_set and (
+            value is None or value == [] or value == ""
+        )
+
+        if should_include_empty:
+            query_param_values[f_name] = [""]
+            continue
+
         serialization = metadata.serialization
         if serialization is not None:
             serialized_parms = _get_serialized_params(

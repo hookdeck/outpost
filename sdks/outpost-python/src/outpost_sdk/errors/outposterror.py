@@ -2,25 +2,29 @@
 
 import httpx
 from typing import Optional
+from dataclasses import dataclass, field
 
 
+@dataclass(unsafe_hash=True)
 class OutpostError(Exception):
     """The base class for all HTTP error responses."""
 
     message: str
     status_code: int
     body: str
-    headers: httpx.Headers
-    raw_response: httpx.Response
+    headers: httpx.Headers = field(hash=False)
+    raw_response: httpx.Response = field(hash=False)
 
     def __init__(
         self, message: str, raw_response: httpx.Response, body: Optional[str] = None
     ):
-        self.message = message
-        self.status_code = raw_response.status_code
-        self.body = body if body is not None else raw_response.text
-        self.headers = raw_response.headers
-        self.raw_response = raw_response
+        object.__setattr__(self, "message", message)
+        object.__setattr__(self, "status_code", raw_response.status_code)
+        object.__setattr__(
+            self, "body", body if body is not None else raw_response.text
+        )
+        object.__setattr__(self, "headers", raw_response.headers)
+        object.__setattr__(self, "raw_response", raw_response)
 
     def __str__(self):
         return self.message

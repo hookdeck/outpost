@@ -3,6 +3,7 @@
 from enum import Enum
 from typing import Any, Optional
 
+
 def get_discriminator(model: Any, fieldname: str, key: str) -> str:
     """
     Recursively search for the discriminator attribute in a model.
@@ -25,31 +26,54 @@ def get_discriminator(model: Any, fieldname: str, key: str) -> str:
 
         if isinstance(field, dict):
             if key in field:
-                return f'{field[key]}'
+                return f"{field[key]}"
 
         if hasattr(field, fieldname):
             attr = getattr(field, fieldname)
             if isinstance(attr, Enum):
-                return f'{attr.value}'
-            return f'{attr}'
+                return f"{attr.value}"
+            return f"{attr}"
 
         if hasattr(field, upper_fieldname):
             attr = getattr(field, upper_fieldname)
             if isinstance(attr, Enum):
-                return f'{attr.value}'
-            return f'{attr}'
+                return f"{attr.value}"
+            return f"{attr}"
 
         return None
 
+    def search_nested_discriminator(obj: Any) -> Optional[str]:
+        """Recursively search for discriminator in nested structures."""
+        # First try direct field lookup
+        discriminator = get_field_discriminator(obj)
+        if discriminator is not None:
+            return discriminator
+
+        # If it's a dict, search in nested values
+        if isinstance(obj, dict):
+            for value in obj.values():
+                if isinstance(value, list):
+                    # Search in list items
+                    for item in value:
+                        nested_discriminator = search_nested_discriminator(item)
+                        if nested_discriminator is not None:
+                            return nested_discriminator
+                elif isinstance(value, dict):
+                    # Search in nested dict
+                    nested_discriminator = search_nested_discriminator(value)
+                    if nested_discriminator is not None:
+                        return nested_discriminator
+
+        return None
 
     if isinstance(model, list):
         for field in model:
-            discriminator = get_field_discriminator(field)
+            discriminator = search_nested_discriminator(field)
             if discriminator is not None:
                 return discriminator
 
-    discriminator = get_field_discriminator(model)
+    discriminator = search_nested_discriminator(model)
     if discriminator is not None:
         return discriminator
 
-    raise ValueError(f'Could not find discriminator field {fieldname} in {model}')
+    raise ValueError(f"Could not find discriminator field {fieldname} in {model}")

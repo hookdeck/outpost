@@ -17,7 +17,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Res != nil {
+	if res.Object != nil {
 		// handle response
 	}
 }

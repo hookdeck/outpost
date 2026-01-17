@@ -12,11 +12,11 @@ type GetTenantDestinationTypeSchemaGlobals struct {
 	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (o *GetTenantDestinationTypeSchemaGlobals) GetTenantID() *string {
-	if o == nil {
+func (g *GetTenantDestinationTypeSchemaGlobals) GetTenantID() *string {
+	if g == nil {
 		return nil
 	}
-	return o.TenantID
+	return g.TenantID
 }
 
 // GetTenantDestinationTypeSchemaType - The type of the destination.
@@ -65,18 +65,18 @@ type GetTenantDestinationTypeSchemaRequest struct {
 	Type GetTenantDestinationTypeSchemaType `pathParam:"style=simple,explode=false,name=type"`
 }
 
-func (o *GetTenantDestinationTypeSchemaRequest) GetTenantID() *string {
-	if o == nil {
+func (g *GetTenantDestinationTypeSchemaRequest) GetTenantID() *string {
+	if g == nil {
 		return nil
 	}
-	return o.TenantID
+	return g.TenantID
 }
 
-func (o *GetTenantDestinationTypeSchemaRequest) GetType() GetTenantDestinationTypeSchemaType {
-	if o == nil {
+func (g *GetTenantDestinationTypeSchemaRequest) GetType() GetTenantDestinationTypeSchemaType {
+	if g == nil {
 		return GetTenantDestinationTypeSchemaType("")
 	}
-	return o.Type
+	return g.Type
 }
 
 type GetTenantDestinationTypeSchemaResponse struct {
@@ -85,16 +85,16 @@ type GetTenantDestinationTypeSchemaResponse struct {
 	DestinationTypeSchema *components.DestinationTypeSchema
 }
 
-func (o *GetTenantDestinationTypeSchemaResponse) GetHTTPMeta() components.HTTPMetadata {
-	if o == nil {
+func (g *GetTenantDestinationTypeSchemaResponse) GetHTTPMeta() components.HTTPMetadata {
+	if g == nil {
 		return components.HTTPMetadata{}
 	}
-	return o.HTTPMeta
+	return g.HTTPMeta
 }
 
-func (o *GetTenantDestinationTypeSchemaResponse) GetDestinationTypeSchema() *components.DestinationTypeSchema {
-	if o == nil {
+func (g *GetTenantDestinationTypeSchemaResponse) GetDestinationTypeSchema() *components.DestinationTypeSchema {
+	if g == nil {
 		return nil
 	}
-	return o.DestinationTypeSchema
+	return g.DestinationTypeSchema
 }

@@ -1,7 +1,7 @@
 {
   "type": "module",
   "dependencies": {
-    "@hookdeck/outpost-sdk": "^0.3.0",
+    "@hookdeck/outpost-sdk": "file:../../sdks/outpost-typescript",
     "dotenv": "^16.5.0",
     "inquirer": "^9.2.23"
   },

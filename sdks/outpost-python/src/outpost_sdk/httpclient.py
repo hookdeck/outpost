@@ -107,7 +107,6 @@ def close_clients(
     # to them from the owning SDK instance and they can be reaped.
     owner.client = None
     owner.async_client = None
-
     if sync_client is not None and not sync_client_supplied:
         try:
             sync_client.close()

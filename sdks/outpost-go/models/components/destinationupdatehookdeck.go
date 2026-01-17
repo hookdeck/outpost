@@ -8,9 +8,19 @@ import (
 
 type DestinationUpdateHookdeck struct {
 	// "*" or an array of enabled topics.
-	Topics      *Topics              `json:"topics,omitempty"`
+	Topics *Topics `json:"topics,omitempty"`
+	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
+	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+	// If null or empty, all events matching the topic filter will be delivered.
+	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	//
+	Filter      map[string]any       `json:"filter,omitempty"`
 	Config      any                  `json:"config,omitempty"`
 	Credentials *HookdeckCredentials `json:"credentials,omitempty"`
+	// Static key-value pairs merged into event metadata on every delivery.
+	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination.
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 func (d DestinationUpdateHookdeck) MarshalJSON() ([]byte, error) {
@@ -24,23 +34,44 @@ func (d *DestinationUpdateHookdeck) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *DestinationUpdateHookdeck) GetTopics() *Topics {
-	if o == nil {
+func (d *DestinationUpdateHookdeck) GetTopics() *Topics {
+	if d == nil {
 		return nil
 	}
-	return o.Topics
+	return d.Topics
 }
 
-func (o *DestinationUpdateHookdeck) GetConfig() any {
-	if o == nil {
+func (d *DestinationUpdateHookdeck) GetFilter() map[string]any {
+	if d == nil {
 		return nil
 	}
-	return o.Config
+	return d.Filter
 }
 
-func (o *DestinationUpdateHookdeck) GetCredentials() *HookdeckCredentials {
-	if o == nil {
+func (d *DestinationUpdateHookdeck) GetConfig() any {
+	if d == nil {
 		return nil
 	}
-	return o.Credentials
+	return d.Config
+}
+
+func (d *DestinationUpdateHookdeck) GetCredentials() *HookdeckCredentials {
+	if d == nil {
+		return nil
+	}
+	return d.Credentials
+}
+
+func (d *DestinationUpdateHookdeck) GetDeliveryMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.DeliveryMetadata
+}
+
+func (d *DestinationUpdateHookdeck) GetMetadata() map[string]string {
+	if d == nil {
+		return nil
+	}
+	return d.Metadata
 }

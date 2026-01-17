@@ -55,23 +55,23 @@ func (r *RabbitMQConfig) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *RabbitMQConfig) GetServerURL() string {
-	if o == nil {
+func (r *RabbitMQConfig) GetServerURL() string {
+	if r == nil {
 		return ""
 	}
-	return o.ServerURL
+	return r.ServerURL
 }
 
-func (o *RabbitMQConfig) GetExchange() string {
-	if o == nil {
+func (r *RabbitMQConfig) GetExchange() string {
+	if r == nil {
 		return ""
 	}
-	return o.Exchange
+	return r.Exchange
 }
 
-func (o *RabbitMQConfig) GetTLS() *TLS {
-	if o == nil {
+func (r *RabbitMQConfig) GetTLS() *TLS {
+	if r == nil {
 		return nil
 	}
-	return o.TLS
+	return r.TLS
 }

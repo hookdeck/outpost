@@ -64,7 +64,7 @@ func (s *Publish) Event(ctx context.Context, request components.PublishRequest, 
 		BaseURL:          baseURL,
 		Context:          ctx,
 		OperationID:      "publishEvent",
-		OAuth2Scopes:     []string{},
+		OAuth2Scopes:     nil,
 		SecuritySource:   s.sdkConfiguration.Security,
 	}
 	bodyReader, reqContentType, err := utils.SerializeRequestBody(ctx, request, false, false, "Request", "json", `request:"mediaType=application/json"`)

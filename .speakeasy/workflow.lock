@@ -1,39 +1,56 @@
-speakeasyVersion: 1.636.3
+speakeasyVersion: 1.686.1
 sources:
     Outpost API:
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:abcb227d706ddbbb55ab9a423da413260c4d83c247616a9f6067890ff4bfa997
-        sourceBlobDigest: sha256:b8f43e14862cadf618bc568c76cec68ed15da6c4c7fec0541edd4671a3b26815
+        sourceRevisionDigest: sha256:1534dabb139bd405d19820be4eddbd8540fc924fa5a267332a7296f8663dd15a
+        sourceBlobDigest: sha256:e3b85ac9da28706696320ca22b6ca215624531b31c3d79474802b1dbf485bd4d
         tags:
             - latest
+            - speakeasy-sdk-regen-1768569631
+            - 0.0.1
+    Outpost API (Python):
+        sourceNamespace: outpost-api
+        sourceRevisionDigest: sha256:0a10c5112a327a123e4d72f4cfd81d0ac3424da4865a1594addd569793fd742f
+        sourceBlobDigest: sha256:70596aadf6dffc404f6b791ce56184d8d9ac72df717b00c729f3e14c81d15afc
+        tags:
+            - latest
+            - speakeasy-sdk-regen-1768568786
             - 0.0.1
 targets:
     outpost-go:
         source: Outpost API
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:4042dbef541e06289b580460ccfb39d8f444c852e134de2245b13e1ffd43dcf3
-        sourceBlobDigest: sha256:3859f29c380e176f9382eb969cefbb9c8701875d4837ee8a9549b78bf92eebc6
+        sourceRevisionDigest: sha256:1534dabb139bd405d19820be4eddbd8540fc924fa5a267332a7296f8663dd15a
+        sourceBlobDigest: sha256:e3b85ac9da28706696320ca22b6ca215624531b31c3d79474802b1dbf485bd4d
         codeSamplesNamespace: outpost-api-go-code-samples
-        codeSamplesRevisionDigest: sha256:0e3fa3204f6f516dd30a924b7a1c07749873126109ccc30817795cd02c9854d7
+        codeSamplesRevisionDigest: sha256:4e04f777fdfd32143739dbe63196004706a4ec75c9c4a872e97af1d9df1ae472
     outpost-python:
-        source: Outpost API
+        source: Outpost API (Python)
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:e09cf02de047cf6d007545274c477e2a90c561074b9de170d844d9ab9ffbbca6
-        sourceBlobDigest: sha256:c405cfc4f2de092323a9dd68a09f7c08b563d363bce7463fc8b426d10acacf99
+        sourceRevisionDigest: sha256:0a10c5112a327a123e4d72f4cfd81d0ac3424da4865a1594addd569793fd742f
+        sourceBlobDigest: sha256:70596aadf6dffc404f6b791ce56184d8d9ac72df717b00c729f3e14c81d15afc
         codeSamplesNamespace: outpost-api-python-code-samples
-        codeSamplesRevisionDigest: sha256:d8540bce24dc0cc34650c9546892f1d45db9fe1867c18571e046e9c72123a246
+        codeSamplesRevisionDigest: sha256:e40a635a6a6e381904e96c21238c0737ff59dcba827d83d07267ac034049417e
     outpost-ts:
         source: Outpost API
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:abcb227d706ddbbb55ab9a423da413260c4d83c247616a9f6067890ff4bfa997
-        sourceBlobDigest: sha256:b8f43e14862cadf618bc568c76cec68ed15da6c4c7fec0541edd4671a3b26815
+        sourceRevisionDigest: sha256:1534dabb139bd405d19820be4eddbd8540fc924fa5a267332a7296f8663dd15a
+        sourceBlobDigest: sha256:e3b85ac9da28706696320ca22b6ca215624531b31c3d79474802b1dbf485bd4d
         codeSamplesNamespace: outpost-api-typescript-code-samples
-        codeSamplesRevisionDigest: sha256:58c8e1b33a4de342b37a90c0c490a21c795e4b5c6c4f2ceef9f8c45b817a56f3
+        codeSamplesRevisionDigest: sha256:e4836ddc6ae9b814e565d258fb1c82739b633df197e95c217a595c7e09bebf2e
 workflow:
     workflowVersion: 1.0.0
     speakeasyVersion: latest
     sources:
         Outpost API:
+            inputs:
+                - location: ./docs/apis/openapi.yaml
+            overlays:
+                - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
+                - location: ./sdks/schemas/error-types.yaml
+            registry:
+                location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api
+        Outpost API (Python):
             inputs:
                 - location: ./docs/apis/openapi.yaml
             overlays:
@@ -55,7 +72,7 @@ workflow:
                 blocking: false
         outpost-python:
             target: python
-            source: Outpost API
+            source: Outpost API (Python)
             output: ./sdks/outpost-python
             publish:
                 pypi:

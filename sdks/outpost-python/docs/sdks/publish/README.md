@@ -1,5 +1,4 @@
 # Publish
-(*publish*)
 
 ## Overview
 

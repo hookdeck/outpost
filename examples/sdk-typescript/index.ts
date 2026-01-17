@@ -36,7 +36,7 @@ async function manageOutpostResources() {
     );
     const destination = await outpostAdmin.destinations.create({
       tenantId,
-      destinationCreate: {
+      params: {
         type: "webhook",
         config: {
           url: "https://example.com/webhook-receiver",

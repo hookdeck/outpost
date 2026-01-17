@@ -24,16 +24,16 @@ func (a *AWSSQSConfig) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o *AWSSQSConfig) GetEndpoint() *string {
-	if o == nil {
+func (a *AWSSQSConfig) GetEndpoint() *string {
+	if a == nil {
 		return nil
 	}
-	return o.Endpoint
+	return a.Endpoint
 }
 
-func (o *AWSSQSConfig) GetQueueURL() string {
-	if o == nil {
+func (a *AWSSQSConfig) GetQueueURL() string {
+	if a == nil {
 		return ""
 	}
-	return o.QueueURL
+	return a.QueueURL
 }
