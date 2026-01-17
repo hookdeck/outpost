@@ -1046,6 +1046,8 @@ func testRetrieveDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 		DestinationID: destinationID,
 		Event:         *event,
 		Delivery:      delivery,
+		Manual:        true,
+		Attempt:       3,
 	}
 
 	require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, []*models.DeliveryEvent{de}))
@@ -1091,6 +1093,10 @@ func testRetrieveDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 		default:
 			t.Errorf("unexpected type for latency_ms: %T", latencyMs)
 		}
+
+		// Verify delivery event fields
+		assert.True(t, retrieved.Manual, "Manual field should be true")
+		assert.Equal(t, 3, retrieved.Attempt, "Attempt field should be 3")
 	})
 
 	t.Run("retrieve non-existent delivery", func(t *testing.T) {
