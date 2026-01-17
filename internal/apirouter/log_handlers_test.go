@@ -292,34 +292,6 @@ func TestListDeliveries(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
-	t.Run("should return validation error for invalid event_start time", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?event_start=invalid", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
-	})
-
-	t.Run("should return validation error for invalid event_end time", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?event_end=invalid", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
-	})
-
-	t.Run("should accept valid event_start and event_end params", func(t *testing.T) {
-		now := time.Now().UTC()
-		eventStart := now.Add(-2 * time.Hour).Format(time.RFC3339)
-		eventEnd := now.Format(time.RFC3339)
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?event_start="+eventStart+"&event_end="+eventEnd, nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-
 	t.Run("should cap limit at 1000", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?limit=5000", nil)

@@ -106,10 +106,10 @@ func testInsertManyDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 
 		// Verify it was inserted
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventID:    event.ID,
-			Limit:      10,
-			EventStart: &startTime,
+			TenantID: tenantID,
+			EventID:  event.ID,
+			Limit:    10,
+			Start:    &startTime,
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, 1)
@@ -153,10 +153,10 @@ func testInsertManyDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 
 		// Verify all were inserted
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventID:    eventID,
-			Limit:      10,
-			EventStart: &startTime,
+			TenantID: tenantID,
+			EventID:  eventID,
+			Limit:    10,
+			Start:    &startTime,
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, 3)
@@ -212,9 +212,9 @@ func testInsertManyDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 		// Verify only 1 record exists (no duplicates)
 		queryStart := eventTime.Add(-1 * time.Hour)
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   idempotentTenantID,
-			Limit:      100,
-			EventStart: &queryStart,
+			TenantID: idempotentTenantID,
+			Limit:    100,
+			Start:    &queryStart,
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, 1, "duplicate inserts should not create multiple records")
@@ -643,9 +643,9 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 
 	t.Run("empty result for unknown tenant", func(t *testing.T) {
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   "unknown",
-			Limit:      5,
-			EventStart: start,
+			TenantID: "unknown",
+			Limit:    5,
+			Start:    start,
 		})
 		require.NoError(t, err)
 		assert.Empty(t, response.Data)
@@ -656,9 +656,9 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 	t.Run("default ordering (delivery_time DESC)", func(t *testing.T) {
 		// Verify default ordering is by delivery_time DESC
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			Limit:      10,
-			EventStart: start,
+			TenantID: tenantID,
+			Limit:    10,
+			Start:    start,
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, 10)
@@ -680,7 +680,7 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 			TenantID:       tenantID,
 			DestinationIDs: []string{destID},
 			Limit:          100,
-			EventStart:     start,
+			Start:          start,
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, len(destinationDeliveryEvents[destID]))
@@ -695,7 +695,7 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 			TenantID:       tenantID,
 			DestinationIDs: destIDs,
 			Limit:          100,
-			EventStart:     start,
+			Start:          start,
 		})
 		require.NoError(t, err)
 		expectedCount := len(destinationDeliveryEvents[destIDs[0]]) + len(destinationDeliveryEvents[destIDs[1]])
@@ -707,10 +707,10 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 
 	t.Run("filter by status", func(t *testing.T) {
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			Status:     "success",
-			Limit:      100,
-			EventStart: start,
+			TenantID: tenantID,
+			Status:   "success",
+			Limit:    100,
+			Start:    start,
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, len(statusDeliveryEvents["success"]))
@@ -722,10 +722,10 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 	t.Run("filter by single topic", func(t *testing.T) {
 		topic := testutil.TestTopics[0]
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			Topics:     []string{topic},
-			Limit:      100,
-			EventStart: start,
+			TenantID: tenantID,
+			Topics:   []string{topic},
+			Limit:    100,
+			Start:    start,
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, len(topicDeliveryEvents[topic]))
@@ -737,10 +737,10 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 	t.Run("filter by multiple topics", func(t *testing.T) {
 		topics := []string{testutil.TestTopics[0], testutil.TestTopics[1]}
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			Topics:     topics,
-			Limit:      100,
-			EventStart: start,
+			TenantID: tenantID,
+			Topics:   topics,
+			Limit:    100,
+			Start:    start,
 		})
 		require.NoError(t, err)
 		expectedCount := len(topicDeliveryEvents[topics[0]]) + len(topicDeliveryEvents[topics[1]])
@@ -753,10 +753,10 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 	t.Run("filter by event ID (replaces ListDelivery)", func(t *testing.T) {
 		t.Run("returns empty for unknown event", func(t *testing.T) {
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID:   tenantID,
-				EventID:    "unknown-event",
-				Limit:      100,
-				EventStart: start,
+				TenantID: tenantID,
+				EventID:  "unknown-event",
+				Limit:    100,
+				Start:    start,
 			})
 			require.NoError(t, err)
 			assert.Empty(t, response.Data)
@@ -765,10 +765,10 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 		t.Run("returns all deliveries for event", func(t *testing.T) {
 			eventID := "evt_00" // This event has retry (i%3==0), so 2 deliveries
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID:   tenantID,
-				EventID:    eventID,
-				Limit:      100,
-				EventStart: start,
+				TenantID: tenantID,
+				EventID:  eventID,
+				Limit:    100,
+				Start:    start,
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 2, "evt_00 should have 2 deliveries (init failed + final)")
@@ -784,7 +784,7 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 				EventID:        eventID,
 				DestinationIDs: []string{destinationIDs[0]}, // evt_00 goes to destinationIDs[0]
 				Limit:          100,
-				EventStart:     start,
+				Start:          start,
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 2)
@@ -799,10 +799,10 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 		sevenHoursAgo := baseTime.Add(-7 * time.Hour)
 		fiveHoursAgo := baseTime.Add(-5 * time.Hour)
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventStart: &sevenHoursAgo,
-			EventEnd:   &fiveHoursAgo,
-			Limit:      100,
+			TenantID: tenantID,
+			Start:    &sevenHoursAgo,
+			End:      &fiveHoursAgo,
+			Limit:    100,
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, len(timeDeliveryEvents["6h"]))
@@ -812,7 +812,7 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 		threeHoursAgo := baseTime.Add(-3 * time.Hour)
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
 			TenantID:       tenantID,
-			EventStart:     &threeHoursAgo,
+			Start:          &threeHoursAgo,
 			DestinationIDs: []string{destinationIDs[0]},
 			Status:         "success",
 			Topics:         []string{testutil.TestTopics[0]},
@@ -823,17 +823,17 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 			assert.Equal(t, destinationIDs[0], de.DestinationID)
 			assert.Equal(t, "success", de.Delivery.Status)
 			assert.Equal(t, testutil.TestTopics[0], de.Event.Topic)
-			assert.True(t, de.Event.Time.After(threeHoursAgo))
+			assert.True(t, de.Delivery.Time.After(threeHoursAgo))
 		}
 	})
 
 	t.Run("verify all fields returned correctly", func(t *testing.T) {
 		// Get first delivery event and verify all fields
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventID:    "evt_00", // Known event with specific data
-			Limit:      1,
-			EventStart: start,
+			TenantID: tenantID,
+			EventID:  "evt_00", // Known event with specific data
+			Limit:    1,
+			Start:    start,
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, 1)
@@ -860,9 +860,9 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 	t.Run("limit edge cases", func(t *testing.T) {
 		t.Run("limit 1 returns single item", func(t *testing.T) {
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID:   tenantID,
-				Limit:      1,
-				EventStart: start,
+				TenantID: tenantID,
+				Limit:    1,
+				Start:    start,
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 1)
@@ -871,9 +871,9 @@ func testListDeliveryEvent(t *testing.T, newHarness HarnessMaker) {
 
 		t.Run("limit greater than total returns all", func(t *testing.T) {
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID:   tenantID,
-				Limit:      1000,
-				EventStart: start,
+				TenantID: tenantID,
+				Limit:    1000,
+				Start:    start,
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, len(allDeliveryEvents))
@@ -1205,9 +1205,9 @@ func testTenantIsolation(t *testing.T, newHarness HarnessMaker) {
 	t.Run("ListDeliveryEvent isolates by tenant", func(t *testing.T) {
 		// Tenant1 should only see their events
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenant1ID,
-			Limit:      100,
-			EventStart: &startTime,
+			TenantID: tenant1ID,
+			Limit:    100,
+			Start:    &startTime,
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, 1)
@@ -1215,9 +1215,9 @@ func testTenantIsolation(t *testing.T, newHarness HarnessMaker) {
 
 		// Tenant2 should only see their events
 		response, err = logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenant2ID,
-			Limit:      100,
-			EventStart: &startTime,
+			TenantID: tenant2ID,
+			Limit:    100,
+			Start:    &startTime,
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, 1)
@@ -1315,9 +1315,9 @@ func testPaginationSimple(t *testing.T, newHarness HarnessMaker) {
 	t.Run("forward pagination collects all items", func(t *testing.T) {
 		var collected []string
 		req := driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventStart: &startTime,
-			Limit:      2,
+			TenantID: tenantID,
+			Start:    &startTime,
+			Limit:    2,
 		}
 
 		response, err := logStore.ListDeliveryEvent(ctx, req)
@@ -1343,9 +1343,9 @@ func testPaginationSimple(t *testing.T, newHarness HarnessMaker) {
 
 	t.Run("backward pagination returns to start", func(t *testing.T) {
 		req := driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventStart: &startTime,
-			Limit:      2,
+			TenantID: tenantID,
+			Start:    &startTime,
+			Limit:    2,
 		}
 
 		// Get first page
@@ -1373,10 +1373,10 @@ func testPaginationSimple(t *testing.T, newHarness HarnessMaker) {
 
 	t.Run("sorting changes order", func(t *testing.T) {
 		req := driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventStart: &startTime,
-			SortOrder:  "asc",
-			Limit:      5,
+			TenantID:  tenantID,
+			Start:     &startTime,
+			SortOrder: "asc",
+			Limit:     5,
 		}
 
 		response, err := logStore.ListDeliveryEvent(ctx, req)
@@ -1390,9 +1390,9 @@ func testPaginationSimple(t *testing.T, newHarness HarnessMaker) {
 
 	t.Run("cursor stability", func(t *testing.T) {
 		req := driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventStart: &startTime,
-			Limit:      2,
+			TenantID: tenantID,
+			Start:    &startTime,
+			Limit:    2,
 		}
 
 		// Same request twice should return identical results
@@ -1766,42 +1766,32 @@ func generateRealisticTimestampData(t *testing.T, logStore driver.LogStore) *Pag
 		TestCases: []PaginationTestCase{
 			{
 				Name:     "default sort (delivery_time DESC)",
-				Request:  driver.ListDeliveryEventRequest{EventStart: &farPast},
+				Request:  driver.ListDeliveryEventRequest{Start: &farPast},
 				Expected: sortedByDeliveryTimeDesc,
 			},
 			{
 				Name:     "sort by delivery_time ASC",
-				Request:  driver.ListDeliveryEventRequest{EventStart: &farPast, SortOrder: "asc"},
+				Request:  driver.ListDeliveryEventRequest{Start: &farPast, SortOrder: "asc"},
 				Expected: sortedByDeliveryTimeAsc,
 			},
 			{
-				Name:     "filter by event time (last 6 hours)",
-				Request:  driver.ListDeliveryEventRequest{EventStart: &sixHoursAgo},
-				Expected: eventsInLast6Hours,
-			},
-			{
-				Name:     "filter by event time range (6h to 12h ago)",
-				Request:  driver.ListDeliveryEventRequest{EventStart: &twelveHoursAgo, EventEnd: &sixHoursAgo},
-				Expected: eventsFrom6hTo12h,
-			},
-			{
 				Name:     "filter by delivery time (last 6 hours)",
-				Request:  driver.ListDeliveryEventRequest{DeliveryStart: &sixHoursAgo, EventStart: &farPast},
+				Request:  driver.ListDeliveryEventRequest{Start: &sixHoursAgo},
 				Expected: deliveriesInLast6Hours,
 			},
 			{
 				Name:     "filter by delivery time range (6h to 12h ago)",
-				Request:  driver.ListDeliveryEventRequest{DeliveryStart: &twelveHoursAgo, DeliveryEnd: &sixHoursAgo, EventStart: &farPast},
+				Request:  driver.ListDeliveryEventRequest{Start: &twelveHoursAgo, End: &sixHoursAgo},
 				Expected: deliveriesFrom6hTo12h,
 			},
 			{
 				Name:     "filter by destination",
-				Request:  driver.ListDeliveryEventRequest{DestinationIDs: []string{destinationIDs[0]}, EventStart: &farPast},
+				Request:  driver.ListDeliveryEventRequest{DestinationIDs: []string{destinationIDs[0]}, Start: &farPast},
 				Expected: byDestination[destinationIDs[0]],
 			},
 			{
 				Name:     "filter by status (success)",
-				Request:  driver.ListDeliveryEventRequest{Status: "success", EventStart: &farPast},
+				Request:  driver.ListDeliveryEventRequest{Status: "success", Start: &farPast},
 				Expected: byStatus["success"],
 			},
 		},
@@ -1877,12 +1867,12 @@ func generateIdenticalTimestampData(t *testing.T, logStore driver.LogStore) *Pag
 		TestCases: []PaginationTestCase{
 			{
 				Name:     "delivery_time DESC (falls back to delivery_id)",
-				Request:  driver.ListDeliveryEventRequest{EventStart: &farPast},
+				Request:  driver.ListDeliveryEventRequest{Start: &farPast},
 				Expected: sortedByDeliveryTimeDesc,
 			},
 			{
 				Name:     "delivery_time ASC (falls back to delivery_id)",
-				Request:  driver.ListDeliveryEventRequest{EventStart: &farPast, SortOrder: "asc"},
+				Request:  driver.ListDeliveryEventRequest{Start: &farPast, SortOrder: "asc"},
 				Expected: sortedByDeliveryTimeAsc,
 			},
 		},
@@ -2237,10 +2227,10 @@ func testInvalidSortValues(t *testing.T, newHarness HarnessMaker) {
 
 	t.Run("invalid SortOrder uses default (desc)", func(t *testing.T) {
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			SortOrder:  "sideways",
-			EventStart: &startTime,
-			Limit:      10,
+			TenantID:  tenantID,
+			SortOrder: "sideways",
+			Start:     &startTime,
+			Limit:     10,
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, 3)
@@ -2286,7 +2276,7 @@ func testEmptyVsNilFilters(t *testing.T, newHarness HarnessMaker) {
 		responseNil, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
 			TenantID:       tenantID,
 			DestinationIDs: nil,
-			EventStart:     &startTime,
+			Start:          &startTime,
 			Limit:          10,
 		})
 		require.NoError(t, err)
@@ -2294,7 +2284,7 @@ func testEmptyVsNilFilters(t *testing.T, newHarness HarnessMaker) {
 		responseEmpty, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
 			TenantID:       tenantID,
 			DestinationIDs: []string{},
-			EventStart:     &startTime,
+			Start:          &startTime,
 			Limit:          10,
 		})
 		require.NoError(t, err)
@@ -2306,18 +2296,18 @@ func testEmptyVsNilFilters(t *testing.T, newHarness HarnessMaker) {
 
 	t.Run("nil Topics equals empty Topics", func(t *testing.T) {
 		responseNil, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			Topics:     nil,
-			EventStart: &startTime,
-			Limit:      10,
+			TenantID: tenantID,
+			Topics:   nil,
+			Start:    &startTime,
+			Limit:    10,
 		})
 		require.NoError(t, err)
 
 		responseEmpty, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			Topics:     []string{},
-			EventStart: &startTime,
-			Limit:      10,
+			TenantID: tenantID,
+			Topics:   []string{},
+			Start:    &startTime,
+			Limit:    10,
 		})
 		require.NoError(t, err)
 
@@ -2327,17 +2317,17 @@ func testEmptyVsNilFilters(t *testing.T, newHarness HarnessMaker) {
 
 	t.Run("empty Status equals no status filter", func(t *testing.T) {
 		responseEmpty, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			Status:     "",
-			EventStart: &startTime,
-			Limit:      10,
+			TenantID: tenantID,
+			Status:   "",
+			Start:    &startTime,
+			Limit:    10,
 		})
 		require.NoError(t, err)
 
 		responseNoFilter, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventStart: &startTime,
-			Limit:      10,
+			TenantID: tenantID,
+			Start:    &startTime,
+			Limit:    10,
 		})
 		require.NoError(t, err)
 
@@ -2347,10 +2337,8 @@ func testEmptyVsNilFilters(t *testing.T, newHarness HarnessMaker) {
 }
 
 // testTimeBoundaryPrecision verifies that time filters use inclusive semantics:
-// - EventStart: >= (events at exactly start time are included)
-// - EventEnd: <= (events at exactly end time are included)
-// - DeliveryStart: >= (deliveries at exactly start time are included)
-// - DeliveryEnd: <= (deliveries at exactly end time are included)
+// - Start: >= (deliveries at exactly start time are included)
+// - End: <= (deliveries at exactly end time are included)
 func testTimeBoundaryPrecision(t *testing.T, newHarness HarnessMaker) {
 	t.Helper()
 
@@ -2418,79 +2406,45 @@ func testTimeBoundaryPrecision(t *testing.T, newHarness HarnessMaker) {
 		{ID: "de_after", DestinationID: destinationID, Event: *eventAfter, Delivery: deliveryAfter},
 	}))
 
-	t.Run("EventStart is inclusive (>=)", func(t *testing.T) {
+	t.Run("Start is inclusive (>=)", func(t *testing.T) {
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventStart: &boundaryTime,
-			Limit:      10,
-		})
-		require.NoError(t, err)
-
-		// Should include event at boundary and after, but not before
-		ids := extractEventIDs(response.Data)
-		assert.Contains(t, ids, "evt_at_boundary", "EventStart should include events at exact boundary")
-		assert.Contains(t, ids, "evt_after", "EventStart should include events after boundary")
-		assert.NotContains(t, ids, "evt_before", "EventStart should exclude events before boundary")
-	})
-
-	t.Run("EventEnd is inclusive (<=)", func(t *testing.T) {
-		farPast := boundaryTime.Add(-1 * time.Hour)
-		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventStart: &farPast,
-			EventEnd:   &boundaryTime,
-			Limit:      10,
-		})
-		require.NoError(t, err)
-
-		// Should include event at boundary and before, but not after
-		ids := extractEventIDs(response.Data)
-		assert.Contains(t, ids, "evt_at_boundary", "EventEnd should include events at exact boundary")
-		assert.Contains(t, ids, "evt_before", "EventEnd should include events before boundary")
-		assert.NotContains(t, ids, "evt_after", "EventEnd should exclude events after boundary")
-	})
-
-	t.Run("DeliveryStart is inclusive (>=)", func(t *testing.T) {
-		farPast := boundaryTime.Add(-1 * time.Hour)
-		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:      tenantID,
-			EventStart:    &farPast,
-			DeliveryStart: &boundaryTime,
-			Limit:         10,
+			TenantID: tenantID,
+			Start:    &boundaryTime,
+			Limit:    10,
 		})
 		require.NoError(t, err)
 
 		// Should include delivery at boundary and after, but not before
 		ids := extractDeliveryIDs(response.Data)
-		assert.Contains(t, ids, "del_at_boundary", "DeliveryStart should include deliveries at exact boundary")
-		assert.Contains(t, ids, "del_after", "DeliveryStart should include deliveries after boundary")
-		assert.NotContains(t, ids, "del_before", "DeliveryStart should exclude deliveries before boundary")
+		assert.Contains(t, ids, "del_at_boundary", "Start should include deliveries at exact boundary")
+		assert.Contains(t, ids, "del_after", "Start should include deliveries after boundary")
+		assert.NotContains(t, ids, "del_before", "Start should exclude deliveries before boundary")
 	})
 
-	t.Run("DeliveryEnd is inclusive (<=)", func(t *testing.T) {
+	t.Run("End is inclusive (<=)", func(t *testing.T) {
 		farPast := boundaryTime.Add(-1 * time.Hour)
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:    tenantID,
-			EventStart:  &farPast,
-			DeliveryEnd: &boundaryTime,
-			Limit:       10,
+			TenantID: tenantID,
+			Start:    &farPast,
+			End:      &boundaryTime,
+			Limit:    10,
 		})
 		require.NoError(t, err)
 
 		// Should include delivery at boundary and before, but not after
 		ids := extractDeliveryIDs(response.Data)
-		assert.Contains(t, ids, "del_at_boundary", "DeliveryEnd should include deliveries at exact boundary")
-		assert.Contains(t, ids, "del_before", "DeliveryEnd should include deliveries before boundary")
-		assert.NotContains(t, ids, "del_after", "DeliveryEnd should exclude deliveries after boundary")
+		assert.Contains(t, ids, "del_at_boundary", "End should include deliveries at exact boundary")
+		assert.Contains(t, ids, "del_before", "End should include deliveries before boundary")
+		assert.NotContains(t, ids, "del_after", "End should exclude deliveries after boundary")
 	})
 
 	t.Run("exact range includes boundary items", func(t *testing.T) {
 		// Range from exactly beforeBoundary to exactly afterBoundary
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventStart: &beforeBoundary,
-			EventEnd:   &afterBoundary,
-			Limit:      10,
+			TenantID: tenantID,
+			Start:    &beforeBoundary,
+			End:      &afterBoundary,
+			Limit:    10,
 		})
 		require.NoError(t, err)
 
@@ -2571,10 +2525,10 @@ func testEventIDPagination(t *testing.T, newHarness HarnessMaker) {
 	t.Run("forward pagination with EventID filter", func(t *testing.T) {
 		var collected []*models.DeliveryEvent
 		req := driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventID:    eventID,
-			EventStart: &startTime,
-			Limit:      3, // Small page size to test pagination
+			TenantID: tenantID,
+			EventID:  eventID,
+			Start:    &startTime,
+			Limit:    3, // Small page size to test pagination
 		}
 
 		response, err := logStore.ListDeliveryEvent(ctx, req)
@@ -2598,10 +2552,10 @@ func testEventIDPagination(t *testing.T, newHarness HarnessMaker) {
 
 	t.Run("backward pagination with EventID filter", func(t *testing.T) {
 		req := driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventID:    eventID,
-			EventStart: &startTime,
-			Limit:      3,
+			TenantID: tenantID,
+			EventID:  eventID,
+			Start:    &startTime,
+			Limit:    3,
 		}
 
 		// Go to last page
@@ -2670,9 +2624,9 @@ func testDataImmutability(t *testing.T, newHarness HarnessMaker) {
 	t.Run("modifying ListDeliveryEvent result doesn't affect subsequent queries", func(t *testing.T) {
 		// First query
 		response1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventStart: &startTime,
-			Limit:      10,
+			TenantID: tenantID,
+			Start:    &startTime,
+			Limit:    10,
 		})
 		require.NoError(t, err)
 		require.Len(t, response1.Data, 1)
@@ -2684,9 +2638,9 @@ func testDataImmutability(t *testing.T, newHarness HarnessMaker) {
 
 		// Second query should return original values
 		response2, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID:   tenantID,
-			EventStart: &startTime,
-			Limit:      10,
+			TenantID: tenantID,
+			Start:    &startTime,
+			Limit:    10,
 		})
 		require.NoError(t, err)
 		require.Len(t, response2.Data, 1)
@@ -2725,15 +2679,6 @@ func testDataImmutability(t *testing.T, newHarness HarnessMaker) {
 		assert.Equal(t, "original", event2.Metadata["key"],
 			"RetrieveEvent metadata should not be affected by mutation")
 	})
-}
-
-// Helper function to extract event IDs from delivery events
-func extractEventIDs(des []*models.DeliveryEvent) []string {
-	ids := make([]string, len(des))
-	for i, de := range des {
-		ids[i] = de.Event.ID
-	}
-	return ids
 }
 
 // Helper function to extract delivery IDs from delivery events
@@ -2811,21 +2756,21 @@ func testCursorMismatchedSortOrder(t *testing.T, newHarness HarnessMaker) {
 
 	// Get a cursor with sortOrder=desc
 	response1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-		TenantID:   tenantID,
-		SortOrder:  "desc",
-		EventStart: &startTime,
-		Limit:      2,
+		TenantID:  tenantID,
+		SortOrder: "desc",
+		Start:     &startTime,
+		Limit:     2,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, response1.Next, "expected next cursor")
 
 	// Try to use the cursor with sortOrder=asc - should fail
 	_, err = logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-		TenantID:   tenantID,
-		SortOrder:  "asc", // Different from cursor
-		EventStart: &startTime,
-		Next:       response1.Next,
-		Limit:      2,
+		TenantID:  tenantID,
+		SortOrder: "asc", // Different from cursor
+		Start:     &startTime,
+		Next:      response1.Next,
+		Limit:     2,
 	})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, driver.ErrInvalidCursor),
@@ -2859,11 +2804,11 @@ func testMalformedCursor(t *testing.T, newHarness HarnessMaker) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID:   tenantID,
-				SortOrder:  "desc",
-				EventStart: &startTime,
-				Next:       tc.cursor,
-				Limit:      10,
+				TenantID:  tenantID,
+				SortOrder: "desc",
+				Start:     &startTime,
+				Next:      tc.cursor,
+				Limit:     10,
 			})
 			// Some of these might not error (e.g., if cursor decodes to valid format)
 			// but completely invalid base62 should error
@@ -2924,21 +2869,21 @@ func testCursorMatchingSortParams(t *testing.T, newHarness HarnessMaker) {
 		t.Run(fmt.Sprintf("delivery_time_%s", sortOrder), func(t *testing.T) {
 			// Get first page with cursor
 			response1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID:   tenantID,
-				SortOrder:  sortOrder,
-				EventStart: &startTime,
-				Limit:      2,
+				TenantID:  tenantID,
+				SortOrder: sortOrder,
+				Start:     &startTime,
+				Limit:     2,
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, response1.Next, "expected next cursor for delivery_time %s", sortOrder)
 
 			// Use cursor with same sort params - should succeed
 			response2, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID:   tenantID,
-				SortOrder:  sortOrder,
-				EventStart: &startTime,
-				Next:       response1.Next,
-				Limit:      2,
+				TenantID:  tenantID,
+				SortOrder: sortOrder,
+				Start:     &startTime,
+				Next:      response1.Next,
+				Limit:     2,
 			})
 			require.NoError(t, err, "cursor should work with matching sort params for delivery_time %s", sortOrder)
 			require.NotEmpty(t, response2.Data, "should return data for second page")
@@ -3041,7 +2986,7 @@ func testCrossTenantQueries(t *testing.T, newHarness HarnessMaker) {
 			TenantID:       "", // Empty TenantID for cross-tenant query
 			DestinationIDs: []string{destinationID},
 			Limit:          100,
-			EventStart:     &startTime,
+			Start:          &startTime,
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, 2)

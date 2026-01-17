@@ -286,10 +286,10 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 	var cursorCondition string
 	if sortOrder == "desc" {
 		// DESC: next means smaller values, prev means larger values (but we query with flipped order)
-		cursorCondition = fmt.Sprintf("AND ($10::text = '' OR %s < $10::text) AND ($11::text = '' OR %s > $11::text)", cursorCol, cursorCol)
+		cursorCondition = fmt.Sprintf("AND ($8::text = '' OR %s < $8::text) AND ($9::text = '' OR %s > $9::text)", cursorCol, cursorCol)
 	} else {
 		// ASC: next means larger values, prev means smaller values (but we query with flipped order)
-		cursorCondition = fmt.Sprintf("AND ($10::text = '' OR %s > $10::text) AND ($11::text = '' OR %s < $11::text)", cursorCol, cursorCol)
+		cursorCondition = fmt.Sprintf("AND ($8::text = '' OR %s > $8::text) AND ($9::text = '' OR %s < $9::text)", cursorCol, cursorCol)
 	}
 
 	query := fmt.Sprintf(`
@@ -311,13 +311,11 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 			AND (array_length($3::text[], 1) IS NULL OR idx.destination_id = ANY($3))
 			AND ($4::text = '' OR idx.status = $4)
 			AND (array_length($5::text[], 1) IS NULL OR idx.topic = ANY($5))
-			AND ($6::timestamptz IS NULL OR idx.event_time >= $6)
-			AND ($7::timestamptz IS NULL OR idx.event_time <= $7)
-			AND ($8::timestamptz IS NULL OR idx.delivery_time >= $8)
-			AND ($9::timestamptz IS NULL OR idx.delivery_time <= $9)
+			AND ($6::timestamptz IS NULL OR idx.delivery_time >= $6)
+			AND ($7::timestamptz IS NULL OR idx.delivery_time <= $7)
 			%s
 			ORDER BY %s
-			LIMIT $12
+			LIMIT $10
 		)
 		SELECT
 			f.event_id,
@@ -347,13 +345,11 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 		req.DestinationIDs,  // $3
 		req.Status,          // $4
 		req.Topics,          // $5
-		req.EventStart,      // $6
-		req.EventEnd,        // $7
-		req.DeliveryStart,   // $8
-		req.DeliveryEnd,     // $9
-		nextCursor.Position, // $10
-		prevCursor.Position, // $11
-		limit+1,             // $12 - fetch one extra to detect if there's more
+		req.Start,           // $6
+		req.End,             // $7
+		nextCursor.Position, // $8
+		prevCursor.Position, // $9
+		limit+1,             // $10 - fetch one extra to detect if there's more
 	)
 	if err != nil {
 		return driver.ListDeliveryEventResponse{}, fmt.Errorf("query failed: %w", err)

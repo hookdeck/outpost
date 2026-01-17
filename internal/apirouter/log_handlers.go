@@ -191,7 +191,7 @@ func toAPIDelivery(de *models.DeliveryEvent, opts IncludeOptions) APIDelivery {
 }
 
 // ListDeliveries handles GET /:tenantID/deliveries
-// Query params: event_id, destination_id, status, topic[], start, end, event_start, event_end, limit, next, prev, expand[], sort_order
+// Query params: event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_order
 func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 	if tenant == nil {
@@ -234,37 +234,6 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		end = &t
 	}
 
-	// Parse event time filters (event_start, event_end)
-	var eventStart, eventEnd *time.Time
-	if eventStartStr := c.Query("event_start"); eventStartStr != "" {
-		t, err := time.Parse(time.RFC3339, eventStartStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.event_start": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		eventStart = &t
-	}
-	if eventEndStr := c.Query("event_end"); eventEndStr != "" {
-		t, err := time.Parse(time.RFC3339, eventEndStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.event_end": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		eventEnd = &t
-	}
-
 	// Parse limit (default 100, max 1000)
 	limit := parseLimit(c, 100, 1000)
 
@@ -297,10 +266,8 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		DestinationIDs: destinationIDs,
 		Status:         c.Query("status"),
 		Topics:         parseQueryArray(c, "topic"),
-		DeliveryStart:  start,
-		DeliveryEnd:    end,
-		EventStart:     eventStart,
-		EventEnd:       eventEnd,
+		Start:          start,
+		End:            end,
 		Limit:          limit,
 		Next:           c.Query("next"),
 		Prev:           c.Query("prev"),
@@ -393,7 +360,7 @@ func (h *LogHandlers) AdminListEvents(c *gin.Context) {
 }
 
 // AdminListDeliveries handles GET /deliveries (admin-only, cross-tenant)
-// Query params: tenant_id (optional), event_id, destination_id, status, topic[], start, end, event_start, event_end, limit, next, prev, expand[], sort_order
+// Query params: tenant_id (optional), event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_order
 func (h *LogHandlers) AdminListDeliveries(c *gin.Context) {
 	h.listDeliveriesInternal(c, c.Query("tenant_id"))
 }

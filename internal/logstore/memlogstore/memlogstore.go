@@ -407,19 +407,11 @@ func (s *memLogStore) matchesFilter(de *models.DeliveryEvent, req driver.ListDel
 		}
 	}
 
-	// Event time filter
-	if req.EventStart != nil && de.Event.Time.Before(*req.EventStart) {
-		return false
-	}
-	if req.EventEnd != nil && de.Event.Time.After(*req.EventEnd) {
-		return false
-	}
-
 	// Delivery time filter
-	if req.DeliveryStart != nil && de.Delivery.Time.Before(*req.DeliveryStart) {
+	if req.Start != nil && de.Delivery.Time.Before(*req.Start) {
 		return false
 	}
-	if req.DeliveryEnd != nil && de.Delivery.Time.After(*req.DeliveryEnd) {
+	if req.End != nil && de.Delivery.Time.After(*req.End) {
 		return false
 	}
 

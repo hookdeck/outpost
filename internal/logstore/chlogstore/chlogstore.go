@@ -369,21 +369,13 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 	}
 
 	// Time filters
-	if req.EventStart != nil {
-		conditions = append(conditions, "event_time >= ?")
-		args = append(args, *req.EventStart)
-	}
-	if req.EventEnd != nil {
-		conditions = append(conditions, "event_time <= ?")
-		args = append(args, *req.EventEnd)
-	}
-	if req.DeliveryStart != nil {
+	if req.Start != nil {
 		conditions = append(conditions, "delivery_time >= ?")
-		args = append(args, *req.DeliveryStart)
+		args = append(args, *req.Start)
 	}
-	if req.DeliveryEnd != nil {
+	if req.End != nil {
 		conditions = append(conditions, "delivery_time <= ?")
-		args = append(args, *req.DeliveryEnd)
+		args = append(args, *req.End)
 	}
 
 	// Cursor conditions

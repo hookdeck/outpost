@@ -42,10 +42,8 @@ type ListDeliveryEventRequest struct {
 	Next           string
 	Prev           string
 	Limit          int
-	EventStart     *time.Time // optional - filter events created after this time
-	EventEnd       *time.Time // optional - filter events created before this time
-	DeliveryStart  *time.Time // optional - filter deliveries after this time
-	DeliveryEnd    *time.Time // optional - filter deliveries before this time
+	Start          *time.Time // optional - filter deliveries after this time
+	End            *time.Time // optional - filter deliveries before this time
 	TenantID       string     // optional - filter by tenant (if empty, returns all tenants)
 	EventID        string     // optional - filter for specific event
 	DestinationIDs []string   // optional
