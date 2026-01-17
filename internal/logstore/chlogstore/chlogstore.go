@@ -25,7 +25,6 @@ func NewLogStore(chDB clickhouse.DB) driver.LogStore {
 }
 
 func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
-	// Validate and set defaults
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
@@ -36,17 +35,14 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		limit = 100
 	}
 
-	// Decode and validate cursors (using "event_time" as the sortBy for events)
 	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, "event_time", sortOrder)
 	if err != nil {
 		return driver.ListEventResponse{}, err
 	}
 
-	// Determine if we're going backward (using prev cursor)
 	goingBackward := !prevCursor.IsEmpty()
 
-	// Build ORDER BY clause with tiebreaker for deterministic pagination
-	// ORDER BY event_time, event_id
+	// Multi-column ORDER BY for deterministic pagination
 	var orderByClause string
 	if sortOrder == "desc" {
 		if goingBackward {
@@ -62,17 +58,14 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		}
 	}
 
-	// Build query with filters
 	var conditions []string
 	var args []interface{}
 
-	// Optional: tenant_id filter (skip if empty to query across all tenants)
 	if req.TenantID != "" {
 		conditions = append(conditions, "tenant_id = ?")
 		args = append(args, req.TenantID)
 	}
 
-	// Optional filters
 	if len(req.DestinationIDs) > 0 {
 		conditions = append(conditions, "destination_id IN ?")
 		args = append(args, req.DestinationIDs)
@@ -83,7 +76,6 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		args = append(args, req.Topics)
 	}
 
-	// Time filters
 	if req.EventStart != nil {
 		conditions = append(conditions, "event_time >= ?")
 		args = append(args, *req.EventStart)
@@ -93,7 +85,6 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		args = append(args, *req.EventEnd)
 	}
 
-	// Cursor conditions
 	if !nextCursor.IsEmpty() {
 		cursorCond, cursorArgs := buildEventCursorCondition(sortOrder, nextCursor.Position, false)
 		conditions = append(conditions, cursorCond)
@@ -167,7 +158,6 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 			return driver.ListEventResponse{}, fmt.Errorf("scan failed: %w", err)
 		}
 
-		// Parse JSON fields
 		var metadata map[string]string
 		var data map[string]interface{}
 
@@ -200,7 +190,6 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		return driver.ListEventResponse{}, fmt.Errorf("rows error: %w", err)
 	}
 
-	// Handle pagination
 	var hasMore bool
 	if len(results) > limit {
 		hasMore = true
@@ -214,7 +203,6 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		}
 	}
 
-	// Build response
 	data := make([]*models.Event, len(results))
 	for i, r := range results {
 		data[i] = r.event
@@ -223,7 +211,6 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 	var nextEncoded, prevEncoded string
 	if len(results) > 0 {
 		getPosition := func(r rowData) string {
-			// Cursor format: eventTimeMs::eventID
 			return fmt.Sprintf("%d::%s", r.eventTime.UnixMilli(), r.event.ID)
 		}
 
@@ -259,10 +246,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 	}, nil
 }
 
-// buildEventCursorCondition builds a SQL condition for cursor-based pagination on events table.
-// Returns the condition string with ? placeholders and the corresponding args.
 func buildEventCursorCondition(sortOrder, position string, isBackward bool) (string, []interface{}) {
-	// Parse position: eventTimeMs::eventID
 	parts := strings.SplitN(position, "::", 2)
 	if len(parts) != 2 {
 		return "1=1", nil // invalid cursor, return always true
@@ -273,7 +257,6 @@ func buildEventCursorCondition(sortOrder, position string, isBackward bool) (str
 	}
 	eventID := parts[1]
 
-	// Determine comparison direction
 	var cmp string
 	if sortOrder == "desc" {
 		if isBackward {
@@ -289,8 +272,6 @@ func buildEventCursorCondition(sortOrder, position string, isBackward bool) (str
 		}
 	}
 
-	// Build multi-column comparison for (event_time, event_id)
-	// Uses parameterized queries to prevent SQL injection
 	condition := fmt.Sprintf(`(
 		event_time %s fromUnixTimestamp64Milli(?)
 		OR (event_time = fromUnixTimestamp64Milli(?) AND event_id %s ?)
@@ -300,7 +281,6 @@ func buildEventCursorCondition(sortOrder, position string, isBackward bool) (str
 }
 
 func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDeliveryEventRequest) (driver.ListDeliveryEventResponse, error) {
-	// Always sort by delivery_time
 	sortBy := "delivery_time"
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
@@ -312,16 +292,13 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 		limit = 100
 	}
 
-	// Decode and validate cursors
 	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, sortBy, sortOrder)
 	if err != nil {
 		return driver.ListDeliveryEventResponse{}, err
 	}
 
-	// Determine if we're going backward (using prev cursor)
 	goingBackward := !prevCursor.IsEmpty()
 
-	// Build ORDER BY clause: ORDER BY delivery_time, delivery_id
 	var orderByClause string
 	if sortOrder == "desc" {
 		if goingBackward {
@@ -337,17 +314,14 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 		}
 	}
 
-	// Build query with filters
 	var conditions []string
 	var args []interface{}
 
-	// Optional: tenant_id filter (skip if empty to query across all tenants)
 	if req.TenantID != "" {
 		conditions = append(conditions, "tenant_id = ?")
 		args = append(args, req.TenantID)
 	}
 
-	// Optional filters
 	if req.EventID != "" {
 		conditions = append(conditions, "event_id = ?")
 		args = append(args, req.EventID)
@@ -368,7 +342,6 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 		args = append(args, req.Topics)
 	}
 
-	// Time filters
 	if req.Start != nil {
 		conditions = append(conditions, "delivery_time >= ?")
 		args = append(args, *req.Start)
@@ -378,7 +351,6 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 		args = append(args, *req.End)
 	}
 
-	// Cursor conditions
 	if !nextCursor.IsEmpty() {
 		cursorCond, cursorArgs := buildCursorCondition(sortOrder, nextCursor.Position, false)
 		conditions = append(conditions, cursorCond)
@@ -473,7 +445,6 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 			return driver.ListDeliveryEventResponse{}, fmt.Errorf("scan failed: %w", err)
 		}
 
-		// Parse JSON fields
 		var metadata map[string]string
 		var data map[string]interface{}
 		var responseData map[string]interface{}
@@ -527,21 +498,18 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 		return driver.ListDeliveryEventResponse{}, fmt.Errorf("rows error: %w", err)
 	}
 
-	// Handle pagination
 	var hasMore bool
 	if len(results) > limit {
 		hasMore = true
-		results = results[:limit] // Always keep the first `limit` items, remove the extra
+		results = results[:limit]
 	}
 
-	// When going backward, we queried in reverse order, so reverse results back to normal order
 	if goingBackward {
 		for i, j := 0, len(results)-1; i < j; i, j = i+1, j-1 {
 			results[i], results[j] = results[j], results[i]
 		}
 	}
 
-	// Build response
 	data := make([]*models.DeliveryEvent, len(results))
 	for i, r := range results {
 		data[i] = r.de
@@ -549,7 +517,6 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 
 	var nextEncoded, prevEncoded string
 	if len(results) > 0 {
-		// delivery_time cursor: deliveryTime::deliveryID
 		getPosition := func(r rowData) string {
 			return fmt.Sprintf("%d::%s", r.deliveryTime.UnixMilli(), r.de.Delivery.ID)
 		}
@@ -587,21 +554,17 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 }
 
 func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRequest) (*models.Event, error) {
-	// Build conditions dynamically to support optional tenant_id
 	var conditions []string
 	var args []interface{}
 
-	// Optional: tenant_id filter (skip if empty to search across all tenants)
 	if req.TenantID != "" {
 		conditions = append(conditions, "tenant_id = ?")
 		args = append(args, req.TenantID)
 	}
 
-	// Required: event_id
 	conditions = append(conditions, "event_id = ?")
 	args = append(args, req.EventID)
 
-	// Optional: destination_id filter
 	if req.DestinationID != "" {
 		conditions = append(conditions, "destination_id = ?")
 		args = append(args, req.DestinationID)
@@ -649,7 +612,6 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 		return nil, fmt.Errorf("scan failed: %w", err)
 	}
 
-	// Parse JSON fields
 	if metadataStr != "" {
 		if err := json.Unmarshal([]byte(metadataStr), &event.Metadata); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
@@ -664,19 +626,15 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 	return event, nil
 }
 
-// RetrieveDeliveryEvent retrieves a single delivery event by delivery ID.
 func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error) {
-	// Build conditions dynamically to support optional tenant_id
 	var conditions []string
 	var args []interface{}
 
-	// Optional: tenant_id filter (skip if empty to search across all tenants)
 	if req.TenantID != "" {
 		conditions = append(conditions, "tenant_id = ?")
 		args = append(args, req.TenantID)
 	}
 
-	// Required: delivery_id
 	conditions = append(conditions, "delivery_id = ?")
 	args = append(args, req.DeliveryID)
 
@@ -755,7 +713,6 @@ func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.Ret
 		return nil, fmt.Errorf("scan failed: %w", err)
 	}
 
-	// Parse JSON fields
 	var metadata map[string]string
 	var data map[string]interface{}
 	var responseData map[string]interface{}
@@ -808,7 +765,6 @@ func (s *logStoreImpl) InsertManyDeliveryEvent(ctx context.Context, deliveryEven
 		return nil
 	}
 
-	// Write to events table (ReplacingMergeTree deduplicates by ORDER BY)
 	eventBatch, err := s.chDB.PrepareBatch(ctx,
 		`INSERT INTO events (
 			event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data
@@ -846,7 +802,6 @@ func (s *logStoreImpl) InsertManyDeliveryEvent(ctx context.Context, deliveryEven
 		return fmt.Errorf("events batch send failed: %w", err)
 	}
 
-	// Write to deliveries table
 	deliveryBatch, err := s.chDB.PrepareBatch(ctx,
 		`INSERT INTO deliveries (
 			event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
@@ -917,15 +872,11 @@ func (s *logStoreImpl) InsertManyDeliveryEvent(ctx context.Context, deliveryEven
 	return nil
 }
 
-// parseTimestampMs parses a millisecond timestamp string to int64.
 func parseTimestampMs(s string) (int64, error) {
 	return strconv.ParseInt(s, 10, 64)
 }
 
-// buildCursorCondition builds a SQL condition for cursor-based pagination on delivery_time.
-// Returns the condition string with ? placeholders and the corresponding args.
 func buildCursorCondition(sortOrder, position string, isBackward bool) (string, []interface{}) {
-	// Parse position: "timestamp::deliveryID"
 	parts := strings.SplitN(position, "::", 2)
 	if len(parts) != 2 {
 		return "1=1", nil

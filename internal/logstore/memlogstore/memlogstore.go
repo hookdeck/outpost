@@ -29,37 +29,32 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Validate and set defaults for sort parameters
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
 	}
 
-	// Decode and validate cursors (using "event_time" as the sortBy for events)
 	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, "event_time", sortOrder)
 	if err != nil {
 		return driver.ListEventResponse{}, err
 	}
 
-	// Build unique events map (dedupe by event ID)
+	// Dedupe by event ID
 	eventMap := make(map[string]*models.Event)
 	for _, de := range s.deliveryEvents {
 		if !s.matchesEventFilter(&de.Event, req) {
 			continue
 		}
-		// Keep only one entry per event ID
 		if _, exists := eventMap[de.Event.ID]; !exists {
 			eventMap[de.Event.ID] = copyEvent(&de.Event)
 		}
 	}
 
-	// Convert to slice
 	var filtered []*models.Event
 	for _, event := range eventMap {
 		filtered = append(filtered, event)
 	}
 
-	// Sort by event_time with event_id as tiebreaker
 	isDesc := sortOrder == "desc"
 	sort.Slice(filtered, func(i, j int) bool {
 		if !filtered[i].Time.Equal(filtered[j].Time) {
@@ -68,20 +63,17 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 			}
 			return filtered[i].Time.Before(filtered[j].Time)
 		}
-		// Tiebreaker: event_id
 		if isDesc {
 			return filtered[i].ID > filtered[j].ID
 		}
 		return filtered[i].ID < filtered[j].ID
 	})
 
-	// Handle pagination
 	limit := req.Limit
 	if limit <= 0 {
 		limit = 100
 	}
 
-	// Find start index based on cursor
 	startIdx := 0
 	if !nextCursor.IsEmpty() {
 		for i, event := range filtered {
@@ -102,7 +94,6 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 		}
 	}
 
-	// Slice the results
 	endIdx := startIdx + limit
 	if endIdx > len(filtered) {
 		endIdx = len(filtered)
@@ -113,7 +104,6 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 		data[i] = copyEvent(event)
 	}
 
-	// Build cursors
 	var nextEncoded, prevEncoded string
 	if endIdx < len(filtered) {
 		nextEncoded = cursor.Encode(cursor.Cursor{
@@ -138,12 +128,10 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 }
 
 func (s *memLogStore) matchesEventFilter(event *models.Event, req driver.ListEventRequest) bool {
-	// Tenant filter (optional - skip if empty)
 	if req.TenantID != "" && event.TenantID != req.TenantID {
 		return false
 	}
 
-	// Destination filter
 	if len(req.DestinationIDs) > 0 {
 		found := false
 		for _, destID := range req.DestinationIDs {
@@ -157,7 +145,6 @@ func (s *memLogStore) matchesEventFilter(event *models.Event, req driver.ListEve
 		}
 	}
 
-	// Topics filter
 	if len(req.Topics) > 0 {
 		found := false
 		for _, topic := range req.Topics {
@@ -171,7 +158,6 @@ func (s *memLogStore) matchesEventFilter(event *models.Event, req driver.ListEve
 		}
 	}
 
-	// Event time filter
 	if req.EventStart != nil && event.Time.Before(*req.EventStart) {
 		return false
 	}
@@ -187,7 +173,6 @@ func (s *memLogStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvent
 	defer s.mu.Unlock()
 
 	for _, de := range deliveryEvents {
-		// Deep copy to avoid external mutation
 		copied := &models.DeliveryEvent{
 			ID:            de.ID,
 			Attempt:       de.Attempt,
@@ -197,12 +182,10 @@ func (s *memLogStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvent
 			Manual:        de.Manual,
 		}
 
-		// Check for existing entry and update (idempotent upsert)
+		// Idempotent upsert: match on event_id + delivery_id
 		found := false
 		for i, existing := range s.deliveryEvents {
-			// Match on event_id + delivery_id (same as pglogstore index key)
 			if existing.Event.ID == de.Event.ID && existing.Delivery != nil && de.Delivery != nil && existing.Delivery.ID == de.Delivery.ID {
-				// Update existing entry (like ON CONFLICT DO UPDATE)
 				s.deliveryEvents[i] = copied
 				found = true
 				break
@@ -220,20 +203,17 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Always sort by delivery_time
 	sortBy := "delivery_time"
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
 	}
 
-	// Decode and validate cursors
 	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, sortBy, sortOrder)
 	if err != nil {
 		return driver.ListDeliveryEventResponse{}, err
 	}
 
-	// Filter
 	var filtered []*models.DeliveryEvent
 	for _, de := range s.deliveryEvents {
 		if !s.matchesFilter(de, req) {
@@ -242,35 +222,27 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 		filtered = append(filtered, de)
 	}
 
-	// Sort by delivery_time with delivery_id as tiebreaker for deterministic pagination.
 	isDesc := sortOrder == "desc"
-
 	sort.Slice(filtered, func(i, j int) bool {
-		// Primary: delivery_time
 		if !filtered[i].Delivery.Time.Equal(filtered[j].Delivery.Time) {
 			if isDesc {
 				return filtered[i].Delivery.Time.After(filtered[j].Delivery.Time)
 			}
 			return filtered[i].Delivery.Time.Before(filtered[j].Delivery.Time)
 		}
-		// Secondary: delivery_id (for deterministic ordering)
 		if isDesc {
 			return filtered[i].Delivery.ID > filtered[j].Delivery.ID
 		}
 		return filtered[i].Delivery.ID < filtered[j].Delivery.ID
 	})
 
-	// Handle pagination
 	limit := req.Limit
 	if limit <= 0 {
 		limit = 100
 	}
 
-	// Find start index based on cursor
-	// The cursor position is the DeliveryEvent.ID
 	startIdx := 0
 	if !nextCursor.IsEmpty() {
-		// Next cursor: find the item and start from there
 		for i, de := range filtered {
 			if de.ID == nextCursor.Position {
 				startIdx = i
@@ -278,7 +250,6 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 			}
 		}
 	} else if !prevCursor.IsEmpty() {
-		// Prev cursor: find the item and go back by limit
 		for i, de := range filtered {
 			if de.ID == prevCursor.Position {
 				startIdx = i - limit
@@ -290,19 +261,16 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 		}
 	}
 
-	// Slice the results
 	endIdx := startIdx + limit
 	if endIdx > len(filtered) {
 		endIdx = len(filtered)
 	}
 
-	// Deep copy to ensure immutability
 	data := make([]*models.DeliveryEvent, endIdx-startIdx)
 	for i, de := range filtered[startIdx:endIdx] {
 		data[i] = copyDeliveryEvent(de)
 	}
 
-	// Build cursors with sort parameters encoded
 	var nextEncoded, prevEncoded string
 	if endIdx < len(filtered) {
 		nextEncoded = cursor.Encode(cursor.Cursor{
@@ -332,28 +300,24 @@ func (s *memLogStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEven
 
 	for _, de := range s.deliveryEvents {
 		if de.Event.ID == req.EventID {
-			// Tenant filter (optional - skip if empty)
 			if req.TenantID != "" && de.Event.TenantID != req.TenantID {
 				continue
 			}
 			if req.DestinationID != "" && de.Event.DestinationID != req.DestinationID {
 				continue
 			}
-			// Return a deep copy to ensure immutability
 			return copyEvent(&de.Event), nil
 		}
 	}
 	return nil, nil
 }
 
-// RetrieveDeliveryEvent retrieves a single delivery event by delivery ID.
 func (s *memLogStore) RetrieveDeliveryEvent(ctx context.Context, req driver.RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	for _, de := range s.deliveryEvents {
 		if de.Delivery != nil && de.Delivery.ID == req.DeliveryID {
-			// Tenant filter (optional - skip if empty)
 			if req.TenantID != "" && de.Event.TenantID != req.TenantID {
 				continue
 			}
@@ -364,17 +328,14 @@ func (s *memLogStore) RetrieveDeliveryEvent(ctx context.Context, req driver.Retr
 }
 
 func (s *memLogStore) matchesFilter(de *models.DeliveryEvent, req driver.ListDeliveryEventRequest) bool {
-	// Tenant filter (optional - skip if empty)
 	if req.TenantID != "" && de.Event.TenantID != req.TenantID {
 		return false
 	}
 
-	// Event ID filter
 	if req.EventID != "" && de.Event.ID != req.EventID {
 		return false
 	}
 
-	// Destination filter
 	if len(req.DestinationIDs) > 0 {
 		found := false
 		for _, destID := range req.DestinationIDs {
@@ -388,12 +349,10 @@ func (s *memLogStore) matchesFilter(de *models.DeliveryEvent, req driver.ListDel
 		}
 	}
 
-	// Status filter
 	if req.Status != "" && de.Delivery.Status != req.Status {
 		return false
 	}
 
-	// Topics filter
 	if len(req.Topics) > 0 {
 		found := false
 		for _, topic := range req.Topics {
@@ -407,7 +366,6 @@ func (s *memLogStore) matchesFilter(de *models.DeliveryEvent, req driver.ListDel
 		}
 	}
 
-	// Delivery time filter
 	if req.Start != nil && de.Delivery.Time.Before(*req.Start) {
 		return false
 	}
@@ -417,8 +375,6 @@ func (s *memLogStore) matchesFilter(de *models.DeliveryEvent, req driver.ListDel
 
 	return true
 }
-
-// Deep copy helpers to ensure data immutability
 
 func copyDeliveryEvent(de *models.DeliveryEvent) *models.DeliveryEvent {
 	return &models.DeliveryEvent{
@@ -441,7 +397,6 @@ func copyEvent(e *models.Event) *models.Event {
 		Time:             e.Time,
 	}
 
-	// Deep copy maps
 	if e.Metadata != nil {
 		copied.Metadata = make(map[string]string, len(e.Metadata))
 		for k, v := range e.Metadata {
@@ -471,7 +426,6 @@ func copyDelivery(d *models.Delivery) *models.Delivery {
 		Code:          d.Code,
 	}
 
-	// Deep copy ResponseData map if present
 	if d.ResponseData != nil {
 		copied.ResponseData = make(map[string]interface{}, len(d.ResponseData))
 		for k, v := range d.ResponseData {

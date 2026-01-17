@@ -41,7 +41,6 @@ func Decode(encoded string) (Cursor, error) {
 		return Cursor{}, err
 	}
 
-	// Detect version and decode accordingly
 	if strings.HasPrefix(raw, v1Prefix) {
 		return decodeV1(raw)
 	}

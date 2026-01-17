@@ -22,10 +22,7 @@ func NewLogStore(db *pgxpool.Pool) driver.LogStore {
 	}
 }
 
-// ListEvent returns events matching the filter criteria.
-// It queries the events table directly, sorted by event_time.
 func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
-	// Validate and set defaults
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
@@ -36,17 +33,13 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		limit = 100
 	}
 
-	// Decode and validate cursors (using "event_time" as the sortBy for events)
 	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, "event_time", sortOrder)
 	if err != nil {
 		return driver.ListEventResponse{}, err
 	}
 
-	// Determine if we're going backward (using prev cursor)
 	goingBackward := !prevCursor.IsEmpty()
 
-	// Build ORDER BY clause with tiebreaker for deterministic pagination
-	// ORDER BY event_time, event_id
 	var orderByClause, finalOrderByClause string
 	if sortOrder == "desc" {
 		if goingBackward {
@@ -175,7 +168,6 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		return driver.ListEventResponse{}, fmt.Errorf("rows error: %w", err)
 	}
 
-	// Handle pagination cursors
 	var hasMore bool
 	if len(results) > limit {
 		hasMore = true
@@ -186,7 +178,6 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		}
 	}
 
-	// Build response
 	data := make([]*models.Event, len(results))
 	for i, r := range results {
 		data[i] = r.event
@@ -230,13 +221,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 	}, nil
 }
 
-// ListDeliveryEvent returns delivery events matching the filter criteria.
-// It joins event_delivery_index with events and deliveries tables to return
-// complete DeliveryEvent records.
-//
-// Sorting is by delivery_time with delivery_id as tiebreaker for deterministic pagination.
 func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliveryEventRequest) (driver.ListDeliveryEventResponse, error) {
-	// Always sort by delivery_time
 	sortBy := "delivery_time"
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
@@ -248,19 +233,14 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 		limit = 100
 	}
 
-	// Decode and validate cursors
 	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, sortBy, sortOrder)
 	if err != nil {
 		return driver.ListDeliveryEventResponse{}, err
 	}
 
-	// Cursor column for delivery_time sort
 	cursorCol := "time_delivery_id"
-
-	// Determine if we're going backward (using prev cursor)
 	goingBackward := !prevCursor.IsEmpty()
 
-	// Build ORDER BY clause: ORDER BY delivery_time, delivery_id
 	var orderByClause, finalOrderByClause string
 	if sortOrder == "desc" {
 		if goingBackward {
@@ -278,17 +258,10 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 		finalOrderByClause = "delivery_time ASC, delivery_id ASC"
 	}
 
-	// Build cursor conditions - always include both conditions but use empty string check
-	// This ensures PostgreSQL can infer types for both parameters
-	// For next cursor (going forward in display order): get items that come AFTER in sort order
-	// For prev cursor (going backward in display order): get items that come BEFORE in sort order
-	// Since we flip the query order for prev, we use the same comparison direction
 	var cursorCondition string
 	if sortOrder == "desc" {
-		// DESC: next means smaller values, prev means larger values (but we query with flipped order)
 		cursorCondition = fmt.Sprintf("AND ($8::text = '' OR %s < $8::text) AND ($9::text = '' OR %s > $9::text)", cursorCol, cursorCol)
 	} else {
-		// ASC: next means larger values, prev means smaller values (but we query with flipped order)
 		cursorCondition = fmt.Sprintf("AND ($8::text = '' OR %s > $8::text) AND ($9::text = '' OR %s < $9::text)", cursorCol, cursorCol)
 	}
 
@@ -444,22 +417,16 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 		return driver.ListDeliveryEventResponse{}, fmt.Errorf("rows error: %w", err)
 	}
 
-	// Handle pagination cursors
-	// When going backward, the extra item (if any) is at the BEGINNING after re-sort
-	// When going forward, the extra item is at the END
 	var hasMore bool
 	if len(results) > limit {
 		hasMore = true
 		if goingBackward {
-			// Trim from beginning - the extra item is now first after DESC re-sort
 			results = results[1:]
 		} else {
-			// Trim from end - the extra item is last
 			results = results[:limit]
 		}
 	}
 
-	// Build response
 	data := make([]*models.DeliveryEvent, len(results))
 	for i, r := range results {
 		data[i] = r.de
@@ -467,7 +434,6 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 
 	var nextEncoded, prevEncoded string
 	if len(results) > 0 {
-		// Position value is timeDeliveryID (matches cursorCol)
 		getPosition := func(r rowData) string {
 			return r.timeDeliveryID
 		}
@@ -481,23 +447,19 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 		}
 
 		if !prevCursor.IsEmpty() {
-			// Came from prev, so there's definitely more "next"
 			nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
 			if hasMore {
 				prevEncoded = encodeCursor(getPosition(results[0]))
 			}
 		} else if !nextCursor.IsEmpty() {
-			// Came from next, so there's definitely more "prev"
 			prevEncoded = encodeCursor(getPosition(results[0]))
 			if hasMore {
 				nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
 			}
 		} else {
-			// First page
 			if hasMore {
 				nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
 			}
-			// No prev on first page
 		}
 	}
 
@@ -508,14 +470,11 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 	}, nil
 }
 
-// RetrieveEvent retrieves a single event by ID.
-// If DestinationID is provided, it scopes the query to that destination.
 func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRequest) (*models.Event, error) {
 	var query string
 	var args []interface{}
 
 	if req.DestinationID != "" {
-		// Scope to specific destination - get status from index
 		query = `
 			SELECT
 				e.id,
@@ -572,7 +531,6 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 	return event, nil
 }
 
-// RetrieveDeliveryEvent retrieves a single delivery event by delivery ID.
 func (s *logStore) RetrieveDeliveryEvent(ctx context.Context, req driver.RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error) {
 	query := `
 		SELECT
@@ -679,7 +637,6 @@ func (s *logStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents [
 	}
 	defer tx.Rollback(ctx)
 
-	// Insert events
 	events := make([]*models.Event, len(deliveryEvents))
 	for i, de := range deliveryEvents {
 		events[i] = &de.Event
@@ -693,7 +650,6 @@ func (s *logStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents [
 		return err
 	}
 
-	// Insert deliveries
 	deliveries := make([]*models.Delivery, len(deliveryEvents))
 	for i, de := range deliveryEvents {
 		if de.Delivery == nil {
@@ -721,7 +677,6 @@ func (s *logStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents [
 		return err
 	}
 
-	// Insert into index
 	_, err = tx.Exec(ctx, `
 		INSERT INTO event_delivery_index (
 			event_id, delivery_id, tenant_id, destination_id,

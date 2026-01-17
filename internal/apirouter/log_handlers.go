@@ -151,7 +151,6 @@ func toAPIDelivery(de *models.DeliveryEvent, opts IncludeOptions) APIDelivery {
 		Destination: de.DestinationID,
 	}
 
-	// Set delivery fields if delivery exists
 	if de.Delivery != nil {
 		api.ID = de.Delivery.ID
 		api.Status = de.Delivery.Status
@@ -162,7 +161,6 @@ func toAPIDelivery(de *models.DeliveryEvent, opts IncludeOptions) APIDelivery {
 		}
 	}
 
-	// Handle event expansion
 	if opts.EventData {
 		api.Event = APIEventFull{
 			ID:               de.Event.ID,
@@ -202,10 +200,7 @@ func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 	h.listDeliveriesInternal(c, tenant.ID)
 }
 
-// listDeliveriesInternal is the shared implementation for ListDeliveries and AdminListDeliveries.
-// tenantID can be empty to query across all tenants (admin use case).
 func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
-	// Parse time filters
 	var start, end *time.Time
 	if startStr := c.Query("start"); startStr != "" {
 		t, err := time.Parse(time.RFC3339, startStr)
@@ -236,16 +231,13 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		end = &t
 	}
 
-	// Parse limit (default 100, max 1000)
 	limit := parseLimit(c, 100, 1000)
 
-	// Parse destination_id (single value for now)
 	var destinationIDs []string
 	if destID := c.Query("destination_id"); destID != "" {
 		destinationIDs = []string{destID}
 	}
 
-	// Parse sort_order (default: desc)
 	sortOrder := c.Query("sort_order")
 	if sortOrder == "" {
 		sortOrder = "desc"
@@ -261,7 +253,6 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		return
 	}
 
-	// Build request
 	req := logstore.ListDeliveryEventRequest{
 		TenantID:       tenantID,
 		EventID:        c.Query("event_id"),
@@ -276,17 +267,14 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		SortOrder:      sortOrder,
 	}
 
-	// Call logstore
 	response, err := h.logStore.ListDeliveryEvent(c.Request.Context(), req)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 
-	// Parse include options
 	includeOpts := parseIncludeOptions(c)
 
-	// Transform to API response
 	apiDeliveries := make([]APIDelivery, len(response.Data))
 	for i, de := range response.Data {
 		apiDeliveries[i] = toAPIDelivery(de, includeOpts)
@@ -349,7 +337,6 @@ func (h *LogHandlers) RetrieveDelivery(c *gin.Context) {
 		return
 	}
 
-	// Parse include options
 	includeOpts := parseIncludeOptions(c)
 
 	c.JSON(http.StatusOK, toAPIDelivery(deliveryEvent, includeOpts))
@@ -377,10 +364,7 @@ func (h *LogHandlers) ListEvents(c *gin.Context) {
 	h.listEventsInternal(c, tenant.ID)
 }
 
-// listEventsInternal is the shared implementation for ListEvents and AdminListEvents.
-// tenantID can be empty to query across all tenants (admin use case).
 func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
-	// Parse time filters
 	var start, end *time.Time
 	if startStr := c.Query("start"); startStr != "" {
 		t, err := time.Parse(time.RFC3339, startStr)
@@ -411,16 +395,13 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 		end = &t
 	}
 
-	// Parse limit (default 100, max 1000)
 	limit := parseLimit(c, 100, 1000)
 
-	// Parse destination_id (single value for now)
 	var destinationIDs []string
 	if destID := c.Query("destination_id"); destID != "" {
 		destinationIDs = []string{destID}
 	}
 
-	// Parse sort_order (default: desc)
 	sortOrder := c.Query("sort_order")
 	if sortOrder == "" {
 		sortOrder = "desc"
@@ -436,7 +417,6 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 		return
 	}
 
-	// Build request
 	req := logstore.ListEventRequest{
 		TenantID:       tenantID,
 		DestinationIDs: destinationIDs,
@@ -449,14 +429,12 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 		SortOrder:      sortOrder,
 	}
 
-	// Call logstore
 	response, err := h.logStore.ListEvent(c.Request.Context(), req)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 
-	// Transform to API response
 	apiEvents := make([]APIEvent, len(response.Data))
 	for i, e := range response.Data {
 		apiEvents[i] = APIEvent{
