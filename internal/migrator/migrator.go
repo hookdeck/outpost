@@ -197,7 +197,11 @@ func (opts *MigrationOpts) databaseURL() string {
 	}
 
 	if opts.CH.Addr != "" {
-		return fmt.Sprintf("clickhouse://%s:%s@%s/%s?x-multi-statement=true", opts.CH.Username, opts.CH.Password, opts.CH.Addr, opts.CH.Database)
+		url := fmt.Sprintf("clickhouse://%s:%s@%s/%s?x-multi-statement=true", opts.CH.Username, opts.CH.Password, opts.CH.Addr, opts.CH.Database)
+		if opts.CH.DeploymentID != "" {
+			url += "&x-migrations-table=" + opts.CH.DeploymentID + "_schema_migrations"
+		}
+		return url
 	}
 
 	return ""

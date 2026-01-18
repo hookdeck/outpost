@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hookdeck/outpost/internal/clickhouse"
+	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -301,4 +303,174 @@ func sanitizeURLForTesting(dbURL string) string {
 		}
 	}
 	return dbURL
+}
+
+// TestMigrator_DeploymentID_TableNaming tests that deployment ID creates prefixed tables.
+func TestMigrator_DeploymentID_TableNaming(t *testing.T) {
+	testutil.Integration(t)
+
+	ctx := context.Background()
+	chConfig := setupClickHouseConfig(t)
+
+	// Run migrations with deployment ID
+	m, err := New(MigrationOpts{
+		CH: MigrationOptsCH{
+			Addr:         chConfig.Addr,
+			Username:     chConfig.Username,
+			Password:     chConfig.Password,
+			Database:     chConfig.Database,
+			DeploymentID: "testdeploy",
+		},
+	})
+	require.NoError(t, err)
+	defer m.Close(ctx)
+
+	_, _, err = m.Up(ctx, -1)
+	require.NoError(t, err)
+
+	// Verify prefixed tables exist
+	chDB, err := clickhouse.New(&chConfig)
+	require.NoError(t, err)
+	defer chDB.Close()
+
+	var count uint64
+	err = chDB.QueryRow(ctx, "SELECT count() FROM system.tables WHERE database = ? AND name = ?",
+		chConfig.Database, "testdeploy_events").Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1), count, "testdeploy_events table should exist")
+
+	err = chDB.QueryRow(ctx, "SELECT count() FROM system.tables WHERE database = ? AND name = ?",
+		chConfig.Database, "testdeploy_deliveries").Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1), count, "testdeploy_deliveries table should exist")
+}
+
+// TestMigrator_DeploymentID_Isolation tests that multiple deployments are isolated.
+func TestMigrator_DeploymentID_Isolation(t *testing.T) {
+	testutil.Integration(t)
+
+	ctx := context.Background()
+	chConfig := setupClickHouseConfig(t)
+
+	// Run migrations for deployment A
+	mA, err := New(MigrationOpts{
+		CH: MigrationOptsCH{
+			Addr:         chConfig.Addr,
+			Username:     chConfig.Username,
+			Password:     chConfig.Password,
+			Database:     chConfig.Database,
+			DeploymentID: "deploy_a",
+		},
+	})
+	require.NoError(t, err)
+	_, _, err = mA.Up(ctx, -1)
+	require.NoError(t, err)
+	mA.Close(ctx)
+
+	// Run migrations for deployment B
+	mB, err := New(MigrationOpts{
+		CH: MigrationOptsCH{
+			Addr:         chConfig.Addr,
+			Username:     chConfig.Username,
+			Password:     chConfig.Password,
+			Database:     chConfig.Database,
+			DeploymentID: "deploy_b",
+		},
+	})
+	require.NoError(t, err)
+	_, _, err = mB.Up(ctx, -1)
+	require.NoError(t, err)
+	mB.Close(ctx)
+
+	// Verify both deployments have their own tables
+	chDB, err := clickhouse.New(&chConfig)
+	require.NoError(t, err)
+	defer chDB.Close()
+
+	tables := []string{
+		"deploy_a_events", "deploy_a_deliveries",
+		"deploy_b_events", "deploy_b_deliveries",
+	}
+	for _, table := range tables {
+		var count uint64
+		err = chDB.QueryRow(ctx, "SELECT count() FROM system.tables WHERE database = ? AND name = ?",
+			chConfig.Database, table).Scan(&count)
+		require.NoError(t, err)
+		assert.Equal(t, uint64(1), count, "%s table should exist", table)
+	}
+
+	// Insert data into deployment A
+	err = chDB.Exec(ctx, `
+		INSERT INTO deploy_a_events (event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data)
+		VALUES ('evt_a', 'tenant_a', 'dest_a', 'topic_a', false, now(), '{}', '{}')
+	`)
+	require.NoError(t, err)
+
+	// Insert data into deployment B
+	err = chDB.Exec(ctx, `
+		INSERT INTO deploy_b_events (event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data)
+		VALUES ('evt_b', 'tenant_b', 'dest_b', 'topic_b', false, now(), '{}', '{}')
+	`)
+	require.NoError(t, err)
+
+	// Verify isolation: deployment A should only see its own data
+	var eventID string
+	err = chDB.QueryRow(ctx, "SELECT event_id FROM deploy_a_events WHERE event_id = 'evt_a'").Scan(&eventID)
+	require.NoError(t, err)
+	assert.Equal(t, "evt_a", eventID)
+
+	// deployment A should not see deployment B's data
+	err = chDB.QueryRow(ctx, "SELECT event_id FROM deploy_a_events WHERE event_id = 'evt_b'").Scan(&eventID)
+	require.Error(t, err) // Should be no rows
+
+	// deployment B should only see its own data
+	err = chDB.QueryRow(ctx, "SELECT event_id FROM deploy_b_events WHERE event_id = 'evt_b'").Scan(&eventID)
+	require.NoError(t, err)
+	assert.Equal(t, "evt_b", eventID)
+}
+
+// TestMigrator_NoDeploymentID_DefaultTables tests that no deployment ID uses default table names.
+func TestMigrator_NoDeploymentID_DefaultTables(t *testing.T) {
+	testutil.Integration(t)
+
+	ctx := context.Background()
+	chConfig := setupClickHouseConfig(t)
+
+	// Run migrations without deployment ID
+	m, err := New(MigrationOpts{
+		CH: MigrationOptsCH{
+			Addr:     chConfig.Addr,
+			Username: chConfig.Username,
+			Password: chConfig.Password,
+			Database: chConfig.Database,
+			// DeploymentID intentionally omitted
+		},
+	})
+	require.NoError(t, err)
+	defer m.Close(ctx)
+
+	_, _, err = m.Up(ctx, -1)
+	require.NoError(t, err)
+
+	// Verify default tables exist (no prefix)
+	chDB, err := clickhouse.New(&chConfig)
+	require.NoError(t, err)
+	defer chDB.Close()
+
+	var count uint64
+	err = chDB.QueryRow(ctx, "SELECT count() FROM system.tables WHERE database = ? AND name = ?",
+		chConfig.Database, "events").Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1), count, "events table should exist")
+
+	err = chDB.QueryRow(ctx, "SELECT count() FROM system.tables WHERE database = ? AND name = ?",
+		chConfig.Database, "deliveries").Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1), count, "deliveries table should exist")
+}
+
+func setupClickHouseConfig(t *testing.T) clickhouse.ClickHouseConfig {
+	t.Helper()
+	t.Cleanup(testinfra.Start(t))
+	return testinfra.NewClickHouseConfig(t)
 }
