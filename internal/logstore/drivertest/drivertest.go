@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/idgen"
-	"github.com/hookdeck/outpost/internal/logstore/cursor"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -2707,80 +2707,12 @@ func extractDeliveryIDs(des []*models.DeliveryEvent) []string {
 func testCursorValidation(t *testing.T, newHarness HarnessMaker) {
 	t.Helper()
 
-	t.Run("cursor with mismatched sortOrder returns error", func(t *testing.T) {
-		testCursorMismatchedSortOrder(t, newHarness)
-	})
 	t.Run("malformed cursor returns error", func(t *testing.T) {
 		testMalformedCursor(t, newHarness)
 	})
 	t.Run("cursor works with matching sort params", func(t *testing.T) {
 		testCursorMatchingSortParams(t, newHarness)
 	})
-}
-
-// testCursorMismatchedSortOrder verifies that using a cursor generated with one
-// sortOrder value with a different sortOrder value returns ErrInvalidCursor.
-func testCursorMismatchedSortOrder(t *testing.T, newHarness HarnessMaker) {
-	t.Helper()
-
-	ctx := context.Background()
-	h, err := newHarness(ctx, t)
-	require.NoError(t, err)
-	t.Cleanup(h.Close)
-
-	logStore, err := h.MakeDriver(ctx)
-	require.NoError(t, err)
-
-	tenantID := idgen.String()
-	destinationID := idgen.Destination()
-	baseTime := time.Now().Truncate(time.Second)
-	startTime := baseTime.Add(-48 * time.Hour)
-
-	// Insert enough data to get a next cursor
-	var deliveryEvents []*models.DeliveryEvent
-	for i := 0; i < 5; i++ {
-		event := testutil.EventFactory.AnyPointer(
-			testutil.EventFactory.WithID(fmt.Sprintf("evt_order_%d", i)),
-			testutil.EventFactory.WithTenantID(tenantID),
-			testutil.EventFactory.WithDestinationID(destinationID),
-			testutil.EventFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
-		)
-		delivery := testutil.DeliveryFactory.AnyPointer(
-			testutil.DeliveryFactory.WithID(fmt.Sprintf("del_order_%d", i)),
-			testutil.DeliveryFactory.WithEventID(event.ID),
-			testutil.DeliveryFactory.WithDestinationID(destinationID),
-			testutil.DeliveryFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
-		)
-		deliveryEvents = append(deliveryEvents, &models.DeliveryEvent{
-			ID:            fmt.Sprintf("de_order_%d", i),
-			DestinationID: destinationID,
-			Event:         *event,
-			Delivery:      delivery,
-		})
-	}
-	require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, deliveryEvents))
-
-	// Get a cursor with sortOrder=desc
-	response1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-		TenantID:  tenantID,
-		SortOrder: "desc",
-		Start:     &startTime,
-		Limit:     2,
-	})
-	require.NoError(t, err)
-	require.NotEmpty(t, response1.Next, "expected next cursor")
-
-	// Try to use the cursor with sortOrder=asc - should fail
-	_, err = logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-		TenantID:  tenantID,
-		SortOrder: "asc", // Different from cursor
-		Start:     &startTime,
-		Next:      response1.Next,
-		Limit:     2,
-	})
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, driver.ErrInvalidCursor),
-		"expected ErrInvalidCursor, got: %v", err)
 }
 
 // testMalformedCursor verifies that a malformed cursor string returns ErrInvalidCursor.
@@ -2804,7 +2736,7 @@ func testMalformedCursor(t *testing.T, newHarness HarnessMaker) {
 	}{
 		{"completely invalid base62", "!!!invalid!!!"},
 		{"random string", "abcdef123456"},
-		{"empty after decode", cursor.Encode(cursor.Cursor{})}, // Empty cursor should be fine, but let's test edge cases
+		{"wrong resource", cursor.Encode("evt", 1, "test")}, // evt is for events, not deliveries
 	}
 
 	for _, tc := range testCases {
@@ -2816,13 +2748,10 @@ func testMalformedCursor(t *testing.T, newHarness HarnessMaker) {
 				Next:      tc.cursor,
 				Limit:     10,
 			})
-			// Some of these might not error (e.g., if cursor decodes to valid format)
-			// but completely invalid base62 should error
-			if tc.name == "completely invalid base62" {
-				require.Error(t, err)
-				assert.True(t, errors.Is(err, driver.ErrInvalidCursor),
-					"expected ErrInvalidCursor for %s, got: %v", tc.name, err)
-			}
+			// All invalid cursor cases should error
+			require.Error(t, err)
+			assert.True(t, errors.Is(err, driver.ErrInvalidCursor),
+				"expected ErrInvalidCursor for %s, got: %v", tc.name, err)
 		})
 	}
 }
