@@ -507,8 +507,9 @@ func (s *serviceInstance) initRedis(ctx context.Context, cfg *config.Config, log
 func (s *serviceInstance) initLogStore(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
 	logger.Debug("configuring log store driver", zap.String("service", s.name))
 	logStoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
-		ClickHouse: cfg.ClickHouse.ToConfig(),
-		Postgres:   &cfg.PostgresURL,
+		ClickHouse:   cfg.ClickHouse.ToConfig(),
+		Postgres:     &cfg.PostgresURL,
+		DeploymentID: cfg.DeploymentID,
 	})
 	if err != nil {
 		logger.Error("log store driver configuration failed", zap.String("service", s.name), zap.Error(err))
