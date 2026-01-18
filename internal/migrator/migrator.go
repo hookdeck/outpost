@@ -4,6 +4,10 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"io"
+	"io/fs"
+	"strings"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/clickhouse"
@@ -134,10 +138,11 @@ type MigrationOptsPG struct {
 }
 
 type MigrationOptsCH struct {
-	Addr     string
-	Username string
-	Password string
-	Database string
+	Addr         string
+	Username     string
+	Password     string
+	Database     string
+	DeploymentID string
 }
 
 type MigrationOpts struct {
@@ -167,7 +172,12 @@ func (opts *MigrationOpts) getDriver() (source.Driver, error) {
 	}
 
 	if opts.CH.Addr != "" {
-		d, err := iofs.New(chMigrations, "migrations/clickhouse")
+		prefix := ""
+		if opts.CH.DeploymentID != "" {
+			prefix = opts.CH.DeploymentID + "_"
+		}
+		src := newDeploymentSource(chMigrations, "migrations/clickhouse", prefix)
+		d, err := iofs.New(src, ".")
 		if err != nil {
 			return nil, fmt.Errorf("failed to create clickhouse migration source: %w", err)
 		}
@@ -192,3 +202,109 @@ func (opts *MigrationOpts) databaseURL() string {
 
 	return ""
 }
+
+// deploymentSource wraps an embed.FS and replaces {deployment_prefix} placeholders
+// in SQL files with the actual deployment prefix. This enables multiple deployments
+// to share the same ClickHouse database with isolated table names.
+type deploymentSource struct {
+	fsys   embed.FS
+	subdir string
+	prefix string
+}
+
+func newDeploymentSource(fsys embed.FS, subdir, prefix string) *deploymentSource {
+	return &deploymentSource{
+		fsys:   fsys,
+		subdir: subdir,
+		prefix: prefix,
+	}
+}
+
+// Open implements fs.FS
+func (d *deploymentSource) Open(name string) (fs.File, error) {
+	// Map the path to the embedded subdir
+	path := name
+	if d.subdir != "" && name != "." {
+		path = d.subdir + "/" + name
+	} else if name == "." {
+		path = d.subdir
+	}
+
+	f, err := d.fsys.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// For directories, return as-is
+	info, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	if info.IsDir() {
+		return &deploymentDir{File: f, d: d, path: path}, nil
+	}
+
+	// For SQL files, wrap to replace placeholders
+	if strings.HasSuffix(name, ".sql") {
+		content, err := io.ReadAll(f)
+		f.Close()
+		if err != nil {
+			return nil, err
+		}
+		replaced := strings.ReplaceAll(string(content), "{deployment_prefix}", d.prefix)
+		return &deploymentFile{
+			Reader: strings.NewReader(replaced),
+			info:   &deploymentFileInfo{name: info.Name(), size: int64(len(replaced)), mode: info.Mode(), modTime: info.ModTime()},
+		}, nil
+	}
+
+	return f, nil
+}
+
+// deploymentDir wraps a directory to return modified DirEntry names
+type deploymentDir struct {
+	fs.File
+	d    *deploymentSource
+	path string
+}
+
+func (dd *deploymentDir) ReadDir(n int) ([]fs.DirEntry, error) {
+	entries, err := fs.ReadDir(dd.d.fsys, dd.path)
+	if err != nil {
+		return nil, err
+	}
+	if n > 0 && n < len(entries) {
+		entries = entries[:n]
+	}
+	return entries, nil
+}
+
+// deploymentFile wraps file content with replaced placeholders
+type deploymentFile struct {
+	*strings.Reader
+	info *deploymentFileInfo
+}
+
+func (f *deploymentFile) Stat() (fs.FileInfo, error) {
+	return f.info, nil
+}
+
+func (f *deploymentFile) Close() error {
+	return nil
+}
+
+// deploymentFileInfo provides file info for replaced content
+type deploymentFileInfo struct {
+	name    string
+	size    int64
+	mode    fs.FileMode
+	modTime time.Time
+}
+
+func (i *deploymentFileInfo) Name() string       { return i.name }
+func (i *deploymentFileInfo) Size() int64        { return i.size }
+func (i *deploymentFileInfo) Mode() fs.FileMode  { return i.mode }
+func (i *deploymentFileInfo) ModTime() time.Time { return i.modTime }
+func (i *deploymentFileInfo) IsDir() bool        { return false }
+func (i *deploymentFileInfo) Sys() any           { return nil }
