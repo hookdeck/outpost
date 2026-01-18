@@ -21,8 +21,9 @@ func TestConformance(t *testing.T) {
 }
 
 type harness struct {
-	chDB   clickhouse.DB
-	closer func()
+	chDB         clickhouse.DB
+	deploymentID string
+	closer       func()
 }
 
 func setupClickHouseConnection(t *testing.T) clickhouse.DB {
@@ -75,12 +76,71 @@ func (h *harness) Close() {
 
 func (h *harness) FlushWrites(ctx context.Context) error {
 	// Force ClickHouse to merge parts and deduplicate rows on both tables
-	if err := h.chDB.Exec(ctx, "OPTIMIZE TABLE events FINAL"); err != nil {
+	eventsTable := "events"
+	deliveriesTable := "deliveries"
+	if h.deploymentID != "" {
+		eventsTable = h.deploymentID + "_events"
+		deliveriesTable = h.deploymentID + "_deliveries"
+	}
+	if err := h.chDB.Exec(ctx, "OPTIMIZE TABLE "+eventsTable+" FINAL"); err != nil {
 		return err
 	}
-	return h.chDB.Exec(ctx, "OPTIMIZE TABLE deliveries FINAL")
+	return h.chDB.Exec(ctx, "OPTIMIZE TABLE "+deliveriesTable+" FINAL")
 }
 
 func (h *harness) MakeDriver(ctx context.Context) (driver.LogStore, error) {
-	return NewLogStore(h.chDB, ""), nil
+	return NewLogStore(h.chDB, h.deploymentID), nil
+}
+
+func TestConformance_WithDeploymentID(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	t.Parallel()
+
+	drivertest.RunConformanceTests(t, newHarnessWithDeploymentID)
+}
+
+func newHarnessWithDeploymentID(ctx context.Context, t *testing.T) (drivertest.Harness, error) {
+	t.Helper()
+
+	chDB := setupClickHouseConnectionWithDeploymentID(t, "mydeployment")
+
+	return &harness{
+		chDB:         chDB,
+		deploymentID: "mydeployment",
+		closer: func() {
+			chDB.Close()
+		},
+	}, nil
+}
+
+func setupClickHouseConnectionWithDeploymentID(t *testing.T, deploymentID string) clickhouse.DB {
+	t.Helper()
+	t.Cleanup(testinfra.Start(t))
+
+	chConfig := testinfra.NewClickHouseConfig(t)
+
+	chDB, err := clickhouse.New(&chConfig)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	m, err := migrator.New(migrator.MigrationOpts{
+		CH: migrator.MigrationOptsCH{
+			Addr:         chConfig.Addr,
+			Username:     chConfig.Username,
+			Password:     chConfig.Password,
+			Database:     chConfig.Database,
+			DeploymentID: deploymentID,
+		},
+	})
+	require.NoError(t, err)
+	_, _, err = m.Up(ctx, -1)
+	require.NoError(t, err)
+
+	defer func() {
+		sourceErr, dbErr := m.Close(ctx)
+		require.NoError(t, sourceErr)
+		require.NoError(t, dbErr)
+	}()
+
+	return chDB
 }
