@@ -82,5 +82,5 @@ func (h *harness) FlushWrites(ctx context.Context) error {
 }
 
 func (h *harness) MakeDriver(ctx context.Context) (driver.LogStore, error) {
-	return NewLogStore(h.chDB), nil
+	return NewLogStore(h.chDB, ""), nil
 }

@@ -15,13 +15,23 @@ import (
 )
 
 type logStoreImpl struct {
-	chDB clickhouse.DB
+	chDB            clickhouse.DB
+	eventsTable     string
+	deliveriesTable string
 }
 
 var _ driver.LogStore = (*logStoreImpl)(nil)
 
-func NewLogStore(chDB clickhouse.DB) driver.LogStore {
-	return &logStoreImpl{chDB: chDB}
+func NewLogStore(chDB clickhouse.DB, deploymentID string) driver.LogStore {
+	prefix := ""
+	if deploymentID != "" {
+		prefix = deploymentID + "_"
+	}
+	return &logStoreImpl{
+		chDB:            chDB,
+		eventsTable:     prefix + "events",
+		deliveriesTable: prefix + "deliveries",
+	}
 }
 
 func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
@@ -114,11 +124,11 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 			event_time,
 			metadata,
 			data
-		FROM events
+		FROM %s
 		WHERE %s
 		%s
 		LIMIT %d
-	`, whereClause, orderByClause, limit+1)
+	`, s.eventsTable, whereClause, orderByClause, limit+1)
 
 	rows, err := s.chDB.Query(ctx, query, args...)
 	if err != nil {
@@ -384,11 +394,11 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 			response_data,
 			manual,
 			attempt
-		FROM deliveries
+		FROM %s
 		WHERE %s
 		%s
 		LIMIT %d
-	`, whereClause, orderByClause, limit+1)
+	`, s.deliveriesTable, whereClause, orderByClause, limit+1)
 
 	rows, err := s.chDB.Query(ctx, query, args...)
 	if err != nil {
@@ -582,9 +592,9 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 			event_time,
 			metadata,
 			data
-		FROM deliveries
+		FROM %s
 		WHERE %s
-		LIMIT 1`, whereClause)
+		LIMIT 1`, s.deliveriesTable, whereClause)
 
 	rows, err := s.chDB.Query(ctx, query, args...)
 	if err != nil {
@@ -658,9 +668,9 @@ func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.Ret
 			response_data,
 			manual,
 			attempt
-		FROM deliveries
+		FROM %s
 		WHERE %s
-		LIMIT 1`, whereClause)
+		LIMIT 1`, s.deliveriesTable, whereClause)
 
 	rows, err := s.chDB.Query(ctx, query, args...)
 	if err != nil {
@@ -766,9 +776,9 @@ func (s *logStoreImpl) InsertManyDeliveryEvent(ctx context.Context, deliveryEven
 	}
 
 	eventBatch, err := s.chDB.PrepareBatch(ctx,
-		`INSERT INTO events (
+		fmt.Sprintf(`INSERT INTO %s (
 			event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data
-		)`,
+		)`, s.eventsTable),
 	)
 	if err != nil {
 		return fmt.Errorf("prepare events batch failed: %w", err)
@@ -803,10 +813,10 @@ func (s *logStoreImpl) InsertManyDeliveryEvent(ctx context.Context, deliveryEven
 	}
 
 	deliveryBatch, err := s.chDB.PrepareBatch(ctx,
-		`INSERT INTO deliveries (
+		fmt.Sprintf(`INSERT INTO %s (
 			event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
 			delivery_id, delivery_event_id, status, delivery_time, code, response_data, manual, attempt
-		)`,
+		)`, s.deliveriesTable),
 	)
 	if err != nil {
 		return fmt.Errorf("prepare deliveries batch failed: %w", err)
