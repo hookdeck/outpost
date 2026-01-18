@@ -3,15 +3,22 @@ package chlogstore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
-	"github.com/hookdeck/outpost/internal/logstore/cursor"
+	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
+)
+
+const (
+	cursorResourceEvent    = "evt"
+	cursorResourceDelivery = "dlv"
+	cursorVersion          = 1
 )
 
 type logStoreImpl struct {
@@ -45,12 +52,16 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		limit = 100
 	}
 
-	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, "event_time", sortOrder)
+	nextPosition, err := cursor.Decode(req.Next, cursorResourceEvent, cursorVersion)
 	if err != nil {
-		return driver.ListEventResponse{}, err
+		return driver.ListEventResponse{}, convertCursorError(err)
+	}
+	prevPosition, err := cursor.Decode(req.Prev, cursorResourceEvent, cursorVersion)
+	if err != nil {
+		return driver.ListEventResponse{}, convertCursorError(err)
 	}
 
-	goingBackward := !prevCursor.IsEmpty()
+	goingBackward := prevPosition != ""
 
 	// Multi-column ORDER BY for deterministic pagination
 	var orderByClause string
@@ -95,12 +106,12 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		args = append(args, *req.EventEnd)
 	}
 
-	if !nextCursor.IsEmpty() {
-		cursorCond, cursorArgs := buildEventCursorCondition(sortOrder, nextCursor.Position, false)
+	if nextPosition != "" {
+		cursorCond, cursorArgs := buildEventCursorCondition(sortOrder, nextPosition, false)
 		conditions = append(conditions, cursorCond)
 		args = append(args, cursorArgs...)
-	} else if !prevCursor.IsEmpty() {
-		cursorCond, cursorArgs := buildEventCursorCondition(sortOrder, prevCursor.Position, true)
+	} else if prevPosition != "" {
+		cursorCond, cursorArgs := buildEventCursorCondition(sortOrder, prevPosition, true)
 		conditions = append(conditions, cursorCond)
 		args = append(args, cursorArgs...)
 	}
@@ -225,19 +236,15 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		}
 
 		encodeCursor := func(position string) string {
-			return cursor.Encode(cursor.Cursor{
-				SortBy:    "event_time",
-				SortOrder: sortOrder,
-				Position:  position,
-			})
+			return cursor.Encode(cursorResourceEvent, cursorVersion, position)
 		}
 
-		if !prevCursor.IsEmpty() {
+		if prevPosition != "" {
 			nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
 			if hasMore {
 				prevEncoded = encodeCursor(getPosition(results[0]))
 			}
-		} else if !nextCursor.IsEmpty() {
+		} else if nextPosition != "" {
 			prevEncoded = encodeCursor(getPosition(results[0]))
 			if hasMore {
 				nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
@@ -291,7 +298,6 @@ func buildEventCursorCondition(sortOrder, position string, isBackward bool) (str
 }
 
 func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDeliveryEventRequest) (driver.ListDeliveryEventResponse, error) {
-	sortBy := "delivery_time"
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
@@ -302,12 +308,16 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 		limit = 100
 	}
 
-	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, sortBy, sortOrder)
+	nextPosition, err := cursor.Decode(req.Next, cursorResourceDelivery, cursorVersion)
 	if err != nil {
-		return driver.ListDeliveryEventResponse{}, err
+		return driver.ListDeliveryEventResponse{}, convertCursorError(err)
+	}
+	prevPosition, err := cursor.Decode(req.Prev, cursorResourceDelivery, cursorVersion)
+	if err != nil {
+		return driver.ListDeliveryEventResponse{}, convertCursorError(err)
 	}
 
-	goingBackward := !prevCursor.IsEmpty()
+	goingBackward := prevPosition != ""
 
 	var orderByClause string
 	if sortOrder == "desc" {
@@ -361,12 +371,12 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 		args = append(args, *req.End)
 	}
 
-	if !nextCursor.IsEmpty() {
-		cursorCond, cursorArgs := buildCursorCondition(sortOrder, nextCursor.Position, false)
+	if nextPosition != "" {
+		cursorCond, cursorArgs := buildCursorCondition(sortOrder, nextPosition, false)
 		conditions = append(conditions, cursorCond)
 		args = append(args, cursorArgs...)
-	} else if !prevCursor.IsEmpty() {
-		cursorCond, cursorArgs := buildCursorCondition(sortOrder, prevCursor.Position, true)
+	} else if prevPosition != "" {
+		cursorCond, cursorArgs := buildCursorCondition(sortOrder, prevPosition, true)
 		conditions = append(conditions, cursorCond)
 		args = append(args, cursorArgs...)
 	}
@@ -532,19 +542,15 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 		}
 
 		encodeCursor := func(position string) string {
-			return cursor.Encode(cursor.Cursor{
-				SortBy:    sortBy,
-				SortOrder: sortOrder,
-				Position:  position,
-			})
+			return cursor.Encode(cursorResourceDelivery, cursorVersion, position)
 		}
 
-		if !prevCursor.IsEmpty() {
+		if prevPosition != "" {
 			nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
 			if hasMore {
 				prevEncoded = encodeCursor(getPosition(results[0]))
 			}
-		} else if !nextCursor.IsEmpty() {
+		} else if nextPosition != "" {
 			prevEncoded = encodeCursor(getPosition(results[0]))
 			if hasMore {
 				nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
@@ -918,4 +924,12 @@ func buildCursorCondition(sortOrder, position string, isBackward bool) (string, 
 	)`, cmp, cmp)
 
 	return condition, []interface{}{deliveryTimeMs, deliveryTimeMs, deliveryID}
+}
+
+// convertCursorError converts cursor package errors to driver errors.
+func convertCursorError(err error) error {
+	if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
+		return driver.ErrInvalidCursor
+	}
+	return err
 }

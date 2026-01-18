@@ -2,14 +2,21 @@ package pglogstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/logstore/cursor"
+	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const (
+	cursorResourceEvent    = "evt"
+	cursorResourceDelivery = "dlv"
+	cursorVersion          = 1
 )
 
 type logStore struct {
@@ -33,12 +40,16 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		limit = 100
 	}
 
-	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, "event_time", sortOrder)
+	nextPosition, err := cursor.Decode(req.Next, cursorResourceEvent, cursorVersion)
 	if err != nil {
-		return driver.ListEventResponse{}, err
+		return driver.ListEventResponse{}, convertCursorError(err)
+	}
+	prevPosition, err := cursor.Decode(req.Prev, cursorResourceEvent, cursorVersion)
+	if err != nil {
+		return driver.ListEventResponse{}, convertCursorError(err)
 	}
 
-	goingBackward := !prevCursor.IsEmpty()
+	goingBackward := prevPosition != ""
 
 	var orderByClause, finalOrderByClause string
 	if sortOrder == "desc" {
@@ -102,14 +113,14 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 	`, cursorCondition, orderByClause, finalOrderByClause)
 
 	rows, err := s.db.Query(ctx, query,
-		req.TenantID,        // $1
-		req.DestinationIDs,  // $2
-		req.Topics,          // $3
-		req.EventStart,      // $4
-		req.EventEnd,        // $5
-		nextCursor.Position, // $6
-		prevCursor.Position, // $7
-		limit+1,             // $8 - fetch one extra to detect if there's more
+		req.TenantID,       // $1
+		req.DestinationIDs, // $2
+		req.Topics,         // $3
+		req.EventStart,     // $4
+		req.EventEnd,       // $5
+		nextPosition,       // $6
+		prevPosition,       // $7
+		limit+1,            // $8 - fetch one extra to detect if there's more
 	)
 	if err != nil {
 		return driver.ListEventResponse{}, fmt.Errorf("query failed: %w", err)
@@ -190,19 +201,15 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		}
 
 		encodeCursor := func(position string) string {
-			return cursor.Encode(cursor.Cursor{
-				SortBy:    "event_time",
-				SortOrder: sortOrder,
-				Position:  position,
-			})
+			return cursor.Encode(cursorResourceEvent, cursorVersion, position)
 		}
 
-		if !prevCursor.IsEmpty() {
+		if prevPosition != "" {
 			nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
 			if hasMore {
 				prevEncoded = encodeCursor(getPosition(results[0]))
 			}
-		} else if !nextCursor.IsEmpty() {
+		} else if nextPosition != "" {
 			prevEncoded = encodeCursor(getPosition(results[0]))
 			if hasMore {
 				nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
@@ -222,7 +229,6 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 }
 
 func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliveryEventRequest) (driver.ListDeliveryEventResponse, error) {
-	sortBy := "delivery_time"
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
@@ -233,13 +239,17 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 		limit = 100
 	}
 
-	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, sortBy, sortOrder)
+	nextPosition, err := cursor.Decode(req.Next, cursorResourceDelivery, cursorVersion)
 	if err != nil {
-		return driver.ListDeliveryEventResponse{}, err
+		return driver.ListDeliveryEventResponse{}, convertCursorError(err)
+	}
+	prevPosition, err := cursor.Decode(req.Prev, cursorResourceDelivery, cursorVersion)
+	if err != nil {
+		return driver.ListDeliveryEventResponse{}, convertCursorError(err)
 	}
 
 	cursorCol := "time_delivery_id"
-	goingBackward := !prevCursor.IsEmpty()
+	goingBackward := prevPosition != ""
 
 	var orderByClause, finalOrderByClause string
 	if sortOrder == "desc" {
@@ -317,16 +327,16 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 	`, cursorCondition, orderByClause, finalOrderByClause)
 
 	rows, err := s.db.Query(ctx, query,
-		req.TenantID,        // $1
-		req.EventID,         // $2
-		req.DestinationIDs,  // $3
-		req.Status,          // $4
-		req.Topics,          // $5
-		req.Start,           // $6
-		req.End,             // $7
-		nextCursor.Position, // $8
-		prevCursor.Position, // $9
-		limit+1,             // $10 - fetch one extra to detect if there's more
+		req.TenantID,       // $1
+		req.EventID,        // $2
+		req.DestinationIDs, // $3
+		req.Status,         // $4
+		req.Topics,         // $5
+		req.Start,          // $6
+		req.End,            // $7
+		nextPosition,       // $8
+		prevPosition,       // $9
+		limit+1,            // $10 - fetch one extra to detect if there's more
 	)
 	if err != nil {
 		return driver.ListDeliveryEventResponse{}, fmt.Errorf("query failed: %w", err)
@@ -439,19 +449,15 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 		}
 
 		encodeCursor := func(position string) string {
-			return cursor.Encode(cursor.Cursor{
-				SortBy:    sortBy,
-				SortOrder: sortOrder,
-				Position:  position,
-			})
+			return cursor.Encode(cursorResourceDelivery, cursorVersion, position)
 		}
 
-		if !prevCursor.IsEmpty() {
+		if prevPosition != "" {
 			nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
 			if hasMore {
 				prevEncoded = encodeCursor(getPosition(results[0]))
 			}
-		} else if !nextCursor.IsEmpty() {
+		} else if nextPosition != "" {
 			prevEncoded = encodeCursor(getPosition(results[0]))
 			if hasMore {
 				nextEncoded = encodeCursor(getPosition(results[len(results)-1]))
@@ -812,4 +818,12 @@ func deliveryArrays(deliveries []*models.Delivery, deliveryEvents []*models.Deli
 		manuals,
 		attempts,
 	}
+}
+
+// convertCursorError converts cursor package errors to driver errors.
+func convertCursorError(err error) error {
+	if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
+		return driver.ErrInvalidCursor
+	}
+	return err
 }
