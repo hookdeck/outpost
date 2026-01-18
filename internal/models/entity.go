@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"slices"
 	"sort"
+	"strconv"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/redis"
 )
 
@@ -369,17 +370,23 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 	isNextCursor := false
 	isPrevCursor := false
 	if req.Next != "" {
-		var err error
-		cursorTimestamp, err = decodeCursor(req.Next)
+		data, err := cursor.Decode(req.Next, "tnt", 1)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidCursor, err)
 		}
+		cursorTimestamp, err = strconv.ParseInt(data, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid timestamp", ErrInvalidCursor)
+		}
 		isNextCursor = true
 	} else if req.Prev != "" {
-		var err error
-		cursorTimestamp, err = decodeCursor(req.Prev)
+		data, err := cursor.Decode(req.Prev, "tnt", 1)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidCursor, err)
+		}
+		cursorTimestamp, err = strconv.ParseInt(data, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid timestamp", ErrInvalidCursor)
 		}
 		isPrevCursor = true
 	}
@@ -491,12 +498,12 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		firstTenant := tenants[0]
 
 		// Next cursor: points to last item (for continuing in same direction)
-		resp.Next = encodeCursor(lastTenant.CreatedAt.UnixMilli())
+		resp.Next = cursor.Encode("tnt", 1, strconv.FormatInt(lastTenant.CreatedAt.UnixMilli(), 10))
 
 		// Prev cursor: points to first item (for going back)
 		// Only set if we navigated here via a cursor (not on first page)
 		if isNextCursor || isPrevCursor {
-			resp.Prev = encodeCursor(firstTenant.CreatedAt.UnixMilli())
+			resp.Prev = cursor.Encode("tnt", 1, strconv.FormatInt(firstTenant.CreatedAt.UnixMilli(), 10))
 		}
 	}
 
@@ -632,66 +639,6 @@ func (s *entityStoreImpl) parseResp3SearchResult(resultMap map[interface{}]inter
 	}
 
 	return tenants, totalCount, nil
-}
-
-const cursorVersion = "tntv01"
-
-// encodeCursor encodes a timestamp as a versioned base62 cursor.
-// Internal format: tntv01:<timestamp>, then base62 encoded.
-func encodeCursor(timestamp int64) string {
-	raw := fmt.Sprintf("%s:%d", cursorVersion, timestamp)
-	return base62Encode(raw)
-}
-
-// decodeCursor decodes a base62 cursor into a timestamp.
-// Expects base62 encoded string containing: tntv01:<timestamp>
-func decodeCursor(cursor string) (int64, error) {
-	raw, err := base62Decode(cursor)
-	if err != nil {
-		return 0, fmt.Errorf("invalid cursor encoding: %w", err)
-	}
-
-	// Expected format: tntv02:<timestamp>
-	if len(raw) <= len(cursorVersion)+1 {
-		return 0, fmt.Errorf("invalid cursor format")
-	}
-
-	version := raw[:len(cursorVersion)]
-	if version != cursorVersion {
-		return 0, fmt.Errorf("unsupported cursor version: %s", version)
-	}
-
-	if raw[len(cursorVersion)] != ':' {
-		return 0, fmt.Errorf("invalid cursor format")
-	}
-
-	var timestamp int64
-	_, err = fmt.Sscanf(raw[len(cursorVersion)+1:], "%d", &timestamp)
-	if err != nil {
-		return 0, fmt.Errorf("invalid cursor timestamp")
-	}
-
-	if timestamp < 0 {
-		return 0, fmt.Errorf("invalid timestamp")
-	}
-	return timestamp, nil
-}
-
-// base62Encode encodes a string to base62.
-func base62Encode(s string) string {
-	num := new(big.Int)
-	num.SetBytes([]byte(s))
-	return num.Text(62)
-}
-
-// base62Decode decodes a base62 string.
-func base62Decode(s string) (string, error) {
-	num := new(big.Int)
-	num, ok := num.SetString(s, 62)
-	if !ok {
-		return "", fmt.Errorf("invalid base62 string")
-	}
-	return string(num.Bytes()), nil
 }
 
 func (s *entityStoreImpl) listDestinationSummaryByTenant(ctx context.Context, tenantID string, opts ListDestinationByTenantOpts) ([]DestinationSummary, error) {
