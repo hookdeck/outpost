@@ -2,13 +2,15 @@ package memlogstore
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/pagination"
 )
 
 const (
@@ -41,16 +43,12 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 		sortOrder = "desc"
 	}
 
-	nextPosition, err := cursor.Decode(req.Next, cursorResourceEvent, cursorVersion)
-	if err != nil {
-		return driver.ListEventResponse{}, convertCursorError(err)
-	}
-	prevPosition, err := cursor.Decode(req.Prev, cursorResourceEvent, cursorVersion)
-	if err != nil {
-		return driver.ListEventResponse{}, convertCursorError(err)
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 100
 	}
 
-	// Dedupe by event ID
+	// Dedupe by event ID and filter
 	eventMap := make(map[string]*models.Event)
 	for _, de := range s.deliveryEvents {
 		if !s.matchesEventFilter(&de.Event, req) {
@@ -61,72 +59,88 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 		}
 	}
 
-	var filtered []*models.Event
+	var allEvents []*models.Event
 	for _, event := range eventMap {
-		filtered = append(filtered, event)
+		allEvents = append(allEvents, event)
 	}
 
-	isDesc := sortOrder == "desc"
-	sort.Slice(filtered, func(i, j int) bool {
-		if !filtered[i].Time.Equal(filtered[j].Time) {
-			if isDesc {
-				return filtered[i].Time.After(filtered[j].Time)
-			}
-			return filtered[i].Time.Before(filtered[j].Time)
-		}
-		if isDesc {
-			return filtered[i].ID > filtered[j].ID
-		}
-		return filtered[i].ID < filtered[j].ID
-	})
-
-	limit := req.Limit
-	if limit <= 0 {
-		limit = 100
+	// eventWithTimeID pairs an event with its sortable time ID for cursor operations.
+	type eventWithTimeID struct {
+		event  *models.Event
+		timeID string
 	}
 
-	startIdx := 0
-	if nextPosition != "" {
-		for i, event := range filtered {
-			if event.ID == nextPosition {
-				startIdx = i
-				break
-			}
+	// Build list with time IDs
+	eventsWithTimeID := make([]eventWithTimeID, len(allEvents))
+	for i, e := range allEvents {
+		eventsWithTimeID[i] = eventWithTimeID{
+			event:  e,
+			timeID: makeTimeID(e.Time, e.ID),
 		}
-	} else if prevPosition != "" {
-		for i, event := range filtered {
-			if event.ID == prevPosition {
-				startIdx = i - limit
-				if startIdx < 0 {
-					startIdx = 0
+	}
+
+	res, err := pagination.Run(ctx, pagination.Config[eventWithTimeID]{
+		Limit: limit,
+		Order: sortOrder,
+		Next:  req.Next,
+		Prev:  req.Prev,
+		Fetch: func(_ context.Context, q pagination.QueryInput) ([]eventWithTimeID, error) {
+			// Sort based on query direction
+			isDesc := q.SortDir == "desc"
+			sort.Slice(eventsWithTimeID, func(i, j int) bool {
+				if isDesc {
+					return eventsWithTimeID[i].timeID > eventsWithTimeID[j].timeID
 				}
-				break
+				return eventsWithTimeID[i].timeID < eventsWithTimeID[j].timeID
+			})
+
+			// Filter using q.Compare (like SQL WHERE clause)
+			var filtered []eventWithTimeID
+			for _, e := range eventsWithTimeID {
+				// If no cursor, include all items
+				// If cursor exists, filter using Compare operator
+				if q.CursorPos == "" || compareTimeID(e.timeID, q.Compare, q.CursorPos) {
+					filtered = append(filtered, e)
+				}
 			}
-		}
+
+			// Return up to limit items
+			if len(filtered) > q.Limit {
+				filtered = filtered[:q.Limit]
+			}
+
+			result := make([]eventWithTimeID, len(filtered))
+			for i, e := range filtered {
+				result[i] = eventWithTimeID{
+					event:  copyEvent(e.event),
+					timeID: e.timeID,
+				}
+			}
+			return result, nil
+		},
+		Cursor: pagination.Cursor[eventWithTimeID]{
+			Encode: func(e eventWithTimeID) string {
+				return cursor.Encode(cursorResourceEvent, cursorVersion, e.timeID)
+			},
+			Decode: func(c string) (string, error) {
+				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
+			},
+		},
+	})
+	if err != nil {
+		return driver.ListEventResponse{}, err
 	}
 
-	endIdx := startIdx + limit
-	if endIdx > len(filtered) {
-		endIdx = len(filtered)
-	}
-
-	data := make([]*models.Event, endIdx-startIdx)
-	for i, event := range filtered[startIdx:endIdx] {
-		data[i] = copyEvent(event)
-	}
-
-	var nextEncoded, prevEncoded string
-	if endIdx < len(filtered) {
-		nextEncoded = cursor.Encode(cursorResourceEvent, cursorVersion, filtered[endIdx].ID)
-	}
-	if startIdx > 0 {
-		prevEncoded = cursor.Encode(cursorResourceEvent, cursorVersion, filtered[startIdx].ID)
+	// Extract events from results
+	data := make([]*models.Event, len(res.Items))
+	for i, item := range res.Items {
+		data[i] = item.event
 	}
 
 	return driver.ListEventResponse{
 		Data: data,
-		Next: nextEncoded,
-		Prev: prevEncoded,
+		Next: res.Next,
+		Prev: res.Prev,
 	}, nil
 }
 
@@ -211,84 +225,97 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 		sortOrder = "desc"
 	}
 
-	nextPosition, err := cursor.Decode(req.Next, cursorResourceDelivery, cursorVersion)
-	if err != nil {
-		return driver.ListDeliveryEventResponse{}, convertCursorError(err)
-	}
-	prevPosition, err := cursor.Decode(req.Prev, cursorResourceDelivery, cursorVersion)
-	if err != nil {
-		return driver.ListDeliveryEventResponse{}, convertCursorError(err)
-	}
-
-	var filtered []*models.DeliveryEvent
-	for _, de := range s.deliveryEvents {
-		if !s.matchesFilter(de, req) {
-			continue
-		}
-		filtered = append(filtered, de)
-	}
-
-	isDesc := sortOrder == "desc"
-	sort.Slice(filtered, func(i, j int) bool {
-		if !filtered[i].Delivery.Time.Equal(filtered[j].Delivery.Time) {
-			if isDesc {
-				return filtered[i].Delivery.Time.After(filtered[j].Delivery.Time)
-			}
-			return filtered[i].Delivery.Time.Before(filtered[j].Delivery.Time)
-		}
-		if isDesc {
-			return filtered[i].Delivery.ID > filtered[j].Delivery.ID
-		}
-		return filtered[i].Delivery.ID < filtered[j].Delivery.ID
-	})
-
 	limit := req.Limit
 	if limit <= 0 {
 		limit = 100
 	}
 
-	startIdx := 0
-	if nextPosition != "" {
-		for i, de := range filtered {
-			if de.ID == nextPosition {
-				startIdx = i
-				break
-			}
+	// Filter delivery events
+	var allDeliveryEvents []*models.DeliveryEvent
+	for _, de := range s.deliveryEvents {
+		if !s.matchesFilter(de, req) {
+			continue
 		}
-	} else if prevPosition != "" {
-		for i, de := range filtered {
-			if de.ID == prevPosition {
-				startIdx = i - limit
-				if startIdx < 0 {
-					startIdx = 0
+		allDeliveryEvents = append(allDeliveryEvents, de)
+	}
+
+	// deliveryEventWithTimeID pairs a delivery event with its sortable time ID.
+	type deliveryEventWithTimeID struct {
+		de     *models.DeliveryEvent
+		timeID string
+	}
+
+	// Build list with time IDs (using delivery time)
+	deliveryEventsWithTimeID := make([]deliveryEventWithTimeID, len(allDeliveryEvents))
+	for i, de := range allDeliveryEvents {
+		deliveryEventsWithTimeID[i] = deliveryEventWithTimeID{
+			de:     de,
+			timeID: makeTimeID(de.Delivery.Time, de.Delivery.ID),
+		}
+	}
+
+	res, err := pagination.Run(ctx, pagination.Config[deliveryEventWithTimeID]{
+		Limit: limit,
+		Order: sortOrder,
+		Next:  req.Next,
+		Prev:  req.Prev,
+		Fetch: func(_ context.Context, q pagination.QueryInput) ([]deliveryEventWithTimeID, error) {
+			// Sort based on query direction
+			isDesc := q.SortDir == "desc"
+			sort.Slice(deliveryEventsWithTimeID, func(i, j int) bool {
+				if isDesc {
+					return deliveryEventsWithTimeID[i].timeID > deliveryEventsWithTimeID[j].timeID
 				}
-				break
+				return deliveryEventsWithTimeID[i].timeID < deliveryEventsWithTimeID[j].timeID
+			})
+
+			// Filter using q.Compare (like SQL WHERE clause)
+			var filtered []deliveryEventWithTimeID
+			for _, de := range deliveryEventsWithTimeID {
+				// If no cursor, include all items
+				// If cursor exists, filter using Compare operator
+				if q.CursorPos == "" || compareTimeID(de.timeID, q.Compare, q.CursorPos) {
+					filtered = append(filtered, de)
+				}
 			}
-		}
+
+			// Return up to limit items
+			if len(filtered) > q.Limit {
+				filtered = filtered[:q.Limit]
+			}
+
+			result := make([]deliveryEventWithTimeID, len(filtered))
+			for i, de := range filtered {
+				result[i] = deliveryEventWithTimeID{
+					de:     copyDeliveryEvent(de.de),
+					timeID: de.timeID,
+				}
+			}
+			return result, nil
+		},
+		Cursor: pagination.Cursor[deliveryEventWithTimeID]{
+			Encode: func(de deliveryEventWithTimeID) string {
+				return cursor.Encode(cursorResourceDelivery, cursorVersion, de.timeID)
+			},
+			Decode: func(c string) (string, error) {
+				return cursor.Decode(c, cursorResourceDelivery, cursorVersion)
+			},
+		},
+	})
+	if err != nil {
+		return driver.ListDeliveryEventResponse{}, err
 	}
 
-	endIdx := startIdx + limit
-	if endIdx > len(filtered) {
-		endIdx = len(filtered)
-	}
-
-	data := make([]*models.DeliveryEvent, endIdx-startIdx)
-	for i, de := range filtered[startIdx:endIdx] {
-		data[i] = copyDeliveryEvent(de)
-	}
-
-	var nextEncoded, prevEncoded string
-	if endIdx < len(filtered) {
-		nextEncoded = cursor.Encode(cursorResourceDelivery, cursorVersion, filtered[endIdx].ID)
-	}
-	if startIdx > 0 {
-		prevEncoded = cursor.Encode(cursorResourceDelivery, cursorVersion, filtered[startIdx].ID)
+	// Extract delivery events from results
+	data := make([]*models.DeliveryEvent, len(res.Items))
+	for i, item := range res.Items {
+		data[i] = item.de
 	}
 
 	return driver.ListDeliveryEventResponse{
 		Data: data,
-		Next: nextEncoded,
-		Prev: prevEncoded,
+		Next: res.Next,
+		Prev: res.Prev,
 	}, nil
 }
 
@@ -434,10 +461,21 @@ func copyDelivery(d *models.Delivery) *models.Delivery {
 	return copied
 }
 
-// convertCursorError converts cursor package errors to driver errors.
-func convertCursorError(err error) error {
-	if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
-		return driver.ErrInvalidCursor
+// makeTimeID creates a sortable string from time and ID, similar to pglogstore's time_id.
+// Uses fixed-width nanoseconds to ensure correct string sorting (RFC3339Nano has variable width).
+// Format: "2006-01-02T15:04:05.000000000Z_id"
+func makeTimeID(t time.Time, id string) string {
+	return fmt.Sprintf("%s_%s", t.UTC().Format("2006-01-02T15:04:05.000000000Z07:00"), id)
+}
+
+// compareTimeID compares two time IDs using the given operator.
+func compareTimeID(a, op, b string) bool {
+	switch op {
+	case "<":
+		return a < b
+	case ">":
+		return a > b
+	default:
+		return false
 	}
-	return err
 }

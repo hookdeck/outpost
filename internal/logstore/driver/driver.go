@@ -2,15 +2,10 @@ package driver
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/models"
 )
-
-// ErrInvalidCursor is returned when the cursor is malformed or doesn't match
-// the current query parameters (e.g., different sort order).
-var ErrInvalidCursor = errors.New("invalid cursor")
 
 type LogStore interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
