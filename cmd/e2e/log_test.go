@@ -126,11 +126,11 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Len(data, 10)
+			models := body["models"].([]interface{})
+			suite.Len(models, 10)
 
 			// Verify structure
-			first := data[0].(map[string]interface{})
+			first := models[0].(map[string]interface{})
 			suite.NotEmpty(first["id"])
 			suite.NotEmpty(first["event"])
 			suite.Equal(destinationID, first["destination"])
@@ -147,8 +147,8 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Len(data, 10)
+			models := body["models"].([]interface{})
+			suite.Len(models, 10)
 		})
 
 		suite.Run("filter by event_id", func() {
@@ -160,8 +160,8 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Len(data, 1)
+			models := body["models"].([]interface{})
+			suite.Len(models, 1)
 		})
 
 		suite.Run("include=event returns event object without data", func() {
@@ -173,10 +173,10 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Require().Len(data, 1)
+			models := body["models"].([]interface{})
+			suite.Require().Len(models, 1)
 
-			delivery := data[0].(map[string]interface{})
+			delivery := models[0].(map[string]interface{})
 			event := delivery["event"].(map[string]interface{})
 			suite.NotEmpty(event["id"])
 			suite.NotEmpty(event["topic"])
@@ -193,10 +193,10 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Require().Len(data, 1)
+			models := body["models"].([]interface{})
+			suite.Require().Len(models, 1)
 
-			delivery := data[0].(map[string]interface{})
+			delivery := models[0].(map[string]interface{})
 			event := delivery["event"].(map[string]interface{})
 			suite.NotEmpty(event["id"])
 			suite.NotNil(event["data"]) // include=event.data SHOULD include data
@@ -211,10 +211,10 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Require().Len(data, 1)
+			models := body["models"].([]interface{})
+			suite.Require().Len(models, 1)
 
-			delivery := data[0].(map[string]interface{})
+			delivery := models[0].(map[string]interface{})
 			suite.NotNil(delivery["response_data"])
 		})
 	})
@@ -232,11 +232,11 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Len(data, 10)
+			models := body["models"].([]interface{})
+			suite.Len(models, 10)
 
 			// Verify structure
-			first := data[0].(map[string]interface{})
+			first := models[0].(map[string]interface{})
 			suite.NotEmpty(first["id"])
 			suite.NotEmpty(first["topic"])
 			suite.NotEmpty(first["time"])
@@ -252,8 +252,8 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Len(data, 10) // All events have topic=user.created
+			models := body["models"].([]interface{})
+			suite.Len(models, 10) // All events have topic=user.created
 		})
 
 		suite.Run("retrieve single event", func() {
@@ -279,18 +279,18 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Equal(http.StatusNotFound, resp.StatusCode)
 		})
 
-		suite.Run("filter by start time excludes past events", func() {
+		suite.Run("filter by event_time[gte] excludes past events", func() {
 			futureTime := url.QueryEscape(time.Now().Add(1 * time.Hour).Format(time.RFC3339))
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?start=" + futureTime,
+				Path:   "/tenants/" + tenantID + "/events?event_time[gte]=" + futureTime,
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Len(data, 0)
+			models := body["models"].([]interface{})
+			suite.Len(models, 0)
 		})
 	})
 
@@ -301,18 +301,18 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("events desc returns newest first", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?sort_order=desc",
+				Path:   "/tenants/" + tenantID + "/events?dir=desc",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Require().Len(data, 10)
+			models := body["models"].([]interface{})
+			suite.Require().Len(models, 10)
 
-			for i := 0; i < len(data)-1; i++ {
-				curr := parseTime(data[i].(map[string]interface{})["time"].(string))
-				next := parseTime(data[i+1].(map[string]interface{})["time"].(string))
+			for i := 0; i < len(models)-1; i++ {
+				curr := parseTime(models[i].(map[string]interface{})["time"].(string))
+				next := parseTime(models[i+1].(map[string]interface{})["time"].(string))
 				suite.True(curr.After(next) || curr.Equal(next), "events not in descending order at index %d", i)
 			}
 		})
@@ -320,26 +320,26 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("events asc returns oldest first", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?sort_order=asc",
+				Path:   "/tenants/" + tenantID + "/events?dir=asc",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Require().Len(data, 10)
+			models := body["models"].([]interface{})
+			suite.Require().Len(models, 10)
 
-			for i := 0; i < len(data)-1; i++ {
-				curr := parseTime(data[i].(map[string]interface{})["time"].(string))
-				next := parseTime(data[i+1].(map[string]interface{})["time"].(string))
+			for i := 0; i < len(models)-1; i++ {
+				curr := parseTime(models[i].(map[string]interface{})["time"].(string))
+				next := parseTime(models[i+1].(map[string]interface{})["time"].(string))
 				suite.True(curr.Before(next) || curr.Equal(next), "events not in ascending order at index %d", i)
 			}
 		})
 
-		suite.Run("events invalid sort_order returns 422", func() {
+		suite.Run("events invalid dir returns 422", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?sort_order=invalid",
+				Path:   "/tenants/" + tenantID + "/events?dir=invalid",
 			}))
 			suite.Require().NoError(err)
 			suite.Equal(http.StatusUnprocessableEntity, resp.StatusCode)
@@ -357,7 +357,7 @@ func (suite *basicSuite) TestLogAPI() {
 			pageCount := 0
 
 			for {
-				path := "/tenants/" + tenantID + "/events?limit=3&sort_order=asc"
+				path := "/tenants/" + tenantID + "/events?limit=3&dir=asc"
 				if nextCursor != "" {
 					path += "&next=" + nextCursor
 				}
@@ -370,15 +370,16 @@ func (suite *basicSuite) TestLogAPI() {
 				suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 				body := resp.Body.(map[string]interface{})
-				data := body["data"].([]interface{})
+				models := body["models"].([]interface{})
 				pageCount++
 
-				for _, item := range data {
+				for _, item := range models {
 					event := item.(map[string]interface{})
 					allEventIDs = append(allEventIDs, event["id"].(string))
 				}
 
-				if next, ok := body["next"].(string); ok && next != "" {
+				pagination, _ := body["pagination"].(map[string]interface{})
+				if next, ok := pagination["next"].(string); ok && next != "" {
 					nextCursor = next
 				} else {
 					break
@@ -535,9 +536,9 @@ func (suite *basicSuite) TestRetryAPI() {
 	suite.Require().Equal(http.StatusOK, deliveriesResp.StatusCode)
 
 	body := deliveriesResp.Body.(map[string]interface{})
-	data := body["data"].([]interface{})
-	suite.Require().NotEmpty(data, "should have at least one delivery")
-	firstDelivery := data[0].(map[string]interface{})
+	models := body["models"].([]interface{})
+	suite.Require().NotEmpty(models, "should have at least one delivery")
+	firstDelivery := models[0].(map[string]interface{})
 	deliveryID := firstDelivery["id"].(string)
 
 	// Update mock to succeed for retry
@@ -621,7 +622,7 @@ func (suite *basicSuite) TestRetryAPI() {
 						"body": map[string]interface{}{
 							"type": "object",
 							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
+								"models": map[string]interface{}{
 									"type":     "array",
 									"minItems": 2, // Original + retry
 								},
@@ -1208,13 +1209,13 @@ func (suite *basicSuite) TestAdminLogEndpoints() {
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
+			models := body["models"].([]interface{})
 			// Should have at least 2 events (one from each tenant we created)
-			suite.GreaterOrEqual(len(data), 2)
+			suite.GreaterOrEqual(len(models), 2)
 
 			// Verify we have events from both tenants by checking event IDs
 			eventsSeen := map[string]bool{}
-			for _, item := range data {
+			for _, item := range models {
 				event := item.(map[string]interface{})
 				if id, ok := event["id"].(string); ok {
 					eventsSeen[id] = true
@@ -1233,13 +1234,13 @@ func (suite *basicSuite) TestAdminLogEndpoints() {
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
+			models := body["models"].([]interface{})
 			// Should have at least 2 deliveries (one from each tenant we created)
-			suite.GreaterOrEqual(len(data), 2)
+			suite.GreaterOrEqual(len(models), 2)
 
 			// Verify we have deliveries from both tenants by checking event IDs
 			eventsSeen := map[string]bool{}
-			for _, item := range data {
+			for _, item := range models {
 				delivery := item.(map[string]interface{})
 				if event, ok := delivery["event"].(map[string]interface{}); ok {
 					if id, ok := event["id"].(string); ok {
@@ -1265,11 +1266,11 @@ func (suite *basicSuite) TestAdminLogEndpoints() {
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Len(data, 1)
+			models := body["models"].([]interface{})
+			suite.Len(models, 1)
 
 			// Verify only tenant1 event by ID
-			event := data[0].(map[string]interface{})
+			event := models[0].(map[string]interface{})
 			suite.Equal(event1ID, event["id"])
 		})
 
@@ -1282,11 +1283,11 @@ func (suite *basicSuite) TestAdminLogEndpoints() {
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
-			data := body["data"].([]interface{})
-			suite.Len(data, 1)
+			models := body["models"].([]interface{})
+			suite.Len(models, 1)
 
 			// Verify only tenant2 delivery by event ID
-			delivery := data[0].(map[string]interface{})
+			delivery := models[0].(map[string]interface{})
 			event := delivery["event"].(map[string]interface{})
 			suite.Equal(event2ID, event["id"])
 		})

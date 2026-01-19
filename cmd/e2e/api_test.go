@@ -534,9 +534,9 @@ func (suite *basicSuite) TestListTenantsAPI() {
 
 		body, ok := resp.Body.(map[string]interface{})
 		require.True(t, ok, "response should be a map")
-		data, ok := body["data"].([]interface{})
-		require.True(t, ok, "data should be an array")
-		assert.GreaterOrEqual(t, len(data), 3, "should have at least 3 tenants")
+		models, ok := body["models"].([]interface{})
+		require.True(t, ok, "models should be an array")
+		assert.GreaterOrEqual(t, len(models), 3, "should have at least 3 tenants")
 	})
 
 	// Test list with limit
@@ -550,9 +550,9 @@ func (suite *basicSuite) TestListTenantsAPI() {
 
 		body, ok := resp.Body.(map[string]interface{})
 		require.True(t, ok, "response should be a map")
-		data, ok := body["data"].([]interface{})
-		require.True(t, ok, "data should be an array")
-		assert.Equal(t, 2, len(data), "should have exactly 2 tenants")
+		models, ok := body["models"].([]interface{})
+		require.True(t, ok, "models should be an array")
+		assert.Equal(t, 2, len(models), "should have exactly 2 tenants")
 	})
 
 	// Test invalid limit
@@ -577,11 +577,12 @@ func (suite *basicSuite) TestListTenantsAPI() {
 
 		body, ok := resp.Body.(map[string]interface{})
 		require.True(t, ok, "response should be a map")
-		data, ok := body["data"].([]interface{})
-		require.True(t, ok, "data should be an array")
-		assert.Equal(t, 2, len(data), "page 1 should have 2 tenants")
+		models, ok := body["models"].([]interface{})
+		require.True(t, ok, "models should be an array")
+		assert.Equal(t, 2, len(models), "page 1 should have 2 tenants")
 
-		next, _ := body["next"].(string)
+		pagination, _ := body["pagination"].(map[string]interface{})
+		next, _ := pagination["next"].(string)
 		require.NotEmpty(t, next, "should have next cursor")
 
 		// Get second page using next cursor
@@ -594,11 +595,12 @@ func (suite *basicSuite) TestListTenantsAPI() {
 
 		body, ok = resp.Body.(map[string]interface{})
 		require.True(t, ok, "response should be a map")
-		data, ok = body["data"].([]interface{})
-		require.True(t, ok, "data should be an array")
-		assert.GreaterOrEqual(t, len(data), 1, "page 2 should have at least 1 tenant")
+		models, ok = body["models"].([]interface{})
+		require.True(t, ok, "models should be an array")
+		assert.GreaterOrEqual(t, len(models), 1, "page 2 should have at least 1 tenant")
 
-		prev, _ := body["prev"].(string)
+		pagination, _ = body["pagination"].(map[string]interface{})
+		prev, _ := pagination["prev"].(string)
 		assert.NotEmpty(t, prev, "page 2 should have prev cursor")
 	})
 
@@ -613,7 +615,8 @@ func (suite *basicSuite) TestListTenantsAPI() {
 		body, ok := resp.Body.(map[string]interface{})
 		require.True(t, ok)
 
-		next, _ := body["next"].(string)
+		pagination, _ := body["pagination"].(map[string]interface{})
+		next, _ := pagination["next"].(string)
 		require.NotEmpty(t, next, "should have next cursor")
 
 		// Go to page 2
@@ -625,7 +628,8 @@ func (suite *basicSuite) TestListTenantsAPI() {
 		body, ok = resp.Body.(map[string]interface{})
 		require.True(t, ok)
 
-		prev, _ := body["prev"].(string)
+		pagination, _ = body["pagination"].(map[string]interface{})
+		prev, _ := pagination["prev"].(string)
 		require.NotEmpty(t, prev, "page 2 should have prev cursor")
 
 		// Using prev cursor returns items with newer timestamps (keyset pagination)
@@ -639,9 +643,9 @@ func (suite *basicSuite) TestListTenantsAPI() {
 
 		body, ok = resp.Body.(map[string]interface{})
 		require.True(t, ok, "response should be a map")
-		data, ok := body["data"].([]interface{})
-		require.True(t, ok, "data should be an array")
-		assert.NotEmpty(t, data, "prev cursor should return items")
+		models, ok := body["models"].([]interface{})
+		require.True(t, ok, "models should be an array")
+		assert.NotEmpty(t, models, "prev cursor should return items")
 	})
 
 	// Cleanup
@@ -727,9 +731,9 @@ func (suite *basicSuite) TestDestinationsAPI() {
 					StatusCode: http.StatusUnprocessableEntity,
 					Body: map[string]interface{}{
 						"message": "validation error",
-						"data": map[string]interface{}{
-							"topics": "required",
-							"type":   "required",
+						"data": []interface{}{
+							"type is required",
+							"topics is required",
 						},
 					},
 				},
@@ -795,8 +799,8 @@ func (suite *basicSuite) TestDestinationsAPI() {
 					StatusCode: http.StatusUnprocessableEntity,
 					Body: map[string]interface{}{
 						"message": "validation error",
-						"data": map[string]interface{}{
-							"config.url": "required",
+						"data": []interface{}{
+							"config.url is required",
 						},
 					},
 				},
@@ -1253,8 +1257,8 @@ func (suite *basicSuite) TestDestinationsAPI() {
 					StatusCode: http.StatusUnprocessableEntity,
 					Body: map[string]interface{}{
 						"message": "validation error",
-						"data": map[string]interface{}{
-							"config.url": "required",
+						"data": []interface{}{
+							"config.url is required",
 						},
 					},
 				},

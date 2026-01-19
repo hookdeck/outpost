@@ -530,8 +530,8 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 					StatusCode: http.StatusUnprocessableEntity,
 					Body: map[string]interface{}{
 						"message": "validation error",
-						"data": map[string]interface{}{
-							"credentials.secret": "forbidden",
+						"data": []interface{}{
+							"credentials.secret failed forbidden validation",
 						},
 					},
 				},
@@ -593,8 +593,8 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 					StatusCode: http.StatusUnprocessableEntity,
 					Body: map[string]interface{}{
 						"message": "validation error",
-						"data": map[string]interface{}{
-							"credentials.secret": "forbidden",
+						"data": []interface{}{
+							"credentials.secret failed forbidden validation",
 						},
 					},
 				},
@@ -616,8 +616,8 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 					StatusCode: http.StatusUnprocessableEntity,
 					Body: map[string]interface{}{
 						"message": "validation error",
-						"data": map[string]interface{}{
-							"credentials.previous_secret": "forbidden",
+						"data": []interface{}{
+							"credentials.previous_secret failed forbidden validation",
 						},
 					},
 				},
@@ -639,8 +639,8 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 					StatusCode: http.StatusUnprocessableEntity,
 					Body: map[string]interface{}{
 						"message": "validation error",
-						"data": map[string]interface{}{
-							"credentials.previous_secret_invalid_at": "forbidden",
+						"data": []interface{}{
+							"credentials.previous_secret_invalid_at failed forbidden validation",
 						},
 					},
 				},
@@ -865,8 +865,8 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 					StatusCode: http.StatusUnprocessableEntity,
 					Body: map[string]interface{}{
 						"message": "validation error",
-						"data": map[string]interface{}{
-							"credentials.rotate_secret": "invalid",
+						"data": []interface{}{
+							"credentials.rotate_secret failed invalid validation",
 						},
 					},
 				},
@@ -932,8 +932,8 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 					StatusCode: http.StatusUnprocessableEntity,
 					Body: map[string]interface{}{
 						"message": "validation error",
-						"data": map[string]interface{}{
-							"credentials.previous_secret_invalid_at": "pattern",
+						"data": []interface{}{
+							"credentials.previous_secret_invalid_at failed pattern validation",
 						},
 					},
 				},
@@ -1082,8 +1082,8 @@ func (suite *basicSuite) TestDestwebhookAdminSecretManagement() {
 					StatusCode: http.StatusUnprocessableEntity,
 					Body: map[string]interface{}{
 						"message": "validation error",
-						"data": map[string]interface{}{
-							"credentials.secret": "required",
+						"data": []interface{}{
+							"credentials.secret is required",
 						},
 					},
 				},
