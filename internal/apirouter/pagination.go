@@ -231,7 +231,7 @@ func dateFormatError(key string) *ErrorResponse {
 		Code:    http.StatusUnprocessableEntity,
 		Message: "validation error",
 		Data: map[string]string{
-			"query." + key: "invalid format, expected RFC3339 or YYYY-MM-DD",
+			"query." + key: "invalid format, expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z) or YYYY-MM-DD",
 		},
 	}
 }
