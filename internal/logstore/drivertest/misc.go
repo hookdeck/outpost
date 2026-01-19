@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -194,7 +195,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		baseTime := time.Now().Truncate(time.Second)
 
 		var deliveryEvents []*models.DeliveryEvent
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			event := testutil.EventFactory.AnyPointer(
 				testutil.EventFactory.WithID(fmt.Sprintf("sort_evt_%d", i)),
 				testutil.EventFactory.WithTenantID(tenantID),
@@ -372,6 +373,55 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			assert.Equal(t, originalID, response2.Data[0].Event.ID)
 		})
 	})
+
+	t.Run("concurrent duplicate inserts are idempotent", func(t *testing.T) {
+		tenantID := idgen.String()
+		destinationID := idgen.Destination()
+		eventTime := time.Now().Add(-30 * time.Minute).Truncate(time.Second)
+		deliveryTime := eventTime.Add(1 * time.Second)
+		startTime := eventTime.Add(-1 * time.Hour)
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(destinationID),
+			testutil.EventFactory.WithTime(eventTime),
+		)
+		delivery := testutil.DeliveryFactory.AnyPointer(
+			testutil.DeliveryFactory.WithEventID(event.ID),
+			testutil.DeliveryFactory.WithDestinationID(destinationID),
+			testutil.DeliveryFactory.WithStatus("success"),
+			testutil.DeliveryFactory.WithTime(deliveryTime),
+		)
+		de := &models.DeliveryEvent{
+			ID:            idgen.DeliveryEvent(),
+			DestinationID: destinationID,
+			Event:         *event,
+			Delivery:      delivery,
+		}
+		batch := []*models.DeliveryEvent{de}
+
+		// Race N goroutines all inserting the same record
+		const numGoroutines = 10
+		var wg sync.WaitGroup
+		for range numGoroutines {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_ = logStore.InsertManyDeliveryEvent(ctx, batch)
+			}()
+		}
+		wg.Wait()
+		require.NoError(t, h.FlushWrites(ctx))
+
+		// Assert: still exactly 1 record
+		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			TenantID: tenantID,
+			Limit:    100,
+			Start:    &startTime,
+		})
+		require.NoError(t, err)
+		require.Len(t, response.Data, 1, "concurrent duplicate inserts should result in exactly 1 record")
+	})
 }
 
 func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.LogStore, h Harness) {
@@ -408,7 +458,7 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 		baseTime := time.Now().Truncate(time.Second)
 		startTime := baseTime.Add(-48 * time.Hour)
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			event := testutil.EventFactory.AnyPointer(
 				testutil.EventFactory.WithID(fmt.Sprintf("cursor_evt_%d", i)),
 				testutil.EventFactory.WithTenantID(tenantID),

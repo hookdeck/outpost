@@ -40,22 +40,25 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 
 	t.Run("insert and verify", func(t *testing.T) {
 		t.Run("single delivery event", func(t *testing.T) {
+			destID := destinationIDs[0]
+			topic := testutil.TestTopics[0]
 			event := testutil.EventFactory.AnyPointer(
 				testutil.EventFactory.WithID("single_evt"),
 				testutil.EventFactory.WithTenantID(tenantID),
-				testutil.EventFactory.WithDestinationID(destinationIDs[0]),
+				testutil.EventFactory.WithDestinationID(destID),
+				testutil.EventFactory.WithTopic(topic),
 				testutil.EventFactory.WithTime(baseTime.Add(-30*time.Minute)),
 			)
 			delivery := testutil.DeliveryFactory.AnyPointer(
 				testutil.DeliveryFactory.WithID("single_del"),
 				testutil.DeliveryFactory.WithEventID(event.ID),
-				testutil.DeliveryFactory.WithDestinationID(destinationIDs[0]),
+				testutil.DeliveryFactory.WithDestinationID(destID),
 				testutil.DeliveryFactory.WithStatus("success"),
 				testutil.DeliveryFactory.WithTime(baseTime.Add(-30*time.Minute)),
 			)
 			de := &models.DeliveryEvent{
 				ID:            "single_de",
-				DestinationID: destinationIDs[0],
+				DestinationID: destID,
 				Event:         *event,
 				Delivery:      delivery,
 			}
@@ -63,6 +66,11 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			err := logStore.InsertManyDeliveryEvent(ctx, []*models.DeliveryEvent{de})
 			require.NoError(t, err)
 			require.NoError(t, h.FlushWrites(ctx))
+
+			// Track in maps for later filter tests
+			destinationEvents[destID] = append(destinationEvents[destID], event)
+			topicEvents[topic] = append(topicEvents[topic], event)
+			statusDeliveryEvents["success"] = append(statusDeliveryEvents["success"], de)
 
 			// Verify via List
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
