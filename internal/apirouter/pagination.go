@@ -218,9 +218,13 @@ func dateFormatError(key string) *ErrorResponse {
 // These types are defined for future use when stores add support.
 // Attempting to use them will return 400 errors from the handlers.
 
-// parseDateTime attempts to parse a date string in RFC3339 or date-only (YYYY-MM-DD) format.
+// parseDateTime attempts to parse a date string in RFC3339, RFC3339Nano, or date-only (YYYY-MM-DD) format.
 func parseDateTime(s string) (time.Time, error) {
-	// Try RFC3339 first
+	// Try RFC3339Nano first (handles milliseconds/microseconds like 2024-01-01T00:00:00.123Z)
+	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+		return t, nil
+	}
+	// Try RFC3339 (no fractional seconds)
 	if t, err := time.Parse(time.RFC3339, s); err == nil {
 		return t, nil
 	}

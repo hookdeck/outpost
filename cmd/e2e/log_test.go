@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/hookdeck/outpost/cmd/e2e/httpclient"
@@ -92,8 +91,10 @@ func (suite *basicSuite) TestLogAPI() {
 	}
 	suite.RunAPITests(suite.T(), setupTests)
 
-	// Publish 10 events with small delays for distinct timestamps
+	// Publish 10 events with explicit timestamps (1 second apart)
+	baseTime := time.Now().Add(-1 * time.Hour).Truncate(time.Second)
 	for i, eventID := range eventIDs {
+		eventTime := baseTime.Add(time.Duration(i) * time.Second)
 		resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 			Method: httpclient.MethodPOST,
 			Path:   "/publish",
@@ -102,12 +103,12 @@ func (suite *basicSuite) TestLogAPI() {
 				"tenant_id":          tenantID,
 				"topic":              "user.created",
 				"eligible_for_retry": true,
+				"time":               eventTime.Format(time.RFC3339Nano),
 				"data":               map[string]interface{}{"index": i},
 			},
 		}))
 		suite.Require().NoError(err)
 		suite.Require().Equal(http.StatusAccepted, resp.StatusCode, "failed to publish event %d", i)
-		time.Sleep(50 * time.Millisecond)
 	}
 
 	// Wait for all deliveries (30s timeout for slow CI environments)
@@ -280,7 +281,7 @@ func (suite *basicSuite) TestLogAPI() {
 		})
 
 		suite.Run("filter by time[gte] excludes past events", func() {
-			futureTime := url.QueryEscape(time.Now().Add(1 * time.Hour).Format(time.RFC3339))
+			futureTime := time.Now().Add(1 * time.Hour).UTC().Format(time.RFC3339)
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
 				Path:   "/tenants/" + tenantID + "/events?time[gte]=" + futureTime,
@@ -393,6 +394,83 @@ func (suite *basicSuite) TestLogAPI() {
 
 			suite.Equal(4, pageCount, "expected 4 pages (3+3+3+1)")
 			suite.Len(allEventIDs, 10, "should have all 10 events")
+		})
+
+		suite.Run("cursor pagination with time filter", func() {
+			// Get all events to establish a time window
+			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/events?dir=asc&limit=10",
+			}))
+			suite.Require().NoError(err)
+			suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+			body := resp.Body.(map[string]interface{})
+			models := body["models"].([]interface{})
+			suite.Require().Len(models, 10)
+
+			// Use the 3rd and 7th events to create a time window
+			event3 := models[2].(map[string]interface{})
+			event7 := models[6].(map[string]interface{})
+			timeGTE := event3["time"].(string)
+			timeLTE := event7["time"].(string)
+			timeGTEParsed := parseTime(timeGTE)
+			timeLTEParsed := parseTime(timeLTE)
+
+			// Paginate within the time window with limit=2
+			var windowEvents []map[string]interface{}
+			nextCursor := ""
+			pageCount := 0
+
+			for {
+				path := "/tenants/" + tenantID + "/events?dir=asc&limit=2"
+				path += "&time[gte]=" + timeGTE + "&time[lte]=" + timeLTE
+				if nextCursor != "" {
+					path += "&next=" + nextCursor
+				}
+
+				resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+					Method: httpclient.MethodGET,
+					Path:   path,
+				}))
+				suite.Require().NoError(err)
+				suite.Require().Equal(http.StatusOK, resp.StatusCode)
+
+				body := resp.Body.(map[string]interface{})
+				windowModels := body["models"].([]interface{})
+				pageCount++
+
+				for _, item := range windowModels {
+					event := item.(map[string]interface{})
+					windowEvents = append(windowEvents, event)
+				}
+
+				pagination, _ := body["pagination"].(map[string]interface{})
+				if next, ok := pagination["next"].(string); ok && next != "" {
+					nextCursor = next
+				} else {
+					break
+				}
+
+				if pageCount > 10 {
+					suite.Fail("too many pages")
+					break
+				}
+			}
+
+			// Verify time filter worked: should have fewer events than total
+			suite.Greater(len(windowEvents), 0, "should have some events in window")
+			suite.Less(len(windowEvents), 10, "time filter should exclude some events")
+
+			// Verify pagination worked: multiple pages needed
+			suite.Greater(pageCount, 1, "should require multiple pages")
+
+			// Verify all returned events are within the time window
+			for _, event := range windowEvents {
+				eventTime := parseTime(event["time"].(string))
+				suite.True(!eventTime.Before(timeGTEParsed), "event time %v should be >= %v", eventTime, timeGTEParsed)
+				suite.True(!eventTime.After(timeLTEParsed), "event time %v should be <= %v", eventTime, timeLTEParsed)
+			}
 		})
 	})
 
