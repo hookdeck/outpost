@@ -2,12 +2,19 @@ package memlogstore
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"sync"
 
-	"github.com/hookdeck/outpost/internal/logstore/cursor"
+	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
+)
+
+const (
+	cursorResourceEvent    = "evt"
+	cursorResourceDelivery = "dlv"
+	cursorVersion          = 1
 )
 
 // memLogStore is an in-memory implementation of driver.LogStore.
@@ -34,9 +41,13 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 		sortOrder = "desc"
 	}
 
-	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, "event_time", sortOrder)
+	nextPosition, err := cursor.Decode(req.Next, cursorResourceEvent, cursorVersion)
 	if err != nil {
-		return driver.ListEventResponse{}, err
+		return driver.ListEventResponse{}, convertCursorError(err)
+	}
+	prevPosition, err := cursor.Decode(req.Prev, cursorResourceEvent, cursorVersion)
+	if err != nil {
+		return driver.ListEventResponse{}, convertCursorError(err)
 	}
 
 	// Dedupe by event ID
@@ -75,16 +86,16 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 	}
 
 	startIdx := 0
-	if !nextCursor.IsEmpty() {
+	if nextPosition != "" {
 		for i, event := range filtered {
-			if event.ID == nextCursor.Position {
+			if event.ID == nextPosition {
 				startIdx = i
 				break
 			}
 		}
-	} else if !prevCursor.IsEmpty() {
+	} else if prevPosition != "" {
 		for i, event := range filtered {
-			if event.ID == prevCursor.Position {
+			if event.ID == prevPosition {
 				startIdx = i - limit
 				if startIdx < 0 {
 					startIdx = 0
@@ -106,18 +117,10 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 
 	var nextEncoded, prevEncoded string
 	if endIdx < len(filtered) {
-		nextEncoded = cursor.Encode(cursor.Cursor{
-			SortBy:    "event_time",
-			SortOrder: sortOrder,
-			Position:  filtered[endIdx].ID,
-		})
+		nextEncoded = cursor.Encode(cursorResourceEvent, cursorVersion, filtered[endIdx].ID)
 	}
 	if startIdx > 0 {
-		prevEncoded = cursor.Encode(cursor.Cursor{
-			SortBy:    "event_time",
-			SortOrder: sortOrder,
-			Position:  filtered[startIdx].ID,
-		})
+		prevEncoded = cursor.Encode(cursorResourceEvent, cursorVersion, filtered[startIdx].ID)
 	}
 
 	return driver.ListEventResponse{
@@ -203,15 +206,18 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	sortBy := "delivery_time"
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
 	}
 
-	nextCursor, prevCursor, err := cursor.DecodeAndValidate(req.Next, req.Prev, sortBy, sortOrder)
+	nextPosition, err := cursor.Decode(req.Next, cursorResourceDelivery, cursorVersion)
 	if err != nil {
-		return driver.ListDeliveryEventResponse{}, err
+		return driver.ListDeliveryEventResponse{}, convertCursorError(err)
+	}
+	prevPosition, err := cursor.Decode(req.Prev, cursorResourceDelivery, cursorVersion)
+	if err != nil {
+		return driver.ListDeliveryEventResponse{}, convertCursorError(err)
 	}
 
 	var filtered []*models.DeliveryEvent
@@ -242,16 +248,16 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 	}
 
 	startIdx := 0
-	if !nextCursor.IsEmpty() {
+	if nextPosition != "" {
 		for i, de := range filtered {
-			if de.ID == nextCursor.Position {
+			if de.ID == nextPosition {
 				startIdx = i
 				break
 			}
 		}
-	} else if !prevCursor.IsEmpty() {
+	} else if prevPosition != "" {
 		for i, de := range filtered {
-			if de.ID == prevCursor.Position {
+			if de.ID == prevPosition {
 				startIdx = i - limit
 				if startIdx < 0 {
 					startIdx = 0
@@ -273,18 +279,10 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 
 	var nextEncoded, prevEncoded string
 	if endIdx < len(filtered) {
-		nextEncoded = cursor.Encode(cursor.Cursor{
-			SortBy:    sortBy,
-			SortOrder: sortOrder,
-			Position:  filtered[endIdx].ID,
-		})
+		nextEncoded = cursor.Encode(cursorResourceDelivery, cursorVersion, filtered[endIdx].ID)
 	}
 	if startIdx > 0 {
-		prevEncoded = cursor.Encode(cursor.Cursor{
-			SortBy:    sortBy,
-			SortOrder: sortOrder,
-			Position:  filtered[startIdx].ID,
-		})
+		prevEncoded = cursor.Encode(cursorResourceDelivery, cursorVersion, filtered[startIdx].ID)
 	}
 
 	return driver.ListDeliveryEventResponse{
@@ -434,4 +432,12 @@ func copyDelivery(d *models.Delivery) *models.Delivery {
 	}
 
 	return copied
+}
+
+// convertCursorError converts cursor package errors to driver errors.
+func convertCursorError(err error) error {
+	if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
+		return driver.ErrInvalidCursor
+	}
+	return err
 }
