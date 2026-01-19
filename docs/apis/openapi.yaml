@@ -2362,14 +2362,14 @@ paths:
                 items:
                   type: string
           description: Filter events by topic(s). Can be specified multiple times or comma-separated.
-        - name: event_time[gte]
+        - name: time[gte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
           description: Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
-        - name: event_time[lte]
+        - name: time[lte]
           in: query
           required: false
           schema:
@@ -2402,8 +2402,8 @@ paths:
           required: false
           schema:
             type: string
-            enum: [event_time, created_at]
-            default: event_time
+            enum: [time]
+            default: time
           description: Field to sort by.
         - name: dir
           in: query
@@ -2437,7 +2437,7 @@ paths:
                         metadata: { "source": "oms" }
                         data: { "order_id": "orderid", "tracking": "1Z..." }
                     pagination:
-                      order_by: "event_time"
+                      order_by: "time"
                       dir: "desc"
                       limit: 100
                       next: "MTcwNDA2NzIwMA=="
@@ -2498,28 +2498,14 @@ paths:
                 items:
                   type: string
           description: Filter deliveries by event topic(s). Can be specified multiple times or comma-separated.
-        - name: delivery_time[gte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter deliveries with delivered_at >= value (RFC3339 or YYYY-MM-DD format).
-        - name: delivery_time[lte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter deliveries with delivered_at <= value (RFC3339 or YYYY-MM-DD format).
-        - name: event_time[gte]
+        - name: time[gte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
           description: Filter deliveries by event time >= value (RFC3339 or YYYY-MM-DD format).
-        - name: event_time[lte]
+        - name: time[lte]
           in: query
           required: false
           schema:
@@ -2566,8 +2552,8 @@ paths:
           required: false
           schema:
             type: string
-            enum: [delivery_time, event_time]
-            default: delivery_time
+            enum: [time]
+            default: time
           description: Field to sort by.
         - name: dir
           in: query
@@ -2603,7 +2589,7 @@ paths:
                         event: "evt_789"
                         destination: "des_789"
                     pagination:
-                      order_by: "delivery_time"
+                      order_by: "time"
                       dir: "desc"
                       limit: 100
                       next: "MTcwNDA2NzIwMA=="
@@ -2625,7 +2611,7 @@ paths:
                           metadata: { "source": "crm" }
                         destination: "des_456"
                     pagination:
-                      order_by: "delivery_time"
+                      order_by: "time"
                       dir: "desc"
                       limit: 100
                       next: null
@@ -3360,28 +3346,14 @@ paths:
                 items:
                   type: string
           description: Filter deliveries by event topic(s). Can be specified multiple times or comma-separated.
-        - name: delivery_time[gte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter deliveries with delivered_at >= value (RFC3339 or YYYY-MM-DD format).
-        - name: delivery_time[lte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter deliveries with delivered_at <= value (RFC3339 or YYYY-MM-DD format).
-        - name: event_time[gte]
+        - name: time[gte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
           description: Filter deliveries by event time >= value (RFC3339 or YYYY-MM-DD format).
-        - name: event_time[lte]
+        - name: time[lte]
           in: query
           required: false
           schema:
@@ -3428,8 +3400,8 @@ paths:
           required: false
           schema:
             type: string
-            enum: [delivery_time, event_time]
-            default: delivery_time
+            enum: [time]
+            default: time
           description: Field to sort by.
         - name: dir
           in: query
@@ -3465,7 +3437,7 @@ paths:
                         event: "evt_789"
                         destination: "des_456"
                     pagination:
-                      order_by: "delivery_time"
+                      order_by: "time"
                       dir: "desc"
                       limit: 100
                       next: "MTcwNDA2NzIwMA=="
@@ -3487,7 +3459,7 @@ paths:
                           metadata: { "source": "crm" }
                         destination: "des_456"
                     pagination:
-                      order_by: "delivery_time"
+                      order_by: "time"
                       dir: "desc"
                       limit: 100
                       next: null
@@ -3660,14 +3632,14 @@ paths:
             minimum: 1
             maximum: 1000
           description: Number of items per page (default 100, max 1000).
-        - name: event_time[gte]
+        - name: time[gte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
           description: Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
-        - name: event_time[lte]
+        - name: time[lte]
           in: query
           required: false
           schema:
@@ -3679,8 +3651,8 @@ paths:
           required: false
           schema:
             type: string
-            enum: [event_time, created_at]
-            default: event_time
+            enum: [time]
+            default: time
           description: Field to sort by.
         - name: dir
           in: query
@@ -3716,7 +3688,7 @@ paths:
                         metadata: { "source": "oms" }
                         data: { "order_id": "orderid", "tracking": "1Z..." }
                     pagination:
-                      order_by: "event_time"
+                      order_by: "time"
                       dir: "desc"
                       limit: 100
                       next: null
@@ -3865,14 +3837,14 @@ paths:
             minimum: 1
             maximum: 1000
           description: Number of items per page (default 100, max 1000).
-        - name: event_time[gte]
+        - name: time[gte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
           description: Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
-        - name: event_time[lte]
+        - name: time[lte]
           in: query
           required: false
           schema:
@@ -3884,8 +3856,8 @@ paths:
           required: false
           schema:
             type: string
-            enum: [event_time, created_at]
-            default: event_time
+            enum: [time]
+            default: time
           description: Field to sort by.
         - name: dir
           in: query
@@ -3921,7 +3893,7 @@ paths:
                         metadata: { "source": "oms" }
                         data: { "order_id": "orderid", "tracking": "1Z..." }
                     pagination:
-                      order_by: "event_time"
+                      order_by: "time"
                       dir: "desc"
                       limit: 100
                       next: null

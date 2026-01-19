@@ -88,7 +88,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 }
 
 func buildEventQuery(req driver.ListEventRequest, q pagination.QueryInput) (string, []any) {
-	cursorCondition := fmt.Sprintf("AND ($6::text = '' OR time_id %s $6::text)", q.Compare)
+	cursorCondition := fmt.Sprintf("AND ($8::text = '' OR time_id %s $8::text)", q.Compare)
 	orderByClause := fmt.Sprintf("time %s, id %s", strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
 
 	query := fmt.Sprintf(`
@@ -108,19 +108,23 @@ func buildEventQuery(req driver.ListEventRequest, q pagination.QueryInput) (stri
 		AND (array_length($3::text[], 1) IS NULL OR topic = ANY($3))
 		AND ($4::timestamptz IS NULL OR time >= $4)
 		AND ($5::timestamptz IS NULL OR time <= $5)
+		AND ($6::timestamptz IS NULL OR time > $6)
+		AND ($7::timestamptz IS NULL OR time < $7)
 		%s
 		ORDER BY %s
-		LIMIT $7
+		LIMIT $9
 	`, cursorCondition, orderByClause)
 
 	args := []any{
 		req.TenantID,       // $1
 		req.DestinationIDs, // $2
 		req.Topics,         // $3
-		req.EventStart,     // $4
-		req.EventEnd,       // $5
-		q.CursorPos,        // $6
-		q.Limit,            // $7
+		req.TimeFilter.GTE, // $4
+		req.TimeFilter.LTE, // $5
+		req.TimeFilter.GT,  // $6
+		req.TimeFilter.LT,  // $7
+		q.CursorPos,        // $8
+		q.Limit,            // $9
 	}
 
 	return query, args
@@ -235,7 +239,7 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 }
 
 func buildDeliveryQuery(req driver.ListDeliveryEventRequest, q pagination.QueryInput) (string, []any) {
-	cursorCondition := fmt.Sprintf("AND ($8::text = '' OR idx.time_delivery_id %s $8::text)", q.Compare)
+	cursorCondition := fmt.Sprintf("AND ($10::text = '' OR idx.time_delivery_id %s $10::text)", q.Compare)
 	orderByClause := fmt.Sprintf("idx.delivery_time %s, idx.delivery_id %s", strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
 
 	query := fmt.Sprintf(`
@@ -266,9 +270,11 @@ func buildDeliveryQuery(req driver.ListDeliveryEventRequest, q pagination.QueryI
 		AND (array_length($5::text[], 1) IS NULL OR idx.topic = ANY($5))
 		AND ($6::timestamptz IS NULL OR idx.delivery_time >= $6)
 		AND ($7::timestamptz IS NULL OR idx.delivery_time <= $7)
+		AND ($8::timestamptz IS NULL OR idx.delivery_time > $8)
+		AND ($9::timestamptz IS NULL OR idx.delivery_time < $9)
 		%s
 		ORDER BY %s
-		LIMIT $9
+		LIMIT $11
 	`, cursorCondition, orderByClause)
 
 	args := []any{
@@ -277,10 +283,12 @@ func buildDeliveryQuery(req driver.ListDeliveryEventRequest, q pagination.QueryI
 		req.DestinationIDs, // $3
 		req.Status,         // $4
 		req.Topics,         // $5
-		req.Start,          // $6
-		req.End,            // $7
-		q.CursorPos,        // $8
-		q.Limit,            // $9
+		req.TimeFilter.GTE, // $6
+		req.TimeFilter.LTE, // $7
+		req.TimeFilter.GT,  // $8
+		req.TimeFilter.LT,  // $9
+		q.CursorPos,        // $10
+		q.Limit,            // $11
 	}
 
 	return query, args

@@ -211,20 +211,20 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		dir = "desc"
 	}
 
-	// Parse and validate order_by (delivery_time or event_time)
-	orderBy, errResp := ParseOrderBy(c, []string{"delivery_time", "event_time"})
+	// Parse and validate order_by (time only)
+	orderBy, errResp := ParseOrderBy(c, []string{"time"})
 	if errResp != nil {
 		AbortWithError(c, errResp.Code, *errResp)
 		return
 	}
 	if orderBy == "" {
-		orderBy = "delivery_time"
+		orderBy = "time"
 	}
-	// Note: order_by is informational only for now - store always sorts by delivery_time
+	// Note: order_by is informational only for now - store always sorts by time
 	_ = orderBy
 
-	// Parse delivery_time date filters
-	deliveryTimeFilter, errResp := ParseDateFilter(c, "delivery_time")
+	// Parse time date filters
+	deliveryTimeFilter, errResp := ParseDateFilter(c, "time")
 	if errResp != nil {
 		AbortWithError(c, errResp.Code, *errResp)
 		return
@@ -243,12 +243,16 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		DestinationIDs: destinationIDs,
 		Status:         c.Query("status"),
 		Topics:         parseQueryArray(c, "topic"),
-		Start:          deliveryTimeFilter.GTE,
-		End:            deliveryTimeFilter.LTE,
-		Limit:          limit,
-		Next:           c.Query("next"),
-		Prev:           c.Query("prev"),
-		SortOrder:      dir,
+		TimeFilter: logstore.TimeFilter{
+			GTE: deliveryTimeFilter.GTE,
+			LTE: deliveryTimeFilter.LTE,
+			GT:  deliveryTimeFilter.GT,
+			LT:  deliveryTimeFilter.LT,
+		},
+		Limit:     limit,
+		Next:      c.Query("next"),
+		Prev:      c.Query("prev"),
+		SortOrder: dir,
 	}
 
 	response, err := h.logStore.ListDeliveryEvent(c.Request.Context(), req)
@@ -368,20 +372,20 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 		dir = "desc"
 	}
 
-	// Parse and validate order_by (event_time or created_at)
-	orderBy, errResp := ParseOrderBy(c, []string{"event_time", "created_at"})
+	// Parse and validate order_by (time only)
+	orderBy, errResp := ParseOrderBy(c, []string{"time"})
 	if errResp != nil {
 		AbortWithError(c, errResp.Code, *errResp)
 		return
 	}
 	if orderBy == "" {
-		orderBy = "event_time"
+		orderBy = "time"
 	}
-	// Note: order_by is informational only for now - store always sorts by event_time
+	// Note: order_by is informational only for now - store always sorts by time
 	_ = orderBy
 
-	// Parse event_time date filters
-	eventTimeFilter, errResp := ParseDateFilter(c, "event_time")
+	// Parse time date filters
+	eventTimeFilter, errResp := ParseDateFilter(c, "time")
 	if errResp != nil {
 		AbortWithError(c, errResp.Code, *errResp)
 		return
@@ -398,12 +402,16 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 		TenantID:       tenantID,
 		DestinationIDs: destinationIDs,
 		Topics:         parseQueryArray(c, "topic"),
-		EventStart:     eventTimeFilter.GTE,
-		EventEnd:       eventTimeFilter.LTE,
-		Limit:          limit,
-		Next:           c.Query("next"),
-		Prev:           c.Query("prev"),
-		SortOrder:      dir,
+		TimeFilter: logstore.TimeFilter{
+			GTE: eventTimeFilter.GTE,
+			LTE: eventTimeFilter.LTE,
+			GT:  eventTimeFilter.GT,
+			LT:  eventTimeFilter.LT,
+		},
+		Limit:     limit,
+		Next:      c.Query("next"),
+		Prev:      c.Query("prev"),
+		SortOrder: dir,
 	}
 
 	response, err := h.logStore.ListEvent(c.Request.Context(), req)

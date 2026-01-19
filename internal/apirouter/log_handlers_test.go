@@ -651,17 +651,17 @@ func TestListEvents(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("should return validation error for invalid event_time filter", func(t *testing.T) {
+	t.Run("should return validation error for invalid time filter", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?event_time[gte]=invalid", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?time[gte]=invalid", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
 	})
 
-	t.Run("should return validation error for invalid event_time lte filter", func(t *testing.T) {
+	t.Run("should return validation error for invalid time lte filter", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?event_time[lte]=invalid", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?time[lte]=invalid", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)

@@ -279,11 +279,11 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Equal(http.StatusNotFound, resp.StatusCode)
 		})
 
-		suite.Run("filter by event_time[gte] excludes past events", func() {
+		suite.Run("filter by time[gte] excludes past events", func() {
 			futureTime := url.QueryEscape(time.Now().Add(1 * time.Hour).Format(time.RFC3339))
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?event_time[gte]=" + futureTime,
+				Path:   "/tenants/" + tenantID + "/events?time[gte]=" + futureTime,
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)

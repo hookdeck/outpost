@@ -211,8 +211,84 @@ func TestParseDateFilter(t *testing.T) {
 	}
 }
 
+func TestParseDateFilter_GTLTOperators(t *testing.T) {
+	tests := []struct {
+		name        string
+		fieldName   string
+		queryParams map[string]string
+		wantGT      *time.Time
+		wantLT      *time.Time
+		wantErrCode int
+	}{
+		{
+			name:      "gt param",
+			fieldName: "time",
+			queryParams: map[string]string{
+				"time[gt]": "2024-01-15T10:30:00Z",
+			},
+			wantGT: timePtr(time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)),
+		},
+		{
+			name:      "lt param",
+			fieldName: "time",
+			queryParams: map[string]string{
+				"time[lt]": "2024-01-31T23:59:59Z",
+			},
+			wantLT: timePtr(time.Date(2024, 1, 31, 23, 59, 59, 0, time.UTC)),
+		},
+		{
+			name:      "all four operators",
+			fieldName: "time",
+			queryParams: map[string]string{
+				"time[gte]": "2024-01-01T00:00:00Z",
+				"time[lte]": "2024-01-31T23:59:59Z",
+				"time[gt]":  "2024-01-02T00:00:00Z",
+				"time[lt]":  "2024-01-30T23:59:59Z",
+			},
+			wantGT: timePtr(time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)),
+			wantLT: timePtr(time.Date(2024, 1, 30, 23, 59, 59, 0, time.UTC)),
+		},
+		{
+			name:      "invalid gt format returns error",
+			fieldName: "time",
+			queryParams: map[string]string{
+				"time[gt]": "not-a-date",
+			},
+			wantErrCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:      "invalid lt format returns error",
+			fieldName: "time",
+			queryParams: map[string]string{
+				"time[lt]": "invalid",
+			},
+			wantErrCode: http.StatusUnprocessableEntity,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := createTestContext(tt.queryParams)
+
+			result, errResp := apirouter.ParseDateFilter(c, tt.fieldName)
+
+			if tt.wantErrCode != 0 {
+				require.NotNil(t, errResp)
+				assert.Equal(t, tt.wantErrCode, errResp.Code)
+				return
+			}
+
+			require.Nil(t, errResp)
+			require.NotNil(t, result)
+
+			assertTimePtr(t, "GT", tt.wantGT, result.GT)
+			assertTimePtr(t, "LT", tt.wantLT, result.LT)
+		})
+	}
+}
+
 func TestParseDateFilter_UnsupportedOperators(t *testing.T) {
-	unsupportedOps := []string{"gt", "lt", "any"}
+	unsupportedOps := []string{"any"}
 
 	for _, op := range unsupportedOps {
 		t.Run(op+" returns 400", func(t *testing.T) {

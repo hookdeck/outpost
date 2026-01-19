@@ -79,12 +79,12 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*models.DeliveryEvent], error) {
 				res, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-					TenantID:  tenantID,
-					Limit:     opts.Limit,
-					SortOrder: opts.Order,
-					Next:      opts.Next,
-					Prev:      opts.Prev,
-					Start:     &farPast,
+					TenantID:   tenantID,
+					Limit:      opts.Limit,
+					SortOrder:  opts.Order,
+					Next:       opts.Next,
+					Prev:       opts.Prev,
+					TimeFilter: driver.TimeFilter{GTE: &farPast},
 				})
 				if err != nil {
 					return paginationtest.ListResult[*models.DeliveryEvent]{}, err
@@ -171,7 +171,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 					SortOrder:      opts.Order,
 					Next:           opts.Next,
 					Prev:           opts.Prev,
-					Start:          &farPast,
+					TimeFilter:     driver.TimeFilter{GTE: &farPast},
 				})
 				if err != nil {
 					return paginationtest.ListResult[*models.DeliveryEvent]{}, err
@@ -255,7 +255,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 					SortOrder:  opts.Order,
 					Next:       opts.Next,
 					Prev:       opts.Prev,
-					EventStart: &farPast,
+					TimeFilter: driver.TimeFilter{GTE: &farPast},
 				})
 				if err != nil {
 					return paginationtest.ListResult[*models.Event]{}, err
@@ -342,7 +342,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 					SortOrder:      opts.Order,
 					Next:           opts.Next,
 					Prev:           opts.Prev,
-					EventStart:     &farPast,
+					TimeFilter:     driver.TimeFilter{GTE: &farPast},
 				})
 				if err != nil {
 					return paginationtest.ListResult[*models.Event]{}, err

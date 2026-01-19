@@ -132,18 +132,19 @@ func ParseArrayParam(c *gin.Context, fieldName string) []string {
 }
 
 // DateFilterResult holds the parsed date filter values.
-// Currently supports gte and lte operators only.
 type DateFilterResult struct {
 	GTE *time.Time // Greater than or equal (>=)
 	LTE *time.Time // Less than or equal (<=)
+	GT  *time.Time // Greater than (>)
+	LT  *time.Time // Less than (<)
 }
 
 // unsupportedDateOps lists operators we recognize but don't support yet.
 // When stores add support, move these to supported and update ParseDateFilter.
-var unsupportedDateOps = []string{"gt", "lt", "any"}
+var unsupportedDateOps = []string{"any"}
 
-// ParseDateFilter parses bracket notation date filters (e.g., field[gte], field[lte]).
-// Returns 400 for unsupported operators (gt, lt, any).
+// ParseDateFilter parses bracket notation date filters (e.g., field[gte], field[lte], field[gt], field[lt]).
+// Returns 400 for unsupported operators (any).
 // Accepts both RFC3339 format (2024-01-01T00:00:00Z) and date-only format (2024-01-01).
 func ParseDateFilter(c *gin.Context, fieldName string) (*DateFilterResult, *ErrorResponse) {
 	// Check for unsupported operators first
@@ -152,7 +153,7 @@ func ParseDateFilter(c *gin.Context, fieldName string) (*DateFilterResult, *Erro
 		if c.Query(key) != "" {
 			return nil, &ErrorResponse{
 				Code:    http.StatusBadRequest,
-				Message: fmt.Sprintf("operator '%s' is not supported, use 'gte' or 'lte'", op),
+				Message: fmt.Sprintf("operator '%s' is not supported, use 'gte', 'lte', 'gt', or 'lt'", op),
 			}
 		}
 	}
@@ -177,6 +178,26 @@ func ParseDateFilter(c *gin.Context, fieldName string) (*DateFilterResult, *Erro
 			return nil, dateFormatError(lteKey)
 		}
 		result.LTE = &t
+	}
+
+	// Parse [gt] - greater than
+	gtKey := fieldName + "[gt]"
+	if gtStr := c.Query(gtKey); gtStr != "" {
+		t, err := parseDateTime(gtStr)
+		if err != nil {
+			return nil, dateFormatError(gtKey)
+		}
+		result.GT = &t
+	}
+
+	// Parse [lt] - less than
+	ltKey := fieldName + "[lt]"
+	if ltStr := c.Query(ltKey); ltStr != "" {
+		t, err := parseDateTime(ltStr)
+		if err != nil {
+			return nil, dateFormatError(ltKey)
+		}
+		result.LT = &t
 	}
 
 	return result, nil

@@ -118,13 +118,21 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 		args = append(args, req.Topics)
 	}
 
-	if req.EventStart != nil {
+	if req.TimeFilter.GTE != nil {
 		conditions = append(conditions, "event_time >= ?")
-		args = append(args, *req.EventStart)
+		args = append(args, *req.TimeFilter.GTE)
 	}
-	if req.EventEnd != nil {
+	if req.TimeFilter.LTE != nil {
 		conditions = append(conditions, "event_time <= ?")
-		args = append(args, *req.EventEnd)
+		args = append(args, *req.TimeFilter.LTE)
+	}
+	if req.TimeFilter.GT != nil {
+		conditions = append(conditions, "event_time > ?")
+		args = append(args, *req.TimeFilter.GT)
+	}
+	if req.TimeFilter.LT != nil {
+		conditions = append(conditions, "event_time < ?")
+		args = append(args, *req.TimeFilter.LT)
 	}
 
 	if q.CursorPos != "" {
@@ -334,13 +342,21 @@ func buildDeliveryQuery(table string, req driver.ListDeliveryEventRequest, q pag
 		args = append(args, req.Topics)
 	}
 
-	if req.Start != nil {
+	if req.TimeFilter.GTE != nil {
 		conditions = append(conditions, "delivery_time >= ?")
-		args = append(args, *req.Start)
+		args = append(args, *req.TimeFilter.GTE)
 	}
-	if req.End != nil {
+	if req.TimeFilter.LTE != nil {
 		conditions = append(conditions, "delivery_time <= ?")
-		args = append(args, *req.End)
+		args = append(args, *req.TimeFilter.LTE)
+	}
+	if req.TimeFilter.GT != nil {
+		conditions = append(conditions, "delivery_time > ?")
+		args = append(args, *req.TimeFilter.GT)
+	}
+	if req.TimeFilter.LT != nil {
+		conditions = append(conditions, "delivery_time < ?")
+		args = append(args, *req.TimeFilter.LT)
 	}
 
 	if q.CursorPos != "" {
