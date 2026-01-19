@@ -2,7 +2,7 @@
 -- Each row represents a unique event (ReplacingMergeTree deduplicates by ORDER BY)
 -- Enables O(limit) event listing without GROUP BY
 
-CREATE TABLE IF NOT EXISTS events (
+CREATE TABLE IF NOT EXISTS {deployment_prefix}events (
     event_id String,
     tenant_id String,
     destination_id String,
@@ -25,7 +25,7 @@ ORDER BY (event_time, event_id);
 -- Each row represents a delivery attempt for an event
 -- Stateless queries: no GROUP BY, no aggregation, direct row access
 
-CREATE TABLE IF NOT EXISTS deliveries (
+CREATE TABLE IF NOT EXISTS {deployment_prefix}deliveries (
     -- Event fields
     event_id String,
     tenant_id String,
