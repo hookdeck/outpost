@@ -45,18 +45,29 @@ var (
 
 // ListTenantRequest contains parameters for listing tenants.
 type ListTenantRequest struct {
-	Limit int    // Number of results per page (default: 20)
-	Next  string // Cursor for next page
-	Prev  string // Cursor for previous page
-	Order string // Sort order: "asc" or "desc" (default: "desc")
+	Limit        int        // Number of results per page (default: 20)
+	Next         string     // Cursor for next page
+	Prev         string     // Cursor for previous page
+	Dir          string     // Sort direction: "asc" or "desc" (default: "desc")
+	CreatedAtGTE *time.Time // Filter: created_at >= this time
+	CreatedAtLTE *time.Time // Filter: created_at <= this time
+}
+
+// TenantPaginationInfo represents pagination metadata for tenant list responses.
+// This aligns with Hookdeck's pagination response format.
+type TenantPaginationInfo struct {
+	OrderBy string  `json:"order_by"`
+	Dir     string  `json:"dir"`
+	Limit   int     `json:"limit"`
+	Next    *string `json:"next"`
+	Prev    *string `json:"prev"`
 }
 
 // ListTenantResponse contains the paginated list of tenants.
 type ListTenantResponse struct {
-	Data  []Tenant `json:"data"`
-	Next  string   `json:"next"`
-	Prev  string   `json:"prev"`
-	Count int      `json:"count"`
+	Models     []Tenant             `json:"models"`
+	Pagination TenantPaginationInfo `json:"pagination"`
+	Count      int                  `json:"count"`
 }
 
 type entityStoreImpl struct {
@@ -350,12 +361,12 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		limit = maxListTenantLimit
 	}
 
-	// Validate and apply order
-	order := req.Order
-	if order == "" {
-		order = "desc"
+	// Validate and apply dir (sort direction)
+	dir := req.Dir
+	if dir == "" {
+		dir = "desc"
 	}
-	if order != "asc" && order != "desc" {
+	if dir != "asc" && dir != "desc" {
 		return nil, ErrInvalidOrder
 	}
 
@@ -364,10 +375,18 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 	// Filter: -@deleted_at:[1 +inf] excludes deleted tenants
 	baseFilter := "@entity:{tenant} -@deleted_at:[1 +inf]"
 
+	// Add created_at date filters if provided
+	if req.CreatedAtGTE != nil {
+		baseFilter = fmt.Sprintf("@created_at:[%d +inf] %s", req.CreatedAtGTE.UnixMilli(), baseFilter)
+	}
+	if req.CreatedAtLTE != nil {
+		baseFilter = fmt.Sprintf("@created_at:[-inf %d] %s", req.CreatedAtLTE.UnixMilli(), baseFilter)
+	}
+
 	// Use pagination package for cursor-based pagination with n+1 pattern
 	result, err := pagination.Run(ctx, pagination.Config[Tenant]{
 		Limit: limit,
-		Order: order,
+		Order: dir,
 		Next:  req.Next,
 		Prev:  req.Prev,
 		Cursor: pagination.Cursor[Tenant]{
@@ -424,11 +443,25 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		_, totalCount, _ = s.parseSearchResult(ctx, countResult)
 	}
 
+	// Convert empty cursors to nil pointers (Hookdeck returns null for empty cursors)
+	var nextCursor, prevCursor *string
+	if result.Next != "" {
+		nextCursor = &result.Next
+	}
+	if result.Prev != "" {
+		prevCursor = &result.Prev
+	}
+
 	return &ListTenantResponse{
-		Data:  tenants,
+		Models: tenants,
+		Pagination: TenantPaginationInfo{
+			OrderBy: "created_at",
+			Dir:     dir,
+			Limit:   limit,
+			Next:    nextCursor,
+			Prev:    prevCursor,
+		},
 		Count: totalCount,
-		Next:  result.Next,
-		Prev:  result.Prev,
 	}, nil
 }
 

@@ -133,16 +133,14 @@ type APIEvent struct {
 
 // ListDeliveriesResponse is the response for ListDeliveries
 type ListDeliveriesResponse struct {
-	Data []APIDelivery `json:"data"`
-	Next string        `json:"next,omitempty"`
-	Prev string        `json:"prev,omitempty"`
+	Models     []APIDelivery  `json:"models"`
+	Pagination PaginationInfo `json:"pagination"`
 }
 
 // ListEventsResponse is the response for ListEvents
 type ListEventsResponse struct {
-	Data []APIEvent `json:"data"`
-	Next string     `json:"next,omitempty"`
-	Prev string     `json:"prev,omitempty"`
+	Models     []APIEvent     `json:"models"`
+	Pagination PaginationInfo `json:"pagination"`
 }
 
 // toAPIDelivery converts a DeliveryEvent to APIDelivery with expand options
@@ -203,34 +201,33 @@ func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 }
 
 func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
-	var start, end *time.Time
-	if startStr := c.Query("start"); startStr != "" {
-		t, err := time.Parse(time.RFC3339, startStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.start": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		start = &t
+	// Parse and validate dir (sort direction)
+	dir, errResp := ParseDir(c)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
 	}
-	if endStr := c.Query("end"); endStr != "" {
-		t, err := time.Parse(time.RFC3339, endStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.end": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		end = &t
+	if dir == "" {
+		dir = "desc"
+	}
+
+	// Parse and validate order_by (delivery_time or event_time)
+	orderBy, errResp := ParseOrderBy(c, []string{"delivery_time", "event_time"})
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+	if orderBy == "" {
+		orderBy = "delivery_time"
+	}
+	// Note: order_by is informational only for now - store always sorts by delivery_time
+	_ = orderBy
+
+	// Parse delivery_time date filters
+	deliveryTimeFilter, errResp := ParseDateFilter(c, "delivery_time")
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
 	}
 
 	limit := parseLimit(c, 100, 1000)
@@ -240,33 +237,18 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		destinationIDs = []string{destID}
 	}
 
-	sortOrder := c.Query("sort_order")
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	if sortOrder != "asc" && sortOrder != "desc" {
-		AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-			Code:    http.StatusUnprocessableEntity,
-			Message: "validation error",
-			Data: map[string]string{
-				"query.sort_order": "must be 'asc' or 'desc'",
-			},
-		})
-		return
-	}
-
 	req := logstore.ListDeliveryEventRequest{
 		TenantID:       tenantID,
 		EventID:        c.Query("event_id"),
 		DestinationIDs: destinationIDs,
 		Status:         c.Query("status"),
 		Topics:         parseQueryArray(c, "topic"),
-		Start:          start,
-		End:            end,
+		Start:          deliveryTimeFilter.GTE,
+		End:            deliveryTimeFilter.LTE,
 		Limit:          limit,
 		Next:           c.Query("next"),
 		Prev:           c.Query("prev"),
-		SortOrder:      sortOrder,
+		SortOrder:      dir,
 	}
 
 	response, err := h.logStore.ListDeliveryEvent(c.Request.Context(), req)
@@ -287,9 +269,14 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 	}
 
 	c.JSON(http.StatusOK, ListDeliveriesResponse{
-		Data: apiDeliveries,
-		Next: response.Next,
-		Prev: response.Prev,
+		Models: apiDeliveries,
+		Pagination: PaginationInfo{
+			OrderBy: orderBy,
+			Dir:     dir,
+			Limit:   limit,
+			Next:    CursorToPtr(response.Next),
+			Prev:    CursorToPtr(response.Prev),
+		},
 	})
 }
 
@@ -371,34 +358,33 @@ func (h *LogHandlers) ListEvents(c *gin.Context) {
 }
 
 func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
-	var start, end *time.Time
-	if startStr := c.Query("start"); startStr != "" {
-		t, err := time.Parse(time.RFC3339, startStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.start": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		start = &t
+	// Parse and validate dir (sort direction)
+	dir, errResp := ParseDir(c)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
 	}
-	if endStr := c.Query("end"); endStr != "" {
-		t, err := time.Parse(time.RFC3339, endStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.end": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		end = &t
+	if dir == "" {
+		dir = "desc"
+	}
+
+	// Parse and validate order_by (event_time or created_at)
+	orderBy, errResp := ParseOrderBy(c, []string{"event_time", "created_at"})
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+	if orderBy == "" {
+		orderBy = "event_time"
+	}
+	// Note: order_by is informational only for now - store always sorts by event_time
+	_ = orderBy
+
+	// Parse event_time date filters
+	eventTimeFilter, errResp := ParseDateFilter(c, "event_time")
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
 	}
 
 	limit := parseLimit(c, 100, 1000)
@@ -408,31 +394,16 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 		destinationIDs = []string{destID}
 	}
 
-	sortOrder := c.Query("sort_order")
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	if sortOrder != "asc" && sortOrder != "desc" {
-		AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-			Code:    http.StatusUnprocessableEntity,
-			Message: "validation error",
-			Data: map[string]string{
-				"query.sort_order": "must be 'asc' or 'desc'",
-			},
-		})
-		return
-	}
-
 	req := logstore.ListEventRequest{
 		TenantID:       tenantID,
 		DestinationIDs: destinationIDs,
 		Topics:         parseQueryArray(c, "topic"),
-		EventStart:     start,
-		EventEnd:       end,
+		EventStart:     eventTimeFilter.GTE,
+		EventEnd:       eventTimeFilter.LTE,
 		Limit:          limit,
 		Next:           c.Query("next"),
 		Prev:           c.Query("prev"),
-		SortOrder:      sortOrder,
+		SortOrder:      dir,
 	}
 
 	response, err := h.logStore.ListEvent(c.Request.Context(), req)
@@ -458,8 +429,13 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 	}
 
 	c.JSON(http.StatusOK, ListEventsResponse{
-		Data: apiEvents,
-		Next: response.Next,
-		Prev: response.Prev,
+		Models: apiEvents,
+		Pagination: PaginationInfo{
+			OrderBy: orderBy,
+			Dir:     dir,
+			Limit:   limit,
+			Next:    CursorToPtr(response.Next),
+			Prev:    CursorToPtr(response.Prev),
+		},
 	})
 }

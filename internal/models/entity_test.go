@@ -243,17 +243,25 @@ func runListTenantPaginationSuite(t *testing.T, factory RedisClientFactory, depl
 		List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[models.Tenant], error) {
 			resp, err := entityStore.ListTenant(ctx, models.ListTenantRequest{
 				Limit: opts.Limit,
-				Order: opts.Order,
+				Dir:   opts.Order,
 				Next:  opts.Next,
 				Prev:  opts.Prev,
 			})
 			if err != nil {
 				return paginationtest.ListResult[models.Tenant]{}, err
 			}
+			// Convert *string cursors to string for test framework
+			var next, prev string
+			if resp.Pagination.Next != nil {
+				next = *resp.Pagination.Next
+			}
+			if resp.Pagination.Prev != nil {
+				prev = *resp.Pagination.Prev
+			}
 			return paginationtest.ListResult[models.Tenant]{
-				Items: resp.Data,
-				Next:  resp.Next,
-				Prev:  resp.Prev,
+				Items: resp.Models,
+				Next:  next,
+				Prev:  prev,
 			}, nil
 		},
 
