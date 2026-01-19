@@ -70,12 +70,12 @@ func TestMigrator_CredentialExposure_Integration(t *testing.T) {
 			},
 		},
 		{
-			name: "ClickHouse - connection timeout scenario",
+			name: "ClickHouse - connection failure scenario",
 			opts: MigrationOpts{
 				CH: MigrationOptsCH{
-					// Using non-routable IP to simulate timeout
-					// 192.0.2.0/24 is reserved for documentation (RFC 5737)
-					Addr:     "192.0.2.1:9000",
+					// Using localhost:1 - port 1 is reserved and will be refused immediately
+					// This tests credential sanitization without waiting for network timeout
+					Addr:     "localhost:1",
 					Username: "admin",
 					Password: "VerySecretPass456$",
 					Database: "analytics_db",
@@ -83,8 +83,8 @@ func TestMigrator_CredentialExposure_Integration(t *testing.T) {
 			},
 			shouldFailValidation: false,
 			checkError: func(t *testing.T, err error) {
-				// We expect an error due to timeout/unreachable host
-				require.Error(t, err, "Should fail to connect to unreachable host")
+				// We expect an error due to connection refused
+				require.Error(t, err, "Should fail to connect to closed port")
 
 				// The error should NOT contain the actual password
 				assert.NotContains(t, err.Error(), "VerySecretPass456$",
