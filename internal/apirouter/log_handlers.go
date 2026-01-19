@@ -131,16 +131,16 @@ type APIEvent struct {
 	Data             map[string]interface{} `json:"data,omitempty"`
 }
 
-// ListDeliveriesResponse is the response for ListDeliveries
-type ListDeliveriesResponse struct {
+// DeliveryPaginatedResult is the paginated response for listing deliveries.
+type DeliveryPaginatedResult struct {
 	Models     []APIDelivery  `json:"models"`
-	Pagination PaginationInfo `json:"pagination"`
+	Pagination SeekPagination `json:"pagination"`
 }
 
-// ListEventsResponse is the response for ListEvents
-type ListEventsResponse struct {
+// EventPaginatedResult is the paginated response for listing events.
+type EventPaginatedResult struct {
 	Models     []APIEvent     `json:"models"`
-	Pagination PaginationInfo `json:"pagination"`
+	Pagination SeekPagination `json:"pagination"`
 }
 
 // toAPIDelivery converts a DeliveryEvent to APIDelivery with expand options
@@ -268,9 +268,9 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		apiDeliveries[i] = toAPIDelivery(de, includeOpts)
 	}
 
-	c.JSON(http.StatusOK, ListDeliveriesResponse{
+	c.JSON(http.StatusOK, DeliveryPaginatedResult{
 		Models: apiDeliveries,
-		Pagination: PaginationInfo{
+		Pagination: SeekPagination{
 			OrderBy: orderBy,
 			Dir:     dir,
 			Limit:   limit,
@@ -428,9 +428,9 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 		}
 	}
 
-	c.JSON(http.StatusOK, ListEventsResponse{
+	c.JSON(http.StatusOK, EventPaginatedResult{
 		Models: apiEvents,
-		Pagination: PaginationInfo{
+		Pagination: SeekPagination{
 			OrderBy: orderBy,
 			Dir:     dir,
 			Limit:   limit,

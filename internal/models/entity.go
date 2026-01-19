@@ -21,7 +21,7 @@ type EntityStore interface {
 	RetrieveTenant(ctx context.Context, tenantID string) (*Tenant, error)
 	UpsertTenant(ctx context.Context, tenant Tenant) error
 	DeleteTenant(ctx context.Context, tenantID string) error
-	ListTenant(ctx context.Context, req ListTenantRequest) (*ListTenantResponse, error)
+	ListTenant(ctx context.Context, req ListTenantRequest) (*TenantPaginatedResult, error)
 	ListDestinationByTenant(ctx context.Context, tenantID string, options ...ListDestinationByTenantOpts) ([]Destination, error)
 	RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*Destination, error)
 	CreateDestination(ctx context.Context, destination Destination) error
@@ -51,9 +51,8 @@ type ListTenantRequest struct {
 	Dir   string // Sort direction: "asc" or "desc" (default: "desc")
 }
 
-// TenantPaginationInfo represents pagination metadata for tenant list responses.
-// This aligns with Hookdeck's pagination response format.
-type TenantPaginationInfo struct {
+// SeekPagination represents cursor-based pagination metadata for list responses.
+type SeekPagination struct {
 	OrderBy string  `json:"order_by"`
 	Dir     string  `json:"dir"`
 	Limit   int     `json:"limit"`
@@ -61,11 +60,11 @@ type TenantPaginationInfo struct {
 	Prev    *string `json:"prev"`
 }
 
-// ListTenantResponse contains the paginated list of tenants.
-type ListTenantResponse struct {
-	Models     []Tenant             `json:"models"`
-	Pagination TenantPaginationInfo `json:"pagination"`
-	Count      int                  `json:"count"`
+// TenantPaginatedResult contains the paginated list of tenants.
+type TenantPaginatedResult struct {
+	Models     []Tenant       `json:"models"`
+	Pagination SeekPagination `json:"pagination"`
+	Count      int            `json:"count"`
 }
 
 type entityStoreImpl struct {
@@ -340,7 +339,7 @@ const (
 )
 
 // ListTenant returns a paginated list of tenants using RediSearch.
-func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest) (*ListTenantResponse, error) {
+func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest) (*TenantPaginatedResult, error) {
 	if !s.listTenantSupported {
 		return nil, ErrListTenantNotSupported
 	}
@@ -442,9 +441,9 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		prevCursor = &result.Prev
 	}
 
-	return &ListTenantResponse{
+	return &TenantPaginatedResult{
 		Models: tenants,
-		Pagination: TenantPaginationInfo{
+		Pagination: SeekPagination{
 			OrderBy: "created_at",
 			Dir:     dir,
 			Limit:   limit,

@@ -12,9 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// PaginationInfo represents pagination metadata for list responses.
-// This aligns with Hookdeck's pagination response format.
-type PaginationInfo struct {
+// SeekPagination represents cursor-based pagination metadata for list responses.
+type SeekPagination struct {
 	OrderBy string  `json:"order_by"`
 	Dir     string  `json:"dir"`
 	Limit   int     `json:"limit"`
@@ -23,7 +22,7 @@ type PaginationInfo struct {
 }
 
 // CursorToPtr converts an empty cursor string to nil, or returns a pointer to the string.
-// Hookdeck returns null for empty cursors instead of empty string.
+// Returns null for empty cursors instead of empty string.
 func CursorToPtr(cursor string) *string {
 	if cursor == "" {
 		return nil

@@ -86,59 +86,17 @@ components:
             type: string
           nullable: true
           description: Optional metadata to store with the tenant.
-    TenantListItem:
-      type: object
-      description: Tenant object returned in list operations.
-      properties:
-        id:
-          type: string
-          description: User-defined system ID for the tenant.
-          example: "123"
-        destinations_count:
-          type: integer
-          description: Number of destinations associated with the tenant.
-          example: 5
-        topics:
-          type: array
-          items:
-            type: string
-          description: List of subscribed topics across all destinations for this tenant.
-          example: ["user.created", "user.deleted"]
-        metadata:
-          type: object
-          additionalProperties:
-            type: string
-          nullable: true
-          description: Arbitrary key-value pairs for storing contextual information about the tenant.
-        created_at:
-          type: string
-          format: date-time
-          description: ISO Date when the tenant was created.
-          example: "2024-01-01T00:00:00Z"
-        updated_at:
-          type: string
-          format: date-time
-          description: ISO Date when the tenant was last updated.
-          example: "2024-01-01T00:00:00Z"
-    TenantListResponse:
+    TenantPaginatedResult:
       type: object
       description: Paginated list of tenants.
       properties:
-        data:
+        models:
           type: array
           items:
-            $ref: "#/components/schemas/TenantListItem"
+            $ref: "#/components/schemas/Tenant"
           description: Array of tenant objects.
-        next:
-          type: string
-          nullable: true
-          description: Cursor for the next page of results. Null if no more results.
-          example: "MTcwNDA2NzIwMA=="
-        prev:
-          type: string
-          nullable: true
-          description: Cursor for the previous page of results. Null if on first page.
-          example: null
+        pagination:
+          $ref: "#/components/schemas/SeekPagination"
         count:
           type: integer
           description: Total count of all tenants.
@@ -198,26 +156,57 @@ components:
           customer:
             tier: "premium"
 
-    PaginatedResponse:
+    SeekPagination:
       type: object
-      required: [count, data, next, prev]
+      description: Cursor-based pagination metadata for list responses.
       properties:
-        count:
+        order_by:
+          type: string
+          description: The field being sorted on.
+          example: "created_at"
+        dir:
+          type: string
+          enum: [asc, desc]
+          description: Sort direction.
+          example: "desc"
+        limit:
           type: integer
-          description: Total number of items across all pages
-          example: 42
-        data:
-          type: array
-          items: {} # Will be overridden by specific endpoints
-          description: Array of items for current page
+          description: Page size limit.
+          example: 100
         next:
           type: string
-          description: Cursor for next page (empty string if no next page)
-          example: ""
+          nullable: true
+          description: Cursor for the next page of results. Null if no more results.
+          example: "MTcwNDA2NzIwMA=="
         prev:
           type: string
-          description: Cursor for previous page (empty string if no previous page)
-          example: ""
+          nullable: true
+          description: Cursor for the previous page of results. Null if on first page.
+          example: null
+
+    APIErrorResponse:
+      type: object
+      description: Standard error response format.
+      properties:
+        status:
+          type: integer
+          description: HTTP status code.
+          example: 422
+        message:
+          type: string
+          description: Human-readable error message.
+          example: "validation error"
+        data:
+          description: Additional error details. For validation errors, this is an array of human-readable messages.
+          oneOf:
+            - type: array
+              items:
+                type: string
+              description: Array of validation error messages.
+              example: ["email is required", "password must be at least 6 characters"]
+            - type: object
+              additionalProperties: true
+              description: Additional contextual data about the error.
 
     # Destination Type Specific Config/Credentials Schemas
     WebhookConfig:
@@ -1878,23 +1867,29 @@ components:
           additionalProperties: true
           description: The event payload data.
           example: { "user_id": "userid", "status": "active" }
-    DeliveryListResponse:
+    DeliveryPaginatedResult:
       type: object
       description: Paginated list of deliveries.
       properties:
-        data:
+        models:
           type: array
           items:
             $ref: "#/components/schemas/Delivery"
           description: Array of delivery objects.
-        next:
-          type: string
-          description: Cursor for the next page of results. Empty string if no more results.
-          example: "MTcwNDA2NzIwMA=="
-        prev:
-          type: string
-          description: Cursor for the previous page of results. Empty string if on first page.
-          example: ""
+        pagination:
+          $ref: "#/components/schemas/SeekPagination"
+
+    EventPaginatedResult:
+      type: object
+      description: Paginated list of events.
+      properties:
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+          description: Array of event objects.
+        pagination:
+          $ref: "#/components/schemas/SeekPagination"
 
     # Destination Type Schema (for Metadata endpoint)
     DestinationType:
@@ -2174,14 +2169,36 @@ paths:
             maximum: 100
             default: 20
           description: Number of tenants to return per page (1-100, default 20).
-        - name: order
+        - name: order_by
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [created_at]
+            default: created_at
+          description: Field to sort by.
+        - name: dir
           in: query
           required: false
           schema:
             type: string
             enum: [asc, desc]
             default: desc
-          description: Sort order by `created_at` timestamp.
+          description: Sort direction.
+        - name: created_at[gte]
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter tenants created at or after this time (RFC3339 or YYYY-MM-DD format).
+        - name: created_at[lte]
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter tenants created at or before this time (RFC3339 or YYYY-MM-DD format).
         - name: next
           in: query
           required: false
@@ -2200,9 +2217,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TenantListResponse"
+                $ref: "#/components/schemas/TenantPaginatedResult"
               example:
-                data:
+                models:
                   - id: "tenant_123"
                     metadata:
                       plan: "pro"
@@ -2212,8 +2229,12 @@ paths:
                     metadata: null
                     created_at: "2024-01-14T09:00:00Z"
                     updated_at: "2024-01-14T09:00:00Z"
-                next: "MTcwNDA2NzIwMA=="
-                prev: null
+                pagination:
+                  order_by: "created_at"
+                  dir: "desc"
+                  limit: 20
+                  next: "MTcwNDA2NzIwMA=="
+                  prev: null
                 count: 42
         "400":
           description: Invalid request parameters (e.g., invalid cursor, both next and prev provided).
@@ -2341,20 +2362,20 @@ paths:
                 items:
                   type: string
           description: Filter events by topic(s). Can be specified multiple times or comma-separated.
-        - name: start
+        - name: event_time[gte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: Filter events with time >= start (RFC3339 format).
-        - name: end
+          description: Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
+        - name: event_time[lte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: Filter events with time <= end (RFC3339 format).
+          description: Filter events with time <= value (RFC3339 or YYYY-MM-DD format).
         - name: limit
           in: query
           required: false
@@ -2376,32 +2397,33 @@ paths:
           schema:
             type: string
           description: Cursor for previous page of results.
-        - name: sort_order
+        - name: order_by
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [event_time, created_at]
+            default: event_time
+          description: Field to sort by.
+        - name: dir
           in: query
           required: false
           schema:
             type: string
             enum: [asc, desc]
             default: desc
-          description: Sort order (ascending or descending).
+          description: Sort direction.
       responses:
         "200":
           description: A paginated list of events.
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/PaginatedResponse"
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/Event"
+                $ref: "#/components/schemas/EventPaginatedResult"
               examples:
                 AdminEventsListExample:
                   value:
-                    data:
+                    models:
                       - id: "evt_123"
                         topic: "user.created"
                         time: "2024-01-01T00:00:00Z"
@@ -2414,12 +2436,20 @@ paths:
                         eligible_for_retry: true
                         metadata: { "source": "oms" }
                         data: { "order_id": "orderid", "tracking": "1Z..." }
-                    next: "MTcwNDA2NzIwMA=="
-                    prev: ""
+                    pagination:
+                      order_by: "event_time"
+                      dir: "desc"
+                      limit: 100
+                      next: "MTcwNDA2NzIwMA=="
+                      prev: null
         "401":
           description: Unauthorized (Admin API Key missing or invalid).
         "422":
           description: Validation error (invalid query parameters).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
 
   /deliveries:
     get:
@@ -2468,34 +2498,34 @@ paths:
                 items:
                   type: string
           description: Filter deliveries by event topic(s). Can be specified multiple times or comma-separated.
-        - name: start
+        - name: delivery_time[gte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: Filter deliveries with delivered_at >= start (RFC3339 format).
-        - name: end
+          description: Filter deliveries with delivered_at >= value (RFC3339 or YYYY-MM-DD format).
+        - name: delivery_time[lte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: Filter deliveries with delivered_at <= end (RFC3339 format).
-        - name: event_start
+          description: Filter deliveries with delivered_at <= value (RFC3339 or YYYY-MM-DD format).
+        - name: event_time[gte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: Filter deliveries by event time >= event_start (RFC3339 format).
-        - name: event_end
+          description: Filter deliveries by event time >= value (RFC3339 or YYYY-MM-DD format).
+        - name: event_time[lte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: Filter deliveries by event time <= event_end (RFC3339 format).
+          description: Filter deliveries by event time <= value (RFC3339 or YYYY-MM-DD format).
         - name: limit
           in: query
           required: false
@@ -2531,33 +2561,33 @@ paths:
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
-        - name: sort_by
+        - name: order_by
           in: query
           required: false
           schema:
             type: string
             enum: [delivery_time, event_time]
             default: delivery_time
-          description: Sort results by delivery time or event time.
-        - name: sort_order
+          description: Field to sort by.
+        - name: dir
           in: query
           required: false
           schema:
             type: string
             enum: [asc, desc]
             default: desc
-          description: Sort order (ascending or descending).
+          description: Sort direction.
       responses:
         "200":
           description: A paginated list of deliveries.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DeliveryListResponse"
+                $ref: "#/components/schemas/DeliveryPaginatedResult"
               examples:
                 AdminDeliveriesListExample:
                   value:
-                    data:
+                    models:
                       - id: "del_123"
                         status: "success"
                         delivered_at: "2024-01-01T00:00:05Z"
@@ -2572,12 +2602,16 @@ paths:
                         attempt: 2
                         event: "evt_789"
                         destination: "des_789"
-                    next: "MTcwNDA2NzIwMA=="
-                    prev: ""
+                    pagination:
+                      order_by: "delivery_time"
+                      dir: "desc"
+                      limit: 100
+                      next: "MTcwNDA2NzIwMA=="
+                      prev: null
                 AdminDeliveriesWithIncludeExample:
                   summary: Response with include=event
                   value:
-                    data:
+                    models:
                       - id: "del_123"
                         status: "success"
                         delivered_at: "2024-01-01T00:00:05Z"
@@ -2590,12 +2624,20 @@ paths:
                           eligible_for_retry: false
                           metadata: { "source": "crm" }
                         destination: "des_456"
-                    next: ""
-                    prev: ""
+                    pagination:
+                      order_by: "delivery_time"
+                      dir: "desc"
+                      limit: 100
+                      next: null
+                      prev: null
         "401":
           description: Unauthorized (Admin API Key missing or invalid).
         "422":
           description: Validation error (invalid query parameters).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
 
   /tenants/{tenant_id}/portal:
     parameters:
@@ -3318,34 +3360,34 @@ paths:
                 items:
                   type: string
           description: Filter deliveries by event topic(s). Can be specified multiple times or comma-separated.
-        - name: start
+        - name: delivery_time[gte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: Filter deliveries with delivered_at >= start (RFC3339 format).
-        - name: end
+          description: Filter deliveries with delivered_at >= value (RFC3339 or YYYY-MM-DD format).
+        - name: delivery_time[lte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: Filter deliveries with delivered_at <= end (RFC3339 format).
-        - name: event_start
+          description: Filter deliveries with delivered_at <= value (RFC3339 or YYYY-MM-DD format).
+        - name: event_time[gte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: Filter deliveries by event time >= event_start (RFC3339 format).
-        - name: event_end
+          description: Filter deliveries by event time >= value (RFC3339 or YYYY-MM-DD format).
+        - name: event_time[lte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: Filter deliveries by event time <= event_end (RFC3339 format).
+          description: Filter deliveries by event time <= value (RFC3339 or YYYY-MM-DD format).
         - name: limit
           in: query
           required: false
@@ -3381,33 +3423,33 @@ paths:
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
-        - name: sort_by
+        - name: order_by
           in: query
           required: false
           schema:
             type: string
             enum: [delivery_time, event_time]
             default: delivery_time
-          description: Sort results by delivery time or event time.
-        - name: sort_order
+          description: Field to sort by.
+        - name: dir
           in: query
           required: false
           schema:
             type: string
             enum: [asc, desc]
             default: desc
-          description: Sort order (ascending or descending).
+          description: Sort direction.
       responses:
         "200":
           description: A paginated list of deliveries.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DeliveryListResponse"
+                $ref: "#/components/schemas/DeliveryPaginatedResult"
               examples:
                 DeliveriesListExample:
                   value:
-                    data:
+                    models:
                       - id: "del_123"
                         status: "success"
                         delivered_at: "2024-01-01T00:00:05Z"
@@ -3422,12 +3464,16 @@ paths:
                         attempt: 2
                         event: "evt_789"
                         destination: "des_456"
-                    next: "MTcwNDA2NzIwMA=="
-                    prev: ""
+                    pagination:
+                      order_by: "delivery_time"
+                      dir: "desc"
+                      limit: 100
+                      next: "MTcwNDA2NzIwMA=="
+                      prev: null
                 DeliveriesWithIncludeExample:
                   summary: Response with include=event
                   value:
-                    data:
+                    models:
                       - id: "del_123"
                         status: "success"
                         delivered_at: "2024-01-01T00:00:05Z"
@@ -3440,12 +3486,20 @@ paths:
                           eligible_for_retry: false
                           metadata: { "source": "crm" }
                         destination: "des_456"
-                    next: ""
-                    prev: ""
+                    pagination:
+                      order_by: "delivery_time"
+                      dir: "desc"
+                      limit: 100
+                      next: null
+                      prev: null
         "404":
           description: Tenant not found.
         "422":
           description: Validation error (invalid query parameters).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
 
   /tenants/{tenant_id}/deliveries/{delivery_id}:
     parameters:
@@ -3565,7 +3619,7 @@ paths:
     get:
       tags: [Events]
       summary: List Events
-      description: Retrieves a list of events for the tenant, supporting cursor navigation (details TBD) and filtering.
+      description: Retrieves a list of events for the tenant, supporting cursor navigation and filtering.
       operationId: listTenantEvents
       parameters:
         - name: destination_id
@@ -3590,13 +3644,13 @@ paths:
           required: false
           schema:
             type: string
-          description: Cursor for next page of results
+          description: Cursor for next page of results.
         - name: prev
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for previous page of results
+          description: Cursor for previous page of results.
         - name: limit
           in: query
           required: false
@@ -3605,40 +3659,48 @@ paths:
             default: 100
             minimum: 1
             maximum: 1000
-          description: Number of items per page (default 100, max 1000)
-        - name: start
+          description: Number of items per page (default 100, max 1000).
+        - name: event_time[gte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: Start time filter (RFC3339 format)
-        - name: end
+          description: Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
+        - name: event_time[lte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: End time filter (RFC3339 format)
+          description: Filter events with time <= value (RFC3339 or YYYY-MM-DD format).
+        - name: order_by
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [event_time, created_at]
+            default: event_time
+          description: Field to sort by.
+        - name: dir
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort direction.
       responses:
         "200":
           description: A paginated list of events.
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/PaginatedResponse"
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/Event"
+                $ref: "#/components/schemas/EventPaginatedResult"
               examples:
                 EventsListExample:
                   value:
-                    count: 2
-                    data:
+                    models:
                       - id: "evt_123"
                         destination_id: "des_456"
                         topic: "user.created"
@@ -3653,11 +3715,20 @@ paths:
                         successful_at: null
                         metadata: { "source": "oms" }
                         data: { "order_id": "orderid", "tracking": "1Z..." }
-                    next: ""
-                    prev: ""
+                    pagination:
+                      order_by: "event_time"
+                      dir: "desc"
+                      limit: 100
+                      next: null
+                      prev: null
         "404":
           description: Tenant not found.
-        # Add other error responses
+        "422":
+          description: Validation error (invalid query parameters).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
 
   /tenants/{tenant_id}/events/{event_id}:
     parameters:
@@ -3778,13 +3849,13 @@ paths:
           required: false
           schema:
             type: string
-          description: Cursor for next page of results
+          description: Cursor for next page of results.
         - name: prev
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for previous page of results
+          description: Cursor for previous page of results.
         - name: limit
           in: query
           required: false
@@ -3793,40 +3864,48 @@ paths:
             default: 100
             minimum: 1
             maximum: 1000
-          description: Number of items per page (default 100, max 1000)
-        - name: start
+          description: Number of items per page (default 100, max 1000).
+        - name: event_time[gte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: Start time filter (RFC3339 format)
-        - name: end
+          description: Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
+        - name: event_time[lte]
           in: query
           required: false
           schema:
             type: string
             format: date-time
-          description: End time filter (RFC3339 format)
+          description: Filter events with time <= value (RFC3339 or YYYY-MM-DD format).
+        - name: order_by
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [event_time, created_at]
+            default: event_time
+          description: Field to sort by.
+        - name: dir
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort direction.
       responses:
         "200":
           description: A paginated list of events for the destination.
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/PaginatedResponse"
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/Event"
+                $ref: "#/components/schemas/EventPaginatedResult"
               examples:
-                EventsListExample: # Same as /{tenant_id}/events example
+                EventsListExample:
                   value:
-                    count: 2
-                    data:
+                    models:
                       - id: "evt_123"
                         destination_id: "des_456"
                         topic: "user.created"
@@ -3841,8 +3920,12 @@ paths:
                         successful_at: null
                         metadata: { "source": "oms" }
                         data: { "order_id": "orderid", "tracking": "1Z..." }
-                    next: ""
-                    prev: ""
+                    pagination:
+                      order_by: "event_time"
+                      dir: "desc"
+                      limit: 100
+                      next: null
+                      prev: null
         "404":
           description: Tenant or Destination not found.
 
