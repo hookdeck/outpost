@@ -1208,24 +1208,12 @@ func (s *ListTenantTestSuite) SetupSuite() {
 	}
 }
 
-func (s *ListTenantTestSuite) TestListTenantBasic() {
+// TestListTenantEnrichment tests ListTenant-specific fields: Count, destinations_count, topics.
+// Pagination behavior is tested separately in paginationtest.Suite.
+func (s *ListTenantTestSuite) TestListTenantEnrichment() {
 	// Uses 25 tenants created in SetupSuite, first tenant has 2 destinations
 
-	s.T().Run("lists all tenants", func(t *testing.T) {
-		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 100})
-		require.NoError(t, err)
-		assert.Len(t, resp.Data, 25)
-	})
-
-	s.T().Run("respects limit", func(t *testing.T) {
-		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 2})
-		require.NoError(t, err)
-		assert.Len(t, resp.Data, 2)
-		assert.NotEmpty(t, resp.Next, "should have next cursor")
-		assert.Empty(t, resp.Prev, "should not have prev cursor on first page")
-	})
-
-	s.T().Run("returns total count", func(t *testing.T) {
+	s.T().Run("returns total count independent of pagination", func(t *testing.T) {
 		// First page with limit
 		resp1, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 2})
 		require.NoError(t, err)
@@ -1236,26 +1224,23 @@ func (s *ListTenantTestSuite) TestListTenantBasic() {
 		resp2, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 2, Next: resp1.Next})
 		require.NoError(t, err)
 		assert.Equal(t, 25, resp2.Count, "count should remain total across pages")
-		assert.Len(t, resp2.Data, 2)
 	})
 
-	s.T().Run("does not count destinations in tenant list", func(t *testing.T) {
-		// Verify destinations don't appear in tenant list
+	s.T().Run("does not include destinations in tenant list", func(t *testing.T) {
 		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 100})
 		require.NoError(t, err)
 		assert.Equal(t, 25, resp.Count, "count should be tenants only")
 
-		// Verify no destination IDs in the data
 		for _, tenant := range resp.Data {
 			assert.NotContains(t, tenant.ID, "dest_", "destination should not appear in tenant list")
 		}
 	})
 
 	s.T().Run("returns destinations_count and topics", func(t *testing.T) {
-		// tenantWithDests has 2 destinations from SetupSuite
 		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 100})
 		require.NoError(t, err)
 
+		// tenantWithDests has 2 destinations from SetupSuite
 		var tenantWithDests *models.Tenant
 		for i := range resp.Data {
 			if resp.Data[i].ID == s.tenantWithDests.ID {
@@ -1278,171 +1263,6 @@ func (s *ListTenantTestSuite) TestListTenantBasic() {
 		require.NotNil(t, tenantWithoutDests, "should find tenant without destinations")
 		assert.Equal(t, 0, tenantWithoutDests.DestinationsCount, "tenant without destinations should have 0 count")
 		assert.Empty(t, tenantWithoutDests.Topics, "tenant without destinations should have empty topics")
-	})
-
-	s.T().Run("orders by created_at desc by default", func(t *testing.T) {
-		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 100})
-		require.NoError(t, err)
-		require.Len(t, resp.Data, 25)
-
-		// Most recent first (desc order)
-		for i := 1; i < len(resp.Data); i++ {
-			assert.True(t, resp.Data[i-1].CreatedAt.After(resp.Data[i].CreatedAt) ||
-				resp.Data[i-1].CreatedAt.Equal(resp.Data[i].CreatedAt),
-				"tenant %d should have created_at >= tenant %d", i-1, i)
-		}
-	})
-
-	s.T().Run("orders by created_at asc", func(t *testing.T) {
-		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Order: "asc", Limit: 100})
-		require.NoError(t, err)
-		require.Len(t, resp.Data, 25)
-
-		// Oldest first (asc order)
-		for i := 1; i < len(resp.Data); i++ {
-			assert.True(t, resp.Data[i-1].CreatedAt.Before(resp.Data[i].CreatedAt) ||
-				resp.Data[i-1].CreatedAt.Equal(resp.Data[i].CreatedAt),
-				"tenant %d should have created_at <= tenant %d", i-1, i)
-		}
-	})
-}
-
-func (s *ListTenantTestSuite) TestListTenantPagination() {
-	// Uses 25 tenants created in SetupSuite
-
-	s.T().Run("paginate forward through all pages", func(t *testing.T) {
-		var allTenants []models.Tenant
-		cursor := ""
-		pageCount := 0
-		var firstResp, lastResp *models.ListTenantResponse
-
-		for {
-			resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
-				Limit: 10,
-				Next:  cursor,
-			})
-			require.NoError(t, err)
-
-			// Stop when we get empty result (no more data)
-			if len(resp.Data) == 0 {
-				break
-			}
-
-			allTenants = append(allTenants, resp.Data...)
-			pageCount++
-			if firstResp == nil {
-				firstResp = resp
-			}
-			lastResp = resp
-			cursor = resp.Next
-
-			// Safety check to prevent infinite loop
-			require.Less(t, pageCount, 10, "too many pages")
-		}
-
-		assert.Equal(t, 25, len(allTenants), "should have retrieved all tenants")
-		assert.Equal(t, 3, pageCount, "should have 3 pages (10+10+5)")
-		assert.Empty(t, firstResp.Prev, "first page should have no prev cursor")
-		// Last page has next cursor - using it returns empty (which terminated the loop)
-		assert.NotEmpty(t, lastResp.Next, "last page should have next cursor")
-	})
-
-	s.T().Run("full forward and backward traversal", func(t *testing.T) {
-		// This test verifies that prev cursor enables traditional "go back to previous page" behavior.
-		// Forward: Page1 -> Page2 -> Page3
-		// Backward: Page3 -> Page2 -> Page1
-		// The same tenants should appear on each page regardless of direction.
-
-		// Forward traversal: collect all pages
-		var forwardPages [][]models.Tenant
-		cursor := ""
-		for {
-			resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
-				Limit: 10,
-				Next:  cursor,
-			})
-			require.NoError(t, err)
-
-			// Stop when we get empty result
-			if len(resp.Data) == 0 {
-				break
-			}
-
-			forwardPages = append(forwardPages, resp.Data)
-			cursor = resp.Next
-		}
-		require.Equal(t, 3, len(forwardPages), "should have 3 pages forward")
-
-		// Now traverse backward from page 3 to page 1
-		// Start from page 3, go to page 2, then page 1
-		// Get page 3 again to get its prev cursor
-		resp3, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
-			Limit: 10,
-			Next:  cursor, // This is the cursor that got us to page 3
-		})
-		require.NoError(t, err)
-
-		// Actually we need to re-fetch page 2 first to get its prev cursor
-		// Let's fetch forward again to page 2 and get its prev cursor
-		page1, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 10})
-		require.NoError(t, err)
-		require.NotEmpty(t, page1.Next)
-
-		page2, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
-			Limit: 10,
-			Next:  page1.Next,
-		})
-		require.NoError(t, err)
-		require.NotEmpty(t, page2.Next)
-		require.NotEmpty(t, page2.Prev, "page 2 should have prev cursor")
-
-		page3, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
-			Limit: 10,
-			Next:  page2.Next,
-		})
-		require.NoError(t, err)
-		require.NotEmpty(t, page3.Prev, "page 3 should have prev cursor")
-		_ = resp3 // silence unused warning
-
-		// Now go backward: use page3's prev cursor to get page 2
-		backToPage2, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
-			Limit: 10,
-			Prev:  page3.Prev,
-		})
-		require.NoError(t, err)
-		require.Len(t, backToPage2.Data, 10, "going back to page 2 should return 10 items")
-
-		// Verify we got the same items as page 2 (forward)
-		for i, tenant := range backToPage2.Data {
-			assert.Equal(t, page2.Data[i].ID, tenant.ID,
-				"backward page 2 item %d should match forward page 2", i)
-		}
-
-		// Go back one more time: use backToPage2's prev cursor to get page 1
-		require.NotEmpty(t, backToPage2.Prev, "page 2 (backward) should have prev cursor")
-		backToPage1, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
-			Limit: 10,
-			Prev:  backToPage2.Prev,
-		})
-		require.NoError(t, err)
-		require.Len(t, backToPage1.Data, 10, "going back to page 1 should return 10 items")
-
-		// Verify we got the same items as page 1 (forward)
-		for i, tenant := range backToPage1.Data {
-			assert.Equal(t, page1.Data[i].ID, tenant.ID,
-				"backward page 1 item %d should match forward page 1", i)
-		}
-
-		// Page 1 (backward) has prev cursor - client discovers empty when using it
-		assert.NotEmpty(t, backToPage1.Prev, "page 1 (backward) should have prev cursor")
-
-		// Verify using prev cursor on page 1 returns empty
-		emptyResp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
-			Limit: 10,
-			Prev:  backToPage1.Prev,
-		})
-		require.NoError(t, err)
-		assert.Empty(t, emptyResp.Data, "using prev cursor on page 1 should return empty")
 	})
 }
 
@@ -1526,85 +1346,9 @@ func (s *ListTenantTestSuite) TestListTenantExcludesDeleted() {
 	})
 }
 
-// TestListTenantPaginationEdgeCases demonstrates the limitations of offset-based pagination.
-// These tests document known edge cases, not bugs to fix.
-func (s *ListTenantTestSuite) TestListTenantPaginationEdgeCases() {
-	s.T().Run("delete during traversal may cause skipped tenant", func(t *testing.T) {
-		// This test documents a known limitation of offset-based pagination:
-		// If a tenant is deleted from an already-fetched page, subsequent pages
-		// may shift, causing one tenant to be skipped.
-		//
-		// Example with limit=5, sorted DESC (newest first):
-		//   Initial order by created_at DESC: [14, 13, 12, 11, 10, 09, 08, ...]
-		//   Page 1 (offset 0): [14, 13, 12, 11, 10] - fetched, cursor = offset 5
-		//   Delete tenant 12 (position 2 on page 1)
-		//   After deletion, positions shift: [14, 13, 11, 10, 09, 08, ...]
-		//   Page 2 (offset 5): [08, 07, 06, ...] - tenant 09 shifted to position 4, SKIPPED!
-		//
-		// Note: This behavior depends on RediSearch index update timing, which is async.
-		// The test documents the scenario but doesn't hard-assert since timing varies.
-
-		// Create 15 tenants with unique prefix and timestamps far in the future
-		prefix := fmt.Sprintf("del_edge_%d_", time.Now().UnixNano())
-		tenantIDs := make([]string, 15)
-		baseTime := time.Now().Add(10 * time.Hour)
-		for i := 0; i < 15; i++ {
-			tenantIDs[i] = fmt.Sprintf("%s%02d", prefix, i)
-			tenant := models.Tenant{
-				ID:        tenantIDs[i],
-				CreatedAt: baseTime.Add(time.Duration(i) * time.Second),
-				UpdatedAt: baseTime,
-			}
-			require.NoError(t, s.entityStore.UpsertTenant(s.ctx, tenant))
-		}
-
-		// With DESC order: position 0 = tenantIDs[14], ..., position 5 = tenantIDs[9]
-		expectedSkippedTenant := tenantIDs[9]
-
-		// Fetch page 1
-		resp1, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 5})
-		require.NoError(t, err)
-		require.Len(t, resp1.Data, 5, "page 1 should have 5 items")
-
-		// Verify we got our test tenants
-		for _, tenant := range resp1.Data {
-			require.Contains(t, tenant.ID, prefix, "page 1 should contain our test tenants")
-		}
-
-		// Delete a tenant from the middle of page 1
-		deletedID := resp1.Data[2].ID
-		require.NoError(t, s.entityStore.DeleteTenant(s.ctx, deletedID))
-
-		// Fetch page 2 using the cursor from page 1
-		resp2, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
-			Limit: 5,
-			Next:  resp1.Next,
-		})
-		require.NoError(t, err)
-
-		// Collect all seen IDs
-		seenIDs := make(map[string]bool)
-		for _, tenant := range resp1.Data {
-			seenIDs[tenant.ID] = true
-		}
-		for _, tenant := range resp2.Data {
-			seenIDs[tenant.ID] = true
-		}
-
-		// Document what happened (informational, not a hard assertion)
-		if !seenIDs[expectedSkippedTenant] {
-			t.Logf("EDGE CASE MANIFESTED: tenant %s was skipped due to offset shift after deletion", expectedSkippedTenant)
-		} else {
-			t.Logf("Note: tenant %s was NOT skipped (RediSearch index update timing may vary)", expectedSkippedTenant)
-		}
-
-		// Cleanup
-		for _, id := range tenantIDs {
-			_ = s.entityStore.DeleteTenant(s.ctx, id)
-		}
-	})
-
-	s.T().Run("add during traversal does NOT cause duplicate (keyset pagination)", func(t *testing.T) {
+// TestListTenantKeysetPagination verifies keyset pagination handles concurrent modifications correctly.
+func (s *ListTenantTestSuite) TestListTenantKeysetPagination() {
+	s.T().Run("add during traversal does not cause duplicate", func(t *testing.T) {
 		// With keyset pagination, adding a new item with a newer timestamp
 		// does NOT cause duplicates because the cursor is based on timestamp,
 		// not offset. The new item falls outside the timestamp range.

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/cursor"
+	"github.com/hookdeck/outpost/internal/pagination"
 	"github.com/hookdeck/outpost/internal/redis"
 )
 
@@ -358,99 +359,38 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		return nil, ErrInvalidOrder
 	}
 
-	// Determine sort direction
-	sortDir := "DESC"
-	if order == "asc" {
-		sortDir = "ASC"
-	}
-
-	// Parse cursor timestamp (keyset pagination)
-	// Cursor contains the timestamp boundary for the next/prev page
-	var cursorTimestamp int64
-	isNextCursor := false
-	isPrevCursor := false
-	if req.Next != "" {
-		data, err := cursor.Decode(req.Next, "tnt", 1)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidCursor, err)
-		}
-		cursorTimestamp, err = strconv.ParseInt(data, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("%w: invalid timestamp", ErrInvalidCursor)
-		}
-		isNextCursor = true
-	} else if req.Prev != "" {
-		data, err := cursor.Decode(req.Prev, "tnt", 1)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidCursor, err)
-		}
-		cursorTimestamp, err = strconv.ParseInt(data, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("%w: invalid timestamp", ErrInvalidCursor)
-		}
-		isPrevCursor = true
-	}
-
-	// Build FT.SEARCH query with timestamp filter (keyset pagination)
-	// This avoids offset-based pagination which has issues on Dragonfly
-	// We use inclusive ranges with cursor-1/cursor+1 for better compatibility
+	// Base filter for tenant search
 	// Filter: @entity:{tenant} ensures only tenant records (not destinations)
 	// Filter: -@deleted_at:[1 +inf] excludes deleted tenants
-	// (documents without deleted_at field won't match the positive query, so negation includes them)
 	baseFilter := "@entity:{tenant} -@deleted_at:[1 +inf]"
-	var query string
-	querySortDir := sortDir
 
-	if !isNextCursor && !isPrevCursor {
-		// First page - only filter out deleted
-		query = baseFilter
-	} else if isNextCursor {
-		// Next cursor: get older (DESC) or newer (ASC) records
-		if order == "desc" {
-			// DESC: get records with created_at < cursor (older)
-			query = fmt.Sprintf("(@created_at:[0 %d]) %s", cursorTimestamp-1, baseFilter)
-		} else {
-			// ASC: get records with created_at > cursor (newer)
-			query = fmt.Sprintf("(@created_at:[%d +inf]) %s", cursorTimestamp+1, baseFilter)
-		}
-	} else {
-		// Prev cursor: go back to previous page
-		// We reverse the sort direction to get items closest to the cursor,
-		// then reverse the results to maintain the user's expected order.
-		if order == "desc" {
-			// DESC going back: get records with created_at > cursor (newer), sorted ASC
-			query = fmt.Sprintf("(@created_at:[%d +inf]) %s", cursorTimestamp+1, baseFilter)
-			querySortDir = "ASC"
-		} else {
-			// ASC going back: get records with created_at < cursor (older), sorted DESC
-			query = fmt.Sprintf("(@created_at:[0 %d]) %s", cursorTimestamp-1, baseFilter)
-			querySortDir = "DESC"
-		}
-	}
-
-	// Execute FT.SEARCH query with LIMIT 0 count (no offset)
-	result, err := s.doCmd(ctx, "FT.SEARCH", s.tenantIndexName(),
-		query,
-		"SORTBY", "created_at", querySortDir,
-		"LIMIT", 0, limit,
-	).Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to search tenants: %w", err)
-	}
-
-	// Parse FT.SEARCH result
-	tenants, _, err := s.parseSearchResult(ctx, result)
+	// Use pagination package for cursor-based pagination with n+1 pattern
+	result, err := pagination.Run(ctx, pagination.Config[Tenant]{
+		Limit: limit,
+		Order: order,
+		Next:  req.Next,
+		Prev:  req.Prev,
+		Cursor: pagination.Cursor[Tenant]{
+			Encode: func(t Tenant) string {
+				return cursor.Encode("tnt", 1, strconv.FormatInt(t.CreatedAt.UnixMilli(), 10))
+			},
+			Decode: func(c string) (string, error) {
+				data, err := cursor.Decode(c, "tnt", 1)
+				if err != nil {
+					return "", fmt.Errorf("%w: %v", ErrInvalidCursor, err)
+				}
+				return data, nil
+			},
+		},
+		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]Tenant, error) {
+			return s.fetchTenants(ctx, baseFilter, q)
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	// For prev cursor, we fetched in reverse order to get items closest to cursor.
-	// Now reverse the results to restore the user's expected order.
-	if isPrevCursor {
-		for i, j := 0, len(tenants)-1; i < j; i, j = i+1, j-1 {
-			tenants[i], tenants[j] = tenants[j], tenants[i]
-		}
-	}
+	tenants := result.Items
 
 	// Batch fetch destination summaries for all tenants in a single Redis round-trip
 	if len(tenants) > 0 {
@@ -484,30 +424,61 @@ func (s *entityStoreImpl) ListTenant(ctx context.Context, req ListTenantRequest)
 		_, totalCount, _ = s.parseSearchResult(ctx, countResult)
 	}
 
-	// Build response with cursors
-	resp := &ListTenantResponse{
+	return &ListTenantResponse{
 		Data:  tenants,
 		Count: totalCount,
+		Next:  result.Next,
+		Prev:  result.Prev,
+	}, nil
+}
+
+// fetchTenants builds and executes the FT.SEARCH query for tenant pagination.
+func (s *entityStoreImpl) fetchTenants(ctx context.Context, baseFilter string, q pagination.QueryInput) ([]Tenant, error) {
+	// Build FT.SEARCH query with timestamp filter (keyset pagination)
+	var query string
+	sortDir := "DESC"
+	if q.SortDir == "asc" {
+		sortDir = "ASC"
 	}
 
-	// Always set next/prev cursors based on first/last item timestamps.
-	// Client discovers "no more pages" when they use the cursor and get empty result.
-	// This avoids expensive probe queries.
-	if len(tenants) > 0 {
-		lastTenant := tenants[len(tenants)-1]
-		firstTenant := tenants[0]
+	if q.CursorPos == "" {
+		// First page - only filter out deleted
+		query = baseFilter
+	} else {
+		// Parse cursor timestamp
+		cursorTimestamp, err := strconv.ParseInt(q.CursorPos, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid timestamp", ErrInvalidCursor)
+		}
 
-		// Next cursor: points to last item (for continuing in same direction)
-		resp.Next = cursor.Encode("tnt", 1, strconv.FormatInt(lastTenant.CreatedAt.UnixMilli(), 10))
-
-		// Prev cursor: points to first item (for going back)
-		// Only set if we navigated here via a cursor (not on first page)
-		if isNextCursor || isPrevCursor {
-			resp.Prev = cursor.Encode("tnt", 1, strconv.FormatInt(firstTenant.CreatedAt.UnixMilli(), 10))
+		// Build cursor condition based on compare operator
+		// Use inclusive ranges with cursor-1/cursor+1 for better compatibility
+		if q.Compare == "<" {
+			// Get records with created_at < cursor
+			query = fmt.Sprintf("(@created_at:[0 %d]) %s", cursorTimestamp-1, baseFilter)
+		} else {
+			// Get records with created_at > cursor
+			query = fmt.Sprintf("(@created_at:[%d +inf]) %s", cursorTimestamp+1, baseFilter)
 		}
 	}
 
-	return resp, nil
+	// Execute FT.SEARCH query
+	result, err := s.doCmd(ctx, "FT.SEARCH", s.tenantIndexName(),
+		query,
+		"SORTBY", "created_at", sortDir,
+		"LIMIT", 0, q.Limit,
+	).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to search tenants: %w", err)
+	}
+
+	// Parse FT.SEARCH result
+	tenants, _, err := s.parseSearchResult(ctx, result)
+	if err != nil {
+		return nil, err
+	}
+
+	return tenants, nil
 }
 
 // parseSearchResult parses the FT.SEARCH result into a list of tenants.

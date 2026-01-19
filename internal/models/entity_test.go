@@ -9,6 +9,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/pagination/paginationtest"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -163,6 +164,113 @@ func TestListTenant_Dragonfly_WithDeploymentID(t *testing.T) {
 		RedisClientFactory: dragonflyStackClientFactory,
 		deploymentID:       "dp_test_001",
 	})
+}
+
+// =============================================================================
+// ListTenant Pagination Suite - Tests using paginationtest.Suite
+// These tests verify correct cursor-based pagination behavior including:
+// - Forward/backward traversal
+// - n+1 pattern (hasMore detection)
+// - First page has no Prev, last page has no Next
+// =============================================================================
+
+func TestListTenantPagination(t *testing.T) {
+	t.Parallel()
+	runListTenantPaginationSuite(t, dragonflyStackClientFactory, "")
+}
+
+func TestListTenantPagination_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	runListTenantPaginationSuite(t, dragonflyStackClientFactory, "dp_pagination_test")
+}
+
+func TestListTenantPagination_Compat_RedisStack(t *testing.T) {
+	t.Parallel()
+	runListTenantPaginationSuite(t, redisStackClientFactory, "")
+}
+
+func TestListTenantPagination_Compat_RedisStack_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	runListTenantPaginationSuite(t, redisStackClientFactory, "dp_pagination_test")
+}
+
+func runListTenantPaginationSuite(t *testing.T, factory RedisClientFactory, deploymentID string) {
+	ctx := context.Background()
+	redisClient := factory(t)
+
+	// Add unique suffix to deployment ID to isolate test data between parallel runs
+	if deploymentID != "" {
+		deploymentID = fmt.Sprintf("%s_%d", deploymentID, time.Now().UnixNano())
+	} else {
+		deploymentID = fmt.Sprintf("pagination_test_%d", time.Now().UnixNano())
+	}
+
+	entityStore := models.NewEntityStore(redisClient,
+		models.WithCipher(models.NewAESCipher("secret")),
+		models.WithAvailableTopics(testutil.TestTopics),
+		models.WithDeploymentID(deploymentID),
+	)
+
+	// Initialize entity store (probes for RediSearch)
+	err := entityStore.Init(ctx)
+	require.NoError(t, err)
+
+	// Track created tenant IDs for cleanup between subtests
+	var createdTenantIDs []string
+	baseTime := time.Now()
+
+	paginationSuite := paginationtest.Suite[models.Tenant]{
+		Name: "entitystore_ListTenant",
+
+		NewItem: func(index int) models.Tenant {
+			return models.Tenant{
+				ID:        fmt.Sprintf("tenant_pagination_%d_%d", time.Now().UnixNano(), index),
+				CreatedAt: baseTime.Add(time.Duration(index) * time.Second),
+				UpdatedAt: baseTime.Add(time.Duration(index) * time.Second),
+			}
+		},
+
+		InsertMany: func(ctx context.Context, items []models.Tenant) error {
+			for _, item := range items {
+				if err := entityStore.UpsertTenant(ctx, item); err != nil {
+					return err
+				}
+				createdTenantIDs = append(createdTenantIDs, item.ID)
+			}
+			return nil
+		},
+
+		List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[models.Tenant], error) {
+			resp, err := entityStore.ListTenant(ctx, models.ListTenantRequest{
+				Limit: opts.Limit,
+				Order: opts.Order,
+				Next:  opts.Next,
+				Prev:  opts.Prev,
+			})
+			if err != nil {
+				return paginationtest.ListResult[models.Tenant]{}, err
+			}
+			return paginationtest.ListResult[models.Tenant]{
+				Items: resp.Data,
+				Next:  resp.Next,
+				Prev:  resp.Prev,
+			}, nil
+		},
+
+		GetID: func(t models.Tenant) string {
+			return t.ID
+		},
+
+		Cleanup: func(ctx context.Context) error {
+			for _, id := range createdTenantIDs {
+				_ = entityStore.DeleteTenant(ctx, id)
+			}
+			createdTenantIDs = nil
+			return nil
+		},
+	}
+
+	paginationSuite.Run(t)
 }
 
 // TestDestinationCredentialsEncryption verifies that credentials and delivery_metadata
