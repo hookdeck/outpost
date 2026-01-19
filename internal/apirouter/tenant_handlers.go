@@ -209,7 +209,7 @@ func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
 		theme = ""
 	}
 
-	portalURL := scheme + "://" + c.Request.Host + "?token=" + jwtToken + "&tenant_id=" + tenant.ID
+	portalURL := scheme + "://" + c.Request.Host + "?token=" + jwtToken
 	if theme != "" {
 		portalURL += "&theme=" + theme
 	}
