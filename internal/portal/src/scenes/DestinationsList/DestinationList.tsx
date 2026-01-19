@@ -21,7 +21,7 @@ const DestinationList: React.FC = () => {
   const destination_types = useDestinationTypes();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<Record<string, boolean>>(
-    {}
+    {},
   );
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
 
@@ -220,7 +220,7 @@ const DestinationList: React.FC = () => {
                         setSelectedTopics((prev) =>
                           prev.includes(topicTrimmed)
                             ? prev.filter((t) => t !== topicTrimmed)
-                            : [...prev, topicTrimmed]
+                            : [...prev, topicTrimmed],
                         );
                       }}
                     />

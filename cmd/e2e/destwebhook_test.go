@@ -109,8 +109,8 @@ func (suite *basicSuite) TestDestwebhookPublish() {
 			},
 		},
 		{
-			Delay: 1 * time.Second,
-			Name:  "GET mockserver/destinations/:destinationID/events - verify signature",
+			WaitFor: &MockServerPoll{BaseURL: suite.mockServerBaseURL, DestID: sampleDestinationID, MinCount: 1, Timeout: 5 * time.Second},
+			Name:    "GET mockserver/destinations/:destinationID/events - verify signature",
 			Request: httpclient.Request{
 				Method:  httpclient.MethodGET,
 				BaseURL: suite.mockServerBaseURL,
@@ -193,8 +193,8 @@ func (suite *basicSuite) TestDestwebhookPublish() {
 			},
 		},
 		{
-			Delay: 1 * time.Second,
-			Name:  "GET mockserver/destinations/:destinationID/events - verify rotated signature",
+			WaitFor: &MockServerPoll{BaseURL: suite.mockServerBaseURL, DestID: sampleDestinationID, MinCount: 1, Timeout: 5 * time.Second},
+			Name:    "GET mockserver/destinations/:destinationID/events - verify rotated signature",
 			Request: httpclient.Request{
 				Method:  httpclient.MethodGET,
 				BaseURL: suite.mockServerBaseURL,
@@ -276,8 +276,8 @@ func (suite *basicSuite) TestDestwebhookPublish() {
 			},
 		},
 		{
-			Delay: 1 * time.Second,
-			Name:  "GET mockserver/destinations/:destinationID/events - verify new signature",
+			WaitFor: &MockServerPoll{BaseURL: suite.mockServerBaseURL, DestID: sampleDestinationID, MinCount: 1, Timeout: 5 * time.Second},
+			Name:    "GET mockserver/destinations/:destinationID/events - verify new signature",
 			Request: httpclient.Request{
 				Method:  httpclient.MethodGET,
 				BaseURL: suite.mockServerBaseURL,
@@ -358,8 +358,8 @@ func (suite *basicSuite) TestDestwebhookPublish() {
 			},
 		},
 		{
-			Delay: 1 * time.Second,
-			Name:  "GET mockserver/destinations/:destinationID/events - verify signature fails",
+			WaitFor: &MockServerPoll{BaseURL: suite.mockServerBaseURL, DestID: sampleDestinationID, MinCount: 1, Timeout: 5 * time.Second},
+			Name:    "GET mockserver/destinations/:destinationID/events - verify signature fails",
 			Request: httpclient.Request{
 				Method:  httpclient.MethodGET,
 				BaseURL: suite.mockServerBaseURL,
@@ -1302,8 +1302,8 @@ func (suite *basicSuite) TestDestwebhookFilter() {
 			},
 		},
 		{
-			Delay: 1 * time.Second,
-			Name:  "GET mockserver - verify event was delivered",
+			WaitFor: &MockServerPoll{BaseURL: suite.mockServerBaseURL, DestID: destinationID, MinCount: 1, Timeout: 5 * time.Second},
+			Name:    "GET mockserver - verify event was delivered",
 			Request: httpclient.Request{
 				Method:  httpclient.MethodGET,
 				BaseURL: suite.mockServerBaseURL,
@@ -1360,7 +1360,7 @@ func (suite *basicSuite) TestDestwebhookFilter() {
 			},
 		},
 		{
-			Delay: 1 * time.Second,
+			Delay: 500 * time.Millisecond, // Can't poll for absence, but 500ms is enough for processing
 			Name:  "GET mockserver - verify event was NOT delivered (filter mismatch)",
 			Request: httpclient.Request{
 				Method:  httpclient.MethodGET,
@@ -1464,23 +1464,8 @@ func (suite *basicSuite) TestDeliveryRetry() {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
 
-	// Wait for retry to be scheduled and attempted
-	// RetryIntervalSeconds=1 in test config, so 3s should be enough for at least one retry
-	time.Sleep(3 * time.Second)
-
-	// Verify: check that multiple delivery attempts were made (original + retries)
-	resp, err = suite.client.Do(httpclient.Request{
-		Method:  httpclient.MethodGET,
-		BaseURL: suite.mockServerBaseURL,
-		Path:    "/destinations/" + destinationID + "/events",
-	})
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	events, ok := resp.Body.([]interface{})
-	require.True(t, ok, "response body should be array")
-	// Should have more than 1 event if retry worked (original attempt + at least 1 retry)
-	require.Greater(t, len(events), 1, "expected multiple delivery attempts (original + retry), got %d", len(events))
+	// Wait for retry to be scheduled and attempted (poll for at least 2 delivery attempts)
+	suite.waitForMockServerEvents(t, destinationID, 2, 5*time.Second)
 
 	// Cleanup
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{

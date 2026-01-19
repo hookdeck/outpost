@@ -14,12 +14,12 @@ export function useDestinationTypes(): Record<
       acc[type.type] = type;
       return acc;
     },
-    {} as Record<string, DestinationTypeReference>
+    {} as Record<string, DestinationTypeReference>,
   );
 }
 
 export function useDestinationType(
-  type: string | undefined
+  type: string | undefined,
 ): DestinationTypeReference | undefined {
   const destination_types = useDestinationTypes();
 

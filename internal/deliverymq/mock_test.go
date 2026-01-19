@@ -9,6 +9,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
 	mqs "github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/scheduler"
@@ -134,12 +135,12 @@ func (m *mockEventGetter) clearError() {
 	m.err = nil
 }
 
-func (m *mockEventGetter) RetrieveEvent(ctx context.Context, tenantID, eventID string) (*models.Event, error) {
+func (m *mockEventGetter) RetrieveEvent(ctx context.Context, req logstore.RetrieveEventRequest) (*models.Event, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
-	m.lastRetrievedID = eventID
-	event, ok := m.events[eventID]
+	m.lastRetrievedID = req.EventID
+	event, ok := m.events[req.EventID]
 	if !ok {
 		return nil, errors.New("event not found")
 	}

@@ -52,8 +52,8 @@ const KeyValueMapField: React.FC<KeyValueMapFieldProps> = ({
         }
         return acc;
       },
-      {} as Record<string, string>
-    )
+      {} as Record<string, string>,
+    ),
   );
 
   // Track previous value to detect actual changes (not initial render)
@@ -77,12 +77,12 @@ const KeyValueMapField: React.FC<KeyValueMapFieldProps> = ({
   const updatePair = (
     index: number,
     field: "key" | "value",
-    newValue: string
+    newValue: string,
   ) => {
     setPairs((prev) =>
       prev.map((pair, i) =>
-        i === index ? { ...pair, [field]: newValue } : pair
-      )
+        i === index ? { ...pair, [field]: newValue } : pair,
+      ),
     );
   };
 

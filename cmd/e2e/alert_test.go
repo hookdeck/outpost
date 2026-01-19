@@ -108,19 +108,22 @@ func (suite *basicSuite) TestConsecutiveFailuresAlert() {
 	}
 	suite.RunAPITests(suite.T(), tests)
 
-	// Add final check for destination disabled state
-	tests = []APITest{}
-	tests = append(tests, APITest{
-		Delay: time.Second / 2,
-		Name:  "GET /tenants/:tenantID/destinations/:destinationID - Check disabled",
-		Request: suite.AuthRequest(httpclient.Request{
-			Method: httpclient.MethodGET,
-			Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
-		}),
-		Expected: APITestExpectation{
-			Validate: makeDestinationDisabledValidator(destinationID, true),
+	// Wait for destination to be disabled (polls until disabled_at is set)
+	suite.waitForDestinationDisabled(suite.T(), tenantID, destinationID, 5*time.Second)
+
+	// Verify destination is disabled
+	tests = []APITest{
+		{
+			Name: "GET /tenants/:tenantID/destinations/:destinationID - Check disabled",
+			Request: suite.AuthRequest(httpclient.Request{
+				Method: httpclient.MethodGET,
+				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID,
+			}),
+			Expected: APITestExpectation{
+				Validate: makeDestinationDisabledValidator(destinationID, true),
+			},
 		},
-	})
+	}
 	suite.RunAPITests(suite.T(), tests)
 
 	// Assert alerts were received

@@ -1,7 +1,6 @@
 package apirouter
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,10 +11,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	ErrDestinationDisabled = errors.New("destination is disabled")
-)
-
 type RetryHandlers struct {
 	logger      *logging.Logger
 	entityStore models.EntityStore
@@ -23,7 +18,12 @@ type RetryHandlers struct {
 	deliveryMQ  *deliverymq.DeliveryMQ
 }
 
-func NewRetryHandlers(logger *logging.Logger, entityStore models.EntityStore, logStore logstore.LogStore, deliveryMQ *deliverymq.DeliveryMQ) *RetryHandlers {
+func NewRetryHandlers(
+	logger *logging.Logger,
+	entityStore models.EntityStore,
+	logStore logstore.LogStore,
+	deliveryMQ *deliverymq.DeliveryMQ,
+) *RetryHandlers {
 	return &RetryHandlers{
 		logger:      logger,
 		entityStore: entityStore,
@@ -32,13 +32,33 @@ func NewRetryHandlers(logger *logging.Logger, entityStore models.EntityStore, lo
 	}
 }
 
-func (h *RetryHandlers) Retry(c *gin.Context) {
-	tenantID := c.Param("tenantID")
-	destinationID := c.Param("destinationID")
-	eventID := c.Param("eventID")
+// RetryDelivery handles POST /:tenantID/deliveries/:deliveryID/retry
+// Constraints:
+// - Only the latest delivery for an event+destination pair can be retried
+// - Destination must exist and be enabled
+func (h *RetryHandlers) RetryDelivery(c *gin.Context) {
+	tenant := mustTenantFromContext(c)
+	if tenant == nil {
+		return
+	}
+	deliveryID := c.Param("deliveryID")
 
-	// 1. Retrieve destination & event data
-	destination, err := h.entityStore.RetrieveDestination(c, tenantID, destinationID)
+	// 1. Look up delivery by ID
+	deliveryEvent, err := h.logStore.RetrieveDeliveryEvent(c.Request.Context(), logstore.RetrieveDeliveryEventRequest{
+		TenantID:   tenant.ID,
+		DeliveryID: deliveryID,
+	})
+	if err != nil {
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return
+	}
+	if deliveryEvent == nil {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("delivery"))
+		return
+	}
+
+	// 2. Check destination exists and is enabled
+	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenant.ID, deliveryEvent.DestinationID)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -48,32 +68,29 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 		return
 	}
 	if destination.DisabledAt != nil {
-		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(ErrDestinationDisabled))
+		AbortWithError(c, http.StatusBadRequest, ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Destination is disabled",
+			Data: map[string]string{
+				"error": "destination_disabled",
+			},
+		})
 		return
 	}
 
-	event, err := h.logStore.RetrieveEvent(c, tenantID, eventID)
-	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-		return
-	}
-	if event == nil {
-		AbortWithError(c, http.StatusNotFound, NewErrNotFound("event"))
-		return
-	}
+	// 3. Create and publish retry delivery event
+	retryDeliveryEvent := models.NewManualDeliveryEvent(deliveryEvent.Event, deliveryEvent.DestinationID)
 
-	// 2. Initiate redelivery
-	deliveryEvent := models.NewManualDeliveryEvent(*event, destination.ID)
-
-	if err := h.deliveryMQ.Publish(c, deliveryEvent); err != nil {
+	if err := h.deliveryMQ.Publish(c.Request.Context(), retryDeliveryEvent); err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 
-	h.logger.Ctx(c).Audit("manual retry initiated",
-		zap.String("event_id", event.ID),
-		zap.String("tenant_id", tenantID),
-		zap.String("destination_id", destination.ID),
+	h.logger.Ctx(c.Request.Context()).Audit("manual retry initiated",
+		zap.String("delivery_id", deliveryID),
+		zap.String("event_id", deliveryEvent.Event.ID),
+		zap.String("tenant_id", tenant.ID),
+		zap.String("destination_id", deliveryEvent.DestinationID),
 		zap.String("destination_type", destination.Type))
 
 	c.JSON(http.StatusAccepted, gin.H{

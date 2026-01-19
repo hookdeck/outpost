@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"testing"
 	"time"
 
@@ -21,6 +22,103 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
+
+// waitForHealthy polls the /healthz endpoint until it returns 200 or times out.
+func waitForHealthy(t *testing.T, port int, timeout time.Duration) {
+	t.Helper()
+	healthURL := fmt.Sprintf("http://localhost:%d/healthz", port)
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get(healthURL)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for health check at %s", healthURL)
+}
+
+// waitForDeliveries polls until at least minCount deliveries exist for the given path.
+func (s *e2eSuite) waitForDeliveries(t *testing.T, path string, minCount int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var lastCount int
+	var lastErr error
+	var lastStatus int
+	for time.Now().Before(deadline) {
+		resp, err := s.client.Do(s.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   path,
+		}))
+		if err != nil {
+			lastErr = err
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		lastStatus = resp.StatusCode
+		if resp.StatusCode == http.StatusOK {
+			if body, ok := resp.Body.(map[string]interface{}); ok {
+				if data, ok := body["data"].([]interface{}); ok {
+					lastCount = len(data)
+					if lastCount >= minCount {
+						return
+					}
+				}
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if lastErr != nil {
+		t.Fatalf("timed out waiting for %d deliveries at %s: last error: %v", minCount, path, lastErr)
+	}
+	t.Fatalf("timed out waiting for %d deliveries at %s: got %d (status %d)", minCount, path, lastCount, lastStatus)
+}
+
+// waitForDestinationDisabled polls until the destination has disabled_at set (non-null).
+func (s *e2eSuite) waitForDestinationDisabled(t *testing.T, tenantID, destinationID string, timeout time.Duration) {
+	t.Helper()
+	path := "/tenants/" + tenantID + "/destinations/" + destinationID
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := s.client.Do(s.AuthRequest(httpclient.Request{
+			Method: httpclient.MethodGET,
+			Path:   path,
+		}))
+		if err == nil && resp.StatusCode == http.StatusOK {
+			if body, ok := resp.Body.(map[string]interface{}); ok {
+				if disabledAt, exists := body["disabled_at"]; exists && disabledAt != nil {
+					return
+				}
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for destination %s to be disabled", destinationID)
+}
+
+// waitForMockServerEvents polls the mock server until at least minCount events exist for the destination.
+func (s *e2eSuite) waitForMockServerEvents(t *testing.T, destinationID string, minCount int, timeout time.Duration) {
+	t.Helper()
+	path := "/destinations/" + destinationID + "/events"
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := s.client.Do(httpclient.Request{
+			Method:  httpclient.MethodGET,
+			BaseURL: s.mockServerBaseURL,
+			Path:    path,
+		})
+		if err == nil && resp.StatusCode == http.StatusOK {
+			if events, ok := resp.Body.([]interface{}); ok && len(events) >= minCount {
+				return
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %d events at mock server %s", minCount, path)
+}
 
 type e2eSuite struct {
 	ctx               context.Context
@@ -82,9 +180,18 @@ func (suite *e2eSuite) RunAPITests(t *testing.T, tests []APITest) {
 	}
 }
 
+// MockServerPoll configures polling for the mock server before running the test.
+type MockServerPoll struct {
+	BaseURL  string        // Mock server base URL
+	DestID   string        // Destination ID to poll
+	MinCount int           // Minimum events to wait for
+	Timeout  time.Duration // Poll timeout
+}
+
 type APITest struct {
 	Name     string
-	Delay    time.Duration
+	Delay    time.Duration   // Deprecated: use WaitForMockEvents instead
+	WaitFor  *MockServerPoll // Poll mock server before running test
 	Request  httpclient.Request
 	Expected APITestExpectation
 }
@@ -97,7 +204,25 @@ type APITestExpectation struct {
 func (test *APITest) Run(t *testing.T, client httpclient.Client) {
 	t.Helper()
 
-	if test.Delay > 0 {
+	// Poll mock server if configured (preferred over Delay)
+	if test.WaitFor != nil {
+		w := test.WaitFor
+		path := "/destinations/" + w.DestID + "/events"
+		deadline := time.Now().Add(w.Timeout)
+		for time.Now().Before(deadline) {
+			resp, err := client.Do(httpclient.Request{
+				Method:  httpclient.MethodGET,
+				BaseURL: w.BaseURL,
+				Path:    path,
+			})
+			if err == nil && resp.StatusCode == http.StatusOK {
+				if events, ok := resp.Body.([]interface{}); ok && len(events) >= w.MinCount {
+					break
+				}
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	} else if test.Delay > 0 {
 		time.Sleep(test.Delay)
 	}
 
@@ -182,96 +307,102 @@ func (suite *basicSuite) SetupSuite() {
 	suite.e2eSuite.SetupSuite()
 
 	// wait for outpost services to start
-	// TODO: replace with a health check
-	time.Sleep(2 * time.Second)
+	waitForHealthy(t, cfg.APIPort, 5*time.Second)
 }
 
 func (s *basicSuite) TearDownSuite() {
 	s.e2eSuite.TearDownSuite()
 }
 
-// func TestCHBasicSuite(t *testing.T) {
-// 	t.Parallel()
-// 	if testing.Short() {
-// 		t.Skip("skipping e2e test")
-// 	}
-// 	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypeClickHouse})
-// }
+// =============================================================================
+// Default E2E Test Suites (always run)
+// =============================================================================
+// These suites test the primary supported configuration: Dragonfly + ClickHouse.
+// They run in parallel by default.
 
-// TestPGBasicSuite is skipped by default - redundant with TestDragonflyBasicSuite
-func TestPGBasicSuite(t *testing.T) {
-	// t.Parallel() // Disabled to avoid test interference
+// TestE2E tests the main configuration: Dragonfly (Redis) + ClickHouse (log storage).
+func TestE2E(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
-	testutil.SkipUnlessCompat(t)
-	suite.Run(t, &basicSuite{logStorageType: configs.LogStorageTypePostgres})
-}
-
-// TestRedisClusterBasicSuite is skipped by default - run with TESTCOMPAT=1 for full compatibility testing
-func TestRedisClusterBasicSuite(t *testing.T) {
-	// t.Parallel() // Disabled to avoid test interference
-	if testing.Short() {
-		t.Skip("skipping e2e test")
-	}
-	testutil.SkipUnlessCompat(t)
-
-	// Get Redis cluster config from environment
-	redisConfig := configs.CreateRedisClusterConfig(t)
-	if redisConfig == nil {
-		t.Skip("skipping Redis cluster test (TEST_REDIS_CLUSTER_URL not set)")
-	}
-
 	suite.Run(t, &basicSuite{
-		logStorageType: configs.LogStorageTypePostgres,
-		redisConfig:    redisConfig,
+		logStorageType: configs.LogStorageTypeClickHouse,
+		redisConfig:    testinfra.NewDragonflyStackConfig(t),
 	})
 }
 
-func TestDragonflyBasicSuite(t *testing.T) {
-	// t.Parallel() // Disabled to avoid test interference
+// TestE2E_WithDeploymentID tests multi-tenancy with deployment ID prefix.
+func TestE2E_WithDeploymentID(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypeClickHouse,
+		redisConfig:    testinfra.NewDragonflyStackConfig(t),
+		deploymentID:   "dp_e2e_test",
+	})
+}
 
-	// Use NewDragonflyStackConfig (DB 0) for RediSearch support
+// =============================================================================
+// Compatibility Test Suites (TESTCOMPAT=1 only)
+// =============================================================================
+// These suites test alternative backend configurations for compatibility.
+// Run with: TESTCOMPAT=1 make test/e2e
+
+// TestE2E_Compat_Postgres tests Postgres as log storage backend.
+func TestE2E_Compat_Postgres(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+	testutil.SkipUnlessCompat(t)
 	suite.Run(t, &basicSuite{
 		logStorageType: configs.LogStorageTypePostgres,
 		redisConfig:    testinfra.NewDragonflyStackConfig(t),
 	})
 }
 
-// TestRedisStackBasicSuite is skipped by default - run with TESTCOMPAT=1 for full compatibility testing
-func TestRedisStackBasicSuite(t *testing.T) {
-	t.Parallel()
+// TestE2E_Compat_RedisStack tests Redis Stack as the Redis backend.
+func TestE2E_Compat_RedisStack(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+	testutil.SkipUnlessCompat(t)
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypeClickHouse,
+		redisConfig:    testinfra.NewRedisStackConfig(t),
+	})
+}
+
+// TestE2E_Compat_RedisCluster tests Redis Cluster mode.
+// Requires TEST_REDIS_CLUSTER_URL environment variable.
+func TestE2E_Compat_RedisCluster(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
 	testutil.SkipUnlessCompat(t)
 
-	suite.Run(t, &basicSuite{
-		logStorageType: configs.LogStorageTypePostgres,
-		redisConfig:    testinfra.NewRedisStackConfig(t),
-	})
-}
-
-func TestBasicSuiteWithDeploymentID(t *testing.T) {
-	// t.Parallel() // Disabled to avoid test interference
-	if testing.Short() {
-		t.Skip("skipping e2e test")
+	redisConfig := configs.CreateRedisClusterConfig(t)
+	if redisConfig == nil {
+		t.Skip("skipping Redis cluster test (TEST_REDIS_CLUSTER_URL not set)")
 	}
 
 	suite.Run(t, &basicSuite{
-		logStorageType: configs.LogStorageTypePostgres,
-		deploymentID:   "dp_e2e_test",
+		logStorageType: configs.LogStorageTypeClickHouse,
+		redisConfig:    redisConfig,
 	})
 }
 
-// TestAutoDisableWithoutCallbackURL tests the scenario from issue #596:
+// =============================================================================
+// Regression Tests
+// =============================================================================
+// Standalone tests for specific issues/scenarios.
+
+// TestE2E_Regression_AutoDisableWithoutCallbackURL tests issue #596:
 // ALERT_AUTO_DISABLE_DESTINATION=true without ALERT_CALLBACK_URL set.
-// Run with: go test -v -run TestAutoDisableWithoutCallbackURL ./cmd/e2e/...
-func TestAutoDisableWithoutCallbackURL(t *testing.T) {
-	// t.Parallel() // Disabled to avoid test interference
+func TestE2E_Regression_AutoDisableWithoutCallbackURL(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
@@ -310,7 +441,7 @@ func TestAutoDisableWithoutCallbackURL(t *testing.T) {
 	}()
 
 	// Wait for services to start
-	time.Sleep(2 * time.Second)
+	waitForHealthy(t, cfg.APIPort, 5*time.Second)
 
 	// Setup test client
 	client := httpclient.New(fmt.Sprintf("http://localhost:%d/api/v1", cfg.APIPort), cfg.APIKey)

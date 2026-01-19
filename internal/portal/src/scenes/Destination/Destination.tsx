@@ -14,7 +14,7 @@ import {
 } from "../../typings/Destination";
 import getLogo from "../../utils/logo";
 import DestinationSettings from "./DestinationSettings/DestinationSettings";
-import { EventRoutes } from "./Events/Events";
+import { DeliveryRoutes } from "./Events/Deliveries";
 
 // Define the tab interface
 interface Tab {
@@ -26,14 +26,14 @@ interface Tab {
 const tabs: Tab[] = [
   { label: "Overview", path: "" },
   { label: "Settings", path: "/settings" },
-  { label: "Events", path: "/events" },
+  { label: "Deliveries", path: "/deliveries" },
 ];
 
 const Destination = () => {
   const { destination_id } = useParams();
   const location = useLocation();
   const { data: destination } = useSWR<DestinationType>(
-    `destinations/${destination_id}`
+    `destinations/${destination_id}`,
   );
   const type = useDestinationType(destination?.type);
 
@@ -109,7 +109,7 @@ const Destination = () => {
                     location.pathname === `/destinations/${destination_id}`;
                 } else {
                   isActive = location.pathname.includes(
-                    `/destinations/${destination_id}${tab.path}`
+                    `/destinations/${destination_id}${tab.path}`,
                   );
                 }
 
@@ -133,8 +133,8 @@ const Destination = () => {
               }
             />
             <Route
-              path="/events/*"
-              element={<EventRoutes destination={destination} />}
+              path="/deliveries/*"
+              element={<DeliveryRoutes destination={destination} />}
             />
             <Route
               path="/"
@@ -191,7 +191,7 @@ const Destination = () => {
                             type={type}
                             value={value}
                           />
-                        )
+                        ),
                       )}
                       <li>
                         <span className="body-m">Created At</span>
@@ -205,7 +205,7 @@ const Destination = () => {
                               hour: "numeric",
                               minute: "2-digit",
                               hour12: true,
-                            }
+                            },
                           )}
                         </span>
                       </li>
@@ -293,14 +293,14 @@ function DestinationDetailsField(props: {
 
   if (props.fieldType === "config") {
     const field = props.type.config_fields.find(
-      (field) => field.key === props.fieldKey
+      (field) => field.key === props.fieldKey,
     );
     label = field?.label || "";
     fieldType = field?.type;
     shouldCopy = field?.type === "text";
   } else {
     const field = props.type.credential_fields.find(
-      (field) => field.key === props.fieldKey
+      (field) => field.key === props.fieldKey,
     );
     label = field?.label || "";
     fieldType = field?.type;

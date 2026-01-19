@@ -352,12 +352,17 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}
 
 	// Create batcher for batching log writes
+	// Convert seconds to duration, treating 0 as "flush immediately" (1ms minimum)
+	delayThreshold := time.Duration(b.cfg.LogBatchThresholdSeconds) * time.Second
+	if delayThreshold == 0 {
+		delayThreshold = time.Millisecond
+	}
 	batcherCfg := struct {
 		ItemCountThreshold int
 		DelayThreshold     time.Duration
 	}{
 		ItemCountThreshold: b.cfg.LogBatchSize,
-		DelayThreshold:     time.Duration(b.cfg.LogBatchThresholdSeconds) * time.Second,
+		DelayThreshold:     delayThreshold,
 	}
 
 	b.logger.Debug("creating log batcher")
@@ -502,7 +507,8 @@ func (s *serviceInstance) initRedis(ctx context.Context, cfg *config.Config, log
 func (s *serviceInstance) initLogStore(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
 	logger.Debug("configuring log store driver", zap.String("service", s.name))
 	logStoreDriverOpts, err := logstore.MakeDriverOpts(logstore.Config{
-		Postgres: &cfg.PostgresURL,
+		ClickHouse: cfg.ClickHouse.ToConfig(),
+		Postgres:   &cfg.PostgresURL,
 	})
 	if err != nil {
 		logger.Error("log store driver configuration failed", zap.String("service", s.name), zap.Error(err))

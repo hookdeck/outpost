@@ -159,7 +159,6 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true})
-	return
 }
 
 func (h *TenantHandlers) RetrieveToken(c *gin.Context) {

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -12,7 +13,8 @@ import (
 )
 
 var (
-	suiteCounter = 0
+	suiteCounter int64
+	suiteCleanup sync.Once
 	cfgSync      sync.Once
 	cfg          *Config
 )
@@ -104,18 +106,19 @@ func ReadConfig() *Config {
 
 func Start(t *testing.T) func() {
 	testutil.CheckIntegrationTest(t)
-	suiteCounter += 1
+	atomic.AddInt64(&suiteCounter, 1)
 	return func() {
-		suiteCounter -= 1
-		if suiteCounter == 0 {
-			// Ensure cfg is initialized and not nil before accessing cleanupFns
-			if cfg != nil && cfg.cleanupFns != nil {
-				for _, fn := range cfg.cleanupFns {
-					if fn != nil {
-						fn()
+		if atomic.AddInt64(&suiteCounter, -1) == 0 {
+			suiteCleanup.Do(func() {
+				// Ensure cfg is initialized and not nil before accessing cleanupFns
+				if cfg != nil && cfg.cleanupFns != nil {
+					for _, fn := range cfg.cleanupFns {
+						if fn != nil {
+							fn()
+						}
 					}
 				}
-			}
+			})
 		}
 	}
 }

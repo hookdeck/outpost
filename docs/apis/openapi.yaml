@@ -1775,6 +1775,127 @@ components:
             type: string
           example: { "content-type": "application/json" }
 
+    # Delivery schemas for deliveries-first API
+    Delivery:
+      type: object
+      description: A delivery represents a single delivery attempt of an event to a destination.
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this delivery.
+          example: "del_123"
+        status:
+          type: string
+          enum: [success, failed]
+          description: The delivery status.
+          example: "success"
+        delivered_at:
+          type: string
+          format: date-time
+          description: Time the delivery was attempted.
+          example: "2024-01-01T00:00:05Z"
+        code:
+          type: string
+          description: Response status code or error code.
+          example: "200"
+        response_data:
+          type: object
+          description: Response data from the delivery attempt. Only included when include=response_data.
+          additionalProperties: true
+          example: { "status_code": 200, "body": '{"status":"ok"}', "headers": { "content-type": "application/json" } }
+        attempt:
+          type: integer
+          description: The attempt number (1 for first attempt, 2+ for retries).
+          example: 1
+        manual:
+          type: boolean
+          description: Whether this delivery was manually triggered (e.g., a retry initiated by a user).
+          example: false
+        event:
+          oneOf:
+            - type: string
+              description: Event ID (default, no expansion).
+              example: "evt_123"
+            - $ref: "#/components/schemas/EventSummary"
+            - $ref: "#/components/schemas/EventFull"
+          description: The associated event. Returns event ID by default, or included event object when include=event or include=event.data.
+        destination:
+          type: string
+          description: The destination ID this delivery was sent to.
+          example: "des_456"
+    EventSummary:
+      type: object
+      description: Event object without data (returned when include=event).
+      properties:
+        id:
+          type: string
+          example: "evt_123"
+        topic:
+          type: string
+          example: "user.created"
+        time:
+          type: string
+          format: date-time
+          description: Time the event was received.
+          example: "2024-01-01T00:00:00Z"
+        eligible_for_retry:
+          type: boolean
+          description: Whether this event can be retried.
+          example: true
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          example: { "source": "crm" }
+    EventFull:
+      type: object
+      description: Full event object with data (returned when include=event.data).
+      properties:
+        id:
+          type: string
+          example: "evt_123"
+        topic:
+          type: string
+          example: "user.created"
+        time:
+          type: string
+          format: date-time
+          description: Time the event was received.
+          example: "2024-01-01T00:00:00Z"
+        eligible_for_retry:
+          type: boolean
+          description: Whether this event can be retried.
+          example: true
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          example: { "source": "crm" }
+        data:
+          type: object
+          additionalProperties: true
+          description: The event payload data.
+          example: { "user_id": "userid", "status": "active" }
+    DeliveryListResponse:
+      type: object
+      description: Paginated list of deliveries.
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Delivery"
+          description: Array of delivery objects.
+        next:
+          type: string
+          description: Cursor for the next page of results. Empty string if no more results.
+          example: "MTcwNDA2NzIwMA=="
+        prev:
+          type: string
+          description: Cursor for the previous page of results. Empty string if on first page.
+          example: ""
+
     # Destination Type Schema (for Metadata endpoint)
     DestinationType:
       type: string
@@ -1907,8 +2028,25 @@ tags:
     description: Operations for retrieving destination type schemas.
   - name: Topics
     description: Operations for retrieving available event topics.
+  - name: Deliveries
+    description: |
+      Deliveries represent individual delivery attempts of events to destinations. The deliveries API provides a delivery-centric view of event processing.
+
+      Each delivery contains:
+      - `id`: Unique delivery identifier
+      - `status`: success or failed
+      - `delivered_at`: Timestamp of the delivery attempt
+      - `code`: HTTP status code or error code
+      - `attempt`: Attempt number (1 for first attempt, 2+ for retries)
+      - `event`: Associated event (ID or included object)
+      - `destination`: Destination ID
+
+      Use the `include` query parameter to include related data:
+      - `include=event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
+      - `include=event.data`: Include full event with payload data
+      - `include=response_data`: Include response body and headers from the delivery attempt
   - name: Events
-    description: Operations related to event history and deliveries.
+    description: Operations related to event history.
 
 paths:
   /healthz:
@@ -2167,6 +2305,297 @@ paths:
         "404":
           description: Tenant not found.
         # Add other error responses
+
+  # Admin-only endpoints (cross-tenant)
+  /events:
+    get:
+      tags: [Events]
+      summary: List Events (Admin)
+      description: |
+        Retrieves a list of events across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+
+        When `tenant_id` is not provided, returns events from all tenants. When `tenant_id` is provided, returns only events for that tenant.
+      operationId: adminListEvents
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter events by tenant ID. If not provided, returns events from all tenants.
+        - name: destination_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter events by destination ID.
+        - name: topic
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter events by topic(s). Can be specified multiple times or comma-separated.
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter events with time >= start (RFC3339 format).
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter events with time <= end (RFC3339 format).
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Number of items per page (default 100, max 1000).
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for next page of results.
+        - name: prev
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for previous page of results.
+        - name: sort_order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort order (ascending or descending).
+      responses:
+        "200":
+          description: A paginated list of events.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Event"
+              examples:
+                AdminEventsListExample:
+                  value:
+                    data:
+                      - id: "evt_123"
+                        topic: "user.created"
+                        time: "2024-01-01T00:00:00Z"
+                        eligible_for_retry: false
+                        metadata: { "source": "crm" }
+                        data: { "user_id": "userid", "status": "active" }
+                      - id: "evt_789"
+                        topic: "order.shipped"
+                        time: "2024-01-02T10:00:00Z"
+                        eligible_for_retry: true
+                        metadata: { "source": "oms" }
+                        data: { "order_id": "orderid", "tracking": "1Z..." }
+                    next: "MTcwNDA2NzIwMA=="
+                    prev: ""
+        "401":
+          description: Unauthorized (Admin API Key missing or invalid).
+        "422":
+          description: Validation error (invalid query parameters).
+
+  /deliveries:
+    get:
+      tags: [Deliveries]
+      summary: List Deliveries (Admin)
+      description: |
+        Retrieves a paginated list of deliveries across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+
+        When `tenant_id` is not provided, returns deliveries from all tenants. When `tenant_id` is provided, returns only deliveries for that tenant.
+      operationId: adminListDeliveries
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter deliveries by tenant ID. If not provided, returns deliveries from all tenants.
+        - name: event_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter deliveries by event ID.
+        - name: destination_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter deliveries by destination ID.
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [success, failed]
+          description: Filter deliveries by status.
+        - name: topic
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter deliveries by event topic(s). Can be specified multiple times or comma-separated.
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries with delivered_at >= start (RFC3339 format).
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries with delivered_at <= end (RFC3339 format).
+        - name: event_start
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries by event time >= event_start (RFC3339 format).
+        - name: event_end
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries by event time <= event_end (RFC3339 format).
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Number of items per page (default 100, max 1000).
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for next page of results.
+        - name: prev
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for previous page of results.
+        - name: include
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: |
+            Fields to include in the response. Can be specified multiple times or comma-separated.
+            - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
+            - `event.data`: Include full event with payload data
+            - `response_data`: Include response body and headers
+        - name: sort_by
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [delivery_time, event_time]
+            default: delivery_time
+          description: Sort results by delivery time or event time.
+        - name: sort_order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort order (ascending or descending).
+      responses:
+        "200":
+          description: A paginated list of deliveries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryListResponse"
+              examples:
+                AdminDeliveriesListExample:
+                  value:
+                    data:
+                      - id: "del_123"
+                        status: "success"
+                        delivered_at: "2024-01-01T00:00:05Z"
+                        code: "200"
+                        attempt: 1
+                        event: "evt_123"
+                        destination: "des_456"
+                      - id: "del_124"
+                        status: "failed"
+                        delivered_at: "2024-01-02T10:00:01Z"
+                        code: "503"
+                        attempt: 2
+                        event: "evt_789"
+                        destination: "des_789"
+                    next: "MTcwNDA2NzIwMA=="
+                    prev: ""
+                AdminDeliveriesWithIncludeExample:
+                  summary: Response with include=event
+                  value:
+                    data:
+                      - id: "del_123"
+                        status: "success"
+                        delivered_at: "2024-01-01T00:00:05Z"
+                        code: "200"
+                        attempt: 1
+                        event:
+                          id: "evt_123"
+                          topic: "user.created"
+                          time: "2024-01-01T00:00:00Z"
+                          eligible_for_retry: false
+                          metadata: { "source": "crm" }
+                        destination: "des_456"
+                    next: ""
+                    prev: ""
+        "401":
+          description: Unauthorized (Admin API Key missing or invalid).
+        "422":
+          description: Validation error (invalid query parameters).
 
   /tenants/{tenant_id}/portal:
     parameters:
@@ -2845,6 +3274,285 @@ paths:
         "404":
           description: Tenant not found.
 
+  # Deliveries (Tenant Specific - Admin or JWT)
+  /tenants/{tenant_id}/deliveries:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant. Required when using AdminApiKey authentication.
+    get:
+      tags: [Deliveries]
+      summary: List Deliveries
+      description: Retrieves a paginated list of deliveries for the tenant, with filtering and sorting options.
+      operationId: listTenantDeliveries
+      parameters:
+        - name: destination_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter deliveries by destination ID.
+        - name: event_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter deliveries by event ID.
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [success, failed]
+          description: Filter deliveries by status.
+        - name: topic
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter deliveries by event topic(s). Can be specified multiple times or comma-separated.
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries with delivered_at >= start (RFC3339 format).
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries with delivered_at <= end (RFC3339 format).
+        - name: event_start
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries by event time >= event_start (RFC3339 format).
+        - name: event_end
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries by event time <= event_end (RFC3339 format).
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Number of items per page (default 100, max 1000).
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for next page of results.
+        - name: prev
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for previous page of results.
+        - name: include
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: |
+            Fields to include in the response. Can be specified multiple times or comma-separated.
+            - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
+            - `event.data`: Include full event with payload data
+            - `response_data`: Include response body and headers
+        - name: sort_by
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [delivery_time, event_time]
+            default: delivery_time
+          description: Sort results by delivery time or event time.
+        - name: sort_order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort order (ascending or descending).
+      responses:
+        "200":
+          description: A paginated list of deliveries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryListResponse"
+              examples:
+                DeliveriesListExample:
+                  value:
+                    data:
+                      - id: "del_123"
+                        status: "success"
+                        delivered_at: "2024-01-01T00:00:05Z"
+                        code: "200"
+                        attempt: 1
+                        event: "evt_123"
+                        destination: "des_456"
+                      - id: "del_124"
+                        status: "failed"
+                        delivered_at: "2024-01-02T10:00:01Z"
+                        code: "503"
+                        attempt: 2
+                        event: "evt_789"
+                        destination: "des_456"
+                    next: "MTcwNDA2NzIwMA=="
+                    prev: ""
+                DeliveriesWithIncludeExample:
+                  summary: Response with include=event
+                  value:
+                    data:
+                      - id: "del_123"
+                        status: "success"
+                        delivered_at: "2024-01-01T00:00:05Z"
+                        code: "200"
+                        attempt: 1
+                        event:
+                          id: "evt_123"
+                          topic: "user.created"
+                          time: "2024-01-01T00:00:00Z"
+                          eligible_for_retry: false
+                          metadata: { "source": "crm" }
+                        destination: "des_456"
+                    next: ""
+                    prev: ""
+        "404":
+          description: Tenant not found.
+        "422":
+          description: Validation error (invalid query parameters).
+
+  /tenants/{tenant_id}/deliveries/{delivery_id}:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant. Required when using AdminApiKey authentication.
+      - name: delivery_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the delivery.
+    get:
+      tags: [Deliveries]
+      summary: Get Delivery
+      description: Retrieves details for a specific delivery.
+      operationId: getTenantDelivery
+      parameters:
+        - name: include
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: |
+            Fields to include in the response. Can be specified multiple times or comma-separated.
+            - `event`: Include event summary
+            - `event.data`: Include full event with payload data
+            - `response_data`: Include response body and headers
+      responses:
+        "200":
+          description: Delivery details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Delivery"
+              examples:
+                DeliveryExample:
+                  value:
+                    id: "del_123"
+                    status: "success"
+                    delivered_at: "2024-01-01T00:00:05Z"
+                    code: "200"
+                    attempt: 1
+                    event: "evt_123"
+                    destination: "des_456"
+                DeliveryWithIncludeExample:
+                  summary: Response with include=event.data,response_data
+                  value:
+                    id: "del_123"
+                    status: "success"
+                    delivered_at: "2024-01-01T00:00:05Z"
+                    code: "200"
+                    response_data:
+                      status_code: 200
+                      body: '{"status":"ok"}'
+                      headers: { "content-type": "application/json" }
+                    attempt: 1
+                    event:
+                      id: "evt_123"
+                      topic: "user.created"
+                      time: "2024-01-01T00:00:00Z"
+                      eligible_for_retry: false
+                      metadata: { "source": "crm" }
+                      data: { "user_id": "userid", "status": "active" }
+                    destination: "des_456"
+        "404":
+          description: Tenant or Delivery not found.
+
+  /tenants/{tenant_id}/deliveries/{delivery_id}/retry:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant. Required when using AdminApiKey authentication.
+      - name: delivery_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the delivery to retry.
+    post:
+      tags: [Deliveries]
+      summary: Retry Delivery
+      description: |
+        Triggers a retry for a delivery. Only the latest delivery for an event+destination pair can be retried.
+        The destination must exist and be enabled.
+      operationId: retryTenantDelivery
+      responses:
+        "202":
+          description: Retry accepted for processing.
+        "404":
+          description: Tenant or Delivery not found.
+        "409":
+          description: |
+            Delivery not eligible for retry. This can happen when:
+            - The delivery is not the latest for this event+destination pair
+            - The destination is disabled or deleted
+
   # Events (Tenant Specific - Admin or JWT)
   /tenants/{tenant_id}/events:
     parameters:
@@ -3051,7 +3759,11 @@ paths:
     get:
       tags: [Events]
       summary: List Events by Destination
-      description: Retrieves events associated with a specific destination for the tenant.
+      deprecated: true
+      description: |
+        **Deprecated**: Use `GET /tenants/{tenant_id}/deliveries?destination_id={destination_id}` instead.
+
+        Retrieves events associated with a specific destination for the tenant.
       operationId: listTenantEventsByDestination
       parameters:
         - name: status
@@ -3157,7 +3869,11 @@ paths:
     get:
       tags: [Events]
       summary: Get Event by Destination
-      description: Retrieves a specific event associated with a specific destination for the tenant.
+      deprecated: true
+      description: |
+        **Deprecated**: Use `GET /tenants/{tenant_id}/deliveries/{delivery_id}?include=event.data` instead.
+
+        Retrieves a specific event associated with a specific destination for the tenant.
       operationId: getTenantEventByDestination
       responses:
         "200":
@@ -3202,7 +3918,11 @@ paths:
     post:
       tags: [Events]
       summary: Retry Event Delivery
-      description: Triggers a retry for a failed event delivery.
+      deprecated: true
+      description: |
+        **Deprecated**: Use `POST /tenants/{tenant_id}/deliveries/{delivery_id}/retry` instead.
+
+        Triggers a retry for a failed event delivery.
       operationId: retryTenantEvent
       responses:
         "202":

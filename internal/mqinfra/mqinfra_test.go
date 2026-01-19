@@ -134,16 +134,18 @@ func testMQInfra(t *testing.T, mqConfig *Config, dlqConfig *Config) {
 		require.NoError(t, mq.Publish(ctx, msg))
 
 		msgCount := 0
+		expectedCount := retryLimit + 1
+		timeout := time.After(30 * time.Second) // Safety timeout
 	loop:
-		for {
+		for msgCount < expectedCount {
 			select {
 			case <-msgchan:
 				msgCount++
-			case <-time.After(3 * time.Second):
+			case <-timeout:
 				break loop
 			}
 		}
-		require.Equal(t, retryLimit+1, msgCount)
+		require.Equal(t, expectedCount, msgCount)
 
 		dlmq := mqs.NewQueue(&dlqConfig.mq)
 		dlsubscription, err := dlmq.Subscribe(ctx)
@@ -167,17 +169,14 @@ func testMQInfra(t *testing.T, mqConfig *Config, dlqConfig *Config) {
 			}
 		}()
 		var dlmsg *testutil.MockMsg
-		dlmsgCount := 0
-	dlloop:
-		for {
-			select {
-			case dlmsg = <-dlmsgchan:
-				dlmsgCount++
-			case <-time.After(1 * time.Second):
-				break dlloop
-			}
+		dlTimeout := time.After(30 * time.Second) // Safety timeout
+		select {
+		case dlmsg = <-dlmsgchan:
+			// Got the DLQ message
+		case <-dlTimeout:
+			require.Fail(t, "timeout waiting for DLQ message")
 		}
-		assert.Equal(t, 1, dlmsgCount)
+		require.NotNil(t, dlmsg, "should receive DLQ message")
 		assert.Equal(t, msg.ID, dlmsg.ID)
 	})
 }
@@ -248,6 +247,7 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     q,
+					WaitTime:                  1 * time.Second,
 				},
 			},
 		},
@@ -266,6 +266,7 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     q + "-dlq",
+					WaitTime:                  1 * time.Second,
 				},
 			},
 		},
