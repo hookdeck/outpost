@@ -75,9 +75,13 @@ func Run[T any](ctx context.Context, cfg Config[T]) (*Result[T], error) {
 	isDesc := cfg.Order == "desc"
 	isBackward := direction == Backward
 
-	// XOR: backward flips both comparison and sort
+	// Determine compare operator based on order and direction
+	// desc + forward: "<" (want smaller/older items)
+	// desc + backward: ">" (want larger/newer items)
+	// asc + forward: ">" (want larger/newer items)
+	// asc + backward: "<" (want smaller/older items)
 	compare := "<"
-	if isDesc != isBackward {
+	if isDesc == isBackward {
 		compare = ">"
 	}
 	sortDir := cfg.Order
