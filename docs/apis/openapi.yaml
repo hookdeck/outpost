@@ -1677,6 +1677,11 @@ components:
         eligible_for_retry:
           type: boolean
           description: Should event delivery be retried on failure.
+        time:
+          type: string
+          format: date-time
+          description: Optional. Custom timestamp for the event. If not provided, defaults to the current time.
+          example: "2024-01-15T10:30:00Z"
         metadata:
           type: object
           description: Any key-value string pairs for metadata.
