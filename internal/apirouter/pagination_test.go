@@ -30,6 +30,59 @@ func TestCursorToPtr(t *testing.T) {
 	})
 }
 
+func TestParseCursors(t *testing.T) {
+	tests := []struct {
+		name        string
+		queryParams map[string]string
+		wantNext    string
+		wantPrev    string
+		wantErrCode int
+	}{
+		{
+			name:        "no cursors",
+			queryParams: map[string]string{},
+			wantNext:    "",
+			wantPrev:    "",
+		},
+		{
+			name:        "next only",
+			queryParams: map[string]string{"next": "cursor123"},
+			wantNext:    "cursor123",
+			wantPrev:    "",
+		},
+		{
+			name:        "prev only",
+			queryParams: map[string]string{"prev": "cursor456"},
+			wantNext:    "",
+			wantPrev:    "cursor456",
+		},
+		{
+			name:        "both next and prev returns error",
+			queryParams: map[string]string{"next": "cursor123", "prev": "cursor456"},
+			wantErrCode: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := createTestContext(tt.queryParams)
+
+			result, errResp := apirouter.ParseCursors(c)
+
+			if tt.wantErrCode != 0 {
+				require.NotNil(t, errResp)
+				assert.Equal(t, tt.wantErrCode, errResp.Code)
+				assert.Contains(t, errResp.Message, "both")
+				return
+			}
+
+			assert.Nil(t, errResp)
+			assert.Equal(t, tt.wantNext, result.Next)
+			assert.Equal(t, tt.wantPrev, result.Prev)
+		})
+	}
+}
+
 func TestParseDir(t *testing.T) {
 	tests := []struct {
 		name        string

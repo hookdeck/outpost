@@ -201,6 +201,13 @@ func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 }
 
 func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
+	// Parse and validate cursors (next/prev are mutually exclusive)
+	cursors, errResp := ParseCursors(c)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+
 	// Parse and validate dir (sort direction)
 	dir, errResp := ParseDir(c)
 	if errResp != nil {
@@ -250,8 +257,8 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 			LT:  deliveryTimeFilter.LT,
 		},
 		Limit:     limit,
-		Next:      c.Query("next"),
-		Prev:      c.Query("prev"),
+		Next:      cursors.Next,
+		Prev:      cursors.Prev,
 		SortOrder: dir,
 	}
 
@@ -362,6 +369,13 @@ func (h *LogHandlers) ListEvents(c *gin.Context) {
 }
 
 func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
+	// Parse and validate cursors (next/prev are mutually exclusive)
+	cursors, errResp := ParseCursors(c)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+
 	// Parse and validate dir (sort direction)
 	dir, errResp := ParseDir(c)
 	if errResp != nil {
@@ -409,8 +423,8 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 			LT:  eventTimeFilter.LT,
 		},
 		Limit:     limit,
-		Next:      c.Query("next"),
-		Prev:      c.Query("prev"),
+		Next:      cursors.Next,
+		Prev:      cursors.Prev,
 		SortOrder: dir,
 	}
 

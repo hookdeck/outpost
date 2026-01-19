@@ -30,6 +30,28 @@ func CursorToPtr(cursor string) *string {
 	return &cursor
 }
 
+// CursorParams holds the parsed cursor values for pagination.
+type CursorParams struct {
+	Next string
+	Prev string
+}
+
+// ParseCursors parses the "next" and "prev" query parameters.
+// Returns an error if both are provided (mutually exclusive).
+func ParseCursors(c *gin.Context) (CursorParams, *ErrorResponse) {
+	next := c.Query("next")
+	prev := c.Query("prev")
+
+	if next != "" && prev != "" {
+		return CursorParams{}, &ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "cannot specify both 'next' and 'prev' cursors",
+		}
+	}
+
+	return CursorParams{Next: next, Prev: prev}, nil
+}
+
 // ParseDir parses the "dir" query parameter for sort direction.
 // Returns the direction (empty string if not provided) and any validation error response.
 // Valid values are "asc" and "desc". Caller/store should apply default if empty.

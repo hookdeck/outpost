@@ -121,6 +121,13 @@ func (h *LegacyHandlers) ListEventsByDestination(c *gin.Context) {
 	}
 	destinationID := c.Param("destinationID")
 
+	// Parse and validate cursors (next/prev are mutually exclusive)
+	cursors, errResp := ParseCursors(c)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+
 	// Parse pagination params
 	limit := 100
 	if limitStr := c.Query("limit"); limitStr != "" {
@@ -134,8 +141,8 @@ func (h *LegacyHandlers) ListEventsByDestination(c *gin.Context) {
 		TenantID:       tenant.ID,
 		DestinationIDs: []string{destinationID},
 		Limit:          limit,
-		Next:           c.Query("next"),
-		Prev:           c.Query("prev"),
+		Next:           cursors.Next,
+		Prev:           cursors.Prev,
 		SortOrder:      "desc",
 	})
 	if err != nil {
