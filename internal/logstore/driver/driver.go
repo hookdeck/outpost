@@ -7,6 +7,15 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
+// TimeFilter represents time-based filter criteria with support for
+// both inclusive (GTE/LTE) and exclusive (GT/LT) comparisons.
+type TimeFilter struct {
+	GTE *time.Time // Greater than or equal (>=)
+	LTE *time.Time // Less than or equal (<=)
+	GT  *time.Time // Greater than (>)
+	LT  *time.Time // Less than (<)
+}
+
 type LogStore interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
 	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
@@ -19,8 +28,7 @@ type ListEventRequest struct {
 	Next           string
 	Prev           string
 	Limit          int
-	EventStart     *time.Time // optional - filter events created after this time
-	EventEnd       *time.Time // optional - filter events created before this time
+	TimeFilter     TimeFilter // optional - filter events by time
 	TenantID       string     // optional - filter by tenant (if empty, returns all tenants)
 	DestinationIDs []string   // optional
 	Topics         []string   // optional
@@ -37,8 +45,7 @@ type ListDeliveryEventRequest struct {
 	Next           string
 	Prev           string
 	Limit          int
-	Start          *time.Time // optional - filter deliveries after this time
-	End            *time.Time // optional - filter deliveries before this time
+	TimeFilter     TimeFilter // optional - filter deliveries by time
 	TenantID       string     // optional - filter by tenant (if empty, returns all tenants)
 	EventID        string     // optional - filter for specific event
 	DestinationIDs []string   // optional

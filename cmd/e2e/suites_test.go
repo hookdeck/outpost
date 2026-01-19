@@ -61,8 +61,8 @@ func (s *e2eSuite) waitForDeliveries(t *testing.T, path string, minCount int, ti
 		lastStatus = resp.StatusCode
 		if resp.StatusCode == http.StatusOK {
 			if body, ok := resp.Body.(map[string]interface{}); ok {
-				if data, ok := body["data"].([]interface{}); ok {
-					lastCount = len(data)
+				if models, ok := body["models"].([]interface{}); ok {
+					lastCount = len(models)
 					if lastCount >= minCount {
 						return
 					}

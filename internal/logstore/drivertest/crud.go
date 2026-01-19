@@ -74,10 +74,10 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 
 			// Verify via List
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID: tenantID,
-				EventID:  event.ID,
-				Limit:    10,
-				Start:    &startTime,
+				TenantID:   tenantID,
+				EventID:    event.ID,
+				Limit:      10,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 1)
@@ -138,9 +138,9 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 
 			// Verify all inserted
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID: tenantID,
-				Limit:    100,
-				Start:    &startTime,
+				TenantID:   tenantID,
+				Limit:      100,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			// 15 batch + 1 single = 16
@@ -160,7 +160,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 				TenantID:       tenantID,
 				DestinationIDs: []string{destID},
 				Limit:          100,
-				EventStart:     &startTime,
+				TimeFilter:     driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, len(destinationEvents[destID]))
@@ -175,7 +175,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 				TenantID:       tenantID,
 				DestinationIDs: destIDs,
 				Limit:          100,
-				EventStart:     &startTime,
+				TimeFilter:     driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			expectedCount := len(destinationEvents[destIDs[0]]) + len(destinationEvents[destIDs[1]])
@@ -188,7 +188,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 				TenantID:   tenantID,
 				Topics:     []string{topic},
 				Limit:      100,
-				EventStart: &startTime,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, len(topicEvents[topic]))
@@ -199,8 +199,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			eventEnd := baseTime
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantID:   tenantID,
-				EventStart: &eventStart,
-				EventEnd:   &eventEnd,
+				TimeFilter: driver.TimeFilter{GTE: &eventStart, LTE: &eventEnd},
 				Limit:      100,
 			})
 			require.NoError(t, err)
@@ -217,7 +216,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 				TenantID:       tenantID,
 				DestinationIDs: []string{destID},
 				Limit:          100,
-				Start:          &startTime,
+				TimeFilter:     driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			for _, de := range response.Data {
@@ -227,10 +226,10 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 
 		t.Run("ListDeliveryEvent by status", func(t *testing.T) {
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID: tenantID,
-				Status:   "success",
-				Limit:    100,
-				Start:    &startTime,
+				TenantID:   tenantID,
+				Status:     "success",
+				Limit:      100,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			for _, de := range response.Data {
@@ -241,10 +240,10 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		t.Run("ListDeliveryEvent by topic", func(t *testing.T) {
 			topic := testutil.TestTopics[0]
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID: tenantID,
-				Topics:   []string{topic},
-				Limit:    100,
-				Start:    &startTime,
+				TenantID:   tenantID,
+				Topics:     []string{topic},
+				Limit:      100,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			for _, de := range response.Data {
@@ -255,10 +254,10 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		t.Run("ListDeliveryEvent by event ID", func(t *testing.T) {
 			eventID := "batch_evt_00"
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID: tenantID,
-				EventID:  eventID,
-				Limit:    100,
-				Start:    &startTime,
+				TenantID:   tenantID,
+				EventID:    eventID,
+				Limit:      100,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 1)

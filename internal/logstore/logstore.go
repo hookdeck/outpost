@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type TimeFilter = driver.TimeFilter
 type ListEventRequest = driver.ListEventRequest
 type ListEventResponse = driver.ListEventResponse
 type ListDeliveryEventRequest = driver.ListDeliveryEventRequest

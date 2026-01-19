@@ -46,7 +46,7 @@ func TestListDeliveries(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		assert.Len(t, data, 0)
 	})
 
@@ -91,7 +91,7 @@ func TestListDeliveries(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		assert.Len(t, data, 1)
 
 		firstDelivery := data[0].(map[string]interface{})
@@ -111,7 +111,7 @@ func TestListDeliveries(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		require.Len(t, data, 1)
 
 		firstDelivery := data[0].(map[string]interface{})
@@ -132,7 +132,7 @@ func TestListDeliveries(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		require.Len(t, data, 1)
 
 		firstDelivery := data[0].(map[string]interface{})
@@ -151,7 +151,7 @@ func TestListDeliveries(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		assert.Len(t, data, 1)
 	})
 
@@ -165,7 +165,7 @@ func TestListDeliveries(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		assert.Len(t, data, 0)
 	})
 
@@ -187,7 +187,7 @@ func TestListDeliveries(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		require.Len(t, data, 1)
 
 		firstDelivery := data[0].(map[string]interface{})
@@ -239,7 +239,7 @@ func TestListDeliveries(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		// Find the delivery we just created
 		var foundDelivery map[string]interface{}
 		for _, d := range data {
@@ -266,7 +266,7 @@ func TestListDeliveries(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		require.GreaterOrEqual(t, len(data), 1)
 
 		firstDelivery := data[0].(map[string]interface{})
@@ -276,17 +276,17 @@ func TestListDeliveries(t *testing.T) {
 		assert.NotNil(t, event["topic"])
 	})
 
-	t.Run("should return validation error for invalid sort_order", func(t *testing.T) {
+	t.Run("should return validation error for invalid dir", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?sort_order=invalid", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?dir=invalid", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
 	})
 
-	t.Run("should accept valid sort_order param", func(t *testing.T) {
+	t.Run("should accept valid dir param", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?sort_order=asc", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?dir=asc", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -540,7 +540,7 @@ func TestListEvents(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		assert.Len(t, data, 0)
 	})
 
@@ -588,7 +588,7 @@ func TestListEvents(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		assert.Len(t, data, 1)
 
 		firstEvent := data[0].(map[string]interface{})
@@ -607,7 +607,7 @@ func TestListEvents(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		assert.GreaterOrEqual(t, len(data), 1)
 	})
 
@@ -621,7 +621,7 @@ func TestListEvents(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		assert.Len(t, data, 0)
 	})
 
@@ -635,7 +635,7 @@ func TestListEvents(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		data := response["data"].([]interface{})
+		data := response["models"].([]interface{})
 		assert.GreaterOrEqual(t, len(data), 1)
 		for _, item := range data {
 			event := item.(map[string]interface{})
@@ -651,33 +651,33 @@ func TestListEvents(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("should return validation error for invalid start time", func(t *testing.T) {
+	t.Run("should return validation error for invalid time filter", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?start=invalid", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?time[gte]=invalid", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
 	})
 
-	t.Run("should return validation error for invalid end time", func(t *testing.T) {
+	t.Run("should return validation error for invalid time lte filter", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?end=invalid", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?time[lte]=invalid", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
 	})
 
-	t.Run("should return validation error for invalid sort_order", func(t *testing.T) {
+	t.Run("should return validation error for invalid dir", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?sort_order=invalid", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?dir=invalid", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
 	})
 
-	t.Run("should accept valid sort_order param", func(t *testing.T) {
+	t.Run("should accept valid dir param", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?sort_order=asc", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?dir=asc", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)

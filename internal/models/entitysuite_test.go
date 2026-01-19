@@ -542,10 +542,12 @@ func (s *EntityTestSuite) TestMultiDestinationRetrieveTenantDestinationsCount() 
 func (s *EntityTestSuite) TestMultiDestinationRetrieveTenantTopics() {
 	data := s.setupMultiDestination()
 
+	// destinations[0] has topics ["*"], so tenant.Topics should be ["*"]
 	tenant, err := s.entityStore.RetrieveTenant(s.ctx, data.tenant.ID)
 	require.NoError(s.T(), err)
-	require.Equal(s.T(), []string{"user.created", "user.deleted", "user.updated"}, tenant.Topics)
+	require.Equal(s.T(), []string{"*"}, tenant.Topics)
 
+	// After deleting the wildcard destination, tenant.Topics should aggregate remaining topics
 	require.NoError(s.T(), s.entityStore.DeleteDestination(s.ctx, data.tenant.ID, data.destinations[0].ID))
 	tenant, err = s.entityStore.RetrieveTenant(s.ctx, data.tenant.ID)
 	require.NoError(s.T(), err)
@@ -1181,9 +1183,9 @@ func (s *ListTenantTestSuite) SetupSuite() {
 	// Test empty list BEFORE creating any data
 	resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{})
 	require.NoError(s.T(), err)
-	require.Empty(s.T(), resp.Data, "should be empty before creating data")
-	require.Empty(s.T(), resp.Next)
-	require.Empty(s.T(), resp.Prev)
+	require.Empty(s.T(), resp.Models, "should be empty before creating data")
+	require.Nil(s.T(), resp.Pagination.Next)
+	require.Nil(s.T(), resp.Pagination.Prev)
 
 	// Create 25 tenants for pagination tests
 	s.tenants = make([]models.Tenant, 25)
@@ -1218,10 +1220,14 @@ func (s *ListTenantTestSuite) TestListTenantEnrichment() {
 		resp1, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 2})
 		require.NoError(t, err)
 		assert.Equal(t, 25, resp1.Count, "count should be total tenants, not page size")
-		assert.Len(t, resp1.Data, 2, "data should respect limit")
+		assert.Len(t, resp1.Models, 2, "data should respect limit")
 
 		// Second page - count should still be total
-		resp2, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 2, Next: resp1.Next})
+		var nextCursor string
+		if resp1.Pagination.Next != nil {
+			nextCursor = *resp1.Pagination.Next
+		}
+		resp2, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 2, Next: nextCursor})
 		require.NoError(t, err)
 		assert.Equal(t, 25, resp2.Count, "count should remain total across pages")
 	})
@@ -1231,7 +1237,7 @@ func (s *ListTenantTestSuite) TestListTenantEnrichment() {
 		require.NoError(t, err)
 		assert.Equal(t, 25, resp.Count, "count should be tenants only")
 
-		for _, tenant := range resp.Data {
+		for _, tenant := range resp.Models {
 			assert.NotContains(t, tenant.ID, "dest_", "destination should not appear in tenant list")
 		}
 	})
@@ -1242,9 +1248,9 @@ func (s *ListTenantTestSuite) TestListTenantEnrichment() {
 
 		// tenantWithDests has 2 destinations from SetupSuite
 		var tenantWithDests *models.Tenant
-		for i := range resp.Data {
-			if resp.Data[i].ID == s.tenantWithDests.ID {
-				tenantWithDests = &resp.Data[i]
+		for i := range resp.Models {
+			if resp.Models[i].ID == s.tenantWithDests.ID {
+				tenantWithDests = &resp.Models[i]
 				break
 			}
 		}
@@ -1254,9 +1260,9 @@ func (s *ListTenantTestSuite) TestListTenantEnrichment() {
 
 		// Verify tenants without destinations have 0 count
 		var tenantWithoutDests *models.Tenant
-		for i := range resp.Data {
-			if resp.Data[i].ID != s.tenantWithDests.ID {
-				tenantWithoutDests = &resp.Data[i]
+		for i := range resp.Models {
+			if resp.Models[i].ID != s.tenantWithDests.ID {
+				tenantWithoutDests = &resp.Models[i]
 				break
 			}
 		}
@@ -1293,7 +1299,7 @@ func (s *ListTenantTestSuite) TestListTenantExcludesDeleted() {
 		assert.Equal(t, initialCount+1, resp.Count)
 
 		// Verify deleted tenant is not in results
-		for _, tenant := range resp.Data {
+		for _, tenant := range resp.Models {
 			assert.NotEqual(t, tenant1.ID, tenant.ID, "deleted tenant should not appear")
 		}
 
@@ -1328,15 +1334,15 @@ func (s *ListTenantTestSuite) TestListTenantExcludesDeleted() {
 		// NOT the deleted ones (index 3,4) which would have been first if not filtered
 		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
 			Limit: 2,
-			Order: "desc",
+			Dir:   "desc",
 		})
 		require.NoError(t, err)
-		require.GreaterOrEqual(t, len(resp.Data), 2, "should get at least 2 tenants")
+		require.GreaterOrEqual(t, len(resp.Models), 2, "should get at least 2 tenants")
 
 		// Verify deleted tenants don't appear in the first 2 results
-		for i := 0; i < 2 && i < len(resp.Data); i++ {
-			assert.NotEqual(t, tenantIDs[3], resp.Data[i].ID, "deleted tenant should not appear")
-			assert.NotEqual(t, tenantIDs[4], resp.Data[i].ID, "deleted tenant should not appear")
+		for i := 0; i < 2 && i < len(resp.Models); i++ {
+			assert.NotEqual(t, tenantIDs[3], resp.Models[i].ID, "deleted tenant should not appear")
+			assert.NotEqual(t, tenantIDs[4], resp.Models[i].ID, "deleted tenant should not appear")
 		}
 
 		// Cleanup
@@ -1370,10 +1376,10 @@ func (s *ListTenantTestSuite) TestListTenantKeysetPagination() {
 		// Fetch page 1 (items 14, 13, 12, 11, 10 with DESC order)
 		resp1, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{Limit: 5})
 		require.NoError(t, err)
-		require.Len(t, resp1.Data, 5, "page 1 should have 5 items")
+		require.Len(t, resp1.Models, 5, "page 1 should have 5 items")
 
 		// Verify we got our test tenants
-		for _, tenant := range resp1.Data {
+		for _, tenant := range resp1.Models {
 			require.Contains(t, tenant.ID, prefix, "page 1 should contain our test tenants")
 		}
 
@@ -1391,19 +1397,23 @@ func (s *ListTenantTestSuite) TestListTenantKeysetPagination() {
 		// With keyset pagination, the cursor is the timestamp of item 10
 		// Page 2 will get items with timestamp < cursor, so items 9, 8, 7, 6, 5
 		// The new tenant has a newer timestamp so it won't appear on page 2
+		var nextCursor string
+		if resp1.Pagination.Next != nil {
+			nextCursor = *resp1.Pagination.Next
+		}
 		resp2, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
 			Limit: 5,
-			Next:  resp1.Next,
+			Next:  nextCursor,
 		})
 		require.NoError(t, err)
-		require.NotEmpty(t, resp2.Data, "page 2 should have items")
+		require.NotEmpty(t, resp2.Models, "page 2 should have items")
 
 		// Verify no duplicates - first item on page 2 should NOT be the last from page 1
 		page1IDs := make(map[string]bool)
-		for _, tenant := range resp1.Data {
+		for _, tenant := range resp1.Models {
 			page1IDs[tenant.ID] = true
 		}
-		for _, tenant := range resp2.Data {
+		for _, tenant := range resp2.Models {
 			assert.False(t, page1IDs[tenant.ID],
 				"keyset pagination: no duplicates when adding during traversal, but found %s", tenant.ID)
 		}
@@ -1417,9 +1427,9 @@ func (s *ListTenantTestSuite) TestListTenantKeysetPagination() {
 
 // TestListTenantInputValidation tests input validation and error handling.
 func (s *ListTenantTestSuite) TestListTenantInputValidation() {
-	s.T().Run("invalid order returns error", func(t *testing.T) {
+	s.T().Run("invalid dir returns error", func(t *testing.T) {
 		_, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
-			Order: "invalid",
+			Dir: "invalid",
 		})
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrInvalidOrder)
@@ -1466,7 +1476,7 @@ func (s *ListTenantTestSuite) TestListTenantInputValidation() {
 		})
 		require.NoError(t, err)
 		// Default limit is 20, should return up to 20 of the 25 tenants
-		assert.Equal(t, 20, len(resp.Data), "default limit should be 20")
+		assert.Equal(t, 20, len(resp.Models), "default limit should be 20")
 		assert.Equal(t, 25, resp.Count, "total count should be 25")
 	})
 
@@ -1488,22 +1498,22 @@ func (s *ListTenantTestSuite) TestListTenantInputValidation() {
 		require.NoError(t, err)
 		// Should succeed and return all 25 (capped to 100, but we only have 25)
 		assert.NotNil(t, resp)
-		assert.Equal(t, 25, len(resp.Data), "should return all 25 tenants")
+		assert.Equal(t, 25, len(resp.Models), "should return all 25 tenants")
 		assert.Equal(t, 25, resp.Count)
 	})
 
-	s.T().Run("empty order uses default desc", func(t *testing.T) {
+	s.T().Run("empty dir uses default desc", func(t *testing.T) {
 		// Uses 25 tenants from SetupSuite created with sequential timestamps
 		// s.tenants[0] is oldest, s.tenants[24] is newest
 		resp, err := s.entityStore.ListTenant(s.ctx, models.ListTenantRequest{
-			Order: "", // Should default to "desc"
+			Dir: "", // Should default to "desc"
 		})
 		require.NoError(t, err)
-		require.Len(t, resp.Data, 20, "default limit is 20")
+		require.Len(t, resp.Models, 20, "default limit is 20")
 
-		// With DESC order, newest (s.tenants[24]) should be first
+		// With DESC dir, newest (s.tenants[24]) should be first
 		// and older tenants should follow
-		assert.Equal(t, s.tenants[24].ID, resp.Data[0].ID, "newest tenant should be first with desc order")
-		assert.Equal(t, s.tenants[23].ID, resp.Data[1].ID, "second newest should be second")
+		assert.Equal(t, s.tenants[24].ID, resp.Models[0].ID, "newest tenant should be first with desc dir")
+		assert.Equal(t, s.tenants[23].ID, resp.Models[1].ID, "second newest should be second")
 	})
 }

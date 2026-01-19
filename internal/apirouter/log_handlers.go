@@ -131,18 +131,16 @@ type APIEvent struct {
 	Data             map[string]interface{} `json:"data,omitempty"`
 }
 
-// ListDeliveriesResponse is the response for ListDeliveries
-type ListDeliveriesResponse struct {
-	Data []APIDelivery `json:"data"`
-	Next string        `json:"next,omitempty"`
-	Prev string        `json:"prev,omitempty"`
+// DeliveryPaginatedResult is the paginated response for listing deliveries.
+type DeliveryPaginatedResult struct {
+	Models     []APIDelivery  `json:"models"`
+	Pagination SeekPagination `json:"pagination"`
 }
 
-// ListEventsResponse is the response for ListEvents
-type ListEventsResponse struct {
-	Data []APIEvent `json:"data"`
-	Next string     `json:"next,omitempty"`
-	Prev string     `json:"prev,omitempty"`
+// EventPaginatedResult is the paginated response for listing events.
+type EventPaginatedResult struct {
+	Models     []APIEvent     `json:"models"`
+	Pagination SeekPagination `json:"pagination"`
 }
 
 // toAPIDelivery converts a DeliveryEvent to APIDelivery with expand options
@@ -203,34 +201,40 @@ func (h *LogHandlers) ListDeliveries(c *gin.Context) {
 }
 
 func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
-	var start, end *time.Time
-	if startStr := c.Query("start"); startStr != "" {
-		t, err := time.Parse(time.RFC3339, startStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.start": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		start = &t
+	// Parse and validate cursors (next/prev are mutually exclusive)
+	cursors, errResp := ParseCursors(c)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
 	}
-	if endStr := c.Query("end"); endStr != "" {
-		t, err := time.Parse(time.RFC3339, endStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.end": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		end = &t
+
+	// Parse and validate dir (sort direction)
+	dir, errResp := ParseDir(c)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+	if dir == "" {
+		dir = "desc"
+	}
+
+	// Parse and validate order_by (time only)
+	orderBy, errResp := ParseOrderBy(c, []string{"time"})
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+	if orderBy == "" {
+		orderBy = "time"
+	}
+	// Note: order_by is informational only for now - store always sorts by time
+	_ = orderBy
+
+	// Parse time date filters
+	deliveryTimeFilter, errResp := ParseDateFilter(c, "time")
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
 	}
 
 	limit := parseLimit(c, 100, 1000)
@@ -240,33 +244,22 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		destinationIDs = []string{destID}
 	}
 
-	sortOrder := c.Query("sort_order")
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	if sortOrder != "asc" && sortOrder != "desc" {
-		AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-			Code:    http.StatusUnprocessableEntity,
-			Message: "validation error",
-			Data: map[string]string{
-				"query.sort_order": "must be 'asc' or 'desc'",
-			},
-		})
-		return
-	}
-
 	req := logstore.ListDeliveryEventRequest{
 		TenantID:       tenantID,
 		EventID:        c.Query("event_id"),
 		DestinationIDs: destinationIDs,
 		Status:         c.Query("status"),
 		Topics:         parseQueryArray(c, "topic"),
-		Start:          start,
-		End:            end,
-		Limit:          limit,
-		Next:           c.Query("next"),
-		Prev:           c.Query("prev"),
-		SortOrder:      sortOrder,
+		TimeFilter: logstore.TimeFilter{
+			GTE: deliveryTimeFilter.GTE,
+			LTE: deliveryTimeFilter.LTE,
+			GT:  deliveryTimeFilter.GT,
+			LT:  deliveryTimeFilter.LT,
+		},
+		Limit:     limit,
+		Next:      cursors.Next,
+		Prev:      cursors.Prev,
+		SortOrder: dir,
 	}
 
 	response, err := h.logStore.ListDeliveryEvent(c.Request.Context(), req)
@@ -286,10 +279,15 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		apiDeliveries[i] = toAPIDelivery(de, includeOpts)
 	}
 
-	c.JSON(http.StatusOK, ListDeliveriesResponse{
-		Data: apiDeliveries,
-		Next: response.Next,
-		Prev: response.Prev,
+	c.JSON(http.StatusOK, DeliveryPaginatedResult{
+		Models: apiDeliveries,
+		Pagination: SeekPagination{
+			OrderBy: orderBy,
+			Dir:     dir,
+			Limit:   limit,
+			Next:    CursorToPtr(response.Next),
+			Prev:    CursorToPtr(response.Prev),
+		},
 	})
 }
 
@@ -371,34 +369,40 @@ func (h *LogHandlers) ListEvents(c *gin.Context) {
 }
 
 func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
-	var start, end *time.Time
-	if startStr := c.Query("start"); startStr != "" {
-		t, err := time.Parse(time.RFC3339, startStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.start": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		start = &t
+	// Parse and validate cursors (next/prev are mutually exclusive)
+	cursors, errResp := ParseCursors(c)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
 	}
-	if endStr := c.Query("end"); endStr != "" {
-		t, err := time.Parse(time.RFC3339, endStr)
-		if err != nil {
-			AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Data: map[string]string{
-					"query.end": "invalid format, expected RFC3339",
-				},
-			})
-			return
-		}
-		end = &t
+
+	// Parse and validate dir (sort direction)
+	dir, errResp := ParseDir(c)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+	if dir == "" {
+		dir = "desc"
+	}
+
+	// Parse and validate order_by (time only)
+	orderBy, errResp := ParseOrderBy(c, []string{"time"})
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+	if orderBy == "" {
+		orderBy = "time"
+	}
+	// Note: order_by is informational only for now - store always sorts by time
+	_ = orderBy
+
+	// Parse time date filters
+	eventTimeFilter, errResp := ParseDateFilter(c, "time")
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
 	}
 
 	limit := parseLimit(c, 100, 1000)
@@ -408,31 +412,20 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 		destinationIDs = []string{destID}
 	}
 
-	sortOrder := c.Query("sort_order")
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	if sortOrder != "asc" && sortOrder != "desc" {
-		AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
-			Code:    http.StatusUnprocessableEntity,
-			Message: "validation error",
-			Data: map[string]string{
-				"query.sort_order": "must be 'asc' or 'desc'",
-			},
-		})
-		return
-	}
-
 	req := logstore.ListEventRequest{
 		TenantID:       tenantID,
 		DestinationIDs: destinationIDs,
 		Topics:         parseQueryArray(c, "topic"),
-		EventStart:     start,
-		EventEnd:       end,
-		Limit:          limit,
-		Next:           c.Query("next"),
-		Prev:           c.Query("prev"),
-		SortOrder:      sortOrder,
+		TimeFilter: logstore.TimeFilter{
+			GTE: eventTimeFilter.GTE,
+			LTE: eventTimeFilter.LTE,
+			GT:  eventTimeFilter.GT,
+			LT:  eventTimeFilter.LT,
+		},
+		Limit:     limit,
+		Next:      cursors.Next,
+		Prev:      cursors.Prev,
+		SortOrder: dir,
 	}
 
 	response, err := h.logStore.ListEvent(c.Request.Context(), req)
@@ -457,9 +450,14 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 		}
 	}
 
-	c.JSON(http.StatusOK, ListEventsResponse{
-		Data: apiEvents,
-		Next: response.Next,
-		Prev: response.Prev,
+	c.JSON(http.StatusOK, EventPaginatedResult{
+		Models: apiEvents,
+		Pagination: SeekPagination{
+			OrderBy: orderBy,
+			Dir:     dir,
+			Limit:   limit,
+			Next:    CursorToPtr(response.Next),
+			Prev:    CursorToPtr(response.Prev),
+		},
 	})
 }

@@ -175,10 +175,16 @@ func (s *memLogStore) matchesEventFilter(event *models.Event, req driver.ListEve
 		}
 	}
 
-	if req.EventStart != nil && event.Time.Before(*req.EventStart) {
+	if req.TimeFilter.GTE != nil && event.Time.Before(*req.TimeFilter.GTE) {
 		return false
 	}
-	if req.EventEnd != nil && event.Time.After(*req.EventEnd) {
+	if req.TimeFilter.LTE != nil && event.Time.After(*req.TimeFilter.LTE) {
+		return false
+	}
+	if req.TimeFilter.GT != nil && !event.Time.After(*req.TimeFilter.GT) {
+		return false
+	}
+	if req.TimeFilter.LT != nil && !event.Time.Before(*req.TimeFilter.LT) {
 		return false
 	}
 
@@ -391,10 +397,16 @@ func (s *memLogStore) matchesFilter(de *models.DeliveryEvent, req driver.ListDel
 		}
 	}
 
-	if req.Start != nil && de.Delivery.Time.Before(*req.Start) {
+	if req.TimeFilter.GTE != nil && de.Delivery.Time.Before(*req.TimeFilter.GTE) {
 		return false
 	}
-	if req.End != nil && de.Delivery.Time.After(*req.End) {
+	if req.TimeFilter.LTE != nil && de.Delivery.Time.After(*req.TimeFilter.LTE) {
+		return false
+	}
+	if req.TimeFilter.GT != nil && !de.Delivery.Time.After(*req.TimeFilter.GT) {
+		return false
+	}
+	if req.TimeFilter.LT != nil && !de.Delivery.Time.Before(*req.TimeFilter.LT) {
 		return false
 	}
 

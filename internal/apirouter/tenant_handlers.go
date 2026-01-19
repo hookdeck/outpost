@@ -96,11 +96,24 @@ func (h *TenantHandlers) Retrieve(c *gin.Context) {
 }
 
 func (h *TenantHandlers) List(c *gin.Context) {
-	// Parse query parameters
+	// Parse and validate cursors (next/prev are mutually exclusive)
+	cursors, errResp := ParseCursors(c)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+
+	// Parse and validate dir (sort direction)
+	dir, errResp := ParseDir(c)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+
 	req := models.ListTenantRequest{
-		Next:  c.Query("next"),
-		Prev:  c.Query("prev"),
-		Order: c.Query("order"),
+		Next: cursors.Next,
+		Prev: cursors.Prev,
+		Dir:  dir,
 	}
 
 	// Parse limit if provided

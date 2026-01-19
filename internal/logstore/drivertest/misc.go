@@ -86,18 +86,18 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 	t.Run("TenantIsolation", func(t *testing.T) {
 		t.Run("ListDeliveryEvent isolates by tenant", func(t *testing.T) {
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID: tenant1ID,
-				Limit:    100,
-				Start:    &startTime,
+				TenantID:   tenant1ID,
+				Limit:      100,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 1)
 			assert.Equal(t, "tenant1-event", response.Data[0].Event.ID)
 
 			response, err = logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID: tenant2ID,
-				Limit:    100,
-				Start:    &startTime,
+				TenantID:   tenant2ID,
+				Limit:      100,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 1)
@@ -127,7 +127,7 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 				TenantID:       "",
 				DestinationIDs: []string{destinationID},
 				Limit:          100,
-				EventStart:     &startTime,
+				TimeFilter:     driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 2)
@@ -145,7 +145,7 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 				TenantID:       "",
 				DestinationIDs: []string{destinationID},
 				Limit:          100,
-				Start:          &startTime,
+				TimeFilter:     driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 2)
@@ -222,10 +222,10 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 
 		t.Run("invalid SortOrder uses default (desc)", func(t *testing.T) {
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID:  tenantID,
-				SortOrder: "sideways",
-				Start:     &startTime,
-				Limit:     10,
+				TenantID:   tenantID,
+				SortOrder:  "sideways",
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+				Limit:      10,
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 3)
@@ -256,7 +256,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			responseNil, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
 				TenantID:       tenantID,
 				DestinationIDs: nil,
-				Start:          &startTime,
+				TimeFilter:     driver.TimeFilter{GTE: &startTime},
 				Limit:          10,
 			})
 			require.NoError(t, err)
@@ -264,7 +264,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			responseEmpty, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
 				TenantID:       tenantID,
 				DestinationIDs: []string{},
-				Start:          &startTime,
+				TimeFilter:     driver.TimeFilter{GTE: &startTime},
 				Limit:          10,
 			})
 			require.NoError(t, err)
@@ -312,23 +312,22 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			}))
 		}
 
-		t.Run("Start is inclusive (>=)", func(t *testing.T) {
+		t.Run("GTE is inclusive (>=)", func(t *testing.T) {
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID: tenantID,
-				Start:    &boundaryTime,
-				Limit:    10,
+				TenantID:   tenantID,
+				TimeFilter: driver.TimeFilter{GTE: &boundaryTime},
+				Limit:      10,
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 2)
 		})
 
-		t.Run("End is inclusive (<=)", func(t *testing.T) {
+		t.Run("LTE is inclusive (<=)", func(t *testing.T) {
 			farPast := boundaryTime.Add(-1 * time.Hour)
 			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID: tenantID,
-				Start:    &farPast,
-				End:      &boundaryTime,
-				Limit:    10,
+				TenantID:   tenantID,
+				TimeFilter: driver.TimeFilter{GTE: &farPast, LTE: &boundaryTime},
+				Limit:      10,
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 2)
@@ -354,9 +353,9 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 
 		t.Run("modifying ListDeliveryEvent result doesn't affect subsequent queries", func(t *testing.T) {
 			response1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID: tenantID,
-				Limit:    10,
-				Start:    &startTime,
+				TenantID:   tenantID,
+				Limit:      10,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			require.Len(t, response1.Data, 1)
@@ -365,9 +364,9 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			response1.Data[0].Event.ID = "MODIFIED"
 
 			response2, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID: tenantID,
-				Limit:    10,
-				Start:    &startTime,
+				TenantID:   tenantID,
+				Limit:      10,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
 			require.Len(t, response2.Data, 1)
@@ -416,9 +415,9 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 
 		// Assert: still exactly 1 record
 		response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-			TenantID: tenantID,
-			Limit:    100,
-			Start:    &startTime,
+			TenantID:   tenantID,
+			Limit:      100,
+			TimeFilter: driver.TimeFilter{GTE: &startTime},
 		})
 		require.NoError(t, err)
 		require.Len(t, response.Data, 1, "concurrent duplicate inserts should result in exactly 1 record")
@@ -441,11 +440,11 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				_, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-					TenantID:  tenantID,
-					SortOrder: "desc",
-					Next:      tc.cursor,
-					Start:     &startTime,
-					Limit:     10,
+					TenantID:   tenantID,
+					SortOrder:  "desc",
+					Next:       tc.cursor,
+					TimeFilter: driver.TimeFilter{GTE: &startTime},
+					Limit:      10,
 				})
 				require.Error(t, err)
 				assert.True(t, errors.Is(err, cursor.ErrInvalidCursor), "expected cursor.ErrInvalidCursor, got: %v", err)
@@ -480,20 +479,20 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 
 		t.Run("delivery_time desc", func(t *testing.T) {
 			page1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID:  tenantID,
-				SortOrder: "desc",
-				Start:     &startTime,
-				Limit:     2,
+				TenantID:   tenantID,
+				SortOrder:  "desc",
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+				Limit:      2,
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, page1.Next)
 
 			page2, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID:  tenantID,
-				SortOrder: "desc",
-				Next:      page1.Next,
-				Start:     &startTime,
-				Limit:     2,
+				TenantID:   tenantID,
+				SortOrder:  "desc",
+				Next:       page1.Next,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+				Limit:      2,
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, page2.Data)
@@ -501,20 +500,20 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 
 		t.Run("delivery_time asc", func(t *testing.T) {
 			page1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID:  tenantID,
-				SortOrder: "asc",
-				Start:     &startTime,
-				Limit:     2,
+				TenantID:   tenantID,
+				SortOrder:  "asc",
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+				Limit:      2,
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, page1.Next)
 
 			page2, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
-				TenantID:  tenantID,
-				SortOrder: "asc",
-				Next:      page1.Next,
-				Start:     &startTime,
-				Limit:     2,
+				TenantID:   tenantID,
+				SortOrder:  "asc",
+				Next:       page1.Next,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+				Limit:      2,
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, page2.Data)

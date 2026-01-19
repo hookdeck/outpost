@@ -15,25 +15,6 @@ type Tenant struct {
 	UpdatedAt         time.Time `json:"updated_at" redis:"updated_at"`
 }
 
-// TenantListItem is a lightweight tenant representation for list operations.
-// It excludes computed fields (destinations_count, topics) to avoid N+1 queries.
-type TenantListItem struct {
-	ID        string    `json:"id"`
-	Metadata  Metadata  `json:"metadata,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-// ToListItem converts a Tenant to a TenantListItem.
-func (t *Tenant) ToListItem() TenantListItem {
-	return TenantListItem{
-		ID:        t.ID,
-		Metadata:  t.Metadata,
-		CreatedAt: t.CreatedAt,
-		UpdatedAt: t.UpdatedAt,
-	}
-}
-
 func (t *Tenant) parseRedisHash(hash map[string]string) error {
 	if _, ok := hash["deleted_at"]; ok {
 		return ErrTenantDeleted
