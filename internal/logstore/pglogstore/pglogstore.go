@@ -54,98 +54,13 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		Next:  req.Next,
 		Prev:  req.Prev,
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]eventWithTimeID, error) {
-			// Build cursor condition - always include with type cast for PostgreSQL
-			cursorCondition := fmt.Sprintf("AND ($6::text = '' OR time_id %s $6::text)", q.Compare)
-
-			// Build ORDER BY clause
-			orderByClause := fmt.Sprintf("time %s, id %s", strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
-
-			query := fmt.Sprintf(`
-				SELECT
-					id,
-					tenant_id,
-					destination_id,
-					time,
-					topic,
-					eligible_for_retry,
-					data,
-					metadata,
-					time_id
-				FROM events
-				WHERE ($1::text = '' OR tenant_id = $1)
-				AND (array_length($2::text[], 1) IS NULL OR destination_id = ANY($2))
-				AND (array_length($3::text[], 1) IS NULL OR topic = ANY($3))
-				AND ($4::timestamptz IS NULL OR time >= $4)
-				AND ($5::timestamptz IS NULL OR time <= $5)
-				%s
-				ORDER BY %s
-				LIMIT $7
-			`, cursorCondition, orderByClause)
-
-			args := []any{
-				req.TenantID,       // $1
-				req.DestinationIDs, // $2
-				req.Topics,         // $3
-				req.EventStart,     // $4
-				req.EventEnd,       // $5
-				q.CursorPos,        // $6
-				q.Limit,            // $7
-			}
-
+			query, args := buildEventQuery(req, q)
 			rows, err := s.db.Query(ctx, query, args...)
 			if err != nil {
 				return nil, fmt.Errorf("query failed: %w", err)
 			}
 			defer rows.Close()
-
-			var results []eventWithTimeID
-			for rows.Next() {
-				var (
-					id               string
-					tenantID         string
-					destinationID    string
-					eventTime        time.Time
-					topic            string
-					eligibleForRetry bool
-					data             map[string]interface{}
-					metadata         map[string]string
-					timeID           string
-				)
-
-				if err := rows.Scan(
-					&id,
-					&tenantID,
-					&destinationID,
-					&eventTime,
-					&topic,
-					&eligibleForRetry,
-					&data,
-					&metadata,
-					&timeID,
-				); err != nil {
-					return nil, fmt.Errorf("scan failed: %w", err)
-				}
-
-				results = append(results, eventWithTimeID{
-					Event: &models.Event{
-						ID:               id,
-						TenantID:         tenantID,
-						DestinationID:    destinationID,
-						Topic:            topic,
-						EligibleForRetry: eligibleForRetry,
-						Time:             eventTime,
-						Data:             data,
-						Metadata:         metadata,
-					},
-					TimeID: timeID,
-				})
-			}
-
-			if err := rows.Err(); err != nil {
-				return nil, fmt.Errorf("rows error: %w", err)
-			}
-
-			return results, nil
+			return scanEvents(rows)
 		},
 		Cursor: pagination.Cursor[eventWithTimeID]{
 			Encode: func(e eventWithTimeID) string {
@@ -177,6 +92,96 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 	}, nil
 }
 
+func buildEventQuery(req driver.ListEventRequest, q pagination.QueryInput) (string, []any) {
+	cursorCondition := fmt.Sprintf("AND ($6::text = '' OR time_id %s $6::text)", q.Compare)
+	orderByClause := fmt.Sprintf("time %s, id %s", strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
+
+	query := fmt.Sprintf(`
+		SELECT
+			id,
+			tenant_id,
+			destination_id,
+			time,
+			topic,
+			eligible_for_retry,
+			data,
+			metadata,
+			time_id
+		FROM events
+		WHERE ($1::text = '' OR tenant_id = $1)
+		AND (array_length($2::text[], 1) IS NULL OR destination_id = ANY($2))
+		AND (array_length($3::text[], 1) IS NULL OR topic = ANY($3))
+		AND ($4::timestamptz IS NULL OR time >= $4)
+		AND ($5::timestamptz IS NULL OR time <= $5)
+		%s
+		ORDER BY %s
+		LIMIT $7
+	`, cursorCondition, orderByClause)
+
+	args := []any{
+		req.TenantID,       // $1
+		req.DestinationIDs, // $2
+		req.Topics,         // $3
+		req.EventStart,     // $4
+		req.EventEnd,       // $5
+		q.CursorPos,        // $6
+		q.Limit,            // $7
+	}
+
+	return query, args
+}
+
+func scanEvents(rows pgx.Rows) ([]eventWithTimeID, error) {
+	var results []eventWithTimeID
+	for rows.Next() {
+		var (
+			id               string
+			tenantID         string
+			destinationID    string
+			eventTime        time.Time
+			topic            string
+			eligibleForRetry bool
+			data             map[string]interface{}
+			metadata         map[string]string
+			timeID           string
+		)
+
+		if err := rows.Scan(
+			&id,
+			&tenantID,
+			&destinationID,
+			&eventTime,
+			&topic,
+			&eligibleForRetry,
+			&data,
+			&metadata,
+			&timeID,
+		); err != nil {
+			return nil, fmt.Errorf("scan failed: %w", err)
+		}
+
+		results = append(results, eventWithTimeID{
+			Event: &models.Event{
+				ID:               id,
+				TenantID:         tenantID,
+				DestinationID:    destinationID,
+				Topic:            topic,
+				EligibleForRetry: eligibleForRetry,
+				Time:             eventTime,
+				Data:             data,
+				Metadata:         metadata,
+			},
+			TimeID: timeID,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	return results, nil
+}
+
 // deliveryEventWithTimeID wraps a delivery event with its time_delivery_id for cursor encoding.
 type deliveryEventWithTimeID struct {
 	*models.DeliveryEvent
@@ -200,140 +205,13 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 		Next:  req.Next,
 		Prev:  req.Prev,
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]deliveryEventWithTimeID, error) {
-			// Build cursor condition - always include with type cast for PostgreSQL
-			cursorCondition := fmt.Sprintf("AND ($8::text = '' OR idx.time_delivery_id %s $8::text)", q.Compare)
-
-			// Build ORDER BY clause
-			orderByClause := fmt.Sprintf("idx.delivery_time %s, idx.delivery_id %s", strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
-
-			query := fmt.Sprintf(`
-				SELECT
-					idx.event_id,
-					idx.delivery_id,
-					idx.destination_id,
-					idx.event_time,
-					idx.delivery_time,
-					idx.topic,
-					idx.status,
-					idx.time_delivery_id,
-					e.tenant_id,
-					e.eligible_for_retry,
-					e.data,
-					e.metadata,
-					d.code,
-					d.response_data,
-					idx.manual,
-					idx.attempt
-				FROM event_delivery_index idx
-				JOIN events e ON e.id = idx.event_id AND e.time = idx.event_time
-				JOIN deliveries d ON d.id = idx.delivery_id AND d.time = idx.delivery_time
-				WHERE ($1::text = '' OR idx.tenant_id = $1)
-				AND ($2::text = '' OR idx.event_id = $2)
-				AND (array_length($3::text[], 1) IS NULL OR idx.destination_id = ANY($3))
-				AND ($4::text = '' OR idx.status = $4)
-				AND (array_length($5::text[], 1) IS NULL OR idx.topic = ANY($5))
-				AND ($6::timestamptz IS NULL OR idx.delivery_time >= $6)
-				AND ($7::timestamptz IS NULL OR idx.delivery_time <= $7)
-				%s
-				ORDER BY %s
-				LIMIT $9
-			`, cursorCondition, orderByClause)
-
-			args := []any{
-				req.TenantID,       // $1
-				req.EventID,        // $2
-				req.DestinationIDs, // $3
-				req.Status,         // $4
-				req.Topics,         // $5
-				req.Start,          // $6
-				req.End,            // $7
-				q.CursorPos,        // $8
-				q.Limit,            // $9
-			}
-
+			query, args := buildDeliveryQuery(req, q)
 			rows, err := s.db.Query(ctx, query, args...)
 			if err != nil {
 				return nil, fmt.Errorf("query failed: %w", err)
 			}
 			defer rows.Close()
-
-			var results []deliveryEventWithTimeID
-			for rows.Next() {
-				var (
-					eventID          string
-					deliveryID       string
-					destinationID    string
-					eventTime        time.Time
-					deliveryTime     time.Time
-					topic            string
-					status           string
-					timeDeliveryID   string
-					tenantID         string
-					eligibleForRetry bool
-					data             map[string]interface{}
-					metadata         map[string]string
-					code             string
-					responseData     map[string]interface{}
-					manual           bool
-					attempt          int
-				)
-
-				if err := rows.Scan(
-					&eventID,
-					&deliveryID,
-					&destinationID,
-					&eventTime,
-					&deliveryTime,
-					&topic,
-					&status,
-					&timeDeliveryID,
-					&tenantID,
-					&eligibleForRetry,
-					&data,
-					&metadata,
-					&code,
-					&responseData,
-					&manual,
-					&attempt,
-				); err != nil {
-					return nil, fmt.Errorf("scan failed: %w", err)
-				}
-
-				results = append(results, deliveryEventWithTimeID{
-					DeliveryEvent: &models.DeliveryEvent{
-						ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
-						DestinationID: destinationID,
-						Manual:        manual,
-						Attempt:       attempt,
-						Event: models.Event{
-							ID:               eventID,
-							TenantID:         tenantID,
-							DestinationID:    destinationID,
-							Topic:            topic,
-							EligibleForRetry: eligibleForRetry,
-							Time:             eventTime,
-							Data:             data,
-							Metadata:         metadata,
-						},
-						Delivery: &models.Delivery{
-							ID:            deliveryID,
-							EventID:       eventID,
-							DestinationID: destinationID,
-							Status:        status,
-							Time:          deliveryTime,
-							Code:          code,
-							ResponseData:  responseData,
-						},
-					},
-					TimeDeliveryID: timeDeliveryID,
-				})
-			}
-
-			if err := rows.Err(); err != nil {
-				return nil, fmt.Errorf("rows error: %w", err)
-			}
-
-			return results, nil
+			return scanDeliveryEvents(rows)
 		},
 		Cursor: pagination.Cursor[deliveryEventWithTimeID]{
 			Encode: func(de deliveryEventWithTimeID) string {
@@ -363,6 +241,138 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 		Next: res.Next,
 		Prev: res.Prev,
 	}, nil
+}
+
+func buildDeliveryQuery(req driver.ListDeliveryEventRequest, q pagination.QueryInput) (string, []any) {
+	cursorCondition := fmt.Sprintf("AND ($8::text = '' OR idx.time_delivery_id %s $8::text)", q.Compare)
+	orderByClause := fmt.Sprintf("idx.delivery_time %s, idx.delivery_id %s", strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
+
+	query := fmt.Sprintf(`
+		SELECT
+			idx.event_id,
+			idx.delivery_id,
+			idx.destination_id,
+			idx.event_time,
+			idx.delivery_time,
+			idx.topic,
+			idx.status,
+			idx.time_delivery_id,
+			e.tenant_id,
+			e.eligible_for_retry,
+			e.data,
+			e.metadata,
+			d.code,
+			d.response_data,
+			idx.manual,
+			idx.attempt
+		FROM event_delivery_index idx
+		JOIN events e ON e.id = idx.event_id AND e.time = idx.event_time
+		JOIN deliveries d ON d.id = idx.delivery_id AND d.time = idx.delivery_time
+		WHERE ($1::text = '' OR idx.tenant_id = $1)
+		AND ($2::text = '' OR idx.event_id = $2)
+		AND (array_length($3::text[], 1) IS NULL OR idx.destination_id = ANY($3))
+		AND ($4::text = '' OR idx.status = $4)
+		AND (array_length($5::text[], 1) IS NULL OR idx.topic = ANY($5))
+		AND ($6::timestamptz IS NULL OR idx.delivery_time >= $6)
+		AND ($7::timestamptz IS NULL OR idx.delivery_time <= $7)
+		%s
+		ORDER BY %s
+		LIMIT $9
+	`, cursorCondition, orderByClause)
+
+	args := []any{
+		req.TenantID,       // $1
+		req.EventID,        // $2
+		req.DestinationIDs, // $3
+		req.Status,         // $4
+		req.Topics,         // $5
+		req.Start,          // $6
+		req.End,            // $7
+		q.CursorPos,        // $8
+		q.Limit,            // $9
+	}
+
+	return query, args
+}
+
+func scanDeliveryEvents(rows pgx.Rows) ([]deliveryEventWithTimeID, error) {
+	var results []deliveryEventWithTimeID
+	for rows.Next() {
+		var (
+			eventID          string
+			deliveryID       string
+			destinationID    string
+			eventTime        time.Time
+			deliveryTime     time.Time
+			topic            string
+			status           string
+			timeDeliveryID   string
+			tenantID         string
+			eligibleForRetry bool
+			data             map[string]interface{}
+			metadata         map[string]string
+			code             string
+			responseData     map[string]interface{}
+			manual           bool
+			attempt          int
+		)
+
+		if err := rows.Scan(
+			&eventID,
+			&deliveryID,
+			&destinationID,
+			&eventTime,
+			&deliveryTime,
+			&topic,
+			&status,
+			&timeDeliveryID,
+			&tenantID,
+			&eligibleForRetry,
+			&data,
+			&metadata,
+			&code,
+			&responseData,
+			&manual,
+			&attempt,
+		); err != nil {
+			return nil, fmt.Errorf("scan failed: %w", err)
+		}
+
+		results = append(results, deliveryEventWithTimeID{
+			DeliveryEvent: &models.DeliveryEvent{
+				ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
+				DestinationID: destinationID,
+				Manual:        manual,
+				Attempt:       attempt,
+				Event: models.Event{
+					ID:               eventID,
+					TenantID:         tenantID,
+					DestinationID:    destinationID,
+					Topic:            topic,
+					EligibleForRetry: eligibleForRetry,
+					Time:             eventTime,
+					Data:             data,
+					Metadata:         metadata,
+				},
+				Delivery: &models.Delivery{
+					ID:            deliveryID,
+					EventID:       eventID,
+					DestinationID: destinationID,
+					Status:        status,
+					Time:          deliveryTime,
+					Code:          code,
+					ResponseData:  responseData,
+				},
+			},
+			TimeDeliveryID: timeDeliveryID,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	return results, nil
 }
 
 func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRequest) (*models.Event, error) {
