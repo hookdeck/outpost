@@ -24,14 +24,14 @@ type HarnessMaker func(ctx context.Context, t *testing.T) (Harness, error)
 
 // RunConformanceTests executes the full conformance test suite for a logstore driver.
 // The suite is organized into three parts:
-//   - Operations: CRUD tests (insert, list, retrieve)
+//   - CRUD: basic insert, list, and retrieve operations
 //   - Pagination: cursor-based pagination tests using paginationtest.Suite
 //   - Misc: isolation, edge cases, and cursor validation
 func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 	t.Helper()
 
-	t.Run("Operations", func(t *testing.T) {
-		testOperations(t, newHarness)
+	t.Run("CRUD", func(t *testing.T) {
+		testCRUD(t, newHarness)
 	})
 	t.Run("Pagination", func(t *testing.T) {
 		testPagination(t, newHarness)
