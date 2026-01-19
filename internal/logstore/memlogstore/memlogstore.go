@@ -9,6 +9,7 @@ import (
 	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/pagination"
 )
 
 const (
@@ -41,16 +42,12 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 		sortOrder = "desc"
 	}
 
-	nextPosition, err := cursor.Decode(req.Next, cursorResourceEvent, cursorVersion)
-	if err != nil {
-		return driver.ListEventResponse{}, convertCursorError(err)
-	}
-	prevPosition, err := cursor.Decode(req.Prev, cursorResourceEvent, cursorVersion)
-	if err != nil {
-		return driver.ListEventResponse{}, convertCursorError(err)
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 100
 	}
 
-	// Dedupe by event ID
+	// Dedupe by event ID and filter
 	eventMap := make(map[string]*models.Event)
 	for _, de := range s.deliveryEvents {
 		if !s.matchesEventFilter(&de.Event, req) {
@@ -61,72 +58,76 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 		}
 	}
 
-	var filtered []*models.Event
+	var allEvents []*models.Event
 	for _, event := range eventMap {
-		filtered = append(filtered, event)
+		allEvents = append(allEvents, event)
 	}
 
-	isDesc := sortOrder == "desc"
-	sort.Slice(filtered, func(i, j int) bool {
-		if !filtered[i].Time.Equal(filtered[j].Time) {
-			if isDesc {
-				return filtered[i].Time.After(filtered[j].Time)
-			}
-			return filtered[i].Time.Before(filtered[j].Time)
-		}
-		if isDesc {
-			return filtered[i].ID > filtered[j].ID
-		}
-		return filtered[i].ID < filtered[j].ID
-	})
-
-	limit := req.Limit
-	if limit <= 0 {
-		limit = 100
-	}
-
-	startIdx := 0
-	if nextPosition != "" {
-		for i, event := range filtered {
-			if event.ID == nextPosition {
-				startIdx = i
-				break
-			}
-		}
-	} else if prevPosition != "" {
-		for i, event := range filtered {
-			if event.ID == prevPosition {
-				startIdx = i - limit
-				if startIdx < 0 {
-					startIdx = 0
+	res, err := pagination.Run(ctx, pagination.Config[*models.Event]{
+		Limit: limit,
+		Order: sortOrder,
+		Next:  req.Next,
+		Prev:  req.Prev,
+		Fetch: func(_ context.Context, q pagination.QueryInput) ([]*models.Event, error) {
+			// Sort based on query direction
+			isDesc := q.SortDir == "desc"
+			sort.Slice(allEvents, func(i, j int) bool {
+				if !allEvents[i].Time.Equal(allEvents[j].Time) {
+					if isDesc {
+						return allEvents[i].Time.After(allEvents[j].Time)
+					}
+					return allEvents[i].Time.Before(allEvents[j].Time)
 				}
-				break
+				if isDesc {
+					return allEvents[i].ID > allEvents[j].ID
+				}
+				return allEvents[i].ID < allEvents[j].ID
+			})
+
+			// Find start position based on cursor
+			startIdx := 0
+			if q.CursorPos != "" {
+				for i, event := range allEvents {
+					if event.ID == q.CursorPos {
+						startIdx = i + 1 // Start after the cursor position
+						break
+					}
+				}
 			}
-		}
-	}
 
-	endIdx := startIdx + limit
-	if endIdx > len(filtered) {
-		endIdx = len(filtered)
-	}
+			// Return up to limit items
+			endIdx := startIdx + q.Limit
+			if endIdx > len(allEvents) {
+				endIdx = len(allEvents)
+			}
 
-	data := make([]*models.Event, endIdx-startIdx)
-	for i, event := range filtered[startIdx:endIdx] {
-		data[i] = copyEvent(event)
-	}
-
-	var nextEncoded, prevEncoded string
-	if endIdx < len(filtered) {
-		nextEncoded = cursor.Encode(cursorResourceEvent, cursorVersion, filtered[endIdx].ID)
-	}
-	if startIdx > 0 {
-		prevEncoded = cursor.Encode(cursorResourceEvent, cursorVersion, filtered[startIdx].ID)
+			result := make([]*models.Event, endIdx-startIdx)
+			for i, event := range allEvents[startIdx:endIdx] {
+				result[i] = copyEvent(event)
+			}
+			return result, nil
+		},
+		Cursor: pagination.Cursor[*models.Event]{
+			Encode: func(e *models.Event) string {
+				return cursor.Encode(cursorResourceEvent, cursorVersion, e.ID)
+			},
+			Decode: func(c string) (string, error) {
+				pos, err := cursor.Decode(c, cursorResourceEvent, cursorVersion)
+				if err != nil {
+					return "", convertCursorError(err)
+				}
+				return pos, nil
+			},
+		},
+	})
+	if err != nil {
+		return driver.ListEventResponse{}, err
 	}
 
 	return driver.ListEventResponse{
-		Data: data,
-		Next: nextEncoded,
-		Prev: prevEncoded,
+		Data: res.Items,
+		Next: res.Next,
+		Prev: res.Prev,
 	}, nil
 }
 
@@ -211,84 +212,85 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 		sortOrder = "desc"
 	}
 
-	nextPosition, err := cursor.Decode(req.Next, cursorResourceDelivery, cursorVersion)
-	if err != nil {
-		return driver.ListDeliveryEventResponse{}, convertCursorError(err)
-	}
-	prevPosition, err := cursor.Decode(req.Prev, cursorResourceDelivery, cursorVersion)
-	if err != nil {
-		return driver.ListDeliveryEventResponse{}, convertCursorError(err)
-	}
-
-	var filtered []*models.DeliveryEvent
-	for _, de := range s.deliveryEvents {
-		if !s.matchesFilter(de, req) {
-			continue
-		}
-		filtered = append(filtered, de)
-	}
-
-	isDesc := sortOrder == "desc"
-	sort.Slice(filtered, func(i, j int) bool {
-		if !filtered[i].Delivery.Time.Equal(filtered[j].Delivery.Time) {
-			if isDesc {
-				return filtered[i].Delivery.Time.After(filtered[j].Delivery.Time)
-			}
-			return filtered[i].Delivery.Time.Before(filtered[j].Delivery.Time)
-		}
-		if isDesc {
-			return filtered[i].Delivery.ID > filtered[j].Delivery.ID
-		}
-		return filtered[i].Delivery.ID < filtered[j].Delivery.ID
-	})
-
 	limit := req.Limit
 	if limit <= 0 {
 		limit = 100
 	}
 
-	startIdx := 0
-	if nextPosition != "" {
-		for i, de := range filtered {
-			if de.ID == nextPosition {
-				startIdx = i
-				break
-			}
+	// Filter delivery events
+	var allDeliveryEvents []*models.DeliveryEvent
+	for _, de := range s.deliveryEvents {
+		if !s.matchesFilter(de, req) {
+			continue
 		}
-	} else if prevPosition != "" {
-		for i, de := range filtered {
-			if de.ID == prevPosition {
-				startIdx = i - limit
-				if startIdx < 0 {
-					startIdx = 0
+		allDeliveryEvents = append(allDeliveryEvents, de)
+	}
+
+	res, err := pagination.Run(ctx, pagination.Config[*models.DeliveryEvent]{
+		Limit: limit,
+		Order: sortOrder,
+		Next:  req.Next,
+		Prev:  req.Prev,
+		Fetch: func(_ context.Context, q pagination.QueryInput) ([]*models.DeliveryEvent, error) {
+			// Sort based on query direction
+			isDesc := q.SortDir == "desc"
+			sort.Slice(allDeliveryEvents, func(i, j int) bool {
+				if !allDeliveryEvents[i].Delivery.Time.Equal(allDeliveryEvents[j].Delivery.Time) {
+					if isDesc {
+						return allDeliveryEvents[i].Delivery.Time.After(allDeliveryEvents[j].Delivery.Time)
+					}
+					return allDeliveryEvents[i].Delivery.Time.Before(allDeliveryEvents[j].Delivery.Time)
 				}
-				break
+				if isDesc {
+					return allDeliveryEvents[i].Delivery.ID > allDeliveryEvents[j].Delivery.ID
+				}
+				return allDeliveryEvents[i].Delivery.ID < allDeliveryEvents[j].Delivery.ID
+			})
+
+			// Find start position based on cursor
+			startIdx := 0
+			if q.CursorPos != "" {
+				for i, de := range allDeliveryEvents {
+					if de.ID == q.CursorPos {
+						startIdx = i + 1 // Start after the cursor position
+						break
+					}
+				}
 			}
-		}
-	}
 
-	endIdx := startIdx + limit
-	if endIdx > len(filtered) {
-		endIdx = len(filtered)
-	}
+			// Return up to limit items
+			endIdx := startIdx + q.Limit
+			if endIdx > len(allDeliveryEvents) {
+				endIdx = len(allDeliveryEvents)
+			}
 
-	data := make([]*models.DeliveryEvent, endIdx-startIdx)
-	for i, de := range filtered[startIdx:endIdx] {
-		data[i] = copyDeliveryEvent(de)
-	}
-
-	var nextEncoded, prevEncoded string
-	if endIdx < len(filtered) {
-		nextEncoded = cursor.Encode(cursorResourceDelivery, cursorVersion, filtered[endIdx].ID)
-	}
-	if startIdx > 0 {
-		prevEncoded = cursor.Encode(cursorResourceDelivery, cursorVersion, filtered[startIdx].ID)
+			result := make([]*models.DeliveryEvent, endIdx-startIdx)
+			for i, de := range allDeliveryEvents[startIdx:endIdx] {
+				result[i] = copyDeliveryEvent(de)
+			}
+			return result, nil
+		},
+		Cursor: pagination.Cursor[*models.DeliveryEvent]{
+			Encode: func(de *models.DeliveryEvent) string {
+				return cursor.Encode(cursorResourceDelivery, cursorVersion, de.ID)
+			},
+			Decode: func(c string) (string, error) {
+				pos, err := cursor.Decode(c, cursorResourceDelivery, cursorVersion)
+				if err != nil {
+					return "", convertCursorError(err)
+				}
+				return pos, nil
+			},
+		},
+	})
+	if err != nil {
+		return driver.ListDeliveryEventResponse{}, err
 	}
 
 	return driver.ListDeliveryEventResponse{
-		Data: data,
-		Next: nextEncoded,
-		Prev: prevEncoded,
+		Data: res.Items,
+		Next: res.Next,
+		Prev: res.Prev,
 	}, nil
 }
 
