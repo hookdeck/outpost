@@ -174,22 +174,36 @@ func TestListTenant_Dragonfly_WithDeploymentID(t *testing.T) {
 // - First page has no Prev, last page has no Next
 // =============================================================================
 
-func TestListTenantPagination_RedisStack(t *testing.T) {
+func TestListTenantPagination(t *testing.T) {
 	t.Parallel()
-	runListTenantPaginationSuite(t, redisStackClientFactory)
+	runListTenantPaginationSuite(t, dragonflyStackClientFactory, "")
 }
 
-func TestListTenantPagination_Dragonfly(t *testing.T) {
+func TestListTenantPagination_WithDeploymentID(t *testing.T) {
 	t.Parallel()
-	runListTenantPaginationSuite(t, dragonflyStackClientFactory)
+	runListTenantPaginationSuite(t, dragonflyStackClientFactory, "dp_pagination_test")
 }
 
-func runListTenantPaginationSuite(t *testing.T, factory RedisClientFactory) {
+func TestListTenantPagination_Compat_RedisStack(t *testing.T) {
+	t.Parallel()
+	runListTenantPaginationSuite(t, redisStackClientFactory, "")
+}
+
+func TestListTenantPagination_Compat_RedisStack_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	runListTenantPaginationSuite(t, redisStackClientFactory, "dp_pagination_test")
+}
+
+func runListTenantPaginationSuite(t *testing.T, factory RedisClientFactory, deploymentID string) {
 	ctx := context.Background()
 	redisClient := factory(t)
 
-	// Use unique deployment ID to isolate test data
-	deploymentID := fmt.Sprintf("pagination_test_%d", time.Now().UnixNano())
+	// Add unique suffix to deployment ID to isolate test data between parallel runs
+	if deploymentID != "" {
+		deploymentID = fmt.Sprintf("%s_%d", deploymentID, time.Now().UnixNano())
+	} else {
+		deploymentID = fmt.Sprintf("pagination_test_%d", time.Now().UnixNano())
+	}
 
 	entityStore := models.NewEntityStore(redisClient,
 		models.WithCipher(models.NewAESCipher("secret")),
@@ -201,7 +215,7 @@ func runListTenantPaginationSuite(t *testing.T, factory RedisClientFactory) {
 	err := entityStore.Init(ctx)
 	require.NoError(t, err)
 
-	// Track created tenant IDs for cleanup
+	// Track created tenant IDs for cleanup between subtests
 	var createdTenantIDs []string
 	baseTime := time.Now()
 
@@ -248,7 +262,6 @@ func runListTenantPaginationSuite(t *testing.T, factory RedisClientFactory) {
 		},
 
 		Cleanup: func(ctx context.Context) error {
-			// Delete all tenants created in this test run
 			for _, id := range createdTenantIDs {
 				_ = entityStore.DeleteTenant(ctx, id)
 			}
