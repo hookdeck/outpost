@@ -133,19 +133,31 @@ func ParseArrayParam(c *gin.Context, fieldName string) []string {
 }
 
 // DateFilterResult holds the parsed date filter values.
-// Supports all Hookdeck query operators for dates: gte, gt, lte, lt, any.
+// Currently supports gte and lte operators only.
 type DateFilterResult struct {
-	GTE *time.Time // Greater than or equal
-	GT  *time.Time // Greater than
-	LTE *time.Time // Less than or equal
-	LT  *time.Time // Less than
-	Any bool       // Field is not null (any value present)
+	GTE *time.Time // Greater than or equal (>=)
+	LTE *time.Time // Less than or equal (<=)
 }
 
-// ParseDateFilter parses bracket notation date filters (e.g., field[gte], field[lte], field[gt], field[lt], field[any]).
-// Returns the parsed dates and any validation error response.
+// unsupportedDateOps lists operators we recognize but don't support yet.
+// When stores add support, move these to supported and update ParseDateFilter.
+var unsupportedDateOps = []string{"gt", "lt", "any"}
+
+// ParseDateFilter parses bracket notation date filters (e.g., field[gte], field[lte]).
+// Returns 400 for unsupported operators (gt, lt, any).
 // Accepts both RFC3339 format (2024-01-01T00:00:00Z) and date-only format (2024-01-01).
 func ParseDateFilter(c *gin.Context, fieldName string) (*DateFilterResult, *ErrorResponse) {
+	// Check for unsupported operators first
+	for _, op := range unsupportedDateOps {
+		key := fieldName + "[" + op + "]"
+		if c.Query(key) != "" {
+			return nil, &ErrorResponse{
+				Code:    http.StatusBadRequest,
+				Message: fmt.Sprintf("operator '%s' is not supported, use 'gte' or 'lte'", op),
+			}
+		}
+	}
+
 	result := &DateFilterResult{}
 
 	// Parse [gte] - greater than or equal
@@ -158,16 +170,6 @@ func ParseDateFilter(c *gin.Context, fieldName string) (*DateFilterResult, *Erro
 		result.GTE = &t
 	}
 
-	// Parse [gt] - greater than
-	gtKey := fieldName + "[gt]"
-	if gtStr := c.Query(gtKey); gtStr != "" {
-		t, err := parseDateTime(gtStr)
-		if err != nil {
-			return nil, dateFormatError(gtKey)
-		}
-		result.GT = &t
-	}
-
 	// Parse [lte] - less than or equal
 	lteKey := fieldName + "[lte]"
 	if lteStr := c.Query(lteKey); lteStr != "" {
@@ -176,22 +178,6 @@ func ParseDateFilter(c *gin.Context, fieldName string) (*DateFilterResult, *Erro
 			return nil, dateFormatError(lteKey)
 		}
 		result.LTE = &t
-	}
-
-	// Parse [lt] - less than
-	ltKey := fieldName + "[lt]"
-	if ltStr := c.Query(ltKey); ltStr != "" {
-		t, err := parseDateTime(ltStr)
-		if err != nil {
-			return nil, dateFormatError(ltKey)
-		}
-		result.LT = &t
-	}
-
-	// Parse [any] - field is not null
-	anyKey := fieldName + "[any]"
-	if anyStr := c.Query(anyKey); anyStr != "" {
-		result.Any = anyStr == "true" || anyStr == "1"
 	}
 
 	return result, nil
@@ -208,114 +194,9 @@ func dateFormatError(key string) *ErrorResponse {
 	}
 }
 
-// StringFilterResult holds the parsed string filter values.
-// Supports Hookdeck query operators for strings: contains, any.
-type StringFilterResult struct {
-	Contains *string // Contains substring
-	Any      bool    // Field is not null (any value present)
-}
-
-// ParseStringFilter parses bracket notation string filters (e.g., field[contains], field[any]).
-// Returns the parsed filter values and any validation error response.
-func ParseStringFilter(c *gin.Context, fieldName string) *StringFilterResult {
-	result := &StringFilterResult{}
-
-	// Parse [contains] - contains substring
-	containsKey := fieldName + "[contains]"
-	if containsStr := c.Query(containsKey); containsStr != "" {
-		result.Contains = &containsStr
-	}
-
-	// Parse [any] - field is not null
-	anyKey := fieldName + "[any]"
-	if anyStr := c.Query(anyKey); anyStr != "" {
-		result.Any = anyStr == "true" || anyStr == "1"
-	}
-
-	return result
-}
-
-// NumberFilterResult holds the parsed number filter values.
-// Supports Hookdeck query operators for numbers: gte, gt, lte, lt, any.
-type NumberFilterResult struct {
-	GTE *float64 // Greater than or equal
-	GT  *float64 // Greater than
-	LTE *float64 // Less than or equal
-	LT  *float64 // Less than
-	Any bool     // Field is not null (any value present)
-}
-
-// ParseNumberFilter parses bracket notation number filters (e.g., field[gte], field[lte]).
-// Returns the parsed numbers and any validation error response.
-func ParseNumberFilter(c *gin.Context, fieldName string) (*NumberFilterResult, *ErrorResponse) {
-	result := &NumberFilterResult{}
-
-	// Parse [gte] - greater than or equal
-	gteKey := fieldName + "[gte]"
-	if gteStr := c.Query(gteKey); gteStr != "" {
-		n, err := parseNumber(gteStr)
-		if err != nil {
-			return nil, numberFormatError(gteKey)
-		}
-		result.GTE = &n
-	}
-
-	// Parse [gt] - greater than
-	gtKey := fieldName + "[gt]"
-	if gtStr := c.Query(gtKey); gtStr != "" {
-		n, err := parseNumber(gtStr)
-		if err != nil {
-			return nil, numberFormatError(gtKey)
-		}
-		result.GT = &n
-	}
-
-	// Parse [lte] - less than or equal
-	lteKey := fieldName + "[lte]"
-	if lteStr := c.Query(lteKey); lteStr != "" {
-		n, err := parseNumber(lteStr)
-		if err != nil {
-			return nil, numberFormatError(lteKey)
-		}
-		result.LTE = &n
-	}
-
-	// Parse [lt] - less than
-	ltKey := fieldName + "[lt]"
-	if ltStr := c.Query(ltKey); ltStr != "" {
-		n, err := parseNumber(ltStr)
-		if err != nil {
-			return nil, numberFormatError(ltKey)
-		}
-		result.LT = &n
-	}
-
-	// Parse [any] - field is not null
-	anyKey := fieldName + "[any]"
-	if anyStr := c.Query(anyKey); anyStr != "" {
-		result.Any = anyStr == "true" || anyStr == "1"
-	}
-
-	return result, nil
-}
-
-// numberFormatError returns a validation error for invalid number format.
-func numberFormatError(key string) *ErrorResponse {
-	return &ErrorResponse{
-		Code:    http.StatusUnprocessableEntity,
-		Message: "validation error",
-		Data: map[string]string{
-			"query." + key: "invalid format, expected a number",
-		},
-	}
-}
-
-// parseNumber attempts to parse a number string.
-func parseNumber(s string) (float64, error) {
-	var n float64
-	_, err := fmt.Sscanf(s, "%f", &n)
-	return n, err
-}
+// Note: String and number filters are not yet supported by the stores.
+// These types are defined for future use when stores add support.
+// Attempting to use them will return 400 errors from the handlers.
 
 // parseDateTime attempts to parse a date string in RFC3339 or date-only (YYYY-MM-DD) format.
 func parseDateTime(s string) (time.Time, error) {

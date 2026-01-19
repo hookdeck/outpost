@@ -77,7 +77,7 @@ func TestParseDir(t *testing.T) {
 }
 
 func TestParseOrderBy(t *testing.T) {
-	allowedValues := []string{"created_at", "event_time"}
+	allowedValues := []string{"created_at", "time"}
 
 	tests := []struct {
 		name         string
@@ -92,8 +92,8 @@ func TestParseOrderBy(t *testing.T) {
 		},
 		{
 			name:         "valid value returns value",
-			queryOrderBy: "event_time",
-			wantOrderBy:  "event_time",
+			queryOrderBy: "time",
+			wantOrderBy:  "time",
 		},
 		{
 			name:         "another valid value",
@@ -130,51 +130,32 @@ func TestParseDateFilter(t *testing.T) {
 		fieldName   string
 		queryParams map[string]string
 		wantGTE     *time.Time
-		wantGT      *time.Time
 		wantLTE     *time.Time
-		wantLT      *time.Time
-		wantAny     bool
 		wantErrCode int
 	}{
 		{
 			name:        "no params returns empty result",
-			fieldName:   "event_time",
+			fieldName:   "time",
 			queryParams: map[string]string{},
 		},
 		{
 			name:      "RFC3339 gte param",
-			fieldName: "event_time",
+			fieldName: "time",
 			queryParams: map[string]string{
-				"event_time[gte]": "2024-01-15T10:30:00Z",
+				"time[gte]": "2024-01-15T10:30:00Z",
 			},
 			wantGTE: timePtr(time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)),
 		},
 		{
-			name:      "RFC3339 gt param",
-			fieldName: "event_time",
-			queryParams: map[string]string{
-				"event_time[gt]": "2024-01-15T10:30:00Z",
-			},
-			wantGT: timePtr(time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)),
-		},
-		{
 			name:      "RFC3339 lte param",
-			fieldName: "event_time",
+			fieldName: "time",
 			queryParams: map[string]string{
-				"event_time[lte]": "2024-01-31T23:59:59Z",
+				"time[lte]": "2024-01-31T23:59:59Z",
 			},
 			wantLTE: timePtr(time.Date(2024, 1, 31, 23, 59, 59, 0, time.UTC)),
 		},
 		{
-			name:      "RFC3339 lt param",
-			fieldName: "event_time",
-			queryParams: map[string]string{
-				"event_time[lt]": "2024-01-31T23:59:59Z",
-			},
-			wantLT: timePtr(time.Date(2024, 1, 31, 23, 59, 59, 0, time.UTC)),
-		},
-		{
-			name:      "all operators combined",
+			name:      "both gte and lte params",
 			fieldName: "created_at",
 			queryParams: map[string]string{
 				"created_at[gte]": "2024-01-01T00:00:00Z",
@@ -185,65 +166,25 @@ func TestParseDateFilter(t *testing.T) {
 		},
 		{
 			name:      "date-only format",
-			fieldName: "delivery_time",
+			fieldName: "time",
 			queryParams: map[string]string{
-				"delivery_time[gte]": "2024-01-15",
+				"time[gte]": "2024-01-15",
 			},
 			wantGTE: timePtr(time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)),
 		},
 		{
-			name:      "any operator with true",
-			fieldName: "event_time",
-			queryParams: map[string]string{
-				"event_time[any]": "true",
-			},
-			wantAny: true,
-		},
-		{
-			name:      "any operator with 1",
-			fieldName: "event_time",
-			queryParams: map[string]string{
-				"event_time[any]": "1",
-			},
-			wantAny: true,
-		},
-		{
-			name:      "any operator with false",
-			fieldName: "event_time",
-			queryParams: map[string]string{
-				"event_time[any]": "false",
-			},
-			wantAny: false,
-		},
-		{
 			name:      "invalid gte format returns error",
-			fieldName: "event_time",
+			fieldName: "time",
 			queryParams: map[string]string{
-				"event_time[gte]": "not-a-date",
-			},
-			wantErrCode: http.StatusUnprocessableEntity,
-		},
-		{
-			name:      "invalid gt format returns error",
-			fieldName: "event_time",
-			queryParams: map[string]string{
-				"event_time[gt]": "invalid",
+				"time[gte]": "not-a-date",
 			},
 			wantErrCode: http.StatusUnprocessableEntity,
 		},
 		{
 			name:      "invalid lte format returns error",
-			fieldName: "event_time",
+			fieldName: "time",
 			queryParams: map[string]string{
-				"event_time[lte]": "invalid",
-			},
-			wantErrCode: http.StatusUnprocessableEntity,
-		},
-		{
-			name:      "invalid lt format returns error",
-			fieldName: "event_time",
-			queryParams: map[string]string{
-				"event_time[lt]": "invalid",
+				"time[lte]": "invalid",
 			},
 			wantErrCode: http.StatusUnprocessableEntity,
 		},
@@ -265,176 +206,25 @@ func TestParseDateFilter(t *testing.T) {
 			require.NotNil(t, result)
 
 			assertTimePtr(t, "GTE", tt.wantGTE, result.GTE)
-			assertTimePtr(t, "GT", tt.wantGT, result.GT)
 			assertTimePtr(t, "LTE", tt.wantLTE, result.LTE)
-			assertTimePtr(t, "LT", tt.wantLT, result.LT)
-			assert.Equal(t, tt.wantAny, result.Any)
 		})
 	}
 }
 
-func TestParseStringFilter(t *testing.T) {
-	tests := []struct {
-		name         string
-		fieldName    string
-		queryParams  map[string]string
-		wantContains *string
-		wantAny      bool
-	}{
-		{
-			name:        "no params returns empty result",
-			fieldName:   "topic",
-			queryParams: map[string]string{},
-		},
-		{
-			name:      "contains param",
-			fieldName: "topic",
-			queryParams: map[string]string{
-				"topic[contains]": "user",
-			},
-			wantContains: strPtr("user"),
-		},
-		{
-			name:      "any operator with true",
-			fieldName: "topic",
-			queryParams: map[string]string{
-				"topic[any]": "true",
-			},
-			wantAny: true,
-		},
-		{
-			name:      "both contains and any",
-			fieldName: "topic",
-			queryParams: map[string]string{
-				"topic[contains]": "event",
-				"topic[any]":      "1",
-			},
-			wantContains: strPtr("event"),
-			wantAny:      true,
-		},
-	}
+func TestParseDateFilter_UnsupportedOperators(t *testing.T) {
+	unsupportedOps := []string{"gt", "lt", "any"}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c, _ := createTestContext(tt.queryParams)
+	for _, op := range unsupportedOps {
+		t.Run(op+" returns 400", func(t *testing.T) {
+			c, _ := createTestContext(map[string]string{
+				"time[" + op + "]": "2024-01-01T00:00:00Z",
+			})
 
-			result := apirouter.ParseStringFilter(c, tt.fieldName)
+			_, errResp := apirouter.ParseDateFilter(c, "time")
 
-			require.NotNil(t, result)
-			if tt.wantContains != nil {
-				require.NotNil(t, result.Contains)
-				assert.Equal(t, *tt.wantContains, *result.Contains)
-			} else {
-				assert.Nil(t, result.Contains)
-			}
-			assert.Equal(t, tt.wantAny, result.Any)
-		})
-	}
-}
-
-func TestParseNumberFilter(t *testing.T) {
-	tests := []struct {
-		name        string
-		fieldName   string
-		queryParams map[string]string
-		wantGTE     *float64
-		wantGT      *float64
-		wantLTE     *float64
-		wantLT      *float64
-		wantAny     bool
-		wantErrCode int
-	}{
-		{
-			name:        "no params returns empty result",
-			fieldName:   "count",
-			queryParams: map[string]string{},
-		},
-		{
-			name:      "gte param",
-			fieldName: "count",
-			queryParams: map[string]string{
-				"count[gte]": "10",
-			},
-			wantGTE: floatPtr(10),
-		},
-		{
-			name:      "gt param",
-			fieldName: "count",
-			queryParams: map[string]string{
-				"count[gt]": "5",
-			},
-			wantGT: floatPtr(5),
-		},
-		{
-			name:      "lte param",
-			fieldName: "count",
-			queryParams: map[string]string{
-				"count[lte]": "100",
-			},
-			wantLTE: floatPtr(100),
-		},
-		{
-			name:      "lt param",
-			fieldName: "count",
-			queryParams: map[string]string{
-				"count[lt]": "50",
-			},
-			wantLT: floatPtr(50),
-		},
-		{
-			name:      "float values",
-			fieldName: "score",
-			queryParams: map[string]string{
-				"score[gte]": "3.14",
-			},
-			wantGTE: floatPtr(3.14),
-		},
-		{
-			name:      "any operator",
-			fieldName: "count",
-			queryParams: map[string]string{
-				"count[any]": "true",
-			},
-			wantAny: true,
-		},
-		{
-			name:      "invalid gte format returns error",
-			fieldName: "count",
-			queryParams: map[string]string{
-				"count[gte]": "not-a-number",
-			},
-			wantErrCode: http.StatusUnprocessableEntity,
-		},
-		{
-			name:      "invalid gt format returns error",
-			fieldName: "count",
-			queryParams: map[string]string{
-				"count[gt]": "abc",
-			},
-			wantErrCode: http.StatusUnprocessableEntity,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c, _ := createTestContext(tt.queryParams)
-
-			result, errResp := apirouter.ParseNumberFilter(c, tt.fieldName)
-
-			if tt.wantErrCode != 0 {
-				require.NotNil(t, errResp)
-				assert.Equal(t, tt.wantErrCode, errResp.Code)
-				return
-			}
-
-			require.Nil(t, errResp)
-			require.NotNil(t, result)
-
-			assertFloatPtr(t, "GTE", tt.wantGTE, result.GTE)
-			assertFloatPtr(t, "GT", tt.wantGT, result.GT)
-			assertFloatPtr(t, "LTE", tt.wantLTE, result.LTE)
-			assertFloatPtr(t, "LT", tt.wantLT, result.LT)
-			assert.Equal(t, tt.wantAny, result.Any)
+			require.NotNil(t, errResp)
+			assert.Equal(t, http.StatusBadRequest, errResp.Code)
+			assert.Contains(t, errResp.Message, "not supported")
 		})
 	}
 }
@@ -526,29 +316,11 @@ func timePtr(t time.Time) *time.Time {
 	return &t
 }
 
-func strPtr(s string) *string {
-	return &s
-}
-
-func floatPtr(f float64) *float64 {
-	return &f
-}
-
 func assertTimePtr(t *testing.T, name string, want, got *time.Time) {
 	t.Helper()
 	if want != nil {
 		require.NotNil(t, got, "%s should not be nil", name)
 		assert.True(t, want.Equal(*got), "%s mismatch: want %v, got %v", name, want, got)
-	} else {
-		assert.Nil(t, got, "%s should be nil", name)
-	}
-}
-
-func assertFloatPtr(t *testing.T, name string, want, got *float64) {
-	t.Helper()
-	if want != nil {
-		require.NotNil(t, got, "%s should not be nil", name)
-		assert.Equal(t, *want, *got, "%s mismatch", name)
 	} else {
 		assert.Nil(t, got, "%s should be nil", name)
 	}
