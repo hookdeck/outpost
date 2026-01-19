@@ -2,7 +2,6 @@ package pglogstore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -67,11 +66,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 				return cursor.Encode(cursorResourceEvent, cursorVersion, e.TimeID)
 			},
 			Decode: func(c string) (string, error) {
-				pos, err := cursor.Decode(c, cursorResourceEvent, cursorVersion)
-				if err != nil {
-					return "", convertCursorError(err)
-				}
-				return pos, nil
+				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
 			},
 		},
 	})
@@ -218,11 +213,7 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 				return cursor.Encode(cursorResourceDelivery, cursorVersion, de.TimeDeliveryID)
 			},
 			Decode: func(c string) (string, error) {
-				pos, err := cursor.Decode(c, cursorResourceDelivery, cursorVersion)
-				if err != nil {
-					return "", convertCursorError(err)
-				}
-				return pos, nil
+				return cursor.Decode(c, cursorResourceDelivery, cursorVersion)
 			},
 		},
 	})
@@ -717,12 +708,4 @@ func deliveryArrays(deliveries []*models.Delivery, deliveryEvents []*models.Deli
 		manuals,
 		attempts,
 	}
-}
-
-// convertCursorError converts cursor package errors to driver errors.
-func convertCursorError(err error) error {
-	if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
-		return driver.ErrInvalidCursor
-	}
-	return err
 }

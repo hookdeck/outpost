@@ -3,7 +3,6 @@ package chlogstore
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -79,11 +78,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 				return cursor.Encode(cursorResourceEvent, cursorVersion, position)
 			},
 			Decode: func(c string) (string, error) {
-				pos, err := cursor.Decode(c, cursorResourceEvent, cursorVersion)
-				if err != nil {
-					return "", convertCursorError(err)
-				}
-				return pos, nil
+				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
 			},
 		},
 	})
@@ -289,11 +284,7 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 				return cursor.Encode(cursorResourceDelivery, cursorVersion, position)
 			},
 			Decode: func(c string) (string, error) {
-				pos, err := cursor.Decode(c, cursorResourceDelivery, cursorVersion)
-				if err != nil {
-					return "", convertCursorError(err)
-				}
-				return pos, nil
+				return cursor.Decode(c, cursorResourceDelivery, cursorVersion)
 			},
 		},
 	})
@@ -834,12 +825,4 @@ func buildDeliveryCursorCondition(compare, position string) (string, []interface
 	)`, compare, compare)
 
 	return condition, []interface{}{deliveryTimeMs, deliveryTimeMs, deliveryID}
-}
-
-// convertCursorError converts cursor package errors to driver errors.
-func convertCursorError(err error) error {
-	if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
-		return driver.ErrInvalidCursor
-	}
-	return err
 }

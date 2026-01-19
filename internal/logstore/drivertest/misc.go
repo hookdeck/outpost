@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
@@ -447,7 +448,7 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 					Limit:     10,
 				})
 				require.Error(t, err)
-				assert.True(t, errors.Is(err, driver.ErrInvalidCursor), "expected driver.ErrInvalidCursor, got: %v", err)
+				assert.True(t, errors.Is(err, cursor.ErrInvalidCursor), "expected cursor.ErrInvalidCursor, got: %v", err)
 			})
 		}
 	})

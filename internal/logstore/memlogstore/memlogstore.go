@@ -2,7 +2,6 @@ package memlogstore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -124,11 +123,7 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 				return cursor.Encode(cursorResourceEvent, cursorVersion, e.timeID)
 			},
 			Decode: func(c string) (string, error) {
-				pos, err := cursor.Decode(c, cursorResourceEvent, cursorVersion)
-				if err != nil {
-					return "", convertCursorError(err)
-				}
-				return pos, nil
+				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
 			},
 		},
 	})
@@ -303,11 +298,7 @@ func (s *memLogStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeli
 				return cursor.Encode(cursorResourceDelivery, cursorVersion, de.timeID)
 			},
 			Decode: func(c string) (string, error) {
-				pos, err := cursor.Decode(c, cursorResourceDelivery, cursorVersion)
-				if err != nil {
-					return "", convertCursorError(err)
-				}
-				return pos, nil
+				return cursor.Decode(c, cursorResourceDelivery, cursorVersion)
 			},
 		},
 	})
@@ -468,14 +459,6 @@ func copyDelivery(d *models.Delivery) *models.Delivery {
 	}
 
 	return copied
-}
-
-// convertCursorError converts cursor package errors to driver errors.
-func convertCursorError(err error) error {
-	if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
-		return driver.ErrInvalidCursor
-	}
-	return err
 }
 
 // makeTimeID creates a sortable string from time and ID, similar to pglogstore's time_id.
