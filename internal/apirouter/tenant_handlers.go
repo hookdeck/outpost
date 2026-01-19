@@ -103,28 +103,10 @@ func (h *TenantHandlers) List(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate order_by (only created_at is allowed for tenants)
-	orderBy, errResp := ParseOrderBy(c, []string{"created_at"})
-	if errResp != nil {
-		AbortWithError(c, errResp.Code, *errResp)
-		return
-	}
-	// order_by is informational only for tenants (always sorts by created_at)
-	_ = orderBy
-
-	// Parse created_at date filters
-	createdAtFilter, errResp := ParseDateFilter(c, "created_at")
-	if errResp != nil {
-		AbortWithError(c, errResp.Code, *errResp)
-		return
-	}
-
 	req := models.ListTenantRequest{
-		Next:         c.Query("next"),
-		Prev:         c.Query("prev"),
-		Dir:          dir,
-		CreatedAtGTE: createdAtFilter.GTE,
-		CreatedAtLTE: createdAtFilter.LTE,
+		Next: c.Query("next"),
+		Prev: c.Query("prev"),
+		Dir:  dir,
 	}
 
 	// Parse limit if provided
