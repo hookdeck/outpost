@@ -1,12 +1,14 @@
 package apirouter
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
@@ -269,6 +271,10 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 
 	response, err := h.logStore.ListDeliveryEvent(c.Request.Context(), req)
 	if err != nil {
+		if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
+			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+			return
+		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
@@ -431,6 +437,10 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 
 	response, err := h.logStore.ListEvent(c.Request.Context(), req)
 	if err != nil {
+		if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
+			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+			return
+		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
