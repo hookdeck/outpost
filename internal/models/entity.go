@@ -895,7 +895,7 @@ func (s *entityStoreImpl) parseTenantTopics(destinationSummaryList []Destination
 	}
 
 	if all {
-		return s.availableTopics
+		return []string{"*"}
 	}
 
 	topics := make([]string, 0, len(topicsSet))

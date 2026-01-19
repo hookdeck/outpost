@@ -542,10 +542,12 @@ func (s *EntityTestSuite) TestMultiDestinationRetrieveTenantDestinationsCount() 
 func (s *EntityTestSuite) TestMultiDestinationRetrieveTenantTopics() {
 	data := s.setupMultiDestination()
 
+	// destinations[0] has topics ["*"], so tenant.Topics should be ["*"]
 	tenant, err := s.entityStore.RetrieveTenant(s.ctx, data.tenant.ID)
 	require.NoError(s.T(), err)
-	require.Equal(s.T(), []string{"user.created", "user.deleted", "user.updated"}, tenant.Topics)
+	require.Equal(s.T(), []string{"*"}, tenant.Topics)
 
+	// After deleting the wildcard destination, tenant.Topics should aggregate remaining topics
 	require.NoError(s.T(), s.entityStore.DeleteDestination(s.ctx, data.tenant.ID, data.destinations[0].ID))
 	tenant, err = s.entityStore.RetrieveTenant(s.ctx, data.tenant.ID)
 	require.NoError(s.T(), err)
