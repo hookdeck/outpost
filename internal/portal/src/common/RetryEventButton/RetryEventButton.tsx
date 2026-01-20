@@ -2,7 +2,7 @@ import React, { useCallback, useContext, useState, MouseEvent } from "react";
 import Button from "../Button/Button";
 import { ReplayIcon } from "../Icons";
 import { showToast } from "../Toast/Toast";
-import { ApiContext } from "../../app";
+import { ApiContext, formatError } from "../../app";
 
 interface RetryEventButtonProps {
   eventId: string;
@@ -35,12 +35,8 @@ const RetryEventButton: React.FC<RetryEventButtonProps> = ({
         );
         showToast("success", "Retry successful.");
         completed(true);
-      } catch (error: any) {
-        showToast(
-          "error",
-          "Retry failed. " +
-            `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
-        );
+      } catch (error: unknown) {
+        showToast("error", "Retry failed. " + formatError(error));
         completed(false);
       }
 

@@ -3,11 +3,7 @@ import Badge from "../../../common/Badge/Badge";
 import Button from "../../../common/Button/Button";
 import "./Deliveries.scss";
 import Table from "../../../common/Table/Table";
-import {
-  DeliveryListResponse,
-  Delivery,
-  EventSummary,
-} from "../../../typings/Event";
+import { DeliveryListResponse, EventSummary } from "../../../typings/Event";
 import useSWR from "swr";
 import Dropdown from "../../../common/Dropdown/Dropdown";
 import {
@@ -87,8 +83,8 @@ const Deliveries: React.FC<DeliveriesProps> = ({
 
   const topicsList = CONFIGS.TOPICS.split(",");
 
-  const table_rows = deliveriesList?.data
-    ? deliveriesList.data.map((delivery) => {
+  const table_rows = deliveriesList?.models
+    ? deliveriesList.models.map((delivery) => {
         const event =
           typeof delivery.event === "object"
             ? (delivery.event as EventSummary)
@@ -135,7 +131,8 @@ const Deliveries: React.FC<DeliveriesProps> = ({
     <div className="destination-deliveries">
       <div className="destination-deliveries__header">
         <h2 className="destination-deliveries__header-title title-l">
-          Deliveries <Badge text={deliveriesList?.data.length ?? 0} size="s" />
+          Deliveries{" "}
+          <Badge text={deliveriesList?.models.length ?? 0} size="s" />
         </h2>
         <div className="destination-deliveries__header-filters">
           <Dropdown
@@ -259,7 +256,7 @@ const Deliveries: React.FC<DeliveriesProps> = ({
             <div className="table__footer">
               <div>
                 <span className="subtitle-s">
-                  {deliveriesList?.data.length ?? 0} deliveries
+                  {deliveriesList?.models.length ?? 0} deliveries
                 </span>
               </div>
 
@@ -267,16 +264,20 @@ const Deliveries: React.FC<DeliveriesProps> = ({
                 <Button
                   icon
                   iconLabel="Previous"
-                  disabled={!deliveriesList?.prev}
-                  onClick={() => pagination.prev(deliveriesList?.prev || "")}
+                  disabled={!deliveriesList?.pagination?.prev}
+                  onClick={() =>
+                    pagination.prev(deliveriesList?.pagination?.prev || "")
+                  }
                 >
                   <PreviousIcon />
                 </Button>
                 <Button
                   icon
                   iconLabel="Next"
-                  disabled={!deliveriesList?.next}
-                  onClick={() => pagination.next(deliveriesList?.next || "")}
+                  disabled={!deliveriesList?.pagination?.next}
+                  onClick={() =>
+                    pagination.next(deliveriesList?.pagination?.next || "")
+                  }
                 >
                   <NextIcon />
                 </Button>
