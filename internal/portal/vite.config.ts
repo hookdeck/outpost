@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 
 export default defineConfig(({ mode }) => {
-  let plugins: UserConfig["plugins"] = [react()];
+  const plugins: UserConfig["plugins"] = [react()];
 
   if (process.env.SENTRY_AUTH_TOKEN && mode === "production") {
     plugins.push(
@@ -28,9 +28,13 @@ export default defineConfig(({ mode }) => {
     plugins,
     server: {
       port: 3334,
-      // hmr: {
-      //   port: 3334,
-      // },
+      host: true,
+      watch: {
+        usePolling: true, // Required for Docker volume mounts
+      },
+      hmr: {
+        clientPort: 3334, // Ensure HMR WebSocket connects to the right port
+      },
     },
     build: {
       sourcemap: true,

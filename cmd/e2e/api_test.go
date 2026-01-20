@@ -168,7 +168,7 @@ func (suite *basicSuite) TestTenantsAPI() {
 					Body: map[string]interface{}{
 						"id":                 tenantID,
 						"destinations_count": 1,
-						"topics":             suite.config.Topics,
+						"topics":             []string{"*"},
 					},
 				},
 			},

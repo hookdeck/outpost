@@ -240,7 +240,7 @@ func TestTenantRetrievePortalHandler(t *testing.T) {
 	router, _, redisClient := setupTestRouter(t, apiKey, jwtSecret)
 	entityStore := setupTestEntityStore(t, redisClient, nil)
 
-	t.Run("should return redirect_url with tenant_id and tenant_id in body", func(t *testing.T) {
+	t.Run("should return redirect_url with token and tenant_id in body", func(t *testing.T) {
 		t.Parallel()
 
 		// Setup
@@ -261,7 +261,7 @@ func TestTenantRetrievePortalHandler(t *testing.T) {
 		// Test
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.NotEmpty(t, response["redirect_url"])
-		assert.Contains(t, response["redirect_url"], "tenant_id="+existingResource.ID)
+		assert.Contains(t, response["redirect_url"], "token=")
 		assert.Equal(t, existingResource.ID, response["tenant_id"])
 
 		// Cleanup
@@ -288,7 +288,7 @@ func TestTenantRetrievePortalHandler(t *testing.T) {
 
 		// Test
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, response["redirect_url"], "tenant_id="+existingResource.ID)
+		assert.Contains(t, response["redirect_url"], "token=")
 		assert.Contains(t, response["redirect_url"], "theme=dark")
 		assert.Equal(t, existingResource.ID, response["tenant_id"])
 

@@ -83,4 +83,10 @@
     font-size: var(--font-size-m);
     line-height: var(--line-height-m);
   }
+
+  &__flat-topic {
+    padding-left: var(--spacing-6);
+    margin-top: var(--spacing-3);
+    margin-bottom: var(--spacing-3);
+  }
 }

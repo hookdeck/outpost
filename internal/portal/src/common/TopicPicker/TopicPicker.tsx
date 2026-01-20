@@ -17,39 +17,32 @@ interface TopicPickerProps {
   onTopicsChange: (topics: string[]) => void;
 }
 
-const detectSeparator = (topics: string[]): string => {
-  // Common separators to check
-  const possibleSeparators = ["/", ".", "-"];
+const possibleSeparators = ["/", ".", "-"];
 
-  // Find the first separator that appears in all topics
-  // and is the first occurring separator in each topic
-  return (
-    possibleSeparators.find((sep) =>
-      topics.every((topic) => {
-        const sepIndex = topic.indexOf(sep);
-        if (sepIndex === -1) return false;
+const findFirstSeparator = (topic: string): string | null => {
+  let firstIndex = -1;
+  let firstSep: string | null = null;
 
-        // Check if any other separator appears before this one
-        const otherSepsIndex = possibleSeparators
-          .filter((s) => s !== sep)
-          .map((s) => topic.indexOf(s))
-          .filter((idx) => idx !== -1);
+  for (const sep of possibleSeparators) {
+    const idx = topic.indexOf(sep);
+    if (idx !== -1 && (firstIndex === -1 || idx < firstIndex)) {
+      firstIndex = idx;
+      firstSep = sep;
+    }
+  }
 
-        return otherSepsIndex.every((idx) => idx === -1 || idx > sepIndex);
-      }),
-    ) || "-"
-  ); // Fallback to '-' if no consistent separator is found
+  return firstSep;
 };
 
 const topics: Topic[] = (() => {
   const topicsList = CONFIGS.TOPICS.split(",");
-  const separator = detectSeparator(topicsList);
 
   return topicsList.map((topic) => {
-    const parts = topic.split(separator);
+    const separator = findFirstSeparator(topic);
+
     return {
       id: topic,
-      category: parts[0],
+      category: separator ? topic.split(separator)[0] : topic,
     };
   });
 })();
@@ -161,6 +154,28 @@ const TopicPicker = ({
           ).length;
           const areAllSelected = selectedCount === categoryTopics.length;
           const isIndeterminate = selectedCount > 0 && !areAllSelected;
+
+          // Check if this is a flat topic (no actual nesting)
+          const isFlatTopic =
+            categoryTopics.length === 1 && categoryTopics[0].id === category;
+
+          if (isFlatTopic) {
+            const topic = categoryTopics[0];
+            return (
+              <div key={category} className="topic-picker__flat-topic">
+                <Checkbox
+                  checked={
+                    isEverythingSelected ||
+                    selectedTopics.indexOf(topic.id) !== -1
+                  }
+                  onChange={() => toggleTopic(topic.id)}
+                  label={topic.id}
+                  monospace
+                  disabled={isEverythingSelected}
+                />
+              </div>
+            );
+          }
 
           return (
             <div key={category} className="topic-picker__category">
