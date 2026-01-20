@@ -143,6 +143,14 @@ func getErrorFields(err error) []zap.Field {
 		originalErr = err
 	}
 
+	// Handle nil error case (e.g., ErrorResponse with nil Err field)
+	if originalErr == nil {
+		return []zap.Field{
+			zap.String("error", "unknown error"),
+			zap.String("error_type", "nil"),
+		}
+	}
+
 	fields := []zap.Field{
 		zap.String("error", originalErr.Error()),
 		zap.String("error_type", fmt.Sprintf("%T", originalErr)),

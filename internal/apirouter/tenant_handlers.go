@@ -132,6 +132,7 @@ func (h *TenantHandlers) List(c *gin.Context) {
 		// Map errors to HTTP status codes
 		if errors.Is(err, models.ErrListTenantNotSupported) {
 			AbortWithError(c, http.StatusNotImplemented, ErrorResponse{
+				Err:     err,
 				Code:    http.StatusNotImplemented,
 				Message: err.Error(),
 			})
