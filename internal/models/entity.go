@@ -505,7 +505,7 @@ func (s *entityStoreImpl) fetchTenants(ctx context.Context, baseFilter string, q
 
 // parseSearchResult parses the FT.SEARCH result into a list of tenants.
 // Supports both RESP2 (array) and RESP3 (map) formats.
-func (s *entityStoreImpl) parseSearchResult(ctx context.Context, result interface{}) ([]Tenant, int, error) {
+func (s *entityStoreImpl) parseSearchResult(_ context.Context, result interface{}) ([]Tenant, int, error) {
 	// RESP3 format (go-redis v9): map with "total_results", "results", etc.
 	if resultMap, ok := result.(map[interface{}]interface{}); ok {
 		return s.parseResp3SearchResult(resultMap)
@@ -815,7 +815,7 @@ func (s *entityStoreImpl) UpsertDestination(ctx context.Context, destination Des
 		}
 
 		// Store filter if present
-		if destination.Filter != nil && len(destination.Filter) > 0 {
+		if len(destination.Filter) > 0 {
 			pipe.HSet(ctx, key, "filter", &destination.Filter)
 		} else {
 			pipe.HDel(ctx, key, "filter")
