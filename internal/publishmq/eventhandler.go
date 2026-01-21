@@ -181,6 +181,7 @@ func (h *eventHandler) enqueueDeliveryEvent(ctx context.Context, deliveryEvent m
 	if err := h.deliveryMQ.Publish(ctx, deliveryEvent); err != nil {
 		h.logger.Ctx(ctx).Error("failed to enqueue delivery event",
 			zap.Error(err),
+			zap.String("delivery_event_id", deliveryEvent.ID),
 			zap.String("event_id", deliveryEvent.Event.ID),
 			zap.String("tenant_id", deliveryEvent.Event.TenantID),
 			zap.String("destination_id", deliveryEvent.DestinationID))
@@ -190,6 +191,7 @@ func (h *eventHandler) enqueueDeliveryEvent(ctx context.Context, deliveryEvent m
 	}
 
 	h.logger.Ctx(ctx).Audit("delivery event enqueued",
+		zap.String("delivery_event_id", deliveryEvent.ID),
 		zap.String("event_id", deliveryEvent.Event.ID),
 		zap.String("tenant_id", deliveryEvent.Event.TenantID),
 		zap.String("destination_id", deliveryEvent.DestinationID))
