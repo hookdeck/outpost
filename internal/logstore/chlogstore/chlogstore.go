@@ -700,12 +700,18 @@ func (s *logStoreImpl) RetrieveDelivery(ctx context.Context, req driver.Retrieve
 	}, nil
 }
 
-func (s *logStoreImpl) InsertMany(ctx context.Context, events []*models.Event, deliveries []*models.Delivery) error {
-	if len(events) == 0 && len(deliveries) == 0 {
+func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntry) error {
+	if len(entries) == 0 {
 		return nil
 	}
 
-	if len(events) > 0 {
+	// Extract and dedupe events by ID
+	eventMap := make(map[string]*models.Event)
+	for _, entry := range entries {
+		eventMap[entry.Event.ID] = entry.Event
+	}
+
+	if len(eventMap) > 0 {
 		eventBatch, err := s.chDB.PrepareBatch(ctx,
 			fmt.Sprintf(`INSERT INTO %s (
 				event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data
@@ -715,7 +721,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, events []*models.Event, d
 			return fmt.Errorf("prepare events batch failed: %w", err)
 		}
 
-		for _, e := range events {
+		for _, e := range eventMap {
 			metadataJSON, err := json.Marshal(e.Metadata)
 			if err != nil {
 				return fmt.Errorf("failed to marshal metadata: %w", err)
@@ -744,72 +750,57 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, events []*models.Event, d
 		}
 	}
 
-	if len(deliveries) > 0 {
-		// Build a map of events for looking up event data when inserting deliveries
-		eventMap := make(map[string]*models.Event)
-		for _, e := range events {
-			eventMap[e.ID] = e
-		}
+	// Insert deliveries with their paired event data
+	deliveryBatch, err := s.chDB.PrepareBatch(ctx,
+		fmt.Sprintf(`INSERT INTO %s (
+			event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
+			delivery_id, status, delivery_time, code, response_data, manual, attempt
+		)`, s.deliveriesTable),
+	)
+	if err != nil {
+		return fmt.Errorf("prepare deliveries batch failed: %w", err)
+	}
 
-		deliveryBatch, err := s.chDB.PrepareBatch(ctx,
-			fmt.Sprintf(`INSERT INTO %s (
-				event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
-				delivery_id, status, delivery_time, code, response_data, manual, attempt
-			)`, s.deliveriesTable),
-		)
+	for _, entry := range entries {
+		event := entry.Event
+		d := entry.Delivery
+
+		metadataJSON, err := json.Marshal(event.Metadata)
 		if err != nil {
-			return fmt.Errorf("prepare deliveries batch failed: %w", err)
+			return fmt.Errorf("failed to marshal metadata: %w", err)
+		}
+		dataJSON, err := json.Marshal(event.Data)
+		if err != nil {
+			return fmt.Errorf("failed to marshal data: %w", err)
+		}
+		responseDataJSON, err := json.Marshal(d.ResponseData)
+		if err != nil {
+			return fmt.Errorf("failed to marshal response_data: %w", err)
 		}
 
-		for _, d := range deliveries {
-			event := eventMap[d.EventID]
-			if event == nil {
-				// If event not in current batch, use delivery's data as fallback
-				event = &models.Event{
-					ID:            d.EventID,
-					TenantID:      d.TenantID,
-					DestinationID: d.DestinationID,
-				}
-			}
-
-			metadataJSON, err := json.Marshal(event.Metadata)
-			if err != nil {
-				return fmt.Errorf("failed to marshal metadata: %w", err)
-			}
-			dataJSON, err := json.Marshal(event.Data)
-			if err != nil {
-				return fmt.Errorf("failed to marshal data: %w", err)
-			}
-			responseDataJSON, err := json.Marshal(d.ResponseData)
-			if err != nil {
-				return fmt.Errorf("failed to marshal response_data: %w", err)
-			}
-
-			// Use event.TenantID for tenant_id since it's denormalized from the event
-			if err := deliveryBatch.Append(
-				d.EventID,
-				event.TenantID, // Use event's TenantID, not delivery's
-				d.DestinationID,
-				event.Topic,
-				event.EligibleForRetry,
-				event.Time,
-				string(metadataJSON),
-				string(dataJSON),
-				d.ID,
-				d.Status,
-				d.Time,
-				d.Code,
-				string(responseDataJSON),
-				d.Manual,
-				uint32(d.Attempt),
-			); err != nil {
-				return fmt.Errorf("deliveries batch append failed: %w", err)
-			}
+		if err := deliveryBatch.Append(
+			d.EventID,
+			event.TenantID,
+			d.DestinationID,
+			event.Topic,
+			event.EligibleForRetry,
+			event.Time,
+			string(metadataJSON),
+			string(dataJSON),
+			d.ID,
+			d.Status,
+			d.Time,
+			d.Code,
+			string(responseDataJSON),
+			d.Manual,
+			uint32(d.Attempt),
+		); err != nil {
+			return fmt.Errorf("deliveries batch append failed: %w", err)
 		}
+	}
 
-		if err := deliveryBatch.Send(); err != nil {
-			return fmt.Errorf("deliveries batch send failed: %w", err)
-		}
+	if err := deliveryBatch.Send(); err != nil {
+		return fmt.Errorf("deliveries batch send failed: %w", err)
 	}
 
 	return nil

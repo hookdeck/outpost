@@ -18,7 +18,7 @@ var ErrInvalidLogEntry = errors.New("invalid log entry: both event and delivery 
 // LogStore defines the interface for persisting log entries.
 // This is a consumer-defined interface containing only what logmq needs.
 type LogStore interface {
-	InsertMany(ctx context.Context, events []*models.Event, deliveries []*models.Delivery) error
+	InsertMany(ctx context.Context, entries []*models.LogEntry) error
 }
 
 // BatchProcessorConfig configures the batch processor.
@@ -74,12 +74,11 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 	logger := bp.logger.Ctx(bp.ctx)
 	logger.Info("processing batch", zap.Int("message_count", len(msgs)))
 
-	events := make([]*models.Event, 0, len(msgs))
-	deliveries := make([]*models.Delivery, 0, len(msgs))
+	entries := make([]*models.LogEntry, 0, len(msgs))
 	validMsgs := make([]*mqs.Message, 0, len(msgs))
 
 	for _, msg := range msgs {
-		entry := models.LogEntry{}
+		entry := &models.LogEntry{}
 		if err := entry.FromMessage(msg); err != nil {
 			logger.Error("failed to parse log entry",
 				zap.Error(err),
@@ -99,21 +98,19 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 			continue
 		}
 
-		events = append(events, entry.Event)
-		deliveries = append(deliveries, entry.Delivery)
+		entries = append(entries, entry)
 		validMsgs = append(validMsgs, msg)
 	}
 
 	// Nothing valid to insert
-	if len(events) == 0 {
+	if len(entries) == 0 {
 		return
 	}
 
-	if err := bp.logStore.InsertMany(bp.ctx, events, deliveries); err != nil {
-		logger.Error("failed to insert events/deliveries",
+	if err := bp.logStore.InsertMany(bp.ctx, entries); err != nil {
+		logger.Error("failed to insert log entries",
 			zap.Error(err),
-			zap.Int("event_count", len(events)),
-			zap.Int("delivery_count", len(deliveries)))
+			zap.Int("entry_count", len(entries)))
 		for _, msg := range validMsgs {
 			msg.Nack()
 		}

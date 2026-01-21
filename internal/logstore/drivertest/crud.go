@@ -58,7 +58,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 				testutil.DeliveryFactory.WithTime(baseTime.Add(-30*time.Minute)),
 			)
 
-			err := logStore.InsertMany(ctx, []*models.Event{event}, []*models.Delivery{delivery})
+			err := logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Delivery: delivery}})
 			require.NoError(t, err)
 			require.NoError(t, h.FlushWrites(ctx))
 
@@ -91,8 +91,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 
 		t.Run("batch deliveries", func(t *testing.T) {
 			// Create 15 events spread across destinations and topics for filter testing
-			var events []*models.Event
-			var deliveries []*models.Delivery
+			var entries []*models.LogEntry
 
 			for i := range 15 {
 				destID := destinationIDs[i%len(destinationIDs)]
@@ -119,15 +118,14 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 					testutil.DeliveryFactory.WithTime(eventTime.Add(time.Millisecond)),
 				)
 
-				events = append(events, event)
-				deliveries = append(deliveries, delivery)
+				entries = append(entries, &models.LogEntry{Event: event, Delivery: delivery})
 				allDeliveries = append(allDeliveries, delivery)
 				destinationEvents[destID] = append(destinationEvents[destID], event)
 				topicEvents[topic] = append(topicEvents[topic], event)
 				statusDeliveries[status] = append(statusDeliveries[status], delivery)
 			}
 
-			err := logStore.InsertMany(ctx, events, deliveries)
+			err := logStore.InsertMany(ctx, entries)
 			require.NoError(t, err)
 			require.NoError(t, h.FlushWrites(ctx))
 
@@ -143,7 +141,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		})
 
 		t.Run("empty batch is no-op", func(t *testing.T) {
-			err := logStore.InsertMany(ctx, []*models.Event{}, []*models.Delivery{})
+			err := logStore.InsertMany(ctx, []*models.LogEntry{})
 			require.NoError(t, err)
 		})
 	})

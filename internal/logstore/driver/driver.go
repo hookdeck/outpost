@@ -21,7 +21,7 @@ type LogStore interface {
 	ListDelivery(context.Context, ListDeliveryRequest) (ListDeliveryResponse, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
 	RetrieveDelivery(ctx context.Context, request RetrieveDeliveryRequest) (*DeliveryRecord, error)
-	InsertMany(context.Context, []*models.Event, []*models.Delivery) error
+	InsertMany(context.Context, []*models.LogEntry) error
 }
 
 type ListEventRequest struct {

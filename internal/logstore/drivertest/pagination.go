@@ -73,13 +73,11 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 			},
 
 			InsertMany: func(ctx context.Context, items []*driver.DeliveryRecord) error {
-				events := make([]*models.Event, len(items))
-				deliveries := make([]*models.Delivery, len(items))
+				entries := make([]*models.LogEntry, len(items))
 				for i, dr := range items {
-					events[i] = dr.Event
-					deliveries[i] = dr.Delivery
+					entries[i] = &models.LogEntry{Event: dr.Event, Delivery: dr.Delivery}
 				}
-				return logStore.InsertMany(ctx, events, deliveries)
+				return logStore.InsertMany(ctx, entries)
 			},
 
 			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*driver.DeliveryRecord], error) {
@@ -164,13 +162,11 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 			},
 
 			InsertMany: func(ctx context.Context, items []*driver.DeliveryRecord) error {
-				events := make([]*models.Event, len(items))
-				deliveries := make([]*models.Delivery, len(items))
+				entries := make([]*models.LogEntry, len(items))
 				for i, dr := range items {
-					events[i] = dr.Event
-					deliveries[i] = dr.Delivery
+					entries[i] = &models.LogEntry{Event: dr.Event, Delivery: dr.Delivery}
 				}
-				return logStore.InsertMany(ctx, events, deliveries)
+				return logStore.InsertMany(ctx, entries)
 			},
 
 			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*driver.DeliveryRecord], error) {
@@ -238,20 +234,23 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 			},
 
 			InsertMany: func(ctx context.Context, items []*models.Event) error {
-				deliveries := make([]*models.Delivery, len(items))
+				entries := make([]*models.LogEntry, len(items))
 				for i, evt := range items {
 					deliveryTime := evt.Time.Add(100 * time.Millisecond)
-					deliveries[i] = &models.Delivery{
-						ID:            fmt.Sprintf("%s_del_%03d", idPrefix, i),
-						TenantID:      evt.TenantID,
-						EventID:       evt.ID,
-						DestinationID: evt.DestinationID,
-						Status:        "success",
-						Time:          deliveryTime,
-						Code:          "200",
+					entries[i] = &models.LogEntry{
+						Event: evt,
+						Delivery: &models.Delivery{
+							ID:            fmt.Sprintf("%s_del_%03d", idPrefix, i),
+							TenantID:      evt.TenantID,
+							EventID:       evt.ID,
+							DestinationID: evt.DestinationID,
+							Status:        "success",
+							Time:          deliveryTime,
+							Code:          "200",
+						},
 					}
 				}
-				return logStore.InsertMany(ctx, items, deliveries)
+				return logStore.InsertMany(ctx, entries)
 			},
 
 			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*models.Event], error) {
@@ -320,20 +319,23 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 			},
 
 			InsertMany: func(ctx context.Context, items []*models.Event) error {
-				deliveries := make([]*models.Delivery, len(items))
+				entries := make([]*models.LogEntry, len(items))
 				for i, evt := range items {
 					deliveryTime := evt.Time.Add(100 * time.Millisecond)
-					deliveries[i] = &models.Delivery{
-						ID:            fmt.Sprintf("%s_del_%03d", idPrefix, i),
-						TenantID:      evt.TenantID,
-						EventID:       evt.ID,
-						DestinationID: evt.DestinationID,
-						Status:        "success",
-						Time:          deliveryTime,
-						Code:          "200",
+					entries[i] = &models.LogEntry{
+						Event: evt,
+						Delivery: &models.Delivery{
+							ID:            fmt.Sprintf("%s_del_%03d", idPrefix, i),
+							TenantID:      evt.TenantID,
+							EventID:       evt.ID,
+							DestinationID: evt.DestinationID,
+							Status:        "success",
+							Time:          deliveryTime,
+							Code:          "200",
+						},
 					}
 				}
-				return logStore.InsertMany(ctx, items, deliveries)
+				return logStore.InsertMany(ctx, entries)
 			},
 
 			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*models.Event], error) {
@@ -445,7 +447,11 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 			allDeliveries = append(allDeliveries, delivery)
 		}
 
-		require.NoError(t, logStore.InsertMany(ctx, allEvents, allDeliveries))
+		entries := make([]*models.LogEntry, len(allEvents))
+		for i := range allEvents {
+			entries[i] = &models.LogEntry{Event: allEvents[i], Delivery: allDeliveries[i]}
+		}
+		require.NoError(t, logStore.InsertMany(ctx, entries))
 		require.NoError(t, h.FlushWrites(ctx))
 
 		t.Run("paginate within time-bounded window", func(t *testing.T) {

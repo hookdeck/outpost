@@ -77,7 +77,10 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		testutil.DeliveryFactory.WithTime(baseTime.Add(-5*time.Minute)),
 	)
 
-	require.NoError(t, logStore.InsertMany(ctx, []*models.Event{event1, event2}, []*models.Delivery{delivery1, delivery2}))
+	require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{
+		{Event: event1, Delivery: delivery1},
+		{Event: event2, Delivery: delivery2},
+	}))
 	require.NoError(t, h.FlushWrites(ctx))
 
 	t.Run("TenantIsolation", func(t *testing.T) {
@@ -192,8 +195,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		destinationID := idgen.Destination()
 		baseTime := time.Now().Truncate(time.Second)
 
-		var events []*models.Event
-		var deliveries []*models.Delivery
+		var entries []*models.LogEntry
 		for i := range 3 {
 			event := testutil.EventFactory.AnyPointer(
 				testutil.EventFactory.WithID(fmt.Sprintf("sort_evt_%d", i)),
@@ -208,10 +210,9 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 				testutil.DeliveryFactory.WithDestinationID(destinationID),
 				testutil.DeliveryFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
 			)
-			events = append(events, event)
-			deliveries = append(deliveries, delivery)
+			entries = append(entries, &models.LogEntry{Event: event, Delivery: delivery})
 		}
-		require.NoError(t, logStore.InsertMany(ctx, events, deliveries))
+		require.NoError(t, logStore.InsertMany(ctx, entries))
 
 		startTime := baseTime.Add(-48 * time.Hour)
 
@@ -244,7 +245,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			testutil.DeliveryFactory.WithEventID(event.ID),
 			testutil.DeliveryFactory.WithDestinationID(destinationID),
 		)
-		require.NoError(t, logStore.InsertMany(ctx, []*models.Event{event}, []*models.Delivery{delivery}))
+		require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Delivery: delivery}}))
 
 		t.Run("nil DestinationIDs equals empty DestinationIDs", func(t *testing.T) {
 			responseNil, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
@@ -302,7 +303,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 				testutil.DeliveryFactory.WithDestinationID(destinationID),
 				testutil.DeliveryFactory.WithTime(evt.Time),
 			)
-			require.NoError(t, logStore.InsertMany(ctx, []*models.Event{evt}, []*models.Delivery{delivery}))
+			require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{{Event: evt, Delivery: delivery}}))
 		}
 
 		t.Run("GTE is inclusive (>=)", func(t *testing.T) {
@@ -341,7 +342,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			testutil.DeliveryFactory.WithEventID(event.ID),
 			testutil.DeliveryFactory.WithDestinationID(destinationID),
 		)
-		require.NoError(t, logStore.InsertMany(ctx, []*models.Event{event}, []*models.Delivery{delivery}))
+		require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Delivery: delivery}}))
 
 		t.Run("modifying ListDelivery result doesn't affect subsequent queries", func(t *testing.T) {
 			response1, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
@@ -385,8 +386,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			testutil.DeliveryFactory.WithStatus("success"),
 			testutil.DeliveryFactory.WithTime(deliveryTime),
 		)
-		eventBatch := []*models.Event{event}
-		deliveryBatch := []*models.Delivery{delivery}
+		entries := []*models.LogEntry{{Event: event, Delivery: delivery}}
 
 		// Race N goroutines all inserting the same record
 		const numGoroutines = 10
@@ -395,7 +395,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				_ = logStore.InsertMany(ctx, eventBatch, deliveryBatch)
+				_ = logStore.InsertMany(ctx, entries)
 			}()
 		}
 		wg.Wait()
@@ -460,7 +460,7 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 				testutil.DeliveryFactory.WithDestinationID(destinationID),
 				testutil.DeliveryFactory.WithTime(baseTime.Add(time.Duration(i)*time.Second)),
 			)
-			require.NoError(t, logStore.InsertMany(ctx, []*models.Event{event}, []*models.Delivery{delivery}))
+			require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Delivery: delivery}}))
 		}
 		require.NoError(t, h.FlushWrites(ctx))
 

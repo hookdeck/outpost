@@ -21,13 +21,14 @@ type ListDeliveryResponse = driver.ListDeliveryResponse
 type RetrieveEventRequest = driver.RetrieveEventRequest
 type RetrieveDeliveryRequest = driver.RetrieveDeliveryRequest
 type DeliveryRecord = driver.DeliveryRecord
+type LogEntry = models.LogEntry
 
 type LogStore interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
 	ListDelivery(context.Context, ListDeliveryRequest) (ListDeliveryResponse, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
 	RetrieveDelivery(ctx context.Context, request RetrieveDeliveryRequest) (*DeliveryRecord, error)
-	InsertMany(context.Context, []*models.Event, []*models.Delivery) error
+	InsertMany(context.Context, []*models.LogEntry) error
 }
 
 type DriverOpts struct {

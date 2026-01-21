@@ -528,9 +528,25 @@ func (s *logStore) RetrieveDelivery(ctx context.Context, req driver.RetrieveDeli
 	}, nil
 }
 
-func (s *logStore) InsertMany(ctx context.Context, events []*models.Event, deliveries []*models.Delivery) error {
-	if len(events) == 0 && len(deliveries) == 0 {
+func (s *logStore) InsertMany(ctx context.Context, entries []*models.LogEntry) error {
+	if len(entries) == 0 {
 		return nil
+	}
+
+	// Extract and dedupe events by ID
+	eventMap := make(map[string]*models.Event)
+	for _, entry := range entries {
+		eventMap[entry.Event.ID] = entry.Event
+	}
+	events := make([]*models.Event, 0, len(eventMap))
+	for _, e := range eventMap {
+		events = append(events, e)
+	}
+
+	// Extract deliveries
+	deliveries := make([]*models.Delivery, 0, len(entries))
+	for _, entry := range entries {
+		deliveries = append(deliveries, entry.Delivery)
 	}
 
 	tx, err := s.db.Begin(ctx)

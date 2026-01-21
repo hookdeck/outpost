@@ -72,7 +72,7 @@ func TestListDeliveries(t *testing.T) {
 			testutil.DeliveryFactory.WithTime(deliveryTime),
 		)
 
-		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{event}, []*models.Delivery{delivery}))
+		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Delivery: delivery}}))
 
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries", nil)
@@ -213,7 +213,7 @@ func TestListDeliveries(t *testing.T) {
 			"status": float64(200),
 		}
 
-		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{event}, []*models.Delivery{delivery}))
+		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Delivery: delivery}}))
 
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?include=response_data", nil)
@@ -329,7 +329,7 @@ func TestRetrieveDelivery(t *testing.T) {
 		testutil.DeliveryFactory.WithTime(deliveryTime),
 	)
 
-	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{event}, []*models.Delivery{delivery}))
+	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Delivery: delivery}}))
 
 	t.Run("should retrieve delivery by ID", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -444,7 +444,7 @@ func TestRetrieveEvent(t *testing.T) {
 		testutil.DeliveryFactory.WithTime(deliveryTime),
 	)
 
-	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{event}, []*models.Delivery{delivery}))
+	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Delivery: delivery}}))
 
 	t.Run("should retrieve event by ID", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -541,7 +541,7 @@ func TestListEvents(t *testing.T) {
 			testutil.DeliveryFactory.WithTime(deliveryTime),
 		)
 
-		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{event}, []*models.Delivery{delivery}))
+		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Delivery: delivery}}))
 
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events", nil)

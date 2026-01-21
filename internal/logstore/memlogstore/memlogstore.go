@@ -186,17 +186,16 @@ func (s *memLogStore) matchesEventFilter(event *models.Event, req driver.ListEve
 	return true
 }
 
-func (s *memLogStore) InsertMany(ctx context.Context, events []*models.Event, deliveries []*models.Delivery) error {
+func (s *memLogStore) InsertMany(ctx context.Context, entries []*models.LogEntry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Insert events (dedupe by ID)
-	for _, event := range events {
-		s.events[event.ID] = copyEvent(event)
-	}
+	for _, entry := range entries {
+		// Insert event (dedupe by ID)
+		s.events[entry.Event.ID] = copyEvent(entry.Event)
 
-	// Insert deliveries (idempotent upsert: match on event_id + delivery_id)
-	for _, d := range deliveries {
+		// Insert delivery (idempotent upsert: match on event_id + delivery_id)
+		d := entry.Delivery
 		copied := copyDelivery(d)
 
 		found := false

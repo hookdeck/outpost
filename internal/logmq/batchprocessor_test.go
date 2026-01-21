@@ -16,27 +16,29 @@ import (
 )
 
 type mockLogStore struct {
-	mu         sync.Mutex
-	events     []*models.Event
-	deliveries []*models.Delivery
-	err        error
+	mu      sync.Mutex
+	entries []*models.LogEntry
+	err     error
 }
 
-func (m *mockLogStore) InsertMany(ctx context.Context, events []*models.Event, deliveries []*models.Delivery) error {
+func (m *mockLogStore) InsertMany(ctx context.Context, entries []*models.LogEntry) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.err != nil {
 		return m.err
 	}
-	m.events = append(m.events, events...)
-	m.deliveries = append(m.deliveries, deliveries...)
+	m.entries = append(m.entries, entries...)
 	return nil
 }
 
 func (m *mockLogStore) getInserted() (events []*models.Event, deliveries []*models.Delivery) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.events, m.deliveries
+	for _, entry := range m.entries {
+		events = append(events, entry.Event)
+		deliveries = append(deliveries, entry.Delivery)
+	}
+	return events, deliveries
 }
 
 // mockQueueMessage implements mqs.QueueMessage for testing.
