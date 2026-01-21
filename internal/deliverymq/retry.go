@@ -46,8 +46,8 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		if err := retryTask.FromString(msg); err != nil {
 			return err
 		}
-		deliveryEvent := retryTask.ToDeliveryEvent()
-		if err := deliverymq.Publish(ctx, deliveryEvent); err != nil {
+		deliveryTask := retryTask.ToDeliveryTask()
+		if err := deliverymq.Publish(ctx, deliveryTask); err != nil {
 			return err
 		}
 		return nil
@@ -56,13 +56,14 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 	return scheduler.New("deliverymq-retry", rsmqClient, exec, scheduler.WithPollBackoff(pollBackoff)), nil
 }
 
+// RetryTask contains the minimal info needed to retry a delivery.
+// The full Event data will be fetched from logstore when the retry executes.
 type RetryTask struct {
-	DeliveryEventID string
-	EventID         string
-	TenantID        string
-	DestinationID   string
-	Attempt         int
-	Telemetry       *models.DeliveryEventTelemetry
+	EventID       string
+	TenantID      string
+	DestinationID string
+	Attempt       int
+	Telemetry     *models.DeliveryEventTelemetry
 }
 
 func (m *RetryTask) ToString() (string, error) {
@@ -77,9 +78,8 @@ func (m *RetryTask) FromString(str string) error {
 	return json.Unmarshal([]byte(str), &m)
 }
 
-func (m *RetryTask) ToDeliveryEvent() models.DeliveryEvent {
-	return models.DeliveryEvent{
-		ID:            m.DeliveryEventID,
+func (m *RetryTask) ToDeliveryTask() models.DeliveryTask {
+	return models.DeliveryTask{
 		Attempt:       m.Attempt,
 		DestinationID: m.DestinationID,
 		Event:         models.Event{ID: m.EventID, TenantID: m.TenantID},
@@ -87,13 +87,12 @@ func (m *RetryTask) ToDeliveryEvent() models.DeliveryEvent {
 	}
 }
 
-func RetryTaskFromDeliveryEvent(deliveryEvent models.DeliveryEvent) RetryTask {
+func RetryTaskFromDeliveryTask(task models.DeliveryTask) RetryTask {
 	return RetryTask{
-		DeliveryEventID: deliveryEvent.ID,
-		EventID:         deliveryEvent.Event.ID,
-		TenantID:        deliveryEvent.Event.TenantID,
-		DestinationID:   deliveryEvent.DestinationID,
-		Attempt:         deliveryEvent.Attempt + 1,
-		Telemetry:       deliveryEvent.Telemetry,
+		EventID:       task.Event.ID,
+		TenantID:      task.Event.TenantID,
+		DestinationID: task.DestinationID,
+		Attempt:       task.Attempt + 1,
+		Telemetry:     task.Telemetry,
 	}
 }

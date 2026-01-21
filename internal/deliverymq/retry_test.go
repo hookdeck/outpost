@@ -150,12 +150,11 @@ func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
 
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
+	require.NoError(t, suite.deliveryMQ.Publish(ctx, task))
 
 	<-ctx.Done()
 	assert.Equal(t, 1, publisher.Current(), "should only attempt once when retry is not eligible")
@@ -213,12 +212,11 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
 
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
+	require.NoError(t, suite.deliveryMQ.Publish(ctx, task))
 
 	// Wait for all attempts to complete
 	// Note: 50ms backoff + 10ms poll interval = fast, deterministic retries
@@ -271,12 +269,11 @@ func TestDeliveryMQRetry_SystemError(t *testing.T) {
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
 
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
+	require.NoError(t, suite.deliveryMQ.Publish(ctx, task))
 
 	<-ctx.Done()
 	assert.Greater(t, destGetter.current, 1, "handler should execute multiple times on system error")
@@ -341,12 +338,11 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 	suite.SetupTest(t)
 	defer suite.TeardownTest(t)
 
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	require.NoError(t, suite.deliveryMQ.Publish(ctx, deliveryEvent))
+	require.NoError(t, suite.deliveryMQ.Publish(ctx, task))
 
 	// Poll until we get 3 attempts or timeout
 	// With 50ms backoff + 10ms poll: initial + 60ms + retry + 60ms + retry = ~150ms minimum

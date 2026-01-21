@@ -53,11 +53,11 @@ func TestAlertMonitor_ConsecutiveFailures_MaxFailures(t *testing.T) {
 
 	dest := &alert.AlertDestination{ID: "dest_1", TenantID: "tenant_1"}
 	event := &models.Event{Topic: "test.event"}
-	deliveryEvent := &models.DeliveryEvent{Event: *event}
+	task := &models.DeliveryTask{Event: *event}
 	attempt := alert.DeliveryAttempt{
-		Success:       false,
-		DeliveryEvent: deliveryEvent,
-		Destination:   dest,
+		Success:      false,
+		DeliveryTask: task,
+		Destination:  dest,
 		DeliveryResponse: map[string]interface{}{
 			"status": "500",
 			"data":   map[string]any{"error": "test error"},
@@ -120,11 +120,11 @@ func TestAlertMonitor_ConsecutiveFailures_Reset(t *testing.T) {
 
 	dest := &alert.AlertDestination{ID: "dest_1", TenantID: "tenant_1"}
 	event := &models.Event{Topic: "test.event"}
-	deliveryEvent := &models.DeliveryEvent{Event: *event}
+	task := &models.DeliveryTask{Event: *event}
 	failedAttempt := alert.DeliveryAttempt{
-		Success:       false,
-		DeliveryEvent: deliveryEvent,
-		Destination:   dest,
+		Success:      false,
+		DeliveryTask: task,
+		Destination:  dest,
 		DeliveryResponse: map[string]interface{}{
 			"status": "500",
 			"data":   map[string]any{"error": "test error"},
@@ -193,11 +193,11 @@ func TestAlertMonitor_ConsecutiveFailures_AboveThreshold(t *testing.T) {
 
 	dest := &alert.AlertDestination{ID: "dest_above", TenantID: "tenant_above"}
 	event := &models.Event{Topic: "test.event"}
-	deliveryEvent := &models.DeliveryEvent{Event: *event}
+	task := &models.DeliveryTask{Event: *event}
 	attempt := alert.DeliveryAttempt{
-		Success:       false,
-		DeliveryEvent: deliveryEvent,
-		Destination:   dest,
+		Success:      false,
+		DeliveryTask: task,
+		Destination:  dest,
 		DeliveryResponse: map[string]interface{}{
 			"status": "500",
 		},

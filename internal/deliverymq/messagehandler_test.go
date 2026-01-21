@@ -61,12 +61,11 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -124,12 +123,11 @@ func TestMessageHandler_DestinationNotFound(t *testing.T) {
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -184,12 +182,11 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -254,12 +251,11 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -269,7 +265,7 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	assert.False(t, mockMsg.nacked, "message should not be nacked when scheduling retry")
 	assert.True(t, mockMsg.acked, "message should be acked when scheduling retry")
 	assert.Len(t, retryScheduler.schedules, 1, "retry should be scheduled")
-	assert.Equal(t, deliveryEvent.GetRetryID(), retryScheduler.taskIDs[0],
+	assert.Equal(t, models.RetryID(task.Event.ID, task.DestinationID), retryScheduler.taskIDs[0],
 		"should use GetRetryID for task ID")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
 	assert.Equal(t, models.DeliveryStatusFailed, logPublisher.entries[0].Delivery.Status, "delivery status should be Failed")
@@ -327,12 +323,11 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -390,8 +385,7 @@ func TestMessageHandler_EventGetterError(t *testing.T) {
 	)
 
 	// Create and handle message simulating a retry
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Attempt:       2, // Retry attempt
 		DestinationID: destination.ID,
 		Event: models.Event{
@@ -400,7 +394,7 @@ func TestMessageHandler_EventGetterError(t *testing.T) {
 			// Minimal event data as it would be in a retry
 		},
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -455,8 +449,7 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 	)
 
 	// Create and handle message simulating a retry
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Attempt:       2, // Retry attempt
 		DestinationID: destination.ID,
 		Event: models.Event{
@@ -465,7 +458,7 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 			// Minimal event data as it would be in a retry
 		},
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -522,24 +515,22 @@ func TestMessageHandler_Idempotency(t *testing.T) {
 		idempotence.New(redis, idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
-	// Create message with fixed ID for idempotency check
-	messageID := idgen.DeliveryEvent()
-	deliveryEvent := models.DeliveryEvent{
-		ID:            messageID,
+	// Create message for idempotency check
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
 
 	// First attempt
-	mockMsg1, msg1 := newDeliveryMockMessage(deliveryEvent)
+	mockMsg1, msg1 := newDeliveryMockMessage(task)
 	err := handler.Handle(context.Background(), msg1)
 	require.NoError(t, err)
 	assert.True(t, mockMsg1.acked, "first attempt should be acked")
 	assert.False(t, mockMsg1.nacked, "first attempt should not be nacked")
 	assert.Equal(t, 1, publisher.current, "first attempt should publish")
 
-	// Second attempt with same message ID
-	mockMsg2, msg2 := newDeliveryMockMessage(deliveryEvent)
+	// Second attempt with same task
+	mockMsg2, msg2 := newDeliveryMockMessage(task)
 	err = handler.Handle(context.Background(), msg2)
 	require.NoError(t, err)
 	assert.True(t, mockMsg2.acked, "duplicate should be acked")
@@ -590,8 +581,7 @@ func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 	)
 
 	// Create retry message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Attempt:       2,
 		DestinationID: destination.ID,
 		Event: models.Event{
@@ -601,7 +591,7 @@ func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 	}
 
 	// First attempt - should fail with system error
-	mockMsg1, msg1 := newDeliveryMockMessage(deliveryEvent)
+	mockMsg1, msg1 := newDeliveryMockMessage(task)
 	err := handler.Handle(context.Background(), msg1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get event")
@@ -612,8 +602,8 @@ func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 	// Clear the error for second attempt
 	eventGetter.clearError()
 
-	// Second attempt with same message ID - should succeed
-	mockMsg2, msg2 := newDeliveryMockMessage(deliveryEvent)
+	// Second attempt with same task - should succeed
+	mockMsg2, msg2 := newDeliveryMockMessage(task)
 	err = handler.Handle(context.Background(), msg2)
 	require.NoError(t, err)
 	assert.True(t, mockMsg2.acked, "second attempt should be acked")
@@ -666,12 +656,11 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -728,12 +717,11 @@ func TestMessageHandler_LogPublisherError(t *testing.T) {
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -789,12 +777,11 @@ func TestMessageHandler_PublishAndLogError(t *testing.T) {
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -856,26 +843,24 @@ func TestManualDelivery_Success(t *testing.T) {
 	)
 
 	// Step 1: Automatic delivery fails and schedules retry
-	autoDeliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	autoTask := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 		Manual:        false,
 	}
-	_, autoMsg := newDeliveryMockMessage(autoDeliveryEvent)
+	_, autoMsg := newDeliveryMockMessage(autoTask)
 	_ = handler.Handle(context.Background(), autoMsg)
 
 	require.Len(t, retryScheduler.taskIDs, 1, "should schedule one retry")
 	scheduledRetryID := retryScheduler.taskIDs[0]
 
 	// Step 2: Manual retry succeeds and cancels pending retry
-	manualDeliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(), // New delivery event ID
-		Event:         event,                 // Same event
-		DestinationID: destination.ID,        // Same destination
+	manualTask := models.DeliveryTask{
+		Event:         event,          // Same event
+		DestinationID: destination.ID, // Same destination
 		Manual:        true,
 	}
-	mockMsg, manualMsg := newDeliveryMockMessage(manualDeliveryEvent)
+	mockMsg, manualMsg := newDeliveryMockMessage(manualTask)
 	err := handler.Handle(context.Background(), manualMsg)
 	require.NoError(t, err)
 
@@ -940,13 +925,12 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 		Manual:        true, // Manual delivery
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -1005,13 +989,12 @@ func TestManualDelivery_CancelError(t *testing.T) {
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 		Manual:        true, // Manual delivery
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -1023,7 +1006,7 @@ func TestManualDelivery_CancelError(t *testing.T) {
 	assert.False(t, mockMsg.acked, "message should not be acked on retry cancel error")
 	assert.Equal(t, 1, publisher.current, "should publish once")
 	assert.Len(t, retryScheduler.canceled, 1, "should attempt to cancel retry")
-	assert.Equal(t, deliveryEvent.GetRetryID(), retryScheduler.canceled[0], "should cancel with correct retry ID")
+	assert.Equal(t, models.RetryID(task.Event.ID, task.DestinationID), retryScheduler.canceled[0], "should cancel with correct retry ID")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
 	assert.Equal(t, models.DeliveryStatusSuccess, logPublisher.entries[0].Delivery.Status, "delivery status should be OK despite cancel error")
 	assertAlertMonitor(t, alertMonitor, true, &destination, nil)
@@ -1072,13 +1055,12 @@ func TestManualDelivery_DestinationDisabled(t *testing.T) {
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 		Manual:        true, // Manual delivery
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -1124,7 +1106,7 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 	alertMonitor.On("HandleAttempt", mock.Anything, mock.MatchedBy(func(attempt alert.DeliveryAttempt) bool {
 		return attempt.Success && // Should be a successful attempt
 			attempt.Destination.ID == destination.ID && // Should have correct destination
-			attempt.DeliveryEvent != nil && // Should have delivery event
+			attempt.DeliveryTask != nil && // Should have delivery task
 			attempt.DeliveryResponse == nil // No error data for success
 	})).Return(nil)
 
@@ -1144,12 +1126,11 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -1204,12 +1185,11 @@ func TestMessageHandler_AlertMonitorError(t *testing.T) {
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -1251,7 +1231,7 @@ func assertAlertMonitor(t *testing.T, m *mockAlertMonitor, success bool, destina
 
 	assert.Equal(t, success, attempt.Success, "alert attempt success should match")
 	assert.Equal(t, destination.ID, attempt.Destination.ID, "alert attempt destination should match")
-	assert.NotNil(t, attempt.DeliveryEvent, "alert attempt should have delivery event")
+	assert.NotNil(t, attempt.DeliveryTask, "alert attempt should have delivery task")
 
 	if expectedData != nil {
 		assert.Equal(t, expectedData, attempt.DeliveryResponse, "alert attempt data should match")
@@ -1316,21 +1296,19 @@ func TestMessageHandler_RetryID_MultipleDestinations(t *testing.T) {
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
-	// Create delivery events for SAME event to DIFFERENT destinations
-	deliveryEvent1 := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	// Create delivery tasks for SAME event to DIFFERENT destinations
+	task1 := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination1.ID,
 	}
-	deliveryEvent2 := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task2 := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination2.ID,
 	}
 
 	// Handle both messages
-	_, msg1 := newDeliveryMockMessage(deliveryEvent1)
-	_, msg2 := newDeliveryMockMessage(deliveryEvent2)
+	_, msg1 := newDeliveryMockMessage(task1)
+	_, msg2 := newDeliveryMockMessage(task2)
 
 	_ = handler.Handle(context.Background(), msg1)
 	_ = handler.Handle(context.Background(), msg2)

@@ -217,9 +217,9 @@ type mockMessage struct {
 	nacked bool
 }
 
-func newDeliveryMockMessage(deliveryEvent models.DeliveryEvent) (*mockMessage, *mqs.Message) {
-	mock := &mockMessage{id: deliveryEvent.ID}
-	body, err := json.Marshal(deliveryEvent)
+func newDeliveryMockMessage(task models.DeliveryTask) (*mockMessage, *mqs.Message) {
+	mock := &mockMessage{id: task.IdempotencyKey()}
+	body, err := json.Marshal(task)
 	if err != nil {
 		panic(err)
 	}

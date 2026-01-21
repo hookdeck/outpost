@@ -78,10 +78,10 @@ func (h *RetryHandlers) RetryDelivery(c *gin.Context) {
 		return
 	}
 
-	// 3. Create and publish retry delivery event
-	retryDeliveryEvent := models.NewManualDeliveryEvent(*deliveryRecord.Event, deliveryRecord.Delivery.DestinationID)
+	// 3. Create and publish manual delivery task
+	task := models.NewManualDeliveryTask(*deliveryRecord.Event, deliveryRecord.Delivery.DestinationID)
 
-	if err := h.deliveryMQ.Publish(c.Request.Context(), retryDeliveryEvent); err != nil {
+	if err := h.deliveryMQ.Publish(c.Request.Context(), task); err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
