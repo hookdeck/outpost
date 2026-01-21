@@ -3,7 +3,6 @@ package apirouter_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -58,14 +57,7 @@ func TestRetryDelivery(t *testing.T) {
 		testutil.DeliveryFactory.WithTime(deliveryTime),
 	)
 
-	de := &models.DeliveryEvent{
-		ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
-		DestinationID: destinationID,
-		Event:         *event,
-		Delivery:      delivery,
-	}
-
-	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{&de.Event}, []*models.Delivery{de.Delivery}))
+	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{event}, []*models.Delivery{delivery}))
 
 	t.Run("should retry delivery successfully", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -128,14 +120,7 @@ func TestRetryDelivery(t *testing.T) {
 			testutil.DeliveryFactory.WithTime(deliveryTime),
 		)
 
-		disabledDE := &models.DeliveryEvent{
-			ID:            fmt.Sprintf("%s_%s", disabledEventID, disabledDeliveryID),
-			DestinationID: disabledDestinationID,
-			Event:         *disabledEvent,
-			Delivery:      disabledDelivery,
-		}
-
-		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{&disabledDE.Event}, []*models.Delivery{disabledDE.Delivery}))
+		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{disabledEvent}, []*models.Delivery{disabledDelivery}))
 
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/deliveries/"+disabledDeliveryID+"/retry", nil)

@@ -3,7 +3,6 @@ package apirouter_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -73,14 +72,7 @@ func TestListDeliveries(t *testing.T) {
 			testutil.DeliveryFactory.WithTime(deliveryTime),
 		)
 
-		de := &models.DeliveryEvent{
-			ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
-			DestinationID: destinationID,
-			Event:         *event,
-			Delivery:      delivery,
-		}
-
-		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{&de.Event}, []*models.Delivery{de.Delivery}))
+		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{event}, []*models.Delivery{delivery}))
 
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries", nil)
@@ -221,14 +213,7 @@ func TestListDeliveries(t *testing.T) {
 			"status": float64(200),
 		}
 
-		de := &models.DeliveryEvent{
-			ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
-			DestinationID: destinationID,
-			Event:         *event,
-			Delivery:      delivery,
-		}
-
-		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{&de.Event}, []*models.Delivery{de.Delivery}))
+		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{event}, []*models.Delivery{delivery}))
 
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/deliveries?include=response_data", nil)
@@ -344,14 +329,7 @@ func TestRetrieveDelivery(t *testing.T) {
 		testutil.DeliveryFactory.WithTime(deliveryTime),
 	)
 
-	de := &models.DeliveryEvent{
-		ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
-		DestinationID: destinationID,
-		Event:         *event,
-		Delivery:      delivery,
-	}
-
-	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{&de.Event}, []*models.Delivery{de.Delivery}))
+	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{event}, []*models.Delivery{delivery}))
 
 	t.Run("should retrieve delivery by ID", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -466,14 +444,7 @@ func TestRetrieveEvent(t *testing.T) {
 		testutil.DeliveryFactory.WithTime(deliveryTime),
 	)
 
-	de := &models.DeliveryEvent{
-		ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
-		DestinationID: destinationID,
-		Event:         *event,
-		Delivery:      delivery,
-	}
-
-	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{&de.Event}, []*models.Delivery{de.Delivery}))
+	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{event}, []*models.Delivery{delivery}))
 
 	t.Run("should retrieve event by ID", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -570,14 +541,7 @@ func TestListEvents(t *testing.T) {
 			testutil.DeliveryFactory.WithTime(deliveryTime),
 		)
 
-		de := &models.DeliveryEvent{
-			ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
-			DestinationID: destinationID,
-			Event:         *event,
-			Delivery:      delivery,
-		}
-
-		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{&de.Event}, []*models.Delivery{de.Delivery}))
+		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{event}, []*models.Delivery{delivery}))
 
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events", nil)

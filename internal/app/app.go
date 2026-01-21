@@ -175,15 +175,13 @@ func (a *App) configureIDGenerators() error {
 		zap.String("type", a.config.IDGen.Type),
 		zap.String("event_prefix", a.config.IDGen.EventPrefix),
 		zap.String("destination_prefix", a.config.IDGen.DestinationPrefix),
-		zap.String("delivery_prefix", a.config.IDGen.DeliveryPrefix),
-		zap.String("delivery_event_prefix", a.config.IDGen.DeliveryEventPrefix))
+		zap.String("delivery_prefix", a.config.IDGen.DeliveryPrefix))
 
 	if err := idgen.Configure(idgen.IDGenConfig{
-		Type:                a.config.IDGen.Type,
-		EventPrefix:         a.config.IDGen.EventPrefix,
-		DestinationPrefix:   a.config.IDGen.DestinationPrefix,
-		DeliveryPrefix:      a.config.IDGen.DeliveryPrefix,
-		DeliveryEventPrefix: a.config.IDGen.DeliveryEventPrefix,
+		Type:              a.config.IDGen.Type,
+		EventPrefix:       a.config.IDGen.EventPrefix,
+		DestinationPrefix: a.config.IDGen.DestinationPrefix,
+		DeliveryPrefix:    a.config.IDGen.DeliveryPrefix,
 	}); err != nil {
 		a.logger.Error("failed to configure ID generators", zap.Error(err))
 		return err

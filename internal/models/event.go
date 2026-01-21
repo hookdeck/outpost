@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mqs"
 )
 
@@ -126,58 +125,6 @@ func NewManualDeliveryTask(event Event, destinationID string) DeliveryTask {
 	task := NewDeliveryTask(event, destinationID)
 	task.Manual = true
 	return task
-}
-
-type DeliveryEvent struct {
-	ID            string
-	Attempt       int
-	DestinationID string
-	Event         Event
-	Delivery      *Delivery
-	Telemetry     *DeliveryEventTelemetry
-	Manual        bool // Indicates if this is a manual retry
-}
-
-var _ mqs.IncomingMessage = &DeliveryEvent{}
-
-func (e *DeliveryEvent) FromMessage(msg *mqs.Message) error {
-	return json.Unmarshal(msg.Body, e)
-}
-
-func (e *DeliveryEvent) ToMessage() (*mqs.Message, error) {
-	data, err := json.Marshal(e)
-	if err != nil {
-		return nil, err
-	}
-	return &mqs.Message{Body: data}, nil
-}
-
-// GetRetryID returns the ID used for scheduling retries.
-//
-// We use Event.ID + DestinationID (not DeliveryEvent.ID) because:
-//  1. Multiple destinations: The same event can be delivered to multiple destinations.
-//     Each needs its own retry, so we include DestinationID to avoid collisions.
-//  2. Manual retry cancellation: When a manual retry succeeds, it must cancel any
-//     pending automatic retry. Manual retries create a NEW DeliveryEvent with a NEW ID,
-//     but share the same Event.ID + DestinationID. This allows Cancel() to find and
-//     remove the pending automatic retry.
-func (e *DeliveryEvent) GetRetryID() string {
-	return e.Event.ID + ":" + e.DestinationID
-}
-
-func NewDeliveryEvent(event Event, destinationID string) DeliveryEvent {
-	return DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
-		DestinationID: destinationID,
-		Event:         event,
-		Attempt:       0,
-	}
-}
-
-func NewManualDeliveryEvent(event Event, destinationID string) DeliveryEvent {
-	deliveryEvent := NewDeliveryEvent(event, destinationID)
-	deliveryEvent.Manual = true
-	return deliveryEvent
 }
 
 const (

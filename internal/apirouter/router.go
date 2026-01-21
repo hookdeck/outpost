@@ -144,7 +144,6 @@ func NewRouter(
 	logHandlers := NewLogHandlers(logger, logStore)
 	retryHandlers := NewRetryHandlers(logger, entityStore, logStore, deliveryMQ)
 	topicHandlers := NewTopicHandlers(logger, cfg.Topics)
-	legacyHandlers := NewLegacyHandlers(logger, entityStore, logStore, deliveryMQ)
 
 	// Non-tenant routes (no :tenantID in path)
 	nonTenantRoutes := []RouteDefinition{
@@ -353,16 +352,6 @@ func NewRouter(
 				RequireTenantMiddleware(entityStore),
 			},
 		},
-		{
-			Method:    http.MethodGet,
-			Path:      "/:tenantID/events/:eventID/deliveries",
-			Handler:   legacyHandlers.ListDeliveriesByEvent,
-			AuthScope: AuthScopeAdminOrTenant,
-			Mode:      RouteModeAlways,
-			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
-			},
-		},
 
 		// Delivery routes
 		{
@@ -397,40 +386,6 @@ func NewRouter(
 		},
 	}
 
-	// Legacy routes (deprecated, for backward compatibility)
-	legacyRoutes := []RouteDefinition{
-		{
-			Method:    http.MethodGet,
-			Path:      "/:tenantID/destinations/:destinationID/events",
-			Handler:   legacyHandlers.ListEventsByDestination,
-			AuthScope: AuthScopeAdminOrTenant,
-			Mode:      RouteModeAlways,
-			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
-			},
-		},
-		{
-			Method:    http.MethodGet,
-			Path:      "/:tenantID/destinations/:destinationID/events/:eventID",
-			Handler:   legacyHandlers.RetrieveEventByDestination,
-			AuthScope: AuthScopeAdminOrTenant,
-			Mode:      RouteModeAlways,
-			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
-			},
-		},
-		{
-			Method:    http.MethodPost,
-			Path:      "/:tenantID/destinations/:destinationID/events/:eventID/retry",
-			Handler:   legacyHandlers.RetryByEventDestination,
-			AuthScope: AuthScopeAdminOrTenant,
-			Mode:      RouteModeAlways,
-			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
-			},
-		},
-	}
-
 	// Register non-tenant routes at root
 	registerRoutes(apiRouter, cfg, nonTenantRoutes)
 
@@ -440,7 +395,6 @@ func NewRouter(
 	tenantScopedRoutes = append(tenantScopedRoutes, portalRoutes...)
 	tenantScopedRoutes = append(tenantScopedRoutes, tenantAgnosticRoutes...)
 	tenantScopedRoutes = append(tenantScopedRoutes, tenantSpecificRoutes...)
-	tenantScopedRoutes = append(tenantScopedRoutes, legacyRoutes...)
 
 	// Register tenant-scoped routes under /tenants prefix
 	tenantsGroup := apiRouter.Group("/tenants")

@@ -14,11 +14,10 @@ var (
 func init() {
 	// Initialize with default UUID v4 generator
 	globalGenerator = &IDGenerator{
-		generator:           &uuidv4Generator{},
-		eventPrefix:         "",
-		destinationPrefix:   "",
-		deliveryPrefix:      "",
-		deliveryEventPrefix: "",
+		generator:         &uuidv4Generator{},
+		eventPrefix:       "",
+		destinationPrefix: "",
+		deliveryPrefix:    "",
 	}
 }
 
@@ -27,11 +26,10 @@ type idGenerator interface {
 }
 
 type IDGenerator struct {
-	generator           idGenerator
-	eventPrefix         string
-	destinationPrefix   string
-	deliveryPrefix      string
-	deliveryEventPrefix string
+	generator         idGenerator
+	eventPrefix       string
+	destinationPrefix string
+	deliveryPrefix    string
 }
 
 func (g *IDGenerator) Event() string {
@@ -44,10 +42,6 @@ func (g *IDGenerator) Destination() string {
 
 func (g *IDGenerator) Delivery() string {
 	return g.generate(g.deliveryPrefix)
-}
-
-func (g *IDGenerator) DeliveryEvent() string {
-	return g.generate(g.deliveryEventPrefix)
 }
 
 func (g *IDGenerator) Installation() string {
@@ -113,11 +107,10 @@ func (g *nanoidGenerator) generate() string {
 }
 
 type IDGenConfig struct {
-	Type                string
-	EventPrefix         string
-	DestinationPrefix   string
-	DeliveryPrefix      string
-	DeliveryEventPrefix string
+	Type              string
+	EventPrefix       string
+	DestinationPrefix string
+	DeliveryPrefix    string
 }
 
 func Configure(cfg IDGenConfig) error {
@@ -127,11 +120,10 @@ func Configure(cfg IDGenConfig) error {
 	}
 
 	globalGenerator = &IDGenerator{
-		generator:           gen,
-		eventPrefix:         cfg.EventPrefix,
-		destinationPrefix:   cfg.DestinationPrefix,
-		deliveryPrefix:      cfg.DeliveryPrefix,
-		deliveryEventPrefix: cfg.DeliveryEventPrefix,
+		generator:         gen,
+		eventPrefix:       cfg.EventPrefix,
+		destinationPrefix: cfg.DestinationPrefix,
+		deliveryPrefix:    cfg.DeliveryPrefix,
 	}
 
 	return nil
@@ -147,10 +139,6 @@ func Destination() string {
 
 func Delivery() string {
 	return globalGenerator.Delivery()
-}
-
-func DeliveryEvent() string {
-	return globalGenerator.DeliveryEvent()
 }
 
 func Installation() string {
