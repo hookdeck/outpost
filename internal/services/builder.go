@@ -19,13 +19,11 @@ import (
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/worker"
-	"github.com/mikestefanello/batcher"
 	"go.uber.org/zap"
 )
 
@@ -368,17 +366,20 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}
 
 	b.logger.Debug("creating log batcher")
-	batcher, err := b.makeBatcher(svc.logStore, batcherCfg.ItemCountThreshold, batcherCfg.DelayThreshold)
+	batchProcessor, err := logmq.NewBatchProcessor(b.ctx, b.logger, svc.logStore, logmq.BatchProcessorConfig{
+		ItemCountThreshold: batcherCfg.ItemCountThreshold,
+		DelayThreshold:     batcherCfg.DelayThreshold,
+	})
 	if err != nil {
 		b.logger.Error("failed to create batcher", zap.Error(err))
 		return err
 	}
 	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
-		batcher.Shutdown()
+		batchProcessor.Shutdown()
 	})
 
 	// Create log handler with batcher
-	handler := logmq.NewMessageHandler(b.logger, &handlerBatcherImpl{batcher: batcher})
+	handler := logmq.NewMessageHandler(b.logger, batchProcessor)
 
 	// Initialize LogMQ
 	b.logger.Debug("configuring log message queue")
@@ -429,81 +430,6 @@ func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, 
 	now := time.Now()
 	destination.DisabledAt = &now
 	return d.entityStore.UpsertDestination(ctx, *destination)
-}
-
-// makeBatcher creates a batcher for batching log writes
-func (b *ServiceBuilder) makeBatcher(logStore logstore.LogStore, itemCountThreshold int, delayThreshold time.Duration) (*batcher.Batcher[*mqs.Message], error) {
-	batchr, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
-		GroupCountThreshold: 2,
-		ItemCountThreshold:  itemCountThreshold,
-		DelayThreshold:      delayThreshold,
-		NumGoroutines:       1,
-		Processor: func(_ string, msgs []*mqs.Message) {
-			logger := b.logger.Ctx(b.ctx)
-			logger.Info("processing batch", zap.Int("message_count", len(msgs)))
-
-			nackAll := func() {
-				for _, msg := range msgs {
-					msg.Nack()
-				}
-			}
-
-			events := make([]*models.Event, 0, len(msgs))
-			deliveries := make([]*models.Delivery, 0, len(msgs))
-			for _, msg := range msgs {
-				entry := models.LogEntry{}
-				if err := entry.FromMessage(msg); err != nil {
-					logger.Error("failed to parse log entry",
-						zap.Error(err),
-						zap.String("message_id", msg.LoggableID))
-					nackAll()
-					return
-				}
-				// Validate that both Event and Delivery are present.
-				// The logstore requires both for data consistency.
-				if entry.Event == nil || entry.Delivery == nil {
-					logger.Error("invalid log entry: both event and delivery are required",
-						zap.Bool("has_event", entry.Event != nil),
-						zap.Bool("has_delivery", entry.Delivery != nil),
-						zap.String("message_id", msg.LoggableID))
-					msg.Nack()
-					continue
-				}
-				events = append(events, entry.Event)
-				deliveries = append(deliveries, entry.Delivery)
-			}
-
-			if err := logStore.InsertMany(b.ctx, events, deliveries); err != nil {
-				logger.Error("failed to insert events/deliveries",
-					zap.Error(err),
-					zap.Int("event_count", len(events)),
-					zap.Int("delivery_count", len(deliveries)))
-				nackAll()
-				return
-			}
-
-			logger.Info("batch processed successfully", zap.Int("count", len(msgs)))
-
-			for _, msg := range msgs {
-				msg.Ack()
-			}
-		},
-	})
-	if err != nil {
-		b.logger.Ctx(b.ctx).Error("failed to create batcher", zap.Error(err))
-		return nil, err
-	}
-	return batchr, nil
-}
-
-// handlerBatcherImpl implements the batcher interface expected by logmq.MessageHandler
-type handlerBatcherImpl struct {
-	batcher *batcher.Batcher[*mqs.Message]
-}
-
-func (hb *handlerBatcherImpl) Add(ctx context.Context, msg *mqs.Message) error {
-	hb.batcher.Add("", msg)
-	return nil
 }
 
 // Helper methods for serviceInstance to initialize common dependencies
