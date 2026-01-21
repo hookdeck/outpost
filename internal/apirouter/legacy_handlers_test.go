@@ -65,7 +65,7 @@ func TestLegacyRetryByEventDestination(t *testing.T) {
 		Delivery:      delivery,
 	}
 
-	require.NoError(t, result.logStore.InsertManyDeliveryEvent(context.Background(), []*models.DeliveryEvent{de}))
+	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{&de.Event}, []*models.Delivery{de.Delivery}))
 
 	t.Run("should retry via legacy endpoint and return deprecation header", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -167,7 +167,7 @@ func TestLegacyListEventsByDestination(t *testing.T) {
 		Delivery:      delivery,
 	}
 
-	require.NoError(t, result.logStore.InsertManyDeliveryEvent(context.Background(), []*models.DeliveryEvent{de}))
+	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{&de.Event}, []*models.Delivery{de.Delivery}))
 
 	t.Run("should list events for destination with deprecation header", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -238,7 +238,7 @@ func TestLegacyRetrieveEventByDestination(t *testing.T) {
 		Delivery:      delivery,
 	}
 
-	require.NoError(t, result.logStore.InsertManyDeliveryEvent(context.Background(), []*models.DeliveryEvent{de}))
+	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{&de.Event}, []*models.Delivery{de.Delivery}))
 
 	t.Run("should retrieve event by destination with deprecation header", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -313,7 +313,7 @@ func TestLegacyListDeliveriesByEvent(t *testing.T) {
 		Delivery:      delivery,
 	}
 
-	require.NoError(t, result.logStore.InsertManyDeliveryEvent(context.Background(), []*models.DeliveryEvent{de}))
+	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{&de.Event}, []*models.Delivery{de.Delivery}))
 
 	t.Run("should list deliveries for event with deprecation header", func(t *testing.T) {
 		w := httptest.NewRecorder()

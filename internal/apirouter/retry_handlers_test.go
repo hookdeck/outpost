@@ -65,7 +65,7 @@ func TestRetryDelivery(t *testing.T) {
 		Delivery:      delivery,
 	}
 
-	require.NoError(t, result.logStore.InsertManyDeliveryEvent(context.Background(), []*models.DeliveryEvent{de}))
+	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{&de.Event}, []*models.Delivery{de.Delivery}))
 
 	t.Run("should retry delivery successfully", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -135,7 +135,7 @@ func TestRetryDelivery(t *testing.T) {
 			Delivery:      disabledDelivery,
 		}
 
-		require.NoError(t, result.logStore.InsertManyDeliveryEvent(context.Background(), []*models.DeliveryEvent{disabledDE}))
+		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.Event{&disabledDE.Event}, []*models.Delivery{disabledDE.Delivery}))
 
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/deliveries/"+disabledDeliveryID+"/retry", nil)

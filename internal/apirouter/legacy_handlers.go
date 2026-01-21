@@ -137,7 +137,7 @@ func (h *LegacyHandlers) ListEventsByDestination(c *gin.Context) {
 	}
 
 	// Query deliveries for this destination with pagination
-	response, err := h.logStore.ListDeliveryEvent(c.Request.Context(), logstore.ListDeliveryEventRequest{
+	response, err := h.logStore.ListDelivery(c.Request.Context(), logstore.ListDeliveryRequest{
 		TenantID:       tenant.ID,
 		DestinationIDs: []string{destinationID},
 		Limit:          limit,
@@ -153,10 +153,10 @@ func (h *LegacyHandlers) ListEventsByDestination(c *gin.Context) {
 	// Extract unique events (by event ID, keep first occurrence)
 	seen := make(map[string]bool)
 	events := []models.Event{}
-	for _, de := range response.Data {
-		if !seen[de.Event.ID] {
-			seen[de.Event.ID] = true
-			events = append(events, de.Event)
+	for _, dr := range response.Data {
+		if !seen[dr.Event.ID] {
+			seen[dr.Event.ID] = true
+			events = append(events, *dr.Event)
 		}
 	}
 
@@ -232,7 +232,7 @@ func (h *LegacyHandlers) ListDeliveriesByEvent(c *gin.Context) {
 	eventID := c.Param("eventID")
 
 	// Query deliveries for this event
-	response, err := h.logStore.ListDeliveryEvent(c.Request.Context(), logstore.ListDeliveryEventRequest{
+	response, err := h.logStore.ListDelivery(c.Request.Context(), logstore.ListDeliveryRequest{
 		TenantID:  tenant.ID,
 		EventID:   eventID,
 		Limit:     100,
@@ -251,13 +251,13 @@ func (h *LegacyHandlers) ListDeliveriesByEvent(c *gin.Context) {
 
 	// Transform to legacy delivery response format (bare array)
 	deliveries := make([]LegacyDeliveryResponse, len(response.Data))
-	for i, de := range response.Data {
+	for i, dr := range response.Data {
 		deliveries[i] = LegacyDeliveryResponse{
-			ID:           de.Delivery.ID,
-			DeliveredAt:  de.Delivery.Time.UTC().Format("2006-01-02T15:04:05Z07:00"),
-			Status:       de.Delivery.Status,
-			Code:         de.Delivery.Code,
-			ResponseData: de.Delivery.ResponseData,
+			ID:           dr.Delivery.ID,
+			DeliveredAt:  dr.Delivery.Time.UTC().Format("2006-01-02T15:04:05Z07:00"),
+			Status:       dr.Delivery.Status,
+			Code:         dr.Delivery.Code,
+			ResponseData: dr.Delivery.ResponseData,
 		}
 	}
 

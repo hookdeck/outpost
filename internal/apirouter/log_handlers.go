@@ -11,7 +11,6 @@ import (
 	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
-	"github.com/hookdeck/outpost/internal/models"
 )
 
 type LogHandlers struct {
@@ -143,43 +142,47 @@ type EventPaginatedResult struct {
 	Pagination SeekPagination `json:"pagination"`
 }
 
-// toAPIDelivery converts a DeliveryEvent to APIDelivery with expand options
-func toAPIDelivery(de *models.DeliveryEvent, opts IncludeOptions) APIDelivery {
+// toAPIDelivery converts a DeliveryRecord to APIDelivery with expand options
+func toAPIDelivery(dr *logstore.DeliveryRecord, opts IncludeOptions) APIDelivery {
 	api := APIDelivery{
-		Attempt:     de.Attempt,
-		Manual:      de.Manual,
-		Destination: de.DestinationID,
+		Attempt:     dr.Delivery.Attempt,
+		Manual:      dr.Delivery.Manual,
+		Destination: dr.Delivery.DestinationID,
 	}
 
-	if de.Delivery != nil {
-		api.ID = de.Delivery.ID
-		api.Status = de.Delivery.Status
-		api.DeliveredAt = de.Delivery.Time
-		api.Code = de.Delivery.Code
+	if dr.Delivery != nil {
+		api.ID = dr.Delivery.ID
+		api.Status = dr.Delivery.Status
+		api.DeliveredAt = dr.Delivery.Time
+		api.Code = dr.Delivery.Code
 		if opts.ResponseData {
-			api.ResponseData = de.Delivery.ResponseData
+			api.ResponseData = dr.Delivery.ResponseData
 		}
 	}
 
-	if opts.EventData {
-		api.Event = APIEventFull{
-			ID:               de.Event.ID,
-			Topic:            de.Event.Topic,
-			Time:             de.Event.Time,
-			EligibleForRetry: de.Event.EligibleForRetry,
-			Metadata:         de.Event.Metadata,
-			Data:             de.Event.Data,
-		}
-	} else if opts.Event {
-		api.Event = APIEventSummary{
-			ID:               de.Event.ID,
-			Topic:            de.Event.Topic,
-			Time:             de.Event.Time,
-			EligibleForRetry: de.Event.EligibleForRetry,
-			Metadata:         de.Event.Metadata,
+	if dr.Event != nil {
+		if opts.EventData {
+			api.Event = APIEventFull{
+				ID:               dr.Event.ID,
+				Topic:            dr.Event.Topic,
+				Time:             dr.Event.Time,
+				EligibleForRetry: dr.Event.EligibleForRetry,
+				Metadata:         dr.Event.Metadata,
+				Data:             dr.Event.Data,
+			}
+		} else if opts.Event {
+			api.Event = APIEventSummary{
+				ID:               dr.Event.ID,
+				Topic:            dr.Event.Topic,
+				Time:             dr.Event.Time,
+				EligibleForRetry: dr.Event.EligibleForRetry,
+				Metadata:         dr.Event.Metadata,
+			}
+		} else {
+			api.Event = dr.Event.ID
 		}
 	} else {
-		api.Event = de.Event.ID
+		api.Event = dr.Delivery.EventID
 	}
 
 	// TODO: Handle destination expansion
@@ -244,7 +247,7 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		destinationIDs = []string{destID}
 	}
 
-	req := logstore.ListDeliveryEventRequest{
+	req := logstore.ListDeliveryRequest{
 		TenantID:       tenantID,
 		EventID:        c.Query("event_id"),
 		DestinationIDs: destinationIDs,
@@ -262,7 +265,7 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		SortOrder: dir,
 	}
 
-	response, err := h.logStore.ListDeliveryEvent(c.Request.Context(), req)
+	response, err := h.logStore.ListDelivery(c.Request.Context(), req)
 	if err != nil {
 		if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
@@ -328,7 +331,7 @@ func (h *LogHandlers) RetrieveDelivery(c *gin.Context) {
 	}
 	deliveryID := c.Param("deliveryID")
 
-	deliveryEvent, err := h.logStore.RetrieveDeliveryEvent(c.Request.Context(), logstore.RetrieveDeliveryEventRequest{
+	deliveryRecord, err := h.logStore.RetrieveDelivery(c.Request.Context(), logstore.RetrieveDeliveryRequest{
 		TenantID:   tenant.ID,
 		DeliveryID: deliveryID,
 	})
@@ -336,14 +339,14 @@ func (h *LogHandlers) RetrieveDelivery(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if deliveryEvent == nil {
+	if deliveryRecord == nil {
 		AbortWithError(c, http.StatusNotFound, NewErrNotFound("delivery"))
 		return
 	}
 
 	includeOpts := parseIncludeOptions(c)
 
-	c.JSON(http.StatusOK, toAPIDelivery(deliveryEvent, includeOpts))
+	c.JSON(http.StatusOK, toAPIDelivery(deliveryRecord, includeOpts))
 }
 
 // AdminListEvents handles GET /events (admin-only, cross-tenant)

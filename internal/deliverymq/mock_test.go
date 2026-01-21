@@ -38,14 +38,13 @@ func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.De
 	if m.current >= len(m.responses) {
 		m.current++
 		return &models.Delivery{
-			ID:              idgen.Delivery(),
-			DeliveryEventID: idgen.DeliveryEvent(),
-			EventID:         event.ID,
-			DestinationID:   destination.ID,
-			Status:          models.DeliveryStatusSuccess,
-			Code:            "OK",
-			ResponseData:    map[string]interface{}{},
-			Time:            time.Now(),
+			ID:            idgen.Delivery(),
+			EventID:       event.ID,
+			DestinationID: destination.ID,
+			Status:        models.DeliveryStatusSuccess,
+			Code:          "OK",
+			ResponseData:  map[string]interface{}{},
+			Time:          time.Now(),
 		}, nil
 	}
 
@@ -53,25 +52,23 @@ func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.De
 	m.current++
 	if resp == nil {
 		return &models.Delivery{
-			ID:              idgen.Delivery(),
-			DeliveryEventID: idgen.DeliveryEvent(),
-			EventID:         event.ID,
-			DestinationID:   destination.ID,
-			Status:          models.DeliveryStatusSuccess,
-			Code:            "OK",
-			ResponseData:    map[string]interface{}{},
-			Time:            time.Now(),
+			ID:            idgen.Delivery(),
+			EventID:       event.ID,
+			DestinationID: destination.ID,
+			Status:        models.DeliveryStatusSuccess,
+			Code:          "OK",
+			ResponseData:  map[string]interface{}{},
+			Time:          time.Now(),
 		}, nil
 	}
 	return &models.Delivery{
-		ID:              idgen.Delivery(),
-		DeliveryEventID: idgen.DeliveryEvent(),
-		EventID:         event.ID,
-		DestinationID:   destination.ID,
-		Status:          models.DeliveryStatusFailed,
-		Code:            "ERR",
-		ResponseData:    map[string]interface{}{},
-		Time:            time.Now(),
+		ID:            idgen.Delivery(),
+		EventID:       event.ID,
+		DestinationID: destination.ID,
+		Status:        models.DeliveryStatusFailed,
+		Code:          "ERR",
+		ResponseData:  map[string]interface{}{},
+		Time:          time.Now(),
 	}, resp
 }
 

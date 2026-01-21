@@ -44,7 +44,7 @@ func (h *RetryHandlers) RetryDelivery(c *gin.Context) {
 	deliveryID := c.Param("deliveryID")
 
 	// 1. Look up delivery by ID
-	deliveryEvent, err := h.logStore.RetrieveDeliveryEvent(c.Request.Context(), logstore.RetrieveDeliveryEventRequest{
+	deliveryRecord, err := h.logStore.RetrieveDelivery(c.Request.Context(), logstore.RetrieveDeliveryRequest{
 		TenantID:   tenant.ID,
 		DeliveryID: deliveryID,
 	})
@@ -52,13 +52,13 @@ func (h *RetryHandlers) RetryDelivery(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if deliveryEvent == nil {
+	if deliveryRecord == nil {
 		AbortWithError(c, http.StatusNotFound, NewErrNotFound("delivery"))
 		return
 	}
 
 	// 2. Check destination exists and is enabled
-	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenant.ID, deliveryEvent.DestinationID)
+	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenant.ID, deliveryRecord.Delivery.DestinationID)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -79,7 +79,7 @@ func (h *RetryHandlers) RetryDelivery(c *gin.Context) {
 	}
 
 	// 3. Create and publish retry delivery event
-	retryDeliveryEvent := models.NewManualDeliveryEvent(deliveryEvent.Event, deliveryEvent.DestinationID)
+	retryDeliveryEvent := models.NewManualDeliveryEvent(*deliveryRecord.Event, deliveryRecord.Delivery.DestinationID)
 
 	if err := h.deliveryMQ.Publish(c.Request.Context(), retryDeliveryEvent); err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
@@ -88,9 +88,9 @@ func (h *RetryHandlers) RetryDelivery(c *gin.Context) {
 
 	h.logger.Ctx(c.Request.Context()).Audit("manual retry initiated",
 		zap.String("delivery_id", deliveryID),
-		zap.String("event_id", deliveryEvent.Event.ID),
+		zap.String("event_id", deliveryRecord.Event.ID),
 		zap.String("tenant_id", tenant.ID),
-		zap.String("destination_id", deliveryEvent.DestinationID),
+		zap.String("destination_id", deliveryRecord.Delivery.DestinationID),
 		zap.String("destination_type", destination.Type))
 
 	c.JSON(http.StatusAccepted, gin.H{

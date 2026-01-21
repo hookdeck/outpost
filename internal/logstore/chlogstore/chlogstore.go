@@ -99,9 +99,9 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 	}, nil
 }
 
-func buildEventQuery(table string, req driver.ListEventRequest, q pagination.QueryInput) (string, []interface{}) {
+func buildEventQuery(table string, req driver.ListEventRequest, q pagination.QueryInput) (string, []any) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 
 	if req.TenantID != "" {
 		conditions = append(conditions, "tenant_id = ?")
@@ -201,7 +201,7 @@ func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
 		}
 
 		var metadata map[string]string
-		var data map[string]interface{}
+		var data map[string]any
 
 		if metadataStr != "" {
 			if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
@@ -236,7 +236,7 @@ func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
 	return results, nil
 }
 
-func buildEventCursorCondition(compare, position string) (string, []interface{}) {
+func buildEventCursorCondition(compare, position string) (string, []any) {
 	parts := strings.SplitN(position, "::", 2)
 	if len(parts) != 2 {
 		return "1=1", nil // invalid cursor, return always true
@@ -252,16 +252,16 @@ func buildEventCursorCondition(compare, position string) (string, []interface{})
 		OR (event_time = fromUnixTimestamp64Milli(?) AND event_id %s ?)
 	)`, compare, compare)
 
-	return condition, []interface{}{eventTimeMs, eventTimeMs, eventID}
+	return condition, []any{eventTimeMs, eventTimeMs, eventID}
 }
 
-// deliveryEventWithPosition wraps a delivery event with its cursor position data.
-type deliveryEventWithPosition struct {
-	*models.DeliveryEvent
+// deliveryRecordWithPosition wraps a delivery record with its cursor position data.
+type deliveryRecordWithPosition struct {
+	*driver.DeliveryRecord
 	deliveryTime time.Time
 }
 
-func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDeliveryEventRequest) (driver.ListDeliveryEventResponse, error) {
+func (s *logStoreImpl) ListDelivery(ctx context.Context, req driver.ListDeliveryRequest) (driver.ListDeliveryResponse, error) {
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
@@ -272,23 +272,23 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 		limit = 100
 	}
 
-	res, err := pagination.Run(ctx, pagination.Config[deliveryEventWithPosition]{
+	res, err := pagination.Run(ctx, pagination.Config[deliveryRecordWithPosition]{
 		Limit: limit,
 		Order: sortOrder,
 		Next:  req.Next,
 		Prev:  req.Prev,
-		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]deliveryEventWithPosition, error) {
+		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]deliveryRecordWithPosition, error) {
 			query, args := buildDeliveryQuery(s.deliveriesTable, req, q)
 			rows, err := s.chDB.Query(ctx, query, args...)
 			if err != nil {
 				return nil, fmt.Errorf("query failed: %w", err)
 			}
 			defer rows.Close()
-			return scanDeliveryEvents(rows)
+			return scanDeliveryRecords(rows)
 		},
-		Cursor: pagination.Cursor[deliveryEventWithPosition]{
-			Encode: func(de deliveryEventWithPosition) string {
-				position := fmt.Sprintf("%d::%s", de.deliveryTime.UnixMilli(), de.Delivery.ID)
+		Cursor: pagination.Cursor[deliveryRecordWithPosition]{
+			Encode: func(dr deliveryRecordWithPosition) string {
+				position := fmt.Sprintf("%d::%s", dr.deliveryTime.UnixMilli(), dr.Delivery.ID)
 				return cursor.Encode(cursorResourceDelivery, cursorVersion, position)
 			},
 			Decode: func(c string) (string, error) {
@@ -297,25 +297,25 @@ func (s *logStoreImpl) ListDeliveryEvent(ctx context.Context, req driver.ListDel
 		},
 	})
 	if err != nil {
-		return driver.ListDeliveryEventResponse{}, err
+		return driver.ListDeliveryResponse{}, err
 	}
 
-	// Extract delivery events from results
-	data := make([]*models.DeliveryEvent, len(res.Items))
+	// Extract delivery records from results
+	data := make([]*driver.DeliveryRecord, len(res.Items))
 	for i, item := range res.Items {
-		data[i] = item.DeliveryEvent
+		data[i] = item.DeliveryRecord
 	}
 
-	return driver.ListDeliveryEventResponse{
+	return driver.ListDeliveryResponse{
 		Data: data,
 		Next: res.Next,
 		Prev: res.Prev,
 	}, nil
 }
 
-func buildDeliveryQuery(table string, req driver.ListDeliveryEventRequest, q pagination.QueryInput) (string, []interface{}) {
+func buildDeliveryQuery(table string, req driver.ListDeliveryRequest, q pagination.QueryInput) (string, []any) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 
 	if req.TenantID != "" {
 		conditions = append(conditions, "tenant_id = ?")
@@ -373,6 +373,7 @@ func buildDeliveryQuery(table string, req driver.ListDeliveryEventRequest, q pag
 	orderByClause := fmt.Sprintf("ORDER BY delivery_time %s, delivery_id %s",
 		strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
 
+	// Note: delivery_event_id is read but we write empty string for backwards compat
 	query := fmt.Sprintf(`
 		SELECT
 			event_id,
@@ -384,7 +385,6 @@ func buildDeliveryQuery(table string, req driver.ListDeliveryEventRequest, q pag
 			metadata,
 			data,
 			delivery_id,
-			delivery_event_id,
 			status,
 			delivery_time,
 			code,
@@ -400,8 +400,8 @@ func buildDeliveryQuery(table string, req driver.ListDeliveryEventRequest, q pag
 	return query, args
 }
 
-func scanDeliveryEvents(rows clickhouse.Rows) ([]deliveryEventWithPosition, error) {
-	var results []deliveryEventWithPosition
+func scanDeliveryRecords(rows clickhouse.Rows) ([]deliveryRecordWithPosition, error) {
+	var results []deliveryRecordWithPosition
 	for rows.Next() {
 		var (
 			eventID          string
@@ -413,7 +413,6 @@ func scanDeliveryEvents(rows clickhouse.Rows) ([]deliveryEventWithPosition, erro
 			metadataStr      string
 			dataStr          string
 			deliveryID       string
-			deliveryEventID  string
 			status           string
 			deliveryTime     time.Time
 			code             string
@@ -432,7 +431,6 @@ func scanDeliveryEvents(rows clickhouse.Rows) ([]deliveryEventWithPosition, erro
 			&metadataStr,
 			&dataStr,
 			&deliveryID,
-			&deliveryEventID,
 			&status,
 			&deliveryTime,
 			&code,
@@ -445,8 +443,8 @@ func scanDeliveryEvents(rows clickhouse.Rows) ([]deliveryEventWithPosition, erro
 		}
 
 		var metadata map[string]string
-		var data map[string]interface{}
-		var responseData map[string]interface{}
+		var data map[string]any
+		var responseData map[string]any
 
 		if metadataStr != "" {
 			if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
@@ -464,13 +462,21 @@ func scanDeliveryEvents(rows clickhouse.Rows) ([]deliveryEventWithPosition, erro
 			}
 		}
 
-		results = append(results, deliveryEventWithPosition{
-			DeliveryEvent: &models.DeliveryEvent{
-				ID:            deliveryEventID,
-				DestinationID: destinationID,
-				Manual:        manual,
-				Attempt:       int(attempt),
-				Event: models.Event{
+		results = append(results, deliveryRecordWithPosition{
+			DeliveryRecord: &driver.DeliveryRecord{
+				Delivery: &models.Delivery{
+					ID:            deliveryID,
+					TenantID:      tenantID,
+					EventID:       eventID,
+					DestinationID: destinationID,
+					Attempt:       int(attempt),
+					Manual:        manual,
+					Status:        status,
+					Time:          deliveryTime,
+					Code:          code,
+					ResponseData:  responseData,
+				},
+				Event: &models.Event{
 					ID:               eventID,
 					TenantID:         tenantID,
 					DestinationID:    destinationID,
@@ -479,15 +485,6 @@ func scanDeliveryEvents(rows clickhouse.Rows) ([]deliveryEventWithPosition, erro
 					Time:             eventTime,
 					Data:             data,
 					Metadata:         metadata,
-				},
-				Delivery: &models.Delivery{
-					ID:            deliveryID,
-					EventID:       eventID,
-					DestinationID: destinationID,
-					Status:        status,
-					Time:          deliveryTime,
-					Code:          code,
-					ResponseData:  responseData,
 				},
 			},
 			deliveryTime: deliveryTime,
@@ -503,7 +500,7 @@ func scanDeliveryEvents(rows clickhouse.Rows) ([]deliveryEventWithPosition, erro
 
 func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRequest) (*models.Event, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 
 	if req.TenantID != "" {
 		conditions = append(conditions, "tenant_id = ?")
@@ -574,9 +571,9 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 	return event, nil
 }
 
-func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error) {
+func (s *logStoreImpl) RetrieveDelivery(ctx context.Context, req driver.RetrieveDeliveryRequest) (*driver.DeliveryRecord, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 
 	if req.TenantID != "" {
 		conditions = append(conditions, "tenant_id = ?")
@@ -599,7 +596,6 @@ func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.Ret
 			metadata,
 			data,
 			delivery_id,
-			delivery_event_id,
 			status,
 			delivery_time,
 			code,
@@ -630,7 +626,6 @@ func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.Ret
 		metadataStr      string
 		dataStr          string
 		deliveryID       string
-		deliveryEventID  string
 		status           string
 		deliveryTime     time.Time
 		code             string
@@ -649,7 +644,6 @@ func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.Ret
 		&metadataStr,
 		&dataStr,
 		&deliveryID,
-		&deliveryEventID,
 		&status,
 		&deliveryTime,
 		&code,
@@ -662,8 +656,8 @@ func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.Ret
 	}
 
 	var metadata map[string]string
-	var data map[string]interface{}
-	var responseData map[string]interface{}
+	var data map[string]any
+	var responseData map[string]any
 
 	if metadataStr != "" {
 		if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
@@ -681,12 +675,20 @@ func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.Ret
 		}
 	}
 
-	return &models.DeliveryEvent{
-		ID:            deliveryEventID,
-		DestinationID: destinationID,
-		Manual:        manual,
-		Attempt:       int(attempt),
-		Event: models.Event{
+	return &driver.DeliveryRecord{
+		Delivery: &models.Delivery{
+			ID:            deliveryID,
+			TenantID:      tenantID,
+			EventID:       eventID,
+			DestinationID: destinationID,
+			Attempt:       int(attempt),
+			Manual:        manual,
+			Status:        status,
+			Time:          deliveryTime,
+			Code:          code,
+			ResponseData:  responseData,
+		},
+		Event: &models.Event{
 			ID:               eventID,
 			TenantID:         tenantID,
 			DestinationID:    destinationID,
@@ -696,125 +698,121 @@ func (s *logStoreImpl) RetrieveDeliveryEvent(ctx context.Context, req driver.Ret
 			Data:             data,
 			Metadata:         metadata,
 		},
-		Delivery: &models.Delivery{
-			ID:            deliveryID,
-			EventID:       eventID,
-			DestinationID: destinationID,
-			Status:        status,
-			Time:          deliveryTime,
-			Code:          code,
-			ResponseData:  responseData,
-		},
 	}, nil
 }
 
-func (s *logStoreImpl) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents []*models.DeliveryEvent) error {
-	if len(deliveryEvents) == 0 {
+func (s *logStoreImpl) InsertMany(ctx context.Context, events []*models.Event, deliveries []*models.Delivery) error {
+	if len(events) == 0 && len(deliveries) == 0 {
 		return nil
 	}
 
-	eventBatch, err := s.chDB.PrepareBatch(ctx,
-		fmt.Sprintf(`INSERT INTO %s (
-			event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data
-		)`, s.eventsTable),
-	)
-	if err != nil {
-		return fmt.Errorf("prepare events batch failed: %w", err)
+	if len(events) > 0 {
+		eventBatch, err := s.chDB.PrepareBatch(ctx,
+			fmt.Sprintf(`INSERT INTO %s (
+				event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data
+			)`, s.eventsTable),
+		)
+		if err != nil {
+			return fmt.Errorf("prepare events batch failed: %w", err)
+		}
+
+		for _, e := range events {
+			metadataJSON, err := json.Marshal(e.Metadata)
+			if err != nil {
+				return fmt.Errorf("failed to marshal metadata: %w", err)
+			}
+			dataJSON, err := json.Marshal(e.Data)
+			if err != nil {
+				return fmt.Errorf("failed to marshal data: %w", err)
+			}
+
+			if err := eventBatch.Append(
+				e.ID,
+				e.TenantID,
+				e.DestinationID,
+				e.Topic,
+				e.EligibleForRetry,
+				e.Time,
+				string(metadataJSON),
+				string(dataJSON),
+			); err != nil {
+				return fmt.Errorf("events batch append failed: %w", err)
+			}
+		}
+
+		if err := eventBatch.Send(); err != nil {
+			return fmt.Errorf("events batch send failed: %w", err)
+		}
 	}
 
-	for _, de := range deliveryEvents {
-		metadataJSON, err := json.Marshal(de.Event.Metadata)
+	if len(deliveries) > 0 {
+		// Build a map of events for looking up event data when inserting deliveries
+		eventMap := make(map[string]*models.Event)
+		for _, e := range events {
+			eventMap[e.ID] = e
+		}
+
+		deliveryBatch, err := s.chDB.PrepareBatch(ctx,
+			fmt.Sprintf(`INSERT INTO %s (
+				event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
+				delivery_id, delivery_event_id, status, delivery_time, code, response_data, manual, attempt
+			)`, s.deliveriesTable),
+		)
 		if err != nil {
-			return fmt.Errorf("failed to marshal metadata: %w", err)
-		}
-		dataJSON, err := json.Marshal(de.Event.Data)
-		if err != nil {
-			return fmt.Errorf("failed to marshal data: %w", err)
+			return fmt.Errorf("prepare deliveries batch failed: %w", err)
 		}
 
-		if err := eventBatch.Append(
-			de.Event.ID,
-			de.Event.TenantID,
-			de.DestinationID,
-			de.Event.Topic,
-			de.Event.EligibleForRetry,
-			de.Event.Time,
-			string(metadataJSON),
-			string(dataJSON),
-		); err != nil {
-			return fmt.Errorf("events batch append failed: %w", err)
-		}
-	}
+		for _, d := range deliveries {
+			event := eventMap[d.EventID]
+			if event == nil {
+				// If event not in current batch, use delivery's data as fallback
+				event = &models.Event{
+					ID:            d.EventID,
+					TenantID:      d.TenantID,
+					DestinationID: d.DestinationID,
+				}
+			}
 
-	if err := eventBatch.Send(); err != nil {
-		return fmt.Errorf("events batch send failed: %w", err)
-	}
-
-	deliveryBatch, err := s.chDB.PrepareBatch(ctx,
-		fmt.Sprintf(`INSERT INTO %s (
-			event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
-			delivery_id, delivery_event_id, status, delivery_time, code, response_data, manual, attempt
-		)`, s.deliveriesTable),
-	)
-	if err != nil {
-		return fmt.Errorf("prepare deliveries batch failed: %w", err)
-	}
-
-	for _, de := range deliveryEvents {
-		metadataJSON, err := json.Marshal(de.Event.Metadata)
-		if err != nil {
-			return fmt.Errorf("failed to marshal metadata: %w", err)
-		}
-		dataJSON, err := json.Marshal(de.Event.Data)
-		if err != nil {
-			return fmt.Errorf("failed to marshal data: %w", err)
-		}
-
-		var deliveryID, status, code string
-		var deliveryTime time.Time
-		var responseDataJSON []byte
-
-		if de.Delivery != nil {
-			deliveryID = de.Delivery.ID
-			status = de.Delivery.Status
-			deliveryTime = de.Delivery.Time
-			code = de.Delivery.Code
-			responseDataJSON, err = json.Marshal(de.Delivery.ResponseData)
+			metadataJSON, err := json.Marshal(event.Metadata)
+			if err != nil {
+				return fmt.Errorf("failed to marshal metadata: %w", err)
+			}
+			dataJSON, err := json.Marshal(event.Data)
+			if err != nil {
+				return fmt.Errorf("failed to marshal data: %w", err)
+			}
+			responseDataJSON, err := json.Marshal(d.ResponseData)
 			if err != nil {
 				return fmt.Errorf("failed to marshal response_data: %w", err)
 			}
-		} else {
-			deliveryID = de.ID
-			status = "pending"
-			deliveryTime = de.Event.Time
-			code = ""
-			responseDataJSON = []byte("{}")
+
+			// Write empty string to delivery_event_id for backwards compat (column still exists)
+			// Use event.TenantID for tenant_id since it's denormalized from the event
+			if err := deliveryBatch.Append(
+				d.EventID,
+				event.TenantID, // Use event's TenantID, not delivery's
+				d.DestinationID,
+				event.Topic,
+				event.EligibleForRetry,
+				event.Time,
+				string(metadataJSON),
+				string(dataJSON),
+				d.ID,
+				"", // delivery_event_id - empty for backwards compat
+				d.Status,
+				d.Time,
+				d.Code,
+				string(responseDataJSON),
+				d.Manual,
+				uint32(d.Attempt),
+			); err != nil {
+				return fmt.Errorf("deliveries batch append failed: %w", err)
+			}
 		}
 
-		if err := deliveryBatch.Append(
-			de.Event.ID,
-			de.Event.TenantID,
-			de.DestinationID,
-			de.Event.Topic,
-			de.Event.EligibleForRetry,
-			de.Event.Time,
-			string(metadataJSON),
-			string(dataJSON),
-			deliveryID,
-			de.ID,
-			status,
-			deliveryTime,
-			code,
-			string(responseDataJSON),
-			de.Manual,
-			uint32(de.Attempt),
-		); err != nil {
-			return fmt.Errorf("deliveries batch append failed: %w", err)
+		if err := deliveryBatch.Send(); err != nil {
+			return fmt.Errorf("deliveries batch send failed: %w", err)
 		}
-	}
-
-	if err := deliveryBatch.Send(); err != nil {
-		return fmt.Errorf("deliveries batch send failed: %w", err)
 	}
 
 	return nil
@@ -824,7 +822,7 @@ func parseTimestampMs(s string) (int64, error) {
 	return strconv.ParseInt(s, 10, 64)
 }
 
-func buildDeliveryCursorCondition(compare, position string) (string, []interface{}) {
+func buildDeliveryCursorCondition(compare, position string) (string, []any) {
 	parts := strings.SplitN(position, "::", 2)
 	if len(parts) != 2 {
 		return "1=1", nil
@@ -840,5 +838,5 @@ func buildDeliveryCursorCondition(compare, position string) (string, []interface
 		OR (delivery_time = fromUnixTimestamp64Milli(?) AND delivery_id %s ?)
 	)`, compare, compare)
 
-	return condition, []interface{}{deliveryTimeMs, deliveryTimeMs, deliveryID}
+	return condition, []any{deliveryTimeMs, deliveryTimeMs, deliveryID}
 }

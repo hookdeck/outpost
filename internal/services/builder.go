@@ -448,7 +448,8 @@ func (b *ServiceBuilder) makeBatcher(logStore logstore.LogStore, itemCountThresh
 				}
 			}
 
-			deliveryEvents := make([]*models.DeliveryEvent, 0, len(msgs))
+			events := make([]*models.Event, 0, len(msgs))
+			deliveries := make([]*models.Delivery, 0, len(msgs))
 			for _, msg := range msgs {
 				deliveryEvent := models.DeliveryEvent{}
 				if err := deliveryEvent.FromMessage(msg); err != nil {
@@ -458,13 +459,17 @@ func (b *ServiceBuilder) makeBatcher(logStore logstore.LogStore, itemCountThresh
 					nackAll()
 					return
 				}
-				deliveryEvents = append(deliveryEvents, &deliveryEvent)
+				events = append(events, &deliveryEvent.Event)
+				if deliveryEvent.Delivery != nil {
+					deliveries = append(deliveries, deliveryEvent.Delivery)
+				}
 			}
 
-			if err := logStore.InsertManyDeliveryEvent(b.ctx, deliveryEvents); err != nil {
-				logger.Error("failed to insert delivery events",
+			if err := logStore.InsertMany(b.ctx, events, deliveries); err != nil {
+				logger.Error("failed to insert events/deliveries",
 					zap.Error(err),
-					zap.Int("count", len(deliveryEvents)))
+					zap.Int("event_count", len(events)),
+					zap.Int("delivery_count", len(deliveries)))
 				nackAll()
 				return
 			}

@@ -18,10 +18,10 @@ type TimeFilter struct {
 
 type LogStore interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
-	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
+	ListDelivery(context.Context, ListDeliveryRequest) (ListDeliveryResponse, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
-	RetrieveDeliveryEvent(ctx context.Context, request RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error)
-	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
+	RetrieveDelivery(ctx context.Context, request RetrieveDeliveryRequest) (*DeliveryRecord, error)
+	InsertMany(context.Context, []*models.Event, []*models.Delivery) error
 }
 
 type ListEventRequest struct {
@@ -41,7 +41,7 @@ type ListEventResponse struct {
 	Prev string
 }
 
-type ListDeliveryEventRequest struct {
+type ListDeliveryRequest struct {
 	Next           string
 	Prev           string
 	Limit          int
@@ -54,8 +54,8 @@ type ListDeliveryEventRequest struct {
 	SortOrder      string     // optional: "asc", "desc" (default: "desc")
 }
 
-type ListDeliveryEventResponse struct {
-	Data []*models.DeliveryEvent
+type ListDeliveryResponse struct {
+	Data []*DeliveryRecord
 	Next string
 	Prev string
 }
@@ -66,7 +66,13 @@ type RetrieveEventRequest struct {
 	DestinationID string // optional - if provided, scopes to that destination
 }
 
-type RetrieveDeliveryEventRequest struct {
+type RetrieveDeliveryRequest struct {
 	TenantID   string // optional - filter by tenant (if empty, searches all tenants)
 	DeliveryID string // required
+}
+
+// DeliveryRecord represents a delivery query result with optional Event population.
+type DeliveryRecord struct {
+	Delivery *models.Delivery
+	Event    *models.Event // optionally populated for query results
 }

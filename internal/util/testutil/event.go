@@ -105,12 +105,14 @@ type mockDeliveryFactory struct {
 
 func (f *mockDeliveryFactory) Any(opts ...func(*models.Delivery)) models.Delivery {
 	delivery := models.Delivery{
-		ID:              idgen.Delivery(),
-		DeliveryEventID: idgen.DeliveryEvent(),
-		EventID:         idgen.Event(),
-		DestinationID:   idgen.Destination(),
-		Status:          "success",
-		Time:            time.Now(),
+		ID:            idgen.Delivery(),
+		TenantID:      "test-tenant",
+		EventID:       idgen.Event(),
+		DestinationID: idgen.Destination(),
+		Attempt:       1,
+		Manual:        false,
+		Status:        "success",
+		Time:          time.Now(),
 	}
 
 	for _, opt := range opts {
@@ -131,9 +133,21 @@ func (f *mockDeliveryFactory) WithID(id string) func(*models.Delivery) {
 	}
 }
 
-func (f *mockDeliveryFactory) WithDeliveryEventID(deliveryEventID string) func(*models.Delivery) {
+func (f *mockDeliveryFactory) WithTenantID(tenantID string) func(*models.Delivery) {
 	return func(delivery *models.Delivery) {
-		delivery.DeliveryEventID = deliveryEventID
+		delivery.TenantID = tenantID
+	}
+}
+
+func (f *mockDeliveryFactory) WithAttempt(attempt int) func(*models.Delivery) {
+	return func(delivery *models.Delivery) {
+		delivery.Attempt = attempt
+	}
+}
+
+func (f *mockDeliveryFactory) WithManual(manual bool) func(*models.Delivery) {
+	return func(delivery *models.Delivery) {
+		delivery.Manual = manual
 	}
 }
 

@@ -16,17 +16,18 @@ import (
 type TimeFilter = driver.TimeFilter
 type ListEventRequest = driver.ListEventRequest
 type ListEventResponse = driver.ListEventResponse
-type ListDeliveryEventRequest = driver.ListDeliveryEventRequest
-type ListDeliveryEventResponse = driver.ListDeliveryEventResponse
+type ListDeliveryRequest = driver.ListDeliveryRequest
+type ListDeliveryResponse = driver.ListDeliveryResponse
 type RetrieveEventRequest = driver.RetrieveEventRequest
-type RetrieveDeliveryEventRequest = driver.RetrieveDeliveryEventRequest
+type RetrieveDeliveryRequest = driver.RetrieveDeliveryRequest
+type DeliveryRecord = driver.DeliveryRecord
 
 type LogStore interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
-	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
+	ListDelivery(context.Context, ListDeliveryRequest) (ListDeliveryResponse, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
-	RetrieveDeliveryEvent(ctx context.Context, request RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error)
-	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
+	RetrieveDelivery(ctx context.Context, request RetrieveDeliveryRequest) (*DeliveryRecord, error)
+	InsertMany(context.Context, []*models.Event, []*models.Delivery) error
 }
 
 type DriverOpts struct {
