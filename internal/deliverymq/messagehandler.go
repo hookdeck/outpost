@@ -84,7 +84,7 @@ type Publisher interface {
 }
 
 type LogPublisher interface {
-	Publish(ctx context.Context, deliveryEvent models.DeliveryEvent) error
+	Publish(ctx context.Context, entry models.LogEntry) error
 }
 
 type RetryScheduler interface {
@@ -262,7 +262,11 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent *m
 		zap.Bool("manual", deliveryEvent.Manual))
 
 	// Publish delivery log
-	if logErr := h.logMQ.Publish(ctx, *deliveryEvent); logErr != nil {
+	logEntry := models.LogEntry{
+		Event:    &deliveryEvent.Event,
+		Delivery: delivery,
+	}
+	if logErr := h.logMQ.Publish(ctx, logEntry); logErr != nil {
 		logger.Error("failed to publish delivery log",
 			zap.Error(logErr),
 			zap.String("delivery_event_id", deliveryEvent.ID),

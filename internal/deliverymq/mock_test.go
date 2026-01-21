@@ -145,19 +145,19 @@ func (m *mockEventGetter) RetrieveEvent(ctx context.Context, req logstore.Retrie
 }
 
 type mockLogPublisher struct {
-	err        error
-	deliveries []models.DeliveryEvent
+	err     error
+	entries []models.LogEntry
 }
 
 func newMockLogPublisher(err error) *mockLogPublisher {
 	return &mockLogPublisher{
-		err:        err,
-		deliveries: make([]models.DeliveryEvent, 0),
+		err:     err,
+		entries: make([]models.LogEntry, 0),
 	}
 }
 
-func (m *mockLogPublisher) Publish(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
-	m.deliveries = append(m.deliveries, deliveryEvent)
+func (m *mockLogPublisher) Publish(ctx context.Context, entry models.LogEntry) error {
+	m.entries = append(m.entries, entry)
 	return m.err
 }
 

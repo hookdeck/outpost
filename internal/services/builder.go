@@ -451,18 +451,26 @@ func (b *ServiceBuilder) makeBatcher(logStore logstore.LogStore, itemCountThresh
 			events := make([]*models.Event, 0, len(msgs))
 			deliveries := make([]*models.Delivery, 0, len(msgs))
 			for _, msg := range msgs {
-				deliveryEvent := models.DeliveryEvent{}
-				if err := deliveryEvent.FromMessage(msg); err != nil {
-					logger.Error("failed to parse delivery event",
+				entry := models.LogEntry{}
+				if err := entry.FromMessage(msg); err != nil {
+					logger.Error("failed to parse log entry",
 						zap.Error(err),
 						zap.String("message_id", msg.LoggableID))
 					nackAll()
 					return
 				}
-				events = append(events, &deliveryEvent.Event)
-				if deliveryEvent.Delivery != nil {
-					deliveries = append(deliveries, deliveryEvent.Delivery)
+				// Validate that both Event and Delivery are present.
+				// The logstore requires both for data consistency.
+				if entry.Event == nil || entry.Delivery == nil {
+					logger.Error("invalid log entry: both event and delivery are required",
+						zap.Bool("has_event", entry.Event != nil),
+						zap.Bool("has_delivery", entry.Delivery != nil),
+						zap.String("message_id", msg.LoggableID))
+					msg.Nack()
+					continue
 				}
+				events = append(events, entry.Event)
+				deliveries = append(deliveries, entry.Delivery)
 			}
 
 			if err := logStore.InsertMany(b.ctx, events, deliveries); err != nil {

@@ -129,6 +129,30 @@ const (
 	DeliveryStatusFailed  = "failed"
 )
 
+// LogEntry represents a message for the log queue.
+//
+// IMPORTANT: Both Event and Delivery are REQUIRED. The logstore requires both
+// to exist for proper data consistency. The logmq consumer validates this
+// requirement and rejects entries missing either field.
+type LogEntry struct {
+	Event    *Event    `json:"event"`
+	Delivery *Delivery `json:"delivery"`
+}
+
+var _ mqs.IncomingMessage = &LogEntry{}
+
+func (e *LogEntry) FromMessage(msg *mqs.Message) error {
+	return json.Unmarshal(msg.Body, e)
+}
+
+func (e *LogEntry) ToMessage() (*mqs.Message, error) {
+	data, err := json.Marshal(e)
+	if err != nil {
+		return nil, err
+	}
+	return &mqs.Message{Body: data}, nil
+}
+
 type Delivery struct {
 	ID            string                 `json:"id"`
 	TenantID      string                 `json:"tenant_id"`
