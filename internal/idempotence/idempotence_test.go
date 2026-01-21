@@ -134,6 +134,114 @@ func TestIdempotence_Success(t *testing.T) {
 	})
 }
 
+func TestIdempotence_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+
+	i := idempotence.New(testutil.CreateTestRedisClient(t),
+		idempotence.WithTimeout(1*time.Second),
+		idempotence.WithSuccessfulTTL(24*time.Hour),
+		idempotence.WithDeploymentID("dp_test_001"),
+	)
+
+	t.Run("executes successfully with deployment prefix", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		executed := false
+		err := i.Exec(ctx, "test-key-1", func(ctx context.Context) error {
+			executed = true
+			return nil
+		})
+
+		assert.NoError(t, err)
+		assert.True(t, executed, "function should have been executed")
+	})
+
+	t.Run("returns nil on duplicate execution with deployment prefix", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		key := testutil.RandomString(5)
+		execCount := 0
+
+		// First execution
+		err := i.Exec(ctx, key, func(ctx context.Context) error {
+			execCount++
+			return nil
+		})
+		assert.NoError(t, err)
+
+		// Second execution with same key should be idempotent
+		err = i.Exec(ctx, key, func(ctx context.Context) error {
+			execCount++
+			return nil
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, execCount, "function should only execute once")
+	})
+}
+
+func TestIdempotenceIsolation(t *testing.T) {
+	t.Parallel()
+
+	redisClient := testutil.CreateTestRedisClient(t)
+
+	// Create two idempotence instances with different deployment IDs
+	i1 := idempotence.New(redisClient,
+		idempotence.WithTimeout(1*time.Second),
+		idempotence.WithSuccessfulTTL(24*time.Hour),
+		idempotence.WithDeploymentID("dp_001"),
+	)
+	i2 := idempotence.New(redisClient,
+		idempotence.WithTimeout(1*time.Second),
+		idempotence.WithSuccessfulTTL(24*time.Hour),
+		idempotence.WithDeploymentID("dp_002"),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// Use the same key for both
+	sharedKey := "shared-idempotency-key"
+
+	exec1Count := 0
+	exec2Count := 0
+
+	// Execute on instance 1
+	err := i1.Exec(ctx, sharedKey, func(ctx context.Context) error {
+		exec1Count++
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, exec1Count)
+
+	// Execute on instance 2 with same key - should execute (different deployment)
+	err = i2.Exec(ctx, sharedKey, func(ctx context.Context) error {
+		exec2Count++
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, exec2Count, "Instance 2 should execute independently")
+
+	// Execute on instance 1 again - should be idempotent
+	err = i1.Exec(ctx, sharedKey, func(ctx context.Context) error {
+		exec1Count++
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, exec1Count, "Instance 1 should remain idempotent")
+
+	// Execute on instance 2 again - should be idempotent
+	err = i2.Exec(ctx, sharedKey, func(ctx context.Context) error {
+		exec2Count++
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, exec2Count, "Instance 2 should remain idempotent")
+}
+
 func TestIdempotence_Failure(t *testing.T) {
 	t.Parallel()
 
