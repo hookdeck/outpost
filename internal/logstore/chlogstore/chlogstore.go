@@ -373,7 +373,6 @@ func buildDeliveryQuery(table string, req driver.ListDeliveryRequest, q paginati
 	orderByClause := fmt.Sprintf("ORDER BY delivery_time %s, delivery_id %s",
 		strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
 
-	// Note: delivery_event_id is read but we write empty string for backwards compat
 	query := fmt.Sprintf(`
 		SELECT
 			event_id,
@@ -755,7 +754,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, events []*models.Event, d
 		deliveryBatch, err := s.chDB.PrepareBatch(ctx,
 			fmt.Sprintf(`INSERT INTO %s (
 				event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
-				delivery_id, delivery_event_id, status, delivery_time, code, response_data, manual, attempt
+				delivery_id, status, delivery_time, code, response_data, manual, attempt
 			)`, s.deliveriesTable),
 		)
 		if err != nil {
@@ -786,7 +785,6 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, events []*models.Event, d
 				return fmt.Errorf("failed to marshal response_data: %w", err)
 			}
 
-			// Write empty string to delivery_event_id for backwards compat (column still exists)
 			// Use event.TenantID for tenant_id since it's denormalized from the event
 			if err := deliveryBatch.Append(
 				d.EventID,
@@ -798,7 +796,6 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, events []*models.Event, d
 				string(metadataJSON),
 				string(dataJSON),
 				d.ID,
-				"", // delivery_event_id - empty for backwards compat
 				d.Status,
 				d.Time,
 				d.Code,

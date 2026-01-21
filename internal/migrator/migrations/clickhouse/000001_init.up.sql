@@ -38,7 +38,6 @@ CREATE TABLE IF NOT EXISTS {deployment_prefix}deliveries (
 
     -- Delivery fields
     delivery_id String,
-    delivery_event_id String,
     status String,        -- 'success', 'failed'
     delivery_time DateTime64(3),
     code String,
