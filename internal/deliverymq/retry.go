@@ -63,7 +63,7 @@ type RetryTask struct {
 	TenantID      string
 	DestinationID string
 	Attempt       int
-	Telemetry     *models.DeliveryEventTelemetry
+	Telemetry     *models.DeliveryTelemetry
 }
 
 func (m *RetryTask) ToString() (string, error) {

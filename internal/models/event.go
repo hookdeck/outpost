@@ -66,7 +66,7 @@ func (e *Event) ToMessage() (*mqs.Message, error) {
 	return &mqs.Message{Body: data}, nil
 }
 
-type DeliveryEventTelemetry struct {
+type DeliveryTelemetry struct {
 	TraceID string
 	SpanID  string
 }
@@ -74,11 +74,11 @@ type DeliveryEventTelemetry struct {
 // DeliveryTask represents a task to deliver an event to a destination.
 // This is a message type (no ID) used by: publishmq -> deliverymq, retry -> deliverymq
 type DeliveryTask struct {
-	Event         Event                   `json:"event"`
-	DestinationID string                  `json:"destination_id"`
-	Attempt       int                     `json:"attempt"`
-	Manual        bool                    `json:"manual"`
-	Telemetry     *DeliveryEventTelemetry `json:"telemetry,omitempty"`
+	Event         Event              `json:"event"`
+	DestinationID string             `json:"destination_id"`
+	Attempt       int                `json:"attempt"`
+	Manual        bool               `json:"manual"`
+	Telemetry     *DeliveryTelemetry `json:"telemetry,omitempty"`
 }
 
 var _ mqs.IncomingMessage = &DeliveryTask{}

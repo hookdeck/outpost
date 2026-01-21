@@ -50,7 +50,7 @@ func (t *eventTracerImpl) Receive(ctx context.Context, event *models.Event) (con
 func (t *eventTracerImpl) StartDelivery(_ context.Context, task *models.DeliveryTask) (context.Context, trace.Span) {
 	ctx, span := t.tracer.Start(t.getRemoteEventSpanContext(&task.Event), "EventTracer.StartDelivery")
 
-	task.Telemetry = &models.DeliveryEventTelemetry{
+	task.Telemetry = &models.DeliveryTelemetry{
 		TraceID: span.SpanContext().TraceID().String(),
 		SpanID:  span.SpanContext().SpanID().String(),
 	}
