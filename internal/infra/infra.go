@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/redislock"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -59,55 +60,83 @@ type infraProvider struct {
 }
 
 func (p *infraProvider) Exist(ctx context.Context) (bool, error) {
-	p.logger.Debug("checking if deliverymq infrastructure exists", zap.String("mq_type", p.mqType))
-	if exists, err := p.deliveryMQ.Exist(ctx); err != nil {
-		return false, err
-	} else if !exists {
-		p.logger.Debug("deliverymq infrastructure does not exist", zap.String("mq_type", p.mqType))
-		return false, nil
-	}
-	p.logger.Debug("deliverymq infrastructure exists", zap.String("mq_type", p.mqType))
+	var deliveryExists, logExists bool
 
-	p.logger.Debug("checking if logmq infrastructure exists", zap.String("mq_type", p.mqType))
-	if exists, err := p.logMQ.Exist(ctx); err != nil {
-		return false, err
-	} else if !exists {
-		p.logger.Debug("logmq infrastructure does not exist", zap.String("mq_type", p.mqType))
-		return false, nil
-	}
-	p.logger.Debug("logmq infrastructure exists", zap.String("mq_type", p.mqType))
+	g, ctx := errgroup.WithContext(ctx)
 
-	return true, nil
+	g.Go(func() error {
+		p.logger.Debug("checking if deliverymq infrastructure exists", zap.String("mq_type", p.mqType))
+		exists, err := p.deliveryMQ.Exist(ctx)
+		if err != nil {
+			return err
+		}
+		deliveryExists = exists
+		if exists {
+			p.logger.Debug("deliverymq infrastructure exists", zap.String("mq_type", p.mqType))
+		} else {
+			p.logger.Debug("deliverymq infrastructure does not exist", zap.String("mq_type", p.mqType))
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		p.logger.Debug("checking if logmq infrastructure exists", zap.String("mq_type", p.mqType))
+		exists, err := p.logMQ.Exist(ctx)
+		if err != nil {
+			return err
+		}
+		logExists = exists
+		if exists {
+			p.logger.Debug("logmq infrastructure exists", zap.String("mq_type", p.mqType))
+		} else {
+			p.logger.Debug("logmq infrastructure does not exist", zap.String("mq_type", p.mqType))
+		}
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return false, err
+	}
+
+	return deliveryExists && logExists, nil
 }
 
 func (p *infraProvider) Declare(ctx context.Context) error {
-	p.logger.Info("declaring deliverymq infrastructure", zap.String("mq_type", p.mqType))
-	start := time.Now()
-	if err := p.deliveryMQ.Declare(ctx); err != nil {
-		p.logger.Error("failed to declare deliverymq infrastructure",
-			zap.String("mq_type", p.mqType),
-			zap.Duration("duration", time.Since(start)),
-			zap.Error(err))
-		return err
-	}
-	p.logger.Info("deliverymq infrastructure declared",
-		zap.String("mq_type", p.mqType),
-		zap.Duration("duration", time.Since(start)))
+	g, ctx := errgroup.WithContext(ctx)
 
-	p.logger.Info("declaring logmq infrastructure", zap.String("mq_type", p.mqType))
-	start = time.Now()
-	if err := p.logMQ.Declare(ctx); err != nil {
-		p.logger.Error("failed to declare logmq infrastructure",
+	g.Go(func() error {
+		p.logger.Info("declaring deliverymq infrastructure", zap.String("mq_type", p.mqType))
+		start := time.Now()
+		if err := p.deliveryMQ.Declare(ctx); err != nil {
+			p.logger.Error("failed to declare deliverymq infrastructure",
+				zap.String("mq_type", p.mqType),
+				zap.Duration("duration", time.Since(start)),
+				zap.Error(err))
+			return err
+		}
+		p.logger.Info("deliverymq infrastructure declared",
 			zap.String("mq_type", p.mqType),
-			zap.Duration("duration", time.Since(start)),
-			zap.Error(err))
-		return err
-	}
-	p.logger.Info("logmq infrastructure declared",
-		zap.String("mq_type", p.mqType),
-		zap.Duration("duration", time.Since(start)))
+			zap.Duration("duration", time.Since(start)))
+		return nil
+	})
 
-	return nil
+	g.Go(func() error {
+		p.logger.Info("declaring logmq infrastructure", zap.String("mq_type", p.mqType))
+		start := time.Now()
+		if err := p.logMQ.Declare(ctx); err != nil {
+			p.logger.Error("failed to declare logmq infrastructure",
+				zap.String("mq_type", p.mqType),
+				zap.Duration("duration", time.Since(start)),
+				zap.Error(err))
+			return err
+		}
+		p.logger.Info("logmq infrastructure declared",
+			zap.String("mq_type", p.mqType),
+			zap.Duration("duration", time.Since(start)))
+		return nil
+	})
+
+	return g.Wait()
 }
 
 func (p *infraProvider) Teardown(ctx context.Context) error {
