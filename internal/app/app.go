@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -49,7 +50,7 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 // PreRun initializes all dependencies before starting the application
-func (a *App) PreRun(ctx context.Context) error {
+func (a *App) PreRun(ctx context.Context) (err error) {
 	if err := a.setupLogger(); err != nil {
 		return err
 	}
@@ -57,6 +58,7 @@ func (a *App) PreRun(ctx context.Context) error {
 	defer func() {
 		if r := recover(); r != nil {
 			a.logger.Error("panic during PreRun", zap.Any("panic", r))
+			err = fmt.Errorf("panic during PreRun: %v", r)
 		}
 	}()
 
@@ -217,7 +219,7 @@ func (a *App) initializeInfrastructure(ctx context.Context) error {
 		DeliveryMQ:    a.config.MQs.ToInfraConfig("deliverymq"),
 		LogMQ:         a.config.MQs.ToInfraConfig("logmq"),
 		AutoProvision: a.config.MQs.AutoProvision,
-	}, a.redisClient); err != nil {
+	}, a.redisClient, a.logger, a.config.MQs.GetInfraType()); err != nil {
 		a.logger.Error("infrastructure initialization failed", zap.Error(err))
 		return err
 	}
