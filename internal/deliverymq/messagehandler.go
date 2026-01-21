@@ -422,13 +422,13 @@ func (h *messageHandler) shouldNackDeliveryError(err error) bool {
 func (h *messageHandler) scheduleRetry(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
 	backoffDuration := h.retryBackoff.Duration(deliveryEvent.Attempt)
 
-	retryMessage := RetryMessageFromDeliveryEvent(deliveryEvent)
-	retryMessageStr, err := retryMessage.ToString()
+	retryTask := RetryTaskFromDeliveryEvent(deliveryEvent)
+	retryTaskStr, err := retryTask.ToString()
 	if err != nil {
 		return err
 	}
 
-	if err := h.retryScheduler.Schedule(ctx, retryMessageStr, backoffDuration, scheduler.WithTaskID(deliveryEvent.GetRetryID())); err != nil {
+	if err := h.retryScheduler.Schedule(ctx, retryTaskStr, backoffDuration, scheduler.WithTaskID(deliveryEvent.GetRetryID())); err != nil {
 		h.logger.Ctx(ctx).Error("failed to schedule retry",
 			zap.Error(err),
 			zap.String("delivery_event_id", deliveryEvent.ID),

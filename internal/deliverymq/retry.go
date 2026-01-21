@@ -42,11 +42,11 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 
 	// Define execution function
 	exec := func(ctx context.Context, msg string) error {
-		retryMessage := RetryMessage{}
-		if err := retryMessage.FromString(msg); err != nil {
+		retryTask := RetryTask{}
+		if err := retryTask.FromString(msg); err != nil {
 			return err
 		}
-		deliveryEvent := retryMessage.ToDeliveryEvent()
+		deliveryEvent := retryTask.ToDeliveryEvent()
 		if err := deliverymq.Publish(ctx, deliveryEvent); err != nil {
 			return err
 		}
@@ -56,7 +56,7 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 	return scheduler.New("deliverymq-retry", rsmqClient, exec, scheduler.WithPollBackoff(pollBackoff)), nil
 }
 
-type RetryMessage struct {
+type RetryTask struct {
 	DeliveryEventID string
 	EventID         string
 	TenantID        string
@@ -65,7 +65,7 @@ type RetryMessage struct {
 	Telemetry       *models.DeliveryEventTelemetry
 }
 
-func (m *RetryMessage) ToString() (string, error) {
+func (m *RetryTask) ToString() (string, error) {
 	json, err := json.Marshal(m)
 	if err != nil {
 		return "", err
@@ -73,11 +73,11 @@ func (m *RetryMessage) ToString() (string, error) {
 	return string(json), nil
 }
 
-func (m *RetryMessage) FromString(str string) error {
+func (m *RetryTask) FromString(str string) error {
 	return json.Unmarshal([]byte(str), &m)
 }
 
-func (m *RetryMessage) ToDeliveryEvent() models.DeliveryEvent {
+func (m *RetryTask) ToDeliveryEvent() models.DeliveryEvent {
 	return models.DeliveryEvent{
 		ID:            m.DeliveryEventID,
 		Attempt:       m.Attempt,
@@ -87,8 +87,8 @@ func (m *RetryMessage) ToDeliveryEvent() models.DeliveryEvent {
 	}
 }
 
-func RetryMessageFromDeliveryEvent(deliveryEvent models.DeliveryEvent) RetryMessage {
-	return RetryMessage{
+func RetryTaskFromDeliveryEvent(deliveryEvent models.DeliveryEvent) RetryTask {
+	return RetryTask{
 		DeliveryEventID: deliveryEvent.ID,
 		EventID:         deliveryEvent.Event.ID,
 		TenantID:        deliveryEvent.Event.TenantID,
