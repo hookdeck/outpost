@@ -1,0 +1,33 @@
+{
+  "type": "cloudflare_queues",
+  "config_fields": [
+    {
+      "key": "account_id",
+      "type": "text",
+      "label": "Account ID",
+      "description": "Your Cloudflare Account ID",
+      "required": true
+    },
+    {
+      "key": "queue_id",
+      "type": "text",
+      "label": "Queue ID",
+      "description": "The ID of your Cloudflare Queue",
+      "required": true
+    }
+  ],
+  "credential_fields": [
+    {
+      "key": "api_token",
+      "type": "text",
+      "label": "API Token",
+      "description": "Cloudflare API Token with queues:write permission",
+      "required": true,
+      "sensitive": true
+    }
+  ],
+  "label": "Cloudflare Queues",
+  "link": "https://developers.cloudflare.com/queues/",
+  "description": "Send events to Cloudflare Queues, a message queue that integrates natively with Cloudflare Workers.",
+  "icon": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M4 0H12C14.2091 0 16 1.79086 16 4V12C16 14.2091 14.2091 16 12 16H4C1.79086 16 0 14.2091 0 12V4C0 1.79086 1.79086 0 4 0Z\" fill=\"#F6821F\"/><path d=\"M11.1847 10.6667H5.33337C5.05723 10.6667 4.83337 10.4428 4.83337 10.1667C4.83337 9.89052 5.05723 9.66667 5.33337 9.66667H11.1847L11.698 8.33333H5.33337C4.50494 8.33333 3.83337 9.00491 3.83337 9.83333V10.5C3.83337 11.3284 4.50494 12 5.33337 12H11.698L11.1847 10.6667Z\" fill=\"white\"/><path d=\"M12.3334 5.33333H6.302L5.78867 6.66667H12.3334C12.6095 6.66667 12.8334 6.89052 12.8334 7.16667C12.8334 7.44281 12.6095 7.66667 12.3334 7.66667H5.27534L4.762 9H12.3334C13.1618 9 13.8334 8.32843 13.8334 7.5V6.83333C13.8334 6.00491 13.1618 5.33333 12.3334 5.33333Z\" fill=\"white\"/><path d=\"M10.6667 2.66667C10.6667 2.29848 10.3682 2 10 2C9.63185 2 9.33337 2.29848 9.33337 2.66667V4H7.33337V2.66667C7.33337 2.29848 7.03489 2 6.6667 2C6.29851 2 6.00003 2.29848 6.00003 2.66667V4H4.6667V5.33333H12V4H10.6667V2.66667Z\" fill=\"white\" fill-opacity=\"0.7\"/></svg>"
+}
