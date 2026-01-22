@@ -40,8 +40,6 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{err: errors.New("destination lookup failed")}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	alertMonitor := newMockAlertMonitor()
 
@@ -100,8 +98,6 @@ func TestMessageHandler_DestinationNotFound(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: nil, err: nil} // destination not found
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	logPublisher := newMockLogPublisher(nil)
 	alertMonitor := newMockAlertMonitor()
@@ -158,8 +154,6 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{err: models.ErrDestinationDeleted}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	logPublisher := newMockLogPublisher(nil)
 	alertMonitor := newMockAlertMonitor()
@@ -217,8 +211,6 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publishErr := &destregistry.ErrDestinationPublishAttempt{
 		Err:      errors.New("webhook returned 429"),
@@ -288,8 +280,6 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publishErr := &destregistry.ErrDestinationPublishAttempt{
 		Err:      errors.New("webhook returned 400"),
@@ -416,8 +406,6 @@ func TestMessageHandler_Idempotency(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil})
 	logPublisher := newMockLogPublisher(nil)
@@ -549,8 +537,6 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil}) // won't be called
 	logPublisher := newMockLogPublisher(nil)
@@ -610,8 +596,6 @@ func TestMessageHandler_LogPublisherError(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil}) // publish succeeds
 	logPublisher := newMockLogPublisher(errors.New("log publish failed"))
@@ -669,8 +653,6 @@ func TestMessageHandler_PublishAndLogError(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{errors.New("publish failed")})
 	logPublisher := newMockLogPublisher(errors.New("log publish failed"))
@@ -728,8 +710,6 @@ func TestManualDelivery_Success(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publishErr := &destregistry.ErrDestinationPublishAttempt{
 		Err:      errors.New("webhook returned 500"),
@@ -806,8 +786,6 @@ func TestManualDelivery_PublishError(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publishErr := &destregistry.ErrDestinationPublishAttempt{
 		Err:      errors.New("webhook returned 429"),
@@ -876,8 +854,6 @@ func TestManualDelivery_CancelError(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	retryScheduler.cancelResp = []error{errors.New("failed to cancel retry")}
 	publisher := newMockPublisher([]error{nil}) // successful publish
@@ -942,8 +918,6 @@ func TestManualDelivery_DestinationDisabled(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil}) // won't be called
 	logPublisher := newMockLogPublisher(nil)
@@ -1003,8 +977,6 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil}) // Successful publish
 	logPublisher := newMockLogPublisher(nil)
@@ -1069,8 +1041,6 @@ func TestMessageHandler_AlertMonitorError(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil}) // Successful publish
 	logPublisher := newMockLogPublisher(nil)
@@ -1176,8 +1146,6 @@ func TestMessageHandler_RetryID_MultipleDestinations(t *testing.T) {
 	destGetter := newMockMultiDestinationGetter()
 	destGetter.registerDestination(&destination1)
 	destGetter.registerDestination(&destination2)
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publishErr := &destregistry.ErrDestinationPublishAttempt{
 		Err:      errors.New("webhook returned 500"),
