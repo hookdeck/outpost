@@ -73,7 +73,7 @@ idgen:
   event_prefix: "evt"
   destination_prefix: "des"
   delivery_prefix: "dlv"
-  delivery_event_prefix: "dev"
+"
 
 # Concurrency
 publish_max_concurrency: 1
