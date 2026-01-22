@@ -3,7 +3,6 @@ package deliverymq_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"sync"
 	"time"
 
@@ -137,11 +136,8 @@ func (m *mockEventGetter) RetrieveEvent(ctx context.Context, req logstore.Retrie
 		return nil, m.err
 	}
 	m.lastRetrievedID = req.EventID
-	event, ok := m.events[req.EventID]
-	if !ok {
-		return nil, errors.New("event not found")
-	}
-	return event, nil
+	// Match actual logstore behavior: return (nil, nil) when event not found
+	return m.events[req.EventID], nil
 }
 
 type mockLogPublisher struct {

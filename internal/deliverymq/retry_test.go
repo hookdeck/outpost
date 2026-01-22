@@ -352,3 +352,72 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 
 	assert.Equal(t, 3, publisher.Current(), "should stop after max retries (1 initial + 2 retries = 3 total attempts)")
 }
+
+func TestRetryScheduler_EventNotFound(t *testing.T) {
+	// Test scenario:
+	// - Initial delivery fails and schedules a retry
+	// - Before retry executes, the event is deleted from logstore
+	// - Retry scheduler should skip publishing (not error) when event returns (nil, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Setup test data
+	tenant := models.Tenant{ID: idgen.String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+		testutil.EventFactory.WithEligibleForRetry(true),
+	)
+
+	// Setup mocks - publisher fails on first attempt
+	publisher := newMockPublisher([]error{
+		&destregistry.ErrDestinationPublishAttempt{
+			Err:      errors.New("webhook returned 503"),
+			Provider: "webhook",
+		},
+	})
+
+	// Event getter does NOT have the event registered
+	// This simulates event being deleted from logstore before retry
+	eventGetter := newMockEventGetter()
+	// Intentionally NOT calling: eventGetter.registerEvent(&event)
+
+	suite := &RetryDeliveryMQSuite{
+		ctx:                  ctx,
+		mqConfig:             &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
+		publisher:            publisher,
+		eventGetter:          eventGetter,
+		logPublisher:         newMockLogPublisher(nil),
+		destGetter:           &mockDestinationGetter{dest: &destination},
+		alertMonitor:         newMockAlertMonitor(),
+		retryMaxCount:        10,
+		retryBackoff:         &backoff.ConstantBackoff{Interval: 50 * time.Millisecond},
+		schedulerPollBackoff: 10 * time.Millisecond,
+	}
+	suite.SetupTest(t)
+	defer suite.TeardownTest(t)
+
+	// Publish task with full event data (simulates initial delivery)
+	task := models.DeliveryTask{
+		Event:         event,
+		DestinationID: destination.ID,
+	}
+	require.NoError(t, suite.deliveryMQ.Publish(ctx, task))
+
+	// Wait for initial delivery attempt and retry scheduling
+	require.Eventually(t, func() bool {
+		return publisher.Current() >= 1
+	}, 2*time.Second, 10*time.Millisecond, "should complete initial delivery attempt")
+
+	// Wait enough time for retry to be processed (if it were to happen)
+	// 50ms backoff + 10ms poll = 60ms minimum for retry
+	time.Sleep(200 * time.Millisecond)
+
+	// Should only have 1 attempt - the retry was skipped because event not found
+	assert.Equal(t, 1, publisher.Current(), "should skip retry when event not found in logstore (returns nil, nil)")
+}
