@@ -12,7 +12,6 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
-	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/scheduler"
@@ -70,7 +69,6 @@ type messageHandler struct {
 	logger         *logging.Logger
 	logMQ          LogPublisher
 	entityStore    DestinationGetter
-	logStore       EventGetter
 	retryScheduler RetryScheduler
 	retryBackoff   backoff.Backoff
 	retryMaxLimit  int
@@ -96,10 +94,6 @@ type DestinationGetter interface {
 	RetrieveDestination(ctx context.Context, tenantID, destID string) (*models.Destination, error)
 }
 
-type EventGetter interface {
-	RetrieveEvent(ctx context.Context, request logstore.RetrieveEventRequest) (*models.Event, error)
-}
-
 type DeliveryTracer interface {
 	Deliver(ctx context.Context, task *models.DeliveryTask, destination *models.Destination) (context.Context, trace.Span)
 }
@@ -112,7 +106,6 @@ func NewMessageHandler(
 	logger *logging.Logger,
 	logMQ LogPublisher,
 	entityStore DestinationGetter,
-	logStore EventGetter,
 	publisher Publisher,
 	eventTracer DeliveryTracer,
 	retryScheduler RetryScheduler,
@@ -126,7 +119,6 @@ func NewMessageHandler(
 		logger:         logger,
 		logMQ:          logMQ,
 		entityStore:    entityStore,
-		logStore:       logStore,
 		publisher:      publisher,
 		retryScheduler: retryScheduler,
 		retryBackoff:   retryBackoff,
@@ -149,11 +141,6 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 		zap.String("tenant_id", task.Event.TenantID),
 		zap.String("destination_id", task.DestinationID),
 		zap.Int("attempt", task.Attempt))
-
-	// Ensure event data
-	if err := h.ensureDeliveryTask(ctx, &task); err != nil {
-		return h.handleError(msg, &PreDeliveryError{err: err})
-	}
 
 	// Get destination
 	destination, err := h.ensurePublishableDestination(ctx, task)
@@ -439,29 +426,6 @@ func (h *messageHandler) scheduleRetry(ctx context.Context, task models.Delivery
 		zap.String("destination_id", task.DestinationID),
 		zap.Int("attempt", task.Attempt),
 		zap.Duration("backoff", backoffDuration))
-
-	return nil
-}
-
-// ensureDeliveryTask ensures that the delivery task has full event data.
-// In retry scenarios, the task only has event ID and we'll need to query the full data.
-func (h *messageHandler) ensureDeliveryTask(ctx context.Context, task *models.DeliveryTask) error {
-	// TODO: consider a more deliberate way to check for retry scenario?
-	if !task.Event.Time.IsZero() {
-		return nil
-	}
-
-	event, err := h.logStore.RetrieveEvent(ctx, logstore.RetrieveEventRequest{
-		TenantID: task.Event.TenantID,
-		EventID:  task.Event.ID,
-	})
-	if err != nil {
-		return err
-	}
-	if event == nil {
-		return errors.New("event not found")
-	}
-	task.Event = *event
 
 	return nil
 }

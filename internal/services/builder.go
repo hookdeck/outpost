@@ -308,7 +308,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		b.logger,
 		svc.logMQ,
 		svc.entityStore,
-		svc.logStore,
 		svc.destRegistry,
 		svc.eventTracer,
 		svc.retryScheduler,
