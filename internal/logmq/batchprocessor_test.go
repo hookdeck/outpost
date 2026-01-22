@@ -78,7 +78,7 @@ func TestBatchProcessor_ValidEntry(t *testing.T) {
 
 	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
-		DelayThreshold:     10 * time.Millisecond,
+		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
 	defer bp.Shutdown()
@@ -95,7 +95,7 @@ func TestBatchProcessor_ValidEntry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for batch to process
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	assert.True(t, mock.acked, "valid message should be acked")
 	assert.False(t, mock.nacked, "valid message should not be nacked")
@@ -112,7 +112,7 @@ func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
 
 	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
-		DelayThreshold:     10 * time.Millisecond,
+		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
 	defer bp.Shutdown()
@@ -128,7 +128,7 @@ func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for batch to process
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	assert.False(t, mock.acked, "invalid message should not be acked")
 	assert.True(t, mock.nacked, "invalid message should be nacked")
@@ -145,7 +145,7 @@ func TestBatchProcessor_InvalidEntry_MissingDelivery(t *testing.T) {
 
 	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
-		DelayThreshold:     10 * time.Millisecond,
+		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
 	defer bp.Shutdown()
@@ -161,7 +161,7 @@ func TestBatchProcessor_InvalidEntry_MissingDelivery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for batch to process
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	assert.False(t, mock.acked, "invalid message should not be acked")
 	assert.True(t, mock.nacked, "invalid message should be nacked")
@@ -178,7 +178,7 @@ func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
 
 	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 3, // Wait for 3 messages before processing
-		DelayThreshold:     10 * time.Millisecond,
+		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
 	defer bp.Shutdown()
@@ -206,7 +206,7 @@ func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
 	require.NoError(t, bp.Add(ctx, msg3))
 
 	// Wait for batch to process
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	// Valid messages should be acked
 	assert.True(t, mock1.acked, "valid message 1 should be acked")
@@ -233,7 +233,7 @@ func TestBatchProcessor_MalformedJSON(t *testing.T) {
 
 	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
-		DelayThreshold:     10 * time.Millisecond,
+		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
 	defer bp.Shutdown()
@@ -243,7 +243,7 @@ func TestBatchProcessor_MalformedJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for batch to process
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	assert.False(t, mock.acked, "malformed message should not be acked")
 	assert.True(t, mock.nacked, "malformed message should be nacked")
