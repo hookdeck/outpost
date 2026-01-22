@@ -566,3 +566,119 @@ func TestRetryScheduler_EventFetchSuccess(t *testing.T) {
 	assert.False(t, logPublisher.entries[0].Event.Time.IsZero(), "first delivery should have full event data")
 	assert.False(t, logPublisher.entries[1].Event.Time.IsZero(), "retry delivery should have full event data (fetched from logstore)")
 }
+
+// TestRetryScheduler_RaceCondition_EventNotYetPersisted verifies that retries are not
+// lost when the retry scheduler queries logstore before the event has been persisted.
+//
+// Scenario:
+//  1. Initial delivery fails, retry is scheduled
+//  2. Retry scheduler runs and queries logstore for event data
+//  3. Event is not yet persisted (logmq batching delay)
+//  4. Retry should remain in queue and be reprocessed later
+//  5. Once event is available, retry succeeds
+func TestRetryScheduler_RaceCondition_EventNotYetPersisted(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Setup test data
+	tenant := models.Tenant{ID: idgen.String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+		testutil.EventFactory.WithEligibleForRetry(true),
+	)
+
+	// Publisher: fails first attempt, succeeds after
+	publisher := newMockPublisher([]error{
+		&destregistry.ErrDestinationPublishAttempt{
+			Err:      errors.New("webhook returned 503"),
+			Provider: "webhook",
+		},
+	})
+	logPublisher := newMockLogPublisher(nil)
+	destGetter := &mockDestinationGetter{dest: &destination}
+	alertMonitor := newMockAlertMonitor()
+
+	// Event getter returns (nil, nil) on first call, then returns event
+	// This simulates: logmq hasn't persisted the event yet when retry first runs
+	eventGetter := newMockDelayedEventGetter(&event, 1) // Return nil for first call
+
+	// Setup deliveryMQ
+	mqConfig := &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}
+	deliveryMQ := deliverymq.New(deliverymq.WithQueue(mqConfig))
+	cleanup, err := deliveryMQ.Init(ctx)
+	require.NoError(t, err)
+	defer cleanup()
+
+	// Setup retry scheduler with short visibility timeout for faster test
+	// When event is not found, the message will be retried after 1 second
+	retryScheduler, err := deliverymq.NewRetryScheduler(
+		deliveryMQ,
+		testutil.CreateTestRedisConfig(t),
+		"",
+		10*time.Millisecond, // Fast polling
+		testutil.CreateTestLogger(t),
+		eventGetter,
+		deliverymq.WithRetryVisibilityTimeout(1), // 1 second visibility timeout
+	)
+	require.NoError(t, err)
+	require.NoError(t, retryScheduler.Init(ctx))
+	go retryScheduler.Monitor(ctx)
+	defer retryScheduler.Shutdown()
+
+	// Setup message handler with short retry backoff
+	handler := deliverymq.NewMessageHandler(
+		testutil.CreateTestLogger(t),
+		logPublisher,
+		destGetter,
+		publisher,
+		testutil.NewMockEventTracer(nil),
+		retryScheduler,
+		&backoff.ConstantBackoff{Interval: 50 * time.Millisecond}, // Short backoff
+		10,
+		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
+	)
+
+	// Setup message consumer
+	mq := mqs.NewQueue(mqConfig)
+	subscription, err := mq.Subscribe(ctx)
+	require.NoError(t, err)
+	defer subscription.Shutdown(ctx)
+
+	go func() {
+		for {
+			msg, err := subscription.Receive(ctx)
+			if err != nil {
+				return
+			}
+			handler.Handle(ctx, msg)
+		}
+	}()
+
+	// Publish task with full event data (simulates initial delivery)
+	task := models.DeliveryTask{
+		Event:         event,
+		DestinationID: destination.ID,
+	}
+	require.NoError(t, deliveryMQ.Publish(ctx, task))
+
+	// Wait for initial delivery to fail and retry to be scheduled
+	require.Eventually(t, func() bool {
+		return publisher.Current() >= 1
+	}, 2*time.Second, 10*time.Millisecond, "initial delivery should complete")
+
+	// Wait for retry to be processed:
+	// - First retry attempt: event not found, message returns to queue
+	// - After 1s visibility timeout: message becomes visible again
+	// - Second retry attempt: event now available, delivery succeeds
+	time.Sleep(2 * time.Second)
+
+	// Should have 2 publish attempts: initial failure + successful retry
+	assert.Equal(t, 2, publisher.Current(),
+		"expected 2 delivery attempts (initial + retry after event becomes available)")
+}
