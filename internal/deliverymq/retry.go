@@ -93,14 +93,15 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 			return err
 		}
 		if event == nil {
-			// Event was deleted from logstore - log warning and skip retry
+			// Event not found - may be race condition with logmq batching delay.
+			// Return error so scheduler retries later.
 			if logger != nil {
-				logger.Ctx(ctx).Warn("event not found in logstore, skipping retry",
+				logger.Ctx(ctx).Warn("event not found in logstore, will retry",
 					zap.String("event_id", retryTask.EventID),
 					zap.String("tenant_id", retryTask.TenantID),
 					zap.String("destination_id", retryTask.DestinationID))
 			}
-			return nil
+			return fmt.Errorf("event not found in logstore")
 		}
 
 		deliveryTask := retryTask.ToDeliveryTask(*event)
