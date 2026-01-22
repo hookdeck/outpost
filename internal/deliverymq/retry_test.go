@@ -53,7 +53,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 	if pollBackoff == 0 {
 		pollBackoff = 100 * time.Millisecond
 	}
-	retryScheduler, err := deliverymq.NewRetryScheduler(s.deliveryMQ, testutil.CreateTestRedisConfig(t), "", pollBackoff, testutil.CreateTestLogger(t))
+	retryScheduler, err := deliverymq.NewRetryScheduler(s.deliveryMQ, testutil.CreateTestRedisConfig(t), "", pollBackoff, testutil.CreateTestLogger(t), s.eventGetter)
 	require.NoError(t, err)
 	require.NoError(t, retryScheduler.Init(s.ctx))
 	go retryScheduler.Monitor(s.ctx)
