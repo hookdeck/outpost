@@ -41,6 +41,10 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `AZURE_SERVICEBUS_RESOURCE_GROUP` | Azure resource group name | `nil` | Yes |
 | `AZURE_SERVICEBUS_SUBSCRIPTION_ID` | Azure subscription ID | `nil` | Yes |
 | `AZURE_SERVICEBUS_TENANT_ID` | Azure Active Directory tenant ID | `nil` | Yes |
+| `CLICKHOUSE_ADDR` | Address (host:port) of the ClickHouse server. Example: 'localhost:9000'. | `nil` | No |
+| `CLICKHOUSE_DATABASE` | Database name in ClickHouse to use. | `outpost` | No |
+| `CLICKHOUSE_PASSWORD` | Password for ClickHouse authentication. | `nil` | No |
+| `CLICKHOUSE_USERNAME` | Username for ClickHouse authentication. | `nil` | No |
 | `DELIVERY_IDEMPOTENCY_KEY_TTL` | Time-to-live in seconds for delivery queue idempotency keys. Controls how long processed deliveries are remembered to prevent duplicate delivery attempts. Default: 3600 (1 hour). | `3600` | No |
 | `DELIVERY_MAX_CONCURRENCY` | Maximum number of delivery attempts to process concurrently. | `1` | No |
 | `DELIVERY_TIMEOUT_SECONDS` | Timeout in seconds for HTTP requests made during event delivery to webhook destinations. | `5` | No |
@@ -96,7 +100,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `PORTAL_ORGANIZATION_NAME` | Organization name displayed in the Outpost Portal. | `nil` | No |
 | `PORTAL_PROXY_URL` | URL to proxy the Outpost Portal through. If set, Outpost serves the portal assets, and this URL is used as the base. Must be a valid URL. | `nil` | No |
 | `PORTAL_REFERER_URL` | The URL where the user is redirected when the JWT token is expired or when the user clicks 'back'. Required if the Outpost Portal is enabled/used. | `nil` | Conditional |
-| `POSTGRES_URL` | Connection URL for PostgreSQL, used for log storage. Example: 'postgres://user:pass@host:port/dbname?sslmode=disable'. | `nil` | Yes |
+| `POSTGRES_URL` | Connection URL for PostgreSQL, used for log storage. Example: 'postgres://user:pass@host:port/dbname?sslmode=disable'. | `nil` | No |
 | `PUBLISH_AWS_SQS_ACCESS_KEY_ID` | AWS Access Key ID for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider. | `nil` | Conditional |
 | `PUBLISH_AWS_SQS_ENDPOINT` | Custom AWS SQS endpoint URL for the publish queue. Optional. | `nil` | No |
 | `PUBLISH_AWS_SQS_QUEUE` | Name of the SQS queue for publishing events. Required if AWS SQS is the chosen publish MQ provider. | `nil` | Conditional |
@@ -125,6 +129,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `REDIS_PASSWORD` | Password for Redis authentication, if required by the server. | `nil` | Yes |
 | `REDIS_PORT` | Port number for the Redis server. | `6379` | Yes |
 | `REDIS_TLS_ENABLED` | Enable TLS encryption for Redis connection. | `false` | No |
+| `REDIS_USERNAME` | Username for Redis ACL authentication. | `nil` | No |
 | `RETRY_INTERVAL_SECONDS` | Interval in seconds for exponential backoff retry strategy (base 2). Ignored if retry_schedule is provided. | `30` | No |
 | `RETRY_POLL_BACKOFF_MS` | Backoff time in milliseconds when the retry monitor finds no messages to process. When a retry message is found, the monitor immediately polls for the next message without delay. Lower values provide faster retry processing but increase Redis load. For serverless Redis providers (Upstash, ElastiCache Serverless), consider increasing to 5000-10000ms to reduce costs. Default: 100 | `100` | No |
 | `RETRY_SCHEDULE` | Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h. | `[]` | No |
@@ -171,6 +176,20 @@ alert:
 
 # Enables or disables audit logging for significant events.
 audit_log: true
+
+clickhouse:
+  # Address (host:port) of the ClickHouse server. Example: 'localhost:9000'.
+  addr: ""
+
+  # Database name in ClickHouse to use.
+  database: "outpost"
+
+  # Password for ClickHouse authentication.
+  password: ""
+
+  # Username for ClickHouse authentication.
+  username: ""
+
 
 # Time-to-live in seconds for delivery queue idempotency keys. Controls how long processed deliveries are remembered to prevent duplicate delivery attempts. Default: 3600 (1 hour).
 delivery_idempotency_key_ttl: 3600
@@ -466,7 +485,6 @@ portal:
 
 
 # Connection URL for PostgreSQL, used for log storage. Example: 'postgres://user:pass@host:port/dbname?sslmode=disable'.
-# Required: Y
 postgres: ""
 
 # Time-to-live in seconds for publish queue idempotency keys. Controls how long processed events are remembered to prevent duplicate processing. Default: 3600 (1 hour).
@@ -572,6 +590,9 @@ redis:
 
   # Enable TLS encryption for Redis connection.
   tls_enabled: false
+
+  # Username for Redis ACL authentication.
+  username: ""
 
 
 # Interval in seconds for exponential backoff retry strategy (base 2). Ignored if retry_schedule is provided.

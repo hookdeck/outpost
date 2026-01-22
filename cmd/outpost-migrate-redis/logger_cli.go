@@ -28,7 +28,7 @@ func (l *CLILogger) Verbose() bool {
 }
 
 // Configuration and initialization
-func (l *CLILogger) LogRedisConfig(host string, port int, database int, clusterEnabled bool, tlsEnabled bool, hasPassword bool) {
+func (l *CLILogger) LogRedisConfig(host string, port int, database int, clusterEnabled bool, tlsEnabled bool, hasUsername bool, hasPassword bool) {
 	if !l.verbose {
 		return
 	}
@@ -38,6 +38,11 @@ func (l *CLILogger) LogRedisConfig(host string, port int, database int, clusterE
 	fmt.Printf("  Database: %d\n", database)
 	fmt.Printf("  Cluster Enabled: %v\n", clusterEnabled)
 	fmt.Printf("  TLS Enabled: %v\n", tlsEnabled)
+	if hasUsername {
+		fmt.Printf("  Username: ****** (set)\n")
+	} else {
+		fmt.Printf("  Username: (not set)\n")
+	}
 	if hasPassword {
 		fmt.Printf("  Password: ****** (set)\n")
 	} else {
