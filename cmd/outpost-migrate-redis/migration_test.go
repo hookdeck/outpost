@@ -106,7 +106,7 @@ func newMockLogger() *mockLogger {
 }
 
 func (l *mockLogger) Verbose() bool                                                   { return false }
-func (l *mockLogger) LogRedisConfig(string, int, int, bool, bool, bool)               {}
+func (l *mockLogger) LogRedisConfig(string, int, int, bool, bool, bool, bool)         {}
 func (l *mockLogger) LogInitialization(bool, int)                                     {}
 func (l *mockLogger) LogMigrationList(map[string]string)                              {}
 func (l *mockLogger) LogMigrationStatus(int, int)                                     {}

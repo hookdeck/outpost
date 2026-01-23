@@ -26,7 +26,7 @@ type MigrationLogger interface {
 	Verbose() bool
 
 	// Configuration and initialization
-	LogRedisConfig(host string, port int, database int, clusterEnabled bool, tlsEnabled bool, hasPassword bool)
+	LogRedisConfig(host string, port int, database int, clusterEnabled bool, tlsEnabled bool, hasUsername bool, hasPassword bool)
 	LogInitialization(isFresh bool, migrationsMarked int)
 
 	// Migration lifecycle

@@ -360,6 +360,7 @@ func ParseWithOS(flags Flags, osInterface OSInterface) (*Config, error) {
 type RedisConfig struct {
 	Host                   string `yaml:"host" env:"REDIS_HOST" desc:"Hostname or IP address of the Redis server." required:"Y"`
 	Port                   int    `yaml:"port" env:"REDIS_PORT" desc:"Port number for the Redis server." required:"Y"`
+	Username               string `yaml:"username" env:"REDIS_USERNAME" desc:"Username for Redis ACL authentication." required:"N"`
 	Password               string `yaml:"password" env:"REDIS_PASSWORD" desc:"Password for Redis authentication, if required by the server." required:"Y"`
 	Database               int    `yaml:"database" env:"REDIS_DATABASE" desc:"Redis database number to select after connecting (ignored in cluster mode)." required:"Y"`
 	TLSEnabled             bool   `yaml:"tls_enabled" env:"REDIS_TLS_ENABLED" desc:"Enable TLS encryption for Redis connection." required:"N"`
@@ -371,6 +372,7 @@ func (c *RedisConfig) ToConfig() *redis.RedisConfig {
 	return &redis.RedisConfig{
 		Host:                   c.Host,
 		Port:                   c.Port,
+		Username:               c.Username,
 		Password:               c.Password,
 		Database:               c.Database,
 		TLSEnabled:             c.TLSEnabled,
