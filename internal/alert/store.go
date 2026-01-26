@@ -42,7 +42,6 @@ func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, 
 	incrCmd := pipe.Incr(ctx, key)
 	pipe.Expire(ctx, key, 24*time.Hour)
 
-	// Execute the transaction
 	_, err := pipe.Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute consecutive failure count transaction: %w", err)

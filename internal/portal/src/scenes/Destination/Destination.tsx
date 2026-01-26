@@ -16,13 +16,11 @@ import getLogo from "../../utils/logo";
 import DestinationSettings from "./DestinationSettings/DestinationSettings";
 import { AttemptRoutes } from "./Events/Attempts";
 
-// Define the tab interface
 interface Tab {
   label: string;
   path: string;
 }
 
-// Define available tabs
 const tabs: Tab[] = [
   { label: "Overview", path: "" },
   { label: "Settings", path: "/settings" },

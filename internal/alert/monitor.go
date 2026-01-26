@@ -148,7 +148,6 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		return fmt.Errorf("failed to get alert state: %w", err)
 	}
 
-	// Check if we should send an alert
 	level, shouldAlert := m.evaluator.ShouldAlert(count)
 	if !shouldAlert {
 		return nil

@@ -51,7 +51,6 @@ func runMigration(ctx context.Context, cfg *config.Config, logger *logging.Logge
 		}
 
 		if err == nil {
-			// Migration succeeded
 			if versionJumped > 0 {
 				logger.Info("migrations applied",
 					zap.Int("version", version),
@@ -88,7 +87,6 @@ func runMigration(ctx context.Context, cfg *config.Config, logger *logging.Logge
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-time.After(retryDelay):
-				// Continue to next attempt
 			}
 		} else {
 			// Exhausted all retries

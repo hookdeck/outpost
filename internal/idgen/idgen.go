@@ -62,7 +62,6 @@ func newIDGenerator(idType string) (idGenerator, error) {
 		idType = "uuidv4"
 	}
 
-	// Select the appropriate generator implementation
 	switch idType {
 	case "uuidv4":
 		return &uuidv4Generator{}, nil

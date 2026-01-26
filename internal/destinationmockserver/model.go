@@ -195,7 +195,6 @@ func verifySignature(secret string, payload []byte, signature string, algorithm 
 		return false
 	}
 
-	// Create a new signature manager with the secret
 	secrets := []destwebhook.WebhookSecret{
 		{
 			Key:       secret,
@@ -209,7 +208,6 @@ func verifySignature(secret string, payload []byte, signature string, algorithm 
 		destwebhook.WithAlgorithm(destwebhook.GetAlgorithm(algorithm)),
 	)
 
-	// Try each signature
 	for _, sig := range signatures {
 		if sm.VerifySignature(sig, secret, destwebhook.SignaturePayload{
 			Body:      string(payload),

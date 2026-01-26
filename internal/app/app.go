@@ -121,21 +121,17 @@ func (a *App) PostRun(ctx context.Context) {
 }
 
 func (a *App) run(ctx context.Context) error {
-	// Set up cancellation context
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Handle sigterm and await termChan signal
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Run workers in goroutine
 	errChan := make(chan error, 1)
 	go func() {
 		errChan <- a.supervisor.Run(ctx)
 	}()
 
-	// Wait for either termination signal or worker failure
 	var exitErr error
 	select {
 	case <-termChan:
@@ -202,7 +198,6 @@ func (a *App) initializeRedis(ctx context.Context) error {
 	}
 	a.redisClient = redisClient
 
-	// Run Redis schema migrations
 	if err := runRedisMigrations(ctx, redisClient, a.logger, a.config.DeploymentID); err != nil {
 		a.logger.Error("Redis migration failed", zap.Error(err))
 		return err

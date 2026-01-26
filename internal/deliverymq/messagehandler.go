@@ -131,7 +131,6 @@ func NewMessageHandler(
 func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	task := models.DeliveryTask{}
 
-	// Parse message
 	if err := task.FromMessage(msg); err != nil {
 		return h.handleError(msg, &PreDeliveryError{err: err})
 	}
@@ -142,13 +141,11 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 		zap.String("destination_id", task.DestinationID),
 		zap.Int("attempt", task.Attempt))
 
-	// Get destination
 	destination, err := h.ensurePublishableDestination(ctx, task)
 	if err != nil {
 		return h.handleError(msg, &PreDeliveryError{err: err})
 	}
 
-	// Handle delivery
 	err = h.idempotence.Exec(ctx, idempotencyKeyFromDeliveryTask(task), func(ctx context.Context) error {
 		return h.doHandle(ctx, task, destination)
 	})
@@ -230,7 +227,6 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.DeliveryTask, destination *models.Destination, attempt *models.Attempt, err error) error {
 	logger := h.logger.Ctx(ctx)
 
-	// Set attempt fields from task
 	attempt.TenantID = task.Event.TenantID
 	attempt.AttemptNumber = task.Attempt
 	attempt.Manual = task.Manual
@@ -245,7 +241,6 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 		zap.Int("attempt", task.Attempt),
 		zap.Bool("manual", task.Manual))
 
-	// Publish attempt log
 	logEntry := models.LogEntry{
 		Event:   &task.Event,
 		Attempt: attempt,
@@ -264,7 +259,6 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 		return &PostDeliveryError{err: logErr}
 	}
 
-	// Call alert monitor in goroutine
 	go h.handleAlertAttempt(ctx, task, destination, attempt, err)
 
 	// If we have an AttemptError, return it as is

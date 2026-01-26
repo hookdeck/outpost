@@ -38,19 +38,17 @@ func WithRetryVisibilityTimeout(vt uint) RetrySchedulerOption {
 }
 
 func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, deploymentID string, pollBackoff time.Duration, logger *logging.Logger, eventGetter RetryEventGetter, opts ...RetrySchedulerOption) (scheduler.Scheduler, error) {
-	// Apply options
 	cfg := &retrySchedulerConfig{}
 	for _, opt := range opts {
 		opt(cfg)
 	}
-	// Create Redis client for RSMQ
+
 	ctx := context.Background()
 	redisClient, err := redis.New(ctx, redisConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Redis client for retry scheduler: %w", err)
 	}
 
-	// Create RSMQ adapter
 	adapter := rsmq.NewRedisAdapter(redisClient)
 
 	// Construct RSMQ namespace with deployment prefix if provided
@@ -61,7 +59,6 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		namespace = fmt.Sprintf("%s:rsmq", deploymentID)
 	}
 
-	// Create RSMQ client with deployment-aware namespace
 	var rsmqClient *rsmq.RedisSMQ
 	if logger != nil {
 		rsmqClient = rsmq.NewRedisSMQ(adapter, namespace, logger)
@@ -69,7 +66,6 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		rsmqClient = rsmq.NewRedisSMQ(adapter, namespace)
 	}
 
-	// Define execution function
 	exec := func(ctx context.Context, msg string) error {
 		retryTask := RetryTask{}
 		if err := retryTask.FromString(msg); err != nil {
@@ -111,7 +107,6 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		return nil
 	}
 
-	// Build scheduler options - pass visibility timeout if configured
 	if cfg.visibilityTimeout > 0 {
 		return scheduler.New("deliverymq-retry", rsmqClient, exec,
 			scheduler.WithPollBackoff(pollBackoff),
