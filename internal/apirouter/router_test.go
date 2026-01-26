@@ -109,7 +109,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 	router, _, _ := setupTestRouter(t, apiKey, jwtSecret)
 
 	tenantID := "tenantID"
-	validToken, err := apirouter.JWT.New(jwtSecret, tenantID)
+	validToken, err := apirouter.JWT.New(jwtSecret, apirouter.JWTClaims{TenantID: tenantID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestRouterWithoutAPIKey(t *testing.T) {
 	router, _, _ := setupTestRouter(t, apiKey, jwtSecret)
 
 	tenantID := "tenantID"
-	validToken, err := apirouter.JWT.New(jwtSecret, tenantID)
+	validToken, err := apirouter.JWT.New(jwtSecret, apirouter.JWTClaims{TenantID: tenantID})
 	if err != nil {
 		t.Fatal(err)
 	}

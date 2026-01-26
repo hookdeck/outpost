@@ -49,6 +49,7 @@ type RouterConfig struct {
 	ServiceName  string
 	APIKey       string
 	JWTSecret    string
+	DeploymentID string
 	Topics       []string
 	Registry     destregistry.Registry
 	PortalConfig portal.PortalConfig
@@ -138,7 +139,7 @@ func NewRouter(
 	apiRouter := r.Group("/api/v1")
 	apiRouter.Use(SetTenantIDMiddleware())
 
-	tenantHandlers := NewTenantHandlers(logger, telemetry, cfg.JWTSecret, entityStore)
+	tenantHandlers := NewTenantHandlers(logger, telemetry, cfg.JWTSecret, cfg.DeploymentID, entityStore)
 	destinationHandlers := NewDestinationHandlers(logger, telemetry, entityStore, cfg.Topics, cfg.Registry)
 	publishHandlers := NewPublishHandlers(logger, publishmqEventHandler)
 	logHandlers := NewLogHandlers(logger, logStore)
