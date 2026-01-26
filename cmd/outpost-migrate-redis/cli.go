@@ -31,6 +31,11 @@ func NewCommand() *cli.Command {
 				Sources: cli.EnvVars("REDIS_PORT"),
 			},
 			&cli.StringFlag{
+				Name:    "redis-username",
+				Usage:   "Redis username for ACL authentication (overrides config)",
+				Sources: cli.EnvVars("REDIS_USERNAME"),
+			},
+			&cli.StringFlag{
 				Name:    "redis-password",
 				Usage:   "Redis password (overrides config)",
 				Sources: cli.EnvVars("REDIS_PASSWORD"),
@@ -202,6 +207,7 @@ func withMigrator(ctx context.Context, c *cli.Command, fn func(*Migrator) error)
 		rc.Database,
 		rc.ClusterEnabled,
 		rc.TLSEnabled,
+		rc.Username != "",
 		rc.Password != "",
 	)
 

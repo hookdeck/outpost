@@ -29,7 +29,7 @@ func (l *ServerLogger) Verbose() bool {
 }
 
 // Configuration and initialization
-func (l *ServerLogger) LogRedisConfig(host string, port int, database int, clusterEnabled bool, tlsEnabled bool, hasPassword bool) {
+func (l *ServerLogger) LogRedisConfig(host string, port int, database int, clusterEnabled bool, tlsEnabled bool, hasUsername bool, hasPassword bool) {
 	if !l.verbose {
 		return
 	}
@@ -39,6 +39,7 @@ func (l *ServerLogger) LogRedisConfig(host string, port int, database int, clust
 		zap.Int("database", database),
 		zap.Bool("cluster_enabled", clusterEnabled),
 		zap.Bool("tls_enabled", tlsEnabled),
+		zap.Bool("username_set", hasUsername),
 		zap.Bool("password_set", hasPassword),
 	)
 }

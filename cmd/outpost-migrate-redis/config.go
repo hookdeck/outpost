@@ -56,6 +56,10 @@ func (cl *ConfigLoader) applyRedisOverrides(c *cli.Command, cfg *config.Config) 
 		cfg.Redis.Port = port
 	}
 
+	if username := c.String("redis-username"); username != "" {
+		cfg.Redis.Username = username
+	}
+
 	if password := c.String("redis-password"); password != "" {
 		cfg.Redis.Password = password
 	}
