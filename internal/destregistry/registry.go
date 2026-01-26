@@ -25,7 +25,7 @@ type PreprocessDestinationOpts struct {
 type Registry interface {
 	// Operations
 	ValidateDestination(ctx context.Context, destination *models.Destination) error
-	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Delivery, error)
+	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error)
 	DisplayDestination(destination *models.Destination) (*DestinationDisplay, error)
 	PreprocessDestination(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error
 
@@ -135,14 +135,14 @@ func (r *registry) ValidateDestination(ctx context.Context, destination *models.
 	return nil
 }
 
-func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Delivery, error) {
+func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error) {
 	publisher, err := r.ResolvePublisher(ctx, destination)
 	if err != nil {
 		return nil, err
 	}
 
-	delivery := &models.Delivery{
-		ID:            idgen.Delivery(),
+	attempt := &models.Attempt{
+		ID:            idgen.Attempt(),
 		DestinationID: destination.ID,
 		EventID:       event.ID,
 	}
@@ -153,7 +153,7 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 
 	deliveryData, err := publisher.Publish(timeoutCtx, event)
 	if err != nil {
-		// Context canceled = system shutdown, return nil delivery to trigger nack → requeue.
+		// Context canceled = system shutdown, return nil attempt to trigger nack → requeue.
 		// This is handled centrally so individual publishers don't need to check for it.
 		// See: https://github.com/hookdeck/outpost/issues/571
 		if errors.Is(err, context.Canceled) {
@@ -161,18 +161,18 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 		}
 
 		if deliveryData != nil {
-			delivery.Time = time.Now()
-			delivery.Status = deliveryData.Status
-			delivery.Code = deliveryData.Code
-			delivery.ResponseData = deliveryData.Response
+			attempt.Time = time.Now()
+			attempt.Status = deliveryData.Status
+			attempt.Code = deliveryData.Code
+			attempt.ResponseData = deliveryData.Response
 		} else {
-			delivery = nil
+			attempt = nil
 		}
 		var publishErr *ErrDestinationPublishAttempt
 		if errors.As(err, &publishErr) {
 			// Check if the wrapped error is a timeout
 			if errors.Is(publishErr.Err, context.DeadlineExceeded) {
-				return delivery, &ErrDestinationPublishAttempt{
+				return attempt, &ErrDestinationPublishAttempt{
 					Err:      publishErr.Err,
 					Provider: destination.Type,
 					Data: map[string]interface{}{
@@ -181,11 +181,11 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 					},
 				}
 			}
-			return delivery, publishErr
+			return attempt, publishErr
 		}
 
 		if errors.Is(err, context.DeadlineExceeded) {
-			return delivery, &ErrDestinationPublishAttempt{
+			return attempt, &ErrDestinationPublishAttempt{
 				Err:      err,
 				Provider: destination.Type,
 				Data: map[string]interface{}{
@@ -195,7 +195,7 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 			}
 		}
 
-		return delivery, &ErrDestinationPublishAttempt{
+		return attempt, &ErrDestinationPublishAttempt{
 			Err:      err,
 			Provider: destination.Type,
 			Data: map[string]interface{}{
@@ -217,12 +217,12 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 		}
 	}
 
-	delivery.Time = time.Now()
-	delivery.Status = deliveryData.Status
-	delivery.Code = deliveryData.Code
-	delivery.ResponseData = deliveryData.Response
+	attempt.Time = time.Now()
+	attempt.Status = deliveryData.Status
+	attempt.Code = deliveryData.Code
+	attempt.ResponseData = deliveryData.Response
 
-	return delivery, nil
+	return attempt, nil
 }
 
 func (r *registry) RegisterProvider(destinationType string, provider Provider) error {

@@ -40,15 +40,15 @@ func (e *PreDeliveryError) Unwrap() error {
 	return e.err
 }
 
-type DeliveryError struct {
+type AttemptError struct {
 	err error
 }
 
-func (e *DeliveryError) Error() string {
-	return fmt.Sprintf("delivery error: %v", e.err)
+func (e *AttemptError) Error() string {
+	return fmt.Sprintf("attempt error: %v", e.err)
 }
 
-func (e *DeliveryError) Unwrap() error {
+func (e *AttemptError) Unwrap() error {
 	return e.err
 }
 
@@ -78,7 +78,7 @@ type messageHandler struct {
 }
 
 type Publisher interface {
-	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Delivery, error)
+	PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error)
 }
 
 type LogPublisher interface {
@@ -177,29 +177,29 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 	_, span := h.eventTracer.Deliver(ctx, &task, destination)
 	defer span.End()
 
-	delivery, err := h.publisher.PublishEvent(ctx, destination, &task.Event)
+	attempt, err := h.publisher.PublishEvent(ctx, destination, &task.Event)
 	if err != nil {
-		// If delivery is nil, it means no delivery was made.
+		// If attempt is nil, it means no attempt was made.
 		// This is an unexpected error and considered a pre-delivery error.
-		if delivery == nil {
+		if attempt == nil {
 			return &PreDeliveryError{err: err}
 		}
 
 		h.logger.Ctx(ctx).Error("failed to publish event",
 			zap.Error(err),
-			zap.String("delivery_id", delivery.ID),
+			zap.String("attempt_id", attempt.ID),
 			zap.String("event_id", task.Event.ID),
 			zap.String("tenant_id", task.Event.TenantID),
 			zap.String("destination_id", destination.ID),
 			zap.String("destination_type", destination.Type))
-		deliveryErr := &DeliveryError{err: err}
+		attemptErr := &AttemptError{err: err}
 
 		if h.shouldScheduleRetry(task, err) {
 			if retryErr := h.scheduleRetry(ctx, task); retryErr != nil {
-				return h.logDeliveryResult(ctx, &task, destination, delivery, errors.Join(err, retryErr))
+				return h.logDeliveryResult(ctx, &task, destination, attempt, errors.Join(err, retryErr))
 			}
 		}
-		return h.logDeliveryResult(ctx, &task, destination, delivery, deliveryErr)
+		return h.logDeliveryResult(ctx, &task, destination, attempt, attemptErr)
 	}
 
 	// Handle successful delivery
@@ -208,52 +208,52 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 		if err := h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID)); err != nil {
 			h.logger.Ctx(ctx).Error("failed to cancel scheduled retry",
 				zap.Error(err),
-				zap.String("delivery_id", delivery.ID),
+				zap.String("attempt_id", attempt.ID),
 				zap.String("event_id", task.Event.ID),
 				zap.String("tenant_id", task.Event.TenantID),
 				zap.String("destination_id", destination.ID),
 				zap.String("destination_type", destination.Type),
 				zap.String("retry_id", models.RetryID(task.Event.ID, task.DestinationID)))
-			return h.logDeliveryResult(ctx, &task, destination, delivery, err)
+			return h.logDeliveryResult(ctx, &task, destination, attempt, err)
 		}
 		logger.Audit("scheduled retry canceled",
-			zap.String("delivery_id", delivery.ID),
+			zap.String("attempt_id", attempt.ID),
 			zap.String("event_id", task.Event.ID),
 			zap.String("tenant_id", task.Event.TenantID),
 			zap.String("destination_id", destination.ID),
 			zap.String("destination_type", destination.Type),
 			zap.String("retry_id", models.RetryID(task.Event.ID, task.DestinationID)))
 	}
-	return h.logDeliveryResult(ctx, &task, destination, delivery, nil)
+	return h.logDeliveryResult(ctx, &task, destination, attempt, nil)
 }
 
-func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.DeliveryTask, destination *models.Destination, delivery *models.Delivery, err error) error {
+func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.DeliveryTask, destination *models.Destination, attempt *models.Attempt, err error) error {
 	logger := h.logger.Ctx(ctx)
 
-	// Set delivery fields from task
-	delivery.TenantID = task.Event.TenantID
-	delivery.Attempt = task.Attempt
-	delivery.Manual = task.Manual
+	// Set attempt fields from task
+	attempt.TenantID = task.Event.TenantID
+	attempt.AttemptNumber = task.Attempt
+	attempt.Manual = task.Manual
 
 	logger.Audit("event delivered",
-		zap.String("delivery_id", delivery.ID),
+		zap.String("attempt_id", attempt.ID),
 		zap.String("event_id", task.Event.ID),
 		zap.String("tenant_id", task.Event.TenantID),
 		zap.String("destination_id", destination.ID),
 		zap.String("destination_type", destination.Type),
-		zap.String("delivery_status", delivery.Status),
+		zap.String("attempt_status", attempt.Status),
 		zap.Int("attempt", task.Attempt),
 		zap.Bool("manual", task.Manual))
 
-	// Publish delivery log
+	// Publish attempt log
 	logEntry := models.LogEntry{
-		Event:    &task.Event,
-		Delivery: delivery,
+		Event:   &task.Event,
+		Attempt: attempt,
 	}
 	if logErr := h.logMQ.Publish(ctx, logEntry); logErr != nil {
-		logger.Error("failed to publish delivery log",
+		logger.Error("failed to publish attempt log",
 			zap.Error(logErr),
-			zap.String("delivery_id", delivery.ID),
+			zap.String("attempt_id", attempt.ID),
 			zap.String("event_id", task.Event.ID),
 			zap.String("tenant_id", task.Event.TenantID),
 			zap.String("destination_id", destination.ID),
@@ -265,11 +265,11 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 	}
 
 	// Call alert monitor in goroutine
-	go h.handleAlertAttempt(ctx, task, destination, delivery, err)
+	go h.handleAlertAttempt(ctx, task, destination, attempt, err)
 
-	// If we have a DeliveryError, return it as is
-	var delErr *DeliveryError
-	if errors.As(err, &delErr) {
+	// If we have an AttemptError, return it as is
+	var attErr *AttemptError
+	if errors.As(err, &attErr) {
 		return err
 	}
 
@@ -287,9 +287,9 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 	return nil
 }
 
-func (h *messageHandler) handleAlertAttempt(ctx context.Context, task *models.DeliveryTask, destination *models.Destination, delivery *models.Delivery, err error) {
-	attempt := alert.DeliveryAttempt{
-		Success:      delivery.Status == models.DeliveryStatusSuccess,
+func (h *messageHandler) handleAlertAttempt(ctx context.Context, task *models.DeliveryTask, destination *models.Destination, attemptResult *models.Attempt, err error) {
+	alertAttempt := alert.DeliveryAttempt{
+		Success:      attemptResult.Status == models.AttemptStatusSuccess,
 		DeliveryTask: task,
 		Destination: &alert.AlertDestination{
 			ID:         destination.ID,
@@ -300,33 +300,33 @@ func (h *messageHandler) handleAlertAttempt(ctx context.Context, task *models.De
 			CreatedAt:  destination.CreatedAt,
 			DisabledAt: destination.DisabledAt,
 		},
-		Timestamp: delivery.Time,
+		Timestamp: attemptResult.Time,
 	}
 
-	if !attempt.Success && err != nil {
+	if !alertAttempt.Success && err != nil {
 		// Extract attempt data if available
-		var delErr *DeliveryError
-		if errors.As(err, &delErr) {
+		var attErr *AttemptError
+		if errors.As(err, &attErr) {
 			var pubErr *destregistry.ErrDestinationPublishAttempt
-			if errors.As(delErr.err, &pubErr) {
-				attempt.DeliveryResponse = pubErr.Data
+			if errors.As(attErr.err, &pubErr) {
+				alertAttempt.DeliveryResponse = pubErr.Data
 			} else {
-				attempt.DeliveryResponse = map[string]interface{}{
-					"error": delErr.err.Error(),
+				alertAttempt.DeliveryResponse = map[string]interface{}{
+					"error": attErr.err.Error(),
 				}
 			}
 		} else {
-			attempt.DeliveryResponse = map[string]interface{}{
+			alertAttempt.DeliveryResponse = map[string]interface{}{
 				"error":   "unexpected",
 				"message": err.Error(),
 			}
 		}
 	}
 
-	if monitorErr := h.alertMonitor.HandleAttempt(ctx, attempt); monitorErr != nil {
+	if monitorErr := h.alertMonitor.HandleAttempt(ctx, alertAttempt); monitorErr != nil {
 		h.logger.Ctx(ctx).Error("failed to handle alert attempt",
 			zap.Error(monitorErr),
-			zap.String("delivery_id", delivery.ID),
+			zap.String("attempt_id", attemptResult.ID),
 			zap.String("event_id", task.Event.ID),
 			zap.String("tenant_id", destination.TenantID),
 			zap.String("destination_id", destination.ID),
@@ -335,7 +335,7 @@ func (h *messageHandler) handleAlertAttempt(ctx context.Context, task *models.De
 	}
 
 	h.logger.Ctx(ctx).Info("alert attempt handled",
-		zap.String("delivery_id", delivery.ID),
+		zap.String("attempt_id", attemptResult.ID),
 		zap.String("event_id", task.Event.ID),
 		zap.String("tenant_id", destination.TenantID),
 		zap.String("destination_id", destination.ID),
@@ -372,18 +372,18 @@ func (h *messageHandler) shouldNackError(err error) bool {
 	}
 
 	// Handle delivery errors
-	var delErr *DeliveryError
-	if errors.As(err, &delErr) {
-		return h.shouldNackDeliveryError(delErr.err)
+	var attErr *AttemptError
+	if errors.As(err, &attErr) {
+		return h.shouldNackDeliveryError(attErr.err)
 	}
 
 	// Handle post-delivery errors
 	var postErr *PostDeliveryError
 	if errors.As(err, &postErr) {
 		// Check if this wraps a delivery error
-		var delErr *DeliveryError
-		if errors.As(postErr.err, &delErr) {
-			return h.shouldNackDeliveryError(delErr.err)
+		var attErr2 *AttemptError
+		if errors.As(postErr.err, &attErr2) {
+			return h.shouldNackDeliveryError(attErr2.err)
 		}
 		return true // Nack other post-delivery errors
 	}

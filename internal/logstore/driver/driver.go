@@ -18,9 +18,9 @@ type TimeFilter struct {
 
 type LogStore interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
-	ListDelivery(context.Context, ListDeliveryRequest) (ListDeliveryResponse, error)
+	ListAttempt(context.Context, ListAttemptRequest) (ListAttemptResponse, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
-	RetrieveDelivery(ctx context.Context, request RetrieveDeliveryRequest) (*DeliveryRecord, error)
+	RetrieveAttempt(ctx context.Context, request RetrieveAttemptRequest) (*AttemptRecord, error)
 	InsertMany(context.Context, []*models.LogEntry) error
 }
 
@@ -41,11 +41,11 @@ type ListEventResponse struct {
 	Prev string
 }
 
-type ListDeliveryRequest struct {
+type ListAttemptRequest struct {
 	Next           string
 	Prev           string
 	Limit          int
-	TimeFilter     TimeFilter // optional - filter deliveries by time
+	TimeFilter     TimeFilter // optional - filter attempts by time
 	TenantID       string     // optional - filter by tenant (if empty, returns all tenants)
 	EventID        string     // optional - filter for specific event
 	DestinationIDs []string   // optional
@@ -54,8 +54,8 @@ type ListDeliveryRequest struct {
 	SortOrder      string     // optional: "asc", "desc" (default: "desc")
 }
 
-type ListDeliveryResponse struct {
-	Data []*DeliveryRecord
+type ListAttemptResponse struct {
+	Data []*AttemptRecord
 	Next string
 	Prev string
 }
@@ -66,13 +66,13 @@ type RetrieveEventRequest struct {
 	DestinationID string // optional - if provided, scopes to that destination
 }
 
-type RetrieveDeliveryRequest struct {
-	TenantID   string // optional - filter by tenant (if empty, searches all tenants)
-	DeliveryID string // required
+type RetrieveAttemptRequest struct {
+	TenantID  string // optional - filter by tenant (if empty, searches all tenants)
+	AttemptID string // required
 }
 
-// DeliveryRecord represents a delivery query result with optional Event population.
-type DeliveryRecord struct {
-	Delivery *models.Delivery
-	Event    *models.Event // optionally populated for query results
+// AttemptRecord represents an attempt query result with optional Event population.
+type AttemptRecord struct {
+	Attempt *models.Attempt
+	Event   *models.Event // optionally populated for query results
 }

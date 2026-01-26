@@ -128,18 +128,18 @@ func NewManualDeliveryTask(event Event, destinationID string) DeliveryTask {
 }
 
 const (
-	DeliveryStatusSuccess = "success"
-	DeliveryStatusFailed  = "failed"
+	AttemptStatusSuccess = "success"
+	AttemptStatusFailed  = "failed"
 )
 
 // LogEntry represents a message for the log queue.
 //
-// IMPORTANT: Both Event and Delivery are REQUIRED. The logstore requires both
+// IMPORTANT: Both Event and Attempt are REQUIRED. The logstore requires both
 // to exist for proper data consistency. The logmq consumer validates this
 // requirement and rejects entries missing either field.
 type LogEntry struct {
-	Event    *Event    `json:"event"`
-	Delivery *Delivery `json:"delivery"`
+	Event   *Event   `json:"event"`
+	Attempt *Attempt `json:"attempt"`
 }
 
 var _ mqs.IncomingMessage = &LogEntry{}
@@ -156,12 +156,12 @@ func (e *LogEntry) ToMessage() (*mqs.Message, error) {
 	return &mqs.Message{Body: data}, nil
 }
 
-type Delivery struct {
+type Attempt struct {
 	ID            string                 `json:"id"`
 	TenantID      string                 `json:"tenant_id"`
 	EventID       string                 `json:"event_id"`
 	DestinationID string                 `json:"destination_id"`
-	Attempt       int                    `json:"attempt"`
+	AttemptNumber int                    `json:"attempt"`
 	Manual        bool                   `json:"manual"`
 	Status        string                 `json:"status"`
 	Time          time.Time              `json:"time"`

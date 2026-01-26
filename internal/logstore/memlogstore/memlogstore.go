@@ -14,25 +14,25 @@ import (
 )
 
 const (
-	cursorResourceEvent    = "evt"
-	cursorResourceDelivery = "dlv"
-	cursorVersion          = 1
+	cursorResourceEvent   = "evt"
+	cursorResourceAttempt = "att"
+	cursorVersion         = 1
 )
 
 // memLogStore is an in-memory implementation of driver.LogStore.
 // It serves as a reference implementation and is useful for testing.
 type memLogStore struct {
-	mu         sync.RWMutex
-	events     map[string]*models.Event // keyed by event ID
-	deliveries []*models.Delivery       // list of all deliveries
+	mu       sync.RWMutex
+	events   map[string]*models.Event // keyed by event ID
+	attempts []*models.Attempt        // list of all attempts
 }
 
 var _ driver.LogStore = (*memLogStore)(nil)
 
 func NewLogStore() driver.LogStore {
 	return &memLogStore{
-		events:     make(map[string]*models.Event),
-		deliveries: make([]*models.Delivery, 0),
+		events:   make(map[string]*models.Event),
+		attempts: make([]*models.Attempt, 0),
 	}
 }
 
@@ -194,27 +194,27 @@ func (s *memLogStore) InsertMany(ctx context.Context, entries []*models.LogEntry
 		// Insert event (dedupe by ID)
 		s.events[entry.Event.ID] = copyEvent(entry.Event)
 
-		// Insert delivery (idempotent upsert: match on event_id + delivery_id)
-		d := entry.Delivery
-		copied := copyDelivery(d)
+		// Insert attempt (idempotent upsert: match on event_id + attempt_id)
+		a := entry.Attempt
+		copied := copyAttempt(a)
 
 		found := false
-		for i, existing := range s.deliveries {
-			if existing.EventID == d.EventID && existing.ID == d.ID {
-				s.deliveries[i] = copied
+		for i, existing := range s.attempts {
+			if existing.EventID == a.EventID && existing.ID == a.ID {
+				s.attempts[i] = copied
 				found = true
 				break
 			}
 		}
 
 		if !found {
-			s.deliveries = append(s.deliveries, copied)
+			s.attempts = append(s.attempts, copied)
 		}
 	}
 	return nil
 }
 
-func (s *memLogStore) ListDelivery(ctx context.Context, req driver.ListDeliveryRequest) (driver.ListDeliveryResponse, error) {
+func (s *memLogStore) ListAttempt(ctx context.Context, req driver.ListAttemptRequest) (driver.ListAttemptResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -228,43 +228,43 @@ func (s *memLogStore) ListDelivery(ctx context.Context, req driver.ListDeliveryR
 		limit = 100
 	}
 
-	// Filter deliveries and build records with events
-	var allRecords []*driver.DeliveryRecord
-	for _, d := range s.deliveries {
-		event := s.events[d.EventID]
+	// Filter attempts and build records with events
+	var allRecords []*driver.AttemptRecord
+	for _, a := range s.attempts {
+		event := s.events[a.EventID]
 		if event == nil {
-			continue // skip orphan deliveries
+			continue // skip orphan attempts
 		}
-		if !s.matchesDeliveryFilter(d, event, req) {
+		if !s.matchesAttemptFilter(a, event, req) {
 			continue
 		}
-		allRecords = append(allRecords, &driver.DeliveryRecord{
-			Delivery: copyDelivery(d),
-			Event:    copyEvent(event),
+		allRecords = append(allRecords, &driver.AttemptRecord{
+			Attempt: copyAttempt(a),
+			Event:   copyEvent(event),
 		})
 	}
 
-	// deliveryRecordWithTimeID pairs a delivery record with its sortable time ID.
-	type deliveryRecordWithTimeID struct {
-		record *driver.DeliveryRecord
+	// attemptRecordWithTimeID pairs an attempt record with its sortable time ID.
+	type attemptRecordWithTimeID struct {
+		record *driver.AttemptRecord
 		timeID string
 	}
 
-	// Build list with time IDs (using delivery time)
-	recordsWithTimeID := make([]deliveryRecordWithTimeID, len(allRecords))
+	// Build list with time IDs (using attempt time)
+	recordsWithTimeID := make([]attemptRecordWithTimeID, len(allRecords))
 	for i, r := range allRecords {
-		recordsWithTimeID[i] = deliveryRecordWithTimeID{
+		recordsWithTimeID[i] = attemptRecordWithTimeID{
 			record: r,
-			timeID: makeTimeID(r.Delivery.Time, r.Delivery.ID),
+			timeID: makeTimeID(r.Attempt.Time, r.Attempt.ID),
 		}
 	}
 
-	res, err := pagination.Run(ctx, pagination.Config[deliveryRecordWithTimeID]{
+	res, err := pagination.Run(ctx, pagination.Config[attemptRecordWithTimeID]{
 		Limit: limit,
 		Order: sortOrder,
 		Next:  req.Next,
 		Prev:  req.Prev,
-		Fetch: func(_ context.Context, q pagination.QueryInput) ([]deliveryRecordWithTimeID, error) {
+		Fetch: func(_ context.Context, q pagination.QueryInput) ([]attemptRecordWithTimeID, error) {
 			// Sort based on query direction
 			isDesc := q.SortDir == "desc"
 			sort.Slice(recordsWithTimeID, func(i, j int) bool {
@@ -275,7 +275,7 @@ func (s *memLogStore) ListDelivery(ctx context.Context, req driver.ListDeliveryR
 			})
 
 			// Filter using q.Compare (like SQL WHERE clause)
-			var filtered []deliveryRecordWithTimeID
+			var filtered []attemptRecordWithTimeID
 			for _, r := range recordsWithTimeID {
 				// If no cursor, include all items
 				// If cursor exists, filter using Compare operator
@@ -289,38 +289,38 @@ func (s *memLogStore) ListDelivery(ctx context.Context, req driver.ListDeliveryR
 				filtered = filtered[:q.Limit]
 			}
 
-			result := make([]deliveryRecordWithTimeID, len(filtered))
+			result := make([]attemptRecordWithTimeID, len(filtered))
 			for i, r := range filtered {
-				result[i] = deliveryRecordWithTimeID{
-					record: &driver.DeliveryRecord{
-						Delivery: copyDelivery(r.record.Delivery),
-						Event:    copyEvent(r.record.Event),
+				result[i] = attemptRecordWithTimeID{
+					record: &driver.AttemptRecord{
+						Attempt: copyAttempt(r.record.Attempt),
+						Event:   copyEvent(r.record.Event),
 					},
 					timeID: r.timeID,
 				}
 			}
 			return result, nil
 		},
-		Cursor: pagination.Cursor[deliveryRecordWithTimeID]{
-			Encode: func(r deliveryRecordWithTimeID) string {
-				return cursor.Encode(cursorResourceDelivery, cursorVersion, r.timeID)
+		Cursor: pagination.Cursor[attemptRecordWithTimeID]{
+			Encode: func(r attemptRecordWithTimeID) string {
+				return cursor.Encode(cursorResourceAttempt, cursorVersion, r.timeID)
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceDelivery, cursorVersion)
+				return cursor.Decode(c, cursorResourceAttempt, cursorVersion)
 			},
 		},
 	})
 	if err != nil {
-		return driver.ListDeliveryResponse{}, err
+		return driver.ListAttemptResponse{}, err
 	}
 
 	// Extract records from results
-	data := make([]*driver.DeliveryRecord, len(res.Items))
+	data := make([]*driver.AttemptRecord, len(res.Items))
 	for i, item := range res.Items {
 		data[i] = item.record
 	}
 
-	return driver.ListDeliveryResponse{
+	return driver.ListAttemptResponse{
 		Data: data,
 		Next: res.Next,
 		Prev: res.Prev,
@@ -345,42 +345,42 @@ func (s *memLogStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEven
 	return copyEvent(event), nil
 }
 
-func (s *memLogStore) RetrieveDelivery(ctx context.Context, req driver.RetrieveDeliveryRequest) (*driver.DeliveryRecord, error) {
+func (s *memLogStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttemptRequest) (*driver.AttemptRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	for _, d := range s.deliveries {
-		if d.ID == req.DeliveryID {
-			event := s.events[d.EventID]
+	for _, a := range s.attempts {
+		if a.ID == req.AttemptID {
+			event := s.events[a.EventID]
 			if event == nil {
 				continue
 			}
 			if req.TenantID != "" && event.TenantID != req.TenantID {
 				continue
 			}
-			return &driver.DeliveryRecord{
-				Delivery: copyDelivery(d),
-				Event:    copyEvent(event),
+			return &driver.AttemptRecord{
+				Attempt: copyAttempt(a),
+				Event:   copyEvent(event),
 			}, nil
 		}
 	}
 	return nil, nil
 }
 
-func (s *memLogStore) matchesDeliveryFilter(d *models.Delivery, event *models.Event, req driver.ListDeliveryRequest) bool {
-	// Filter by event's tenant ID since deliveries don't have tenant_id in the database
+func (s *memLogStore) matchesAttemptFilter(a *models.Attempt, event *models.Event, req driver.ListAttemptRequest) bool {
+	// Filter by event's tenant ID since attempts don't have tenant_id in the database
 	if req.TenantID != "" && event.TenantID != req.TenantID {
 		return false
 	}
 
-	if req.EventID != "" && d.EventID != req.EventID {
+	if req.EventID != "" && a.EventID != req.EventID {
 		return false
 	}
 
 	if len(req.DestinationIDs) > 0 {
 		found := false
 		for _, destID := range req.DestinationIDs {
-			if d.DestinationID == destID {
+			if a.DestinationID == destID {
 				found = true
 				break
 			}
@@ -390,7 +390,7 @@ func (s *memLogStore) matchesDeliveryFilter(d *models.Delivery, event *models.Ev
 		}
 	}
 
-	if req.Status != "" && d.Status != req.Status {
+	if req.Status != "" && a.Status != req.Status {
 		return false
 	}
 
@@ -407,16 +407,16 @@ func (s *memLogStore) matchesDeliveryFilter(d *models.Delivery, event *models.Ev
 		}
 	}
 
-	if req.TimeFilter.GTE != nil && d.Time.Before(*req.TimeFilter.GTE) {
+	if req.TimeFilter.GTE != nil && a.Time.Before(*req.TimeFilter.GTE) {
 		return false
 	}
-	if req.TimeFilter.LTE != nil && d.Time.After(*req.TimeFilter.LTE) {
+	if req.TimeFilter.LTE != nil && a.Time.After(*req.TimeFilter.LTE) {
 		return false
 	}
-	if req.TimeFilter.GT != nil && !d.Time.After(*req.TimeFilter.GT) {
+	if req.TimeFilter.GT != nil && !a.Time.After(*req.TimeFilter.GT) {
 		return false
 	}
-	if req.TimeFilter.LT != nil && !d.Time.Before(*req.TimeFilter.LT) {
+	if req.TimeFilter.LT != nil && !a.Time.Before(*req.TimeFilter.LT) {
 		return false
 	}
 
@@ -449,25 +449,25 @@ func copyEvent(e *models.Event) *models.Event {
 	return copied
 }
 
-func copyDelivery(d *models.Delivery) *models.Delivery {
-	if d == nil {
+func copyAttempt(a *models.Attempt) *models.Attempt {
+	if a == nil {
 		return nil
 	}
-	copied := &models.Delivery{
-		ID:            d.ID,
-		TenantID:      d.TenantID,
-		EventID:       d.EventID,
-		DestinationID: d.DestinationID,
-		Attempt:       d.Attempt,
-		Manual:        d.Manual,
-		Status:        d.Status,
-		Time:          d.Time,
-		Code:          d.Code,
+	copied := &models.Attempt{
+		ID:            a.ID,
+		TenantID:      a.TenantID,
+		EventID:       a.EventID,
+		DestinationID: a.DestinationID,
+		AttemptNumber: a.AttemptNumber,
+		Manual:        a.Manual,
+		Status:        a.Status,
+		Time:          a.Time,
+		Code:          a.Code,
 	}
 
-	if d.ResponseData != nil {
-		copied.ResponseData = make(map[string]any, len(d.ResponseData))
-		for k, v := range d.ResponseData {
+	if a.ResponseData != nil {
+		copied.ResponseData = make(map[string]any, len(a.ResponseData))
+		for k, v := range a.ResponseData {
 			copied.ResponseData[k] = v
 		}
 	}

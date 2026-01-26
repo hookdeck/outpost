@@ -102,9 +102,9 @@ func (e *emetricsImpl) DeliveryLatency(ctx context.Context, latency time.Duratio
 func (e *emetricsImpl) EventDelivered(ctx context.Context, ok bool, destinationType string) {
 	var status string
 	if ok {
-		status = models.DeliveryStatusSuccess
+		status = models.AttemptStatusSuccess
 	} else {
-		status = models.DeliveryStatusFailed
+		status = models.AttemptStatusFailed
 	}
 	e.eventDeliveredCounter.Add(ctx, 1, metric.WithAttributes(
 		attribute.String("type", destinationType),

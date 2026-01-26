@@ -13,7 +13,7 @@ import (
 )
 
 // ErrInvalidLogEntry is returned when a LogEntry is missing required fields.
-var ErrInvalidLogEntry = errors.New("invalid log entry: both event and delivery are required")
+var ErrInvalidLogEntry = errors.New("invalid log entry: both event and attempt are required")
 
 // LogStore defines the interface for persisting log entries.
 // This is a consumer-defined interface containing only what logmq needs.
@@ -87,12 +87,12 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 			continue
 		}
 
-		// Validate that both Event and Delivery are present.
+		// Validate that both Event and Attempt are present.
 		// The logstore requires both for data consistency.
-		if entry.Event == nil || entry.Delivery == nil {
-			logger.Error("invalid log entry: both event and delivery are required",
+		if entry.Event == nil || entry.Attempt == nil {
+			logger.Error("invalid log entry: both event and attempt are required",
 				zap.Bool("has_event", entry.Event != nil),
-				zap.Bool("has_delivery", entry.Delivery != nil),
+				zap.Bool("has_attempt", entry.Attempt != nil),
 				zap.String("message_id", msg.LoggableID))
 			msg.Nack()
 			continue
