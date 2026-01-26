@@ -31,14 +31,14 @@ func (m *mockLogStore) InsertMany(ctx context.Context, entries []*models.LogEntr
 	return nil
 }
 
-func (m *mockLogStore) getInserted() (events []*models.Event, deliveries []*models.Delivery) {
+func (m *mockLogStore) getInserted() (events []*models.Event, attempts []*models.Attempt) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, entry := range m.entries {
 		events = append(events, entry.Event)
-		deliveries = append(deliveries, entry.Delivery)
+		attempts = append(attempts, entry.Attempt)
 	}
-	return events, deliveries
+	return events, attempts
 }
 
 // mockQueueMessage implements mqs.QueueMessage for testing.
@@ -84,10 +84,10 @@ func TestBatchProcessor_ValidEntry(t *testing.T) {
 	defer bp.Shutdown()
 
 	event := testutil.EventFactory.Any()
-	delivery := testutil.DeliveryFactory.Any()
+	attempt := testutil.AttemptFactory.Any()
 	entry := models.LogEntry{
 		Event:    &event,
-		Delivery: &delivery,
+		Attempt: &attempt,
 	}
 
 	mock, msg := newMockMessage(entry)
@@ -117,10 +117,10 @@ func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
 	require.NoError(t, err)
 	defer bp.Shutdown()
 
-	delivery := testutil.DeliveryFactory.Any()
+	attempt := testutil.AttemptFactory.Any()
 	entry := models.LogEntry{
 		Event:    nil, // Missing event
-		Delivery: &delivery,
+		Attempt: &attempt,
 	}
 
 	mock, msg := newMockMessage(entry)
@@ -153,7 +153,7 @@ func TestBatchProcessor_InvalidEntry_MissingDelivery(t *testing.T) {
 	event := testutil.EventFactory.Any()
 	entry := models.LogEntry{
 		Event:    &event,
-		Delivery: nil, // Missing delivery
+		Attempt: nil, // Missing delivery
 	}
 
 	mock, msg := newMockMessage(entry)
@@ -185,19 +185,19 @@ func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
 
 	// Create valid entry 1
 	event1 := testutil.EventFactory.Any()
-	delivery1 := testutil.DeliveryFactory.Any()
-	validEntry1 := models.LogEntry{Event: &event1, Delivery: &delivery1}
+	attempt1 := testutil.AttemptFactory.Any()
+	validEntry1 := models.LogEntry{Event: &event1, Attempt: &attempt1}
 	mock1, msg1 := newMockMessage(validEntry1)
 
 	// Create invalid entry (missing event)
-	delivery2 := testutil.DeliveryFactory.Any()
-	invalidEntry := models.LogEntry{Event: nil, Delivery: &delivery2}
+	attempt2 := testutil.AttemptFactory.Any()
+	invalidEntry := models.LogEntry{Event: nil, Attempt: &attempt2}
 	mock2, msg2 := newMockMessage(invalidEntry)
 
 	// Create valid entry 2
 	event3 := testutil.EventFactory.Any()
-	delivery3 := testutil.DeliveryFactory.Any()
-	validEntry2 := models.LogEntry{Event: &event3, Delivery: &delivery3}
+	attempt3 := testutil.AttemptFactory.Any()
+	validEntry2 := models.LogEntry{Event: &event3, Attempt: &attempt3}
 	mock3, msg3 := newMockMessage(validEntry2)
 
 	// Add all messages

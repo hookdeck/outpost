@@ -256,7 +256,7 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	assert.Equal(t, models.RetryID(task.Event.ID, task.DestinationID), retryScheduler.taskIDs[0],
 		"should use GetRetryID for task ID")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusFailed, logPublisher.entries[0].Delivery.Status, "delivery status should be Failed")
+	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
 	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
 }
 
@@ -324,7 +324,7 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
 	assert.Equal(t, 1, publisher.current, "should only attempt once")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusFailed, logPublisher.entries[0].Delivery.Status, "delivery status should be Failed")
+	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
 	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
 }
 
@@ -384,7 +384,7 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
 	assert.Equal(t, 1, publisher.current, "publish should succeed once")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusSuccess, logPublisher.entries[0].Delivery.Status, "delivery status should be OK")
+	assert.Equal(t, models.AttemptStatusSuccess, logPublisher.entries[0].Attempt.Status, "delivery status should be OK")
 }
 
 func TestMessageHandler_Idempotency(t *testing.T) {
@@ -831,7 +831,7 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	assert.Equal(t, 1, publisher.current, "should attempt publish once")
 	assert.Empty(t, retryScheduler.schedules, "should not schedule retry for manual delivery")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusFailed, logPublisher.entries[0].Delivery.Status, "delivery status should be Failed")
+	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
 	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
 }
 
@@ -894,7 +894,7 @@ func TestManualDelivery_CancelError(t *testing.T) {
 	assert.Len(t, retryScheduler.canceled, 1, "should attempt to cancel retry")
 	assert.Equal(t, models.RetryID(task.Event.ID, task.DestinationID), retryScheduler.canceled[0], "should cancel with correct retry ID")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusSuccess, logPublisher.entries[0].Delivery.Status, "delivery status should be OK despite cancel error")
+	assert.Equal(t, models.AttemptStatusSuccess, logPublisher.entries[0].Attempt.Status, "delivery status should be OK despite cancel error")
 	assertAlertMonitor(t, alertMonitor, true, &destination, nil)
 }
 
@@ -1077,7 +1077,7 @@ func TestMessageHandler_AlertMonitorError(t *testing.T) {
 	assert.False(t, mockMsg.nacked, "message should not be nacked despite alert monitor error")
 	assert.Equal(t, 1, publisher.current, "should publish once")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusSuccess, logPublisher.entries[0].Delivery.Status, "delivery status should be OK")
+	assert.Equal(t, models.AttemptStatusSuccess, logPublisher.entries[0].Attempt.Status, "delivery status should be OK")
 
 	// Verify alert monitor was called but error was ignored
 	// Wait for the HandleAttempt call to be made

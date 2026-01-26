@@ -54,12 +54,12 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		testutil.EventFactory.WithTopic("test.topic"),
 		testutil.EventFactory.WithTime(baseTime.Add(-10*time.Minute)),
 	)
-	delivery1 := testutil.DeliveryFactory.AnyPointer(
-		testutil.DeliveryFactory.WithID("tenant1-delivery"),
-		testutil.DeliveryFactory.WithEventID(event1.ID),
-		testutil.DeliveryFactory.WithDestinationID(destinationID),
-		testutil.DeliveryFactory.WithStatus("success"),
-		testutil.DeliveryFactory.WithTime(baseTime.Add(-10*time.Minute)),
+	attempt1 := testutil.AttemptFactory.AnyPointer(
+		testutil.AttemptFactory.WithID("tenant1-delivery"),
+		testutil.AttemptFactory.WithEventID(event1.ID),
+		testutil.AttemptFactory.WithDestinationID(destinationID),
+		testutil.AttemptFactory.WithStatus("success"),
+		testutil.AttemptFactory.WithTime(baseTime.Add(-10*time.Minute)),
 	)
 
 	event2 := testutil.EventFactory.AnyPointer(
@@ -69,23 +69,23 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		testutil.EventFactory.WithTopic("test.topic"),
 		testutil.EventFactory.WithTime(baseTime.Add(-5*time.Minute)),
 	)
-	delivery2 := testutil.DeliveryFactory.AnyPointer(
-		testutil.DeliveryFactory.WithID("tenant2-delivery"),
-		testutil.DeliveryFactory.WithEventID(event2.ID),
-		testutil.DeliveryFactory.WithDestinationID(destinationID),
-		testutil.DeliveryFactory.WithStatus("failed"),
-		testutil.DeliveryFactory.WithTime(baseTime.Add(-5*time.Minute)),
+	attempt2 := testutil.AttemptFactory.AnyPointer(
+		testutil.AttemptFactory.WithID("tenant2-delivery"),
+		testutil.AttemptFactory.WithEventID(event2.ID),
+		testutil.AttemptFactory.WithDestinationID(destinationID),
+		testutil.AttemptFactory.WithStatus("failed"),
+		testutil.AttemptFactory.WithTime(baseTime.Add(-5*time.Minute)),
 	)
 
 	require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{
-		{Event: event1, Delivery: delivery1},
-		{Event: event2, Delivery: delivery2},
+		{Event: event1, Attempt: attempt1},
+		{Event: event2, Attempt: attempt2},
 	}))
 	require.NoError(t, h.FlushWrites(ctx))
 
 	t.Run("TenantIsolation", func(t *testing.T) {
-		t.Run("ListDelivery isolates by tenant", func(t *testing.T) {
-			response, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+		t.Run("ListAttempt isolates by tenant", func(t *testing.T) {
+			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenant1ID,
 				Limit:      100,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -94,7 +94,7 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			require.Len(t, response.Data, 1)
 			assert.Equal(t, "tenant1-event", response.Data[0].Event.ID)
 
-			response, err = logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+			response, err = logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenant2ID,
 				Limit:      100,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -140,8 +140,8 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			assert.True(t, tenantsSeen[tenant2ID])
 		})
 
-		t.Run("ListDelivery returns all tenants when TenantID empty", func(t *testing.T) {
-			response, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+		t.Run("ListAttempt returns all tenants when TenantID empty", func(t *testing.T) {
+			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:       "",
 				DestinationIDs: []string{destinationID},
 				Limit:          100,
@@ -169,18 +169,18 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			assert.Equal(t, tenant2ID, retrieved2.TenantID)
 		})
 
-		t.Run("RetrieveDelivery finds delivery across tenants when TenantID empty", func(t *testing.T) {
-			retrieved1, err := logStore.RetrieveDelivery(ctx, driver.RetrieveDeliveryRequest{
+		t.Run("RetrieveAttempt finds attempt across tenants when TenantID empty", func(t *testing.T) {
+			retrieved1, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
 				TenantID:   "",
-				DeliveryID: "tenant1-delivery",
+				AttemptID: "tenant1-delivery",
 			})
 			require.NoError(t, err)
 			require.NotNil(t, retrieved1)
 			assert.Equal(t, tenant1ID, retrieved1.Event.TenantID)
 
-			retrieved2, err := logStore.RetrieveDelivery(ctx, driver.RetrieveDeliveryRequest{
+			retrieved2, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
 				TenantID:   "",
-				DeliveryID: "tenant2-delivery",
+				AttemptID: "tenant2-delivery",
 			})
 			require.NoError(t, err)
 			require.NotNil(t, retrieved2)
@@ -203,21 +203,21 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 				testutil.EventFactory.WithDestinationID(destinationID),
 				testutil.EventFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
 			)
-			delivery := testutil.DeliveryFactory.AnyPointer(
-				testutil.DeliveryFactory.WithID(fmt.Sprintf("sort_del_%d", i)),
-				testutil.DeliveryFactory.WithTenantID(tenantID),
-				testutil.DeliveryFactory.WithEventID(event.ID),
-				testutil.DeliveryFactory.WithDestinationID(destinationID),
-				testutil.DeliveryFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
+			attempt := testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID(fmt.Sprintf("sort_del_%d", i)),
+				testutil.AttemptFactory.WithTenantID(tenantID),
+				testutil.AttemptFactory.WithEventID(event.ID),
+				testutil.AttemptFactory.WithDestinationID(destinationID),
+				testutil.AttemptFactory.WithTime(baseTime.Add(-time.Duration(i)*time.Hour)),
 			)
-			entries = append(entries, &models.LogEntry{Event: event, Delivery: delivery})
+			entries = append(entries, &models.LogEntry{Event: event, Attempt: attempt})
 		}
 		require.NoError(t, logStore.InsertMany(ctx, entries))
 
 		startTime := baseTime.Add(-48 * time.Hour)
 
 		t.Run("invalid SortOrder uses default (desc)", func(t *testing.T) {
-			response, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				SortOrder:  "sideways",
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -225,8 +225,8 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			})
 			require.NoError(t, err)
 			require.Len(t, response.Data, 3)
-			assert.Equal(t, "sort_del_0", response.Data[0].Delivery.ID)
-			assert.Equal(t, "sort_del_2", response.Data[2].Delivery.ID)
+			assert.Equal(t, "sort_del_0", response.Data[0].Attempt.ID)
+			assert.Equal(t, "sort_del_2", response.Data[2].Attempt.ID)
 		})
 	})
 
@@ -240,15 +240,15 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			testutil.EventFactory.WithDestinationID(destinationID),
 			testutil.EventFactory.WithTopic("test.topic"),
 		)
-		delivery := testutil.DeliveryFactory.AnyPointer(
-			testutil.DeliveryFactory.WithTenantID(tenantID),
-			testutil.DeliveryFactory.WithEventID(event.ID),
-			testutil.DeliveryFactory.WithDestinationID(destinationID),
+		attempt := testutil.AttemptFactory.AnyPointer(
+			testutil.AttemptFactory.WithTenantID(tenantID),
+			testutil.AttemptFactory.WithEventID(event.ID),
+			testutil.AttemptFactory.WithDestinationID(destinationID),
 		)
-		require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Delivery: delivery}}))
+		require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Attempt: attempt}}))
 
 		t.Run("nil DestinationIDs equals empty DestinationIDs", func(t *testing.T) {
-			responseNil, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+			responseNil, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:       tenantID,
 				DestinationIDs: nil,
 				TimeFilter:     driver.TimeFilter{GTE: &startTime},
@@ -256,7 +256,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			})
 			require.NoError(t, err)
 
-			responseEmpty, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+			responseEmpty, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:       tenantID,
 				DestinationIDs: []string{},
 				TimeFilter:     driver.TimeFilter{GTE: &startTime},
@@ -296,18 +296,18 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		)
 
 		for _, evt := range []*models.Event{eventBefore, eventAt, eventAfter} {
-			delivery := testutil.DeliveryFactory.AnyPointer(
-				testutil.DeliveryFactory.WithID(fmt.Sprintf("del_%s", evt.ID)),
-				testutil.DeliveryFactory.WithTenantID(tenantID),
-				testutil.DeliveryFactory.WithEventID(evt.ID),
-				testutil.DeliveryFactory.WithDestinationID(destinationID),
-				testutil.DeliveryFactory.WithTime(evt.Time),
+			attempt := testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID(fmt.Sprintf("del_%s", evt.ID)),
+				testutil.AttemptFactory.WithTenantID(tenantID),
+				testutil.AttemptFactory.WithEventID(evt.ID),
+				testutil.AttemptFactory.WithDestinationID(destinationID),
+				testutil.AttemptFactory.WithTime(evt.Time),
 			)
-			require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{{Event: evt, Delivery: delivery}}))
+			require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{{Event: evt, Attempt: attempt}}))
 		}
 
 		t.Run("GTE is inclusive (>=)", func(t *testing.T) {
-			response, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				TimeFilter: driver.TimeFilter{GTE: &boundaryTime},
 				Limit:      10,
@@ -318,7 +318,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 
 		t.Run("LTE is inclusive (<=)", func(t *testing.T) {
 			farPast := boundaryTime.Add(-1 * time.Hour)
-			response, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				TimeFilter: driver.TimeFilter{GTE: &farPast, LTE: &boundaryTime},
 				Limit:      10,
@@ -337,15 +337,15 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			testutil.EventFactory.WithTenantID(tenantID),
 			testutil.EventFactory.WithDestinationID(destinationID),
 		)
-		delivery := testutil.DeliveryFactory.AnyPointer(
-			testutil.DeliveryFactory.WithTenantID(tenantID),
-			testutil.DeliveryFactory.WithEventID(event.ID),
-			testutil.DeliveryFactory.WithDestinationID(destinationID),
+		attempt := testutil.AttemptFactory.AnyPointer(
+			testutil.AttemptFactory.WithTenantID(tenantID),
+			testutil.AttemptFactory.WithEventID(event.ID),
+			testutil.AttemptFactory.WithDestinationID(destinationID),
 		)
-		require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Delivery: delivery}}))
+		require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Attempt: attempt}}))
 
-		t.Run("modifying ListDelivery result doesn't affect subsequent queries", func(t *testing.T) {
-			response1, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+		t.Run("modifying ListAttempt result doesn't affect subsequent queries", func(t *testing.T) {
+			response1, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				Limit:      10,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -356,7 +356,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			originalID := response1.Data[0].Event.ID
 			response1.Data[0].Event.ID = "MODIFIED"
 
-			response2, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+			response2, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				Limit:      10,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -371,7 +371,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		tenantID := idgen.String()
 		destinationID := idgen.Destination()
 		eventTime := time.Now().Add(-30 * time.Minute).Truncate(time.Second)
-		deliveryTime := eventTime.Add(1 * time.Second)
+		attemptTime := eventTime.Add(1 * time.Second)
 		startTime := eventTime.Add(-1 * time.Hour)
 
 		event := testutil.EventFactory.AnyPointer(
@@ -379,14 +379,14 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			testutil.EventFactory.WithDestinationID(destinationID),
 			testutil.EventFactory.WithTime(eventTime),
 		)
-		delivery := testutil.DeliveryFactory.AnyPointer(
-			testutil.DeliveryFactory.WithTenantID(tenantID),
-			testutil.DeliveryFactory.WithEventID(event.ID),
-			testutil.DeliveryFactory.WithDestinationID(destinationID),
-			testutil.DeliveryFactory.WithStatus("success"),
-			testutil.DeliveryFactory.WithTime(deliveryTime),
+		attempt := testutil.AttemptFactory.AnyPointer(
+			testutil.AttemptFactory.WithTenantID(tenantID),
+			testutil.AttemptFactory.WithEventID(event.ID),
+			testutil.AttemptFactory.WithDestinationID(destinationID),
+			testutil.AttemptFactory.WithStatus("success"),
+			testutil.AttemptFactory.WithTime(attemptTime),
 		)
-		entries := []*models.LogEntry{{Event: event, Delivery: delivery}}
+		entries := []*models.LogEntry{{Event: event, Attempt: attempt}}
 
 		// Race N goroutines all inserting the same record
 		const numGoroutines = 10
@@ -402,7 +402,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		require.NoError(t, h.FlushWrites(ctx))
 
 		// Assert: still exactly 1 record
-		response, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+		response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 			TenantID:   tenantID,
 			Limit:      100,
 			TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -427,7 +427,7 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				_, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+				_, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 					TenantID:   tenantID,
 					SortOrder:  "desc",
 					Next:       tc.cursor,
@@ -453,19 +453,19 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 				testutil.EventFactory.WithDestinationID(destinationID),
 				testutil.EventFactory.WithTime(baseTime.Add(time.Duration(i)*time.Second)),
 			)
-			delivery := testutil.DeliveryFactory.AnyPointer(
-				testutil.DeliveryFactory.WithID(fmt.Sprintf("cursor_del_%d", i)),
-				testutil.DeliveryFactory.WithTenantID(tenantID),
-				testutil.DeliveryFactory.WithEventID(event.ID),
-				testutil.DeliveryFactory.WithDestinationID(destinationID),
-				testutil.DeliveryFactory.WithTime(baseTime.Add(time.Duration(i)*time.Second)),
+			attempt := testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID(fmt.Sprintf("cursor_del_%d", i)),
+				testutil.AttemptFactory.WithTenantID(tenantID),
+				testutil.AttemptFactory.WithEventID(event.ID),
+				testutil.AttemptFactory.WithDestinationID(destinationID),
+				testutil.AttemptFactory.WithTime(baseTime.Add(time.Duration(i)*time.Second)),
 			)
-			require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Delivery: delivery}}))
+			require.NoError(t, logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Attempt: attempt}}))
 		}
 		require.NoError(t, h.FlushWrites(ctx))
 
 		t.Run("delivery_time desc", func(t *testing.T) {
-			page1, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+			page1, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				SortOrder:  "desc",
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -474,7 +474,7 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 			require.NoError(t, err)
 			require.NotEmpty(t, page1.Next)
 
-			page2, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+			page2, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				SortOrder:  "desc",
 				Next:       page1.Next,
@@ -486,7 +486,7 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 		})
 
 		t.Run("delivery_time asc", func(t *testing.T) {
-			page1, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+			page1, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				SortOrder:  "asc",
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -495,7 +495,7 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 			require.NoError(t, err)
 			require.NotEmpty(t, page1.Next)
 
-			page2, err := logStore.ListDelivery(ctx, driver.ListDeliveryRequest{
+			page2, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				SortOrder:  "asc",
 				Next:       page1.Next,
