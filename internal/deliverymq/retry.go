@@ -7,13 +7,42 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/logging"
+	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/rsmq"
 	"github.com/hookdeck/outpost/internal/scheduler"
+	"go.uber.org/zap"
 )
 
-func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, deploymentID string, pollBackoff time.Duration, logger *logging.Logger) (scheduler.Scheduler, error) {
+// RetryEventGetter is the interface for fetching events from logstore.
+// This is defined separately from EventGetter in messagehandler.go to avoid circular dependencies.
+type RetryEventGetter interface {
+	RetrieveEvent(ctx context.Context, request logstore.RetrieveEventRequest) (*models.Event, error)
+}
+
+// RetrySchedulerOption is a functional option for configuring the retry scheduler.
+type RetrySchedulerOption func(*retrySchedulerConfig)
+
+type retrySchedulerConfig struct {
+	visibilityTimeout uint
+}
+
+// WithRetryVisibilityTimeout sets the visibility timeout for the retry scheduler queue.
+// This controls how long a message is hidden after being received before it becomes
+// visible again (for retry if the executor returned an error).
+func WithRetryVisibilityTimeout(vt uint) RetrySchedulerOption {
+	return func(c *retrySchedulerConfig) {
+		c.visibilityTimeout = vt
+	}
+}
+
+func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, deploymentID string, pollBackoff time.Duration, logger *logging.Logger, eventGetter RetryEventGetter, opts ...RetrySchedulerOption) (scheduler.Scheduler, error) {
+	// Apply options
+	cfg := &retrySchedulerConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	// Create Redis client for RSMQ
 	ctx := context.Background()
 	redisClient, err := redis.New(ctx, redisConfig)
@@ -46,13 +75,48 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		if err := retryTask.FromString(msg); err != nil {
 			return err
 		}
-		deliveryTask := retryTask.ToDeliveryTask()
+
+		// Fetch full event data from logstore
+		event, err := eventGetter.RetrieveEvent(ctx, logstore.RetrieveEventRequest{
+			TenantID: retryTask.TenantID,
+			EventID:  retryTask.EventID,
+		})
+		if err != nil {
+			// Transient error (DB connection issue, etc) - return error so scheduler retries
+			if logger != nil {
+				logger.Ctx(ctx).Error("failed to fetch event for retry",
+					zap.Error(err),
+					zap.String("event_id", retryTask.EventID),
+					zap.String("tenant_id", retryTask.TenantID),
+					zap.String("destination_id", retryTask.DestinationID))
+			}
+			return err
+		}
+		if event == nil {
+			// Event not found - may be race condition with logmq batching delay.
+			// Return error so scheduler retries later.
+			if logger != nil {
+				logger.Ctx(ctx).Warn("event not found in logstore, will retry",
+					zap.String("event_id", retryTask.EventID),
+					zap.String("tenant_id", retryTask.TenantID),
+					zap.String("destination_id", retryTask.DestinationID))
+			}
+			return fmt.Errorf("event not found in logstore")
+		}
+
+		deliveryTask := retryTask.ToDeliveryTask(*event)
 		if err := deliverymq.Publish(ctx, deliveryTask); err != nil {
 			return err
 		}
 		return nil
 	}
 
+	// Build scheduler options - pass visibility timeout if configured
+	if cfg.visibilityTimeout > 0 {
+		return scheduler.New("deliverymq-retry", rsmqClient, exec,
+			scheduler.WithPollBackoff(pollBackoff),
+			scheduler.WithVisibilityTimeout(cfg.visibilityTimeout)), nil
+	}
 	return scheduler.New("deliverymq-retry", rsmqClient, exec, scheduler.WithPollBackoff(pollBackoff)), nil
 }
 
@@ -78,11 +142,11 @@ func (m *RetryTask) FromString(str string) error {
 	return json.Unmarshal([]byte(str), &m)
 }
 
-func (m *RetryTask) ToDeliveryTask() models.DeliveryTask {
+func (m *RetryTask) ToDeliveryTask(event models.Event) models.DeliveryTask {
 	return models.DeliveryTask{
 		Attempt:       m.Attempt,
 		DestinationID: m.DestinationID,
-		Event:         models.Event{ID: m.EventID, TenantID: m.TenantID},
+		Event:         event,
 		Telemetry:     m.Telemetry,
 	}
 }

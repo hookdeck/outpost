@@ -3,7 +3,6 @@ package deliverymq_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"sync"
 	"time"
 
@@ -15,11 +14,6 @@ import (
 	"github.com/hookdeck/outpost/internal/scheduler"
 	"github.com/stretchr/testify/mock"
 )
-
-// scheduleOptions mirrors the private type in scheduler package
-type scheduleOptions struct {
-	id string
-}
 
 type mockPublisher struct {
 	responses []error
@@ -137,11 +131,36 @@ func (m *mockEventGetter) RetrieveEvent(ctx context.Context, req logstore.Retrie
 		return nil, m.err
 	}
 	m.lastRetrievedID = req.EventID
-	event, ok := m.events[req.EventID]
-	if !ok {
-		return nil, errors.New("event not found")
+	// Match actual logstore behavior: return (nil, nil) when event not found
+	return m.events[req.EventID], nil
+}
+
+// mockDelayedEventGetter simulates the race condition where event is not yet
+// persisted to logstore when retry scheduler first queries it.
+// Returns (nil, nil) for the first N calls, then returns the event.
+type mockDelayedEventGetter struct {
+	event           *models.Event
+	callCount       int
+	returnAfterCall int // Return event after this many calls
+	mu              sync.Mutex
+}
+
+func newMockDelayedEventGetter(event *models.Event, returnAfterCall int) *mockDelayedEventGetter {
+	return &mockDelayedEventGetter{
+		event:           event,
+		returnAfterCall: returnAfterCall,
 	}
-	return event, nil
+}
+
+func (m *mockDelayedEventGetter) RetrieveEvent(ctx context.Context, req logstore.RetrieveEventRequest) (*models.Event, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.callCount++
+	if m.callCount <= m.returnAfterCall {
+		// Simulate event not yet persisted
+		return nil, nil
+	}
+	return m.event, nil
 }
 
 type mockLogPublisher struct {
@@ -226,14 +245,6 @@ func newDeliveryMockMessage(task models.DeliveryTask) (*mockMessage, *mqs.Messag
 	return mock, &mqs.Message{
 		QueueMessage: mock,
 		Body:         body,
-	}
-}
-
-func newMockMessage(id string) *mqs.Message {
-	mock := &mockMessage{id: id}
-	return &mqs.Message{
-		QueueMessage: mock,
-		Body:         nil,
 	}
 }
 

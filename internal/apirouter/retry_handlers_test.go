@@ -59,7 +59,15 @@ func TestRetryDelivery(t *testing.T) {
 
 	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Delivery: delivery}}))
 
-	t.Run("should retry delivery successfully", func(t *testing.T) {
+	t.Run("should retry delivery successfully with full event data", func(t *testing.T) {
+		// Subscribe to deliveryMQ to capture published task
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		subscription, err := result.deliveryMQ.Subscribe(ctx)
+		require.NoError(t, err)
+
+		// Trigger manual retry
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/deliveries/"+deliveryID+"/retry", nil)
 		result.router.ServeHTTP(w, req)
@@ -69,6 +77,24 @@ func TestRetryDelivery(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 		assert.Equal(t, true, response["success"])
+
+		// Verify published task has full event data
+		msg, err := subscription.Receive(ctx)
+		require.NoError(t, err)
+
+		var task models.DeliveryTask
+		require.NoError(t, json.Unmarshal(msg.Body, &task))
+
+		assert.Equal(t, eventID, task.Event.ID)
+		assert.Equal(t, tenantID, task.Event.TenantID)
+		assert.Equal(t, destinationID, task.Event.DestinationID)
+		assert.Equal(t, "order.created", task.Event.Topic)
+		assert.False(t, task.Event.Time.IsZero(), "event time should be set")
+		assert.Equal(t, eventTime.UTC(), task.Event.Time.UTC())
+		assert.Equal(t, event.Data, task.Event.Data, "event data should match original")
+		assert.True(t, task.Manual, "should be marked as manual retry")
+
+		msg.Ack()
 	})
 
 	t.Run("should return 404 for non-existent delivery", func(t *testing.T) {

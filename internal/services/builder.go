@@ -308,7 +308,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		b.logger,
 		svc.logMQ,
 		svc.entityStore,
-		svc.logStore,
 		svc.destRegistry,
 		svc.eventTracer,
 		svc.retryScheduler,
@@ -555,9 +554,16 @@ func (s *serviceInstance) initRetryScheduler(ctx context.Context, cfg *config.Co
 	if s.deliveryMQ == nil {
 		return fmt.Errorf("delivery MQ must be initialized before retry scheduler")
 	}
+	if s.logStore == nil {
+		return fmt.Errorf("log store must be initialized before retry scheduler")
+	}
 	logger.Debug("creating delivery MQ retry scheduler", zap.String("service", s.name))
 	pollBackoff := time.Duration(cfg.RetryPollBackoffMs) * time.Millisecond
-	retryScheduler, err := deliverymq.NewRetryScheduler(s.deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, pollBackoff, logger)
+	var retrySchedulerOpts []deliverymq.RetrySchedulerOption
+	if cfg.RetryVisibilityTimeoutSeconds > 0 {
+		retrySchedulerOpts = append(retrySchedulerOpts, deliverymq.WithRetryVisibilityTimeout(uint(cfg.RetryVisibilityTimeoutSeconds)))
+	}
+	retryScheduler, err := deliverymq.NewRetryScheduler(s.deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, pollBackoff, logger, s.logStore, retrySchedulerOpts...)
 	if err != nil {
 		logger.Error("failed to create delivery MQ retry scheduler", zap.String("service", s.name), zap.Error(err))
 		return err
