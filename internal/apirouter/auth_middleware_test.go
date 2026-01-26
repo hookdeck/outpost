@@ -176,7 +176,7 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 		c.Params = []gin.Param{{Key: "tenantID", Value: "different_tenant"}}
 
 		// Create JWT token for tenantID
-		token, err := apirouter.JWT.New(jwtSecret, tenantID)
+		token, err := apirouter.JWT.New(jwtSecret, apirouter.JWTClaims{TenantID: tenantID})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -201,7 +201,7 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 		c.Params = []gin.Param{{Key: "tenantID", Value: tenantID}}
 
 		// Create JWT token for tenantID
-		token, err := apirouter.JWT.New(jwtSecret, tenantID)
+		token, err := apirouter.JWT.New(jwtSecret, apirouter.JWTClaims{TenantID: tenantID})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -251,7 +251,7 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 }
 
 func newJWTToken(t *testing.T, secret string, tenantID string) string {
-	token, err := apirouter.JWT.New(secret, tenantID)
+	token, err := apirouter.JWT.New(secret, apirouter.JWTClaims{TenantID: tenantID})
 	if err != nil {
 		t.Fatal(err)
 	}

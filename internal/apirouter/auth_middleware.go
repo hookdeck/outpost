@@ -107,19 +107,19 @@ func APIKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFu
 		}
 
 		// Try JWT auth
-		tokenTenantID, err := JWT.ExtractTenantID(jwtKey, token)
+		claims, err := JWT.Extract(jwtKey, token)
 		if err != nil {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
 
 		// If tenantID param exists, verify it matches token
-		if paramTenantID := c.Param("tenantID"); paramTenantID != "" && paramTenantID != tokenTenantID {
+		if paramTenantID := c.Param("tenantID"); paramTenantID != "" && paramTenantID != claims.TenantID {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
 
-		c.Set("tenantID", tokenTenantID)
+		c.Set("tenantID", claims.TenantID)
 		c.Set(authRoleKey, RoleTenant)
 		c.Next()
 	}
@@ -143,19 +143,19 @@ func TenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
 			return
 		}
 
-		tokenTenantID, err := JWT.ExtractTenantID(jwtKey, token)
+		claims, err := JWT.Extract(jwtKey, token)
 		if err != nil {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
 
 		// If tenantID param exists, verify it matches token
-		if paramTenantID := c.Param("tenantID"); paramTenantID != "" && paramTenantID != tokenTenantID {
+		if paramTenantID := c.Param("tenantID"); paramTenantID != "" && paramTenantID != claims.TenantID {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
 
-		c.Set("tenantID", tokenTenantID)
+		c.Set("tenantID", claims.TenantID)
 		c.Set(authRoleKey, RoleTenant)
 		c.Next()
 	}

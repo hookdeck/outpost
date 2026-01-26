@@ -13,23 +13,26 @@ import (
 )
 
 type TenantHandlers struct {
-	logger      *logging.Logger
-	telemetry   telemetry.Telemetry
-	jwtSecret   string
-	entityStore models.EntityStore
+	logger       *logging.Logger
+	telemetry    telemetry.Telemetry
+	jwtSecret    string
+	deploymentID string
+	entityStore  models.EntityStore
 }
 
 func NewTenantHandlers(
 	logger *logging.Logger,
 	telemetry telemetry.Telemetry,
 	jwtSecret string,
+	deploymentID string,
 	entityStore models.EntityStore,
 ) *TenantHandlers {
 	return &TenantHandlers{
-		logger:      logger,
-		telemetry:   telemetry,
-		jwtSecret:   jwtSecret,
-		entityStore: entityStore,
+		logger:       logger,
+		telemetry:    telemetry,
+		jwtSecret:    jwtSecret,
+		deploymentID: deploymentID,
+		entityStore:  entityStore,
 	}
 }
 
@@ -180,7 +183,10 @@ func (h *TenantHandlers) RetrieveToken(c *gin.Context) {
 	if tenant == nil {
 		return
 	}
-	jwtToken, err := JWT.New(h.jwtSecret, tenant.ID)
+	jwtToken, err := JWT.New(h.jwtSecret, JWTClaims{
+		TenantID:     tenant.ID,
+		DeploymentID: h.deploymentID,
+	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -193,7 +199,10 @@ func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
 	if tenant == nil {
 		return
 	}
-	jwtToken, err := JWT.New(h.jwtSecret, tenant.ID)
+	jwtToken, err := JWT.New(h.jwtSecret, JWTClaims{
+		TenantID:     tenant.ID,
+		DeploymentID: h.deploymentID,
+	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return

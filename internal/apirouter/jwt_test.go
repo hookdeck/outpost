@@ -16,18 +16,34 @@ func TestJWT(t *testing.T) {
 	const issuer = "outpost"
 	const jwtKey = "supersecret"
 	const tenantID = "tenantID"
+	const deploymentID = "deployment123"
 	var signingMethod = jwt.SigningMethodHS256
 
 	t.Run("should generate a new jwt token", func(t *testing.T) {
 		t.Parallel()
-		token, err := apirouter.JWT.New(jwtKey, tenantID)
+		token, err := apirouter.JWT.New(jwtKey, apirouter.JWTClaims{TenantID: tenantID})
 		assert.Nil(t, err)
 		assert.NotEqual(t, "", token)
 	})
 
+	t.Run("should generate a new jwt token with deployment_id", func(t *testing.T) {
+		t.Parallel()
+		token, err := apirouter.JWT.New(jwtKey, apirouter.JWTClaims{
+			TenantID:     tenantID,
+			DeploymentID: deploymentID,
+		})
+		assert.Nil(t, err)
+		assert.NotEqual(t, "", token)
+
+		// Verify deployment_id is in the token
+		claims, err := apirouter.JWT.Extract(jwtKey, token)
+		assert.Nil(t, err)
+		assert.Equal(t, deploymentID, claims.DeploymentID)
+	})
+
 	t.Run("should verify a valid jwt token", func(t *testing.T) {
 		t.Parallel()
-		token, err := apirouter.JWT.New(jwtKey, tenantID)
+		token, err := apirouter.JWT.New(jwtKey, apirouter.JWTClaims{TenantID: tenantID})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -36,24 +52,51 @@ func TestJWT(t *testing.T) {
 		assert.True(t, valid)
 	})
 
-	t.Run("should extract tenantID from valid token", func(t *testing.T) {
+	t.Run("should extract claims from valid token", func(t *testing.T) {
 		t.Parallel()
-		token, err := apirouter.JWT.New(jwtKey, tenantID)
+		token, err := apirouter.JWT.New(jwtKey, apirouter.JWTClaims{TenantID: tenantID})
 		if err != nil {
 			t.Fatal(err)
 		}
-		extractedTenantID, err := apirouter.JWT.ExtractTenantID(jwtKey, token)
+		claims, err := apirouter.JWT.Extract(jwtKey, token)
 		assert.Nil(t, err)
-		assert.Equal(t, tenantID, extractedTenantID)
+		assert.Equal(t, tenantID, claims.TenantID)
+		assert.Equal(t, "", claims.DeploymentID)
 	})
 
-	t.Run("should fail to extract tenantID from invalid token", func(t *testing.T) {
+	t.Run("should fail to extract claims from invalid token", func(t *testing.T) {
 		t.Parallel()
-		_, err := apirouter.JWT.ExtractTenantID(jwtKey, "invalid_token")
+		_, err := apirouter.JWT.Extract(jwtKey, "invalid_token")
 		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
 	})
 
-	t.Run("should fail to extract tenantID from token with invalid issuer", func(t *testing.T) {
+	t.Run("should extract all claims from valid token", func(t *testing.T) {
+		t.Parallel()
+		token, err := apirouter.JWT.New(jwtKey, apirouter.JWTClaims{
+			TenantID:     tenantID,
+			DeploymentID: deploymentID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		claims, err := apirouter.JWT.Extract(jwtKey, token)
+		assert.Nil(t, err)
+		assert.Equal(t, tenantID, claims.TenantID)
+		assert.Equal(t, deploymentID, claims.DeploymentID)
+	})
+
+	t.Run("should return empty deployment_id when not in token", func(t *testing.T) {
+		t.Parallel()
+		token, err := apirouter.JWT.New(jwtKey, apirouter.JWTClaims{TenantID: tenantID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		claims, err := apirouter.JWT.Extract(jwtKey, token)
+		assert.Nil(t, err)
+		assert.Equal(t, "", claims.DeploymentID)
+	})
+
+	t.Run("should fail to extract claims from token with invalid issuer", func(t *testing.T) {
 		t.Parallel()
 		now := time.Now()
 		jwtToken := jwt.NewWithClaims(signingMethod, jwt.MapClaims{
@@ -66,7 +109,7 @@ func TestJWT(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = apirouter.JWT.ExtractTenantID(jwtKey, token)
+		_, err = apirouter.JWT.Extract(jwtKey, token)
 		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
 	})
 

@@ -19,18 +19,28 @@ var (
 	ErrInvalidToken = errors.New("invalid token")
 )
 
-func (_ jsonwebtoken) New(jwtSecret string, tenantID string) (string, error) {
+// JWTClaims contains the custom claims for JWT tokens
+type JWTClaims struct {
+	TenantID     string
+	DeploymentID string
+}
+
+func (_ jsonwebtoken) New(jwtSecret string, claims JWTClaims) (string, error) {
 	now := time.Now()
-	token := jwt.NewWithClaims(signingMethod, jwt.MapClaims{
+	mapClaims := jwt.MapClaims{
 		"iss": issuer,
-		"sub": tenantID,
+		"sub": claims.TenantID,
 		"iat": now.Unix(),
 		"exp": now.Add(24 * time.Hour).Unix(),
-	})
+	}
+	if claims.DeploymentID != "" {
+		mapClaims["deployment_id"] = claims.DeploymentID
+	}
+	token := jwt.NewWithClaims(signingMethod, mapClaims)
 	return token.SignedString([]byte(jwtSecret))
 }
 
-func (_ jsonwebtoken) ExtractTenantID(jwtSecret string, tokenString string) (string, error) {
+func (_ jsonwebtoken) Extract(jwtSecret string, tokenString string) (JWTClaims, error) {
 	token, err := jwt.Parse(
 		tokenString,
 		func(token *jwt.Token) (interface{}, error) {
@@ -39,14 +49,28 @@ func (_ jsonwebtoken) ExtractTenantID(jwtSecret string, tokenString string) (str
 		jwt.WithIssuer(issuer),
 	)
 	if err != nil || !token.Valid {
-		return "", ErrInvalidToken
+		return JWTClaims{}, ErrInvalidToken
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return JWTClaims{}, ErrInvalidToken
 	}
 
 	tenantID, err := token.Claims.GetSubject()
 	if err != nil {
-		return "", ErrInvalidToken
+		return JWTClaims{}, ErrInvalidToken
 	}
-	return tenantID, nil
+
+	var deploymentID string
+	if did, ok := claims["deployment_id"].(string); ok {
+		deploymentID = did
+	}
+
+	return JWTClaims{
+		TenantID:     tenantID,
+		DeploymentID: deploymentID,
+	}, nil
 }
 
 func (_ jsonwebtoken) Verify(jwtSecret string, tokenString string, tenantID string) (bool, error) {
