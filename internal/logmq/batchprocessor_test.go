@@ -86,7 +86,7 @@ func TestBatchProcessor_ValidEntry(t *testing.T) {
 	event := testutil.EventFactory.Any()
 	attempt := testutil.AttemptFactory.Any()
 	entry := models.LogEntry{
-		Event:    &event,
+		Event:   &event,
 		Attempt: &attempt,
 	}
 
@@ -119,7 +119,7 @@ func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
 
 	attempt := testutil.AttemptFactory.Any()
 	entry := models.LogEntry{
-		Event:    nil, // Missing event
+		Event:   nil, // Missing event
 		Attempt: &attempt,
 	}
 
@@ -152,7 +152,7 @@ func TestBatchProcessor_InvalidEntry_MissingDelivery(t *testing.T) {
 
 	event := testutil.EventFactory.Any()
 	entry := models.LogEntry{
-		Event:    &event,
+		Event:   &event,
 		Attempt: nil, // Missing delivery
 	}
 

@@ -41,8 +41,8 @@ func waitForHealthy(t *testing.T, port int, timeout time.Duration) {
 	t.Fatalf("timed out waiting for health check at %s", healthURL)
 }
 
-// waitForDeliveries polls until at least minCount deliveries exist for the given path.
-func (s *e2eSuite) waitForDeliveries(t *testing.T, path string, minCount int, timeout time.Duration) {
+// waitForAttempts polls until at least minCount attempts exist for the given path.
+func (s *e2eSuite) waitForAttempts(t *testing.T, path string, minCount int, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	var lastCount int
@@ -72,9 +72,9 @@ func (s *e2eSuite) waitForDeliveries(t *testing.T, path string, minCount int, ti
 		time.Sleep(100 * time.Millisecond)
 	}
 	if lastErr != nil {
-		t.Fatalf("timed out waiting for %d deliveries at %s: last error: %v", minCount, path, lastErr)
+		t.Fatalf("timed out waiting for %d attempts at %s: last error: %v", minCount, path, lastErr)
 	}
-	t.Fatalf("timed out waiting for %d deliveries at %s: got %d (status %d)", minCount, path, lastCount, lastStatus)
+	t.Fatalf("timed out waiting for %d attempts at %s: got %d (status %d)", minCount, path, lastCount, lastStatus)
 }
 
 // waitForDestinationDisabled polls until the destination has disabled_at set (non-null).

@@ -171,7 +171,7 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 
 		t.Run("RetrieveAttempt finds attempt across tenants when TenantID empty", func(t *testing.T) {
 			retrieved1, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
-				TenantID:   "",
+				TenantID:  "",
 				AttemptID: "tenant1-delivery",
 			})
 			require.NoError(t, err)
@@ -179,7 +179,7 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			assert.Equal(t, tenant1ID, retrieved1.Event.TenantID)
 
 			retrieved2, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
-				TenantID:   "",
+				TenantID:  "",
 				AttemptID: "tenant2-delivery",
 			})
 			require.NoError(t, err)
