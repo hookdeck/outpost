@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRetryDelivery(t *testing.T) {
+func TestRetryAttempt(t *testing.T) {
 	t.Parallel()
 
 	result := setupTestRouterFull(t, "", "")
@@ -35,11 +35,11 @@ func TestRetryDelivery(t *testing.T) {
 		CreatedAt: time.Now(),
 	}))
 
-	// Seed a delivery event
+	// Seed an attempt event
 	eventID := idgen.Event()
-	deliveryID := idgen.Attempt()
+	attemptID := idgen.Attempt()
 	eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
-	deliveryTime := eventTime.Add(100 * time.Millisecond)
+	attemptTime := eventTime.Add(100 * time.Millisecond)
 
 	event := testutil.EventFactory.AnyPointer(
 		testutil.EventFactory.WithID(eventID),
@@ -50,16 +50,16 @@ func TestRetryDelivery(t *testing.T) {
 	)
 
 	attempt := testutil.AttemptFactory.AnyPointer(
-		testutil.AttemptFactory.WithID(deliveryID),
+		testutil.AttemptFactory.WithID(attemptID),
 		testutil.AttemptFactory.WithEventID(eventID),
 		testutil.AttemptFactory.WithDestinationID(destinationID),
 		testutil.AttemptFactory.WithStatus("failed"),
-		testutil.AttemptFactory.WithTime(deliveryTime),
+		testutil.AttemptFactory.WithTime(attemptTime),
 	)
 
 	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
 
-	t.Run("should retry delivery successfully with full event data", func(t *testing.T) {
+	t.Run("should retry attempt successfully with full event data", func(t *testing.T) {
 		// Subscribe to deliveryMQ to capture published task
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -69,7 +69,7 @@ func TestRetryDelivery(t *testing.T) {
 
 		// Trigger manual retry
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+deliveryID+"/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+attemptID+"/retry", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusAccepted, w.Code)
@@ -97,7 +97,7 @@ func TestRetryDelivery(t *testing.T) {
 		msg.Ack()
 	})
 
-	t.Run("should return 404 for non-existent delivery", func(t *testing.T) {
+	t.Run("should return 404 for non-existent attempt", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/attempts/nonexistent/retry", nil)
 		result.router.ServeHTTP(w, req)
@@ -107,7 +107,7 @@ func TestRetryDelivery(t *testing.T) {
 
 	t.Run("should return 404 for non-existent tenant", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/nonexistent/attempts/"+deliveryID+"/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/nonexistent/attempts/"+attemptID+"/retry", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -126,9 +126,9 @@ func TestRetryDelivery(t *testing.T) {
 			DisabledAt: &disabledAt,
 		}))
 
-		// Create a delivery for the disabled destination
+		// Create an attempt for the disabled destination
 		disabledEventID := idgen.Event()
-		disabledDeliveryID := idgen.Attempt()
+		disabledAttemptID := idgen.Attempt()
 
 		disabledEvent := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithID(disabledEventID),
@@ -139,17 +139,17 @@ func TestRetryDelivery(t *testing.T) {
 		)
 
 		disabledAttempt := testutil.AttemptFactory.AnyPointer(
-			testutil.AttemptFactory.WithID(disabledDeliveryID),
+			testutil.AttemptFactory.WithID(disabledAttemptID),
 			testutil.AttemptFactory.WithEventID(disabledEventID),
 			testutil.AttemptFactory.WithDestinationID(disabledDestinationID),
 			testutil.AttemptFactory.WithStatus("failed"),
-			testutil.AttemptFactory.WithTime(deliveryTime),
+			testutil.AttemptFactory.WithTime(attemptTime),
 		)
 
 		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: disabledEvent, Attempt: disabledAttempt}}))
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+disabledDeliveryID+"/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+disabledAttemptID+"/retry", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)

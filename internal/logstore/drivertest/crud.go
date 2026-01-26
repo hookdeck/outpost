@@ -261,7 +261,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 	t.Run("retrieve", func(t *testing.T) {
 		// Use one of our batch events for retrieve tests
 		knownEventID := "batch_evt_00"
-		knownDeliveryID := "batch_del_00"
+		knownAttemptID := "batch_del_00"
 
 		t.Run("RetrieveEvent existing", func(t *testing.T) {
 			retrieved, err := logStore.RetrieveEvent(ctx, driver.RetrieveEventRequest{
@@ -306,11 +306,11 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		t.Run("RetrieveAttempt existing", func(t *testing.T) {
 			retrieved, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
 				TenantID:  tenantID,
-				AttemptID: knownDeliveryID,
+				AttemptID: knownAttemptID,
 			})
 			require.NoError(t, err)
 			require.NotNil(t, retrieved)
-			assert.Equal(t, knownDeliveryID, retrieved.Attempt.ID)
+			assert.Equal(t, knownAttemptID, retrieved.Attempt.ID)
 		})
 
 		t.Run("RetrieveAttempt non-existent returns nil", func(t *testing.T) {
@@ -325,7 +325,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		t.Run("RetrieveAttempt wrong tenant returns nil", func(t *testing.T) {
 			retrieved, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
 				TenantID:  "wrong-tenant",
-				AttemptID: knownDeliveryID,
+				AttemptID: knownAttemptID,
 			})
 			require.NoError(t, err)
 			assert.Nil(t, retrieved)

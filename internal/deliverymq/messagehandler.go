@@ -268,8 +268,8 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 	go h.handleAlertAttempt(ctx, task, destination, attempt, err)
 
 	// If we have an AttemptError, return it as is
-	var attErr *AttemptError
-	if errors.As(err, &attErr) {
+	var atmErr *AttemptError
+	if errors.As(err, &atmErr) {
 		return err
 	}
 
@@ -305,14 +305,14 @@ func (h *messageHandler) handleAlertAttempt(ctx context.Context, task *models.De
 
 	if !alertAttempt.Success && err != nil {
 		// Extract attempt data if available
-		var attErr *AttemptError
-		if errors.As(err, &attErr) {
+		var atmErr *AttemptError
+		if errors.As(err, &atmErr) {
 			var pubErr *destregistry.ErrDestinationPublishAttempt
-			if errors.As(attErr.err, &pubErr) {
+			if errors.As(atmErr.err, &pubErr) {
 				alertAttempt.DeliveryResponse = pubErr.Data
 			} else {
 				alertAttempt.DeliveryResponse = map[string]interface{}{
-					"error": attErr.err.Error(),
+					"error": atmErr.err.Error(),
 				}
 			}
 		} else {
@@ -372,18 +372,18 @@ func (h *messageHandler) shouldNackError(err error) bool {
 	}
 
 	// Handle delivery errors
-	var attErr *AttemptError
-	if errors.As(err, &attErr) {
-		return h.shouldNackDeliveryError(attErr.err)
+	var atmErr *AttemptError
+	if errors.As(err, &atmErr) {
+		return h.shouldNackDeliveryError(atmErr.err)
 	}
 
 	// Handle post-delivery errors
 	var postErr *PostDeliveryError
 	if errors.As(err, &postErr) {
 		// Check if this wraps a delivery error
-		var attErr2 *AttemptError
-		if errors.As(postErr.err, &attErr2) {
-			return h.shouldNackDeliveryError(attErr2.err)
+		var atmErr2 *AttemptError
+		if errors.As(postErr.err, &atmErr2) {
+			return h.shouldNackDeliveryError(atmErr2.err)
 		}
 		return true // Nack other post-delivery errors
 	}

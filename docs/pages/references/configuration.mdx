@@ -74,7 +74,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS` | JSON string or path to a file containing GCP service account credentials for Pub/Sub. Required if GCP Pub/Sub is the chosen MQ provider and not running in an environment with implicit credentials (e.g., GCE, GKE). | `nil` | Conditional |
 | `GIN_MODE` | Sets the Gin framework mode (e.g., 'debug', 'release', 'test'). See Gin documentation for details. | `release` | No |
 | `HTTP_USER_AGENT` | Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, a default (OrganizationName/Version) is used. | `nil` | No |
-| `IDGEN_DELIVERY_PREFIX` | Prefix for delivery IDs, prepended with underscore (e.g., 'dlv_123'). Default: empty (no prefix) | `nil` | No |
+| `IDGEN_ATTEMPT_PREFIX` | Prefix for attempt IDs, prepended with underscore (e.g., 'atm_123'). Default: empty (no prefix) | `nil` | No |
 | `IDGEN_DESTINATION_PREFIX` | Prefix for destination IDs, prepended with underscore (e.g., 'dst_123'). Default: empty (no prefix) | `nil` | No |
 | `IDGEN_EVENT_PREFIX` | Prefix for event IDs, prepended with underscore (e.g., 'evt_123'). Default: empty (no prefix) | `nil` | No |
 | `IDGEN_TYPE` | ID generation type for all entities: uuidv4, uuidv7, nanoid. Default: uuidv4 | `uuidv4` | No |
@@ -133,6 +133,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `RETRY_INTERVAL_SECONDS` | Interval in seconds for exponential backoff retry strategy (base 2). Ignored if retry_schedule is provided. | `30` | No |
 | `RETRY_POLL_BACKOFF_MS` | Backoff time in milliseconds when the retry monitor finds no messages to process. When a retry message is found, the monitor immediately polls for the next message without delay. Lower values provide faster retry processing but increase Redis load. For serverless Redis providers (Upstash, ElastiCache Serverless), consider increasing to 5000-10000ms to reduce costs. Default: 100 | `100` | No |
 | `RETRY_SCHEDULE` | Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h. | `[]` | No |
+| `RETRY_VISIBILITY_TIMEOUT_SECONDS` | Time in seconds a retry message is hidden after being received before becoming visible again for reprocessing. This applies when event data is temporarily unavailable (e.g., race condition with log persistence). Default: 30 | `30` | No |
 | `SERVICE` | Specifies the service type to run. Valid values: 'api', 'log', 'delivery', or empty/all for singular mode (runs all services). | `nil` | No |
 | `TELEMETRY_BATCH_INTERVAL` | Maximum time in seconds to wait before sending a batch of telemetry events if batch size is not reached. | `5` | No |
 | `TELEMETRY_BATCH_SIZE` | Maximum number of telemetry events to batch before sending. | `100` | No |
@@ -269,8 +270,8 @@ gin_mode: "release"
 http_user_agent: ""
 
 idgen:
-  # Prefix for delivery IDs, prepended with underscore (e.g., 'dlv_123'). Default: empty (no prefix)
-  delivery_prefix: ""
+  # Prefix for attempt IDs, prepended with underscore (e.g., 'atm_123'). Default: empty (no prefix)
+  attempt_prefix: ""
 
   # Prefix for destination IDs, prepended with underscore (e.g., 'dst_123'). Default: empty (no prefix)
   destination_prefix: ""
@@ -606,6 +607,9 @@ retry_poll_backoff_ms: 100
 
 # Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h.
 retry_schedule: []
+
+# Time in seconds a retry message is hidden after being received before becoming visible again for reprocessing. This applies when event data is temporarily unavailable (e.g., race condition with log persistence). Default: 30
+retry_visibility_timeout_seconds: 30
 
 # Specifies the service type to run. Valid values: 'api', 'log', 'delivery', or empty/all for singular mode (runs all services).
 service: ""

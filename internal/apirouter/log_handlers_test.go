@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestListDeliveries(t *testing.T) {
+func TestListAttempts(t *testing.T) {
 	t.Parallel()
 
 	result := setupTestRouterFull(t, "", "")
@@ -35,7 +35,7 @@ func TestListDeliveries(t *testing.T) {
 		CreatedAt: time.Now(),
 	}))
 
-	t.Run("should return empty list when no deliveries", func(t *testing.T) {
+	t.Run("should return empty list when no attempts", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts", nil)
 		result.router.ServeHTTP(w, req)
@@ -49,12 +49,12 @@ func TestListDeliveries(t *testing.T) {
 		assert.Len(t, data, 0)
 	})
 
-	t.Run("should list deliveries", func(t *testing.T) {
-		// Seed delivery events
+	t.Run("should list attempts", func(t *testing.T) {
+		// Seed attempt events
 		eventID := idgen.Event()
-		deliveryID := idgen.Attempt()
+		attemptID := idgen.Attempt()
 		eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
-		deliveryTime := eventTime.Add(100 * time.Millisecond)
+		attemptTime := eventTime.Add(100 * time.Millisecond)
 
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithID(eventID),
@@ -65,11 +65,11 @@ func TestListDeliveries(t *testing.T) {
 		)
 
 		attempt := testutil.AttemptFactory.AnyPointer(
-			testutil.AttemptFactory.WithID(deliveryID),
+			testutil.AttemptFactory.WithID(attemptID),
 			testutil.AttemptFactory.WithEventID(eventID),
 			testutil.AttemptFactory.WithDestinationID(destinationID),
 			testutil.AttemptFactory.WithStatus("success"),
-			testutil.AttemptFactory.WithTime(deliveryTime),
+			testutil.AttemptFactory.WithTime(attemptTime),
 		)
 
 		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
@@ -86,11 +86,11 @@ func TestListDeliveries(t *testing.T) {
 		data := response["models"].([]interface{})
 		assert.Len(t, data, 1)
 
-		firstDelivery := data[0].(map[string]interface{})
-		assert.Equal(t, deliveryID, firstDelivery["id"])
-		assert.Equal(t, "success", firstDelivery["status"])
-		assert.Equal(t, eventID, firstDelivery["event"]) // Not included
-		assert.Equal(t, destinationID, firstDelivery["destination"])
+		firstAttempt := data[0].(map[string]interface{})
+		assert.Equal(t, attemptID, firstAttempt["id"])
+		assert.Equal(t, "success", firstAttempt["status"])
+		assert.Equal(t, eventID, firstAttempt["event"]) // Not included
+		assert.Equal(t, destinationID, firstAttempt["destination"])
 	})
 
 	t.Run("should include event when include=event", func(t *testing.T) {
@@ -106,8 +106,8 @@ func TestListDeliveries(t *testing.T) {
 		data := response["models"].([]interface{})
 		require.Len(t, data, 1)
 
-		firstDelivery := data[0].(map[string]interface{})
-		event := firstDelivery["event"].(map[string]interface{})
+		firstAttempt := data[0].(map[string]interface{})
+		event := firstAttempt["event"].(map[string]interface{})
 		assert.NotNil(t, event["id"])
 		assert.Equal(t, "user.created", event["topic"])
 		// data should not be present without include=event.data
@@ -127,8 +127,8 @@ func TestListDeliveries(t *testing.T) {
 		data := response["models"].([]interface{})
 		require.Len(t, data, 1)
 
-		firstDelivery := data[0].(map[string]interface{})
-		event := firstDelivery["event"].(map[string]interface{})
+		firstAttempt := data[0].(map[string]interface{})
+		event := firstAttempt["event"].(map[string]interface{})
 		assert.NotNil(t, event["id"])
 		assert.NotNil(t, event["data"]) // data should be present
 	})
@@ -182,16 +182,16 @@ func TestListDeliveries(t *testing.T) {
 		data := response["models"].([]interface{})
 		require.Len(t, data, 1)
 
-		firstDelivery := data[0].(map[string]interface{})
-		assert.Nil(t, firstDelivery["response_data"])
+		firstAttempt := data[0].(map[string]interface{})
+		assert.Nil(t, firstAttempt["response_data"])
 	})
 
 	t.Run("should include response_data with include=response_data", func(t *testing.T) {
-		// Seed a delivery with response_data
+		// Seed an attempt with response_data
 		eventID := idgen.Event()
-		deliveryID := idgen.Attempt()
+		attemptID := idgen.Attempt()
 		eventTime := time.Now().Add(-30 * time.Minute).Truncate(time.Millisecond)
-		deliveryTime := eventTime.Add(100 * time.Millisecond)
+		attemptTime := eventTime.Add(100 * time.Millisecond)
 
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithID(eventID),
@@ -202,11 +202,11 @@ func TestListDeliveries(t *testing.T) {
 		)
 
 		attempt := testutil.AttemptFactory.AnyPointer(
-			testutil.AttemptFactory.WithID(deliveryID),
+			testutil.AttemptFactory.WithID(attemptID),
 			testutil.AttemptFactory.WithEventID(eventID),
 			testutil.AttemptFactory.WithDestinationID(destinationID),
 			testutil.AttemptFactory.WithStatus("success"),
-			testutil.AttemptFactory.WithTime(deliveryTime),
+			testutil.AttemptFactory.WithTime(attemptTime),
 		)
 		attempt.ResponseData = map[string]interface{}{
 			"body":   "OK",
@@ -225,18 +225,18 @@ func TestListDeliveries(t *testing.T) {
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
 		data := response["models"].([]interface{})
-		// Find the delivery we just created
-		var foundDelivery map[string]interface{}
+		// Find the attempt we just created
+		var foundAttempt map[string]interface{}
 		for _, d := range data {
-			del := d.(map[string]interface{})
-			if del["id"] == deliveryID {
-				foundDelivery = del
+			atm := d.(map[string]interface{})
+			if atm["id"] == attemptID {
+				foundAttempt = atm
 				break
 			}
 		}
-		require.NotNil(t, foundDelivery, "delivery not found in response")
-		require.NotNil(t, foundDelivery["response_data"], "response_data should be included")
-		respData := foundDelivery["response_data"].(map[string]interface{})
+		require.NotNil(t, foundAttempt, "attempt not found in response")
+		require.NotNil(t, foundAttempt["response_data"], "response_data should be included")
+		respData := foundAttempt["response_data"].(map[string]interface{})
 		assert.Equal(t, "OK", respData["body"])
 		assert.Equal(t, float64(200), respData["status"])
 	})
@@ -254,9 +254,9 @@ func TestListDeliveries(t *testing.T) {
 		data := response["models"].([]interface{})
 		require.GreaterOrEqual(t, len(data), 1)
 
-		firstDelivery := data[0].(map[string]interface{})
+		firstAttempt := data[0].(map[string]interface{})
 		// event should be included (object, not string)
-		event := firstDelivery["event"].(map[string]interface{})
+		event := firstAttempt["event"].(map[string]interface{})
 		assert.NotNil(t, event["id"])
 		assert.NotNil(t, event["topic"])
 	})
@@ -287,7 +287,7 @@ func TestListDeliveries(t *testing.T) {
 	})
 }
 
-func TestRetrieveDelivery(t *testing.T) {
+func TestRetrieveAttempt(t *testing.T) {
 	t.Parallel()
 
 	result := setupTestRouterFull(t, "", "")
@@ -307,11 +307,11 @@ func TestRetrieveDelivery(t *testing.T) {
 		CreatedAt: time.Now(),
 	}))
 
-	// Seed a delivery event
+	// Seed an attempt event
 	eventID := idgen.Event()
-	deliveryID := idgen.Attempt()
+	attemptID := idgen.Attempt()
 	eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
-	deliveryTime := eventTime.Add(100 * time.Millisecond)
+	attemptTime := eventTime.Add(100 * time.Millisecond)
 
 	event := testutil.EventFactory.AnyPointer(
 		testutil.EventFactory.WithID(eventID),
@@ -322,18 +322,18 @@ func TestRetrieveDelivery(t *testing.T) {
 	)
 
 	attempt := testutil.AttemptFactory.AnyPointer(
-		testutil.AttemptFactory.WithID(deliveryID),
+		testutil.AttemptFactory.WithID(attemptID),
 		testutil.AttemptFactory.WithEventID(eventID),
 		testutil.AttemptFactory.WithDestinationID(destinationID),
 		testutil.AttemptFactory.WithStatus("failed"),
-		testutil.AttemptFactory.WithTime(deliveryTime),
+		testutil.AttemptFactory.WithTime(attemptTime),
 	)
 
 	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
 
-	t.Run("should retrieve delivery by ID", func(t *testing.T) {
+	t.Run("should retrieve attempt by ID", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+deliveryID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+attemptID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -341,7 +341,7 @@ func TestRetrieveDelivery(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-		assert.Equal(t, deliveryID, response["id"])
+		assert.Equal(t, attemptID, response["id"])
 		assert.Equal(t, "failed", response["status"])
 		assert.Equal(t, eventID, response["event"]) // Not included
 		assert.Equal(t, destinationID, response["destination"])
@@ -349,7 +349,7 @@ func TestRetrieveDelivery(t *testing.T) {
 
 	t.Run("should include event when include=event", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+deliveryID+"?include=event", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+attemptID+"?include=event", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -366,7 +366,7 @@ func TestRetrieveDelivery(t *testing.T) {
 
 	t.Run("should include event.data when include=event.data", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+deliveryID+"?include=event.data", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+attemptID+"?include=event.data", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -379,7 +379,7 @@ func TestRetrieveDelivery(t *testing.T) {
 		assert.NotNil(t, event["data"]) // data should be present
 	})
 
-	t.Run("should return 404 for non-existent delivery", func(t *testing.T) {
+	t.Run("should return 404 for non-existent attempt", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/nonexistent", nil)
 		result.router.ServeHTTP(w, req)
@@ -389,7 +389,7 @@ func TestRetrieveDelivery(t *testing.T) {
 
 	t.Run("should return 404 for non-existent tenant", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/nonexistent/attempts/"+deliveryID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/nonexistent/attempts/"+attemptID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -416,11 +416,11 @@ func TestRetrieveEvent(t *testing.T) {
 		CreatedAt: time.Now(),
 	}))
 
-	// Seed a delivery event
+	// Seed an attempt event
 	eventID := idgen.Event()
-	deliveryID := idgen.Attempt()
+	attemptID := idgen.Attempt()
 	eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
-	deliveryTime := eventTime.Add(100 * time.Millisecond)
+	attemptTime := eventTime.Add(100 * time.Millisecond)
 
 	event := testutil.EventFactory.AnyPointer(
 		testutil.EventFactory.WithID(eventID),
@@ -437,11 +437,11 @@ func TestRetrieveEvent(t *testing.T) {
 	)
 
 	attempt := testutil.AttemptFactory.AnyPointer(
-		testutil.AttemptFactory.WithID(deliveryID),
+		testutil.AttemptFactory.WithID(attemptID),
 		testutil.AttemptFactory.WithEventID(eventID),
 		testutil.AttemptFactory.WithDestinationID(destinationID),
 		testutil.AttemptFactory.WithStatus("success"),
-		testutil.AttemptFactory.WithTime(deliveryTime),
+		testutil.AttemptFactory.WithTime(attemptTime),
 	)
 
 	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
@@ -516,11 +516,11 @@ func TestListEvents(t *testing.T) {
 	})
 
 	t.Run("should list events", func(t *testing.T) {
-		// Seed delivery events
+		// Seed attempt events
 		eventID := idgen.Event()
-		deliveryID := idgen.Attempt()
+		attemptID := idgen.Attempt()
 		eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
-		deliveryTime := eventTime.Add(100 * time.Millisecond)
+		attemptTime := eventTime.Add(100 * time.Millisecond)
 
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithID(eventID),
@@ -534,11 +534,11 @@ func TestListEvents(t *testing.T) {
 		)
 
 		attempt := testutil.AttemptFactory.AnyPointer(
-			testutil.AttemptFactory.WithID(deliveryID),
+			testutil.AttemptFactory.WithID(attemptID),
 			testutil.AttemptFactory.WithEventID(eventID),
 			testutil.AttemptFactory.WithDestinationID(destinationID),
 			testutil.AttemptFactory.WithStatus("success"),
-			testutil.AttemptFactory.WithTime(deliveryTime),
+			testutil.AttemptFactory.WithTime(attemptTime),
 		)
 
 		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))

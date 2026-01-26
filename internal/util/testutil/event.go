@@ -96,7 +96,7 @@ func (f *mockEventFactory) WithData(data map[string]interface{}) func(*models.Ev
 	}
 }
 
-// ============================== Mock Delivery ==============================
+// ============================== Mock Attempt ==============================
 
 var AttemptFactory = &mockAttemptFactory{}
 

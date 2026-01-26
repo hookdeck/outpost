@@ -72,7 +72,7 @@ idgen:
   type: "nanoid"
   event_prefix: "evt"
   destination_prefix: "des"
-  delivery_prefix: "dlv"
+  attempt_prefix: "atm"
 
 # Concurrency
 publish_max_concurrency: 1
