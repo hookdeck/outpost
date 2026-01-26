@@ -35,16 +35,22 @@ interface Delivery {
   destination: string;
 }
 
+interface SeekPagination {
+  order_by: string;
+  dir: "asc" | "desc";
+  limit: number;
+  next: string | null;
+  prev: string | null;
+}
+
 interface DeliveryListResponse {
-  data: Delivery[];
-  next?: string;
-  prev?: string;
+  models: Delivery[];
+  pagination: SeekPagination;
 }
 
 interface EventListResponse {
-  data: Event[];
-  next?: string;
-  prev?: string;
+  models: Event[];
+  pagination: SeekPagination;
 }
 
 export type {
@@ -52,6 +58,7 @@ export type {
   EventSummary,
   EventFull,
   Delivery,
+  SeekPagination,
   DeliveryListResponse,
   EventListResponse,
 };

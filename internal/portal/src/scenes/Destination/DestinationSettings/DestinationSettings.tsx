@@ -15,7 +15,7 @@ import {
 } from "../../../common/Icons";
 import { FilterSyntaxGuide } from "../../../common/FilterSyntaxGuide/FilterSyntaxGuide";
 import { useSidebar } from "../../../common/Sidebar/Sidebar";
-import { ApiContext } from "../../../app";
+import { ApiContext, formatError } from "../../../app";
 import { mutate } from "swr";
 import { showToast } from "../../../common/Toast/Toast";
 import {
@@ -77,10 +77,7 @@ const DestinationSettings = ({
         mutate(`destinations/${destination.id}`, data, false);
       })
       .catch((error) => {
-        showToast(
-          "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
-        );
+        showToast("error", formatError(error));
       })
       .finally(() => {
         setIsDisabling(false);
@@ -102,10 +99,7 @@ const DestinationSettings = ({
         mutate(`destinations/${destination.id}`, data, false);
       })
       .catch((error) => {
-        showToast(
-          "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
-        );
+        showToast("error", formatError(error));
       })
       .finally(() => {
         setIsTopicsSaving(false);
@@ -144,10 +138,7 @@ const DestinationSettings = ({
         setIsConfigFormValid(false);
       })
       .catch((error) => {
-        showToast(
-          "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
-        );
+        showToast("error", formatError(error));
       })
       .finally(() => {
         setIsConfigSaving(false);
@@ -174,10 +165,7 @@ const DestinationSettings = ({
         mutate(`destinations/${destination.id}`, data, false);
       })
       .catch((error) => {
-        showToast(
-          "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
-        );
+        showToast("error", formatError(error));
       })
       .finally(() => {
         setIsFilterSaving(false);
@@ -213,10 +201,7 @@ const DestinationSettings = ({
         setFilter(null);
       })
       .catch((error) => {
-        showToast(
-          "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
-        );
+        showToast("error", formatError(error));
       })
       .finally(() => {
         setIsFilterSaving(false);
@@ -239,10 +224,7 @@ const DestinationSettings = ({
         mutate(`destinations/${destination.id}`, data, false);
       })
       .catch((error) => {
-        showToast(
-          "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
-        );
+        showToast("error", formatError(error));
       })
       .finally(() => {
         setIsRotatingSecret(false);
@@ -275,10 +257,7 @@ const DestinationSettings = ({
         navigate("/");
       })
       .catch((error) => {
-        showToast(
-          "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
-        );
+        showToast("error", formatError(error));
       })
       .finally(() => {
         setIsDeleting(false);

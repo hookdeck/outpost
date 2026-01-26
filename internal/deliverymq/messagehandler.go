@@ -145,6 +145,7 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	}
 
 	h.logger.Ctx(ctx).Info("processing delivery event",
+		zap.String("delivery_event_id", deliveryEvent.ID),
 		zap.String("event_id", deliveryEvent.Event.ID),
 		zap.String("tenant_id", deliveryEvent.Event.TenantID),
 		zap.String("destination_id", deliveryEvent.DestinationID),
@@ -200,6 +201,8 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 
 		h.logger.Ctx(ctx).Error("failed to publish event",
 			zap.Error(err),
+			zap.String("delivery_event_id", deliveryEvent.ID),
+			zap.String("delivery_id", delivery.ID),
 			zap.String("event_id", deliveryEvent.Event.ID),
 			zap.String("tenant_id", deliveryEvent.Event.TenantID),
 			zap.String("destination_id", destination.ID),
@@ -220,6 +223,8 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 		if err := h.retryScheduler.Cancel(ctx, deliveryEvent.GetRetryID()); err != nil {
 			h.logger.Ctx(ctx).Error("failed to cancel scheduled retry",
 				zap.Error(err),
+				zap.String("delivery_event_id", deliveryEvent.ID),
+				zap.String("delivery_id", delivery.ID),
 				zap.String("event_id", deliveryEvent.Event.ID),
 				zap.String("tenant_id", deliveryEvent.Event.TenantID),
 				zap.String("destination_id", destination.ID),
@@ -228,6 +233,8 @@ func (h *messageHandler) doHandle(ctx context.Context, deliveryEvent models.Deli
 			return h.logDeliveryResult(ctx, &deliveryEvent, destination, delivery, err)
 		}
 		logger.Audit("scheduled retry canceled",
+			zap.String("delivery_event_id", deliveryEvent.ID),
+			zap.String("delivery_id", delivery.ID),
 			zap.String("event_id", deliveryEvent.Event.ID),
 			zap.String("tenant_id", deliveryEvent.Event.TenantID),
 			zap.String("destination_id", destination.ID),
@@ -244,6 +251,8 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent *m
 	deliveryEvent.Delivery = delivery
 
 	logger.Audit("event delivered",
+		zap.String("delivery_event_id", deliveryEvent.ID),
+		zap.String("delivery_id", deliveryEvent.Delivery.ID),
 		zap.String("event_id", deliveryEvent.Event.ID),
 		zap.String("tenant_id", deliveryEvent.Event.TenantID),
 		zap.String("destination_id", destination.ID),
@@ -256,6 +265,8 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, deliveryEvent *m
 	if logErr := h.logMQ.Publish(ctx, *deliveryEvent); logErr != nil {
 		logger.Error("failed to publish delivery log",
 			zap.Error(logErr),
+			zap.String("delivery_event_id", deliveryEvent.ID),
+			zap.String("delivery_id", deliveryEvent.Delivery.ID),
 			zap.String("event_id", deliveryEvent.Event.ID),
 			zap.String("tenant_id", deliveryEvent.Event.TenantID),
 			zap.String("destination_id", destination.ID),
@@ -328,6 +339,8 @@ func (h *messageHandler) handleAlertAttempt(ctx context.Context, deliveryEvent *
 	if monitorErr := h.alertMonitor.HandleAttempt(ctx, attempt); monitorErr != nil {
 		h.logger.Ctx(ctx).Error("failed to handle alert attempt",
 			zap.Error(monitorErr),
+			zap.String("delivery_event_id", deliveryEvent.ID),
+			zap.String("delivery_id", deliveryEvent.Delivery.ID),
 			zap.String("event_id", deliveryEvent.Event.ID),
 			zap.String("tenant_id", destination.TenantID),
 			zap.String("destination_id", destination.ID),
@@ -336,6 +349,8 @@ func (h *messageHandler) handleAlertAttempt(ctx context.Context, deliveryEvent *
 	}
 
 	h.logger.Ctx(ctx).Info("alert attempt handled",
+		zap.String("delivery_event_id", deliveryEvent.ID),
+		zap.String("delivery_id", deliveryEvent.Delivery.ID),
 		zap.String("event_id", deliveryEvent.Event.ID),
 		zap.String("tenant_id", destination.TenantID),
 		zap.String("destination_id", destination.ID),
@@ -412,6 +427,7 @@ func (h *messageHandler) scheduleRetry(ctx context.Context, deliveryEvent models
 	if err := h.retryScheduler.Schedule(ctx, retryMessageStr, backoffDuration, scheduler.WithTaskID(deliveryEvent.GetRetryID())); err != nil {
 		h.logger.Ctx(ctx).Error("failed to schedule retry",
 			zap.Error(err),
+			zap.String("delivery_event_id", deliveryEvent.ID),
 			zap.String("event_id", deliveryEvent.Event.ID),
 			zap.String("tenant_id", deliveryEvent.Event.TenantID),
 			zap.String("destination_id", deliveryEvent.DestinationID),
@@ -421,6 +437,7 @@ func (h *messageHandler) scheduleRetry(ctx context.Context, deliveryEvent models
 	}
 
 	h.logger.Ctx(ctx).Audit("retry scheduled",
+		zap.String("delivery_event_id", deliveryEvent.ID),
 		zap.String("event_id", deliveryEvent.Event.ID),
 		zap.String("tenant_id", deliveryEvent.Event.TenantID),
 		zap.String("destination_id", deliveryEvent.DestinationID),
@@ -462,6 +479,7 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, deliv
 		logger := h.logger.Ctx(ctx)
 		fields := []zap.Field{
 			zap.Error(err),
+			zap.String("delivery_event_id", deliveryEvent.ID),
 			zap.String("event_id", deliveryEvent.Event.ID),
 			zap.String("tenant_id", deliveryEvent.Event.TenantID),
 			zap.String("destination_id", deliveryEvent.DestinationID),
@@ -477,6 +495,7 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, deliv
 	}
 	if destination == nil {
 		h.logger.Ctx(ctx).Info("destination not found",
+			zap.String("delivery_event_id", deliveryEvent.ID),
 			zap.String("event_id", deliveryEvent.Event.ID),
 			zap.String("tenant_id", deliveryEvent.Event.TenantID),
 			zap.String("destination_id", deliveryEvent.DestinationID))
@@ -484,6 +503,7 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, deliv
 	}
 	if destination.DisabledAt != nil {
 		h.logger.Ctx(ctx).Info("skipping disabled destination",
+			zap.String("delivery_event_id", deliveryEvent.ID),
 			zap.String("event_id", deliveryEvent.Event.ID),
 			zap.String("tenant_id", deliveryEvent.Event.TenantID),
 			zap.String("destination_id", destination.ID),

@@ -556,7 +556,18 @@ func (rsmq *RedisSMQ) PopMessage(qname string) (*QueueMessage, error) {
 }
 
 func (rsmq *RedisSMQ) createQueueMessage(cmd *redis.Cmd) (*QueueMessage, error) {
+	// Check for command error first
+	if err := cmd.Err(); err != nil {
+		return nil, fmt.Errorf("rsmq command failed: %w", err)
+	}
+
 	val := cmd.Val()
+
+	// Handle nil response - some Redis-compatible databases (e.g., Dragonfly)
+	// may return nil instead of empty array when no message is available
+	if val == nil {
+		return nil, nil
+	}
 
 	// Try different type assertions for cluster vs regular client compatibility
 	var vals []any

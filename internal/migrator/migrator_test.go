@@ -2,6 +2,7 @@ package migrator
 
 import (
 	"context"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -140,7 +141,8 @@ func TestMigrator_CredentialExposure_Integration(t *testing.T) {
 			} else if tt.opts.CH.Addr != "" {
 				assert.Contains(t, dbURL, "clickhouse://",
 					"Expected ClickHouse URL")
-				assert.Contains(t, dbURL, tt.opts.CH.Password,
+				// Password is URL-encoded in the query string
+				assert.Contains(t, dbURL, url.QueryEscape(tt.opts.CH.Password),
 					"Test setup: password should be in the database URL")
 			}
 
@@ -195,7 +197,7 @@ func TestMigrator_DatabaseURLGeneration(t *testing.T) {
 					Database: "outpost",
 				},
 			},
-			expectedURL: "clickhouse://admin:secret123@localhost:9000/outpost?x-multi-statement=true",
+			expectedURL: "clickhouse://localhost:9000/outpost?username=admin&password=secret123&x-multi-statement=true&x-migrations-table-engine=MergeTree",
 			hasPassword: true,
 		},
 		{

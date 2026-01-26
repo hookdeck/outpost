@@ -175,7 +175,7 @@ func (ds *DestinationSummary) MatchFilter(event Event) bool {
 // matchFilter is the shared implementation for filter matching.
 // Returns true if no filter is set (nil or empty) or if the event matches the filter.
 func matchFilter(filter Filter, event Event) bool {
-	if filter == nil || len(filter) == 0 {
+	if len(filter) == 0 {
 		return true
 	}
 	// Build the filter input from the event

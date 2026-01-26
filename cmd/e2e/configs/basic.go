@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/infra"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -97,10 +98,14 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 		if err != nil {
 			log.Println("Failed to create redis client:", err)
 		}
+		logger, err := logging.NewLogger(logging.WithLogLevel("warn"))
+		if err != nil {
+			log.Println("Failed to create logger:", err)
+		}
 		outpostInfra := infra.NewInfra(infra.Config{
 			DeliveryMQ: c.MQs.ToInfraConfig("deliverymq"),
 			LogMQ:      c.MQs.ToInfraConfig("logmq"),
-		}, redisClient)
+		}, redisClient, logger, c.MQs.GetInfraType())
 		if err := outpostInfra.Teardown(context.Background()); err != nil {
 			log.Println("Teardown failed:", err)
 		}

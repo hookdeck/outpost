@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/url"
 	"strings"
 	"time"
 
@@ -143,6 +144,7 @@ type MigrationOptsCH struct {
 	Password     string
 	Database     string
 	DeploymentID string
+	TLSEnabled   bool
 }
 
 type MigrationOpts struct {
@@ -197,11 +199,20 @@ func (opts *MigrationOpts) databaseURL() string {
 	}
 
 	if opts.CH.Addr != "" {
-		url := fmt.Sprintf("clickhouse://%s:%s@%s/%s?x-multi-statement=true", opts.CH.Username, opts.CH.Password, opts.CH.Addr, opts.CH.Database)
-		if opts.CH.DeploymentID != "" {
-			url += "&x-migrations-table=" + opts.CH.DeploymentID + "_schema_migrations"
+		// clickhouse-go v1 (used by golang-migrate) expects credentials as query params.
+		// MergeTree engine is used for broader compatibility (TinyLog is not supported everywhere).
+		connURL := fmt.Sprintf("clickhouse://%s/%s?username=%s&password=%s&x-multi-statement=true&x-migrations-table-engine=MergeTree",
+			opts.CH.Addr,
+			opts.CH.Database,
+			url.QueryEscape(opts.CH.Username),
+			url.QueryEscape(opts.CH.Password))
+		if opts.CH.TLSEnabled {
+			connURL += "&secure=true"
 		}
-		return url
+		if opts.CH.DeploymentID != "" {
+			connURL += "&x-migrations-table=" + url.QueryEscape(opts.CH.DeploymentID) + "_schema_migrations"
+		}
+		return connURL
 	}
 
 	return ""

@@ -10,7 +10,7 @@ import {
 import Badge from "../../common/Badge/Badge";
 import { useNavigate } from "react-router-dom";
 import { useContext, useEffect, useState } from "react";
-import { ApiContext } from "../../app";
+import { ApiContext, formatError } from "../../app";
 import { showToast } from "../../common/Toast/Toast";
 import useSWR, { mutate } from "swr";
 import TopicPicker from "../../common/TopicPicker/TopicPicker";
@@ -337,10 +337,7 @@ export default function CreateDestination() {
         navigate(`/destinations/${data.id}`);
       })
       .catch((error) => {
-        showToast(
-          "error",
-          `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
-        );
+        showToast("error", formatError(error));
       })
       .finally(() => {
         setIsCreating(false);

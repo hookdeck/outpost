@@ -2,6 +2,8 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
+  poll = true
+  poll_interval = 500
   cmd = "go build -o tmp/main cmd/outpost/main.go"
   bin = "tmp/main"
   delay = 100

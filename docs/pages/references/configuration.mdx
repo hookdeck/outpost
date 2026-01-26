@@ -41,9 +41,10 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `AZURE_SERVICEBUS_RESOURCE_GROUP` | Azure resource group name | `nil` | Yes |
 | `AZURE_SERVICEBUS_SUBSCRIPTION_ID` | Azure subscription ID | `nil` | Yes |
 | `AZURE_SERVICEBUS_TENANT_ID` | Azure Active Directory tenant ID | `nil` | Yes |
-| `CLICKHOUSE_ADDR` | Address (host:port) of the ClickHouse server. Example: 'localhost:9000'. | `nil` | No |
+| `CLICKHOUSE_ADDR` | Address (host:port) of the ClickHouse server. Example: 'localhost:9000' or 'host.clickhouse.cloud:9440' for ClickHouse Cloud. | `nil` | No |
 | `CLICKHOUSE_DATABASE` | Database name in ClickHouse to use. | `outpost` | No |
 | `CLICKHOUSE_PASSWORD` | Password for ClickHouse authentication. | `nil` | No |
+| `CLICKHOUSE_TLS_ENABLED` | Enable TLS for ClickHouse connection. | `false` | No |
 | `CLICKHOUSE_USERNAME` | Username for ClickHouse authentication. | `nil` | No |
 | `DELIVERY_IDEMPOTENCY_KEY_TTL` | Time-to-live in seconds for delivery queue idempotency keys. Controls how long processed deliveries are remembered to prevent duplicate delivery attempts. Default: 3600 (1 hour). | `3600` | No |
 | `DELIVERY_MAX_CONCURRENCY` | Maximum number of delivery attempts to process concurrently. | `1` | No |
@@ -178,7 +179,7 @@ alert:
 audit_log: true
 
 clickhouse:
-  # Address (host:port) of the ClickHouse server. Example: 'localhost:9000'.
+  # Address (host:port) of the ClickHouse server. Example: 'localhost:9000' or 'host.clickhouse.cloud:9440' for ClickHouse Cloud.
   addr: ""
 
   # Database name in ClickHouse to use.
@@ -186,6 +187,9 @@ clickhouse:
 
   # Password for ClickHouse authentication.
   password: ""
+
+  # Enable TLS for ClickHouse connection.
+  tls_enabled: false
 
   # Username for ClickHouse authentication.
   username: ""

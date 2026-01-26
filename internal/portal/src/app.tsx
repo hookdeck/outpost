@@ -17,6 +17,40 @@ type ApiClient = {
   fetch: (path: string, init?: RequestInit) => Promise<any>;
 };
 
+// API error response from the server
+export class ApiError extends Error {
+  status: number;
+  data?: string[];
+
+  constructor(message: string, status: number, data?: string[]) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.data = data;
+  }
+
+  // Format error for display - includes validation details if present
+  toDisplayString(): string {
+    if (this.data && this.data.length > 0) {
+      return this.data
+        .map((d) => d.charAt(0).toUpperCase() + d.slice(1))
+        .join(". ");
+    }
+    return this.message.charAt(0).toUpperCase() + this.message.slice(1);
+  }
+}
+
+// Helper to format any error for display
+export function formatError(error: unknown): string {
+  if (error instanceof ApiError) {
+    return error.toDisplayString();
+  }
+  if (error instanceof Error) {
+    return error.message.charAt(0).toUpperCase() + error.message.slice(1);
+  }
+  return String(error);
+}
+
 export const ApiContext = createContext<ApiClient>({} as ApiClient);
 
 type TenantResponse = {
@@ -73,12 +107,16 @@ function AuthenticatedApp({
         },
       }).then(async (res) => {
         if (!res.ok) {
-          let error;
+          let error: ApiError;
           try {
             const data = await res.json();
-            error = new Error(data.message);
+            error = new ApiError(
+              data.message || res.statusText,
+              data.status || res.status,
+              Array.isArray(data.data) ? data.data : undefined,
+            );
           } catch (e) {
-            error = new Error(res.statusText);
+            error = new ApiError(res.statusText, res.status);
           }
           throw error;
         }

@@ -56,6 +56,13 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Bool("postgres_configured", c.PostgresURL != ""),
 		zap.String("postgres_host", maskPostgresURLHost(c.PostgresURL)),
 
+		// ClickHouse
+		zap.Bool("clickhouse_configured", c.ClickHouse.Addr != ""),
+		zap.String("clickhouse_addr", c.ClickHouse.Addr),
+		zap.String("clickhouse_database", c.ClickHouse.Database),
+		zap.Bool("clickhouse_password_configured", c.ClickHouse.Password != ""),
+		zap.Bool("clickhouse_tls_enabled", c.ClickHouse.TLSEnabled),
+
 		// Message Queue
 		zap.String("mq_type", c.MQs.GetInfraType()),
 

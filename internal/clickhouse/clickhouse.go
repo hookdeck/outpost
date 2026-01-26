@@ -1,6 +1,8 @@
 package clickhouse
 
 import (
+	"crypto/tls"
+
 	"github.com/ClickHouse/clickhouse-go/v2"
 	chdriver "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -12,14 +14,15 @@ type (
 )
 
 type ClickHouseConfig struct {
-	Addr     string
-	Username string
-	Password string
-	Database string
+	Addr       string
+	Username   string
+	Password   string
+	Database   string
+	TLSEnabled bool
 }
 
 func New(config *ClickHouseConfig) (DB, error) {
-	conn, err := clickhouse.Open(&clickhouse.Options{
+	opts := &clickhouse.Options{
 		Addr: []string{config.Addr},
 		Auth: clickhouse.Auth{
 			Database: config.Database,
@@ -31,6 +34,12 @@ func New(config *ClickHouseConfig) (DB, error) {
 		// Debugf: func(format string, v ...any) {
 		// 	fmt.Printf(format+"\n", v...)
 		// },
-	})
+	}
+
+	if config.TLSEnabled {
+		opts.TLS = &tls.Config{}
+	}
+
+	conn, err := clickhouse.Open(opts)
 	return conn, err
 }

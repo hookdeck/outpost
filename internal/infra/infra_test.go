@@ -11,6 +11,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/infra"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/redislock"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -74,7 +75,9 @@ func newTestInfra(t *testing.T, provider infra.InfraProvider, lockKey string, sh
 // Helper to create test infra with specific Redis client
 func newTestInfraWithRedis(t *testing.T, provider infra.InfraProvider, lockKey string, client redis.Cmdable, shouldManage bool) *infra.Infra {
 	lock := redislock.New(client, redislock.WithKey(lockKey))
-	return infra.NewInfraWithProvider(lock, provider, shouldManage)
+	logger, err := logging.NewLogger(logging.WithLogLevel("warn"))
+	require.NoError(t, err)
+	return infra.NewInfraWithProvider(lock, provider, shouldManage, logger)
 }
 
 func TestInfra_SingleNode(t *testing.T) {

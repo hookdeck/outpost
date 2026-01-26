@@ -382,10 +382,11 @@ func (c *RedisConfig) ToConfig() *redis.RedisConfig {
 }
 
 type ClickHouseConfig struct {
-	Addr     string `yaml:"addr" env:"CLICKHOUSE_ADDR" desc:"Address (host:port) of the ClickHouse server. Example: 'localhost:9000'." required:"N"`
-	Username string `yaml:"username" env:"CLICKHOUSE_USERNAME" desc:"Username for ClickHouse authentication." required:"N"`
-	Password string `yaml:"password" env:"CLICKHOUSE_PASSWORD" desc:"Password for ClickHouse authentication." required:"N"`
-	Database string `yaml:"database" env:"CLICKHOUSE_DATABASE" desc:"Database name in ClickHouse to use." required:"N"`
+	Addr       string `yaml:"addr" env:"CLICKHOUSE_ADDR" desc:"Address (host:port) of the ClickHouse server. Example: 'localhost:9000' or 'host.clickhouse.cloud:9440' for ClickHouse Cloud." required:"N"`
+	Username   string `yaml:"username" env:"CLICKHOUSE_USERNAME" desc:"Username for ClickHouse authentication." required:"N"`
+	Password   string `yaml:"password" env:"CLICKHOUSE_PASSWORD" desc:"Password for ClickHouse authentication." required:"N"`
+	Database   string `yaml:"database" env:"CLICKHOUSE_DATABASE" desc:"Database name in ClickHouse to use." required:"N"`
+	TLSEnabled bool   `yaml:"tls_enabled" env:"CLICKHOUSE_TLS_ENABLED" desc:"Enable TLS for ClickHouse connection." required:"N"`
 }
 
 func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
@@ -393,10 +394,11 @@ func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
 		return nil
 	}
 	return &clickhouse.ClickHouseConfig{
-		Addr:     c.Addr,
-		Username: c.Username,
-		Password: c.Password,
-		Database: c.Database,
+		Addr:       c.Addr,
+		Username:   c.Username,
+		Password:   c.Password,
+		Database:   c.Database,
+		TLSEnabled: c.TLSEnabled,
 	}
 }
 
@@ -480,6 +482,7 @@ func (c *Config) ToMigratorOpts() migrator.MigrationOpts {
 			Password:     c.ClickHouse.Password,
 			Database:     c.ClickHouse.Database,
 			DeploymentID: c.DeploymentID,
+			TLSEnabled:   c.ClickHouse.TLSEnabled,
 		},
 	}
 }
