@@ -23,10 +23,10 @@ type Harness interface {
 // HarnessMaker creates a new Harness for each test.
 type HarnessMaker func(ctx context.Context, t *testing.T) (Harness, error)
 
-// RunConformanceTests executes the full conformance test suite for a tenantstore driver.
+// RunConformanceTests executes the core conformance test suite for a tenantstore driver.
 // The suite is organized into four parts:
 //   - CRUD: tenant and destination create/read/update/delete
-//   - List: listing and pagination operations
+//   - List: destination listing and filtering operations
 //   - Match: event matching operations
 //   - Misc: max destinations, deployment isolation
 func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
@@ -44,4 +44,18 @@ func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 	t.Run("Misc", func(t *testing.T) {
 		testMisc(t, newHarness)
 	})
+}
+
+// RunListTenantTests executes the ListTenant test suite, which requires RediSearch.
+// Run this only on backends that support RediSearch (Redis Stack, Dragonfly Stack).
+// The suite covers:
+//   - Enrichment: tenant list includes destinations count and topics
+//   - ExcludesDeleted: deleted tenants are excluded from results
+//   - InputValidation: limit, order direction, cursor validation
+//   - KeysetPagination: cursor-based pagination edge cases
+//   - PaginationSuite: comprehensive forward/backward/round-trip pagination
+func RunListTenantTests(t *testing.T, newHarness HarnessMaker) {
+	t.Helper()
+
+	testListTenant(t, newHarness)
 }

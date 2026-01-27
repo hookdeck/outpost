@@ -9,7 +9,6 @@ import (
 
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/hookdeck/outpost/internal/pagination/paginationtest"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/tenantstore/driver"
 	"github.com/hookdeck/outpost/internal/tenantstore/drivertest"
@@ -174,6 +173,34 @@ func TestDragonfly_WithDeploymentID(t *testing.T) {
 }
 
 // =============================================================================
+// ListTenant Tests with Redis Stack (requires RediSearch)
+// =============================================================================
+
+func TestRedisStack_ListTenant(t *testing.T) {
+	t.Parallel()
+	drivertest.RunListTenantTests(t, newHarness(redisStackFactory, ""))
+}
+
+func TestRedisStack_ListTenant_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	drivertest.RunListTenantTests(t, newHarness(redisStackFactory, "dp_test_001"))
+}
+
+// =============================================================================
+// ListTenant Tests with Dragonfly Stack (requires RediSearch)
+// =============================================================================
+
+func TestDragonflyStack_ListTenant(t *testing.T) {
+	t.Parallel()
+	drivertest.RunListTenantTests(t, newHarness(dragonflyStackFactory, ""))
+}
+
+func TestDragonflyStack_ListTenant_WithDeploymentID(t *testing.T) {
+	t.Parallel()
+	drivertest.RunListTenantTests(t, newHarness(dragonflyStackFactory, "dp_test_001"))
+}
+
+// =============================================================================
 // Standalone: Credentials Encryption
 // =============================================================================
 
@@ -227,114 +254,6 @@ func TestDestinationCredentialsEncryption(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, input.Credentials, retrieved.Credentials)
 	assert.Equal(t, input.DeliveryMetadata, retrieved.DeliveryMetadata)
-}
-
-// =============================================================================
-// Standalone: ListTenant Pagination Suite (requires RediSearch)
-// =============================================================================
-
-func TestListTenantPagination(t *testing.T) {
-	t.Parallel()
-	runListTenantPaginationSuite(t, dragonflyStackFactory, "")
-}
-
-func TestListTenantPagination_WithDeploymentID(t *testing.T) {
-	t.Parallel()
-	runListTenantPaginationSuite(t, dragonflyStackFactory, "dp_pagination_test")
-}
-
-func TestListTenantPagination_Compat_RedisStack(t *testing.T) {
-	t.Parallel()
-	runListTenantPaginationSuite(t, redisStackFactory, "")
-}
-
-func TestListTenantPagination_Compat_RedisStack_WithDeploymentID(t *testing.T) {
-	t.Parallel()
-	runListTenantPaginationSuite(t, redisStackFactory, "dp_pagination_test")
-}
-
-func runListTenantPaginationSuite(t *testing.T, factory redisClientFactory, deploymentID string) {
-	ctx := context.Background()
-	redisClient := factory(t)
-
-	// Add unique suffix to isolate parallel runs
-	if deploymentID != "" {
-		deploymentID = fmt.Sprintf("%s_%d", deploymentID, time.Now().UnixNano())
-	} else {
-		deploymentID = fmt.Sprintf("pagination_test_%d", time.Now().UnixNano())
-	}
-
-	store := redistenantstore.New(redisClient,
-		redistenantstore.WithSecret("test-secret"),
-		redistenantstore.WithAvailableTopics(testutil.TestTopics),
-		redistenantstore.WithDeploymentID(deploymentID),
-	)
-
-	err := store.Init(ctx)
-	require.NoError(t, err)
-
-	var createdTenantIDs []string
-	baseTime := time.Now()
-
-	paginationSuite := paginationtest.Suite[models.Tenant]{
-		Name: "redistenantstore_ListTenant",
-
-		NewItem: func(index int) models.Tenant {
-			return models.Tenant{
-				ID:        fmt.Sprintf("tenant_pagination_%d_%d", time.Now().UnixNano(), index),
-				CreatedAt: baseTime.Add(time.Duration(index) * time.Second),
-				UpdatedAt: baseTime.Add(time.Duration(index) * time.Second),
-			}
-		},
-
-		InsertMany: func(ctx context.Context, items []models.Tenant) error {
-			for _, item := range items {
-				if err := store.UpsertTenant(ctx, item); err != nil {
-					return err
-				}
-				createdTenantIDs = append(createdTenantIDs, item.ID)
-			}
-			return nil
-		},
-
-		List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[models.Tenant], error) {
-			resp, err := store.ListTenant(ctx, driver.ListTenantRequest{
-				Limit: opts.Limit,
-				Dir:   opts.Order,
-				Next:  opts.Next,
-				Prev:  opts.Prev,
-			})
-			if err != nil {
-				return paginationtest.ListResult[models.Tenant]{}, err
-			}
-			var next, prev string
-			if resp.Pagination.Next != nil {
-				next = *resp.Pagination.Next
-			}
-			if resp.Pagination.Prev != nil {
-				prev = *resp.Pagination.Prev
-			}
-			return paginationtest.ListResult[models.Tenant]{
-				Items: resp.Models,
-				Next:  next,
-				Prev:  prev,
-			}, nil
-		},
-
-		GetID: func(t models.Tenant) string {
-			return t.ID
-		},
-
-		Cleanup: func(ctx context.Context) error {
-			for _, id := range createdTenantIDs {
-				_ = store.DeleteTenant(ctx, id)
-			}
-			createdTenantIDs = nil
-			return nil
-		},
-	}
-
-	paginationSuite.Run(t)
 }
 
 // =============================================================================

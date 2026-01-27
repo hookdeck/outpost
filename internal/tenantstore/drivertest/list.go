@@ -2,27 +2,18 @@ package drivertest
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/pagination/paginationtest"
 	"github.com/hookdeck/outpost/internal/tenantstore/driver"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// skipIfListTenantNotSupported probes the store and skips the test if ListTenant is not supported.
-func skipIfListTenantNotSupported(t *testing.T, store driver.TenantStore, ctx context.Context) {
-	t.Helper()
-	_, err := store.ListTenant(ctx, driver.ListTenantRequest{Limit: 1})
-	if errors.Is(err, driver.ErrListTenantNotSupported) {
-		t.Skip("ListTenant not supported by this driver")
-	}
-}
 
 // multiDestinationData holds shared test data for multi-destination tests.
 type multiDestinationData struct {
@@ -218,7 +209,12 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
-	t.Run("ListTenantEnrichment", func(t *testing.T) {
+}
+
+func testListTenant(t *testing.T, newHarness HarnessMaker) {
+	t.Helper()
+
+	t.Run("Enrichment", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)
 		require.NoError(t, err)
@@ -227,7 +223,6 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		store, err := h.MakeDriver(ctx)
 		require.NoError(t, err)
 		require.NoError(t, store.Init(ctx))
-		skipIfListTenantNotSupported(t, store, ctx)
 
 		// Create 25 tenants
 		tenants := make([]models.Tenant, 25)
@@ -300,7 +295,7 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
-	t.Run("ListTenantExcludesDeleted", func(t *testing.T) {
+	t.Run("ExcludesDeleted", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)
 		require.NoError(t, err)
@@ -309,7 +304,6 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		store, err := h.MakeDriver(ctx)
 		require.NoError(t, err)
 		require.NoError(t, store.Init(ctx))
-		skipIfListTenantNotSupported(t, store, ctx)
 
 		// Create initial tenants
 		for i := 0; i < 5; i++ {
@@ -344,7 +338,7 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
-	t.Run("ListTenantInputValidation", func(t *testing.T) {
+	t.Run("InputValidation", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)
 		require.NoError(t, err)
@@ -353,7 +347,6 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		store, err := h.MakeDriver(ctx)
 		require.NoError(t, err)
 		require.NoError(t, store.Init(ctx))
-		skipIfListTenantNotSupported(t, store, ctx)
 
 		// Create 25 tenants for pagination tests
 		tenants := make([]models.Tenant, 25)
@@ -435,7 +428,7 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
-	t.Run("ListTenantKeysetPagination", func(t *testing.T) {
+	t.Run("KeysetPagination", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)
 		require.NoError(t, err)
@@ -444,7 +437,6 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		store, err := h.MakeDriver(ctx)
 		require.NoError(t, err)
 		require.NoError(t, store.Init(ctx))
-		skipIfListTenantNotSupported(t, store, ctx)
 
 		t.Run("add during traversal does not cause duplicate", func(t *testing.T) {
 			prefix := fmt.Sprintf("add_edge_%d_", time.Now().UnixNano())
@@ -499,5 +491,79 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 				_ = store.DeleteTenant(ctx, id)
 			}
 		})
+	})
+
+	t.Run("PaginationSuite", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		require.NoError(t, store.Init(ctx))
+
+		var createdTenantIDs []string
+		baseTime := time.Now()
+
+		suite := paginationtest.Suite[models.Tenant]{
+			Name: "ListTenant",
+
+			NewItem: func(index int) models.Tenant {
+				return models.Tenant{
+					ID:        fmt.Sprintf("tenant_pagination_%d_%d", time.Now().UnixNano(), index),
+					CreatedAt: baseTime.Add(time.Duration(index) * time.Second),
+					UpdatedAt: baseTime.Add(time.Duration(index) * time.Second),
+				}
+			},
+
+			InsertMany: func(ctx context.Context, items []models.Tenant) error {
+				for _, item := range items {
+					if err := store.UpsertTenant(ctx, item); err != nil {
+						return err
+					}
+					createdTenantIDs = append(createdTenantIDs, item.ID)
+				}
+				return nil
+			},
+
+			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[models.Tenant], error) {
+				resp, err := store.ListTenant(ctx, driver.ListTenantRequest{
+					Limit: opts.Limit,
+					Dir:   opts.Order,
+					Next:  opts.Next,
+					Prev:  opts.Prev,
+				})
+				if err != nil {
+					return paginationtest.ListResult[models.Tenant]{}, err
+				}
+				var next, prev string
+				if resp.Pagination.Next != nil {
+					next = *resp.Pagination.Next
+				}
+				if resp.Pagination.Prev != nil {
+					prev = *resp.Pagination.Prev
+				}
+				return paginationtest.ListResult[models.Tenant]{
+					Items: resp.Models,
+					Next:  next,
+					Prev:  prev,
+				}, nil
+			},
+
+			GetID: func(t models.Tenant) string {
+				return t.ID
+			},
+
+			Cleanup: func(ctx context.Context) error {
+				for _, id := range createdTenantIDs {
+					_ = store.DeleteTenant(ctx, id)
+				}
+				createdTenantIDs = nil
+				return nil
+			},
+		}
+
+		suite.Run(t)
 	})
 }
