@@ -195,6 +195,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			ServiceName:  b.cfg.OpenTelemetry.GetServiceName(),
 			APIKey:       b.cfg.APIKey,
 			JWTSecret:    b.cfg.APIJWTSecret,
+			DeploymentID: b.cfg.DeploymentID,
 			Topics:       b.cfg.Topics,
 			Registry:     svc.destRegistry,
 			PortalConfig: b.cfg.GetPortalConfig(),

@@ -51,7 +51,7 @@ func (g *IDGenerator) Installation() string {
 func (g *IDGenerator) generate(prefix string) string {
 	id := g.generator.generate()
 	if prefix != "" {
-		return prefix + "_" + id
+		return prefix + id
 	}
 	return id
 }
