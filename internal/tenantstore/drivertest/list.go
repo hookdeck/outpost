@@ -2,6 +2,7 @@ package drivertest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -13,6 +14,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// skipIfListTenantNotSupported probes the store and skips the test if ListTenant is not supported.
+func skipIfListTenantNotSupported(t *testing.T, store driver.TenantStore, ctx context.Context) {
+	t.Helper()
+	_, err := store.ListTenant(ctx, driver.ListTenantRequest{Limit: 1})
+	if errors.Is(err, driver.ErrListTenantNotSupported) {
+		t.Skip("ListTenant not supported by this driver")
+	}
+}
 
 // multiDestinationData holds shared test data for multi-destination tests.
 type multiDestinationData struct {
@@ -217,6 +227,7 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		store, err := h.MakeDriver(ctx)
 		require.NoError(t, err)
 		require.NoError(t, store.Init(ctx))
+		skipIfListTenantNotSupported(t, store, ctx)
 
 		// Create 25 tenants
 		tenants := make([]models.Tenant, 25)
@@ -298,6 +309,7 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		store, err := h.MakeDriver(ctx)
 		require.NoError(t, err)
 		require.NoError(t, store.Init(ctx))
+		skipIfListTenantNotSupported(t, store, ctx)
 
 		// Create initial tenants
 		for i := 0; i < 5; i++ {
@@ -341,6 +353,7 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		store, err := h.MakeDriver(ctx)
 		require.NoError(t, err)
 		require.NoError(t, store.Init(ctx))
+		skipIfListTenantNotSupported(t, store, ctx)
 
 		// Create 25 tenants for pagination tests
 		tenants := make([]models.Tenant, 25)
@@ -431,6 +444,7 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		store, err := h.MakeDriver(ctx)
 		require.NoError(t, err)
 		require.NoError(t, store.Init(ctx))
+		skipIfListTenantNotSupported(t, store, ctx)
 
 		t.Run("add during traversal does not cause duplicate", func(t *testing.T) {
 			prefix := fmt.Sprintf("add_edge_%d_", time.Now().UnixNano())
