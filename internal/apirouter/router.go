@@ -13,8 +13,8 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
-	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/portal"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
@@ -98,7 +98,7 @@ func NewRouter(
 	logger *logging.Logger,
 	redisClient redis.Cmdable,
 	deliveryMQ *deliverymq.DeliveryMQ,
-	entityStore models.EntityStore,
+	entityStore tenantstore.TenantStore,
 	logStore logstore.LogStore,
 	publishmqEventHandler publishmq.EventHandler,
 	telemetry telemetry.Telemetry,

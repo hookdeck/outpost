@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,7 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.WithAvailableTopics(testutil.TestTopics))
+	entityStore := tenantstore.New(tenantstore.Config{RedisClient: redisClient, AvailableTopics: testutil.TestTopics})
 	mqConfig := testinfra.NewMQAWSConfig(t, nil)
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)
@@ -84,7 +85,7 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.WithAvailableTopics(testutil.TestTopics))
+	entityStore := tenantstore.New(tenantstore.Config{RedisClient: redisClient, AvailableTopics: testutil.TestTopics})
 	mqConfig := testinfra.NewMQAWSConfig(t, nil)
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)
@@ -216,7 +217,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.WithAvailableTopics(testutil.TestTopics))
+	entityStore := tenantstore.New(tenantstore.Config{RedisClient: redisClient, AvailableTopics: testutil.TestTopics})
 	mqConfig := testinfra.NewMQAWSConfig(t, nil)
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)
@@ -396,7 +397,7 @@ func TestEventHandler_Filter(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.WithAvailableTopics(testutil.TestTopics))
+	entityStore := tenantstore.New(tenantstore.Config{RedisClient: redisClient, AvailableTopics: testutil.TestTopics})
 	mqConfig := testinfra.NewMQAWSConfig(t, nil)
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)

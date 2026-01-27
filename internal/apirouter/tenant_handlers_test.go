@@ -17,7 +17,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	entityStore := setupTestEntityStore(t, redisClient, nil)
+	entityStore := setupTestEntityStore(t, redisClient)
 
 	t.Run("should create when there's no existing tenant", func(t *testing.T) {
 		t.Parallel()
@@ -74,7 +74,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	entityStore := setupTestEntityStore(t, redisClient, nil)
+	entityStore := setupTestEntityStore(t, redisClient)
 
 	t.Run("should return 404 when there's no tenant", func(t *testing.T) {
 		t.Parallel()
@@ -122,7 +122,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	entityStore := setupTestEntityStore(t, redisClient, nil)
+	entityStore := setupTestEntityStore(t, redisClient)
 
 	t.Run("should return 404 when there's no tenant", func(t *testing.T) {
 		t.Parallel()
@@ -202,7 +202,7 @@ func TestTenantRetrieveTokenHandler(t *testing.T) {
 	apiKey := "api_key"
 	jwtSecret := "jwt_secret"
 	router, _, redisClient := setupTestRouter(t, apiKey, jwtSecret)
-	entityStore := setupTestEntityStore(t, redisClient, nil)
+	entityStore := setupTestEntityStore(t, redisClient)
 
 	t.Run("should return token and tenant_id", func(t *testing.T) {
 		t.Parallel()
@@ -238,7 +238,7 @@ func TestTenantRetrievePortalHandler(t *testing.T) {
 	apiKey := "api_key"
 	jwtSecret := "jwt_secret"
 	router, _, redisClient := setupTestRouter(t, apiKey, jwtSecret)
-	entityStore := setupTestEntityStore(t, redisClient, nil)
+	entityStore := setupTestEntityStore(t, redisClient)
 
 	t.Run("should return redirect_url with token and tenant_id in body", func(t *testing.T) {
 		t.Parallel()
@@ -301,7 +301,7 @@ func TestTenantListHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	_ = setupTestEntityStore(t, redisClient, nil)
+	_ = setupTestEntityStore(t, redisClient)
 
 	// Note: These tests use miniredis which doesn't support RediSearch.
 	// The ListTenant feature requires RediSearch, so we expect 501 Not Implemented.

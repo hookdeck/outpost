@@ -15,10 +15,10 @@ import (
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
-	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 
 	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -32,7 +32,7 @@ type testRouterResult struct {
 	router      http.Handler
 	logger      *logging.Logger
 	redisClient redis.Client
-	entityStore models.EntityStore
+	entityStore tenantstore.TenantStore
 	logStore    logstore.LogStore
 	deliveryMQ  *deliverymq.DeliveryMQ
 }
@@ -49,7 +49,7 @@ func setupTestRouterFull(t *testing.T, apiKey, jwtSecret string, funcs ...func(t
 	deliveryMQ := deliverymq.New()
 	deliveryMQ.Init(context.Background())
 	eventTracer := eventtracer.NewNoopEventTracer()
-	entityStore := setupTestEntityStore(t, redisClient, nil)
+	entityStore := setupTestEntityStore(t, redisClient)
 	logStore := setupTestLogStore(t, funcs...)
 	eventHandler := publishmq.NewEventHandler(logger, deliveryMQ, entityStore, eventTracer, testutil.TestTopics, idempotence.New(redisClient, idempotence.WithSuccessfulTTL(24*time.Hour)))
 	router := apirouter.NewRouter(
@@ -93,14 +93,12 @@ func setupTestLogStore(t *testing.T, funcs ...func(t *testing.T) clickhouse.DB) 
 	return logStore
 }
 
-func setupTestEntityStore(_ *testing.T, redisClient redis.Client, cipher models.Cipher) models.EntityStore {
-	if cipher == nil {
-		cipher = models.NewAESCipher("secret")
-	}
-	return models.NewEntityStore(redisClient,
-		models.WithCipher(cipher),
-		models.WithAvailableTopics(testutil.TestTopics),
-	)
+func setupTestEntityStore(_ *testing.T, redisClient redis.Client) tenantstore.TenantStore {
+	return tenantstore.New(tenantstore.Config{
+		RedisClient:     redisClient,
+		Secret:          "secret",
+		AvailableTopics: testutil.TestTopics,
+	})
 }
 
 func TestRouterWithAPIKey(t *testing.T) {

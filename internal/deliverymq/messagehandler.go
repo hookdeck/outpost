@@ -14,6 +14,7 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/scheduler"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -163,7 +164,7 @@ func (h *messageHandler) handleError(msg *mqs.Message, err error) error {
 	// Don't return error for expected cases
 	var preErr *PreDeliveryError
 	if errors.As(err, &preErr) {
-		if errors.Is(preErr.err, models.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
+		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
 			return nil
 		}
 	}
@@ -359,7 +360,7 @@ func (h *messageHandler) shouldNackError(err error) bool {
 	var preErr *PreDeliveryError
 	if errors.As(err, &preErr) {
 		// Don't nack if it's a permanent error
-		if errors.Is(preErr.err, models.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
+		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
 			return false
 		}
 		return true // Nack other pre-delivery errors
@@ -438,7 +439,7 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task 
 			zap.String("destination_id", task.DestinationID),
 		}
 
-		if errors.Is(err, models.ErrDestinationDeleted) {
+		if errors.Is(err, tenantstore.ErrDestinationDeleted) {
 			logger.Info("destination deleted", fields...)
 		} else {
 			// Unexpected errors like DB connection issues
@@ -451,7 +452,7 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task 
 			zap.String("event_id", task.Event.ID),
 			zap.String("tenant_id", task.Event.TenantID),
 			zap.String("destination_id", task.DestinationID))
-		return nil, models.ErrDestinationNotFound
+		return nil, tenantstore.ErrDestinationNotFound
 	}
 	if destination.DisabledAt != nil {
 		h.logger.Ctx(ctx).Info("skipping disabled destination",

@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -35,14 +36,14 @@ type eventHandler struct {
 	logger      *logging.Logger
 	idempotence idempotence.Idempotence
 	deliveryMQ  *deliverymq.DeliveryMQ
-	entityStore models.EntityStore
+	entityStore tenantstore.TenantStore
 	topics      []string
 }
 
 func NewEventHandler(
 	logger *logging.Logger,
 	deliveryMQ *deliverymq.DeliveryMQ,
-	entityStore models.EntityStore,
+	entityStore tenantstore.TenantStore,
 	eventTracer eventtracer.EventTracer,
 	topics []string,
 	idempotence idempotence.Idempotence,

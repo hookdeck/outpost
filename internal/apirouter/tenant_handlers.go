@@ -10,6 +10,7 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 )
 
 type TenantHandlers struct {
@@ -17,7 +18,7 @@ type TenantHandlers struct {
 	telemetry    telemetry.Telemetry
 	jwtSecret    string
 	deploymentID string
-	entityStore  models.EntityStore
+	entityStore  tenantstore.TenantStore
 }
 
 func NewTenantHandlers(
@@ -25,7 +26,7 @@ func NewTenantHandlers(
 	telemetry telemetry.Telemetry,
 	jwtSecret string,
 	deploymentID string,
-	entityStore models.EntityStore,
+	entityStore tenantstore.TenantStore,
 ) *TenantHandlers {
 	return &TenantHandlers{
 		logger:       logger,
@@ -56,7 +57,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 
 	// Check existing tenant.
 	existingTenant, err := h.entityStore.RetrieveTenant(c.Request.Context(), tenantID)
-	if err != nil && err != models.ErrTenantDeleted {
+	if err != nil && err != tenantstore.ErrTenantDeleted {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
@@ -113,7 +114,7 @@ func (h *TenantHandlers) List(c *gin.Context) {
 		return
 	}
 
-	req := models.ListTenantRequest{
+	req := tenantstore.ListTenantRequest{
 		Next: cursors.Next,
 		Prev: cursors.Prev,
 		Dir:  dir,
@@ -133,7 +134,7 @@ func (h *TenantHandlers) List(c *gin.Context) {
 	resp, err := h.entityStore.ListTenant(c.Request.Context(), req)
 	if err != nil {
 		// Map errors to HTTP status codes
-		if errors.Is(err, models.ErrListTenantNotSupported) {
+		if errors.Is(err, tenantstore.ErrListTenantNotSupported) {
 			AbortWithError(c, http.StatusNotImplemented, ErrorResponse{
 				Err:     err,
 				Code:    http.StatusNotImplemented,
@@ -141,15 +142,15 @@ func (h *TenantHandlers) List(c *gin.Context) {
 			})
 			return
 		}
-		if errors.Is(err, models.ErrConflictingCursors) {
+		if errors.Is(err, tenantstore.ErrConflictingCursors) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 			return
 		}
-		if errors.Is(err, models.ErrInvalidCursor) {
+		if errors.Is(err, tenantstore.ErrInvalidCursor) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 			return
 		}
-		if errors.Is(err, models.ErrInvalidOrder) {
+		if errors.Is(err, tenantstore.ErrInvalidOrder) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 			return
 		}
@@ -168,7 +169,7 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 
 	err := h.entityStore.DeleteTenant(c.Request.Context(), tenantID)
 	if err != nil {
-		if err == models.ErrTenantNotFound {
+		if err == tenantstore.ErrTenantNotFound {
 			c.Status(http.StatusNotFound)
 			return
 		}

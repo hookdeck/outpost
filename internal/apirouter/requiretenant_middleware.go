@@ -7,9 +7,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 )
 
-func RequireTenantMiddleware(entityStore models.EntityStore) gin.HandlerFunc {
+func RequireTenantMiddleware(entityStore tenantstore.TenantStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantID, exists := c.Get("tenantID")
 		if !exists {
@@ -19,7 +20,7 @@ func RequireTenantMiddleware(entityStore models.EntityStore) gin.HandlerFunc {
 
 		tenant, err := entityStore.RetrieveTenant(c.Request.Context(), tenantID.(string))
 		if err != nil {
-			if err == models.ErrTenantDeleted {
+			if err == tenantstore.ErrTenantDeleted {
 				c.AbortWithStatus(http.StatusNotFound)
 				return
 			}

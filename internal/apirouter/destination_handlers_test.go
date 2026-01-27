@@ -18,7 +18,7 @@ func TestDestinationCreateHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	entityStore := setupTestEntityStore(t, redisClient, nil)
+	entityStore := setupTestEntityStore(t, redisClient)
 
 	t.Run("should set updated_at equal to created_at on creation", func(t *testing.T) {
 		t.Parallel()

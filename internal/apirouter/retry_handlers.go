@@ -8,19 +8,20 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"go.uber.org/zap"
 )
 
 type RetryHandlers struct {
 	logger      *logging.Logger
-	entityStore models.EntityStore
+	entityStore tenantstore.TenantStore
 	logStore    logstore.LogStore
 	deliveryMQ  *deliverymq.DeliveryMQ
 }
 
 func NewRetryHandlers(
 	logger *logging.Logger,
-	entityStore models.EntityStore,
+	entityStore tenantstore.TenantStore,
 	logStore logstore.LogStore,
 	deliveryMQ *deliverymq.DeliveryMQ,
 ) *RetryHandlers {

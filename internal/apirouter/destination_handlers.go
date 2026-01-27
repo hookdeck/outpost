@@ -12,18 +12,19 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/maputil"
 )
 
 type DestinationHandlers struct {
 	logger      *logging.Logger
 	telemetry   telemetry.Telemetry
-	entityStore models.EntityStore
+	entityStore tenantstore.TenantStore
 	topics      []string
 	registry    destregistry.Registry
 }
 
-func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, entityStore models.EntityStore, topics []string, registry destregistry.Registry) *DestinationHandlers {
+func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, entityStore tenantstore.TenantStore, topics []string, registry destregistry.Registry) *DestinationHandlers {
 	return &DestinationHandlers{
 		logger:      logger,
 		telemetry:   telemetry,
@@ -36,9 +37,9 @@ func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetr
 func (h *DestinationHandlers) List(c *gin.Context) {
 	typeParams := c.QueryArray("type")
 	topicsParams := c.QueryArray("topics")
-	var opts models.ListDestinationByTenantOpts
+	var opts tenantstore.ListDestinationByTenantOpts
 	if len(typeParams) > 0 || len(topicsParams) > 0 {
-		opts = models.WithDestinationFilter(models.DestinationFilter{
+		opts = tenantstore.WithDestinationFilter(tenantstore.DestinationFilter{
 			Type:   typeParams,
 			Topics: topicsParams,
 		})
@@ -291,7 +292,7 @@ func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool
 func (h *DestinationHandlers) mustRetrieveDestination(c *gin.Context, tenantID, destinationID string) *models.Destination {
 	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
-		if errors.Is(err, models.ErrDestinationDeleted) {
+		if errors.Is(err, tenantstore.ErrDestinationDeleted) {
 			c.Status(http.StatusNotFound)
 			return nil
 		}
@@ -310,7 +311,7 @@ func (h *DestinationHandlers) handleUpsertDestinationError(c *gin.Context, err e
 		AbortWithValidationError(c, err)
 		return
 	}
-	if errors.Is(err, models.ErrDuplicateDestination) {
+	if errors.Is(err, tenantstore.ErrDuplicateDestination) {
 		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 		return
 	}

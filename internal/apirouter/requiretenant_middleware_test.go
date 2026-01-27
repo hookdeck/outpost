@@ -32,7 +32,7 @@ func TestRequireTenantMiddleware(t *testing.T) {
 		tenant := models.Tenant{
 			ID: idgen.String(),
 		}
-		entityStore := setupTestEntityStore(t, redisClient, nil)
+		entityStore := setupTestEntityStore(t, redisClient)
 		err := entityStore.UpsertTenant(context.Background(), tenant)
 		require.Nil(t, err)
 
