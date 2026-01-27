@@ -31,14 +31,14 @@ func (m *mockLogStore) InsertMany(ctx context.Context, entries []*models.LogEntr
 	return nil
 }
 
-func (m *mockLogStore) getInserted() (events []*models.Event, deliveries []*models.Delivery) {
+func (m *mockLogStore) getInserted() (events []*models.Event, attempts []*models.Attempt) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, entry := range m.entries {
 		events = append(events, entry.Event)
-		deliveries = append(deliveries, entry.Delivery)
+		attempts = append(attempts, entry.Attempt)
 	}
-	return events, deliveries
+	return events, attempts
 }
 
 // mockQueueMessage implements mqs.QueueMessage for testing.
@@ -84,10 +84,10 @@ func TestBatchProcessor_ValidEntry(t *testing.T) {
 	defer bp.Shutdown()
 
 	event := testutil.EventFactory.Any()
-	delivery := testutil.DeliveryFactory.Any()
+	attempt := testutil.AttemptFactory.Any()
 	entry := models.LogEntry{
-		Event:    &event,
-		Delivery: &delivery,
+		Event:   &event,
+		Attempt: &attempt,
 	}
 
 	mock, msg := newMockMessage(entry)
@@ -100,9 +100,9 @@ func TestBatchProcessor_ValidEntry(t *testing.T) {
 	assert.True(t, mock.acked, "valid message should be acked")
 	assert.False(t, mock.nacked, "valid message should not be nacked")
 
-	events, deliveries := logStore.getInserted()
+	events, attempts := logStore.getInserted()
 	assert.Len(t, events, 1)
-	assert.Len(t, deliveries, 1)
+	assert.Len(t, attempts, 1)
 }
 
 func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
@@ -117,10 +117,10 @@ func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
 	require.NoError(t, err)
 	defer bp.Shutdown()
 
-	delivery := testutil.DeliveryFactory.Any()
+	attempt := testutil.AttemptFactory.Any()
 	entry := models.LogEntry{
-		Event:    nil, // Missing event
-		Delivery: &delivery,
+		Event:   nil, // Missing event
+		Attempt: &attempt,
 	}
 
 	mock, msg := newMockMessage(entry)
@@ -133,12 +133,12 @@ func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
 	assert.False(t, mock.acked, "invalid message should not be acked")
 	assert.True(t, mock.nacked, "invalid message should be nacked")
 
-	events, deliveries := logStore.getInserted()
+	events, attempts := logStore.getInserted()
 	assert.Empty(t, events, "no events should be inserted for invalid entry")
-	assert.Empty(t, deliveries, "no deliveries should be inserted for invalid entry")
+	assert.Empty(t, attempts, "no attempts should be inserted for invalid entry")
 }
 
-func TestBatchProcessor_InvalidEntry_MissingDelivery(t *testing.T) {
+func TestBatchProcessor_InvalidEntry_MissingAttempt(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
@@ -152,8 +152,8 @@ func TestBatchProcessor_InvalidEntry_MissingDelivery(t *testing.T) {
 
 	event := testutil.EventFactory.Any()
 	entry := models.LogEntry{
-		Event:    &event,
-		Delivery: nil, // Missing delivery
+		Event:   &event,
+		Attempt: nil, // Missing attempt
 	}
 
 	mock, msg := newMockMessage(entry)
@@ -166,9 +166,9 @@ func TestBatchProcessor_InvalidEntry_MissingDelivery(t *testing.T) {
 	assert.False(t, mock.acked, "invalid message should not be acked")
 	assert.True(t, mock.nacked, "invalid message should be nacked")
 
-	events, deliveries := logStore.getInserted()
+	events, attempts := logStore.getInserted()
 	assert.Empty(t, events, "no events should be inserted for invalid entry")
-	assert.Empty(t, deliveries, "no deliveries should be inserted for invalid entry")
+	assert.Empty(t, attempts, "no attempts should be inserted for invalid entry")
 }
 
 func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
@@ -185,19 +185,19 @@ func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
 
 	// Create valid entry 1
 	event1 := testutil.EventFactory.Any()
-	delivery1 := testutil.DeliveryFactory.Any()
-	validEntry1 := models.LogEntry{Event: &event1, Delivery: &delivery1}
+	attempt1 := testutil.AttemptFactory.Any()
+	validEntry1 := models.LogEntry{Event: &event1, Attempt: &attempt1}
 	mock1, msg1 := newMockMessage(validEntry1)
 
 	// Create invalid entry (missing event)
-	delivery2 := testutil.DeliveryFactory.Any()
-	invalidEntry := models.LogEntry{Event: nil, Delivery: &delivery2}
+	attempt2 := testutil.AttemptFactory.Any()
+	invalidEntry := models.LogEntry{Event: nil, Attempt: &attempt2}
 	mock2, msg2 := newMockMessage(invalidEntry)
 
 	// Create valid entry 2
 	event3 := testutil.EventFactory.Any()
-	delivery3 := testutil.DeliveryFactory.Any()
-	validEntry2 := models.LogEntry{Event: &event3, Delivery: &delivery3}
+	attempt3 := testutil.AttemptFactory.Any()
+	validEntry2 := models.LogEntry{Event: &event3, Attempt: &attempt3}
 	mock3, msg3 := newMockMessage(validEntry2)
 
 	// Add all messages
@@ -221,9 +221,9 @@ func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
 	assert.False(t, mock3.nacked, "valid message 2 should not be nacked")
 
 	// Only valid entries should be inserted
-	events, deliveries := logStore.getInserted()
+	events, attempts := logStore.getInserted()
 	assert.Len(t, events, 2, "only 2 valid events should be inserted")
-	assert.Len(t, deliveries, 2, "only 2 valid deliveries should be inserted")
+	assert.Len(t, attempts, 2, "only 2 valid attempts should be inserted")
 }
 
 func TestBatchProcessor_MalformedJSON(t *testing.T) {
@@ -248,7 +248,7 @@ func TestBatchProcessor_MalformedJSON(t *testing.T) {
 	assert.False(t, mock.acked, "malformed message should not be acked")
 	assert.True(t, mock.nacked, "malformed message should be nacked")
 
-	events, deliveries := logStore.getInserted()
+	events, attempts := logStore.getInserted()
 	assert.Empty(t, events)
-	assert.Empty(t, deliveries)
+	assert.Empty(t, attempts)
 }

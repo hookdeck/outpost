@@ -77,15 +77,15 @@ func (h *harness) Close() {
 func (h *harness) FlushWrites(ctx context.Context) error {
 	// Force ClickHouse to merge parts and deduplicate rows on both tables
 	eventsTable := "events"
-	deliveriesTable := "deliveries"
+	attemptsTable := "attempts"
 	if h.deploymentID != "" {
 		eventsTable = h.deploymentID + "_events"
-		deliveriesTable = h.deploymentID + "_deliveries"
+		attemptsTable = h.deploymentID + "_attempts"
 	}
 	if err := h.chDB.Exec(ctx, "OPTIMIZE TABLE "+eventsTable+" FINAL"); err != nil {
 		return err
 	}
-	return h.chDB.Exec(ctx, "OPTIMIZE TABLE "+deliveriesTable+" FINAL")
+	return h.chDB.Exec(ctx, "OPTIMIZE TABLE "+attemptsTable+" FINAL")
 }
 
 func (h *harness) MakeDriver(ctx context.Context) (driver.LogStore, error) {

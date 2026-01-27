@@ -39,7 +39,6 @@ func NewAlertEvaluator(thresholds []int, autoDisableFailureCount int) AlertEvalu
 		})
 	}
 
-	// Sort by failure count
 	sort.Slice(finalThresholds, func(i, j int) bool { return finalThresholds[i].failures < finalThresholds[j].failures })
 
 	// Check if we need to add 100

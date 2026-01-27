@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
 import Badge from "../../../common/Badge/Badge";
 import Button from "../../../common/Button/Button";
-import "./Deliveries.scss";
+import "./Attempts.scss";
 import Table from "../../../common/Table/Table";
-import { DeliveryListResponse, EventSummary } from "../../../typings/Event";
+import { AttemptListResponse, EventSummary } from "../../../typings/Event";
 import useSWR from "swr";
 import Dropdown from "../../../common/Dropdown/Dropdown";
 import {
@@ -13,7 +13,7 @@ import {
   RefreshIcon,
   NextIcon,
 } from "../../../common/Icons";
-import RetryDeliveryButton from "../../../common/RetryDeliveryButton/RetryDeliveryButton";
+import RetryAttemptButton from "../../../common/RetryAttemptButton/RetryAttemptButton";
 import { Checkbox } from "../../../common/Checkbox/Checkbox";
 import {
   Route,
@@ -24,20 +24,20 @@ import {
   useParams,
 } from "react-router-dom";
 import CONFIGS from "../../../config";
-import DeliveryDetails from "./DeliveryDetails";
+import AttemptDetails from "./AttemptDetails";
 
-interface DeliveriesProps {
+interface AttemptsProps {
   destination: any;
-  navigateDelivery: (path: string, state?: any) => void;
+  navigateAttempt: (path: string, state?: any) => void;
 }
 
-const Deliveries: React.FC<DeliveriesProps> = ({
+const Attempts: React.FC<AttemptsProps> = ({
   destination,
-  navigateDelivery,
+  navigateAttempt,
 }) => {
   const [timeRange, setTimeRange] = useState("24h");
-  const { delivery_id: deliveryId } = useParams<{ delivery_id: string }>();
-  const { status, topics, pagination, urlSearchParams } = useDeliveryFilter();
+  const { attempt_id: attemptId } = useParams<{ attempt_id: string }>();
+  const { status, topics, pagination, urlSearchParams } = useAttemptFilter();
 
   const queryUrl = useMemo(() => {
     const searchParams = new URLSearchParams(urlSearchParams);
@@ -70,31 +70,31 @@ const Deliveries: React.FC<DeliveriesProps> = ({
     searchParams.set("destination_id", destination.id);
     searchParams.set("include", "event");
 
-    return `deliveries?${searchParams.toString()}`;
+    return `attempts?${searchParams.toString()}`;
   }, [destination.id, timeRange, urlSearchParams]);
 
   const {
-    data: deliveriesList,
+    data: attemptsList,
     mutate,
     isValidating,
-  } = useSWR<DeliveryListResponse>(queryUrl, {
+  } = useSWR<AttemptListResponse>(queryUrl, {
     revalidateOnFocus: false,
   });
 
   const topicsList = CONFIGS.TOPICS.split(",");
 
-  const table_rows = deliveriesList?.models
-    ? deliveriesList.models.map((delivery) => {
+  const table_rows = attemptsList?.models
+    ? attemptsList.models.map((attempt) => {
         const event =
-          typeof delivery.event === "object"
-            ? (delivery.event as EventSummary)
+          typeof attempt.event === "object"
+            ? (attempt.event as EventSummary)
             : null;
         return {
-          id: delivery.id,
-          active: delivery.id === (deliveryId || ""),
+          id: attempt.id,
+          active: attempt.id === (attemptId || ""),
           entries: [
-            <span className="mono-s delivery-time-cell">
-              {new Date(delivery.delivered_at).toLocaleString("en-US", {
+            <span className="mono-s attempt-time-cell">
+              {new Date(attempt.delivered_at).toLocaleString("en-US", {
                 month: "short",
                 day: "numeric",
                 hour: "numeric",
@@ -103,13 +103,13 @@ const Deliveries: React.FC<DeliveriesProps> = ({
               })}
             </span>,
             <span className="mono-s">
-              {delivery.status === "success" ? (
+              {attempt.status === "success" ? (
                 <Badge text="Successful" success />
               ) : (
                 <Badge text="Failed" danger />
               )}
-              <RetryDeliveryButton
-                deliveryId={delivery.id}
+              <RetryAttemptButton
+                attemptId={attempt.id}
                 disabled={isValidating}
                 loading={isValidating}
                 completed={(success) => {
@@ -120,21 +120,21 @@ const Deliveries: React.FC<DeliveriesProps> = ({
               />
             </span>,
             <span className="mono-s">{event?.topic || "-"}</span>,
-            <span className="mono-s">{delivery.id}</span>,
+            <span className="mono-s">{attempt.id}</span>,
           ],
-          onClick: () => navigateDelivery(`/${delivery.id}`),
+          onClick: () => navigateAttempt(`/${attempt.id}`),
         };
       })
     : [];
 
   return (
-    <div className="destination-deliveries">
-      <div className="destination-deliveries__header">
-        <h2 className="destination-deliveries__header-title title-l">
-          Deliveries{" "}
-          <Badge text={deliveriesList?.models.length ?? 0} size="s" />
+    <div className="destination-attempts">
+      <div className="destination-attempts__header">
+        <h2 className="destination-attempts__header-title title-l">
+          Attempts{" "}
+          <Badge text={attemptsList?.models.length ?? 0} size="s" />
         </h2>
-        <div className="destination-deliveries__header-filters">
+        <div className="destination-attempts__header-filters">
           <Dropdown
             trigger_icon={<CalendarIcon />}
             trigger={`Last ${timeRange}`}
@@ -230,8 +230,8 @@ const Deliveries: React.FC<DeliveriesProps> = ({
       </div>
 
       <div
-        className={`destination-deliveries__table ${
-          deliveryId ? "destination-deliveries__table--active" : ""
+        className={`destination-attempts__table ${
+          attemptId ? "destination-attempts__table--active" : ""
         }`}
       >
         <Table
@@ -248,7 +248,7 @@ const Deliveries: React.FC<DeliveriesProps> = ({
               header: "Topic",
             },
             {
-              header: "Delivery ID",
+              header: "Attempt ID",
             },
           ]}
           rows={table_rows}
@@ -256,7 +256,7 @@ const Deliveries: React.FC<DeliveriesProps> = ({
             <div className="table__footer">
               <div>
                 <span className="subtitle-s">
-                  {deliveriesList?.models.length ?? 0} deliveries
+                  {attemptsList?.models.length ?? 0} attempts
                 </span>
               </div>
 
@@ -264,9 +264,9 @@ const Deliveries: React.FC<DeliveriesProps> = ({
                 <Button
                   icon
                   iconLabel="Previous"
-                  disabled={!deliveriesList?.pagination?.prev}
+                  disabled={!attemptsList?.pagination?.prev}
                   onClick={() =>
-                    pagination.prev(deliveriesList?.pagination?.prev || "")
+                    pagination.prev(attemptsList?.pagination?.prev || "")
                   }
                 >
                   <PreviousIcon />
@@ -274,9 +274,9 @@ const Deliveries: React.FC<DeliveriesProps> = ({
                 <Button
                   icon
                   iconLabel="Next"
-                  disabled={!deliveriesList?.pagination?.next}
+                  disabled={!attemptsList?.pagination?.next}
                   onClick={() =>
-                    pagination.next(deliveriesList?.pagination?.next || "")
+                    pagination.next(attemptsList?.pagination?.next || "")
                   }
                 >
                   <NextIcon />
@@ -292,9 +292,9 @@ const Deliveries: React.FC<DeliveriesProps> = ({
   );
 };
 
-export default Deliveries;
+export default Attempts;
 
-const useDeliveryFilter = () => {
+const useAttemptFilter = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const handleFilterChange = (key: string, value: string | null) => {
@@ -389,14 +389,14 @@ const useDeliveryFilter = () => {
   };
 };
 
-export const DeliveryRoutes = ({ destination }: { destination: any }) => {
-  const { urlSearchParams } = useDeliveryFilter();
+export const AttemptRoutes = ({ destination }: { destination: any }) => {
+  const { urlSearchParams } = useAttemptFilter();
   const navigate = useNavigate();
 
-  const navigateDelivery = useCallback(
+  const navigateAttempt = useCallback(
     (path: string, state?: any) => {
       navigate(
-        `/destinations/${destination.id}/deliveries${path}?${urlSearchParams}`,
+        `/destinations/${destination.id}/attempts${path}?${urlSearchParams}`,
         { state },
       );
     },
@@ -408,15 +408,15 @@ export const DeliveryRoutes = ({ destination }: { destination: any }) => {
       <Route
         path="/"
         element={
-          <Deliveries
+          <Attempts
             destination={destination}
-            navigateDelivery={navigateDelivery}
+            navigateAttempt={navigateAttempt}
           />
         }
       >
         <Route
-          path=":delivery_id/*"
-          element={<DeliveryDetails navigateDelivery={navigateDelivery} />}
+          path=":attempt_id/*"
+          element={<AttemptDetails navigateAttempt={navigateAttempt} />}
         />
       </Route>
     </Routes>

@@ -16,18 +16,18 @@ import (
 type TimeFilter = driver.TimeFilter
 type ListEventRequest = driver.ListEventRequest
 type ListEventResponse = driver.ListEventResponse
-type ListDeliveryRequest = driver.ListDeliveryRequest
-type ListDeliveryResponse = driver.ListDeliveryResponse
+type ListAttemptRequest = driver.ListAttemptRequest
+type ListAttemptResponse = driver.ListAttemptResponse
 type RetrieveEventRequest = driver.RetrieveEventRequest
-type RetrieveDeliveryRequest = driver.RetrieveDeliveryRequest
-type DeliveryRecord = driver.DeliveryRecord
+type RetrieveAttemptRequest = driver.RetrieveAttemptRequest
+type AttemptRecord = driver.AttemptRecord
 type LogEntry = models.LogEntry
 
 type LogStore interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
-	ListDelivery(context.Context, ListDeliveryRequest) (ListDeliveryResponse, error)
+	ListAttempt(context.Context, ListAttemptRequest) (ListAttemptResponse, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
-	RetrieveDelivery(ctx context.Context, request RetrieveDeliveryRequest) (*DeliveryRecord, error)
+	RetrieveAttempt(ctx context.Context, request RetrieveAttemptRequest) (*AttemptRecord, error)
 	InsertMany(context.Context, []*models.LogEntry) error
 }
 

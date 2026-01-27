@@ -32,33 +32,33 @@ func NewRetryHandlers(
 	}
 }
 
-// RetryDelivery handles POST /:tenantID/deliveries/:deliveryID/retry
+// RetryAttempt handles POST /:tenantID/attempts/:attemptID/retry
 // Constraints:
-// - Only the latest delivery for an event+destination pair can be retried
+// - Only the latest attempt for an event+destination pair can be retried
 // - Destination must exist and be enabled
-func (h *RetryHandlers) RetryDelivery(c *gin.Context) {
+func (h *RetryHandlers) RetryAttempt(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 	if tenant == nil {
 		return
 	}
-	deliveryID := c.Param("deliveryID")
+	attemptID := c.Param("attemptID")
 
-	// 1. Look up delivery by ID
-	deliveryRecord, err := h.logStore.RetrieveDelivery(c.Request.Context(), logstore.RetrieveDeliveryRequest{
-		TenantID:   tenant.ID,
-		DeliveryID: deliveryID,
+	// 1. Look up attempt by ID
+	attemptRecord, err := h.logStore.RetrieveAttempt(c.Request.Context(), logstore.RetrieveAttemptRequest{
+		TenantID:  tenant.ID,
+		AttemptID: attemptID,
 	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if deliveryRecord == nil {
-		AbortWithError(c, http.StatusNotFound, NewErrNotFound("delivery"))
+	if attemptRecord == nil {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
 		return
 	}
 
 	// 2. Check destination exists and is enabled
-	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenant.ID, deliveryRecord.Delivery.DestinationID)
+	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenant.ID, attemptRecord.Attempt.DestinationID)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -79,7 +79,7 @@ func (h *RetryHandlers) RetryDelivery(c *gin.Context) {
 	}
 
 	// 3. Create and publish manual delivery task
-	task := models.NewManualDeliveryTask(*deliveryRecord.Event, deliveryRecord.Delivery.DestinationID)
+	task := models.NewManualDeliveryTask(*attemptRecord.Event, attemptRecord.Attempt.DestinationID)
 
 	if err := h.deliveryMQ.Publish(c.Request.Context(), task); err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
@@ -87,10 +87,10 @@ func (h *RetryHandlers) RetryDelivery(c *gin.Context) {
 	}
 
 	h.logger.Ctx(c.Request.Context()).Audit("manual retry initiated",
-		zap.String("delivery_id", deliveryID),
-		zap.String("event_id", deliveryRecord.Event.ID),
+		zap.String("attempt_id", attemptID),
+		zap.String("event_id", attemptRecord.Event.ID),
 		zap.String("tenant_id", tenant.ID),
-		zap.String("destination_id", deliveryRecord.Delivery.DestinationID),
+		zap.String("destination_id", attemptRecord.Attempt.DestinationID),
 		zap.String("destination_type", destination.Type))
 
 	c.JSON(http.StatusAccepted, gin.H{

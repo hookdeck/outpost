@@ -150,7 +150,6 @@ func (b *ServiceBuilder) Cleanup(ctx context.Context) {
 func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	b.logger.Debug("building API service workers")
 
-	// Create a new service instance for API
 	svc := &serviceInstance{
 		name:         "api",
 		cleanupFuncs: []func(context.Context, *logging.LoggerWithCtx){},
@@ -191,7 +190,6 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	)
 	eventHandler := publishmq.NewEventHandler(b.logger, svc.deliveryMQ, svc.entityStore, svc.eventTracer, b.cfg.Topics, publishIdempotence)
 
-	// Create API router as separate handler
 	apiHandler := apirouter.NewRouter(
 		apirouter.RouterConfig{
 			ServiceName:  b.cfg.OpenTelemetry.GetServiceName(),
@@ -242,7 +240,6 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	b.logger.Debug("building delivery service worker")
 
-	// Create a new service instance for Delivery
 	svc := &serviceInstance{
 		name:         "delivery",
 		cleanupFuncs: []func(context.Context, *logging.LoggerWithCtx){},
@@ -300,7 +297,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		idempotence.WithDeploymentID(b.cfg.DeploymentID),
 	)
 
-	// Get retry configuration
 	retryBackoff, retryMaxLimit := b.cfg.GetRetryBackoff()
 
 	// Create delivery handler
@@ -317,7 +313,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		deliveryIdempotence,
 	)
 
-	// Store reference to the base router
 	svc.router = baseRouter
 
 	// Create DeliveryMQ worker
@@ -338,7 +333,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	b.logger.Debug("building log service worker")
 
-	// Create a new service instance for Log
 	svc := &serviceInstance{
 		name:         "log",
 		cleanupFuncs: []func(context.Context, *logging.LoggerWithCtx){},
@@ -390,7 +384,6 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 
 	logMQ := logmq.New(logmq.WithQueue(logQueueConfig))
 
-	// Store reference to the base router
 	svc.router = baseRouter
 
 	// Create LogMQ worker

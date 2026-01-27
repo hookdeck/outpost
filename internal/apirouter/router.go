@@ -170,8 +170,8 @@ func NewRouter(
 		},
 		{
 			Method:    http.MethodGet,
-			Path:      "/deliveries",
-			Handler:   logHandlers.AdminListDeliveries,
+			Path:      "/attempts",
+			Handler:   logHandlers.AdminListAttempts,
 			AuthScope: AuthScopeAdmin,
 			Mode:      RouteModeAlways,
 		},
@@ -353,11 +353,11 @@ func NewRouter(
 			},
 		},
 
-		// Delivery routes
+		// Attempt routes
 		{
 			Method:    http.MethodGet,
-			Path:      "/:tenantID/deliveries",
-			Handler:   logHandlers.ListDeliveries,
+			Path:      "/:tenantID/attempts",
+			Handler:   logHandlers.ListAttempts,
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
@@ -366,8 +366,8 @@ func NewRouter(
 		},
 		{
 			Method:    http.MethodGet,
-			Path:      "/:tenantID/deliveries/:deliveryID",
-			Handler:   logHandlers.RetrieveDelivery,
+			Path:      "/:tenantID/attempts/:attemptID",
+			Handler:   logHandlers.RetrieveAttempt,
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
@@ -376,8 +376,8 @@ func NewRouter(
 		},
 		{
 			Method:    http.MethodPost,
-			Path:      "/:tenantID/deliveries/:deliveryID/retry",
-			Handler:   retryHandlers.RetryDelivery,
+			Path:      "/:tenantID/attempts/:attemptID/retry",
+			Handler:   retryHandlers.RetryAttempt,
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{

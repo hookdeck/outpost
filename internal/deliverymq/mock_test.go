@@ -25,17 +25,17 @@ func newMockPublisher(responses []error) *mockPublisher {
 	return &mockPublisher{responses: responses}
 }
 
-func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Delivery, error) {
+func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.current >= len(m.responses) {
 		m.current++
-		return &models.Delivery{
-			ID:            idgen.Delivery(),
+		return &models.Attempt{
+			ID:            idgen.Attempt(),
 			EventID:       event.ID,
 			DestinationID: destination.ID,
-			Status:        models.DeliveryStatusSuccess,
+			Status:        models.AttemptStatusSuccess,
 			Code:          "OK",
 			ResponseData:  map[string]interface{}{},
 			Time:          time.Now(),
@@ -45,21 +45,21 @@ func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.De
 	resp := m.responses[m.current]
 	m.current++
 	if resp == nil {
-		return &models.Delivery{
-			ID:            idgen.Delivery(),
+		return &models.Attempt{
+			ID:            idgen.Attempt(),
 			EventID:       event.ID,
 			DestinationID: destination.ID,
-			Status:        models.DeliveryStatusSuccess,
+			Status:        models.AttemptStatusSuccess,
 			Code:          "OK",
 			ResponseData:  map[string]interface{}{},
 			Time:          time.Now(),
 		}, nil
 	}
-	return &models.Delivery{
-		ID:            idgen.Delivery(),
+	return &models.Attempt{
+		ID:            idgen.Attempt(),
 		EventID:       event.ID,
 		DestinationID: destination.ID,
-		Status:        models.DeliveryStatusFailed,
+		Status:        models.AttemptStatusFailed,
 		Code:          "ERR",
 		ResponseData:  map[string]interface{}{},
 		Time:          time.Now(),

@@ -121,21 +121,17 @@ func (a *App) PostRun(ctx context.Context) {
 }
 
 func (a *App) run(ctx context.Context) error {
-	// Set up cancellation context
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Handle sigterm and await termChan signal
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Run workers in goroutine
 	errChan := make(chan error, 1)
 	go func() {
 		errChan <- a.supervisor.Run(ctx)
 	}()
 
-	// Wait for either termination signal or worker failure
 	var exitErr error
 	select {
 	case <-termChan:
@@ -175,13 +171,13 @@ func (a *App) configureIDGenerators() error {
 		zap.String("type", a.config.IDGen.Type),
 		zap.String("event_prefix", a.config.IDGen.EventPrefix),
 		zap.String("destination_prefix", a.config.IDGen.DestinationPrefix),
-		zap.String("delivery_prefix", a.config.IDGen.DeliveryPrefix))
+		zap.String("attempt_prefix", a.config.IDGen.AttemptPrefix))
 
 	if err := idgen.Configure(idgen.IDGenConfig{
 		Type:              a.config.IDGen.Type,
 		EventPrefix:       a.config.IDGen.EventPrefix,
 		DestinationPrefix: a.config.IDGen.DestinationPrefix,
-		DeliveryPrefix:    a.config.IDGen.DeliveryPrefix,
+		AttemptPrefix:     a.config.IDGen.AttemptPrefix,
 	}); err != nil {
 		a.logger.Error("failed to configure ID generators", zap.Error(err))
 		return err
@@ -202,7 +198,6 @@ func (a *App) initializeRedis(ctx context.Context) error {
 	}
 	a.redisClient = redisClient
 
-	// Run Redis schema migrations
 	if err := runRedisMigrations(ctx, redisClient, a.logger, a.config.DeploymentID); err != nil {
 		a.logger.Error("Redis migration failed", zap.Error(err))
 		return err
