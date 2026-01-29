@@ -1467,6 +1467,27 @@ func (suite *basicSuite) TestDeliveryRetry() {
 	// Wait for retry to be scheduled and attempted (poll for at least 2 delivery attempts)
 	suite.waitForMockServerEvents(t, destinationID, 2, 5*time.Second)
 
+	// Wait for attempts to be logged, then verify attempt_number increments on automated retry
+	suite.waitForAttempts(t, "/tenants/"+tenantID+"/attempts", 2, 5*time.Second)
+
+	atmResponse, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodGET,
+		Path:   "/tenants/" + tenantID + "/attempts?dir=asc",
+	}))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, atmResponse.StatusCode)
+
+	atmBody := atmResponse.Body.(map[string]interface{})
+	atmModels := atmBody["models"].([]interface{})
+	require.GreaterOrEqual(t, len(atmModels), 2, "should have at least 2 attempts from automated retry")
+
+	// Sorted asc by time: attempt_number should increment (0, 1, 2, ...)
+	for i, m := range atmModels {
+		attempt := m.(map[string]interface{})
+		require.Equal(t, float64(i), attempt["attempt_number"],
+			"attempt %d should have attempt_number=%d (automated retry increments)", i, i)
+	}
+
 	// Cleanup
 	resp, err = suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodDELETE,

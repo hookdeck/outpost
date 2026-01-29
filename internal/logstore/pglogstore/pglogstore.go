@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	cursorResourceEvent    = "evt"
-	cursorResourceDelivery = "dlv"
-	cursorVersion          = 1
+	cursorResourceEvent   = "evt"
+	cursorResourceAttempt = "att"
+	cursorVersion         = 1
 )
 
 type logStore struct {
@@ -140,7 +140,7 @@ func scanEvents(rows pgx.Rows) ([]eventWithTimeID, error) {
 			eventTime        time.Time
 			topic            string
 			eligibleForRetry bool
-			data             map[string]interface{}
+			data             map[string]any
 			metadata         map[string]string
 			timeID           string
 		)
@@ -181,13 +181,13 @@ func scanEvents(rows pgx.Rows) ([]eventWithTimeID, error) {
 	return results, nil
 }
 
-// deliveryEventWithTimeID wraps a delivery event with its time_delivery_id for cursor encoding.
-type deliveryEventWithTimeID struct {
-	*models.DeliveryEvent
-	TimeDeliveryID string
+// attemptRecordWithTimeID wraps an attempt record with its time_attempt_id for cursor encoding.
+type attemptRecordWithTimeID struct {
+	*driver.AttemptRecord
+	TimeAttemptID string
 }
 
-func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliveryEventRequest) (driver.ListDeliveryEventResponse, error) {
+func (s *logStore) ListAttempt(ctx context.Context, req driver.ListAttemptRequest) (driver.ListAttemptResponse, error) {
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
@@ -198,80 +198,80 @@ func (s *logStore) ListDeliveryEvent(ctx context.Context, req driver.ListDeliver
 		limit = 100
 	}
 
-	res, err := pagination.Run(ctx, pagination.Config[deliveryEventWithTimeID]{
+	res, err := pagination.Run(ctx, pagination.Config[attemptRecordWithTimeID]{
 		Limit: limit,
 		Order: sortOrder,
 		Next:  req.Next,
 		Prev:  req.Prev,
-		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]deliveryEventWithTimeID, error) {
-			query, args := buildDeliveryQuery(req, q)
+		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]attemptRecordWithTimeID, error) {
+			query, args := buildAttemptQuery(req, q)
 			rows, err := s.db.Query(ctx, query, args...)
 			if err != nil {
 				return nil, fmt.Errorf("query failed: %w", err)
 			}
 			defer rows.Close()
-			return scanDeliveryEvents(rows)
+			return scanAttemptRecords(rows)
 		},
-		Cursor: pagination.Cursor[deliveryEventWithTimeID]{
-			Encode: func(de deliveryEventWithTimeID) string {
-				return cursor.Encode(cursorResourceDelivery, cursorVersion, de.TimeDeliveryID)
+		Cursor: pagination.Cursor[attemptRecordWithTimeID]{
+			Encode: func(ar attemptRecordWithTimeID) string {
+				return cursor.Encode(cursorResourceAttempt, cursorVersion, ar.TimeAttemptID)
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceDelivery, cursorVersion)
+				return cursor.Decode(c, cursorResourceAttempt, cursorVersion)
 			},
 		},
 	})
 	if err != nil {
-		return driver.ListDeliveryEventResponse{}, err
+		return driver.ListAttemptResponse{}, err
 	}
 
-	// Extract delivery events from results
-	data := make([]*models.DeliveryEvent, len(res.Items))
+	// Extract attempt records from results
+	data := make([]*driver.AttemptRecord, len(res.Items))
 	for i, item := range res.Items {
-		data[i] = item.DeliveryEvent
+		data[i] = item.AttemptRecord
 	}
 
-	return driver.ListDeliveryEventResponse{
+	return driver.ListAttemptResponse{
 		Data: data,
 		Next: res.Next,
 		Prev: res.Prev,
 	}, nil
 }
 
-func buildDeliveryQuery(req driver.ListDeliveryEventRequest, q pagination.QueryInput) (string, []any) {
-	cursorCondition := fmt.Sprintf("AND ($10::text = '' OR idx.time_delivery_id %s $10::text)", q.Compare)
-	orderByClause := fmt.Sprintf("idx.delivery_time %s, idx.delivery_id %s", strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
+func buildAttemptQuery(req driver.ListAttemptRequest, q pagination.QueryInput) (string, []any) {
+	cursorCondition := fmt.Sprintf("AND ($10::text = '' OR idx.time_attempt_id %s $10::text)", q.Compare)
+	orderByClause := fmt.Sprintf("idx.attempt_time %s, idx.attempt_id %s", strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
 
 	query := fmt.Sprintf(`
 		SELECT
 			idx.event_id,
-			idx.delivery_id,
+			idx.attempt_id,
 			idx.destination_id,
 			idx.event_time,
-			idx.delivery_time,
+			idx.attempt_time,
 			idx.topic,
 			idx.status,
-			idx.time_delivery_id,
+			idx.time_attempt_id,
 			e.tenant_id,
 			e.eligible_for_retry,
 			e.data,
 			e.metadata,
-			d.code,
-			d.response_data,
+			a.code,
+			a.response_data,
 			idx.manual,
-			idx.attempt
-		FROM event_delivery_index idx
+			idx.attempt_number
+		FROM event_attempt_index idx
 		JOIN events e ON e.id = idx.event_id AND e.time = idx.event_time
-		JOIN deliveries d ON d.id = idx.delivery_id AND d.time = idx.delivery_time
+		JOIN attempts a ON a.id = idx.attempt_id AND a.time = idx.attempt_time
 		WHERE ($1::text = '' OR idx.tenant_id = $1)
 		AND ($2::text = '' OR idx.event_id = $2)
 		AND (array_length($3::text[], 1) IS NULL OR idx.destination_id = ANY($3))
 		AND ($4::text = '' OR idx.status = $4)
 		AND (array_length($5::text[], 1) IS NULL OR idx.topic = ANY($5))
-		AND ($6::timestamptz IS NULL OR idx.delivery_time >= $6)
-		AND ($7::timestamptz IS NULL OR idx.delivery_time <= $7)
-		AND ($8::timestamptz IS NULL OR idx.delivery_time > $8)
-		AND ($9::timestamptz IS NULL OR idx.delivery_time < $9)
+		AND ($6::timestamptz IS NULL OR idx.attempt_time >= $6)
+		AND ($7::timestamptz IS NULL OR idx.attempt_time <= $7)
+		AND ($8::timestamptz IS NULL OR idx.attempt_time > $8)
+		AND ($9::timestamptz IS NULL OR idx.attempt_time < $9)
 		%s
 		ORDER BY %s
 		LIMIT $11
@@ -294,37 +294,37 @@ func buildDeliveryQuery(req driver.ListDeliveryEventRequest, q pagination.QueryI
 	return query, args
 }
 
-func scanDeliveryEvents(rows pgx.Rows) ([]deliveryEventWithTimeID, error) {
-	var results []deliveryEventWithTimeID
+func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithTimeID, error) {
+	var results []attemptRecordWithTimeID
 	for rows.Next() {
 		var (
 			eventID          string
-			deliveryID       string
+			attemptID        string
 			destinationID    string
 			eventTime        time.Time
-			deliveryTime     time.Time
+			attemptTime      time.Time
 			topic            string
 			status           string
-			timeDeliveryID   string
+			timeAttemptID    string
 			tenantID         string
 			eligibleForRetry bool
-			data             map[string]interface{}
+			data             map[string]any
 			metadata         map[string]string
 			code             string
-			responseData     map[string]interface{}
+			responseData     map[string]any
 			manual           bool
-			attempt          int
+			attemptNumber    int
 		)
 
 		if err := rows.Scan(
 			&eventID,
-			&deliveryID,
+			&attemptID,
 			&destinationID,
 			&eventTime,
-			&deliveryTime,
+			&attemptTime,
 			&topic,
 			&status,
-			&timeDeliveryID,
+			&timeAttemptID,
 			&tenantID,
 			&eligibleForRetry,
 			&data,
@@ -332,18 +332,26 @@ func scanDeliveryEvents(rows pgx.Rows) ([]deliveryEventWithTimeID, error) {
 			&code,
 			&responseData,
 			&manual,
-			&attempt,
+			&attemptNumber,
 		); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 
-		results = append(results, deliveryEventWithTimeID{
-			DeliveryEvent: &models.DeliveryEvent{
-				ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
-				DestinationID: destinationID,
-				Manual:        manual,
-				Attempt:       attempt,
-				Event: models.Event{
+		results = append(results, attemptRecordWithTimeID{
+			AttemptRecord: &driver.AttemptRecord{
+				Attempt: &models.Attempt{
+					ID:            attemptID,
+					TenantID:      tenantID,
+					EventID:       eventID,
+					DestinationID: destinationID,
+					AttemptNumber: attemptNumber,
+					Manual:        manual,
+					Status:        status,
+					Time:          attemptTime,
+					Code:          code,
+					ResponseData:  responseData,
+				},
+				Event: &models.Event{
 					ID:               eventID,
 					TenantID:         tenantID,
 					DestinationID:    destinationID,
@@ -353,17 +361,8 @@ func scanDeliveryEvents(rows pgx.Rows) ([]deliveryEventWithTimeID, error) {
 					Data:             data,
 					Metadata:         metadata,
 				},
-				Delivery: &models.Delivery{
-					ID:            deliveryID,
-					EventID:       eventID,
-					DestinationID: destinationID,
-					Status:        status,
-					Time:          deliveryTime,
-					Code:          code,
-					ResponseData:  responseData,
-				},
 			},
-			TimeDeliveryID: timeDeliveryID,
+			TimeAttemptID: timeAttemptID,
 		})
 	}
 
@@ -376,7 +375,7 @@ func scanDeliveryEvents(rows pgx.Rows) ([]deliveryEventWithTimeID, error) {
 
 func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRequest) (*models.Event, error) {
 	var query string
-	var args []interface{}
+	var args []any
 
 	if req.DestinationID != "" {
 		query = `
@@ -392,10 +391,10 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 			FROM events e
 			WHERE ($1::text = '' OR e.tenant_id = $1) AND e.id = $2
 			AND EXISTS (
-				SELECT 1 FROM event_delivery_index idx
+				SELECT 1 FROM event_attempt_index idx
 				WHERE ($1::text = '' OR idx.tenant_id = $1) AND idx.event_id = $2 AND idx.destination_id = $3
 			)`
-		args = []interface{}{req.TenantID, req.EventID, req.DestinationID}
+		args = []any{req.TenantID, req.EventID, req.DestinationID}
 	} else {
 		query = `
 			SELECT
@@ -409,7 +408,7 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 				e.metadata
 			FROM events e
 			WHERE ($1::text = '' OR e.tenant_id = $1) AND e.id = $2`
-		args = []interface{}{req.TenantID, req.EventID}
+		args = []any{req.TenantID, req.EventID}
 	}
 
 	row := s.db.QueryRow(ctx, query, args...)
@@ -435,56 +434,56 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 	return event, nil
 }
 
-func (s *logStore) RetrieveDeliveryEvent(ctx context.Context, req driver.RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error) {
+func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttemptRequest) (*driver.AttemptRecord, error) {
 	query := `
 		SELECT
 			idx.event_id,
-			idx.delivery_id,
+			idx.attempt_id,
 			idx.destination_id,
 			idx.event_time,
-			idx.delivery_time,
+			idx.attempt_time,
 			idx.topic,
 			idx.status,
 			e.tenant_id,
 			e.eligible_for_retry,
 			e.data,
 			e.metadata,
-			d.code,
-			d.response_data,
+			a.code,
+			a.response_data,
 			idx.manual,
-			idx.attempt
-		FROM event_delivery_index idx
+			idx.attempt_number
+		FROM event_attempt_index idx
 		JOIN events e ON e.id = idx.event_id AND e.time = idx.event_time
-		JOIN deliveries d ON d.id = idx.delivery_id AND d.time = idx.delivery_time
-		WHERE ($1::text = '' OR idx.tenant_id = $1) AND idx.delivery_id = $2
+		JOIN attempts a ON a.id = idx.attempt_id AND a.time = idx.attempt_time
+		WHERE ($1::text = '' OR idx.tenant_id = $1) AND idx.attempt_id = $2
 		LIMIT 1`
 
-	row := s.db.QueryRow(ctx, query, req.TenantID, req.DeliveryID)
+	row := s.db.QueryRow(ctx, query, req.TenantID, req.AttemptID)
 
 	var (
 		eventID          string
-		deliveryID       string
+		attemptID        string
 		destinationID    string
 		eventTime        time.Time
-		deliveryTime     time.Time
+		attemptTime      time.Time
 		topic            string
 		status           string
 		tenantID         string
 		eligibleForRetry bool
-		data             map[string]interface{}
+		data             map[string]any
 		metadata         map[string]string
 		code             string
-		responseData     map[string]interface{}
+		responseData     map[string]any
 		manual           bool
-		attempt          int
+		attemptNumber    int
 	)
 
 	err := row.Scan(
 		&eventID,
-		&deliveryID,
+		&attemptID,
 		&destinationID,
 		&eventTime,
-		&deliveryTime,
+		&attemptTime,
 		&topic,
 		&status,
 		&tenantID,
@@ -494,7 +493,7 @@ func (s *logStore) RetrieveDeliveryEvent(ctx context.Context, req driver.Retriev
 		&code,
 		&responseData,
 		&manual,
-		&attempt,
+		&attemptNumber,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -503,12 +502,20 @@ func (s *logStore) RetrieveDeliveryEvent(ctx context.Context, req driver.Retriev
 		return nil, fmt.Errorf("scan failed: %w", err)
 	}
 
-	return &models.DeliveryEvent{
-		ID:            fmt.Sprintf("%s_%s", eventID, deliveryID),
-		DestinationID: destinationID,
-		Manual:        manual,
-		Attempt:       attempt,
-		Event: models.Event{
+	return &driver.AttemptRecord{
+		Attempt: &models.Attempt{
+			ID:            attemptID,
+			TenantID:      tenantID,
+			EventID:       eventID,
+			DestinationID: destinationID,
+			AttemptNumber: attemptNumber,
+			Manual:        manual,
+			Status:        status,
+			Time:          attemptTime,
+			Code:          code,
+			ResponseData:  responseData,
+		},
+		Event: &models.Event{
 			ID:               eventID,
 			TenantID:         tenantID,
 			DestinationID:    destinationID,
@@ -518,21 +525,28 @@ func (s *logStore) RetrieveDeliveryEvent(ctx context.Context, req driver.Retriev
 			Data:             data,
 			Metadata:         metadata,
 		},
-		Delivery: &models.Delivery{
-			ID:            deliveryID,
-			EventID:       eventID,
-			DestinationID: destinationID,
-			Status:        status,
-			Time:          deliveryTime,
-			Code:          code,
-			ResponseData:  responseData,
-		},
 	}, nil
 }
 
-func (s *logStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents []*models.DeliveryEvent) error {
-	if len(deliveryEvents) == 0 {
+func (s *logStore) InsertMany(ctx context.Context, entries []*models.LogEntry) error {
+	if len(entries) == 0 {
 		return nil
+	}
+
+	// Extract and dedupe events by ID
+	eventMap := make(map[string]*models.Event)
+	for _, entry := range entries {
+		eventMap[entry.Event.ID] = entry.Event
+	}
+	events := make([]*models.Event, 0, len(eventMap))
+	for _, e := range eventMap {
+		events = append(events, e)
+	}
+
+	// Extract attempts
+	attempts := make([]*models.Attempt, 0, len(entries))
+	for _, entry := range entries {
+		attempts = append(attempts, entry.Attempt)
 	}
 
 	tx, err := s.db.Begin(ctx)
@@ -541,122 +555,68 @@ func (s *logStore) InsertManyDeliveryEvent(ctx context.Context, deliveryEvents [
 	}
 	defer tx.Rollback(ctx)
 
-	events := make([]*models.Event, len(deliveryEvents))
-	for i, de := range deliveryEvents {
-		events[i] = &de.Event
-	}
-	_, err = tx.Exec(ctx, `
-		INSERT INTO events (id, tenant_id, destination_id, time, topic, eligible_for_retry, data, metadata)
-		SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::timestamptz[], $5::text[], $6::boolean[], $7::jsonb[], $8::jsonb[])
-		ON CONFLICT (time, id) DO NOTHING
-	`, eventArrays(events)...)
-	if err != nil {
-		return err
-	}
-
-	deliveries := make([]*models.Delivery, len(deliveryEvents))
-	for i, de := range deliveryEvents {
-		if de.Delivery == nil {
-			// Create a pending delivery if none exists
-			deliveries[i] = &models.Delivery{
-				ID:            de.ID,
-				EventID:       de.Event.ID,
-				DestinationID: de.DestinationID,
-				Status:        "pending",
-				Time:          time.Now(),
-			}
-		} else {
-			deliveries[i] = de.Delivery
+	if len(events) > 0 {
+		_, err = tx.Exec(ctx, `
+			INSERT INTO events (id, tenant_id, destination_id, time, topic, eligible_for_retry, data, metadata)
+			SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::timestamptz[], $5::text[], $6::boolean[], $7::jsonb[], $8::jsonb[])
+			ON CONFLICT (time, id) DO NOTHING
+		`, eventArrays(events)...)
+		if err != nil {
+			return err
 		}
 	}
-	_, err = tx.Exec(ctx, `
-		INSERT INTO deliveries (id, event_id, destination_id, status, time, code, response_data, manual, attempt)
-		SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::timestamptz[], $6::text[], $7::jsonb[], $8::boolean[], $9::integer[])
-		ON CONFLICT (time, id) DO UPDATE SET
-			status = EXCLUDED.status,
-			code = EXCLUDED.code,
-			response_data = EXCLUDED.response_data
-	`, deliveryArrays(deliveries, deliveryEvents)...)
-	if err != nil {
-		return err
-	}
 
-	_, err = tx.Exec(ctx, `
-		INSERT INTO event_delivery_index (
-			event_id, delivery_id, tenant_id, destination_id,
-			event_time, delivery_time, topic, status, manual, attempt
-		)
-		SELECT * FROM unnest(
-			$1::text[], $2::text[], $3::text[], $4::text[],
-			$5::timestamptz[], $6::timestamptz[], $7::text[], $8::text[],
-			$9::boolean[], $10::integer[]
-		)
-		ON CONFLICT (delivery_time, event_id, delivery_id) DO UPDATE SET
-			status = EXCLUDED.status
-	`, eventDeliveryIndexArrays(deliveryEvents)...)
-	if err != nil {
-		return err
+	if len(attempts) > 0 {
+		_, err = tx.Exec(ctx, `
+			INSERT INTO attempts (id, event_id, destination_id, status, time, code, response_data, manual, attempt_number)
+			SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::timestamptz[], $6::text[], $7::jsonb[], $8::boolean[], $9::integer[])
+			ON CONFLICT (time, id) DO UPDATE SET
+				status = EXCLUDED.status,
+				code = EXCLUDED.code,
+				response_data = EXCLUDED.response_data
+		`, attemptArrays(attempts)...)
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(ctx, `
+			INSERT INTO event_attempt_index (
+				event_id, attempt_id, tenant_id, destination_id,
+				event_time, attempt_time, topic, status, manual, attempt_number
+			)
+			SELECT
+				a.event_id,
+				a.id,
+				e.tenant_id,
+				a.destination_id,
+				e.time,
+				a.time,
+				e.topic,
+				a.status,
+				a.manual,
+				a.attempt_number
+			FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::timestamptz[], $6::text[], $7::jsonb[], $8::boolean[], $9::integer[])
+				AS a(id, event_id, destination_id, status, time, code, response_data, manual, attempt_number)
+			JOIN events e ON e.id = a.event_id
+			ON CONFLICT (attempt_time, event_id, attempt_id) DO UPDATE SET
+				status = EXCLUDED.status
+		`, attemptArrays(attempts)...)
+		if err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit(ctx)
 }
 
-func eventDeliveryIndexArrays(deliveryEvents []*models.DeliveryEvent) []interface{} {
-	eventIDs := make([]string, len(deliveryEvents))
-	deliveryIDs := make([]string, len(deliveryEvents))
-	tenantIDs := make([]string, len(deliveryEvents))
-	destinationIDs := make([]string, len(deliveryEvents))
-	eventTimes := make([]time.Time, len(deliveryEvents))
-	deliveryTimes := make([]time.Time, len(deliveryEvents))
-	topics := make([]string, len(deliveryEvents))
-	statuses := make([]string, len(deliveryEvents))
-	manuals := make([]bool, len(deliveryEvents))
-	attempts := make([]int, len(deliveryEvents))
-
-	for i, de := range deliveryEvents {
-		eventIDs[i] = de.Event.ID
-		if de.Delivery != nil {
-			deliveryIDs[i] = de.Delivery.ID
-		} else {
-			deliveryIDs[i] = de.ID
-		}
-		tenantIDs[i] = de.Event.TenantID
-		destinationIDs[i] = de.DestinationID
-		eventTimes[i] = de.Event.Time
-		if de.Delivery != nil {
-			deliveryTimes[i] = de.Delivery.Time
-			statuses[i] = de.Delivery.Status
-		} else {
-			deliveryTimes[i] = time.Now()
-			statuses[i] = "pending"
-		}
-		topics[i] = de.Event.Topic
-		manuals[i] = de.Manual
-		attempts[i] = de.Attempt
-	}
-
-	return []interface{}{
-		eventIDs,
-		deliveryIDs,
-		tenantIDs,
-		destinationIDs,
-		eventTimes,
-		deliveryTimes,
-		topics,
-		statuses,
-		manuals,
-		attempts,
-	}
-}
-
-func eventArrays(events []*models.Event) []interface{} {
+func eventArrays(events []*models.Event) []any {
 	ids := make([]string, len(events))
 	tenantIDs := make([]string, len(events))
 	destinationIDs := make([]string, len(events))
 	times := make([]time.Time, len(events))
 	topics := make([]string, len(events))
 	eligibleForRetries := make([]bool, len(events))
-	datas := make([]map[string]interface{}, len(events))
+	datas := make([]map[string]any, len(events))
 	metadatas := make([]map[string]string, len(events))
 
 	for i, e := range events {
@@ -670,7 +630,7 @@ func eventArrays(events []*models.Event) []interface{} {
 		metadatas[i] = e.Metadata
 	}
 
-	return []interface{}{
+	return []any{
 		ids,
 		tenantIDs,
 		destinationIDs,
@@ -682,30 +642,30 @@ func eventArrays(events []*models.Event) []interface{} {
 	}
 }
 
-func deliveryArrays(deliveries []*models.Delivery, deliveryEvents []*models.DeliveryEvent) []interface{} {
-	ids := make([]string, len(deliveries))
-	eventIDs := make([]string, len(deliveries))
-	destinationIDs := make([]string, len(deliveries))
-	statuses := make([]string, len(deliveries))
-	times := make([]time.Time, len(deliveries))
-	codes := make([]string, len(deliveries))
-	responseDatas := make([]map[string]interface{}, len(deliveries))
-	manuals := make([]bool, len(deliveries))
-	attempts := make([]int, len(deliveries))
+func attemptArrays(attempts []*models.Attempt) []any {
+	ids := make([]string, len(attempts))
+	eventIDs := make([]string, len(attempts))
+	destinationIDs := make([]string, len(attempts))
+	statuses := make([]string, len(attempts))
+	times := make([]time.Time, len(attempts))
+	codes := make([]string, len(attempts))
+	responseDatas := make([]map[string]any, len(attempts))
+	manuals := make([]bool, len(attempts))
+	attemptNumbers := make([]int, len(attempts))
 
-	for i, d := range deliveries {
-		ids[i] = d.ID
-		eventIDs[i] = d.EventID
-		destinationIDs[i] = d.DestinationID
-		statuses[i] = d.Status
-		times[i] = d.Time
-		codes[i] = d.Code
-		responseDatas[i] = d.ResponseData
-		manuals[i] = deliveryEvents[i].Manual
-		attempts[i] = deliveryEvents[i].Attempt
+	for i, a := range attempts {
+		ids[i] = a.ID
+		eventIDs[i] = a.EventID
+		destinationIDs[i] = a.DestinationID
+		statuses[i] = a.Status
+		times[i] = a.Time
+		codes[i] = a.Code
+		responseDatas[i] = a.ResponseData
+		manuals[i] = a.Manual
+		attemptNumbers[i] = a.AttemptNumber
 	}
 
-	return []interface{}{
+	return []any{
 		ids,
 		eventIDs,
 		destinationIDs,
@@ -714,6 +674,6 @@ func deliveryArrays(deliveries []*models.Delivery, deliveryEvents []*models.Deli
 		codes,
 		responseDatas,
 		manuals,
-		attempts,
+		attemptNumbers,
 	}
 }

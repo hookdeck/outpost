@@ -21,12 +21,10 @@ func getInstallation(ctx context.Context, redisClient redis.Cmdable, telemetryCo
 	// First attempt: try to get existing installation ID
 	installationID, err := redisClient.HGet(ctx, outpostrcKey, installationKey).Result()
 	if err == nil {
-		// Installation ID already exists
 		return installationID, nil
 	}
 
 	if err != redis.Nil {
-		// Unexpected error
 		return "", err
 	}
 
@@ -41,7 +39,6 @@ func getInstallation(ctx context.Context, redisClient redis.Cmdable, telemetryCo
 	}
 
 	if wasSet {
-		// We successfully set the installation ID
 		return newInstallationID, nil
 	}
 

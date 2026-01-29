@@ -35,7 +35,6 @@ func runRedisMigrations(ctx context.Context, redisClient redis.Cmdable, logger *
 			return nil
 		}
 
-		// Check if this is a lock-related error
 		isLockError := isRedisLockError(err)
 		lastErr = err
 
@@ -56,7 +55,6 @@ func runRedisMigrations(ctx context.Context, redisClient redis.Cmdable, logger *
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-time.After(retryDelay):
-				// Continue to next attempt
 			}
 		} else {
 			logger.Error("redis migration failed after retries",
@@ -70,7 +68,6 @@ func runRedisMigrations(ctx context.Context, redisClient redis.Cmdable, logger *
 
 // executeRedisMigrations creates the runner and executes migrations
 func executeRedisMigrations(ctx context.Context, redisClient redis.Cmdable, logger *logging.Logger, deploymentID string) error {
-	// Create runner
 	client, ok := redisClient.(redis.Client)
 	if !ok {
 		// Wrap Cmdable to implement Client interface

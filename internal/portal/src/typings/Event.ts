@@ -22,14 +22,14 @@ interface EventFull extends EventSummary {
   data?: Record<string, unknown>;
 }
 
-// Delivery represents a delivery attempt for an event to a destination
-interface Delivery {
+// Attempt represents a delivery attempt for an event to a destination
+interface Attempt {
   id: string;
   status: "success" | "failed";
   delivered_at: string;
   code?: string;
   response_data?: Record<string, unknown>;
-  attempt: number;
+  attempt_number: number;
   // Expandable fields - string (ID) or object depending on expand param
   event: string | EventSummary | EventFull;
   destination: string;
@@ -43,8 +43,8 @@ interface SeekPagination {
   prev: string | null;
 }
 
-interface DeliveryListResponse {
-  models: Delivery[];
+interface AttemptListResponse {
+  models: Attempt[];
   pagination: SeekPagination;
 }
 
@@ -57,8 +57,8 @@ export type {
   Event,
   EventSummary,
   EventFull,
-  Delivery,
+  Attempt,
   SeekPagination,
-  DeliveryListResponse,
+  AttemptListResponse,
   EventListResponse,
 };

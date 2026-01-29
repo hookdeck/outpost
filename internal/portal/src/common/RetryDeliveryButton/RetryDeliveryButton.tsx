@@ -5,7 +5,7 @@ import { showToast } from "../Toast/Toast";
 import { ApiContext, formatError } from "../../app";
 
 interface RetryDeliveryButtonProps {
-  deliveryId: string;
+  attemptId: string;
   disabled: boolean;
   loading: boolean;
   completed: (success: boolean) => void;
@@ -14,7 +14,7 @@ interface RetryDeliveryButtonProps {
 }
 
 const RetryDeliveryButton: React.FC<RetryDeliveryButtonProps> = ({
-  deliveryId,
+  attemptId,
   disabled,
   loading,
   completed,
@@ -29,7 +29,7 @@ const RetryDeliveryButton: React.FC<RetryDeliveryButtonProps> = ({
       e.stopPropagation();
       setRetrying(true);
       try {
-        await apiClient.fetch(`deliveries/${deliveryId}/retry`, {
+        await apiClient.fetch(`attempts/${attemptId}/retry`, {
           method: "POST",
         });
         showToast("success", "Retry successful.");
@@ -41,7 +41,7 @@ const RetryDeliveryButton: React.FC<RetryDeliveryButtonProps> = ({
 
       setRetrying(false);
     },
-    [apiClient, deliveryId, completed],
+    [apiClient, attemptId, completed],
   );
 
   return (

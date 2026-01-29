@@ -18,14 +18,14 @@ func parseTime(s string) time.Time {
 	return t
 }
 
-// TestLogAPI tests the Log API endpoints (deliveries, events).
+// TestLogAPI tests the Log API endpoints (attempts, events).
 //
 // Setup:
 //  1. Create a tenant and destination
 //  2. Publish 10 events with small delays for distinct timestamps
 //
 // Test Groups:
-//   - deliveries: list, filter, expand
+//   - attempts: list, filter, expand
 //   - events: list, filter, retrieve
 //   - sort_order: sort by time ascending/descending
 //   - pagination: paginate through results
@@ -111,17 +111,17 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Require().Equal(http.StatusAccepted, resp.StatusCode, "failed to publish event %d", i)
 	}
 
-	// Wait for all deliveries (30s timeout for slow CI environments)
-	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries", 10, 10*time.Second)
+	// Wait for all attempts (30s timeout for slow CI environments)
+	suite.waitForAttempts(suite.T(), "/tenants/"+tenantID+"/attempts", 10, 10*time.Second)
 
 	// =========================================================================
-	// Deliveries Tests
+	// Attempts Tests
 	// =========================================================================
-	suite.Run("deliveries", func() {
+	suite.Run("attempts", func() {
 		suite.Run("list all", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries",
+				Path:   "/tenants/" + tenantID + "/attempts",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -137,12 +137,13 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Equal(destinationID, first["destination"])
 			suite.NotEmpty(first["status"])
 			suite.NotEmpty(first["delivered_at"])
+			suite.Equal(float64(0), first["attempt_number"], "attempt_number should be present and equal to 0 for first attempt")
 		})
 
 		suite.Run("filter by destination_id", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?destination_id=" + destinationID,
+				Path:   "/tenants/" + tenantID + "/attempts?destination_id=" + destinationID,
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -155,7 +156,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("filter by event_id", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?event_id=" + eventIDs[0],
+				Path:   "/tenants/" + tenantID + "/attempts?event_id=" + eventIDs[0],
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -168,7 +169,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("include=event returns event object without data", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?include=event&limit=1",
+				Path:   "/tenants/" + tenantID + "/attempts?include=event&limit=1",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -177,8 +178,8 @@ func (suite *basicSuite) TestLogAPI() {
 			models := body["models"].([]interface{})
 			suite.Require().Len(models, 1)
 
-			delivery := models[0].(map[string]interface{})
-			event := delivery["event"].(map[string]interface{})
+			attempt := models[0].(map[string]interface{})
+			event := attempt["event"].(map[string]interface{})
 			suite.NotEmpty(event["id"])
 			suite.NotEmpty(event["topic"])
 			suite.NotEmpty(event["time"])
@@ -188,7 +189,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("include=event.data returns event object with data", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?include=event.data&limit=1",
+				Path:   "/tenants/" + tenantID + "/attempts?include=event.data&limit=1",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -197,8 +198,8 @@ func (suite *basicSuite) TestLogAPI() {
 			models := body["models"].([]interface{})
 			suite.Require().Len(models, 1)
 
-			delivery := models[0].(map[string]interface{})
-			event := delivery["event"].(map[string]interface{})
+			attempt := models[0].(map[string]interface{})
+			event := attempt["event"].(map[string]interface{})
 			suite.NotEmpty(event["id"])
 			suite.NotNil(event["data"]) // include=event.data SHOULD include data
 		})
@@ -206,7 +207,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("include=response_data returns response data", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?include=response_data&limit=1",
+				Path:   "/tenants/" + tenantID + "/attempts?include=response_data&limit=1",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -215,8 +216,8 @@ func (suite *basicSuite) TestLogAPI() {
 			models := body["models"].([]interface{})
 			suite.Require().Len(models, 1)
 
-			delivery := models[0].(map[string]interface{})
-			suite.NotNil(delivery["response_data"])
+			attempt := models[0].(map[string]interface{})
+			suite.NotNil(attempt["response_data"])
 		})
 	})
 
@@ -508,14 +509,14 @@ func (suite *basicSuite) TestLogAPI() {
 //  2. Configure mock webhook server to FAIL (return 500)
 //  3. Create a destination pointing to the mock server
 //  4. Publish an event with eligible_for_retry=false (fails once, no auto-retry)
-//  5. Wait for delivery to fail, then fetch the delivery ID
+//  5. Wait for attempt to fail, then fetch the attempt ID
 //  6. Update mock server to SUCCEED (return 200)
 //
 // Test Cases:
-//   - POST /:tenantID/deliveries/:deliveryID/retry - Successful retry returns 202 Accepted
-//   - POST /:tenantID/deliveries/:deliveryID/retry (non-existent) - Returns 404
-//   - Verify retry created new delivery - Event now has 2+ deliveries
-//   - POST /:tenantID/deliveries/:deliveryID/retry (disabled destination) - Returns 400
+//   - POST /:tenantID/attempts/:attemptID/retry - Successful retry returns 202 Accepted
+//   - POST /:tenantID/attempts/:attemptID/retry (non-existent) - Returns 404
+//   - Verify retry created new attempt - Event now has 2+ attempts
+//   - POST /:tenantID/attempts/:attemptID/retry (disabled destination) - Returns 400
 func (suite *basicSuite) TestRetryAPI() {
 	tenantID := idgen.String()
 	destinationID := idgen.Destination()
@@ -548,7 +549,7 @@ func (suite *basicSuite) TestRetryAPI() {
 						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
 					},
 					"response": map[string]interface{}{
-						"status": 500, // Fail deliveries
+						"status": 500, // Fail attempts
 					},
 				},
 			},
@@ -602,22 +603,25 @@ func (suite *basicSuite) TestRetryAPI() {
 	}
 	suite.RunAPITests(suite.T(), setupTests)
 
-	// Wait for delivery to complete (and fail)
-	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries?event_id="+eventID, 1, 5*time.Second)
+	// Wait for attempt to complete (and fail)
+	suite.waitForAttempts(suite.T(), "/tenants/"+tenantID+"/attempts?event_id="+eventID, 1, 5*time.Second)
 
-	// Get the delivery ID
-	deliveriesResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+	// Get the attempt ID
+	attemptsResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
-		Path:   "/tenants/" + tenantID + "/deliveries?event_id=" + eventID,
+		Path:   "/tenants/" + tenantID + "/attempts?event_id=" + eventID,
 	}))
 	suite.Require().NoError(err)
-	suite.Require().Equal(http.StatusOK, deliveriesResp.StatusCode)
+	suite.Require().Equal(http.StatusOK, attemptsResp.StatusCode)
 
-	body := deliveriesResp.Body.(map[string]interface{})
+	body := attemptsResp.Body.(map[string]interface{})
 	models := body["models"].([]interface{})
-	suite.Require().NotEmpty(models, "should have at least one delivery")
-	firstDelivery := models[0].(map[string]interface{})
-	deliveryID := firstDelivery["id"].(string)
+	suite.Require().NotEmpty(models, "should have at least one attempt")
+	firstAttempt := models[0].(map[string]interface{})
+	attemptID := firstAttempt["id"].(string)
+
+	// Verify first attempt has attempt_number=0
+	suite.Equal(float64(0), firstAttempt["attempt_number"], "first attempt should have attempt_number=0")
 
 	// Update mock to succeed for retry
 	updateMockTests := []APITest{
@@ -649,12 +653,12 @@ func (suite *basicSuite) TestRetryAPI() {
 
 	// Test retry endpoint
 	retryTests := []APITest{
-		// POST /:tenantID/deliveries/:deliveryID/retry - successful retry
+		// POST /:tenantID/attempts/:attemptID/retry - successful retry
 		{
-			Name: "POST /:tenantID/deliveries/:deliveryID/retry - retry delivery",
+			Name: "POST /:tenantID/attempts/:attemptID/retry - retry attempt",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/tenants/" + tenantID + "/deliveries/" + deliveryID + "/retry",
+				Path:   "/tenants/" + tenantID + "/attempts/" + attemptID + "/retry",
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -665,12 +669,12 @@ func (suite *basicSuite) TestRetryAPI() {
 				},
 			},
 		},
-		// POST /:tenantID/deliveries/:deliveryID/retry - non-existent delivery
+		// POST /:tenantID/attempts/:attemptID/retry - non-existent attempt
 		{
-			Name: "POST /:tenantID/deliveries/:deliveryID/retry - not found",
+			Name: "POST /:tenantID/attempts/:attemptID/retry - not found",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/tenants/" + tenantID + "/deliveries/" + idgen.Delivery() + "/retry",
+				Path:   "/tenants/" + tenantID + "/attempts/" + idgen.Attempt() + "/retry",
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -681,37 +685,36 @@ func (suite *basicSuite) TestRetryAPI() {
 	}
 	suite.RunAPITests(suite.T(), retryTests)
 
-	// Wait for retry delivery to complete
-	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries?event_id="+eventID, 2, 5*time.Second)
+	// Wait for retry attempt to complete
+	suite.waitForAttempts(suite.T(), "/tenants/"+tenantID+"/attempts?event_id="+eventID, 2, 5*time.Second)
 
-	// Verify we have more deliveries after retry
-	verifyTests := []APITest{
-		{
-			Name: "GET /:tenantID/deliveries?event_id=X - verify retry created new delivery",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/deliveries?event_id=" + eventID,
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"models": map[string]interface{}{
-									"type":     "array",
-									"minItems": 2, // Original + retry
-								},
-							},
-						},
-					},
-				},
-			},
-		},
+	// Verify retry created a new attempt with incremented attempt_number
+	verifyResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodGET,
+		Path:   "/tenants/" + tenantID + "/attempts?event_id=" + eventID + "&dir=asc",
+	}))
+	suite.Require().NoError(err)
+	suite.Require().Equal(http.StatusOK, verifyResp.StatusCode)
+
+	verifyBody := verifyResp.Body.(map[string]interface{})
+	verifyModels := verifyBody["models"].([]interface{})
+	suite.Require().Len(verifyModels, 2, "should have original + retry attempt")
+
+	// Both attempts should have attempt_number=0 (manual retry resets to 0)
+	for _, m := range verifyModels {
+		atm := m.(map[string]interface{})
+		suite.Equal(float64(0), atm["attempt_number"], "attempt should have attempt_number=0")
 	}
-	suite.RunAPITests(suite.T(), verifyTests)
+
+	// Verify we have one manual=true (retry) and one manual=false (original)
+	manualCount := 0
+	for _, m := range verifyModels {
+		atm := m.(map[string]interface{})
+		if manual, ok := atm["manual"].(bool); ok && manual {
+			manualCount++
+		}
+	}
+	suite.Equal(1, manualCount, "should have exactly one manual retry attempt")
 
 	// Test retry on disabled destination
 	disableTests := []APITest{
@@ -728,10 +731,10 @@ func (suite *basicSuite) TestRetryAPI() {
 			},
 		},
 		{
-			Name: "POST /:tenantID/deliveries/:deliveryID/retry - disabled destination",
+			Name: "POST /:tenantID/attempts/:attemptID/retry - disabled destination",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/tenants/" + tenantID + "/deliveries/" + deliveryID + "/retry",
+				Path:   "/tenants/" + tenantID + "/attempts/" + attemptID + "/retry",
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -776,311 +779,24 @@ func (suite *basicSuite) TestRetryAPI() {
 	suite.RunAPITests(suite.T(), cleanupTests)
 }
 
-// TestLegacyLogAPI tests the deprecated legacy endpoints for backward compatibility.
-// All legacy endpoints return "Deprecation: true" header to signal migration.
-//
-// Setup:
-//  1. Create a tenant
-//  2. Configure mock webhook server to accept deliveries
-//  3. Create a destination pointing to the mock server
-//  4. Publish an event and wait for delivery to complete
-//
-// Test Cases:
-//   - GET /:tenantID/destinations/:destID/events - Legacy list events (returns {data, count})
-//   - GET /:tenantID/destinations/:destID/events/:eventID - Legacy retrieve event
-//   - GET /:tenantID/events/:eventID/deliveries - Legacy list deliveries (returns bare array, not {data})
-//   - POST /:tenantID/destinations/:destID/events/:eventID/retry - Legacy retry endpoint
-//
-// All responses include:
-//   - Deprecation: true header
-//   - X-Deprecated-Message header with migration guidance
-func (suite *basicSuite) TestLegacyLogAPI() {
-	tenantID := idgen.String()
-	destinationID := idgen.Destination()
-	eventID := idgen.Event()
-
-	// Setup
-	setupTests := []APITest{
-		{
-			Name: "PUT /:tenantID - create tenant",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPUT,
-				Path:   "/tenants/" + tenantID,
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusCreated,
-				},
-			},
-		},
-		{
-			Name: "PUT mockserver/destinations - setup mock",
-			Request: httpclient.Request{
-				Method:  httpclient.MethodPUT,
-				BaseURL: suite.mockServerBaseURL,
-				Path:    "/destinations",
-				Body: map[string]interface{}{
-					"id":   destinationID,
-					"type": "webhook",
-					"config": map[string]interface{}{
-						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
-					},
-				},
-			},
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
-				},
-			},
-		},
-		{
-			Name: "POST /:tenantID/destinations - create destination",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPOST,
-				Path:   "/tenants/" + tenantID + "/destinations",
-				Body: map[string]interface{}{
-					"id":     destinationID,
-					"type":   "webhook",
-					"topics": "*",
-					"config": map[string]interface{}{
-						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destinationID),
-					},
-				},
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusCreated,
-				},
-			},
-		},
-		{
-			Name: "POST /publish - publish event",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPOST,
-				Path:   "/publish",
-				Body: map[string]interface{}{
-					"id":                 eventID,
-					"tenant_id":          tenantID,
-					"topic":              "user.created",
-					"eligible_for_retry": true,
-					"data": map[string]interface{}{
-						"user_id": "789",
-					},
-				},
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusAccepted,
-				},
-			},
-		},
-	}
-	suite.RunAPITests(suite.T(), setupTests)
-
-	// Wait for delivery
-	suite.waitForDeliveries(suite.T(), "/tenants/"+tenantID+"/deliveries", 1, 5*time.Second)
-
-	// Test legacy endpoints - all should return deprecation headers
-	legacyTests := []APITest{
-		// GET /:tenantID/destinations/:destinationID/events - legacy list events by destination
-		{
-			Name: "GET /:tenantID/destinations/:destinationID/events - legacy endpoint",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID + "/events",
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"headers": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"Deprecation": map[string]interface{}{
-									"type": "array",
-									"items": map[string]interface{}{
-										"const": "true",
-									},
-								},
-							},
-						},
-						"body": map[string]interface{}{
-							"type":     "object",
-							"required": []interface{}{"data", "count"},
-							"properties": map[string]interface{}{
-								"data": map[string]interface{}{
-									"type":     "array",
-									"minItems": 1,
-								},
-								"count": map[string]interface{}{"type": "number"},
-							},
-						},
-					},
-				},
-			},
-		},
-		// GET /:tenantID/destinations/:destinationID/events/:eventID - legacy retrieve event
-		{
-			Name: "GET /:tenantID/destinations/:destinationID/events/:eventID - legacy endpoint",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID + "/events/" + eventID,
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"headers": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"Deprecation": map[string]interface{}{
-									"type": "array",
-									"items": map[string]interface{}{
-										"const": "true",
-									},
-								},
-							},
-						},
-						"body": map[string]interface{}{
-							"type":     "object",
-							"required": []interface{}{"id", "topic"},
-							"properties": map[string]interface{}{
-								"id":    map[string]interface{}{"const": eventID},
-								"topic": map[string]interface{}{"const": "user.created"},
-							},
-						},
-					},
-				},
-			},
-		},
-		// GET /:tenantID/events/:eventID/deliveries - legacy list deliveries by event
-		{
-			Name: "GET /:tenantID/events/:eventID/deliveries - legacy endpoint (returns bare array)",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events/" + eventID + "/deliveries",
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"headers": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"Deprecation": map[string]interface{}{
-									"type": "array",
-									"items": map[string]interface{}{
-										"const": "true",
-									},
-								},
-							},
-						},
-						// Legacy endpoint returns bare array, not {data: [...]}
-						"body": map[string]interface{}{
-							"type":     "array",
-							"minItems": 1,
-							"items": map[string]interface{}{
-								"type":     "object",
-								"required": []interface{}{"id", "status", "delivered_at"},
-								"properties": map[string]interface{}{
-									"id":           map[string]interface{}{"type": "string"},
-									"status":       map[string]interface{}{"type": "string"},
-									"delivered_at": map[string]interface{}{"type": "string"},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// POST /:tenantID/destinations/:destinationID/events/:eventID/retry - legacy retry
-		{
-			Name: "POST /:tenantID/destinations/:destinationID/events/:eventID/retry - legacy endpoint",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPOST,
-				Path:   "/tenants/" + tenantID + "/destinations/" + destinationID + "/events/" + eventID + "/retry",
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 202},
-						"headers": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"Deprecation": map[string]interface{}{
-									"type": "array",
-									"items": map[string]interface{}{
-										"const": "true",
-									},
-								},
-							},
-						},
-						"body": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"success": map[string]interface{}{"const": true},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	suite.RunAPITests(suite.T(), legacyTests)
-
-	// Cleanup
-	cleanupTests := []APITest{
-		{
-			Name: "DELETE mockserver/destinations/:destinationID",
-			Request: httpclient.Request{
-				Method:  httpclient.MethodDELETE,
-				BaseURL: suite.mockServerBaseURL,
-				Path:    "/destinations/" + destinationID,
-			},
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
-				},
-			},
-		},
-		{
-			Name: "DELETE /:tenantID",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodDELETE,
-				Path:   "/tenants/" + tenantID,
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{
-					StatusCode: http.StatusOK,
-				},
-			},
-		},
-	}
-	suite.RunAPITests(suite.T(), cleanupTests)
-}
-
-// TestAdminLogEndpoints tests the admin-only /events and /deliveries endpoints.
+// TestAdminLogEndpoints tests the admin-only /events and /attempts endpoints.
 //
 // These endpoints allow cross-tenant queries with optional tenant_id filter.
 //
 // Setup:
 //  1. Create two tenants with destinations
 //  2. Publish events to each tenant
-//  3. Wait for deliveries to complete
+//  3. Wait for attempts to complete
 //
 // Test Cases:
 //   - GET /events without auth returns 401
-//   - GET /deliveries without auth returns 401
+//   - GET /attempts without auth returns 401
 //   - GET /events with JWT returns 401 (admin-only)
-//   - GET /deliveries with JWT returns 401 (admin-only)
+//   - GET /attempts with JWT returns 401 (admin-only)
 //   - GET /events with admin key returns all events (cross-tenant)
-//   - GET /deliveries with admin key returns all deliveries (cross-tenant)
+//   - GET /attempts with admin key returns all attempts (cross-tenant)
 //   - GET /events?tenant_id=X filters to single tenant
-//   - GET /deliveries?tenant_id=X filters to single tenant
+//   - GET /attempts?tenant_id=X filters to single tenant
 func (suite *basicSuite) TestAdminLogEndpoints() {
 	tenant1ID := idgen.String()
 	tenant2ID := idgen.String()
@@ -1218,9 +934,9 @@ func (suite *basicSuite) TestAdminLogEndpoints() {
 	}
 	suite.RunAPITests(suite.T(), setupTests)
 
-	// Wait for deliveries for both tenants
-	suite.waitForDeliveries(suite.T(), "/tenants/"+tenant1ID+"/deliveries", 1, 5*time.Second)
-	suite.waitForDeliveries(suite.T(), "/tenants/"+tenant2ID+"/deliveries", 1, 5*time.Second)
+	// Wait for attempts for both tenants
+	suite.waitForAttempts(suite.T(), "/tenants/"+tenant1ID+"/attempts", 1, 5*time.Second)
+	suite.waitForAttempts(suite.T(), "/tenants/"+tenant2ID+"/attempts", 1, 5*time.Second)
 
 	// Get JWT token for tenant1 to test that JWT auth is rejected on admin endpoints
 	tokenResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
@@ -1246,10 +962,10 @@ func (suite *basicSuite) TestAdminLogEndpoints() {
 			suite.Equal(http.StatusUnauthorized, resp.StatusCode)
 		})
 
-		suite.Run("GET /deliveries without auth returns 401", func() {
+		suite.Run("GET /attempts without auth returns 401", func() {
 			resp, err := suite.client.Do(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/deliveries",
+				Path:   "/attempts",
 			})
 			suite.Require().NoError(err)
 			suite.Equal(http.StatusUnauthorized, resp.StatusCode)
@@ -1264,10 +980,10 @@ func (suite *basicSuite) TestAdminLogEndpoints() {
 			suite.Equal(http.StatusUnauthorized, resp.StatusCode)
 		})
 
-		suite.Run("GET /deliveries with JWT returns 401 (admin-only)", func() {
+		suite.Run("GET /attempts with JWT returns 401 (admin-only)", func() {
 			resp, err := suite.client.Do(suite.AuthJWTRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/deliveries",
+				Path:   "/attempts",
 			}, jwtToken))
 			suite.Require().NoError(err)
 			suite.Equal(http.StatusUnauthorized, resp.StatusCode)
@@ -1303,31 +1019,31 @@ func (suite *basicSuite) TestAdminLogEndpoints() {
 			suite.True(eventsSeen[event2ID], "should include tenant2 event")
 		})
 
-		suite.Run("GET /deliveries returns deliveries from all tenants", func() {
+		suite.Run("GET /attempts returns attempts from all tenants", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/deliveries?include=event",
+				Path:   "/attempts?include=event",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
 
 			body := resp.Body.(map[string]interface{})
 			models := body["models"].([]interface{})
-			// Should have at least 2 deliveries (one from each tenant we created)
+			// Should have at least 2 attempts (one from each tenant we created)
 			suite.GreaterOrEqual(len(models), 2)
 
-			// Verify we have deliveries from both tenants by checking event IDs
+			// Verify we have attempts from both tenants by checking event IDs
 			eventsSeen := map[string]bool{}
 			for _, item := range models {
-				delivery := item.(map[string]interface{})
-				if event, ok := delivery["event"].(map[string]interface{}); ok {
+				attempt := item.(map[string]interface{})
+				if event, ok := attempt["event"].(map[string]interface{}); ok {
 					if id, ok := event["id"].(string); ok {
 						eventsSeen[id] = true
 					}
 				}
 			}
-			suite.True(eventsSeen[event1ID], "should include tenant1 delivery")
-			suite.True(eventsSeen[event2ID], "should include tenant2 delivery")
+			suite.True(eventsSeen[event1ID], "should include tenant1 attempt")
+			suite.True(eventsSeen[event2ID], "should include tenant2 attempt")
 		})
 	})
 
@@ -1352,10 +1068,10 @@ func (suite *basicSuite) TestAdminLogEndpoints() {
 			suite.Equal(event1ID, event["id"])
 		})
 
-		suite.Run("GET /deliveries?tenant_id=X filters to single tenant", func() {
+		suite.Run("GET /attempts?tenant_id=X filters to single tenant", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/deliveries?tenant_id=" + tenant2ID + "&include=event",
+				Path:   "/attempts?tenant_id=" + tenant2ID + "&include=event",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -1364,9 +1080,9 @@ func (suite *basicSuite) TestAdminLogEndpoints() {
 			models := body["models"].([]interface{})
 			suite.Len(models, 1)
 
-			// Verify only tenant2 delivery by event ID
-			delivery := models[0].(map[string]interface{})
-			event := delivery["event"].(map[string]interface{})
+			// Verify only tenant2 attempt by event ID
+			attempt := models[0].(map[string]interface{})
+			event := attempt["event"].(map[string]interface{})
 			suite.Equal(event2ID, event["id"])
 		})
 	})

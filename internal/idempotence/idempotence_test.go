@@ -450,17 +450,6 @@ func TestIntegrationIdempotence_WithConcurrentHandlerAndSuccess(t *testing.T) {
 
 	go consumerFn("1")
 	go consumerFn("2")
-	errs := []error{}
-	go func() {
-		for {
-			select {
-			case err := <-errchan:
-				errs = append(errs, err)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
 
 	id := idgen.String()
 	err = mq.Publish(ctx, &MockMsg{ID: id})
@@ -468,7 +457,16 @@ func TestIntegrationIdempotence_WithConcurrentHandlerAndSuccess(t *testing.T) {
 	err = mq.Publish(ctx, &MockMsg{ID: id})
 	require.Nil(t, err)
 
-	<-ctx.Done()
+	// Collect exactly 2 errors (one per published message)
+	errs := make([]error, 0, 2)
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errchan:
+			errs = append(errs, err)
+		case <-ctx.Done():
+			require.Fail(t, "timeout waiting for consumer results")
+		}
+	}
 
 	assert.Len(t, execTimestamps, 1)
 	require.Len(t, errs, 2, "should have 2 errors")

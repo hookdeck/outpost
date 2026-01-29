@@ -65,7 +65,7 @@ func (r *mockRegistry) CreatePublisher(ctx context.Context, destination *models.
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (r *mockRegistry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Delivery, error) {
+func (r *mockRegistry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 

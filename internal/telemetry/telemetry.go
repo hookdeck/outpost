@@ -104,7 +104,6 @@ func (t *telemetryImpl) sendBatch(batch []telemetryEvent) {
 	jobs := make(chan telemetryEvent, len(batch))
 	var wg sync.WaitGroup
 
-	// Start workers
 	for i := 0; i < maxWorkers; i++ {
 		wg.Add(1)
 		go func() {
@@ -138,13 +137,11 @@ func (t *telemetryImpl) sendBatch(batch []telemetryEvent) {
 		}()
 	}
 
-	// Send jobs to workers
 	for _, event := range batch {
 		jobs <- event
 	}
 	close(jobs)
 
-	// Wait for all workers
 	wg.Wait()
 }
 

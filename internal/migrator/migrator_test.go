@@ -342,9 +342,9 @@ func TestMigrator_DeploymentID_TableNaming(t *testing.T) {
 	assert.Equal(t, uint64(1), count, "testdeploy_events table should exist")
 
 	err = chDB.QueryRow(ctx, "SELECT count() FROM system.tables WHERE database = ? AND name = ?",
-		chConfig.Database, "testdeploy_deliveries").Scan(&count)
+		chConfig.Database, "testdeploy_attempts").Scan(&count)
 	require.NoError(t, err)
-	assert.Equal(t, uint64(1), count, "testdeploy_deliveries table should exist")
+	assert.Equal(t, uint64(1), count, "testdeploy_attempts table should exist")
 }
 
 // TestMigrator_DeploymentID_Isolation tests that multiple deployments are isolated.
@@ -390,8 +390,8 @@ func TestMigrator_DeploymentID_Isolation(t *testing.T) {
 	defer chDB.Close()
 
 	tables := []string{
-		"deploy_a_events", "deploy_a_deliveries",
-		"deploy_b_events", "deploy_b_deliveries",
+		"deploy_a_events", "deploy_a_attempts",
+		"deploy_b_events", "deploy_b_attempts",
 	}
 	for _, table := range tables {
 		var count uint64
@@ -466,9 +466,9 @@ func TestMigrator_NoDeploymentID_DefaultTables(t *testing.T) {
 	assert.Equal(t, uint64(1), count, "events table should exist")
 
 	err = chDB.QueryRow(ctx, "SELECT count() FROM system.tables WHERE database = ? AND name = ?",
-		chConfig.Database, "deliveries").Scan(&count)
+		chConfig.Database, "attempts").Scan(&count)
 	require.NoError(t, err)
-	assert.Equal(t, uint64(1), count, "deliveries table should exist")
+	assert.Equal(t, uint64(1), count, "attempts table should exist")
 }
 
 func setupClickHouseConfig(t *testing.T) clickhouse.ClickHouseConfig {

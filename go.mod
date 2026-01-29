@@ -51,7 +51,6 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/localstack v0.36.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.36.0
 	github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.36.0
-	github.com/testcontainers/testcontainers-go/modules/redis v0.36.0
 	github.com/uptrace/opentelemetry-go-extra/otelzap v0.3.1
 	github.com/urfave/cli/v3 v3.4.1
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.53.0

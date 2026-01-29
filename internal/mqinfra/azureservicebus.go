@@ -25,7 +25,6 @@ func (infra *infraAzureServiceBus) Exist(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 
-	// Create credential for authentication
 	cred, err := azidentity.NewClientSecretCredential(
 		cfg.TenantID,
 		cfg.ClientID,
@@ -36,7 +35,6 @@ func (infra *infraAzureServiceBus) Exist(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("failed to create credential: %w", err)
 	}
 
-	// Create clients for topic and subscription management
 	topicClient, err := armservicebus.NewTopicsClient(cfg.SubscriptionID, cred, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to create topic client: %w", err)
@@ -47,7 +45,6 @@ func (infra *infraAzureServiceBus) Exist(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("failed to create subscription client: %w", err)
 	}
 
-	// Check if topic exists
 	_, err = topicClient.Get(ctx, cfg.ResourceGroup, cfg.Namespace, cfg.Topic, nil)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -56,7 +53,6 @@ func (infra *infraAzureServiceBus) Exist(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("failed to check topic existence: %w", err)
 	}
 
-	// Check if subscription exists
 	_, err = subClient.Get(ctx, cfg.ResourceGroup, cfg.Namespace, cfg.Topic, cfg.Subscription, nil)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -79,7 +75,6 @@ func (infra *infraAzureServiceBus) Declare(ctx context.Context) error {
 		return nil
 	}
 
-	// Create credential for authentication
 	cred, err := azidentity.NewClientSecretCredential(
 		cfg.TenantID,
 		cfg.ClientID,
@@ -90,7 +85,6 @@ func (infra *infraAzureServiceBus) Declare(ctx context.Context) error {
 		return fmt.Errorf("failed to create credential: %w", err)
 	}
 
-	// Create clients for topic and subscription management
 	topicClient, err := armservicebus.NewTopicsClient(cfg.SubscriptionID, cred, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create topic client: %w", err)
@@ -101,7 +95,6 @@ func (infra *infraAzureServiceBus) Declare(ctx context.Context) error {
 		return fmt.Errorf("failed to create subscription client: %w", err)
 	}
 
-	// Declare main topic (upsert)
 	topicName := cfg.Topic
 	err = infra.declareTopic(ctx, topicClient, cfg.ResourceGroup, cfg.Namespace, topicName)
 	if err != nil {
@@ -158,7 +151,6 @@ func (infra *infraAzureServiceBus) TearDown(ctx context.Context) error {
 		return nil
 	}
 
-	// Create credential for authentication
 	cred, err := azidentity.NewClientSecretCredential(
 		cfg.TenantID,
 		cfg.ClientID,
@@ -169,7 +161,6 @@ func (infra *infraAzureServiceBus) TearDown(ctx context.Context) error {
 		return fmt.Errorf("failed to create credential: %w", err)
 	}
 
-	// Create clients for topic and subscription management
 	topicClient, err := armservicebus.NewTopicsClient(cfg.SubscriptionID, cred, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create topic client: %w", err)
@@ -182,13 +173,11 @@ func (infra *infraAzureServiceBus) TearDown(ctx context.Context) error {
 
 	topicName := cfg.Topic
 
-	// Delete main subscription
 	err = infra.deleteSubscription(ctx, subClient, cfg.ResourceGroup, cfg.Namespace, topicName, cfg.Subscription)
 	if err != nil {
 		return fmt.Errorf("failed to delete subscription: %w", err)
 	}
 
-	// Delete main topic
 	err = infra.deleteTopic(ctx, topicClient, cfg.ResourceGroup, cfg.Namespace, topicName)
 	if err != nil {
 		return fmt.Errorf("failed to delete topic: %w", err)

@@ -14,7 +14,7 @@ All tables are partitioned by time.
 
 ## Operations
 
-### ListDeliveryEvent
+### ListDelivery
 
 Query pattern: **Index → Hydrate**
 
@@ -49,7 +49,7 @@ WHERE tenant_id = $1 AND id = $2
 AND EXISTS (SELECT 1 FROM event_delivery_index WHERE event_id = $2 AND destination_id = $3)
 ```
 
-### InsertManyDeliveryEvent
+### InsertMany
 
 Batch insert using `unnest()` arrays in a single transaction across all 3 tables.
 

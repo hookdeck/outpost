@@ -3,7 +3,6 @@ package deliverymq_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"sync"
 	"time"
 
@@ -16,11 +15,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// scheduleOptions mirrors the private type in scheduler package
-type scheduleOptions struct {
-	id string
-}
-
 type mockPublisher struct {
 	responses []error
 	current   int
@@ -31,47 +25,44 @@ func newMockPublisher(responses []error) *mockPublisher {
 	return &mockPublisher{responses: responses}
 }
 
-func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Delivery, error) {
+func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.current >= len(m.responses) {
 		m.current++
-		return &models.Delivery{
-			ID:              idgen.Delivery(),
-			DeliveryEventID: idgen.DeliveryEvent(),
-			EventID:         event.ID,
-			DestinationID:   destination.ID,
-			Status:          models.DeliveryStatusSuccess,
-			Code:            "OK",
-			ResponseData:    map[string]interface{}{},
-			Time:            time.Now(),
+		return &models.Attempt{
+			ID:            idgen.Attempt(),
+			EventID:       event.ID,
+			DestinationID: destination.ID,
+			Status:        models.AttemptStatusSuccess,
+			Code:          "OK",
+			ResponseData:  map[string]interface{}{},
+			Time:          time.Now(),
 		}, nil
 	}
 
 	resp := m.responses[m.current]
 	m.current++
 	if resp == nil {
-		return &models.Delivery{
-			ID:              idgen.Delivery(),
-			DeliveryEventID: idgen.DeliveryEvent(),
-			EventID:         event.ID,
-			DestinationID:   destination.ID,
-			Status:          models.DeliveryStatusSuccess,
-			Code:            "OK",
-			ResponseData:    map[string]interface{}{},
-			Time:            time.Now(),
+		return &models.Attempt{
+			ID:            idgen.Attempt(),
+			EventID:       event.ID,
+			DestinationID: destination.ID,
+			Status:        models.AttemptStatusSuccess,
+			Code:          "OK",
+			ResponseData:  map[string]interface{}{},
+			Time:          time.Now(),
 		}, nil
 	}
-	return &models.Delivery{
-		ID:              idgen.Delivery(),
-		DeliveryEventID: idgen.DeliveryEvent(),
-		EventID:         event.ID,
-		DestinationID:   destination.ID,
-		Status:          models.DeliveryStatusFailed,
-		Code:            "ERR",
-		ResponseData:    map[string]interface{}{},
-		Time:            time.Now(),
+	return &models.Attempt{
+		ID:            idgen.Attempt(),
+		EventID:       event.ID,
+		DestinationID: destination.ID,
+		Status:        models.AttemptStatusFailed,
+		Code:          "ERR",
+		ResponseData:  map[string]interface{}{},
+		Time:          time.Now(),
 	}, resp
 }
 
@@ -140,27 +131,52 @@ func (m *mockEventGetter) RetrieveEvent(ctx context.Context, req logstore.Retrie
 		return nil, m.err
 	}
 	m.lastRetrievedID = req.EventID
-	event, ok := m.events[req.EventID]
-	if !ok {
-		return nil, errors.New("event not found")
+	// Match actual logstore behavior: return (nil, nil) when event not found
+	return m.events[req.EventID], nil
+}
+
+// mockDelayedEventGetter simulates the race condition where event is not yet
+// persisted to logstore when retry scheduler first queries it.
+// Returns (nil, nil) for the first N calls, then returns the event.
+type mockDelayedEventGetter struct {
+	event           *models.Event
+	callCount       int
+	returnAfterCall int // Return event after this many calls
+	mu              sync.Mutex
+}
+
+func newMockDelayedEventGetter(event *models.Event, returnAfterCall int) *mockDelayedEventGetter {
+	return &mockDelayedEventGetter{
+		event:           event,
+		returnAfterCall: returnAfterCall,
 	}
-	return event, nil
+}
+
+func (m *mockDelayedEventGetter) RetrieveEvent(ctx context.Context, req logstore.RetrieveEventRequest) (*models.Event, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.callCount++
+	if m.callCount <= m.returnAfterCall {
+		// Simulate event not yet persisted
+		return nil, nil
+	}
+	return m.event, nil
 }
 
 type mockLogPublisher struct {
-	err        error
-	deliveries []models.DeliveryEvent
+	err     error
+	entries []models.LogEntry
 }
 
 func newMockLogPublisher(err error) *mockLogPublisher {
 	return &mockLogPublisher{
-		err:        err,
-		deliveries: make([]models.DeliveryEvent, 0),
+		err:     err,
+		entries: make([]models.LogEntry, 0),
 	}
 }
 
-func (m *mockLogPublisher) Publish(ctx context.Context, deliveryEvent models.DeliveryEvent) error {
-	m.deliveries = append(m.deliveries, deliveryEvent)
+func (m *mockLogPublisher) Publish(ctx context.Context, entry models.LogEntry) error {
+	m.entries = append(m.entries, entry)
 	return m.err
 }
 
@@ -220,23 +236,15 @@ type mockMessage struct {
 	nacked bool
 }
 
-func newDeliveryMockMessage(deliveryEvent models.DeliveryEvent) (*mockMessage, *mqs.Message) {
-	mock := &mockMessage{id: deliveryEvent.ID}
-	body, err := json.Marshal(deliveryEvent)
+func newDeliveryMockMessage(task models.DeliveryTask) (*mockMessage, *mqs.Message) {
+	mock := &mockMessage{id: task.IdempotencyKey()}
+	body, err := json.Marshal(task)
 	if err != nil {
 		panic(err)
 	}
 	return mock, &mqs.Message{
 		QueueMessage: mock,
 		Body:         body,
-	}
-}
-
-func newMockMessage(id string) *mqs.Message {
-	mock := &mockMessage{id: id}
-	return &mqs.Message{
-		QueueMessage: mock,
-		Body:         nil,
 	}
 }
 

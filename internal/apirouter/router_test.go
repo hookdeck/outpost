@@ -34,6 +34,7 @@ type testRouterResult struct {
 	redisClient redis.Client
 	entityStore models.EntityStore
 	logStore    logstore.LogStore
+	deliveryMQ  *deliverymq.DeliveryMQ
 }
 
 func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *testing.T) clickhouse.DB) (http.Handler, *logging.Logger, redis.Client) {
@@ -73,6 +74,7 @@ func setupTestRouterFull(t *testing.T, apiKey, jwtSecret string, funcs ...func(t
 		redisClient: redisClient,
 		entityStore: entityStore,
 		logStore:    logStore,
+		deliveryMQ:  deliveryMQ,
 	}
 }
 

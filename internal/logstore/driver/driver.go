@@ -18,10 +18,10 @@ type TimeFilter struct {
 
 type LogStore interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
-	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
+	ListAttempt(context.Context, ListAttemptRequest) (ListAttemptResponse, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
-	RetrieveDeliveryEvent(ctx context.Context, request RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error)
-	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
+	RetrieveAttempt(ctx context.Context, request RetrieveAttemptRequest) (*AttemptRecord, error)
+	InsertMany(context.Context, []*models.LogEntry) error
 }
 
 type ListEventRequest struct {
@@ -41,11 +41,11 @@ type ListEventResponse struct {
 	Prev string
 }
 
-type ListDeliveryEventRequest struct {
+type ListAttemptRequest struct {
 	Next           string
 	Prev           string
 	Limit          int
-	TimeFilter     TimeFilter // optional - filter deliveries by time
+	TimeFilter     TimeFilter // optional - filter attempts by time
 	TenantID       string     // optional - filter by tenant (if empty, returns all tenants)
 	EventID        string     // optional - filter for specific event
 	DestinationIDs []string   // optional
@@ -54,8 +54,8 @@ type ListDeliveryEventRequest struct {
 	SortOrder      string     // optional: "asc", "desc" (default: "desc")
 }
 
-type ListDeliveryEventResponse struct {
-	Data []*models.DeliveryEvent
+type ListAttemptResponse struct {
+	Data []*AttemptRecord
 	Next string
 	Prev string
 }
@@ -66,7 +66,13 @@ type RetrieveEventRequest struct {
 	DestinationID string // optional - if provided, scopes to that destination
 }
 
-type RetrieveDeliveryEventRequest struct {
-	TenantID   string // optional - filter by tenant (if empty, searches all tenants)
-	DeliveryID string // required
+type RetrieveAttemptRequest struct {
+	TenantID  string // optional - filter by tenant (if empty, searches all tenants)
+	AttemptID string // required
+}
+
+// AttemptRecord represents an attempt query result with optional Event population.
+type AttemptRecord struct {
+	Attempt *models.Attempt
+	Event   *models.Event // optionally populated for query results
 }

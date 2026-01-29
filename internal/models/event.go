@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mqs"
 )
 
@@ -67,28 +66,89 @@ func (e *Event) ToMessage() (*mqs.Message, error) {
 	return &mqs.Message{Body: data}, nil
 }
 
-type DeliveryEventTelemetry struct {
+type DeliveryTelemetry struct {
 	TraceID string
 	SpanID  string
 }
 
-type DeliveryEvent struct {
-	ID            string
-	Attempt       int
-	DestinationID string
-	Event         Event
-	Delivery      *Delivery
-	Telemetry     *DeliveryEventTelemetry
-	Manual        bool // Indicates if this is a manual retry
+// DeliveryTask represents a task to deliver an event to a destination.
+// This is a message type (no ID) used by: publishmq -> deliverymq, retry -> deliverymq
+type DeliveryTask struct {
+	Event         Event              `json:"event"`
+	DestinationID string             `json:"destination_id"`
+	Attempt       int                `json:"attempt"`
+	Manual        bool               `json:"manual"`
+	Telemetry     *DeliveryTelemetry `json:"telemetry,omitempty"`
 }
 
-var _ mqs.IncomingMessage = &DeliveryEvent{}
+var _ mqs.IncomingMessage = &DeliveryTask{}
 
-func (e *DeliveryEvent) FromMessage(msg *mqs.Message) error {
+func (t *DeliveryTask) FromMessage(msg *mqs.Message) error {
+	return json.Unmarshal(msg.Body, t)
+}
+
+func (t *DeliveryTask) ToMessage() (*mqs.Message, error) {
+	data, err := json.Marshal(t)
+	if err != nil {
+		return nil, err
+	}
+	return &mqs.Message{Body: data}, nil
+}
+
+// IdempotencyKey returns the key used for idempotency checks.
+// Uses Event.ID + DestinationID + Manual flag.
+// Manual retries get a different key so they can bypass idempotency of failed automatic deliveries.
+func (t *DeliveryTask) IdempotencyKey() string {
+	if t.Manual {
+		return t.Event.ID + ":" + t.DestinationID + ":manual"
+	}
+	return t.Event.ID + ":" + t.DestinationID
+}
+
+// RetryID returns the ID used for scheduling and canceling retries.
+// Uses event_id:destination_id to allow manual retries to cancel pending automatic retries.
+func RetryID(eventID, destinationID string) string {
+	return eventID + ":" + destinationID
+}
+
+// NewDeliveryTask creates a new DeliveryTask for an event and destination.
+func NewDeliveryTask(event Event, destinationID string) DeliveryTask {
+	return DeliveryTask{
+		Event:         event,
+		DestinationID: destinationID,
+		Attempt:       0,
+	}
+}
+
+// NewManualDeliveryTask creates a new DeliveryTask for a manual retry.
+func NewManualDeliveryTask(event Event, destinationID string) DeliveryTask {
+	task := NewDeliveryTask(event, destinationID)
+	task.Manual = true
+	return task
+}
+
+const (
+	AttemptStatusSuccess = "success"
+	AttemptStatusFailed  = "failed"
+)
+
+// LogEntry represents a message for the log queue.
+//
+// IMPORTANT: Both Event and Attempt are REQUIRED. The logstore requires both
+// to exist for proper data consistency. The logmq consumer validates this
+// requirement and rejects entries missing either field.
+type LogEntry struct {
+	Event   *Event   `json:"event"`
+	Attempt *Attempt `json:"attempt"`
+}
+
+var _ mqs.IncomingMessage = &LogEntry{}
+
+func (e *LogEntry) FromMessage(msg *mqs.Message) error {
 	return json.Unmarshal(msg.Body, e)
 }
 
-func (e *DeliveryEvent) ToMessage() (*mqs.Message, error) {
+func (e *LogEntry) ToMessage() (*mqs.Message, error) {
 	data, err := json.Marshal(e)
 	if err != nil {
 		return nil, err
@@ -96,46 +156,15 @@ func (e *DeliveryEvent) ToMessage() (*mqs.Message, error) {
 	return &mqs.Message{Body: data}, nil
 }
 
-// GetRetryID returns the ID used for scheduling retries.
-//
-// We use Event.ID + DestinationID (not DeliveryEvent.ID) because:
-//  1. Multiple destinations: The same event can be delivered to multiple destinations.
-//     Each needs its own retry, so we include DestinationID to avoid collisions.
-//  2. Manual retry cancellation: When a manual retry succeeds, it must cancel any
-//     pending automatic retry. Manual retries create a NEW DeliveryEvent with a NEW ID,
-//     but share the same Event.ID + DestinationID. This allows Cancel() to find and
-//     remove the pending automatic retry.
-func (e *DeliveryEvent) GetRetryID() string {
-	return e.Event.ID + ":" + e.DestinationID
-}
-
-func NewDeliveryEvent(event Event, destinationID string) DeliveryEvent {
-	return DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
-		DestinationID: destinationID,
-		Event:         event,
-		Attempt:       0,
-	}
-}
-
-func NewManualDeliveryEvent(event Event, destinationID string) DeliveryEvent {
-	deliveryEvent := NewDeliveryEvent(event, destinationID)
-	deliveryEvent.Manual = true
-	return deliveryEvent
-}
-
-const (
-	DeliveryStatusSuccess = "success"
-	DeliveryStatusFailed  = "failed"
-)
-
-type Delivery struct {
-	ID              string                 `json:"id"`
-	DeliveryEventID string                 `json:"delivery_event_id"`
-	EventID         string                 `json:"event_id"`
-	DestinationID   string                 `json:"destination_id"`
-	Status          string                 `json:"status"`
-	Time            time.Time              `json:"time"`
-	Code            string                 `json:"code"`
-	ResponseData    map[string]interface{} `json:"response_data"`
+type Attempt struct {
+	ID            string                 `json:"id"`
+	TenantID      string                 `json:"tenant_id"`
+	EventID       string                 `json:"event_id"`
+	DestinationID string                 `json:"destination_id"`
+	AttemptNumber int                    `json:"attempt_number"`
+	Manual        bool                   `json:"manual"`
+	Status        string                 `json:"status"`
+	Time          time.Time              `json:"time"`
+	Code          string                 `json:"code"`
+	ResponseData  map[string]interface{} `json:"response_data"`
 }

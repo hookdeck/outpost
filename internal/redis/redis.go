@@ -93,7 +93,6 @@ func createClusterClient(ctx context.Context, config *RedisConfig) (Client, erro
 
 	clusterClient := r.NewClusterClient(options)
 
-	// Test connectivity
 	if err := clusterClient.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("cluster client ping failed: %w", err)
 	}
@@ -118,7 +117,6 @@ func createRegularClient(ctx context.Context, config *RedisConfig) (Client, erro
 
 	regularClient := r.NewClient(options)
 
-	// Test connectivity
 	if err := regularClient.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("regular client ping failed: %w", err)
 	}

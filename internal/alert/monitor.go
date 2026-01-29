@@ -83,7 +83,7 @@ func WithDeploymentID(deploymentID string) AlertOption {
 // DeliveryAttempt represents a single delivery attempt
 type DeliveryAttempt struct {
 	Success          bool
-	DeliveryEvent    *models.DeliveryEvent
+	DeliveryTask     *models.DeliveryTask
 	Destination      *AlertDestination
 	Timestamp        time.Time
 	DeliveryResponse map[string]interface{}
@@ -148,7 +148,6 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		return fmt.Errorf("failed to get alert state: %w", err)
 	}
 
-	// Check if we should send an alert
 	level, shouldAlert := m.evaluator.ShouldAlert(count)
 	if !shouldAlert {
 		return nil
@@ -156,10 +155,10 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 
 	alert := NewConsecutiveFailureAlert(ConsecutiveFailureData{
 		Event: AlertedEvent{
-			ID:       attempt.DeliveryEvent.Event.ID,
-			Topic:    attempt.DeliveryEvent.Event.Topic,
-			Metadata: attempt.DeliveryEvent.Event.Metadata,
-			Data:     attempt.DeliveryEvent.Event.Data,
+			ID:       attempt.DeliveryTask.Event.ID,
+			Topic:    attempt.DeliveryTask.Event.Topic,
+			Metadata: attempt.DeliveryTask.Event.Metadata,
+			Data:     attempt.DeliveryTask.Event.Data,
 		},
 		MaxConsecutiveFailures: m.autoDisableFailureCount,
 		ConsecutiveFailures:    count,
@@ -175,7 +174,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		}
 
 		m.logger.Ctx(ctx).Audit("destination disabled",
-			zap.String("event_id", attempt.DeliveryEvent.Event.ID),
+			zap.String("event_id", attempt.DeliveryTask.Event.ID),
 			zap.String("tenant_id", attempt.Destination.TenantID),
 			zap.String("destination_id", attempt.Destination.ID),
 			zap.String("destination_type", attempt.Destination.Type),
@@ -187,7 +186,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		if err := m.notifier.Notify(ctx, alert); err != nil {
 			m.logger.Ctx(ctx).Error("failed to send alert",
 				zap.Error(err),
-				zap.String("event_id", attempt.DeliveryEvent.Event.ID),
+				zap.String("event_id", attempt.DeliveryTask.Event.ID),
 				zap.String("tenant_id", attempt.Destination.TenantID),
 				zap.String("destination_id", attempt.Destination.ID),
 				zap.String("destination_type", attempt.Destination.Type),
@@ -196,7 +195,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		}
 
 		m.logger.Ctx(ctx).Audit("alert sent",
-			zap.String("event_id", attempt.DeliveryEvent.Event.ID),
+			zap.String("event_id", attempt.DeliveryTask.Event.ID),
 			zap.String("tenant_id", attempt.Destination.TenantID),
 			zap.String("destination_id", attempt.Destination.ID),
 			zap.String("destination_type", attempt.Destination.Type),

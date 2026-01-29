@@ -11,7 +11,6 @@ import (
 
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/testcontainers/testcontainers-go"
-	rediscontainer "github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
@@ -54,14 +53,23 @@ func NewRedisConfig(t *testing.T) *redis.RedisConfig {
 func NewRedisStackConfig(t *testing.T) *redis.RedisConfig {
 	ctx := context.Background()
 
-	container, err := rediscontainer.Run(ctx,
-		"redis/redis-stack-server:latest",
-	)
+	// Use generic container with explicit port exposure and wait strategy to avoid
+	// race conditions when multiple tests spin up containers in parallel.
+	req := testcontainers.ContainerRequest{
+		Image:        "redis/redis-stack-server:latest",
+		ExposedPorts: []string{"6379/tcp"},
+		WaitingFor:   wait.ForListeningPort("6379/tcp"),
+	}
+
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
 	if err != nil {
 		t.Fatalf("failed to start redis-stack container: %v", err)
 	}
 
-	endpoint, err := container.PortEndpoint(ctx, "6379/tcp", "")
+	endpoint, err := container.Endpoint(ctx, "")
 	if err != nil {
 		t.Fatalf("failed to get redis-stack endpoint: %v", err)
 	}
@@ -227,14 +235,21 @@ func EnsureDragonfly() string {
 func startRedisTestContainer(cfg *Config) {
 	ctx := context.Background()
 
-	redisContainer, err := rediscontainer.Run(ctx,
-		"redis/redis-stack-server:latest",
-	)
+	req := testcontainers.ContainerRequest{
+		Image:        "redis/redis-stack-server:latest",
+		ExposedPorts: []string{"6379/tcp"},
+		WaitingFor:   wait.ForListeningPort("6379/tcp"),
+	}
+
+	redisContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
 	if err != nil {
 		panic(err)
 	}
 
-	endpoint, err := redisContainer.PortEndpoint(ctx, "6379/tcp", "")
+	endpoint, err := redisContainer.Endpoint(ctx, "")
 	if err != nil {
 		panic(err)
 	}

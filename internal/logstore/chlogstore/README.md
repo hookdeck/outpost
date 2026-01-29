@@ -37,7 +37,7 @@ For most use cases (log viewing), brief duplicates are acceptable.
 
 ## Operations
 
-### ListDeliveryEvent
+### ListDelivery
 
 Direct index scan with cursor-based pagination.
 
@@ -45,7 +45,7 @@ Direct index scan with cursor-based pagination.
 SELECT
     event_id, tenant_id, destination_id, topic, eligible_for_retry,
     event_time, metadata, data,
-    delivery_id, delivery_event_id, status, delivery_time, code, response_data
+    delivery_id, status, delivery_time, code, response_data
 FROM event_log
 WHERE tenant_id = ?
     AND [optional filters: destination_id, status, topic, time ranges]
@@ -80,7 +80,7 @@ LIMIT 1
 
 With destination filter, adds `AND destination_id = ?`.
 
-### InsertManyDeliveryEvent
+### InsertMany
 
 Batch insert using ClickHouse's native batch API.
 
@@ -89,11 +89,11 @@ batch, _ := conn.PrepareBatch(ctx, `
     INSERT INTO event_log (
         event_id, tenant_id, destination_id, topic, eligible_for_retry,
         event_time, metadata, data,
-        delivery_id, delivery_event_id, status, delivery_time, code, response_data
+        delivery_id, status, delivery_time, code, response_data
     )
 `)
-for _, de := range deliveryEvents {
-    batch.Append(...)
+for i := range events {
+    batch.Append(events[i], deliveries[i], ...)
 }
 batch.Send()
 ```
@@ -104,6 +104,6 @@ batch.Send()
 
 | Operation | Complexity | Notes |
 |-----------|------------|-------|
-| ListDeliveryEvent | O(limit) | Index scan, stops at LIMIT |
+| ListDelivery | O(limit) | Index scan, stops at LIMIT |
 | RetrieveEvent | O(1) | Single row lookup via bloom filter |
-| InsertManyDeliveryEvent | O(batch) | Batch insert, async dedup |
+| InsertMany | O(batch) | Batch insert, async dedup |

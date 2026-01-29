@@ -23,7 +23,6 @@ type DestinationMockServer struct {
 
 func (s *DestinationMockServer) Run(ctx context.Context) error {
 	go func() {
-		// service connections
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.logger.Fatal("listen: %s\n", zap.Error(err))
 		}

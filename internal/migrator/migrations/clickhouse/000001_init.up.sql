@@ -21,11 +21,11 @@ CREATE TABLE IF NOT EXISTS {deployment_prefix}events (
 PARTITION BY toYYYYMM(event_time)
 ORDER BY (event_time, event_id);
 
--- Deliveries table for delivery queries
--- Each row represents a delivery attempt for an event
+-- Attempts table for attempt queries
+-- Each row represents an attempt for an event
 -- Stateless queries: no GROUP BY, no aggregation, direct row access
 
-CREATE TABLE IF NOT EXISTS {deployment_prefix}deliveries (
+CREATE TABLE IF NOT EXISTS {deployment_prefix}attempts (
     -- Event fields
     event_id String,
     tenant_id String,
@@ -36,23 +36,22 @@ CREATE TABLE IF NOT EXISTS {deployment_prefix}deliveries (
     metadata String,      -- JSON serialized
     data String,          -- JSON serialized
 
-    -- Delivery fields
-    delivery_id String,
-    delivery_event_id String,
+    -- Attempt fields
+    attempt_id String,
     status String,        -- 'success', 'failed'
-    delivery_time DateTime64(3),
+    attempt_time DateTime64(3),
     code String,
     response_data String, -- JSON serialized
     manual Bool DEFAULT false,
-    attempt UInt32 DEFAULT 0,
+    attempt_number UInt32 DEFAULT 0,
 
     -- Indexes for filtering (bloom filters help skip granules)
     INDEX idx_tenant_id tenant_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_destination_id destination_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_event_id event_id TYPE bloom_filter GRANULARITY 1,
-    INDEX idx_delivery_id delivery_id TYPE bloom_filter GRANULARITY 1,
+    INDEX idx_attempt_id attempt_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_topic topic TYPE bloom_filter GRANULARITY 1,
     INDEX idx_status status TYPE set(100) GRANULARITY 1
 ) ENGINE = ReplacingMergeTree
-PARTITION BY toYYYYMM(delivery_time)
-ORDER BY (delivery_time, delivery_id);
+PARTITION BY toYYYYMM(attempt_time)
+ORDER BY (attempt_time, attempt_id);

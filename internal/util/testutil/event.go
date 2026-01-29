@@ -96,67 +96,81 @@ func (f *mockEventFactory) WithData(data map[string]interface{}) func(*models.Ev
 	}
 }
 
-// ============================== Mock Delivery ==============================
+// ============================== Mock Attempt ==============================
 
-var DeliveryFactory = &mockDeliveryFactory{}
+var AttemptFactory = &mockAttemptFactory{}
 
-type mockDeliveryFactory struct {
+type mockAttemptFactory struct {
 }
 
-func (f *mockDeliveryFactory) Any(opts ...func(*models.Delivery)) models.Delivery {
-	delivery := models.Delivery{
-		ID:              idgen.Delivery(),
-		DeliveryEventID: idgen.DeliveryEvent(),
-		EventID:         idgen.Event(),
-		DestinationID:   idgen.Destination(),
-		Status:          "success",
-		Time:            time.Now(),
+func (f *mockAttemptFactory) Any(opts ...func(*models.Attempt)) models.Attempt {
+	attempt := models.Attempt{
+		ID:            idgen.Attempt(),
+		TenantID:      "test-tenant",
+		EventID:       idgen.Event(),
+		DestinationID: idgen.Destination(),
+		AttemptNumber: 1,
+		Manual:        false,
+		Status:        "success",
+		Time:          time.Now(),
 	}
 
 	for _, opt := range opts {
-		opt(&delivery)
+		opt(&attempt)
 	}
 
-	return delivery
+	return attempt
 }
 
-func (f *mockDeliveryFactory) AnyPointer(opts ...func(*models.Delivery)) *models.Delivery {
-	delivery := f.Any(opts...)
-	return &delivery
+func (f *mockAttemptFactory) AnyPointer(opts ...func(*models.Attempt)) *models.Attempt {
+	attempt := f.Any(opts...)
+	return &attempt
 }
 
-func (f *mockDeliveryFactory) WithID(id string) func(*models.Delivery) {
-	return func(delivery *models.Delivery) {
-		delivery.ID = id
-	}
-}
-
-func (f *mockDeliveryFactory) WithDeliveryEventID(deliveryEventID string) func(*models.Delivery) {
-	return func(delivery *models.Delivery) {
-		delivery.DeliveryEventID = deliveryEventID
+func (f *mockAttemptFactory) WithID(id string) func(*models.Attempt) {
+	return func(attempt *models.Attempt) {
+		attempt.ID = id
 	}
 }
 
-func (f *mockDeliveryFactory) WithEventID(eventID string) func(*models.Delivery) {
-	return func(delivery *models.Delivery) {
-		delivery.EventID = eventID
+func (f *mockAttemptFactory) WithTenantID(tenantID string) func(*models.Attempt) {
+	return func(attempt *models.Attempt) {
+		attempt.TenantID = tenantID
 	}
 }
 
-func (f *mockDeliveryFactory) WithDestinationID(destinationID string) func(*models.Delivery) {
-	return func(delivery *models.Delivery) {
-		delivery.DestinationID = destinationID
+func (f *mockAttemptFactory) WithAttemptNumber(attemptNumber int) func(*models.Attempt) {
+	return func(attempt *models.Attempt) {
+		attempt.AttemptNumber = attemptNumber
 	}
 }
 
-func (f *mockDeliveryFactory) WithStatus(status string) func(*models.Delivery) {
-	return func(delivery *models.Delivery) {
-		delivery.Status = status
+func (f *mockAttemptFactory) WithManual(manual bool) func(*models.Attempt) {
+	return func(attempt *models.Attempt) {
+		attempt.Manual = manual
 	}
 }
 
-func (f *mockDeliveryFactory) WithTime(time time.Time) func(*models.Delivery) {
-	return func(delivery *models.Delivery) {
-		delivery.Time = time
+func (f *mockAttemptFactory) WithEventID(eventID string) func(*models.Attempt) {
+	return func(attempt *models.Attempt) {
+		attempt.EventID = eventID
+	}
+}
+
+func (f *mockAttemptFactory) WithDestinationID(destinationID string) func(*models.Attempt) {
+	return func(attempt *models.Attempt) {
+		attempt.DestinationID = destinationID
+	}
+}
+
+func (f *mockAttemptFactory) WithStatus(status string) func(*models.Attempt) {
+	return func(attempt *models.Attempt) {
+		attempt.Status = status
+	}
+}
+
+func (f *mockAttemptFactory) WithTime(time time.Time) func(*models.Attempt) {
+	return func(attempt *models.Attempt) {
+		attempt.Time = time
 	}
 }
