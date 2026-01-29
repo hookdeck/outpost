@@ -1797,7 +1797,7 @@ components:
           description: Response data from the attempt. Only included when include=response_data.
           additionalProperties: true
           example: { "status_code": 200, "body": '{"status":"ok"}', "headers": { "content-type": "application/json" } }
-        attempt:
+        attempt_number:
           type: integer
           description: The attempt number (1 for first attempt, 2+ for retries).
           example: 1
@@ -2583,14 +2583,14 @@ paths:
                         status: "success"
                         delivered_at: "2024-01-01T00:00:05Z"
                         code: "200"
-                        attempt: 1
+                        attempt_number: 1
                         event: "evt_123"
                         destination: "des_456"
                       - id: "att_124"
                         status: "failed"
                         delivered_at: "2024-01-02T10:00:01Z"
                         code: "503"
-                        attempt: 2
+                        attempt_number: 2
                         event: "evt_789"
                         destination: "des_789"
                     pagination:
@@ -2607,7 +2607,7 @@ paths:
                         status: "success"
                         delivered_at: "2024-01-01T00:00:05Z"
                         code: "200"
-                        attempt: 1
+                        attempt_number: 1
                         event:
                           id: "evt_123"
                           topic: "user.created"
@@ -3015,6 +3015,253 @@ paths:
         "404":
           description: Tenant or Destination not found.
         # Add other error responses
+
+  # Destination-scoped Attempts
+  /tenants/{tenant_id}/destinations/{destination_id}/attempts:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant. Required when using AdminApiKey authentication.
+      - name: destination_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the destination.
+    get:
+      tags: [Destinations]
+      summary: List Destination Attempts
+      description: Retrieves a paginated list of attempts scoped to a specific destination.
+      operationId: listTenantDestinationAttempts
+      parameters:
+        - name: event_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter attempts by event ID.
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [success, failed]
+          description: Filter attempts by status.
+        - name: topic
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
+        - name: time[gte]
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format).
+        - name: time[lte]
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Number of items per page (default 100, max 1000).
+        - name: next
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for next page of results.
+        - name: prev
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for previous page of results.
+        - name: include
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: |
+            Fields to include in the response. Can be specified multiple times or comma-separated.
+            - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
+            - `event.data`: Include full event with payload data
+            - `response_data`: Include response body and headers
+        - name: order_by
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [time]
+            default: time
+          description: Field to sort by.
+        - name: dir
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort direction.
+      responses:
+        "200":
+          description: A paginated list of attempts for the destination.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptPaginatedResult"
+              examples:
+                DestinationAttemptsListExample:
+                  value:
+                    models:
+                      - id: "atm_123"
+                        status: "success"
+                        delivered_at: "2024-01-01T00:00:05Z"
+                        code: "200"
+                        attempt_number: 1
+                        event: "evt_123"
+                        destination: "des_456"
+                      - id: "atm_124"
+                        status: "failed"
+                        delivered_at: "2024-01-02T10:00:01Z"
+                        code: "503"
+                        attempt_number: 2
+                        event: "evt_789"
+                        destination: "des_456"
+                    pagination:
+                      order_by: "time"
+                      dir: "desc"
+                      limit: 100
+                      next: "MTcwNDA2NzIwMA=="
+                      prev: null
+        "404":
+          description: Tenant or Destination not found.
+        "422":
+          description: Validation error (invalid query parameters).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+
+  /tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant. Required when using AdminApiKey authentication.
+      - name: destination_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the destination.
+      - name: attempt_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the attempt.
+    get:
+      tags: [Destinations]
+      summary: Get Destination Attempt
+      description: Retrieves details for a specific attempt scoped to a destination.
+      operationId: getTenantDestinationAttempt
+      parameters:
+        - name: include
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: |
+            Fields to include in the response. Can be specified multiple times or comma-separated.
+            - `event`: Include event summary
+            - `event.data`: Include full event with payload data
+            - `response_data`: Include response body and headers
+      responses:
+        "200":
+          description: Attempt details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attempt"
+              examples:
+                DestinationAttemptExample:
+                  value:
+                    id: "atm_123"
+                    status: "success"
+                    delivered_at: "2024-01-01T00:00:05Z"
+                    code: "200"
+                    attempt_number: 1
+                    event: "evt_123"
+                    destination: "des_456"
+        "404":
+          description: Tenant, Destination, or Attempt not found.
+
+  /tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}/retry:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant. Required when using AdminApiKey authentication.
+      - name: destination_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the destination.
+      - name: attempt_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the attempt to retry.
+    post:
+      tags: [Destinations]
+      summary: Retry Destination Attempt
+      description: |
+        Triggers a retry for an attempt scoped to a destination. Only the latest attempt for an event+destination pair can be retried.
+        The destination must exist and be enabled.
+      operationId: retryTenantDestinationAttempt
+      responses:
+        "202":
+          description: Retry accepted for processing.
+        "404":
+          description: Tenant, Destination, or Attempt not found.
+        "409":
+          description: |
+            Attempt not eligible for retry. This can happen when:
+            - The attempt is not the latest for this event+destination pair
+            - The destination is disabled or deleted
 
   # Publish (Admin Only)
   /publish:
@@ -3431,14 +3678,14 @@ paths:
                         status: "success"
                         delivered_at: "2024-01-01T00:00:05Z"
                         code: "200"
-                        attempt: 1
+                        attempt_number: 1
                         event: "evt_123"
                         destination: "des_456"
                       - id: "att_124"
                         status: "failed"
                         delivered_at: "2024-01-02T10:00:01Z"
                         code: "503"
-                        attempt: 2
+                        attempt_number: 2
                         event: "evt_789"
                         destination: "des_456"
                     pagination:
@@ -3455,7 +3702,7 @@ paths:
                         status: "success"
                         delivered_at: "2024-01-01T00:00:05Z"
                         code: "200"
-                        attempt: 1
+                        attempt_number: 1
                         event:
                           id: "evt_123"
                           topic: "user.created"
@@ -3526,7 +3773,7 @@ paths:
                     status: "success"
                     delivered_at: "2024-01-01T00:00:05Z"
                     code: "200"
-                    attempt: 1
+                    attempt_number: 1
                     event: "evt_123"
                     destination: "des_456"
                 AttemptWithIncludeExample:
@@ -3540,7 +3787,7 @@ paths:
                       status_code: 200
                       body: '{"status":"ok"}'
                       headers: { "content-type": "application/json" }
-                    attempt: 1
+                    attempt_number: 1
                     event:
                       id: "evt_123"
                       topic: "user.created"
