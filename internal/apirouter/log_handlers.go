@@ -93,7 +93,7 @@ type APIAttempt struct {
 	DeliveredAt  time.Time              `json:"delivered_at"`
 	Code         string                 `json:"code,omitempty"`
 	ResponseData map[string]interface{} `json:"response_data,omitempty"`
-	Attempt      int                    `json:"attempt"`
+	AttemptNumber int                   `json:"attempt_number"`
 	Manual       bool                   `json:"manual"`
 
 	// Expandable fields - string (ID) or object depending on expand
@@ -145,7 +145,7 @@ type EventPaginatedResult struct {
 // toAPIAttempt converts an AttemptRecord to APIAttempt with expand options
 func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 	api := APIAttempt{
-		Attempt:     ar.Attempt.AttemptNumber,
+		AttemptNumber: ar.Attempt.AttemptNumber,
 		Manual:      ar.Attempt.Manual,
 		Destination: ar.Attempt.DestinationID,
 	}
@@ -200,10 +200,21 @@ func (h *LogHandlers) ListAttempts(c *gin.Context) {
 	if tenant == nil {
 		return
 	}
-	h.listAttemptsInternal(c, tenant.ID)
+	h.listAttemptsInternal(c, tenant.ID, "")
 }
 
-func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantID string) {
+// ListDestinationAttempts handles GET /:tenantID/destinations/:destinationID/attempts
+// Same as ListAttempts but scoped to a specific destination via URL param.
+func (h *LogHandlers) ListDestinationAttempts(c *gin.Context) {
+	tenant := mustTenantFromContext(c)
+	if tenant == nil {
+		return
+	}
+	destinationID := c.Param("destinationID")
+	h.listAttemptsInternal(c, tenant.ID, destinationID)
+}
+
+func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantID string, destinationID string) {
 	// Parse and validate cursors (next/prev are mutually exclusive)
 	cursors, errResp := ParseCursors(c)
 	if errResp != nil {
@@ -243,7 +254,9 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantID string) {
 	limit := parseLimit(c, 100, 1000)
 
 	var destinationIDs []string
-	if destID := c.Query("destination_id"); destID != "" {
+	if destinationID != "" {
+		destinationIDs = []string{destinationID}
+	} else if destID := c.Query("destination_id"); destID != "" {
 		destinationIDs = []string{destID}
 	}
 
@@ -358,7 +371,7 @@ func (h *LogHandlers) AdminListEvents(c *gin.Context) {
 // AdminListAttempts handles GET /attempts (admin-only, cross-tenant)
 // Query params: tenant_id (optional), event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_order
 func (h *LogHandlers) AdminListAttempts(c *gin.Context) {
-	h.listAttemptsInternal(c, c.Query("tenant_id"))
+	h.listAttemptsInternal(c, c.Query("tenant_id"), "")
 }
 
 // ListEvents handles GET /:tenantID/events

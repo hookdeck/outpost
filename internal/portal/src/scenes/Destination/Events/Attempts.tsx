@@ -13,7 +13,7 @@ import {
   RefreshIcon,
   NextIcon,
 } from "../../../common/Icons";
-import RetryAttemptButton from "../../../common/RetryAttemptButton/RetryAttemptButton";
+import RetryDeliveryButton from "../../../common/RetryDeliveryButton/RetryDeliveryButton";
 import { Checkbox } from "../../../common/Checkbox/Checkbox";
 import {
   Route,
@@ -108,7 +108,7 @@ const Attempts: React.FC<AttemptsProps> = ({
               ) : (
                 <Badge text="Failed" danger />
               )}
-              <RetryAttemptButton
+              <RetryDeliveryButton
                 attemptId={attempt.id}
                 disabled={isValidating}
                 loading={isValidating}

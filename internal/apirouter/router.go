@@ -332,6 +332,38 @@ func NewRouter(
 			},
 		},
 
+		// Destination-scoped attempt routes
+		{
+			Method:    http.MethodGet,
+			Path:      "/:tenantID/destinations/:destinationID/attempts",
+			Handler:   logHandlers.ListDestinationAttempts,
+			AuthScope: AuthScopeAdminOrTenant,
+			Mode:      RouteModeAlways,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+		{
+			Method:    http.MethodGet,
+			Path:      "/:tenantID/destinations/:destinationID/attempts/:attemptID",
+			Handler:   logHandlers.RetrieveAttempt,
+			AuthScope: AuthScopeAdminOrTenant,
+			Mode:      RouteModeAlways,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+		{
+			Method:    http.MethodPost,
+			Path:      "/:tenantID/destinations/:destinationID/attempts/:attemptID/retry",
+			Handler:   retryHandlers.RetryAttempt,
+			AuthScope: AuthScopeAdminOrTenant,
+			Mode:      RouteModeAlways,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+
 		// Event routes
 		{
 			Method:    http.MethodGet,

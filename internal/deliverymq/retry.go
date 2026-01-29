@@ -78,7 +78,10 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 			EventID:  retryTask.EventID,
 		})
 		if err != nil {
-			// Transient error (DB connection issue, etc) - return error so scheduler retries
+			// Returning an error leaves the message in the RSMQ queue. After the
+			// visibility timeout expires, the message becomes visible again and will
+			// be reprocessed. This handles both transient DB errors and the race
+			// condition where logmq hasn't flushed the event yet.
 			if logger != nil {
 				logger.Ctx(ctx).Error("failed to fetch event for retry",
 					zap.Error(err),

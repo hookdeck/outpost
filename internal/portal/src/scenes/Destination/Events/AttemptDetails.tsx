@@ -4,7 +4,7 @@ import { CloseIcon } from "../../../common/Icons";
 import useSWR from "swr";
 import { Attempt, EventFull } from "../../../typings/Event";
 import Badge from "../../../common/Badge/Badge";
-import RetryAttemptButton from "../../../common/RetryAttemptButton/RetryAttemptButton";
+import RetryDeliveryButton from "../../../common/RetryDeliveryButton/RetryDeliveryButton";
 import { CopyButton } from "../../../common/CopyButton/CopyButton";
 
 const AttemptDetails = ({
@@ -32,7 +32,7 @@ const AttemptDetails = ({
           {event?.topic || "Attempt"}
         </h3>
         <div className="drawer__header-actions">
-          <RetryAttemptButton
+          <RetryDeliveryButton
             attemptId={attempt.id}
             disabled={false}
             loading={false}
@@ -76,7 +76,7 @@ const AttemptDetails = ({
               )}
               <div>
                 <dt>Attempt</dt>
-                <dd className="mono-s">{attempt.attempt}</dd>
+                <dd className="mono-s">{attempt.attempt_number}</dd>
               </div>
               {event && (
                 <div>

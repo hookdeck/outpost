@@ -29,7 +29,7 @@ interface Attempt {
   delivered_at: string;
   code?: string;
   response_data?: Record<string, unknown>;
-  attempt: number;
+  attempt_number: number;
   // Expandable fields - string (ID) or object depending on expand param
   event: string | EventSummary | EventFull;
   destination: string;

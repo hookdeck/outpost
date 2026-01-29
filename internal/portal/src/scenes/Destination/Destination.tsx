@@ -24,7 +24,7 @@ interface Tab {
 const tabs: Tab[] = [
   { label: "Overview", path: "" },
   { label: "Settings", path: "/settings" },
-  { label: "Attempts", path: "/attempts" },
+  { label: "Event Deliveries", path: "/attempts" },
 ];
 
 const Destination = () => {

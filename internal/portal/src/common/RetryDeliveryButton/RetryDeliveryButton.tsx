@@ -4,7 +4,7 @@ import { ReplayIcon } from "../Icons";
 import { showToast } from "../Toast/Toast";
 import { ApiContext, formatError } from "../../app";
 
-interface RetryAttemptButtonProps {
+interface RetryDeliveryButtonProps {
   attemptId: string;
   disabled: boolean;
   loading: boolean;
@@ -13,7 +13,7 @@ interface RetryAttemptButtonProps {
   iconLabel?: string;
 }
 
-const RetryAttemptButton: React.FC<RetryAttemptButtonProps> = ({
+const RetryDeliveryButton: React.FC<RetryDeliveryButtonProps> = ({
   attemptId,
   disabled,
   loading,
@@ -24,7 +24,7 @@ const RetryAttemptButton: React.FC<RetryAttemptButtonProps> = ({
   const apiClient = useContext(ApiContext);
   const [retrying, setRetrying] = useState<boolean>(false);
 
-  const retryAttempt = useCallback(
+  const retryDelivery = useCallback(
     async (e: MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
       setRetrying(true);
@@ -49,7 +49,7 @@ const RetryAttemptButton: React.FC<RetryAttemptButtonProps> = ({
       minimal
       icon={icon}
       iconLabel={iconLabel}
-      onClick={(e) => retryAttempt(e)}
+      onClick={(e) => retryDelivery(e)}
       disabled={disabled || retrying}
       loading={loading || retrying}
     >
@@ -58,4 +58,4 @@ const RetryAttemptButton: React.FC<RetryAttemptButtonProps> = ({
   );
 };
 
-export default RetryAttemptButton;
+export default RetryDeliveryButton;
