@@ -406,7 +406,7 @@ func (s *store) fetchTenants(ctx context.Context, baseFilter string, q paginatio
 	return tenants, nil
 }
 
-func (s *store) listDestinationSummaryByTenant(ctx context.Context, tenantID string, opts driver.ListDestinationByTenantOpts) ([]models.DestinationSummary, error) {
+func (s *store) listDestinationSummaryByTenant(ctx context.Context, tenantID string, opts driver.ListDestinationByTenantOpts) ([]destinationSummary, error) {
 	return parseListDestinationSummaryByTenantCmd(s.redisClient.HGetAll(ctx, s.redisTenantDestinationSummaryKey(tenantID)), opts)
 }
 
@@ -551,7 +551,7 @@ func (s *store) UpsertDestination(ctx context.Context, destination models.Destin
 			pipe.HDel(ctx, key, "filter")
 		}
 
-		pipe.HSet(ctx, summaryKey, destination.ID, destination.ToSummary())
+		pipe.HSet(ctx, summaryKey, destination.ID, newDestinationSummary(destination))
 		return nil
 	})
 
@@ -581,27 +581,27 @@ func (s *store) DeleteDestination(ctx context.Context, tenantID, destinationID s
 	return err
 }
 
-func (s *store) MatchEvent(ctx context.Context, event models.Event) ([]models.DestinationSummary, error) {
+func (s *store) MatchEvent(ctx context.Context, event models.Event) ([]string, error) {
 	destinationSummaryList, err := s.listDestinationSummaryByTenant(ctx, event.TenantID, driver.ListDestinationByTenantOpts{})
 	if err != nil {
 		return nil, err
 	}
 
-	matchedDestinationSummaryList := []models.DestinationSummary{}
+	var matched []string
 
-	for _, destinationSummary := range destinationSummaryList {
-		if destinationSummary.Disabled {
+	for _, ds := range destinationSummaryList {
+		if ds.Disabled {
 			continue
 		}
-		if event.Topic != "" && !destinationSummary.Topics.MatchTopic(event.Topic) {
+		if event.Topic != "" && !ds.Topics.MatchTopic(event.Topic) {
 			continue
 		}
-		if !destinationSummary.MatchFilter(event) {
+		if !models.MatchFilter(ds.Filter, event) {
 			continue
 		}
-		matchedDestinationSummaryList = append(matchedDestinationSummaryList, destinationSummary)
+		matched = append(matched, ds.ID)
 	}
 
-	return matchedDestinationSummaryList, nil
+	return matched, nil
 }
 

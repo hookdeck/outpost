@@ -36,9 +36,9 @@ type destinationRecord struct {
 type store struct {
 	mu sync.RWMutex
 
-	tenants      map[string]*tenantRecord                        // tenantID -> record
-	destinations map[string]*destinationRecord                   // "tenantID\x00destID" -> record
-	summaries    map[string]map[string]models.DestinationSummary // tenantID -> destID -> summary
+	tenants        map[string]*tenantRecord      // tenantID -> record
+	destinations   map[string]*destinationRecord  // "tenantID\x00destID" -> record
+	destsByTenant  map[string]map[string]struct{} // tenantID -> set of destIDs
 
 	maxDestinationsPerTenant int
 }
@@ -60,7 +60,7 @@ func New(opts ...Option) driver.TenantStore {
 	s := &store{
 		tenants:                  make(map[string]*tenantRecord),
 		destinations:             make(map[string]*destinationRecord),
-		summaries:                make(map[string]map[string]models.DestinationSummary),
+		destsByTenant:            make(map[string]map[string]struct{}),
 		maxDestinationsPerTenant: defaultMaxDestinationsPerTenant,
 	}
 	for _, opt := range opts {
@@ -90,9 +90,9 @@ func (s *store) RetrieveTenant(_ context.Context, tenantID string) (*models.Tena
 	}
 
 	t := rec.tenant
-	summaries := s.summaries[tenantID]
-	t.DestinationsCount = len(summaries)
-	t.Topics = s.computeTenantTopics(summaries)
+	destIDs := s.destsByTenant[tenantID]
+	t.DestinationsCount = len(destIDs)
+	t.Topics = s.computeTenantTopics(tenantID)
 	return &t, nil
 }
 
@@ -125,13 +125,13 @@ func (s *store) DeleteTenant(_ context.Context, tenantID string) error {
 	rec.deletedAt = &now
 
 	// Delete all destinations
-	if summaries, ok := s.summaries[tenantID]; ok {
-		for destID := range summaries {
+	if destIDs, ok := s.destsByTenant[tenantID]; ok {
+		for destID := range destIDs {
 			if drec, ok := s.destinations[destKey(tenantID, destID)]; ok {
 				drec.deletedAt = &now
 			}
 		}
-		delete(s.summaries, tenantID)
+		delete(s.destsByTenant, tenantID)
 	}
 
 	return nil
@@ -200,9 +200,9 @@ func (s *store) ListTenant(ctx context.Context, req driver.ListTenantRequest) (*
 
 	// Enrich with DestinationsCount and Topics
 	for i := range tenants {
-		summaries := s.summaries[tenants[i].ID]
-		tenants[i].DestinationsCount = len(summaries)
-		tenants[i].Topics = s.computeTenantTopics(summaries)
+		destIDs := s.destsByTenant[tenants[i].ID]
+		tenants[i].DestinationsCount = len(destIDs)
+		tenants[i].Topics = s.computeTenantTopics(tenants[i].ID)
 	}
 
 	var nextCursor, prevCursor *string
@@ -274,18 +274,18 @@ func (s *store) ListDestinationByTenant(_ context.Context, tenantID string, opti
 		opts = options[0]
 	}
 
-	summaries := s.summaries[tenantID]
-	if len(summaries) == 0 {
+	destIDs := s.destsByTenant[tenantID]
+	if len(destIDs) == 0 {
 		return []models.Destination{}, nil
 	}
 
 	var destinations []models.Destination
-	for destID, summary := range summaries {
-		if opts.Filter != nil && !matchFilter(opts.Filter, summary) {
-			continue
-		}
+	for destID := range destIDs {
 		drec, ok := s.destinations[destKey(tenantID, destID)]
 		if !ok || drec.deletedAt != nil {
+			continue
+		}
+		if opts.Filter != nil && !matchDestFilter(opts.Filter, drec.destination) {
 			continue
 		}
 		destinations = append(destinations, drec.destination)
@@ -325,8 +325,8 @@ func (s *store) CreateDestination(_ context.Context, destination models.Destinat
 	}
 
 	// Check max destinations
-	summaries := s.summaries[destination.TenantID]
-	if len(summaries) >= s.maxDestinationsPerTenant {
+	destIDs := s.destsByTenant[destination.TenantID]
+	if len(destIDs) >= s.maxDestinationsPerTenant {
 		return driver.ErrMaxDestinationsPerTenantReached
 	}
 
@@ -351,11 +351,11 @@ func (s *store) upsertDestinationLocked(destination models.Destination) error {
 	key := destKey(destination.TenantID, destination.ID)
 	s.destinations[key] = &destinationRecord{destination: destination}
 
-	// Update summary
-	if s.summaries[destination.TenantID] == nil {
-		s.summaries[destination.TenantID] = make(map[string]models.DestinationSummary)
+	// Update destsByTenant index
+	if s.destsByTenant[destination.TenantID] == nil {
+		s.destsByTenant[destination.TenantID] = make(map[string]struct{})
 	}
-	s.summaries[destination.TenantID][destination.ID] = *destination.ToSummary()
+	s.destsByTenant[destination.TenantID][destination.ID] = struct{}{}
 	return nil
 }
 
@@ -372,40 +372,42 @@ func (s *store) DeleteDestination(_ context.Context, tenantID, destinationID str
 	now := time.Now()
 	drec.deletedAt = &now
 
-	// Remove from summary
-	if summaries, ok := s.summaries[tenantID]; ok {
-		delete(summaries, destinationID)
+	// Remove from destsByTenant index
+	if destIDs, ok := s.destsByTenant[tenantID]; ok {
+		delete(destIDs, destinationID)
 	}
 
 	return nil
 }
 
-func (s *store) MatchEvent(_ context.Context, event models.Event) ([]models.DestinationSummary, error) {
+func (s *store) MatchEvent(_ context.Context, event models.Event) ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	summaries := s.summaries[event.TenantID]
-	var matched []models.DestinationSummary
-	for _, summary := range summaries {
-		if summary.Disabled {
+	destIDs := s.destsByTenant[event.TenantID]
+	var matched []string
+	for destID := range destIDs {
+		drec, ok := s.destinations[destKey(event.TenantID, destID)]
+		if !ok || drec.deletedAt != nil {
 			continue
 		}
-		if event.Topic != "" && !summary.Topics.MatchTopic(event.Topic) {
-			continue
+		if drec.destination.MatchEvent(event) {
+			matched = append(matched, destID)
 		}
-		if !summary.MatchFilter(event) {
-			continue
-		}
-		matched = append(matched, summary)
 	}
 	return matched, nil
 }
 
-func (s *store) computeTenantTopics(summaries map[string]models.DestinationSummary) []string {
+func (s *store) computeTenantTopics(tenantID string) []string {
+	destIDs := s.destsByTenant[tenantID]
 	all := false
 	topicsSet := make(map[string]struct{})
-	for _, summary := range summaries {
-		for _, topic := range summary.Topics {
+	for destID := range destIDs {
+		drec, ok := s.destinations[destKey(tenantID, destID)]
+		if !ok || drec.deletedAt != nil {
+			continue
+		}
+		for _, topic := range drec.destination.Topics {
 			if topic == "*" {
 				all = true
 				break
@@ -426,18 +428,18 @@ func (s *store) computeTenantTopics(summaries map[string]models.DestinationSumma
 	return topics
 }
 
-func matchFilter(filter *driver.DestinationFilter, summary models.DestinationSummary) bool {
-	if len(filter.Type) > 0 && !slices.Contains(filter.Type, summary.Type) {
+func matchDestFilter(filter *driver.DestinationFilter, dest models.Destination) bool {
+	if len(filter.Type) > 0 && !slices.Contains(filter.Type, dest.Type) {
 		return false
 	}
 	if len(filter.Topics) > 0 {
 		filterMatchesAll := len(filter.Topics) == 1 && filter.Topics[0] == "*"
-		if !summary.Topics.MatchesAll() {
+		if !dest.Topics.MatchesAll() {
 			if filterMatchesAll {
 				return false
 			}
 			for _, topic := range filter.Topics {
-				if !slices.Contains(summary.Topics, topic) {
+				if !slices.Contains(dest.Topics, topic) {
 					return false
 				}
 			}

@@ -20,7 +20,7 @@ type TenantStore interface {
 	CreateDestination(ctx context.Context, destination models.Destination) error
 	UpsertDestination(ctx context.Context, destination models.Destination) error
 	DeleteDestination(ctx context.Context, tenantID, destinationID string) error
-	MatchEvent(ctx context.Context, event models.Event) ([]models.DestinationSummary, error)
+	MatchEvent(ctx context.Context, event models.Event) ([]string, error)
 }
 
 var (

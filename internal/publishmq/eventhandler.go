@@ -79,7 +79,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		zap.String("destination_id", event.DestinationID),
 		zap.String("topic", event.Topic))
 
-	var matchedDestinations []models.DestinationSummary
+	var matchedDestinations []string
 	var err error
 
 	// Branch: specific destination vs topic-based matching
@@ -133,15 +133,14 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	return result, nil
 }
 
-func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, matchedDestinations []models.DestinationSummary) error {
+func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, matchedDestinations []string) error {
 	_, span := h.eventTracer.Receive(ctx, event)
 	defer span.End()
 
 	h.emeter.EventEligbible(ctx, event)
 
 	var g errgroup.Group
-	for _, destinationSummary := range matchedDestinations {
-		destID := destinationSummary.ID
+	for _, destID := range matchedDestinations {
 		g.Go(func() error {
 			return h.enqueueDeliveryTask(ctx, models.NewDeliveryTask(*event, destID))
 		})
@@ -154,8 +153,8 @@ func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, match
 }
 
 // matchSpecificDestination handles the case where a specific destination_id is provided.
-// It retrieves the destination and validates it, returning the matched destinations.
-func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *models.Event) ([]models.DestinationSummary, error) {
+// It retrieves the destination and validates it, returning the matched destination IDs.
+func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *models.Event) ([]string, error) {
 	destination, err := h.tenantStore.RetrieveDestination(ctx, event.TenantID, event.DestinationID)
 	if err != nil {
 		h.logger.Ctx(ctx).Warn("failed to retrieve destination",
@@ -163,18 +162,18 @@ func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *mode
 			zap.String("event_id", event.ID),
 			zap.String("tenant_id", event.TenantID),
 			zap.String("destination_id", event.DestinationID))
-		return []models.DestinationSummary{}, nil
+		return []string{}, nil
 	}
 
 	if destination == nil {
-		return []models.DestinationSummary{}, nil
+		return []string{}, nil
 	}
 
 	if !destination.MatchEvent(*event) {
-		return []models.DestinationSummary{}, nil
+		return []string{}, nil
 	}
 
-	return []models.DestinationSummary{*destination.ToSummary()}, nil
+	return []string{destination.ID}, nil
 }
 
 func (h *eventHandler) enqueueDeliveryTask(ctx context.Context, task models.DeliveryTask) error {

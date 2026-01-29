@@ -1,6 +1,7 @@
 package redistenantstore
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
@@ -10,6 +11,33 @@ import (
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/tenantstore/driver"
 )
+
+// destinationSummary is a package-private summary used for Redis storage.
+type destinationSummary struct {
+	ID       string        `json:"id"`
+	Type     string        `json:"type"`
+	Topics   models.Topics `json:"topics"`
+	Filter   models.Filter `json:"filter,omitempty"`
+	Disabled bool          `json:"disabled"`
+}
+
+func newDestinationSummary(d models.Destination) *destinationSummary {
+	return &destinationSummary{
+		ID:       d.ID,
+		Type:     d.Type,
+		Topics:   d.Topics,
+		Filter:   d.Filter,
+		Disabled: d.DisabledAt != nil,
+	}
+}
+
+func (ds *destinationSummary) MarshalBinary() ([]byte, error) {
+	return json.Marshal(ds)
+}
+
+func (ds *destinationSummary) UnmarshalBinary(data []byte) error {
+	return json.Unmarshal(data, ds)
+}
 
 // parseTenantHash parses a Redis hash map into a Tenant struct.
 func parseTenantHash(hash map[string]string) (*models.Tenant, error) {
@@ -261,33 +289,33 @@ func parseResp3SearchResult(resultMap map[interface{}]interface{}) ([]models.Ten
 }
 
 // parseListDestinationSummaryByTenantCmd parses a Redis HGetAll command result into destination summaries.
-func parseListDestinationSummaryByTenantCmd(cmd *redis.MapStringStringCmd, opts driver.ListDestinationByTenantOpts) ([]models.DestinationSummary, error) {
+func parseListDestinationSummaryByTenantCmd(cmd *redis.MapStringStringCmd, opts driver.ListDestinationByTenantOpts) ([]destinationSummary, error) {
 	destinationSummaryListHash, err := cmd.Result()
 	if err != nil {
 		if err == redis.Nil {
-			return []models.DestinationSummary{}, nil
+			return []destinationSummary{}, nil
 		}
 		return nil, err
 	}
-	destinationSummaryList := make([]models.DestinationSummary, 0, len(destinationSummaryListHash))
+	destinationSummaryList := make([]destinationSummary, 0, len(destinationSummaryListHash))
 	for _, destinationSummaryStr := range destinationSummaryListHash {
-		destinationSummary := models.DestinationSummary{}
-		if err := destinationSummary.UnmarshalBinary([]byte(destinationSummaryStr)); err != nil {
+		ds := destinationSummary{}
+		if err := ds.UnmarshalBinary([]byte(destinationSummaryStr)); err != nil {
 			return nil, err
 		}
 		included := true
 		if opts.Filter != nil {
-			included = matchDestinationFilter(opts.Filter, destinationSummary)
+			included = matchDestinationFilter(opts.Filter, ds)
 		}
 		if included {
-			destinationSummaryList = append(destinationSummaryList, destinationSummary)
+			destinationSummaryList = append(destinationSummaryList, ds)
 		}
 	}
 	return destinationSummaryList, nil
 }
 
 // parseTenantTopics extracts and deduplicates topics from a list of destination summaries.
-func parseTenantTopics(destinationSummaryList []models.DestinationSummary) []string {
+func parseTenantTopics(destinationSummaryList []destinationSummary) []string {
 	all := false
 	topicsSet := make(map[string]struct{})
 	for _, destination := range destinationSummaryList {
@@ -314,7 +342,7 @@ func parseTenantTopics(destinationSummaryList []models.DestinationSummary) []str
 }
 
 // matchDestinationFilter checks if a destination summary matches the given filter criteria.
-func matchDestinationFilter(filter *driver.DestinationFilter, summary models.DestinationSummary) bool {
+func matchDestinationFilter(filter *driver.DestinationFilter, summary destinationSummary) bool {
 	if len(filter.Type) > 0 {
 		found := false
 		for _, t := range filter.Type {

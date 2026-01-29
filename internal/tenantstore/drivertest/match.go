@@ -37,8 +37,8 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)
 			require.Len(t, matched, 3)
-			for _, summary := range matched {
-				require.Contains(t, []string{data.destinations[0].ID, data.destinations[1].ID, data.destinations[4].ID}, summary.ID)
+			for _, id := range matched {
+				require.Contains(t, []string{data.destinations[0].ID, data.destinations[1].ID, data.destinations[4].ID}, id)
 			}
 		})
 
@@ -125,8 +125,8 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 			matched, err = store.MatchEvent(ctx, event)
 			require.NoError(t, err)
 			require.Len(t, matched, 2)
-			for _, summary := range matched {
-				require.Contains(t, []string{data.destinations[0].ID, data.destinations[4].ID}, summary.ID)
+			for _, id := range matched {
+				require.Contains(t, []string{data.destinations[0].ID, data.destinations[4].ID}, id)
 			}
 		})
 	})
@@ -192,12 +192,8 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)
 			assert.Len(t, matched, 2)
-			ids := []string{}
-			for _, dest := range matched {
-				ids = append(ids, dest.ID)
-			}
-			assert.Contains(t, ids, "dest_no_filter")
-			assert.Contains(t, ids, "dest_filter_order_created")
+			assert.Contains(t, matched, "dest_no_filter")
+			assert.Contains(t, matched, "dest_filter_order_created")
 		})
 
 		t.Run("event with nested data matches nested filter", func(t *testing.T) {
@@ -218,13 +214,9 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)
 			assert.Len(t, matched, 3)
-			ids := []string{}
-			for _, dest := range matched {
-				ids = append(ids, dest.ID)
-			}
-			assert.Contains(t, ids, "dest_no_filter")
-			assert.Contains(t, ids, "dest_filter_order_created")
-			assert.Contains(t, ids, "dest_filter_premium")
+			assert.Contains(t, matched, "dest_no_filter")
+			assert.Contains(t, matched, "dest_filter_order_created")
+			assert.Contains(t, matched, "dest_filter_premium")
 		})
 
 		t.Run("topic filter takes precedence before content filter", func(t *testing.T) {
@@ -248,8 +240,8 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 			}
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)
-			for _, dest := range matched {
-				assert.NotEqual(t, "dest_topic_and_filter", dest.ID)
+			for _, id := range matched {
+				assert.NotEqual(t, "dest_topic_and_filter", id)
 			}
 		})
 	})
@@ -272,8 +264,8 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)
 			require.Len(t, matched, 2)
-			for _, summary := range matched {
-				require.Contains(t, []string{data.destinations[0].ID, data.destinations[3].ID}, summary.ID)
+			for _, id := range matched {
+				require.Contains(t, []string{data.destinations[0].ID, data.destinations[3].ID}, id)
 			}
 		})
 
@@ -290,7 +282,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)
 			require.Len(t, matched, 1)
-			require.Equal(t, data.destinations[3].ID, matched[0].ID)
+			require.Equal(t, data.destinations[3].ID, matched[0])
 		})
 
 		t.Run("should match after re-enabled destination", func(t *testing.T) {
@@ -327,8 +319,8 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 		matched, err := store.MatchEvent(ctx, event)
 		require.NoError(t, err)
 		require.Len(t, matched, 2)
-		for _, summary := range matched {
-			require.Contains(t, []string{data.destinations[1].ID, data.destinations[4].ID}, summary.ID)
+		for _, id := range matched {
+			require.Contains(t, []string{data.destinations[1].ID, data.destinations[4].ID}, id)
 		}
 	})
 }
