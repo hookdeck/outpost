@@ -137,6 +137,7 @@ func (suite *basicSuite) TestLogAPI() {
 			suite.Equal(destinationID, first["destination"])
 			suite.NotEmpty(first["status"])
 			suite.NotEmpty(first["delivered_at"])
+			suite.Equal(float64(0), first["attempt_number"], "attempt_number should be present and equal to 0 for first attempt")
 		})
 
 		suite.Run("filter by destination_id", func() {
@@ -619,6 +620,9 @@ func (suite *basicSuite) TestRetryAPI() {
 	firstAttempt := models[0].(map[string]interface{})
 	attemptID := firstAttempt["id"].(string)
 
+	// Verify first attempt has attempt_number=0
+	suite.Equal(float64(0), firstAttempt["attempt_number"], "first attempt should have attempt_number=0")
+
 	// Update mock to succeed for retry
 	updateMockTests := []APITest{
 		{
@@ -684,34 +688,33 @@ func (suite *basicSuite) TestRetryAPI() {
 	// Wait for retry attempt to complete
 	suite.waitForAttempts(suite.T(), "/tenants/"+tenantID+"/attempts?event_id="+eventID, 2, 5*time.Second)
 
-	// Verify we have more attempts after retry
-	verifyTests := []APITest{
-		{
-			Name: "GET /:tenantID/attempts?event_id=X - verify retry created new attempt",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/attempts?event_id=" + eventID,
-			}),
-			Expected: APITestExpectation{
-				Validate: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"statusCode": map[string]interface{}{"const": 200},
-						"body": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"models": map[string]interface{}{
-									"type":     "array",
-									"minItems": 2, // Original + retry
-								},
-							},
-						},
-					},
-				},
-			},
-		},
+	// Verify retry created a new attempt with incremented attempt_number
+	verifyResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
+		Method: httpclient.MethodGET,
+		Path:   "/tenants/" + tenantID + "/attempts?event_id=" + eventID + "&dir=asc",
+	}))
+	suite.Require().NoError(err)
+	suite.Require().Equal(http.StatusOK, verifyResp.StatusCode)
+
+	verifyBody := verifyResp.Body.(map[string]interface{})
+	verifyModels := verifyBody["models"].([]interface{})
+	suite.Require().Len(verifyModels, 2, "should have original + retry attempt")
+
+	// Both attempts should have attempt_number=0 (manual retry resets to 0)
+	for _, m := range verifyModels {
+		atm := m.(map[string]interface{})
+		suite.Equal(float64(0), atm["attempt_number"], "attempt should have attempt_number=0")
 	}
-	suite.RunAPITests(suite.T(), verifyTests)
+
+	// Verify we have one manual=true (retry) and one manual=false (original)
+	manualCount := 0
+	for _, m := range verifyModels {
+		atm := m.(map[string]interface{})
+		if manual, ok := atm["manual"].(bool); ok && manual {
+			manualCount++
+		}
+	}
+	suite.Equal(1, manualCount, "should have exactly one manual retry attempt")
 
 	// Test retry on disabled destination
 	disableTests := []APITest{
