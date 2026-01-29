@@ -116,7 +116,9 @@ type Option func(*WebhookDestination)
 // WithHeaderPrefix sets a custom prefix for webhook request headers
 func WithHeaderPrefix(prefix string) Option {
 	return func(w *WebhookDestination) {
-		w.headerPrefix = prefix
+		if prefix != "" {
+			w.headerPrefix = prefix
+		}
 	}
 }
 
