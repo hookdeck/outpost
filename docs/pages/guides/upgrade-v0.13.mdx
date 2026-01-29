@@ -1,0 +1,183 @@
+---
+title: "Upgrade to v0.13"
+---
+
+This guide covers breaking changes and migration steps when upgrading from v0.12 to v0.13.
+
+## Breaking Changes Overview
+
+| Change | Impact | Action Required |
+| --- | --- | --- |
+| [Delivery renamed to Attempt](#delivery-renamed-to-attempt) | All delivery-related endpoints, response types, and config | Update API routes, response handling, and config vars |
+| [ID prefix delimiter removed](#id-prefix-delimiter-removed) | Custom ID prefixes | Include delimiter in prefix value (e.g., `evt_` instead of `evt`) |
+| [Refined API schema](#refined-api-schema) | Pagination, query filters, and error responses | Update response parsing, query parameters, and error handling |
+
+## Delivery Renamed to Attempt
+
+The "delivery" concept in the API has been renamed to "attempt." An attempt represents a single delivery attempt of an event to a destination — the same concept, just a clearer name.
+
+### API Routes
+
+| v0.12 Route | v0.13 Route |
+| --- | --- |
+| `GET /tenants/:tenant_id/events/:event_id/deliveries` | **Removed** — use `GET /tenants/:tenant_id/attempts?event_id=:event_id` |
+| `GET /tenants/:tenant_id/destinations/:destination_id/events` | **Removed** — use `GET /tenants/:tenant_id/attempts?destination_id=:destination_id` |
+| `GET /tenants/:tenant_id/destinations/:destination_id/events/:event_id` | **Removed** |
+| `POST /tenants/:tenant_id/destinations/:destination_id/events/:event_id/retry` | `POST /tenants/:tenant_id/attempts/:attempt_id/retry` |
+
+New attempt routes:
+
+| Route | Description |
+| --- | --- |
+| `GET /tenants/:tenant_id/attempts` | List attempts for a tenant |
+| `GET /tenants/:tenant_id/attempts/:attempt_id` | Get a specific attempt |
+| `POST /tenants/:tenant_id/attempts/:attempt_id/retry` | Retry a specific attempt |
+
+### Attempt Schema
+
+The new `Attempt` resource looks like this:
+
+```json
+{
+  "id": "atm_123",
+  "status": "success",
+  "delivered_at": "2024-01-01T00:00:05Z",
+  "code": "200",
+  "attempt_number": 1,
+  "response_data": {
+    "status_code": 200,
+    "body": "{\"status\":\"ok\"}",
+    "headers": { "content-type": "application/json" }
+  }
+}
+```
+
+- `id`: Unique attempt identifier (default prefix `atm_`)
+- `status`: `success` or `failed`
+- `code`: String response status code or error code
+- `attempt_number`: 1 for first delivery, 2+ for retries
+- `response_data`: Response details (only included when `include=response_data` is specified)
+
+### Configuration
+
+| v0.12 | v0.13 |
+| --- | --- |
+| `IDGEN_DELIVERY_EVENT_PREFIX` | **Removed** |
+| `IDGEN_DELIVERY_PREFIX` | **Removed** |
+| *(new)* | `IDGEN_ATTEMPT_PREFIX` |
+
+If you had customized `IDGEN_DELIVERY_PREFIX`, update it to `IDGEN_ATTEMPT_PREFIX`.
+
+## ID Prefix Delimiter Removed
+
+ID generation no longer adds a default `_` delimiter between the prefix and the generated ID. The prefix value is now used as-is.
+
+If you use custom ID prefixes, include the delimiter in the prefix value:
+
+| v0.12 | v0.13 |
+| --- | --- |
+| `IDGEN_EVENT_PREFIX=evt` (produces `evt_xxx`) | `IDGEN_EVENT_PREFIX=evt_` (produces `evt_xxx`) |
+| `IDGEN_DESTINATION_PREFIX=des` (produces `des_xxx`) | `IDGEN_DESTINATION_PREFIX=des_` (produces `des_xxx`) |
+
+This applies to all `IDGEN_*_PREFIX` config vars: `IDGEN_EVENT_PREFIX`, `IDGEN_DESTINATION_PREFIX`, and `IDGEN_ATTEMPT_PREFIX`.
+
+**Action:** Append `_` (or your desired delimiter) to all custom ID prefix values.
+
+## Refined API Schema
+
+v0.13 refines the API query format, pagination schema, and error responses.
+
+### Pagination Response Format
+
+All paginated list endpoints now return a new response envelope.
+
+**v0.12:**
+```json
+{
+  "count": 42,
+  "data": [{ "id": "evt_123", "..." }],
+  "next": "MTcwNDA2NzIwMA==",
+  "prev": ""
+}
+```
+
+**v0.13:**
+```json
+{
+  "models": [{ "id": "evt_123", "..." }],
+  "pagination": {
+    "order_by": "time",
+    "dir": "desc",
+    "limit": 100,
+    "next": "MTcwNDA2NzIwMA==",
+    "prev": null
+  }
+}
+```
+
+Key differences:
+- `data` renamed to `models`
+- `next`/`prev` cursors moved into a `pagination` object alongside `order_by`, `dir`, and `limit`
+- `count` removed from event/attempt list responses (still present on tenant list)
+- Empty cursors are now `null` instead of `""`
+
+**Action:** Update all code that parses paginated responses:
+- `response.data` → `response.models`
+- `response.next` → `response.pagination.next`
+- `response.prev` → `response.pagination.prev`
+
+### Query Filter Format
+
+Time filter parameters have been updated to use a structured format:
+
+| v0.12 | v0.13 |
+| --- | --- |
+| `?start=2024-01-01T00:00:00Z` | `?time[gte]=2024-01-01T00:00:00Z` |
+| `?end=2024-01-31T23:59:59Z` | `?time[lte]=2024-01-31T23:59:59Z` |
+
+The `time[gte]` and `time[lte]` filters also support `YYYY-MM-DD` in addition to full RFC3339 timestamps.
+
+### Error Response Format
+
+Error responses now include a `status` field and use a consistent structure:
+
+**v0.12:**
+```json
+{
+  "message": "validation error",
+  "data": { "email": "required", "password": "min" }
+}
+```
+
+**v0.13:**
+```json
+{
+  "status": 422,
+  "message": "validation error",
+  "data": ["email is required", "password must be at least 6 characters"]
+}
+```
+
+Key differences:
+- New `status` field mirrors the HTTP status code
+- Validation errors in `data` changed from a `{ field: tag }` object to an array of human-readable messages
+
+## Upgrade Checklist
+
+1. **Before upgrading:**
+   - [ ] Update API clients to use `/attempts` routes instead of `/deliveries` and destination-scoped `/events` routes
+   - [ ] Update retry calls from `POST /destinations/:id/events/:id/retry` to `POST /attempts/:id/retry`
+   - [ ] Append delimiter to all custom `IDGEN_*_PREFIX` config values (e.g., `evt` → `evt_`)
+   - [ ] Update response parsing for the new pagination envelope (`models`/`pagination`)
+   - [ ] Update time filter params from `start`/`end` to `time[gte]`/`time[lte]`
+   - [ ] Update error response handling if parsing `data` field
+   - [ ] Back up Redis data
+
+2. **During upgrade:**
+   - [ ] Stop Outpost
+   - [ ] Run migrations: `migrate apply --all`
+   - [ ] Verify migrations completed: `migrate verify`
+
+3. **After upgrading:**
+   - [ ] Start Outpost v0.13
+   - [ ] Verify attempt listing and retry flows work with updated API clients

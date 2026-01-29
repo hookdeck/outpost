@@ -13,47 +13,105 @@ title: "Outpost Roadmap"
 - [Amazon EventBridge](https://github.com/hookdeck/outpost/issues/201)
 - [Kafka](https://github.com/hookdeck/outpost/issues/141)
 
-## Later
+## Releases
 
-### Core Functionality
+### v0.13.0
 
-- [ClickHouse log storage](https://github.com/hookdeck/outpost/issues/52)
+#### Core Functionality
 
-## Previous Notable Milestones
+- ✅ [ClickHouse log storage](https://github.com/hookdeck/outpost/issues/52)
 
-## v0.7.0
+### v0.12.0
+
+See [v0.12.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v0.12.0).
+
+#### Core Functionality
+
+- ✅ List tenants API with RediSearch
+- ✅ `/tenants` prefix for tenant-scoped API routes
+- ✅ Redis migration flow improvements
+
+### v0.11.0
+
+See [v0.11.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v0.11.0).
+
+#### Fixes
+
+- ✅ Webhook connection error retry
+- ✅ Retry ID collision for multi-destination events
+- ✅ Dragonfly compatibility
+
+### v0.10.0
+
+See [v0.10.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v0.10.0).
+
+#### Core Functionality
+
+- ✅ Destination filtering
+- ✅ Custom headers for webhook destinations
+
+### v0.9.0
+
+See [v0.9.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v0.9.0).
+
+#### Core Functionality
+
+- ✅ Publish endpoint `duplicate` field for idempotency detection
+- ✅ Configurable retry monitor polling (`RETRY_POLL_BACKOFF_MS`)
+- ✅ Self-managed message queue infrastructure (`MQS_AUTO_PROVISION`)
+- ✅ Structured health check endpoint
+
+### v0.8.0
+
+See [v0.8.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v0.8.0).
+
+#### Core Functionality
+
+- ✅ [Standard Webhooks](https://github.com/standard-webhooks/standard-webhooks) support
+- ✅ Configurable ID generation (UUID v4, UUID v7, nanoid)
+- ✅ Custom retry schedules (`RETRY_SCHEDULE`)
+- ✅ Destination `metadata` and `delivery_metadata` fields
+- ✅ Configurable idempotency key TTL
+- ✅ Tenant `metadata` field
+
+### v0.7.0
 
 See [v0.7.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v0.7.0).
 
-### Destination Types
+#### Destination Types
 
-- [GCP Pub/Sub](https://github.com/hookdeck/outpost/issues/140)
+- ✅ [GCP Pub/Sub](https://github.com/hookdeck/outpost/issues/140)
 
-## v0.6.0
+#### Core Functionality
+
+- ✅ Webhook delivery through proxy
+- ✅ Multi-deployment support (`deployment_id`)
+
+### v0.6.0
 
 See [v0.6.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v0.6.0).
 
-### Core Functionality
+#### Core Functionality
 
-- [Redis cluster support](https://github.com/hookdeck/outpost/pull/465)
+- ✅ [Redis cluster support](https://github.com/hookdeck/outpost/pull/465)
 
-## v0.5.0
+### v0.5.0
 
 See [v0.5.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v0.5.0).
 
-### Destination Types
+#### Destination Types
 
-- [AWS S3](https://github.com/orgs/hookdeck/projects/21/views/1?filterQuery=s3&pane=issue&itemId=113373337&issue=hookdeck%7Coutpost%7C418)
+- ✅ [AWS S3](https://github.com/hookdeck/outpost/issues/418)
 
 ### v0.4.0
 
 See [v0.4.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v0.4.0).
 
-### Publish Message Queues
+#### Publish Message Queues
 
 - ✅ [Azure Service Bus](https://github.com/hookdeck/outpost/pull/435)
 
-### Destination Types
+#### Destination Types
 
 - ✅ [Azure Service Bus](https://github.com/hookdeck/outpost/issues/241)
 
@@ -82,7 +140,7 @@ See [v0.1.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v0.1
 - ✅ [Hookdeck Event Gateway](https://github.com/hookdeck/outpost/issues/136)
 - ✅ [Amazon Kinesis](https://github.com/hookdeck/outpost/issues/305)
 
-### ALPHA
+### Alpha
 
 #### Core Functionality
 
