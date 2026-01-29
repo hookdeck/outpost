@@ -32,7 +32,7 @@ type testRouterResult struct {
 	router      http.Handler
 	logger      *logging.Logger
 	redisClient redis.Client
-	entityStore tenantstore.TenantStore
+	tenantStore tenantstore.TenantStore
 	logStore    logstore.LogStore
 	deliveryMQ  *deliverymq.DeliveryMQ
 }
@@ -49,9 +49,9 @@ func setupTestRouterFull(t *testing.T, apiKey, jwtSecret string, funcs ...func(t
 	deliveryMQ := deliverymq.New()
 	deliveryMQ.Init(context.Background())
 	eventTracer := eventtracer.NewNoopEventTracer()
-	entityStore := setupTestEntityStore(t, redisClient)
+	tenantStore := setupTestTenantStore(t, redisClient)
 	logStore := setupTestLogStore(t, funcs...)
-	eventHandler := publishmq.NewEventHandler(logger, deliveryMQ, entityStore, eventTracer, testutil.TestTopics, idempotence.New(redisClient, idempotence.WithSuccessfulTTL(24*time.Hour)))
+	eventHandler := publishmq.NewEventHandler(logger, deliveryMQ, tenantStore, eventTracer, testutil.TestTopics, idempotence.New(redisClient, idempotence.WithSuccessfulTTL(24*time.Hour)))
 	router := apirouter.NewRouter(
 		apirouter.RouterConfig{
 			ServiceName: "",
@@ -63,7 +63,7 @@ func setupTestRouterFull(t *testing.T, apiKey, jwtSecret string, funcs ...func(t
 		logger,
 		redisClient,
 		deliveryMQ,
-		entityStore,
+		tenantStore,
 		logStore,
 		eventHandler,
 		&telemetry.NoopTelemetry{},
@@ -72,7 +72,7 @@ func setupTestRouterFull(t *testing.T, apiKey, jwtSecret string, funcs ...func(t
 		router:      router,
 		logger:      logger,
 		redisClient: redisClient,
-		entityStore: entityStore,
+		tenantStore: tenantStore,
 		logStore:    logStore,
 		deliveryMQ:  deliveryMQ,
 	}
@@ -93,7 +93,7 @@ func setupTestLogStore(t *testing.T, funcs ...func(t *testing.T) clickhouse.DB) 
 	return logStore
 }
 
-func setupTestEntityStore(_ *testing.T, redisClient redis.Client) tenantstore.TenantStore {
+func setupTestTenantStore(_ *testing.T, redisClient redis.Client) tenantstore.TenantStore {
 	return tenantstore.New(tenantstore.Config{
 		RedisClient:     redisClient,
 		Secret:          "secret",

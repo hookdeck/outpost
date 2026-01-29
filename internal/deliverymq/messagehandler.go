@@ -69,7 +69,7 @@ type messageHandler struct {
 	eventTracer    DeliveryTracer
 	logger         *logging.Logger
 	logMQ          LogPublisher
-	entityStore    DestinationGetter
+	tenantStore    DestinationGetter
 	retryScheduler RetryScheduler
 	retryBackoff   backoff.Backoff
 	retryMaxLimit  int
@@ -106,7 +106,7 @@ type AlertMonitor interface {
 func NewMessageHandler(
 	logger *logging.Logger,
 	logMQ LogPublisher,
-	entityStore DestinationGetter,
+	tenantStore DestinationGetter,
 	publisher Publisher,
 	eventTracer DeliveryTracer,
 	retryScheduler RetryScheduler,
@@ -119,7 +119,7 @@ func NewMessageHandler(
 		eventTracer:    eventTracer,
 		logger:         logger,
 		logMQ:          logMQ,
-		entityStore:    entityStore,
+		tenantStore:    tenantStore,
 		publisher:      publisher,
 		retryScheduler: retryScheduler,
 		retryBackoff:   retryBackoff,
@@ -429,7 +429,7 @@ func (h *messageHandler) scheduleRetry(ctx context.Context, task models.Delivery
 // Returns an error if the destination is not found, deleted, disabled, or any other state that
 // would prevent publishing.
 func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task models.DeliveryTask) (*models.Destination, error) {
-	destination, err := h.entityStore.RetrieveDestination(ctx, task.Event.TenantID, task.DestinationID)
+	destination, err := h.tenantStore.RetrieveDestination(ctx, task.Event.TenantID, task.DestinationID)
 	if err != nil {
 		logger := h.logger.Ctx(ctx)
 		fields := []zap.Field{

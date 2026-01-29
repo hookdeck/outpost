@@ -10,7 +10,7 @@ import (
 	"github.com/hookdeck/outpost/internal/tenantstore"
 )
 
-func RequireTenantMiddleware(entityStore tenantstore.TenantStore) gin.HandlerFunc {
+func RequireTenantMiddleware(tenantStore tenantstore.TenantStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantID, exists := c.Get("tenantID")
 		if !exists {
@@ -18,7 +18,7 @@ func RequireTenantMiddleware(entityStore tenantstore.TenantStore) gin.HandlerFun
 			return
 		}
 
-		tenant, err := entityStore.RetrieveTenant(c.Request.Context(), tenantID.(string))
+		tenant, err := tenantStore.RetrieveTenant(c.Request.Context(), tenantID.(string))
 		if err != nil {
 			if err == tenantstore.ErrTenantDeleted {
 				c.AbortWithStatus(http.StatusNotFound)

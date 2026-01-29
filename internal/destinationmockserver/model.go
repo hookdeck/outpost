@@ -21,7 +21,7 @@ type Event struct {
 	Payload  map[string]interface{} `json:"payload"`
 }
 
-type EntityStore interface {
+type MockStore interface {
 	ListDestination(ctx context.Context) ([]models.Destination, error)
 	RetrieveDestination(ctx context.Context, id string) (*models.Destination, error)
 	UpsertDestination(ctx context.Context, destination models.Destination) error
@@ -32,20 +32,20 @@ type EntityStore interface {
 	ClearEvents(ctx context.Context, destinationID string) error
 }
 
-type entityStore struct {
+type mockStore struct {
 	mu           sync.RWMutex
 	destinations map[string]models.Destination
 	events       map[string][]Event
 }
 
-func NewEntityStore() EntityStore {
-	return &entityStore{
+func NewMockStore() MockStore {
+	return &mockStore{
 		destinations: make(map[string]models.Destination),
 		events:       make(map[string][]Event),
 	}
 }
 
-func (s *entityStore) ListDestination(ctx context.Context) ([]models.Destination, error) {
+func (s *mockStore) ListDestination(ctx context.Context) ([]models.Destination, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	destinationList := make([]models.Destination, len(s.destinations))
@@ -57,7 +57,7 @@ func (s *entityStore) ListDestination(ctx context.Context) ([]models.Destination
 	return destinationList, nil
 }
 
-func (s *entityStore) RetrieveDestination(ctx context.Context, id string) (*models.Destination, error) {
+func (s *mockStore) RetrieveDestination(ctx context.Context, id string) (*models.Destination, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	destination, ok := s.destinations[id]
@@ -67,14 +67,14 @@ func (s *entityStore) RetrieveDestination(ctx context.Context, id string) (*mode
 	return &destination, nil
 }
 
-func (s *entityStore) UpsertDestination(ctx context.Context, destination models.Destination) error {
+func (s *mockStore) UpsertDestination(ctx context.Context, destination models.Destination) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.destinations[destination.ID] = destination
 	return nil
 }
 
-func (s *entityStore) DeleteDestination(ctx context.Context, id string) error {
+func (s *mockStore) DeleteDestination(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.destinations[id]; !ok {
@@ -85,7 +85,7 @@ func (s *entityStore) DeleteDestination(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *entityStore) ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}, metadata map[string]string) (*Event, error) {
+func (s *mockStore) ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}, metadata map[string]string) (*Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	destination, ok := s.destinations[destinationID]
@@ -220,7 +220,7 @@ func verifySignature(secret string, payload []byte, signature string, algorithm 
 	return false
 }
 
-func (s *entityStore) ListEvent(ctx context.Context, destinationID string) ([]Event, error) {
+func (s *mockStore) ListEvent(ctx context.Context, destinationID string) ([]Event, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	events, ok := s.events[destinationID]
@@ -230,7 +230,7 @@ func (s *entityStore) ListEvent(ctx context.Context, destinationID string) ([]Ev
 	return events, nil
 }
 
-func (s *entityStore) ClearEvents(ctx context.Context, destinationID string) error {
+func (s *mockStore) ClearEvents(ctx context.Context, destinationID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.destinations[destinationID]; !ok {

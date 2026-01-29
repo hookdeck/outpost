@@ -186,7 +186,7 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 	}
 
 	// TODO: Handle destination expansion
-	// This would require injecting EntityStore into LogHandlers and batch-fetching
+	// This would require injecting TenantStore into LogHandlers and batch-fetching
 	// destinations by ID. Consider if this is needed - clients can fetch destination
 	// details separately via GET /destinations/:id if needed.
 

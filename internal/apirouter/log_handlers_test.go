@@ -23,11 +23,11 @@ func TestListAttempts(t *testing.T) {
 	// Create a tenant
 	tenantID := idgen.String()
 	destinationID := idgen.Destination()
-	require.NoError(t, result.entityStore.UpsertTenant(context.Background(), models.Tenant{
+	require.NoError(t, result.tenantStore.UpsertTenant(context.Background(), models.Tenant{
 		ID:        tenantID,
 		CreatedAt: time.Now(),
 	}))
-	require.NoError(t, result.entityStore.UpsertDestination(context.Background(), models.Destination{
+	require.NoError(t, result.tenantStore.UpsertDestination(context.Background(), models.Destination{
 		ID:        destinationID,
 		TenantID:  tenantID,
 		Type:      "webhook",
@@ -295,11 +295,11 @@ func TestRetrieveAttempt(t *testing.T) {
 	// Create a tenant
 	tenantID := idgen.String()
 	destinationID := idgen.Destination()
-	require.NoError(t, result.entityStore.UpsertTenant(context.Background(), models.Tenant{
+	require.NoError(t, result.tenantStore.UpsertTenant(context.Background(), models.Tenant{
 		ID:        tenantID,
 		CreatedAt: time.Now(),
 	}))
-	require.NoError(t, result.entityStore.UpsertDestination(context.Background(), models.Destination{
+	require.NoError(t, result.tenantStore.UpsertDestination(context.Background(), models.Destination{
 		ID:        destinationID,
 		TenantID:  tenantID,
 		Type:      "webhook",
@@ -404,11 +404,11 @@ func TestRetrieveEvent(t *testing.T) {
 	// Create a tenant
 	tenantID := idgen.String()
 	destinationID := idgen.Destination()
-	require.NoError(t, result.entityStore.UpsertTenant(context.Background(), models.Tenant{
+	require.NoError(t, result.tenantStore.UpsertTenant(context.Background(), models.Tenant{
 		ID:        tenantID,
 		CreatedAt: time.Now(),
 	}))
-	require.NoError(t, result.entityStore.UpsertDestination(context.Background(), models.Destination{
+	require.NoError(t, result.tenantStore.UpsertDestination(context.Background(), models.Destination{
 		ID:        destinationID,
 		TenantID:  tenantID,
 		Type:      "webhook",
@@ -489,11 +489,11 @@ func TestListEvents(t *testing.T) {
 	// Create a tenant
 	tenantID := idgen.String()
 	destinationID := idgen.Destination()
-	require.NoError(t, result.entityStore.UpsertTenant(context.Background(), models.Tenant{
+	require.NoError(t, result.tenantStore.UpsertTenant(context.Background(), models.Tenant{
 		ID:        tenantID,
 		CreatedAt: time.Now(),
 	}))
-	require.NoError(t, result.entityStore.UpsertDestination(context.Background(), models.Destination{
+	require.NoError(t, result.tenantStore.UpsertDestination(context.Background(), models.Destination{
 		ID:        destinationID,
 		TenantID:  tenantID,
 		Type:      "webhook",

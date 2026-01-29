@@ -17,7 +17,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	entityStore := setupTestEntityStore(t, redisClient)
+	tenantStore := setupTestTenantStore(t, redisClient)
 
 	t.Run("should create when there's no existing tenant", func(t *testing.T) {
 		t.Parallel()
@@ -46,7 +46,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 			ID:        idgen.String(),
 			CreatedAt: time.Now(),
 		}
-		entityStore.UpsertTenant(context.Background(), existingResource)
+		tenantStore.UpsertTenant(context.Background(), existingResource)
 
 		// Request
 		w := httptest.NewRecorder()
@@ -66,7 +66,7 @@ func TestDestinationUpsertHandler(t *testing.T) {
 		assert.Equal(t, existingResource.CreatedAt.Unix(), createdAt.Unix())
 
 		// Cleanup
-		entityStore.DeleteTenant(context.Background(), existingResource.ID)
+		tenantStore.DeleteTenant(context.Background(), existingResource.ID)
 	})
 }
 
@@ -74,7 +74,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	entityStore := setupTestEntityStore(t, redisClient)
+	tenantStore := setupTestTenantStore(t, redisClient)
 
 	t.Run("should return 404 when there's no tenant", func(t *testing.T) {
 		t.Parallel()
@@ -94,7 +94,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 			ID:        idgen.String(),
 			CreatedAt: time.Now(),
 		}
-		entityStore.UpsertTenant(context.Background(), existingResource)
+		tenantStore.UpsertTenant(context.Background(), existingResource)
 
 		// Request
 		w := httptest.NewRecorder()
@@ -114,7 +114,7 @@ func TestTenantRetrieveHandler(t *testing.T) {
 		assert.Equal(t, existingResource.CreatedAt.Unix(), createdAt.Unix())
 
 		// Cleanup
-		entityStore.DeleteTenant(context.Background(), existingResource.ID)
+		tenantStore.DeleteTenant(context.Background(), existingResource.ID)
 	})
 }
 
@@ -122,7 +122,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	entityStore := setupTestEntityStore(t, redisClient)
+	tenantStore := setupTestTenantStore(t, redisClient)
 
 	t.Run("should return 404 when there's no tenant", func(t *testing.T) {
 		t.Parallel()
@@ -142,7 +142,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 			ID:        idgen.String(),
 			CreatedAt: time.Now(),
 		}
-		entityStore.UpsertTenant(context.Background(), existingResource)
+		tenantStore.UpsertTenant(context.Background(), existingResource)
 
 		// Request
 		w := httptest.NewRecorder()
@@ -164,7 +164,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 			ID:        idgen.String(),
 			CreatedAt: time.Now(),
 		}
-		entityStore.UpsertTenant(context.Background(), existingResource)
+		tenantStore.UpsertTenant(context.Background(), existingResource)
 		inputDestination := models.Destination{
 			Type:       "webhook",
 			Topics:     []string{"user.created", "user.updated"},
@@ -176,7 +176,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 			ids[i] = idgen.String()
 			inputDestination.ID = ids[i]
 			inputDestination.CreatedAt = time.Now()
-			entityStore.UpsertDestination(context.Background(), inputDestination)
+			tenantStore.UpsertDestination(context.Background(), inputDestination)
 		}
 
 		// Request
@@ -190,7 +190,7 @@ func TestTenantDeleteHandler(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, true, response["success"])
 
-		destinations, err := entityStore.ListDestinationByTenant(context.Background(), existingResource.ID)
+		destinations, err := tenantStore.ListDestinationByTenant(context.Background(), existingResource.ID)
 		assert.Nil(t, err)
 		assert.Equal(t, 0, len(destinations))
 	})
@@ -202,7 +202,7 @@ func TestTenantRetrieveTokenHandler(t *testing.T) {
 	apiKey := "api_key"
 	jwtSecret := "jwt_secret"
 	router, _, redisClient := setupTestRouter(t, apiKey, jwtSecret)
-	entityStore := setupTestEntityStore(t, redisClient)
+	tenantStore := setupTestTenantStore(t, redisClient)
 
 	t.Run("should return token and tenant_id", func(t *testing.T) {
 		t.Parallel()
@@ -212,7 +212,7 @@ func TestTenantRetrieveTokenHandler(t *testing.T) {
 			ID:        idgen.String(),
 			CreatedAt: time.Now(),
 		}
-		entityStore.UpsertTenant(context.Background(), existingResource)
+		tenantStore.UpsertTenant(context.Background(), existingResource)
 
 		// Request
 		w := httptest.NewRecorder()
@@ -228,7 +228,7 @@ func TestTenantRetrieveTokenHandler(t *testing.T) {
 		assert.Equal(t, existingResource.ID, response["tenant_id"])
 
 		// Cleanup
-		entityStore.DeleteTenant(context.Background(), existingResource.ID)
+		tenantStore.DeleteTenant(context.Background(), existingResource.ID)
 	})
 }
 
@@ -238,7 +238,7 @@ func TestTenantRetrievePortalHandler(t *testing.T) {
 	apiKey := "api_key"
 	jwtSecret := "jwt_secret"
 	router, _, redisClient := setupTestRouter(t, apiKey, jwtSecret)
-	entityStore := setupTestEntityStore(t, redisClient)
+	tenantStore := setupTestTenantStore(t, redisClient)
 
 	t.Run("should return redirect_url with token and tenant_id in body", func(t *testing.T) {
 		t.Parallel()
@@ -248,7 +248,7 @@ func TestTenantRetrievePortalHandler(t *testing.T) {
 			ID:        idgen.String(),
 			CreatedAt: time.Now(),
 		}
-		entityStore.UpsertTenant(context.Background(), existingResource)
+		tenantStore.UpsertTenant(context.Background(), existingResource)
 
 		// Request
 		w := httptest.NewRecorder()
@@ -265,7 +265,7 @@ func TestTenantRetrievePortalHandler(t *testing.T) {
 		assert.Equal(t, existingResource.ID, response["tenant_id"])
 
 		// Cleanup
-		entityStore.DeleteTenant(context.Background(), existingResource.ID)
+		tenantStore.DeleteTenant(context.Background(), existingResource.ID)
 	})
 
 	t.Run("should include theme in redirect_url when provided", func(t *testing.T) {
@@ -276,7 +276,7 @@ func TestTenantRetrievePortalHandler(t *testing.T) {
 			ID:        idgen.String(),
 			CreatedAt: time.Now(),
 		}
-		entityStore.UpsertTenant(context.Background(), existingResource)
+		tenantStore.UpsertTenant(context.Background(), existingResource)
 
 		// Request
 		w := httptest.NewRecorder()
@@ -293,7 +293,7 @@ func TestTenantRetrievePortalHandler(t *testing.T) {
 		assert.Equal(t, existingResource.ID, response["tenant_id"])
 
 		// Cleanup
-		entityStore.DeleteTenant(context.Background(), existingResource.ID)
+		tenantStore.DeleteTenant(context.Background(), existingResource.ID)
 	})
 }
 
@@ -301,7 +301,7 @@ func TestTenantListHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	_ = setupTestEntityStore(t, redisClient)
+	_ = setupTestTenantStore(t, redisClient)
 
 	// Note: These tests use miniredis which doesn't support RediSearch.
 	// The ListTenant feature requires RediSearch, so we expect 501 Not Implemented.

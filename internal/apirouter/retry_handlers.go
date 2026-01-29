@@ -14,20 +14,20 @@ import (
 
 type RetryHandlers struct {
 	logger      *logging.Logger
-	entityStore tenantstore.TenantStore
+	tenantStore tenantstore.TenantStore
 	logStore    logstore.LogStore
 	deliveryMQ  *deliverymq.DeliveryMQ
 }
 
 func NewRetryHandlers(
 	logger *logging.Logger,
-	entityStore tenantstore.TenantStore,
+	tenantStore tenantstore.TenantStore,
 	logStore logstore.LogStore,
 	deliveryMQ *deliverymq.DeliveryMQ,
 ) *RetryHandlers {
 	return &RetryHandlers{
 		logger:      logger,
-		entityStore: entityStore,
+		tenantStore: tenantStore,
 		logStore:    logStore,
 		deliveryMQ:  deliveryMQ,
 	}
@@ -59,7 +59,7 @@ func (h *RetryHandlers) RetryAttempt(c *gin.Context) {
 	}
 
 	// 2. Check destination exists and is enabled
-	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), tenant.ID, attemptRecord.Attempt.DestinationID)
+	destination, err := h.tenantStore.RetrieveDestination(c.Request.Context(), tenant.ID, attemptRecord.Attempt.DestinationID)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return

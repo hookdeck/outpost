@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/simplejsonmatch"
 )
 
@@ -32,90 +31,6 @@ type Destination struct {
 	CreatedAt        time.Time        `json:"created_at" redis:"created_at"`
 	UpdatedAt        time.Time        `json:"updated_at" redis:"updated_at"`
 	DisabledAt       *time.Time       `json:"disabled_at" redis:"disabled_at"`
-}
-
-func (d *Destination) parseRedisHash(cmd *redis.MapStringStringCmd, cipher Cipher) error {
-	hash, err := cmd.Result()
-	if err != nil {
-		return err
-	}
-	if len(hash) == 0 {
-		return redis.Nil
-	}
-	// Check for deleted resource before scanning
-	if _, exists := hash["deleted_at"]; exists {
-		return ErrDestinationDeleted
-	}
-
-	// Parse basic fields manually (Scan doesn't handle numeric timestamps)
-	d.ID = hash["id"]
-	d.Type = hash["type"]
-
-	// Parse created_at - supports both numeric (Unix) and RFC3339 formats
-	d.CreatedAt, err = parseTimestamp(hash["created_at"])
-	if err != nil {
-		return fmt.Errorf("invalid created_at: %w", err)
-	}
-
-	// Parse updated_at - same lazy migration support
-	if hash["updated_at"] != "" {
-		d.UpdatedAt, err = parseTimestamp(hash["updated_at"])
-		if err != nil {
-			d.UpdatedAt = d.CreatedAt
-		}
-	} else {
-		d.UpdatedAt = d.CreatedAt
-	}
-
-	// Parse disabled_at if present
-	if hash["disabled_at"] != "" {
-		disabledAt, err := parseTimestamp(hash["disabled_at"])
-		if err == nil {
-			d.DisabledAt = &disabledAt
-		}
-	}
-	err = d.Topics.UnmarshalBinary([]byte(hash["topics"]))
-	if err != nil {
-		return fmt.Errorf("invalid topics: %w", err)
-	}
-	err = d.Config.UnmarshalBinary([]byte(hash["config"]))
-	if err != nil {
-		return fmt.Errorf("invalid config: %w", err)
-	}
-	credentialsBytes, err := cipher.Decrypt([]byte(hash["credentials"]))
-	if err != nil {
-		return fmt.Errorf("invalid credentials: %w", err)
-	}
-	err = d.Credentials.UnmarshalBinary(credentialsBytes)
-	if err != nil {
-		return fmt.Errorf("invalid credentials: %w", err)
-	}
-	// Decrypt and deserialize delivery_metadata if present
-	if deliveryMetadataStr, exists := hash["delivery_metadata"]; exists && deliveryMetadataStr != "" {
-		deliveryMetadataBytes, err := cipher.Decrypt([]byte(deliveryMetadataStr))
-		if err != nil {
-			return fmt.Errorf("invalid delivery_metadata: %w", err)
-		}
-		err = d.DeliveryMetadata.UnmarshalBinary(deliveryMetadataBytes)
-		if err != nil {
-			return fmt.Errorf("invalid delivery_metadata: %w", err)
-		}
-	}
-	// Deserialize metadata if present
-	if metadataStr, exists := hash["metadata"]; exists && metadataStr != "" {
-		err = d.Metadata.UnmarshalBinary([]byte(metadataStr))
-		if err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
-		}
-	}
-	// Deserialize filter if present
-	if filterStr, exists := hash["filter"]; exists && filterStr != "" {
-		err = d.Filter.UnmarshalBinary([]byte(filterStr))
-		if err != nil {
-			return fmt.Errorf("invalid filter: %w", err)
-		}
-	}
-	return nil
 }
 
 func (d *Destination) Validate(topics []string) error {

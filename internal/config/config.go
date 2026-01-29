@@ -453,7 +453,7 @@ func (c *TelemetryConfig) ToTelemetryConfig() telemetry.TelemetryConfig {
 func (c *Config) ToTelemetryApplicationInfo() telemetry.ApplicationInfo {
 	portalEnabled := c.APIKey != "" && c.APIJWTSecret != ""
 
-	entityStore := "redis"
+	tenantStore := "redis"
 	logStore := ""
 	if c.ClickHouse.Addr != "" {
 		logStore = "clickhouse"
@@ -466,7 +466,7 @@ func (c *Config) ToTelemetryApplicationInfo() telemetry.ApplicationInfo {
 		Version:       version.Version(),
 		MQ:            c.MQs.GetInfraType(),
 		PortalEnabled: portalEnabled,
-		EntityStore:   entityStore,
+		TenantStore:   tenantStore,
 		LogStore:      logStore,
 	}
 }

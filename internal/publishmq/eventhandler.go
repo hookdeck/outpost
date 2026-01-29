@@ -36,14 +36,14 @@ type eventHandler struct {
 	logger      *logging.Logger
 	idempotence idempotence.Idempotence
 	deliveryMQ  *deliverymq.DeliveryMQ
-	entityStore tenantstore.TenantStore
+	tenantStore tenantstore.TenantStore
 	topics      []string
 }
 
 func NewEventHandler(
 	logger *logging.Logger,
 	deliveryMQ *deliverymq.DeliveryMQ,
-	entityStore tenantstore.TenantStore,
+	tenantStore tenantstore.TenantStore,
 	eventTracer eventtracer.EventTracer,
 	topics []string,
 	idempotence idempotence.Idempotence,
@@ -53,7 +53,7 @@ func NewEventHandler(
 		logger:      logger,
 		idempotence: idempotence,
 		deliveryMQ:  deliveryMQ,
-		entityStore: entityStore,
+		tenantStore: tenantStore,
 		eventTracer: eventTracer,
 		topics:      topics,
 		emeter:      emeter,
@@ -91,7 +91,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		}
 	} else {
 		// Topic-based matching path
-		matchedDestinations, err = h.entityStore.MatchEvent(ctx, *event)
+		matchedDestinations, err = h.tenantStore.MatchEvent(ctx, *event)
 		if err != nil {
 			logger.Error("failed to match event destinations",
 				zap.Error(err),
@@ -156,7 +156,7 @@ func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, match
 // matchSpecificDestination handles the case where a specific destination_id is provided.
 // It retrieves the destination and validates it, returning the matched destinations.
 func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *models.Event) ([]models.DestinationSummary, error) {
-	destination, err := h.entityStore.RetrieveDestination(ctx, event.TenantID, event.DestinationID)
+	destination, err := h.tenantStore.RetrieveDestination(ctx, event.TenantID, event.DestinationID)
 	if err != nil {
 		h.logger.Ctx(ctx).Warn("failed to retrieve destination",
 			zap.Error(err),

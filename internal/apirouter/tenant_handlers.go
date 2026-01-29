@@ -18,7 +18,7 @@ type TenantHandlers struct {
 	telemetry    telemetry.Telemetry
 	jwtSecret    string
 	deploymentID string
-	entityStore  tenantstore.TenantStore
+	tenantStore  tenantstore.TenantStore
 }
 
 func NewTenantHandlers(
@@ -26,14 +26,14 @@ func NewTenantHandlers(
 	telemetry telemetry.Telemetry,
 	jwtSecret string,
 	deploymentID string,
-	entityStore tenantstore.TenantStore,
+	tenantStore tenantstore.TenantStore,
 ) *TenantHandlers {
 	return &TenantHandlers{
 		logger:       logger,
 		telemetry:    telemetry,
 		jwtSecret:    jwtSecret,
 		deploymentID: deploymentID,
-		entityStore:  entityStore,
+		tenantStore:  tenantStore,
 	}
 }
 
@@ -56,7 +56,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	}
 
 	// Check existing tenant.
-	existingTenant, err := h.entityStore.RetrieveTenant(c.Request.Context(), tenantID)
+	existingTenant, err := h.tenantStore.RetrieveTenant(c.Request.Context(), tenantID)
 	if err != nil && err != tenantstore.ErrTenantDeleted {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -66,7 +66,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	if existingTenant != nil {
 		existingTenant.Metadata = input.Metadata
 		existingTenant.UpdatedAt = time.Now()
-		if err := h.entityStore.UpsertTenant(c.Request.Context(), *existingTenant); err != nil {
+		if err := h.tenantStore.UpsertTenant(c.Request.Context(), *existingTenant); err != nil {
 			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 			return
 		}
@@ -83,7 +83,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	if err := h.entityStore.UpsertTenant(c.Request.Context(), *tenant); err != nil {
+	if err := h.tenantStore.UpsertTenant(c.Request.Context(), *tenant); err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
@@ -131,7 +131,7 @@ func (h *TenantHandlers) List(c *gin.Context) {
 	}
 
 	// Call entity store
-	resp, err := h.entityStore.ListTenant(c.Request.Context(), req)
+	resp, err := h.tenantStore.ListTenant(c.Request.Context(), req)
 	if err != nil {
 		// Map errors to HTTP status codes
 		if errors.Is(err, tenantstore.ErrListTenantNotSupported) {
@@ -167,7 +167,7 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 		return
 	}
 
-	err := h.entityStore.DeleteTenant(c.Request.Context(), tenantID)
+	err := h.tenantStore.DeleteTenant(c.Request.Context(), tenantID)
 	if err != nil {
 		if err == tenantstore.ErrTenantNotFound {
 			c.Status(http.StatusNotFound)
