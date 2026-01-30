@@ -1,16 +1,21 @@
 package apirouter
 
 import (
+	"context"
 	"net/http"
-
-	"errors"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 )
 
-func RequireTenantMiddleware(tenantStore tenantstore.TenantStore) gin.HandlerFunc {
+// TenantRetriever is satisfied by tenantstore.TenantStore.
+// Defined here to avoid coupling the router/middleware to the full store interface.
+type TenantRetriever interface {
+	RetrieveTenant(ctx context.Context, tenantID string) (*models.Tenant, error)
+}
+
+func RequireTenantMiddleware(tenantRetriever TenantRetriever) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantID, exists := c.Get("tenantID")
 		if !exists {
@@ -18,7 +23,7 @@ func RequireTenantMiddleware(tenantStore tenantstore.TenantStore) gin.HandlerFun
 			return
 		}
 
-		tenant, err := tenantStore.RetrieveTenant(c.Request.Context(), tenantID.(string))
+		tenant, err := tenantRetriever.RetrieveTenant(c.Request.Context(), tenantID.(string))
 		if err != nil {
 			if err == tenantstore.ErrTenantDeleted {
 				c.AbortWithStatus(http.StatusNotFound)
@@ -39,8 +44,7 @@ func RequireTenantMiddleware(tenantStore tenantstore.TenantStore) gin.HandlerFun
 func mustTenantFromContext(c *gin.Context) *models.Tenant {
 	tenant, ok := c.Get("tenant")
 	if !ok {
-		AbortWithError(c, http.StatusInternalServerError, errors.New("tenant not found in context"))
-		return nil
+		panic("mustTenantFromContext: tenant not found in context - route is likely missing TenantScoped: true")
 	}
 	return tenant.(*models.Tenant)
 }
