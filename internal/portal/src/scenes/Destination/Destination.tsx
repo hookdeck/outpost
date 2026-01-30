@@ -24,7 +24,7 @@ interface Tab {
 const tabs: Tab[] = [
   { label: "Overview", path: "" },
   { label: "Settings", path: "/settings" },
-  { label: "Event Deliveries", path: "/attempts" },
+  { label: "Event Deliveries", path: "/deliveries" },
 ];
 
 const Destination = () => {
@@ -131,7 +131,7 @@ const Destination = () => {
               }
             />
             <Route
-              path="/attempts/*"
+              path="/deliveries/*"
               element={<AttemptRoutes destination={destination} />}
             />
             <Route

@@ -131,7 +131,7 @@ const Attempts: React.FC<AttemptsProps> = ({
     <div className="destination-attempts">
       <div className="destination-attempts__header">
         <h2 className="destination-attempts__header-title title-l">
-          Attempts{" "}
+          Event Deliveries{" "}
           <Badge text={attemptsList?.models.length ?? 0} size="s" />
         </h2>
         <div className="destination-attempts__header-filters">
@@ -396,7 +396,7 @@ export const AttemptRoutes = ({ destination }: { destination: any }) => {
   const navigateAttempt = useCallback(
     (path: string, state?: any) => {
       navigate(
-        `/destinations/${destination.id}/attempts${path}?${urlSearchParams}`,
+        `/destinations/${destination.id}/deliveries${path}?${urlSearchParams}`,
         { state },
       );
     },
