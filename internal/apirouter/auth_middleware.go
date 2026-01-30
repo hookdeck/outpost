@@ -137,4 +137,3 @@ func TenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
 		c.Next()
 	}
 }
-
