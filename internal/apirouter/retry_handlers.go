@@ -39,9 +39,6 @@ func NewRetryHandlers(
 // - Destination must exist and be enabled
 func (h *RetryHandlers) RetryAttempt(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
 	attemptID := c.Param("attemptID")
 
 	// 1. Look up attempt by ID
