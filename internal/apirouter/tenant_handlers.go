@@ -38,10 +38,7 @@ func NewTenantHandlers(
 }
 
 func (h *TenantHandlers) Upsert(c *gin.Context) {
-	tenantID := mustTenantIDFromContext(c)
-	if tenantID == "" {
-		return
-	}
+	tenantID := c.Param("tenantID")
 
 	// Parse request body for metadata
 	var input struct {
@@ -93,9 +90,6 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 
 func (h *TenantHandlers) Retrieve(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
 	c.JSON(http.StatusOK, tenant)
 }
 
@@ -162,12 +156,9 @@ func (h *TenantHandlers) List(c *gin.Context) {
 }
 
 func (h *TenantHandlers) Delete(c *gin.Context) {
-	tenantID := mustTenantIDFromContext(c)
-	if tenantID == "" {
-		return
-	}
+	tenant := mustTenantFromContext(c)
 
-	err := h.tenantStore.DeleteTenant(c.Request.Context(), tenantID)
+	err := h.tenantStore.DeleteTenant(c.Request.Context(), tenant.ID)
 	if err != nil {
 		if err == tenantstore.ErrTenantNotFound {
 			c.Status(http.StatusNotFound)
@@ -181,9 +172,6 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 
 func (h *TenantHandlers) RetrieveToken(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
 	jwtToken, err := JWT.New(h.jwtSecret, JWTClaims{
 		TenantID:     tenant.ID,
 		DeploymentID: h.deploymentID,
@@ -197,9 +185,6 @@ func (h *TenantHandlers) RetrieveToken(c *gin.Context) {
 
 func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
 	jwtToken, err := JWT.New(h.jwtSecret, JWTClaims{
 		TenantID:     tenant.ID,
 		DeploymentID: h.deploymentID,

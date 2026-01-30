@@ -197,9 +197,6 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 // Query params: event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_order
 func (h *LogHandlers) ListAttempts(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
 	h.listAttemptsInternal(c, tenant.ID, "")
 }
 
@@ -207,9 +204,6 @@ func (h *LogHandlers) ListAttempts(c *gin.Context) {
 // Same as ListAttempts but scoped to a specific destination via URL param.
 func (h *LogHandlers) ListDestinationAttempts(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
 	destinationID := c.Param("destinationID")
 	h.listAttemptsInternal(c, tenant.ID, destinationID)
 }
@@ -310,9 +304,6 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantID string, dest
 // RetrieveEvent handles GET /:tenantID/events/:eventID
 func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
 	eventID := c.Param("eventID")
 	event, err := h.logStore.RetrieveEvent(c.Request.Context(), logstore.RetrieveEventRequest{
 		TenantID: tenant.ID,
@@ -339,9 +330,6 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 // RetrieveAttempt handles GET /:tenantID/attempts/:attemptID
 func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
 	attemptID := c.Param("attemptID")
 
 	attemptRecord, err := h.logStore.RetrieveAttempt(c.Request.Context(), logstore.RetrieveAttemptRequest{
@@ -378,9 +366,6 @@ func (h *LogHandlers) AdminListAttempts(c *gin.Context) {
 // Query params: destination_id, topic[], start, end, limit, next, prev, sort_order
 func (h *LogHandlers) ListEvents(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
 	h.listEventsInternal(c, tenant.ID)
 }
 

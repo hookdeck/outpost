@@ -173,4 +173,21 @@ func TestJWT(t *testing.T) {
 		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
 		assert.False(t, valid)
 	})
+
+	t.Run("should fail to extract claims from expired token", func(t *testing.T) {
+		t.Parallel()
+		now := time.Now()
+		jwtToken := jwt.NewWithClaims(signingMethod, jwt.MapClaims{
+			"iss": issuer,
+			"sub": tenantID,
+			"iat": now.Add(-2 * time.Hour).Unix(),
+			"exp": now.Add(-24 * time.Hour).Unix(),
+		})
+		token, err := jwtToken.SignedString([]byte(jwtKey))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = apirouter.JWT.Extract(jwtKey, token)
+		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
+	})
 }
