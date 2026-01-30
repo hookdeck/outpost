@@ -59,6 +59,9 @@ up/deps:
 down/deps:
 	COMPOSE_PROFILES=$$(./build/dev/deps/profiles.sh --all) docker-compose -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml down
 
+nuke/deps:
+	COMPOSE_PROFILES=$$(docker compose -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml config --profiles | paste -sd, -) docker compose -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml down --volumes --remove-orphans
+
 up/mqs:
 	docker-compose -f build/dev/mqs/compose.yml up -d
 
