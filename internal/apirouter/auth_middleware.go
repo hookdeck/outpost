@@ -61,10 +61,6 @@ func APIKeyAuthMiddleware(apiKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := validateAuthHeader(c)
 		if err != nil {
-			if errors.Is(err, ErrInvalidBearerToken) {
-				c.AbortWithStatus(http.StatusBadRequest)
-				return
-			}
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -91,10 +87,6 @@ func APIKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFu
 	return func(c *gin.Context) {
 		token, err := validateAuthHeader(c)
 		if err != nil {
-			if errors.Is(err, ErrInvalidBearerToken) {
-				c.AbortWithStatus(http.StatusBadRequest)
-				return
-			}
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -135,10 +127,6 @@ func TenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
 
 		token, err := validateAuthHeader(c)
 		if err != nil {
-			if errors.Is(err, ErrInvalidBearerToken) {
-				c.AbortWithStatus(http.StatusBadRequest)
-				return
-			}
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}

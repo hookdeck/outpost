@@ -4,8 +4,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/hookdeck/outpost/internal/apirouter"
@@ -64,7 +66,7 @@ func TestPrivateAPIKeyRouter(t *testing.T) {
 		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/tenant_id", nil)
 		req.Header.Set("Authorization", "invalid key")
 		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
 	t.Run("should reject requests with an incorrect authorization token", func(t *testing.T) {
@@ -230,6 +232,27 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 		assert.Equal(t, tenantID, contextTenantID)
 	})
 
+	t.Run("should reject expired JWT token", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		// Create expired JWT token
+		token := newExpiredJWTToken(t, jwtSecret, tenantID)
+
+		// Set auth header
+		c.Request = httptest.NewRequest("GET", "/", nil)
+		c.Request.Header.Set("Authorization", "Bearer "+token)
+
+		// Test
+		handler := apirouter.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
+		handler(c)
+
+		assert.Equal(t, http.StatusUnauthorized, c.Writer.Status())
+	})
+
 	t.Run("should accept when using API key regardless of tenantID param", func(t *testing.T) {
 		t.Parallel()
 
@@ -252,6 +275,21 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 
 func newJWTToken(t *testing.T, secret string, tenantID string) string {
 	token, err := apirouter.JWT.New(secret, apirouter.JWTClaims{TenantID: tenantID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return token
+}
+
+func newExpiredJWTToken(t *testing.T, secret string, tenantID string) string {
+	now := time.Now()
+	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"iss": "outpost",
+		"sub": tenantID,
+		"iat": now.Add(-2 * time.Hour).Unix(),
+		"exp": now.Add(-1 * time.Hour).Unix(),
+	})
+	token, err := jwtToken.SignedString([]byte(secret))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,11 +331,11 @@ func TestTenantJWTAuthMiddleware(t *testing.T) {
 			wantTenantID: "",
 		},
 		{
-			name:         "should return 400 when invalid auth header",
+			name:         "should return 401 when invalid auth header",
 			apiKey:       "key",
 			jwtSecret:    "secret",
 			header:       "invalid",
-			wantStatus:   http.StatusBadRequest,
+			wantStatus:   http.StatusUnauthorized,
 			wantTenantID: "",
 		},
 		{
@@ -324,6 +362,14 @@ func TestTenantJWTAuthMiddleware(t *testing.T) {
 			paramTenantID: "other-tenant-id",
 			wantStatus:    http.StatusUnauthorized,
 			wantTenantID:  "",
+		},
+		{
+			name:         "should return 401 when token is expired",
+			apiKey:       "key",
+			jwtSecret:    "secret",
+			header:       "Bearer " + newExpiredJWTToken(t, "secret", "tenant-id"),
+			wantStatus:   http.StatusUnauthorized,
+			wantTenantID: "",
 		},
 	}
 
