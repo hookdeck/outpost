@@ -15,6 +15,7 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/scheduler"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -68,7 +69,7 @@ type messageHandler struct {
 	eventTracer    DeliveryTracer
 	logger         *logging.Logger
 	logMQ          LogPublisher
-	entityStore    DestinationGetter
+	tenantStore    DestinationGetter
 	retryScheduler RetryScheduler
 	retryBackoff   backoff.Backoff
 	retryMaxLimit  int
@@ -105,7 +106,7 @@ type AlertMonitor interface {
 func NewMessageHandler(
 	logger *logging.Logger,
 	logMQ LogPublisher,
-	entityStore DestinationGetter,
+	tenantStore DestinationGetter,
 	publisher Publisher,
 	eventTracer DeliveryTracer,
 	retryScheduler RetryScheduler,
@@ -118,7 +119,7 @@ func NewMessageHandler(
 		eventTracer:    eventTracer,
 		logger:         logger,
 		logMQ:          logMQ,
-		entityStore:    entityStore,
+		tenantStore:    tenantStore,
 		publisher:      publisher,
 		retryScheduler: retryScheduler,
 		retryBackoff:   retryBackoff,
@@ -163,7 +164,7 @@ func (h *messageHandler) handleError(msg *mqs.Message, err error) error {
 	// Don't return error for expected cases
 	var preErr *PreDeliveryError
 	if errors.As(err, &preErr) {
-		if errors.Is(preErr.err, models.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
+		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
 			return nil
 		}
 	}
@@ -359,7 +360,7 @@ func (h *messageHandler) shouldNackError(err error) bool {
 	var preErr *PreDeliveryError
 	if errors.As(err, &preErr) {
 		// Don't nack if it's a permanent error
-		if errors.Is(preErr.err, models.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
+		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
 			return false
 		}
 		return true // Nack other pre-delivery errors
@@ -428,7 +429,7 @@ func (h *messageHandler) scheduleRetry(ctx context.Context, task models.Delivery
 // Returns an error if the destination is not found, deleted, disabled, or any other state that
 // would prevent publishing.
 func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task models.DeliveryTask) (*models.Destination, error) {
-	destination, err := h.entityStore.RetrieveDestination(ctx, task.Event.TenantID, task.DestinationID)
+	destination, err := h.tenantStore.RetrieveDestination(ctx, task.Event.TenantID, task.DestinationID)
 	if err != nil {
 		logger := h.logger.Ctx(ctx)
 		fields := []zap.Field{
@@ -438,7 +439,7 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task 
 			zap.String("destination_id", task.DestinationID),
 		}
 
-		if errors.Is(err, models.ErrDestinationDeleted) {
+		if errors.Is(err, tenantstore.ErrDestinationDeleted) {
 			logger.Info("destination deleted", fields...)
 		} else {
 			// Unexpected errors like DB connection issues
@@ -451,7 +452,7 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task 
 			zap.String("event_id", task.Event.ID),
 			zap.String("tenant_id", task.Event.TenantID),
 			zap.String("destination_id", task.DestinationID))
-		return nil, models.ErrDestinationNotFound
+		return nil, tenantstore.ErrDestinationNotFound
 	}
 	if destination.DisabledAt != nil {
 		h.logger.Ctx(ctx).Info("skipping disabled destination",

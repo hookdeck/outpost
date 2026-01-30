@@ -23,11 +23,11 @@ func TestRetryAttempt(t *testing.T) {
 	// Create a tenant and destination
 	tenantID := idgen.String()
 	destinationID := idgen.Destination()
-	require.NoError(t, result.entityStore.UpsertTenant(context.Background(), models.Tenant{
+	require.NoError(t, result.tenantStore.UpsertTenant(context.Background(), models.Tenant{
 		ID:        tenantID,
 		CreatedAt: time.Now(),
 	}))
-	require.NoError(t, result.entityStore.UpsertDestination(context.Background(), models.Destination{
+	require.NoError(t, result.tenantStore.UpsertDestination(context.Background(), models.Destination{
 		ID:        destinationID,
 		TenantID:  tenantID,
 		Type:      "webhook",
@@ -117,7 +117,7 @@ func TestRetryAttempt(t *testing.T) {
 		// Create a new destination that's disabled
 		disabledDestinationID := idgen.Destination()
 		disabledAt := time.Now()
-		require.NoError(t, result.entityStore.UpsertDestination(context.Background(), models.Destination{
+		require.NoError(t, result.tenantStore.UpsertDestination(context.Background(), models.Destination{
 			ID:         disabledDestinationID,
 			TenantID:   tenantID,
 			Type:       "webhook",

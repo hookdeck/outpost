@@ -43,7 +43,7 @@ func startMockServer(cfg *Config) {
 }
 
 type MockServerInfra struct {
-	sdk destinationmockserver.EntityStore
+	sdk destinationmockserver.MockStore
 }
 
 func NewMockServerInfra(baseURL string) *MockServerInfra {

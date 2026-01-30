@@ -18,7 +18,7 @@ func TestDestinationCreateHandler(t *testing.T) {
 	t.Parallel()
 
 	router, _, redisClient := setupTestRouter(t, "", "")
-	entityStore := setupTestEntityStore(t, redisClient, nil)
+	tenantStore := setupTestTenantStore(t, redisClient)
 
 	t.Run("should set updated_at equal to created_at on creation", func(t *testing.T) {
 		t.Parallel()
@@ -30,7 +30,7 @@ func TestDestinationCreateHandler(t *testing.T) {
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
-		err := entityStore.UpsertTenant(context.Background(), tenant)
+		err := tenantStore.UpsertTenant(context.Background(), tenant)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -60,8 +60,8 @@ func TestDestinationCreateHandler(t *testing.T) {
 
 		// Cleanup
 		if destID, ok := response["id"].(string); ok {
-			entityStore.DeleteDestination(context.Background(), tenantID, destID)
+			tenantStore.DeleteDestination(context.Background(), tenantID, destID)
 		}
-		entityStore.DeleteTenant(context.Background(), tenantID)
+		tenantStore.DeleteTenant(context.Background(), tenantID)
 	})
 }

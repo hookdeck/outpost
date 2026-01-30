@@ -314,7 +314,7 @@ func TestFilter_UnmarshalBinary(t *testing.T) {
 	})
 }
 
-func TestDestinationSummary_MatchFilter(t *testing.T) {
+func TestMatchFilter(t *testing.T) {
 	t.Parallel()
 
 	baseEvent := testutil.EventFactory.Any(
@@ -600,13 +600,7 @@ func TestDestinationSummary_MatchFilter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ds := models.DestinationSummary{
-				ID:     "dest_1",
-				Type:   "webhook",
-				Topics: []string{"*"},
-				Filter: tc.filter,
-			}
-			assert.Equal(t, tc.expected, ds.MatchFilter(tc.event))
+			assert.Equal(t, tc.expected, models.MatchFilter(tc.filter, tc.event))
 		})
 	}
 }
@@ -639,24 +633,96 @@ func TestDestination_JSONMarshalWithFilter(t *testing.T) {
 	assert.Equal(t, "order.created", unmarshaled.Filter["data"].(map[string]any)["type"])
 }
 
-func TestDestinationSummary_ToSummaryIncludesFilter(t *testing.T) {
+// ============================== Tenant tests ==============================
+
+func TestTenant_JSONMarshalWithMetadata(t *testing.T) {
 	t.Parallel()
 
-	destination := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithID("dest_123"),
-		testutil.DestinationFactory.WithType("webhook"),
-		testutil.DestinationFactory.WithTopics([]string{"*"}),
-		testutil.DestinationFactory.WithFilter(models.Filter{
-			"data": map[string]any{
-				"type": "order.created",
-			},
+	tenant := testutil.TenantFactory.Any(
+		testutil.TenantFactory.WithID("tenant_123"),
+		testutil.TenantFactory.WithMetadata(map[string]string{
+			"environment": "production",
+			"team":        "platform",
+			"region":      "us-east-1",
 		}),
 	)
 
-	summary := destination.ToSummary()
+	// Marshal to JSON
+	jsonBytes, err := json.Marshal(tenant)
+	assert.NoError(t, err)
 
-	assert.Equal(t, destination.ID, summary.ID)
-	assert.Equal(t, destination.Type, summary.Type)
-	assert.Equal(t, destination.Topics, summary.Topics)
-	assert.Equal(t, destination.Filter, summary.Filter)
+	// Unmarshal back
+	var unmarshaled models.Tenant
+	err = json.Unmarshal(jsonBytes, &unmarshaled)
+	assert.NoError(t, err)
+
+	// Verify metadata is preserved
+	assert.Equal(t, tenant.Metadata, unmarshaled.Metadata)
+	assert.Equal(t, "production", unmarshaled.Metadata["environment"])
+	assert.Equal(t, "platform", unmarshaled.Metadata["team"])
+	assert.Equal(t, "us-east-1", unmarshaled.Metadata["region"])
+
+	// Verify other fields still work
+	assert.Equal(t, tenant.ID, unmarshaled.ID)
+}
+
+func TestTenant_JSONMarshalWithoutMetadata(t *testing.T) {
+	t.Parallel()
+
+	tenant := testutil.TenantFactory.Any(
+		testutil.TenantFactory.WithID("tenant_123"),
+	)
+
+	// Marshal to JSON
+	jsonBytes, err := json.Marshal(tenant)
+	assert.NoError(t, err)
+
+	// Unmarshal back
+	var unmarshaled models.Tenant
+	err = json.Unmarshal(jsonBytes, &unmarshaled)
+	assert.NoError(t, err)
+
+	// Verify metadata is nil when not provided
+	assert.Nil(t, unmarshaled.Metadata)
+}
+
+func TestTenant_JSONUnmarshalEmptyMetadata(t *testing.T) {
+	t.Parallel()
+
+	jsonData := `{
+		"id": "tenant_123",
+		"destinations_count": 0,
+		"topics": [],
+		"metadata": {},
+		"created_at": "2024-01-01T00:00:00Z"
+	}`
+
+	var tenant models.Tenant
+	err := json.Unmarshal([]byte(jsonData), &tenant)
+	assert.NoError(t, err)
+
+	// Empty maps should be preserved as empty, not nil
+	assert.NotNil(t, tenant.Metadata)
+	assert.Empty(t, tenant.Metadata)
+}
+
+func TestTenant_JSONMarshalWithUpdatedAt(t *testing.T) {
+	t.Parallel()
+
+	tenant := testutil.TenantFactory.Any(
+		testutil.TenantFactory.WithID("tenant_123"),
+	)
+
+	// Marshal to JSON
+	jsonBytes, err := json.Marshal(tenant)
+	assert.NoError(t, err)
+
+	// Unmarshal back
+	var unmarshaled models.Tenant
+	err = json.Unmarshal(jsonBytes, &unmarshaled)
+	assert.NoError(t, err)
+
+	// Verify updated_at is preserved
+	assert.Equal(t, tenant.UpdatedAt.Unix(), unmarshaled.UpdatedAt.Unix())
+	assert.Equal(t, tenant.CreatedAt.Unix(), unmarshaled.CreatedAt.Unix())
 }

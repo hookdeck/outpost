@@ -212,7 +212,7 @@ func (t *telemetryImpl) makeEvent(eventType string, data map[string]interface{})
 type ApplicationInfo struct {
 	Version       string
 	MQ            string
-	EntityStore   string
+	TenantStore   string
 	LogStore      string
 	PortalEnabled bool
 }
@@ -221,7 +221,7 @@ func (a *ApplicationInfo) ToData() map[string]interface{} {
 	return map[string]interface{}{
 		"version":        a.Version,
 		"mq":             a.MQ,
-		"entity_store":   a.EntityStore,
+		"tenant_store":   a.TenantStore,
 		"log_store":      a.LogStore,
 		"portal_enabled": a.PortalEnabled,
 	}

@@ -13,11 +13,11 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
-	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
@@ -98,7 +98,7 @@ func NewRouter(
 	logger *logging.Logger,
 	redisClient redis.Cmdable,
 	deliveryMQ *deliverymq.DeliveryMQ,
-	entityStore models.EntityStore,
+	tenantStore tenantstore.TenantStore,
 	logStore logstore.LogStore,
 	publishmqEventHandler publishmq.EventHandler,
 	telemetry telemetry.Telemetry,
@@ -139,11 +139,11 @@ func NewRouter(
 	apiRouter := r.Group("/api/v1")
 	apiRouter.Use(SetTenantIDMiddleware())
 
-	tenantHandlers := NewTenantHandlers(logger, telemetry, cfg.JWTSecret, cfg.DeploymentID, entityStore)
-	destinationHandlers := NewDestinationHandlers(logger, telemetry, entityStore, cfg.Topics, cfg.Registry)
+	tenantHandlers := NewTenantHandlers(logger, telemetry, cfg.JWTSecret, cfg.DeploymentID, tenantStore)
+	destinationHandlers := NewDestinationHandlers(logger, telemetry, tenantStore, cfg.Topics, cfg.Registry)
 	publishHandlers := NewPublishHandlers(logger, publishmqEventHandler)
 	logHandlers := NewLogHandlers(logger, logStore)
-	retryHandlers := NewRetryHandlers(logger, entityStore, logStore, deliveryMQ)
+	retryHandlers := NewRetryHandlers(logger, tenantStore, logStore, deliveryMQ)
 	topicHandlers := NewTopicHandlers(logger, cfg.Topics)
 
 	// Non-tenant routes (no :tenantID in path)
@@ -196,7 +196,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdmin,
 			Mode:      RouteModePortal,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 		{
@@ -206,7 +206,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdmin,
 			Mode:      RouteModePortal,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 	}
@@ -246,7 +246,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 		{
@@ -256,7 +256,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 
@@ -268,7 +268,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 		{
@@ -278,7 +278,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 		{
@@ -288,7 +288,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 		{
@@ -298,7 +298,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 		{
@@ -308,7 +308,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 		{
@@ -318,7 +318,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 		{
@@ -328,7 +328,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 
@@ -340,7 +340,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 		{
@@ -350,7 +350,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 		{
@@ -360,7 +360,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 
@@ -372,7 +372,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 		{
@@ -382,7 +382,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 
@@ -394,7 +394,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 		{
@@ -404,7 +404,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 		{
@@ -414,7 +414,7 @@ func NewRouter(
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
+				RequireTenantMiddleware(tenantStore),
 			},
 		},
 	}

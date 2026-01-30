@@ -1,4 +1,4 @@
-package models
+package redistenantstore
 
 import (
 	"crypto/aes"
@@ -9,18 +9,11 @@ import (
 	"io"
 )
 
-type Cipher interface {
-	Encrypt(data []byte) ([]byte, error)
-	Decrypt(data []byte) ([]byte, error)
-}
-
-type AESCipher struct {
+type aesCipher struct {
 	secret string
 }
 
-var _ Cipher = (*AESCipher)(nil)
-
-func (a *AESCipher) Encrypt(toBeEncrypted []byte) ([]byte, error) {
+func (a *aesCipher) encrypt(toBeEncrypted []byte) ([]byte, error) {
 	aead, err := a.aead()
 	if err != nil {
 		return nil, err
@@ -33,11 +26,10 @@ func (a *AESCipher) Encrypt(toBeEncrypted []byte) ([]byte, error) {
 	}
 
 	encrypted := aead.Seal(nonce, nonce, toBeEncrypted, nil)
-
 	return encrypted, nil
 }
 
-func (a *AESCipher) Decrypt(toBeDecrypted []byte) ([]byte, error) {
+func (a *aesCipher) decrypt(toBeDecrypted []byte) ([]byte, error) {
 	aead, err := a.aead()
 	if err != nil {
 		return nil, err
@@ -54,7 +46,7 @@ func (a *AESCipher) Decrypt(toBeDecrypted []byte) ([]byte, error) {
 	return decrypted, nil
 }
 
-func (a *AESCipher) aead() (cipher.AEAD, error) {
+func (a *aesCipher) aead() (cipher.AEAD, error) {
 	aesBlock, err := aes.NewCipher([]byte(mdHashing(a.secret)))
 	if err != nil {
 		return nil, err
@@ -62,10 +54,8 @@ func (a *AESCipher) aead() (cipher.AEAD, error) {
 	return cipher.NewGCM(aesBlock)
 }
 
-func NewAESCipher(secret string) Cipher {
-	return &AESCipher{
-		secret: secret,
-	}
+func newAESCipher(secret string) *aesCipher {
+	return &aesCipher{secret: secret}
 }
 
 func mdHashing(input string) string {

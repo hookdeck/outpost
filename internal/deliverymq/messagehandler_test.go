@@ -13,6 +13,7 @@ import (
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -153,7 +154,7 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 	)
 
 	// Setup mocks
-	destGetter := &mockDestinationGetter{err: models.ErrDestinationDeleted}
+	destGetter := &mockDestinationGetter{err: tenantstore.ErrDestinationDeleted}
 	retryScheduler := newMockRetryScheduler()
 	logPublisher := newMockLogPublisher(nil)
 	alertMonitor := newMockAlertMonitor()

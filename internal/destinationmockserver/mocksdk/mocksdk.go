@@ -11,7 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
-func New(baseURL string) destinationmockserver.EntityStore {
+func New(baseURL string) destinationmockserver.MockStore {
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		panic(err)

@@ -18,11 +18,11 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/logstore"
-	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/worker"
 	"go.uber.org/zap"
 )
@@ -47,7 +47,7 @@ type serviceInstance struct {
 	// Common infrastructure
 	redisClient    redis.Client
 	logStore       logstore.LogStore
-	entityStore    models.EntityStore
+	tenantStore    tenantstore.TenantStore
 	destRegistry   destregistry.Registry
 	eventTracer    eventtracer.EventTracer
 	deliveryMQ     *deliverymq.DeliveryMQ
@@ -172,7 +172,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	if err := svc.initEventTracer(b.cfg, b.logger); err != nil {
 		return err
 	}
-	if err := svc.initEntityStore(b.ctx, b.cfg, b.logger); err != nil {
+	if err := svc.initTenantStore(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
 
@@ -188,7 +188,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.PublishIdempotencyKeyTTL)*time.Second),
 		idempotence.WithDeploymentID(b.cfg.DeploymentID),
 	)
-	eventHandler := publishmq.NewEventHandler(b.logger, svc.deliveryMQ, svc.entityStore, svc.eventTracer, b.cfg.Topics, publishIdempotence)
+	eventHandler := publishmq.NewEventHandler(b.logger, svc.deliveryMQ, svc.tenantStore, svc.eventTracer, b.cfg.Topics, publishIdempotence)
 
 	apiHandler := apirouter.NewRouter(
 		apirouter.RouterConfig{
@@ -204,7 +204,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 		b.logger,
 		svc.redisClient,
 		svc.deliveryMQ,
-		svc.entityStore,
+		svc.tenantStore,
 		svc.logStore,
 		eventHandler,
 		b.telemetry,
@@ -263,7 +263,7 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	if err := svc.initEventTracer(b.cfg, b.logger); err != nil {
 		return err
 	}
-	if err := svc.initEntityStore(b.ctx, b.cfg, b.logger); err != nil {
+	if err := svc.initTenantStore(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
 	if err := svc.initLogStore(b.ctx, b.cfg, b.logger); err != nil {
@@ -280,7 +280,7 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		alertNotifier = alert.NewHTTPAlertNotifier(b.cfg.Alert.CallbackURL, alert.NotifierWithBearerToken(b.cfg.APIKey))
 	}
 	if b.cfg.Alert.AutoDisableDestination {
-		destinationDisabler = newDestinationDisabler(svc.entityStore)
+		destinationDisabler = newDestinationDisabler(svc.tenantStore)
 	}
 	alertMonitor := alert.NewAlertMonitor(
 		b.logger,
@@ -304,7 +304,7 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	handler := deliverymq.NewMessageHandler(
 		b.logger,
 		svc.logMQ,
-		svc.entityStore,
+		svc.tenantStore,
 		svc.destRegistry,
 		svc.eventTracer,
 		svc.retryScheduler,
@@ -403,17 +403,17 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 
 // destinationDisabler implements alert.DestinationDisabler
 type destinationDisabler struct {
-	entityStore models.EntityStore
+	tenantStore tenantstore.TenantStore
 }
 
-func newDestinationDisabler(entityStore models.EntityStore) alert.DestinationDisabler {
+func newDestinationDisabler(tenantStore tenantstore.TenantStore) alert.DestinationDisabler {
 	return &destinationDisabler{
-		entityStore: entityStore,
+		tenantStore: tenantStore,
 	}
 }
 
 func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) error {
-	destination, err := d.entityStore.RetrieveDestination(ctx, tenantID, destinationID)
+	destination, err := d.tenantStore.RetrieveDestination(ctx, tenantID, destinationID)
 	if err != nil {
 		return err
 	}
@@ -422,7 +422,7 @@ func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, 
 	}
 	now := time.Now()
 	destination.DisabledAt = &now
-	return d.entityStore.UpsertDestination(ctx, *destination)
+	return d.tenantStore.UpsertDestination(ctx, *destination)
 }
 
 // Helper methods for serviceInstance to initialize common dependencies
@@ -463,19 +463,20 @@ func (s *serviceInstance) initLogStore(ctx context.Context, cfg *config.Config, 
 	return nil
 }
 
-func (s *serviceInstance) initEntityStore(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
+func (s *serviceInstance) initTenantStore(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
 	if s.redisClient == nil {
-		return fmt.Errorf("redis client must be initialized before entity store")
+		return fmt.Errorf("redis client must be initialized before tenant store")
 	}
-	logger.Debug("creating entity store", zap.String("service", s.name))
-	s.entityStore = models.NewEntityStore(s.redisClient,
-		models.WithCipher(models.NewAESCipher(cfg.AESEncryptionSecret)),
-		models.WithAvailableTopics(cfg.Topics),
-		models.WithMaxDestinationsPerTenant(cfg.MaxDestinationsPerTenant),
-		models.WithDeploymentID(cfg.DeploymentID),
-	)
-	if err := s.entityStore.Init(ctx); err != nil {
-		return fmt.Errorf("failed to initialize entity store: %w", err)
+	logger.Debug("creating tenant store", zap.String("service", s.name))
+	s.tenantStore = tenantstore.New(tenantstore.Config{
+		RedisClient:              s.redisClient,
+		Secret:                   cfg.AESEncryptionSecret,
+		AvailableTopics:          cfg.Topics,
+		MaxDestinationsPerTenant: cfg.MaxDestinationsPerTenant,
+		DeploymentID:             cfg.DeploymentID,
+	})
+	if err := s.tenantStore.Init(ctx); err != nil {
+		return fmt.Errorf("failed to initialize tenant store: %w", err)
 	}
 	return nil
 }

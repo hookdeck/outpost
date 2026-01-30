@@ -1,35 +1,10 @@
 package models
 
 import (
-	"encoding"
 	"encoding/json"
-	"fmt"
-	"time"
 
 	"github.com/hookdeck/outpost/internal/mqs"
 )
-
-type Data map[string]interface{}
-
-var _ fmt.Stringer = &Data{}
-var _ encoding.BinaryUnmarshaler = &Data{}
-
-func (d *Data) String() string {
-	data, err := json.Marshal(d)
-	if err != nil {
-		return ""
-	}
-	return string(data)
-}
-
-func (d *Data) UnmarshalBinary(data []byte) error {
-	if string(data) == "" {
-		return nil
-	}
-	return json.Unmarshal(data, d)
-}
-
-type Metadata = MapStringString
 
 type EventTelemetry struct {
 	TraceID      string
@@ -37,19 +12,9 @@ type EventTelemetry struct {
 	ReceivedTime string // format time.RFC3339Nano
 }
 
-type Event struct {
-	ID               string    `json:"id"`
-	TenantID         string    `json:"tenant_id"`
-	DestinationID    string    `json:"destination_id"`
-	Topic            string    `json:"topic"`
-	EligibleForRetry bool      `json:"eligible_for_retry"`
-	Time             time.Time `json:"time"`
-	Metadata         Metadata  `json:"metadata"`
-	Data             Data      `json:"data"`
-	Status           string    `json:"status,omitempty"`
-
-	// Telemetry data, must exist to properly trace events between publish receiver & delivery handler
-	Telemetry *EventTelemetry `json:"telemetry,omitempty"`
+type DeliveryTelemetry struct {
+	TraceID string
+	SpanID  string
 }
 
 var _ mqs.IncomingMessage = &Event{}
@@ -64,11 +29,6 @@ func (e *Event) ToMessage() (*mqs.Message, error) {
 		return nil, err
 	}
 	return &mqs.Message{Body: data}, nil
-}
-
-type DeliveryTelemetry struct {
-	TraceID string
-	SpanID  string
 }
 
 // DeliveryTask represents a task to deliver an event to a destination.
@@ -127,11 +87,6 @@ func NewManualDeliveryTask(event Event, destinationID string) DeliveryTask {
 	return task
 }
 
-const (
-	AttemptStatusSuccess = "success"
-	AttemptStatusFailed  = "failed"
-)
-
 // LogEntry represents a message for the log queue.
 //
 // IMPORTANT: Both Event and Attempt are REQUIRED. The logstore requires both
@@ -154,17 +109,4 @@ func (e *LogEntry) ToMessage() (*mqs.Message, error) {
 		return nil, err
 	}
 	return &mqs.Message{Body: data}, nil
-}
-
-type Attempt struct {
-	ID            string                 `json:"id"`
-	TenantID      string                 `json:"tenant_id"`
-	EventID       string                 `json:"event_id"`
-	DestinationID string                 `json:"destination_id"`
-	AttemptNumber int                    `json:"attempt_number"`
-	Manual        bool                   `json:"manual"`
-	Status        string                 `json:"status"`
-	Time          time.Time              `json:"time"`
-	Code          string                 `json:"code"`
-	ResponseData  map[string]interface{} `json:"response_data"`
 }
