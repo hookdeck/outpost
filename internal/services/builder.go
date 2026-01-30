@@ -19,10 +19,10 @@ import (
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/publishmq"
-	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/worker"
 	"go.uber.org/zap"
 )

@@ -36,9 +36,9 @@ type destinationRecord struct {
 type store struct {
 	mu sync.RWMutex
 
-	tenants        map[string]*tenantRecord      // tenantID -> record
-	destinations   map[string]*destinationRecord  // "tenantID\x00destID" -> record
-	destsByTenant  map[string]map[string]struct{} // tenantID -> set of destIDs
+	tenants       map[string]*tenantRecord       // tenantID -> record
+	destinations  map[string]*destinationRecord  // "tenantID\x00destID" -> record
+	destsByTenant map[string]map[string]struct{} // tenantID -> set of destIDs
 
 	maxDestinationsPerTenant int
 }

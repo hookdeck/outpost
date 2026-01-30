@@ -14,8 +14,8 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
-	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/scheduler"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )

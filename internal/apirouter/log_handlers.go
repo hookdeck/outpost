@@ -88,13 +88,13 @@ func parseIncludeOptions(c *gin.Context) IncludeOptions {
 
 // APIAttempt is the API response for an attempt
 type APIAttempt struct {
-	ID           string                 `json:"id"`
-	Status       string                 `json:"status"`
-	DeliveredAt  time.Time              `json:"delivered_at"`
-	Code         string                 `json:"code,omitempty"`
-	ResponseData map[string]interface{} `json:"response_data,omitempty"`
-	AttemptNumber int                   `json:"attempt_number"`
-	Manual       bool                   `json:"manual"`
+	ID            string                 `json:"id"`
+	Status        string                 `json:"status"`
+	DeliveredAt   time.Time              `json:"delivered_at"`
+	Code          string                 `json:"code,omitempty"`
+	ResponseData  map[string]interface{} `json:"response_data,omitempty"`
+	AttemptNumber int                    `json:"attempt_number"`
+	Manual        bool                   `json:"manual"`
 
 	// Expandable fields - string (ID) or object depending on expand
 	Event       interface{} `json:"event"`
@@ -146,8 +146,8 @@ type EventPaginatedResult struct {
 func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 	api := APIAttempt{
 		AttemptNumber: ar.Attempt.AttemptNumber,
-		Manual:      ar.Attempt.Manual,
-		Destination: ar.Attempt.DestinationID,
+		Manual:        ar.Attempt.Manual,
+		Destination:   ar.Attempt.DestinationID,
 	}
 
 	if ar.Attempt != nil {

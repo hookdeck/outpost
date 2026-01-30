@@ -604,4 +604,3 @@ func (s *store) MatchEvent(ctx context.Context, event models.Event) ([]string, e
 
 	return matched, nil
 }
-
