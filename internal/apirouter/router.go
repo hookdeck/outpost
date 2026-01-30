@@ -132,7 +132,6 @@ func NewRouter(
 	portal.AddRoutes(r, cfg.PortalConfig)
 
 	apiRouter := r.Group("/api/v1")
-	apiRouter.Use(SetTenantIDMiddleware())
 
 	tenantHandlers := NewTenantHandlers(logger, telemetry, cfg.JWTSecret, cfg.DeploymentID, tenantStore)
 	destinationHandlers := NewDestinationHandlers(logger, telemetry, tenantStore, cfg.Topics, cfg.Registry)

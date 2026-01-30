@@ -11,7 +11,6 @@ import (
 var (
 	ErrMissingAuthHeader  = errors.New("missing authorization header")
 	ErrInvalidBearerToken = errors.New("invalid bearer token format")
-	ErrTenantIDNotFound   = errors.New("tenantID not found in context")
 )
 
 const (
@@ -22,16 +21,6 @@ const (
 	RoleAdmin  = "admin"
 	RoleTenant = "tenant"
 )
-
-func SetTenantIDMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		tenantID := c.Param("tenantID")
-		if tenantID != "" {
-			c.Set("tenantID", tenantID)
-		}
-		c.Next()
-	}
-}
 
 // validateAuthHeader checks the Authorization header and returns the token if valid
 func validateAuthHeader(c *gin.Context) (string, error) {
@@ -149,15 +138,3 @@ func TenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
 	}
 }
 
-func mustTenantIDFromContext(c *gin.Context) string {
-	tenantID, exists := c.Get("tenantID")
-	if !exists {
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return ""
-	}
-	if tenantID == nil {
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return ""
-	}
-	return tenantID.(string)
-}

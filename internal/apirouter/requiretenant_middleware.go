@@ -17,13 +17,13 @@ type TenantRetriever interface {
 
 func RequireTenantMiddleware(tenantRetriever TenantRetriever) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tenantID, exists := c.Get("tenantID")
-		if !exists {
+		tenantID := c.Param("tenantID")
+		if tenantID == "" {
 			c.AbortWithStatus(http.StatusNotFound)
 			return
 		}
 
-		tenant, err := tenantRetriever.RetrieveTenant(c.Request.Context(), tenantID.(string))
+		tenant, err := tenantRetriever.RetrieveTenant(c.Request.Context(), tenantID)
 		if err != nil {
 			if err == tenantstore.ErrTenantDeleted {
 				c.AbortWithStatus(http.StatusNotFound)
