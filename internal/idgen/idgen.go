@@ -14,11 +14,10 @@ var (
 func init() {
 	// Initialize with default UUID v4 generator
 	globalGenerator = &IDGenerator{
-		generator:           &uuidv4Generator{},
-		eventPrefix:         "",
-		destinationPrefix:   "",
-		deliveryPrefix:      "",
-		deliveryEventPrefix: "",
+		generator:         &uuidv4Generator{},
+		eventPrefix:       "",
+		destinationPrefix: "",
+		attemptPrefix:     "",
 	}
 }
 
@@ -27,11 +26,10 @@ type idGenerator interface {
 }
 
 type IDGenerator struct {
-	generator           idGenerator
-	eventPrefix         string
-	destinationPrefix   string
-	deliveryPrefix      string
-	deliveryEventPrefix string
+	generator         idGenerator
+	eventPrefix       string
+	destinationPrefix string
+	attemptPrefix     string
 }
 
 func (g *IDGenerator) Event() string {
@@ -42,12 +40,8 @@ func (g *IDGenerator) Destination() string {
 	return g.generate(g.destinationPrefix)
 }
 
-func (g *IDGenerator) Delivery() string {
-	return g.generate(g.deliveryPrefix)
-}
-
-func (g *IDGenerator) DeliveryEvent() string {
-	return g.generate(g.deliveryEventPrefix)
+func (g *IDGenerator) Attempt() string {
+	return g.generate(g.attemptPrefix)
 }
 
 func (g *IDGenerator) Installation() string {
@@ -68,7 +62,6 @@ func newIDGenerator(idType string) (idGenerator, error) {
 		idType = "uuidv4"
 	}
 
-	// Select the appropriate generator implementation
 	switch idType {
 	case "uuidv4":
 		return &uuidv4Generator{}, nil
@@ -113,11 +106,10 @@ func (g *nanoidGenerator) generate() string {
 }
 
 type IDGenConfig struct {
-	Type                string
-	EventPrefix         string
-	DestinationPrefix   string
-	DeliveryPrefix      string
-	DeliveryEventPrefix string
+	Type              string
+	EventPrefix       string
+	DestinationPrefix string
+	AttemptPrefix     string
 }
 
 func Configure(cfg IDGenConfig) error {
@@ -127,11 +119,10 @@ func Configure(cfg IDGenConfig) error {
 	}
 
 	globalGenerator = &IDGenerator{
-		generator:           gen,
-		eventPrefix:         cfg.EventPrefix,
-		destinationPrefix:   cfg.DestinationPrefix,
-		deliveryPrefix:      cfg.DeliveryPrefix,
-		deliveryEventPrefix: cfg.DeliveryEventPrefix,
+		generator:         gen,
+		eventPrefix:       cfg.EventPrefix,
+		destinationPrefix: cfg.DestinationPrefix,
+		attemptPrefix:     cfg.AttemptPrefix,
 	}
 
 	return nil
@@ -145,12 +136,8 @@ func Destination() string {
 	return globalGenerator.Destination()
 }
 
-func Delivery() string {
-	return globalGenerator.Delivery()
-}
-
-func DeliveryEvent() string {
-	return globalGenerator.DeliveryEvent()
+func Attempt() string {
+	return globalGenerator.Attempt()
 }
 
 func Installation() string {

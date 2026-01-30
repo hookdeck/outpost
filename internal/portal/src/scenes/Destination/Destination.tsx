@@ -14,19 +14,17 @@ import {
 } from "../../typings/Destination";
 import getLogo from "../../utils/logo";
 import DestinationSettings from "./DestinationSettings/DestinationSettings";
-import { DeliveryRoutes } from "./Events/Deliveries";
+import { AttemptRoutes } from "./Events/Attempts";
 
-// Define the tab interface
 interface Tab {
   label: string;
   path: string;
 }
 
-// Define available tabs
 const tabs: Tab[] = [
   { label: "Overview", path: "" },
   { label: "Settings", path: "/settings" },
-  { label: "Deliveries", path: "/deliveries" },
+  { label: "Event Deliveries", path: "/deliveries" },
 ];
 
 const Destination = () => {
@@ -134,7 +132,7 @@ const Destination = () => {
             />
             <Route
               path="/deliveries/*"
-              element={<DeliveryRoutes destination={destination} />}
+              element={<AttemptRoutes destination={destination} />}
             />
             <Route
               path="/"

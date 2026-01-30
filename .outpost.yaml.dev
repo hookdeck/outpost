@@ -70,10 +70,9 @@ portal:
 # ID Generation
 idgen:
   type: "nanoid"
-  event_prefix: "evt_"
-  destination_prefix: "des_"
-  delivery_prefix: "dlv_"
-  delivery_event_prefix: "dev_"
+  attempt_prefix: "atm"
+  destination_prefix: "des"
+  event_prefix: "evt"
 
 # Concurrency
 publish_max_concurrency: 1

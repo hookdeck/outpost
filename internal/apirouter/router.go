@@ -145,7 +145,6 @@ func NewRouter(
 	logHandlers := NewLogHandlers(logger, logStore)
 	retryHandlers := NewRetryHandlers(logger, entityStore, logStore, deliveryMQ)
 	topicHandlers := NewTopicHandlers(logger, cfg.Topics)
-	legacyHandlers := NewLegacyHandlers(logger, entityStore, logStore, deliveryMQ)
 
 	// Non-tenant routes (no :tenantID in path)
 	nonTenantRoutes := []RouteDefinition{
@@ -172,8 +171,8 @@ func NewRouter(
 		},
 		{
 			Method:    http.MethodGet,
-			Path:      "/deliveries",
-			Handler:   logHandlers.AdminListDeliveries,
+			Path:      "/attempts",
+			Handler:   logHandlers.AdminListAttempts,
 			AuthScope: AuthScopeAdmin,
 			Mode:      RouteModeAlways,
 		},
@@ -333,6 +332,38 @@ func NewRouter(
 			},
 		},
 
+		// Destination-scoped attempt routes
+		{
+			Method:    http.MethodGet,
+			Path:      "/:tenantID/destinations/:destinationID/attempts",
+			Handler:   logHandlers.ListDestinationAttempts,
+			AuthScope: AuthScopeAdminOrTenant,
+			Mode:      RouteModeAlways,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+		{
+			Method:    http.MethodGet,
+			Path:      "/:tenantID/destinations/:destinationID/attempts/:attemptID",
+			Handler:   logHandlers.RetrieveAttempt,
+			AuthScope: AuthScopeAdminOrTenant,
+			Mode:      RouteModeAlways,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+		{
+			Method:    http.MethodPost,
+			Path:      "/:tenantID/destinations/:destinationID/attempts/:attemptID/retry",
+			Handler:   retryHandlers.RetryAttempt,
+			AuthScope: AuthScopeAdminOrTenant,
+			Mode:      RouteModeAlways,
+			Middlewares: []gin.HandlerFunc{
+				RequireTenantMiddleware(entityStore),
+			},
+		},
+
 		// Event routes
 		{
 			Method:    http.MethodGet,
@@ -354,22 +385,12 @@ func NewRouter(
 				RequireTenantMiddleware(entityStore),
 			},
 		},
-		{
-			Method:    http.MethodGet,
-			Path:      "/:tenantID/events/:eventID/deliveries",
-			Handler:   legacyHandlers.ListDeliveriesByEvent,
-			AuthScope: AuthScopeAdminOrTenant,
-			Mode:      RouteModeAlways,
-			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
-			},
-		},
 
-		// Delivery routes
+		// Attempt routes
 		{
 			Method:    http.MethodGet,
-			Path:      "/:tenantID/deliveries",
-			Handler:   logHandlers.ListDeliveries,
+			Path:      "/:tenantID/attempts",
+			Handler:   logHandlers.ListAttempts,
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
@@ -378,8 +399,8 @@ func NewRouter(
 		},
 		{
 			Method:    http.MethodGet,
-			Path:      "/:tenantID/deliveries/:deliveryID",
-			Handler:   logHandlers.RetrieveDelivery,
+			Path:      "/:tenantID/attempts/:attemptID",
+			Handler:   logHandlers.RetrieveAttempt,
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
@@ -388,42 +409,8 @@ func NewRouter(
 		},
 		{
 			Method:    http.MethodPost,
-			Path:      "/:tenantID/deliveries/:deliveryID/retry",
-			Handler:   retryHandlers.RetryDelivery,
-			AuthScope: AuthScopeAdminOrTenant,
-			Mode:      RouteModeAlways,
-			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
-			},
-		},
-	}
-
-	// Legacy routes (deprecated, for backward compatibility)
-	legacyRoutes := []RouteDefinition{
-		{
-			Method:    http.MethodGet,
-			Path:      "/:tenantID/destinations/:destinationID/events",
-			Handler:   legacyHandlers.ListEventsByDestination,
-			AuthScope: AuthScopeAdminOrTenant,
-			Mode:      RouteModeAlways,
-			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
-			},
-		},
-		{
-			Method:    http.MethodGet,
-			Path:      "/:tenantID/destinations/:destinationID/events/:eventID",
-			Handler:   legacyHandlers.RetrieveEventByDestination,
-			AuthScope: AuthScopeAdminOrTenant,
-			Mode:      RouteModeAlways,
-			Middlewares: []gin.HandlerFunc{
-				RequireTenantMiddleware(entityStore),
-			},
-		},
-		{
-			Method:    http.MethodPost,
-			Path:      "/:tenantID/destinations/:destinationID/events/:eventID/retry",
-			Handler:   legacyHandlers.RetryByEventDestination,
+			Path:      "/:tenantID/attempts/:attemptID/retry",
+			Handler:   retryHandlers.RetryAttempt,
 			AuthScope: AuthScopeAdminOrTenant,
 			Mode:      RouteModeAlways,
 			Middlewares: []gin.HandlerFunc{
@@ -441,7 +428,6 @@ func NewRouter(
 	tenantScopedRoutes = append(tenantScopedRoutes, portalRoutes...)
 	tenantScopedRoutes = append(tenantScopedRoutes, tenantAgnosticRoutes...)
 	tenantScopedRoutes = append(tenantScopedRoutes, tenantSpecificRoutes...)
-	tenantScopedRoutes = append(tenantScopedRoutes, legacyRoutes...)
 
 	// Register tenant-scoped routes under /tenants prefix
 	tenantsGroup := apiRouter.Group("/tenants")

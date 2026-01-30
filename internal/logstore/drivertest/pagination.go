@@ -28,11 +28,11 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 	baseTime := time.Now().Truncate(time.Second)
 	farPast := baseTime.Add(-48 * time.Hour)
 
-	t.Run("ListDeliveryEvent", func(t *testing.T) {
+	t.Run("ListAttempt", func(t *testing.T) {
 		var tenantID, destinationID, idPrefix string
 
-		suite := paginationtest.Suite[*models.DeliveryEvent]{
-			Name: "ListDeliveryEvent",
+		suite := paginationtest.Suite[*driver.AttemptRecord]{
+			Name: "ListAttempt",
 
 			Cleanup: func(ctx context.Context) error {
 				tenantID = idgen.String()
@@ -41,9 +41,9 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 				return nil
 			},
 
-			NewItem: func(i int) *models.DeliveryEvent {
+			NewItem: func(i int) *driver.AttemptRecord {
 				eventTime := baseTime.Add(time.Duration(i) * time.Second)
-				deliveryTime := eventTime.Add(100 * time.Millisecond)
+				attemptTime := eventTime.Add(100 * time.Millisecond)
 
 				event := &models.Event{
 					ID:               fmt.Sprintf("%s_evt_%03d", idPrefix, i),
@@ -56,29 +56,32 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 					Data:             map[string]any{},
 				}
 
-				delivery := &models.Delivery{
+				attempt := &models.Attempt{
 					ID:            fmt.Sprintf("%s_del_%03d", idPrefix, i),
+					TenantID:      tenantID,
 					EventID:       event.ID,
 					DestinationID: destinationID,
 					Status:        "success",
-					Time:          deliveryTime,
+					Time:          attemptTime,
 					Code:          "200",
 				}
 
-				return &models.DeliveryEvent{
-					ID:            fmt.Sprintf("%s_de_%03d", idPrefix, i),
-					DestinationID: destinationID,
-					Event:         *event,
-					Delivery:      delivery,
+				return &driver.AttemptRecord{
+					Event:   event,
+					Attempt: attempt,
 				}
 			},
 
-			InsertMany: func(ctx context.Context, items []*models.DeliveryEvent) error {
-				return logStore.InsertManyDeliveryEvent(ctx, items)
+			InsertMany: func(ctx context.Context, items []*driver.AttemptRecord) error {
+				entries := make([]*models.LogEntry, len(items))
+				for i, dr := range items {
+					entries[i] = &models.LogEntry{Event: dr.Event, Attempt: dr.Attempt}
+				}
+				return logStore.InsertMany(ctx, entries)
 			},
 
-			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*models.DeliveryEvent], error) {
-				res, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*driver.AttemptRecord], error) {
+				res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 					TenantID:   tenantID,
 					Limit:      opts.Limit,
 					SortOrder:  opts.Order,
@@ -87,17 +90,17 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 					TimeFilter: driver.TimeFilter{GTE: &farPast},
 				})
 				if err != nil {
-					return paginationtest.ListResult[*models.DeliveryEvent]{}, err
+					return paginationtest.ListResult[*driver.AttemptRecord]{}, err
 				}
-				return paginationtest.ListResult[*models.DeliveryEvent]{
+				return paginationtest.ListResult[*driver.AttemptRecord]{
 					Items: res.Data,
 					Next:  res.Next,
 					Prev:  res.Prev,
 				}, nil
 			},
 
-			GetID: func(de *models.DeliveryEvent) string {
-				return de.Delivery.ID
+			GetID: func(dr *driver.AttemptRecord) string {
+				return dr.Attempt.ID
 			},
 
 			AfterInsert: func(ctx context.Context) error {
@@ -108,11 +111,11 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 		suite.Run(t)
 	})
 
-	t.Run("ListDeliveryEvent_WithDestinationFilter", func(t *testing.T) {
+	t.Run("ListAttempt_WithDestinationFilter", func(t *testing.T) {
 		var tenantID, targetDestID, otherDestID, idPrefix string
 
-		suite := paginationtest.Suite[*models.DeliveryEvent]{
-			Name: "ListDeliveryEvent_WithDestinationFilter",
+		suite := paginationtest.Suite[*driver.AttemptRecord]{
+			Name: "ListAttempt_WithDestinationFilter",
 
 			Cleanup: func(ctx context.Context) error {
 				tenantID = idgen.String()
@@ -122,9 +125,9 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 				return nil
 			},
 
-			NewItem: func(i int) *models.DeliveryEvent {
+			NewItem: func(i int) *driver.AttemptRecord {
 				eventTime := baseTime.Add(time.Duration(i) * time.Second)
-				deliveryTime := eventTime.Add(100 * time.Millisecond)
+				attemptTime := eventTime.Add(100 * time.Millisecond)
 
 				destID := targetDestID
 				if i%2 == 1 {
@@ -142,29 +145,32 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 					Data:             map[string]any{},
 				}
 
-				delivery := &models.Delivery{
+				attempt := &models.Attempt{
 					ID:            fmt.Sprintf("%s_del_%03d", idPrefix, i),
+					TenantID:      tenantID,
 					EventID:       event.ID,
 					DestinationID: destID,
 					Status:        "success",
-					Time:          deliveryTime,
+					Time:          attemptTime,
 					Code:          "200",
 				}
 
-				return &models.DeliveryEvent{
-					ID:            fmt.Sprintf("%s_de_%03d", idPrefix, i),
-					DestinationID: destID,
-					Event:         *event,
-					Delivery:      delivery,
+				return &driver.AttemptRecord{
+					Event:   event,
+					Attempt: attempt,
 				}
 			},
 
-			InsertMany: func(ctx context.Context, items []*models.DeliveryEvent) error {
-				return logStore.InsertManyDeliveryEvent(ctx, items)
+			InsertMany: func(ctx context.Context, items []*driver.AttemptRecord) error {
+				entries := make([]*models.LogEntry, len(items))
+				for i, dr := range items {
+					entries[i] = &models.LogEntry{Event: dr.Event, Attempt: dr.Attempt}
+				}
+				return logStore.InsertMany(ctx, entries)
 			},
 
-			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*models.DeliveryEvent], error) {
-				res, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*driver.AttemptRecord], error) {
+				res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 					TenantID:       tenantID,
 					DestinationIDs: []string{targetDestID},
 					Limit:          opts.Limit,
@@ -174,21 +180,21 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 					TimeFilter:     driver.TimeFilter{GTE: &farPast},
 				})
 				if err != nil {
-					return paginationtest.ListResult[*models.DeliveryEvent]{}, err
+					return paginationtest.ListResult[*driver.AttemptRecord]{}, err
 				}
-				return paginationtest.ListResult[*models.DeliveryEvent]{
+				return paginationtest.ListResult[*driver.AttemptRecord]{
 					Items: res.Data,
 					Next:  res.Next,
 					Prev:  res.Prev,
 				}, nil
 			},
 
-			GetID: func(de *models.DeliveryEvent) string {
-				return de.Delivery.ID
+			GetID: func(dr *driver.AttemptRecord) string {
+				return dr.Attempt.ID
 			},
 
-			Matches: func(de *models.DeliveryEvent) bool {
-				return de.DestinationID == targetDestID
+			Matches: func(dr *driver.AttemptRecord) bool {
+				return dr.Attempt.DestinationID == targetDestID
 			},
 
 			AfterInsert: func(ctx context.Context) error {
@@ -228,24 +234,23 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 			},
 
 			InsertMany: func(ctx context.Context, items []*models.Event) error {
-				des := make([]*models.DeliveryEvent, len(items))
+				entries := make([]*models.LogEntry, len(items))
 				for i, evt := range items {
-					deliveryTime := evt.Time.Add(100 * time.Millisecond)
-					des[i] = &models.DeliveryEvent{
-						ID:            fmt.Sprintf("%s_de_%03d", idPrefix, i),
-						DestinationID: evt.DestinationID,
-						Event:         *evt,
-						Delivery: &models.Delivery{
+					attemptTime := evt.Time.Add(100 * time.Millisecond)
+					entries[i] = &models.LogEntry{
+						Event: evt,
+						Attempt: &models.Attempt{
 							ID:            fmt.Sprintf("%s_del_%03d", idPrefix, i),
+							TenantID:      evt.TenantID,
 							EventID:       evt.ID,
 							DestinationID: evt.DestinationID,
 							Status:        "success",
-							Time:          deliveryTime,
+							Time:          attemptTime,
 							Code:          "200",
 						},
 					}
 				}
-				return logStore.InsertManyDeliveryEvent(ctx, des)
+				return logStore.InsertMany(ctx, entries)
 			},
 
 			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*models.Event], error) {
@@ -314,24 +319,23 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 			},
 
 			InsertMany: func(ctx context.Context, items []*models.Event) error {
-				des := make([]*models.DeliveryEvent, len(items))
+				entries := make([]*models.LogEntry, len(items))
 				for i, evt := range items {
-					deliveryTime := evt.Time.Add(100 * time.Millisecond)
-					des[i] = &models.DeliveryEvent{
-						ID:            fmt.Sprintf("%s_de_%03d", idPrefix, i),
-						DestinationID: evt.DestinationID,
-						Event:         *evt,
-						Delivery: &models.Delivery{
+					attemptTime := evt.Time.Add(100 * time.Millisecond)
+					entries[i] = &models.LogEntry{
+						Event: evt,
+						Attempt: &models.Attempt{
 							ID:            fmt.Sprintf("%s_del_%03d", idPrefix, i),
+							TenantID:      evt.TenantID,
 							EventID:       evt.ID,
 							DestinationID: evt.DestinationID,
 							Status:        "success",
-							Time:          deliveryTime,
+							Time:          attemptTime,
 							Code:          "200",
 						},
 					}
 				}
-				return logStore.InsertManyDeliveryEvent(ctx, des)
+				return logStore.InsertMany(ctx, entries)
 			},
 
 			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*models.Event], error) {
@@ -375,8 +379,8 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 	// time-based filters (GTE, LTE, GT, LT), which is critical for
 	// "paginate within a time window" use cases.
 	//
-	// IMPORTANT: ListDeliveryEvent filters by DELIVERY time, ListEvent filters by EVENT time.
-	// In this test, delivery_time = event_time + 100ms.
+	// IMPORTANT: ListAttempt filters by ATTEMPT time, ListEvent filters by EVENT time.
+	// In this test, attempt_time = event_time + 100ms.
 	t.Run("TimeFilterWithCursor", func(t *testing.T) {
 		tenantID := idgen.String()
 		destinationID := idgen.Destination()
@@ -388,15 +392,17 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 		// - Events 15-19: far future (should be excluded by LTE filter)
 		//
 		// Event times are spaced 2 minutes apart within the window.
-		// Delivery times are 1 second after event times (not sub-second)
+		// Attempt times are 1 second after event times (not sub-second)
 		// to ensure GT/LT tests work consistently across databases.
 		eventWindowStart := baseTime.Add(-10 * time.Minute)
 		eventWindowEnd := baseTime.Add(10 * time.Minute)
-		// Delivery window accounts for the 1 second offset
-		deliveryWindowStart := eventWindowStart.Add(time.Second)
-		deliveryWindowEnd := eventWindowEnd.Add(time.Second)
+		// Attempt window accounts for the 1 second offset
+		attemptWindowStart := eventWindowStart.Add(time.Second)
+		attemptWindowEnd := eventWindowEnd.Add(time.Second)
 
-		var allEvents []*models.DeliveryEvent
+		var allRecords []*driver.AttemptRecord
+		var allEvents []*models.Event
+		var allAttempts []*models.Attempt
 		for i := range 20 {
 			var eventTime time.Time
 			switch {
@@ -412,7 +418,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 				eventTime = eventWindowEnd.Add(time.Duration(i-14) * time.Hour)
 			}
 
-			deliveryTime := eventTime.Add(time.Second)
+			attemptTime := eventTime.Add(time.Second)
 
 			event := &models.Event{
 				ID:               fmt.Sprintf("%s_evt_%03d", idPrefix, i),
@@ -424,45 +430,50 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 				Metadata:         map[string]string{},
 				Data:             map[string]any{},
 			}
-			delivery := &models.Delivery{
+			attempt := &models.Attempt{
 				ID:            fmt.Sprintf("%s_del_%03d", idPrefix, i),
+				TenantID:      tenantID,
 				EventID:       event.ID,
 				DestinationID: destinationID,
 				Status:        "success",
-				Time:          deliveryTime,
+				Time:          attemptTime,
 				Code:          "200",
 			}
-			allEvents = append(allEvents, &models.DeliveryEvent{
-				ID:            fmt.Sprintf("%s_de_%03d", idPrefix, i),
-				DestinationID: destinationID,
-				Event:         *event,
-				Delivery:      delivery,
+			allRecords = append(allRecords, &driver.AttemptRecord{
+				Event:   event,
+				Attempt: attempt,
 			})
+			allEvents = append(allEvents, event)
+			allAttempts = append(allAttempts, attempt)
 		}
 
-		require.NoError(t, logStore.InsertManyDeliveryEvent(ctx, allEvents))
+		entries := make([]*models.LogEntry, len(allEvents))
+		for i := range allEvents {
+			entries[i] = &models.LogEntry{Event: allEvents[i], Attempt: allAttempts[i]}
+		}
+		require.NoError(t, logStore.InsertMany(ctx, entries))
 		require.NoError(t, h.FlushWrites(ctx))
 
 		t.Run("paginate within time-bounded window", func(t *testing.T) {
-			// Paginate through deliveries within the window with limit=3
-			// ListDeliveryEvent filters by DELIVERY time, not event time.
-			// Should only see deliveries 5-14 (10 total), not 0-4 or 15-19
+			// Paginate through attempts within the window with limit=3
+			// ListAttempt filters by ATTEMPT time, not event time.
+			// Should only see attempts 5-14 (10 total), not 0-4 or 15-19
 			var collectedIDs []string
 			var nextCursor string
 			pageCount := 0
 
 			for {
-				res, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+				res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 					TenantID:   tenantID,
 					Limit:      3,
 					SortOrder:  "asc",
 					Next:       nextCursor,
-					TimeFilter: driver.TimeFilter{GTE: &deliveryWindowStart, LTE: &deliveryWindowEnd},
+					TimeFilter: driver.TimeFilter{GTE: &attemptWindowStart, LTE: &attemptWindowEnd},
 				})
 				require.NoError(t, err)
 
-				for _, de := range res.Data {
-					collectedIDs = append(collectedIDs, de.Event.ID)
+				for _, dr := range res.Data {
+					collectedIDs = append(collectedIDs, dr.Event.ID)
 				}
 
 				pageCount++
@@ -477,18 +488,18 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 				}
 			}
 
-			// Should have collected exactly deliveries 5-14
-			require.Len(t, collectedIDs, 10, "should have 10 deliveries in window")
+			// Should have collected exactly attempts 5-14
+			require.Len(t, collectedIDs, 10, "should have 10 attempts in window")
 			for i, id := range collectedIDs {
 				expectedID := fmt.Sprintf("%s_evt_%03d", idPrefix, i+5)
-				require.Equal(t, expectedID, id, "delivery %d mismatch", i)
+				require.Equal(t, expectedID, id, "attempt %d mismatch", i)
 			}
 			require.Equal(t, 4, pageCount, "should take 4 pages (3+3+3+1)")
 		})
 
-		t.Run("cursor excludes deliveries outside time filter", func(t *testing.T) {
-			// First page with no time filter gets all deliveries
-			resAll, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+		t.Run("cursor excludes attempts outside time filter", func(t *testing.T) {
+			// First page with no time filter gets all attempts
+			resAll, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				Limit:      5,
 				SortOrder:  "asc",
@@ -498,35 +509,35 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 			require.Len(t, resAll.Data, 5)
 
 			// Use the cursor but add a time filter that excludes some results
-			// The cursor points to position after delivery 4 (far past deliveries)
-			// But with deliveryWindowStart filter, we should start from delivery 5
-			res, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			// The cursor points to position after attempt 4 (far past attempts)
+			// But with attemptWindowStart filter, we should start from attempt 5
+			res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				Limit:      5,
 				SortOrder:  "asc",
 				Next:       resAll.Next,
-				TimeFilter: driver.TimeFilter{GTE: &deliveryWindowStart, LTE: &deliveryWindowEnd},
+				TimeFilter: driver.TimeFilter{GTE: &attemptWindowStart, LTE: &attemptWindowEnd},
 			})
 			require.NoError(t, err)
 
-			// Results should respect the time filter (on delivery time)
-			for _, de := range res.Data {
-				require.True(t, !de.Delivery.Time.Before(deliveryWindowStart), "delivery time should be >= deliveryWindowStart")
-				require.True(t, !de.Delivery.Time.After(deliveryWindowEnd), "delivery time should be <= deliveryWindowEnd")
+			// Results should respect the time filter (on attempt time)
+			for _, dr := range res.Data {
+				require.True(t, !dr.Attempt.Time.Before(attemptWindowStart), "attempt time should be >= attemptWindowStart")
+				require.True(t, !dr.Attempt.Time.After(attemptWindowEnd), "attempt time should be <= attemptWindowEnd")
 			}
 		})
 
-		t.Run("delivery time filter with GT/LT operators", func(t *testing.T) {
-			// Test exclusive bounds (GT/LT instead of GTE/LTE) on delivery time
-			// Use delivery times slightly after delivery 5 and slightly before delivery 14
-			gtTime := allEvents[5].Delivery.Time.Add(time.Second)   // After delivery 5, before delivery 6
-			ltTime := allEvents[14].Delivery.Time.Add(-time.Second) // Before delivery 14, after delivery 13
+		t.Run("attempt time filter with GT/LT operators", func(t *testing.T) {
+			// Test exclusive bounds (GT/LT instead of GTE/LTE) on attempt time
+			// Use attempt times slightly after attempt 5 and slightly before attempt 14
+			gtTime := allRecords[5].Attempt.Time.Add(time.Second)   // After attempt 5, before attempt 6
+			ltTime := allRecords[14].Attempt.Time.Add(-time.Second) // Before attempt 14, after attempt 13
 
 			var collectedIDs []string
 			var nextCursor string
 
 			for {
-				res, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+				res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 					TenantID:   tenantID,
 					Limit:      3,
 					SortOrder:  "asc",
@@ -535,8 +546,8 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 				})
 				require.NoError(t, err)
 
-				for _, de := range res.Data {
-					collectedIDs = append(collectedIDs, de.Event.ID)
+				for _, dr := range res.Data {
+					collectedIDs = append(collectedIDs, dr.Event.ID)
 				}
 
 				if res.Next == "" {
@@ -561,10 +572,10 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 			// comparison across databases with different timestamp precision
 			// (PostgreSQL microseconds, ClickHouse DateTime64, etc.).
 			//
-			// Important: ListDeliveryEvent filters by DELIVERY time, not event time.
+			// Important: ListAttempt filters by ATTEMPT time, not event time.
 
-			// First, retrieve all deliveries to find delivery 10's time
-			res, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			// First, retrieve all attempts to find attempt 10's time
+			res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:  tenantID,
 				Limit:     100,
 				SortOrder: "asc",
@@ -573,90 +584,90 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 				},
 			})
 			require.NoError(t, err)
-			require.GreaterOrEqual(t, len(res.Data), 11, "need at least 11 deliveries")
+			require.GreaterOrEqual(t, len(res.Data), 11, "need at least 11 attempts")
 
-			// Find delivery 10's stored delivery time, truncated to seconds
-			var storedDelivery10Time time.Time
-			for _, de := range res.Data {
-				if de.Event.ID == allEvents[10].Event.ID {
-					storedDelivery10Time = de.Delivery.Time.Truncate(time.Second)
+			// Find attempt 10's stored attempt time, truncated to seconds
+			var storedAttempt10Time time.Time
+			for _, dr := range res.Data {
+				if dr.Event.ID == allRecords[10].Event.ID {
+					storedAttempt10Time = dr.Attempt.Time.Truncate(time.Second)
 					break
 				}
 			}
-			require.False(t, storedDelivery10Time.IsZero(), "should find delivery 10")
+			require.False(t, storedAttempt10Time.IsZero(), "should find attempt 10")
 
-			// GT with exact time should exclude delivery 10
-			resGT, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			// GT with exact time should exclude attempt 10
+			resGT, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				Limit:      100,
 				SortOrder:  "asc",
-				TimeFilter: driver.TimeFilter{GT: &storedDelivery10Time},
+				TimeFilter: driver.TimeFilter{GT: &storedAttempt10Time},
 			})
 			require.NoError(t, err)
 
-			for _, de := range resGT.Data {
-				deTimeTrunc := de.Delivery.Time.Truncate(time.Second)
-				require.True(t, deTimeTrunc.After(storedDelivery10Time),
-					"GT filter should exclude delivery with exact timestamp, got delivery %s with time %v (filter time: %v)",
-					de.Delivery.ID, deTimeTrunc, storedDelivery10Time)
+			for _, dr := range resGT.Data {
+				drTimeTrunc := dr.Attempt.Time.Truncate(time.Second)
+				require.True(t, drTimeTrunc.After(storedAttempt10Time),
+					"GT filter should exclude attempt with exact timestamp, got attempt %s with time %v (filter time: %v)",
+					dr.Attempt.ID, drTimeTrunc, storedAttempt10Time)
 			}
 
-			// LT with exact time should exclude delivery 10
-			resLT, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			// LT with exact time should exclude attempt 10
+			resLT, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				Limit:      100,
 				SortOrder:  "asc",
-				TimeFilter: driver.TimeFilter{LT: &storedDelivery10Time},
+				TimeFilter: driver.TimeFilter{LT: &storedAttempt10Time},
 			})
 			require.NoError(t, err)
 
-			for _, de := range resLT.Data {
-				deTimeTrunc := de.Delivery.Time.Truncate(time.Second)
-				require.True(t, deTimeTrunc.Before(storedDelivery10Time),
-					"LT filter should exclude delivery with exact timestamp, got delivery %s with time %v (filter time: %v)",
-					de.Delivery.ID, deTimeTrunc, storedDelivery10Time)
+			for _, dr := range resLT.Data {
+				drTimeTrunc := dr.Attempt.Time.Truncate(time.Second)
+				require.True(t, drTimeTrunc.Before(storedAttempt10Time),
+					"LT filter should exclude attempt with exact timestamp, got attempt %s with time %v (filter time: %v)",
+					dr.Attempt.ID, drTimeTrunc, storedAttempt10Time)
 			}
 
-			// Verify delivery 10 is included with GTE/LTE (inclusive bounds)
-			resGTE, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			// Verify attempt 10 is included with GTE/LTE (inclusive bounds)
+			resGTE, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				Limit:      100,
 				SortOrder:  "asc",
-				TimeFilter: driver.TimeFilter{GTE: &storedDelivery10Time, LTE: &storedDelivery10Time},
+				TimeFilter: driver.TimeFilter{GTE: &storedAttempt10Time, LTE: &storedAttempt10Time},
 			})
 			require.NoError(t, err)
-			require.GreaterOrEqual(t, len(resGTE.Data), 1, "GTE/LTE with same time should include delivery at that second")
+			require.GreaterOrEqual(t, len(resGTE.Data), 1, "GTE/LTE with same time should include attempt at that second")
 		})
 
 		t.Run("prev cursor respects time filter", func(t *testing.T) {
-			// Get first page (ListDeliveryEvent filters by delivery time)
-			res1, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			// Get first page (ListAttempt filters by attempt time)
+			res1, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				Limit:      3,
 				SortOrder:  "asc",
-				TimeFilter: driver.TimeFilter{GTE: &deliveryWindowStart, LTE: &deliveryWindowEnd},
+				TimeFilter: driver.TimeFilter{GTE: &attemptWindowStart, LTE: &attemptWindowEnd},
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, res1.Next)
 
 			// Get second page
-			res2, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			res2, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				Limit:      3,
 				SortOrder:  "asc",
 				Next:       res1.Next,
-				TimeFilter: driver.TimeFilter{GTE: &deliveryWindowStart, LTE: &deliveryWindowEnd},
+				TimeFilter: driver.TimeFilter{GTE: &attemptWindowStart, LTE: &attemptWindowEnd},
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, res2.Prev)
 
 			// Go back to first page using prev cursor
-			resPrev, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			resPrev, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				Limit:      3,
 				SortOrder:  "asc",
 				Prev:       res2.Prev,
-				TimeFilter: driver.TimeFilter{GTE: &deliveryWindowStart, LTE: &deliveryWindowEnd},
+				TimeFilter: driver.TimeFilter{GTE: &attemptWindowStart, LTE: &attemptWindowEnd},
 			})
 			require.NoError(t, err)
 
@@ -731,7 +742,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 			// Find event 10's stored event time, truncated to seconds
 			var storedEvent10Time time.Time
 			for _, e := range res.Data {
-				if e.ID == allEvents[10].Event.ID {
+				if e.ID == allRecords[10].Event.ID {
 					storedEvent10Time = e.Time.Truncate(time.Second)
 					break
 				}

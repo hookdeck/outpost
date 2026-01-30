@@ -41,8 +41,8 @@ func waitForHealthy(t *testing.T, port int, timeout time.Duration) {
 	t.Fatalf("timed out waiting for health check at %s", healthURL)
 }
 
-// waitForDeliveries polls until at least minCount deliveries exist for the given path.
-func (s *e2eSuite) waitForDeliveries(t *testing.T, path string, minCount int, timeout time.Duration) {
+// waitForAttempts polls until at least minCount attempts exist for the given path.
+func (s *e2eSuite) waitForAttempts(t *testing.T, path string, minCount int, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	var lastCount int
@@ -72,9 +72,9 @@ func (s *e2eSuite) waitForDeliveries(t *testing.T, path string, minCount int, ti
 		time.Sleep(100 * time.Millisecond)
 	}
 	if lastErr != nil {
-		t.Fatalf("timed out waiting for %d deliveries at %s: last error: %v", minCount, path, lastErr)
+		t.Fatalf("timed out waiting for %d attempts at %s: last error: %v", minCount, path, lastErr)
 	}
-	t.Fatalf("timed out waiting for %d deliveries at %s: got %d (status %d)", minCount, path, lastCount, lastStatus)
+	t.Fatalf("timed out waiting for %d attempts at %s: got %d (status %d)", minCount, path, lastCount, lastStatus)
 }
 
 // waitForDestinationDisabled polls until the destination has disabled_at set (non-null).
@@ -542,5 +542,168 @@ func TestE2E_Regression_AutoDisableWithoutCallbackURL(t *testing.T) {
 	require.NotNil(t, disabledAt, "destination should be disabled (disabled_at should not be null) - issue #596")
 
 	// Cleanup mock server
+	_ = mockServerInfra
+}
+
+// TestE2E_Regression_RetryRaceCondition verifies that retries are not lost when
+// the retry scheduler queries logstore before the event has been persisted.
+//
+// Test configuration creates a timing window where retry fires before log persistence:
+//   - LogBatchThresholdSeconds = 5 (slow persistence)
+//   - RetryIntervalSeconds = 1 (fast retry)
+//   - RetryVisibilityTimeoutSeconds = 2 (quick reprocessing when event not found)
+//
+// Expected behavior: retry remains in queue until event is available, then succeeds.
+func TestE2E_Regression_RetryRaceCondition(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+
+	// Setup infrastructure
+	testinfraCleanup := testinfra.Start(t)
+	defer testinfraCleanup()
+	gin.SetMode(gin.TestMode)
+	mockServerBaseURL := testinfra.GetMockServer(t)
+
+	// Configure with slow log persistence and fast retry
+	cfg := configs.Basic(t, configs.BasicOpts{
+		LogStorage: configs.LogStorageTypeClickHouse,
+	})
+
+	// SLOW log persistence: batch won't flush for 5 seconds
+	cfg.LogBatchThresholdSeconds = 5
+	cfg.LogBatchSize = 10000 // High batch size to prevent early flush
+
+	// FAST retry: retry fires after ~1 second
+	cfg.RetryIntervalSeconds = 1
+	cfg.RetryPollBackoffMs = 50
+	cfg.RetryMaxLimit = 5
+	cfg.RetryVisibilityTimeoutSeconds = 2 // Short VT so retry happens quickly after event not found
+
+	require.NoError(t, cfg.Validate(config.Flags{}))
+
+	// Start application
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	appDone := make(chan struct{})
+	go func() {
+		defer close(appDone)
+		application := app.New(&cfg)
+		if err := application.Run(ctx); err != nil {
+			log.Println("Application stopped:", err)
+		}
+	}()
+	defer func() {
+		cancel()
+		<-appDone
+	}()
+
+	// Wait for services to start
+	waitForHealthy(t, cfg.APIPort, 5*time.Second)
+
+	// Setup test client
+	client := httpclient.New(fmt.Sprintf("http://localhost:%d/api/v1", cfg.APIPort), cfg.APIKey)
+	mockServerInfra := testinfra.NewMockServerInfra(mockServerBaseURL)
+
+	// Test data
+	tenantID := fmt.Sprintf("tenant_race_%d", time.Now().UnixNano())
+	destinationID := fmt.Sprintf("dest_race_%d", time.Now().UnixNano())
+	secret := "testsecret1234567890abcdefghijklmnop"
+
+	// Create tenant
+	resp, err := client.Do(httpclient.Request{
+		Method:  httpclient.MethodPUT,
+		Path:    "/tenants/" + tenantID,
+		Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 201, resp.StatusCode, "failed to create tenant")
+
+	// Configure mock server destination
+	resp, err = client.Do(httpclient.Request{
+		Method:  httpclient.MethodPUT,
+		BaseURL: mockServerBaseURL,
+		Path:    "/destinations",
+		Body: map[string]interface{}{
+			"id":   destinationID,
+			"type": "webhook",
+			"config": map[string]interface{}{
+				"url": fmt.Sprintf("%s/webhook/%s", mockServerBaseURL, destinationID),
+			},
+			"credentials": map[string]interface{}{
+				"secret": secret,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode, "failed to configure mock server")
+
+	// Create destination
+	resp, err = client.Do(httpclient.Request{
+		Method:  httpclient.MethodPOST,
+		Path:    "/tenants/" + tenantID + "/destinations",
+		Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
+		Body: map[string]interface{}{
+			"id":     destinationID,
+			"type":   "webhook",
+			"topics": "*",
+			"config": map[string]interface{}{
+				"url": fmt.Sprintf("%s/webhook/%s", mockServerBaseURL, destinationID),
+			},
+			"credentials": map[string]interface{}{
+				"secret": secret,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 201, resp.StatusCode, "failed to create destination")
+
+	// Publish event that will always fail (should_err: true)
+	// We want to verify that retries happen (mock server is hit multiple times)
+	resp, err = client.Do(httpclient.Request{
+		Method:  httpclient.MethodPOST,
+		Path:    "/publish",
+		Headers: map[string]string{"Authorization": "Bearer " + cfg.APIKey},
+		Body: map[string]interface{}{
+			"tenant_id":          tenantID,
+			"topic":              "user.created",
+			"eligible_for_retry": true,
+			"metadata": map[string]interface{}{
+				"should_err": "true", // All deliveries fail
+			},
+			"data": map[string]interface{}{
+				"test": "race-condition-test",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 202, resp.StatusCode, "failed to publish event")
+
+	// Wait for retries to complete
+	// - t=0: Event published, first delivery fails
+	// - t=1s: Retry fires, event not in logstore yet, message returns to queue
+	// - t=3s: Message visible again after 2s VT, retry fires again
+	// - t=5s: Log batch flushes, event now in logstore
+	// - t=5s+: Retry finds event, delivery succeeds
+	time.Sleep(10 * time.Second)
+
+	// Verify mock server received multiple delivery attempts
+	resp, err = client.Do(httpclient.Request{
+		Method:  httpclient.MethodGET,
+		BaseURL: mockServerBaseURL,
+		Path:    "/destinations/" + destinationID + "/events",
+	})
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+
+	events, ok := resp.Body.([]interface{})
+	require.True(t, ok, "expected events array")
+
+	// Should have at least 2 attempts: initial failure + successful retry
+	require.GreaterOrEqual(t, len(events), 2,
+		"expected multiple delivery attempts (initial + retry after event persisted)")
+
 	_ = mockServerInfra
 }

@@ -44,8 +44,8 @@ func (q *LogMQ) Init(ctx context.Context) (func(), error) {
 	return q.queue.Init(ctx)
 }
 
-func (q *LogMQ) Publish(ctx context.Context, event models.DeliveryEvent) error {
-	return q.queue.Publish(ctx, &event)
+func (q *LogMQ) Publish(ctx context.Context, entry models.LogEntry) error {
+	return q.queue.Publish(ctx, &entry)
 }
 
 func (q *LogMQ) Subscribe(ctx context.Context) (mqs.Subscription, error) {

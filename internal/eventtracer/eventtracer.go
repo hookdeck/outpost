@@ -12,8 +12,8 @@ import (
 
 type EventTracer interface {
 	Receive(context.Context, *models.Event) (context.Context, trace.Span)
-	StartDelivery(context.Context, *models.DeliveryEvent) (context.Context, trace.Span)
-	Deliver(context.Context, *models.DeliveryEvent, *models.Destination) (context.Context, trace.Span)
+	StartDelivery(context.Context, *models.DeliveryTask) (context.Context, trace.Span)
+	Deliver(context.Context, *models.DeliveryTask, *models.Destination) (context.Context, trace.Span)
 }
 
 type eventTracerImpl struct {
@@ -47,10 +47,10 @@ func (t *eventTracerImpl) Receive(ctx context.Context, event *models.Event) (con
 	return ctx, span
 }
 
-func (t *eventTracerImpl) StartDelivery(_ context.Context, deliveryEvent *models.DeliveryEvent) (context.Context, trace.Span) {
-	ctx, span := t.tracer.Start(t.getRemoteEventSpanContext(&deliveryEvent.Event), "EventTracer.StartDelivery")
+func (t *eventTracerImpl) StartDelivery(_ context.Context, task *models.DeliveryTask) (context.Context, trace.Span) {
+	ctx, span := t.tracer.Start(t.getRemoteEventSpanContext(&task.Event), "EventTracer.StartDelivery")
 
-	deliveryEvent.Telemetry = &models.DeliveryEventTelemetry{
+	task.Telemetry = &models.DeliveryTelemetry{
 		TraceID: span.SpanContext().TraceID().String(),
 		SpanID:  span.SpanContext().SpanID().String(),
 	}
@@ -60,10 +60,10 @@ func (t *eventTracerImpl) StartDelivery(_ context.Context, deliveryEvent *models
 
 type DeliverSpan struct {
 	trace.Span
-	emeter        emetrics.OutpostMetrics
-	deliveryEvent *models.DeliveryEvent
-	destination   *models.Destination
-	err           error
+	emeter      emetrics.OutpostMetrics
+	task        *models.DeliveryTask
+	destination *models.Destination
+	err         error
 }
 
 func (d *DeliverSpan) RecordError(err error, options ...trace.EventOption) {
@@ -72,17 +72,12 @@ func (d *DeliverSpan) RecordError(err error, options ...trace.EventOption) {
 }
 
 func (d *DeliverSpan) End(options ...trace.SpanEndOption) {
-	if d.deliveryEvent.Event.Telemetry == nil {
-		d.Span.End(options...)
-		return
-	}
-	if d.deliveryEvent.Delivery == nil {
+	if d.task.Event.Telemetry == nil {
 		d.Span.End(options...)
 		return
 	}
 
-	ok := d.deliveryEvent.Delivery.Status == models.DeliveryStatusSuccess
-	startTime, err := time.Parse(time.RFC3339Nano, d.deliveryEvent.Event.Telemetry.ReceivedTime)
+	startTime, err := time.Parse(time.RFC3339Nano, d.task.Event.Telemetry.ReceivedTime)
 	if err != nil {
 		// TODO: handle error?
 		d.Span.End(options...)
@@ -92,14 +87,13 @@ func (d *DeliverSpan) End(options ...trace.SpanEndOption) {
 	d.emeter.DeliveryLatency(context.Background(),
 		time.Since(startTime),
 		emetrics.DeliveryLatencyOpts{Type: d.destination.Type})
-	d.emeter.EventDelivered(context.Background(), d.deliveryEvent, ok, d.destination.Type)
 
 	d.Span.End(options...)
 }
 
-func (t *eventTracerImpl) Deliver(_ context.Context, deliveryEvent *models.DeliveryEvent, destination *models.Destination) (context.Context, trace.Span) {
-	ctx, span := t.tracer.Start(t.getRemoteDeliveryEventSpanContext(deliveryEvent), "EventTracer.Deliver")
-	deliverySpan := &DeliverSpan{Span: span, emeter: t.emeter, deliveryEvent: deliveryEvent, destination: destination}
+func (t *eventTracerImpl) Deliver(_ context.Context, task *models.DeliveryTask, destination *models.Destination) (context.Context, trace.Span) {
+	ctx, span := t.tracer.Start(t.getRemoteDeliveryTaskSpanContext(task), "EventTracer.Deliver")
+	deliverySpan := &DeliverSpan{Span: span, emeter: t.emeter, task: task, destination: destination}
 	return ctx, deliverySpan
 }
 
@@ -128,17 +122,17 @@ func (t *eventTracerImpl) getRemoteEventSpanContext(event *models.Event) context
 	return trace.ContextWithRemoteSpanContext(context.Background(), remoteCtx)
 }
 
-func (t *eventTracerImpl) getRemoteDeliveryEventSpanContext(deliveryEvent *models.DeliveryEvent) context.Context {
-	if deliveryEvent.Telemetry == nil {
+func (t *eventTracerImpl) getRemoteDeliveryTaskSpanContext(task *models.DeliveryTask) context.Context {
+	if task.Telemetry == nil {
 		return context.Background()
 	}
-	traceID, err := trace.TraceIDFromHex(deliveryEvent.Telemetry.TraceID)
+	traceID, err := trace.TraceIDFromHex(task.Telemetry.TraceID)
 	if err != nil {
 		// TODO: handle error
 		return context.Background()
 	}
 
-	spanID, err := trace.SpanIDFromHex(deliveryEvent.Telemetry.SpanID)
+	spanID, err := trace.SpanIDFromHex(task.Telemetry.SpanID)
 	if err != nil {
 		// TODO: handle error
 		return context.Background()

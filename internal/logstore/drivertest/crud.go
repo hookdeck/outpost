@@ -33,13 +33,13 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 	startTime := baseTime.Add(-48 * time.Hour)
 
 	// We'll populate these as we insert
-	var allDeliveryEvents []*models.DeliveryEvent
+	var allDeliveries []*models.Attempt
 	destinationEvents := map[string][]*models.Event{}
 	topicEvents := map[string][]*models.Event{}
-	statusDeliveryEvents := map[string][]*models.DeliveryEvent{}
+	statusDeliveries := map[string][]*models.Attempt{}
 
 	t.Run("insert and verify", func(t *testing.T) {
-		t.Run("single delivery event", func(t *testing.T) {
+		t.Run("single delivery", func(t *testing.T) {
 			destID := destinationIDs[0]
 			topic := testutil.TestTopics[0]
 			event := testutil.EventFactory.AnyPointer(
@@ -49,31 +49,26 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 				testutil.EventFactory.WithTopic(topic),
 				testutil.EventFactory.WithTime(baseTime.Add(-30*time.Minute)),
 			)
-			delivery := testutil.DeliveryFactory.AnyPointer(
-				testutil.DeliveryFactory.WithID("single_del"),
-				testutil.DeliveryFactory.WithEventID(event.ID),
-				testutil.DeliveryFactory.WithDestinationID(destID),
-				testutil.DeliveryFactory.WithStatus("success"),
-				testutil.DeliveryFactory.WithTime(baseTime.Add(-30*time.Minute)),
+			delivery := testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID("single_del"),
+				testutil.AttemptFactory.WithTenantID(tenantID),
+				testutil.AttemptFactory.WithEventID(event.ID),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithStatus("success"),
+				testutil.AttemptFactory.WithTime(baseTime.Add(-30*time.Minute)),
 			)
-			de := &models.DeliveryEvent{
-				ID:            "single_de",
-				DestinationID: destID,
-				Event:         *event,
-				Delivery:      delivery,
-			}
 
-			err := logStore.InsertManyDeliveryEvent(ctx, []*models.DeliveryEvent{de})
+			err := logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Attempt: delivery}})
 			require.NoError(t, err)
 			require.NoError(t, h.FlushWrites(ctx))
 
 			// Track in maps for later filter tests
 			destinationEvents[destID] = append(destinationEvents[destID], event)
 			topicEvents[topic] = append(topicEvents[topic], event)
-			statusDeliveryEvents["success"] = append(statusDeliveryEvents["success"], de)
+			statusDeliveries["success"] = append(statusDeliveries["success"], delivery)
 
 			// Verify via List
-			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				EventID:    event.ID,
 				Limit:      10,
@@ -82,7 +77,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.NoError(t, err)
 			require.Len(t, response.Data, 1)
 			assert.Equal(t, event.ID, response.Data[0].Event.ID)
-			assert.Equal(t, "success", response.Data[0].Delivery.Status)
+			assert.Equal(t, "success", response.Data[0].Attempt.Status)
 
 			// Verify via Retrieve
 			retrieved, err := logStore.RetrieveEvent(ctx, driver.RetrieveEventRequest{
@@ -94,8 +89,10 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			assert.Equal(t, event.ID, retrieved.ID)
 		})
 
-		t.Run("batch delivery events", func(t *testing.T) {
+		t.Run("batch deliveries", func(t *testing.T) {
 			// Create 15 events spread across destinations and topics for filter testing
+			var entries []*models.LogEntry
+
 			for i := range 15 {
 				destID := destinationIDs[i%len(destinationIDs)]
 				topic := testutil.TestTopics[i%len(testutil.TestTopics)]
@@ -112,32 +109,28 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 					testutil.EventFactory.WithTopic(topic),
 					testutil.EventFactory.WithTime(eventTime),
 				)
-				delivery := testutil.DeliveryFactory.AnyPointer(
-					testutil.DeliveryFactory.WithID(fmt.Sprintf("batch_del_%02d", i)),
-					testutil.DeliveryFactory.WithEventID(event.ID),
-					testutil.DeliveryFactory.WithDestinationID(destID),
-					testutil.DeliveryFactory.WithStatus(status),
-					testutil.DeliveryFactory.WithTime(eventTime.Add(time.Millisecond)),
+				delivery := testutil.AttemptFactory.AnyPointer(
+					testutil.AttemptFactory.WithID(fmt.Sprintf("batch_del_%02d", i)),
+					testutil.AttemptFactory.WithTenantID(tenantID),
+					testutil.AttemptFactory.WithEventID(event.ID),
+					testutil.AttemptFactory.WithDestinationID(destID),
+					testutil.AttemptFactory.WithStatus(status),
+					testutil.AttemptFactory.WithTime(eventTime.Add(time.Millisecond)),
 				)
-				de := &models.DeliveryEvent{
-					ID:            fmt.Sprintf("batch_de_%02d", i),
-					DestinationID: destID,
-					Event:         *event,
-					Delivery:      delivery,
-				}
 
-				allDeliveryEvents = append(allDeliveryEvents, de)
+				entries = append(entries, &models.LogEntry{Event: event, Attempt: delivery})
+				allDeliveries = append(allDeliveries, delivery)
 				destinationEvents[destID] = append(destinationEvents[destID], event)
 				topicEvents[topic] = append(topicEvents[topic], event)
-				statusDeliveryEvents[status] = append(statusDeliveryEvents[status], de)
+				statusDeliveries[status] = append(statusDeliveries[status], delivery)
 			}
 
-			err := logStore.InsertManyDeliveryEvent(ctx, allDeliveryEvents)
+			err := logStore.InsertMany(ctx, entries)
 			require.NoError(t, err)
 			require.NoError(t, h.FlushWrites(ctx))
 
 			// Verify all inserted
-			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				Limit:      100,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -148,7 +141,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		})
 
 		t.Run("empty batch is no-op", func(t *testing.T) {
-			err := logStore.InsertManyDeliveryEvent(ctx, []*models.DeliveryEvent{})
+			err := logStore.InsertMany(ctx, []*models.LogEntry{})
 			require.NoError(t, err)
 		})
 	})
@@ -210,50 +203,50 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			}
 		})
 
-		t.Run("ListDeliveryEvent by destination", func(t *testing.T) {
+		t.Run("ListAttempt by destination", func(t *testing.T) {
 			destID := destinationIDs[0]
-			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:       tenantID,
 				DestinationIDs: []string{destID},
 				Limit:          100,
 				TimeFilter:     driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
-			for _, de := range response.Data {
-				assert.Equal(t, destID, de.DestinationID)
+			for _, dr := range response.Data {
+				assert.Equal(t, destID, dr.Attempt.DestinationID)
 			}
 		})
 
-		t.Run("ListDeliveryEvent by status", func(t *testing.T) {
-			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+		t.Run("ListAttempt by status", func(t *testing.T) {
+			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				Status:     "success",
 				Limit:      100,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
-			for _, de := range response.Data {
-				assert.Equal(t, "success", de.Delivery.Status)
+			for _, dr := range response.Data {
+				assert.Equal(t, "success", dr.Attempt.Status)
 			}
 		})
 
-		t.Run("ListDeliveryEvent by topic", func(t *testing.T) {
+		t.Run("ListAttempt by topic", func(t *testing.T) {
 			topic := testutil.TestTopics[0]
-			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				Topics:     []string{topic},
 				Limit:      100,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
 			require.NoError(t, err)
-			for _, de := range response.Data {
-				assert.Equal(t, topic, de.Event.Topic)
+			for _, dr := range response.Data {
+				assert.Equal(t, topic, dr.Event.Topic)
 			}
 		})
 
-		t.Run("ListDeliveryEvent by event ID", func(t *testing.T) {
+		t.Run("ListAttempt by event ID", func(t *testing.T) {
 			eventID := "batch_evt_00"
-			response, err := logStore.ListDeliveryEvent(ctx, driver.ListDeliveryEventRequest{
+			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
 				TenantID:   tenantID,
 				EventID:    eventID,
 				Limit:      100,
@@ -268,7 +261,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 	t.Run("retrieve", func(t *testing.T) {
 		// Use one of our batch events for retrieve tests
 		knownEventID := "batch_evt_00"
-		knownDeliveryID := "batch_del_00"
+		knownAttemptID := "batch_del_00"
 
 		t.Run("RetrieveEvent existing", func(t *testing.T) {
 			retrieved, err := logStore.RetrieveEvent(ctx, driver.RetrieveEventRequest{
@@ -310,29 +303,29 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			assert.Nil(t, retrieved)
 		})
 
-		t.Run("RetrieveDeliveryEvent existing", func(t *testing.T) {
-			retrieved, err := logStore.RetrieveDeliveryEvent(ctx, driver.RetrieveDeliveryEventRequest{
-				TenantID:   tenantID,
-				DeliveryID: knownDeliveryID,
+		t.Run("RetrieveAttempt existing", func(t *testing.T) {
+			retrieved, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
+				TenantID:  tenantID,
+				AttemptID: knownAttemptID,
 			})
 			require.NoError(t, err)
 			require.NotNil(t, retrieved)
-			assert.Equal(t, knownDeliveryID, retrieved.Delivery.ID)
+			assert.Equal(t, knownAttemptID, retrieved.Attempt.ID)
 		})
 
-		t.Run("RetrieveDeliveryEvent non-existent returns nil", func(t *testing.T) {
-			retrieved, err := logStore.RetrieveDeliveryEvent(ctx, driver.RetrieveDeliveryEventRequest{
-				TenantID:   tenantID,
-				DeliveryID: "non-existent-delivery",
+		t.Run("RetrieveAttempt non-existent returns nil", func(t *testing.T) {
+			retrieved, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
+				TenantID:  tenantID,
+				AttemptID: "non-existent-delivery",
 			})
 			require.NoError(t, err)
 			assert.Nil(t, retrieved)
 		})
 
-		t.Run("RetrieveDeliveryEvent wrong tenant returns nil", func(t *testing.T) {
-			retrieved, err := logStore.RetrieveDeliveryEvent(ctx, driver.RetrieveDeliveryEventRequest{
-				TenantID:   "wrong-tenant",
-				DeliveryID: knownDeliveryID,
+		t.Run("RetrieveAttempt wrong tenant returns nil", func(t *testing.T) {
+			retrieved, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
+				TenantID:  "wrong-tenant",
+				AttemptID: knownAttemptID,
 			})
 			require.NoError(t, err)
 			assert.Nil(t, retrieved)

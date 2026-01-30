@@ -19,13 +19,11 @@ import (
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/worker"
-	"github.com/mikestefanello/batcher"
 	"go.uber.org/zap"
 )
 
@@ -152,7 +150,6 @@ func (b *ServiceBuilder) Cleanup(ctx context.Context) {
 func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	b.logger.Debug("building API service workers")
 
-	// Create a new service instance for API
 	svc := &serviceInstance{
 		name:         "api",
 		cleanupFuncs: []func(context.Context, *logging.LoggerWithCtx){},
@@ -193,7 +190,6 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	)
 	eventHandler := publishmq.NewEventHandler(b.logger, svc.deliveryMQ, svc.entityStore, svc.eventTracer, b.cfg.Topics, publishIdempotence)
 
-	// Create API router as separate handler
 	apiHandler := apirouter.NewRouter(
 		apirouter.RouterConfig{
 			ServiceName:  b.cfg.OpenTelemetry.GetServiceName(),
@@ -245,7 +241,6 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	b.logger.Debug("building delivery service worker")
 
-	// Create a new service instance for Delivery
 	svc := &serviceInstance{
 		name:         "delivery",
 		cleanupFuncs: []func(context.Context, *logging.LoggerWithCtx){},
@@ -303,7 +298,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		idempotence.WithDeploymentID(b.cfg.DeploymentID),
 	)
 
-	// Get retry configuration
 	retryBackoff, retryMaxLimit := b.cfg.GetRetryBackoff()
 
 	// Create delivery handler
@@ -311,7 +305,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		b.logger,
 		svc.logMQ,
 		svc.entityStore,
-		svc.logStore,
 		svc.destRegistry,
 		svc.eventTracer,
 		svc.retryScheduler,
@@ -321,7 +314,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		deliveryIdempotence,
 	)
 
-	// Store reference to the base router
 	svc.router = baseRouter
 
 	// Create DeliveryMQ worker
@@ -342,7 +334,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	b.logger.Debug("building log service worker")
 
-	// Create a new service instance for Log
 	svc := &serviceInstance{
 		name:         "log",
 		cleanupFuncs: []func(context.Context, *logging.LoggerWithCtx){},
@@ -369,17 +360,20 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}
 
 	b.logger.Debug("creating log batcher")
-	batcher, err := b.makeBatcher(svc.logStore, batcherCfg.ItemCountThreshold, batcherCfg.DelayThreshold)
+	batchProcessor, err := logmq.NewBatchProcessor(b.ctx, b.logger, svc.logStore, logmq.BatchProcessorConfig{
+		ItemCountThreshold: batcherCfg.ItemCountThreshold,
+		DelayThreshold:     batcherCfg.DelayThreshold,
+	})
 	if err != nil {
 		b.logger.Error("failed to create batcher", zap.Error(err))
 		return err
 	}
 	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
-		batcher.Shutdown()
+		batchProcessor.Shutdown()
 	})
 
 	// Create log handler with batcher
-	handler := logmq.NewMessageHandler(b.logger, &handlerBatcherImpl{batcher: batcher})
+	handler := logmq.NewMessageHandler(b.logger, batchProcessor)
 
 	// Initialize LogMQ
 	b.logger.Debug("configuring log message queue")
@@ -391,7 +385,6 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 
 	logMQ := logmq.New(logmq.WithQueue(logQueueConfig))
 
-	// Store reference to the base router
 	svc.router = baseRouter
 
 	// Create LogMQ worker
@@ -430,68 +423,6 @@ func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, 
 	now := time.Now()
 	destination.DisabledAt = &now
 	return d.entityStore.UpsertDestination(ctx, *destination)
-}
-
-// makeBatcher creates a batcher for batching log writes
-func (b *ServiceBuilder) makeBatcher(logStore logstore.LogStore, itemCountThreshold int, delayThreshold time.Duration) (*batcher.Batcher[*mqs.Message], error) {
-	batchr, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
-		GroupCountThreshold: 2,
-		ItemCountThreshold:  itemCountThreshold,
-		DelayThreshold:      delayThreshold,
-		NumGoroutines:       1,
-		Processor: func(_ string, msgs []*mqs.Message) {
-			logger := b.logger.Ctx(b.ctx)
-			logger.Info("processing batch", zap.Int("message_count", len(msgs)))
-
-			nackAll := func() {
-				for _, msg := range msgs {
-					msg.Nack()
-				}
-			}
-
-			deliveryEvents := make([]*models.DeliveryEvent, 0, len(msgs))
-			for _, msg := range msgs {
-				deliveryEvent := models.DeliveryEvent{}
-				if err := deliveryEvent.FromMessage(msg); err != nil {
-					logger.Error("failed to parse delivery event",
-						zap.Error(err),
-						zap.String("message_id", msg.LoggableID))
-					nackAll()
-					return
-				}
-				deliveryEvents = append(deliveryEvents, &deliveryEvent)
-			}
-
-			if err := logStore.InsertManyDeliveryEvent(b.ctx, deliveryEvents); err != nil {
-				logger.Error("failed to insert delivery events",
-					zap.Error(err),
-					zap.Int("count", len(deliveryEvents)))
-				nackAll()
-				return
-			}
-
-			logger.Info("batch processed successfully", zap.Int("count", len(msgs)))
-
-			for _, msg := range msgs {
-				msg.Ack()
-			}
-		},
-	})
-	if err != nil {
-		b.logger.Ctx(b.ctx).Error("failed to create batcher", zap.Error(err))
-		return nil, err
-	}
-	return batchr, nil
-}
-
-// handlerBatcherImpl implements the batcher interface expected by logmq.MessageHandler
-type handlerBatcherImpl struct {
-	batcher *batcher.Batcher[*mqs.Message]
-}
-
-func (hb *handlerBatcherImpl) Add(ctx context.Context, msg *mqs.Message) error {
-	hb.batcher.Add("", msg)
-	return nil
 }
 
 // Helper methods for serviceInstance to initialize common dependencies
@@ -617,9 +548,16 @@ func (s *serviceInstance) initRetryScheduler(ctx context.Context, cfg *config.Co
 	if s.deliveryMQ == nil {
 		return fmt.Errorf("delivery MQ must be initialized before retry scheduler")
 	}
+	if s.logStore == nil {
+		return fmt.Errorf("log store must be initialized before retry scheduler")
+	}
 	logger.Debug("creating delivery MQ retry scheduler", zap.String("service", s.name))
 	pollBackoff := time.Duration(cfg.RetryPollBackoffMs) * time.Millisecond
-	retryScheduler, err := deliverymq.NewRetryScheduler(s.deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, pollBackoff, logger)
+	var retrySchedulerOpts []deliverymq.RetrySchedulerOption
+	if cfg.RetryVisibilityTimeoutSeconds > 0 {
+		retrySchedulerOpts = append(retrySchedulerOpts, deliverymq.WithRetryVisibilityTimeout(uint(cfg.RetryVisibilityTimeoutSeconds)))
+	}
+	retryScheduler, err := deliverymq.NewRetryScheduler(s.deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, pollBackoff, logger, s.logStore, retrySchedulerOpts...)
 	if err != nil {
 		logger.Error("failed to create delivery MQ retry scheduler", zap.String("service", s.name), zap.Error(err))
 		return err

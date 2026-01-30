@@ -1,4 +1,4 @@
-.destination-deliveries {
+.destination-attempts {
   margin-top: var(--spacing-5);
   margin-bottom: var(--spacing-20);
 
@@ -32,7 +32,7 @@
     display: grid;
     min-height: 713px;
 
-    .delivery-time-cell {
+    .attempt-time-cell {
       text-transform: uppercase;
     }
 
@@ -117,7 +117,7 @@
   }
 }
 
-.delivery-data {
+.attempt-data {
   height: 100%;
   box-sizing: border-box;
 

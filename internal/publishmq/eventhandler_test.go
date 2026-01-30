@@ -176,22 +176,22 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 		msg, err := subscription.Receive(receiveCtx)
 		require.NoError(t, err)
 
-		var deliveryEvent models.DeliveryEvent
-		err = deliveryEvent.FromMessage(msg)
+		var task models.DeliveryTask
+		err = task.FromMessage(msg)
 		require.NoError(t, err)
 
 		// Verify this is a destination we expect
-		_, exists := destinationIDs[deliveryEvent.DestinationID]
-		require.True(t, exists, "delivery to unexpected destination: %s", deliveryEvent.DestinationID)
-		destinationIDs[deliveryEvent.DestinationID] = true
+		_, exists := destinationIDs[task.DestinationID]
+		require.True(t, exists, "delivery to unexpected destination: %s", task.DestinationID)
+		destinationIDs[task.DestinationID] = true
 
 		// Verify this is not the disabled destination
-		require.NotEqual(t, disabledDest.ID, deliveryEvent.DestinationID, "disabled destination should not receive events")
+		require.NotEqual(t, disabledDest.ID, task.DestinationID, "disabled destination should not receive events")
 
 		// Verify event data is correct
-		require.Equal(t, event.ID, deliveryEvent.Event.ID)
-		require.Equal(t, event.Topic, deliveryEvent.Event.Topic)
-		require.Equal(t, event.TenantID, deliveryEvent.Event.TenantID)
+		require.Equal(t, event.ID, task.Event.ID)
+		require.Equal(t, event.Topic, task.Event.Topic)
+		require.Equal(t, event.TenantID, task.Event.TenantID)
 
 		// Acknowledge the message
 		msg.Ack()
@@ -454,9 +454,9 @@ func TestEventHandler_Filter(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, msg)
 
-		var deliveryEvent models.DeliveryEvent
-		require.NoError(t, deliveryEvent.FromMessage(msg))
-		require.Equal(t, dest.ID, deliveryEvent.DestinationID)
+		var task models.DeliveryTask
+		require.NoError(t, task.FromMessage(msg))
+		require.Equal(t, dest.ID, task.DestinationID)
 		msg.Ack()
 	})
 
@@ -522,9 +522,9 @@ func TestEventHandler_Filter(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, msg)
 
-		var deliveryEvent models.DeliveryEvent
-		require.NoError(t, deliveryEvent.FromMessage(msg))
-		require.Equal(t, dest.ID, deliveryEvent.DestinationID)
+		var task models.DeliveryTask
+		require.NoError(t, task.FromMessage(msg))
+		require.Equal(t, dest.ID, task.DestinationID)
 		msg.Ack()
 	})
 
@@ -586,9 +586,9 @@ func TestEventHandler_Filter(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, msg)
 
-		var deliveryEvent models.DeliveryEvent
-		require.NoError(t, deliveryEvent.FromMessage(msg))
-		require.Equal(t, dest.ID, deliveryEvent.DestinationID)
+		var task models.DeliveryTask
+		require.NoError(t, task.FromMessage(msg))
+		require.Equal(t, dest.ID, task.DestinationID)
 		msg.Ack()
 	})
 }
