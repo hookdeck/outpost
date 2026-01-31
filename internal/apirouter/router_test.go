@@ -160,11 +160,12 @@ func (a *apiTest) withJWT(req *http.Request, tenantID string) *http.Request {
 // mockDeliveryPublisher records Publish calls.
 type mockDeliveryPublisher struct {
 	calls []models.DeliveryTask
+	err   error
 }
 
 func (m *mockDeliveryPublisher) Publish(_ context.Context, task models.DeliveryTask) error {
 	m.calls = append(m.calls, task)
-	return nil
+	return m.err
 }
 
 // mockEventHandler records Handle calls with configurable return values.
