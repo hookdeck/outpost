@@ -46,7 +46,7 @@ type AuthOptions struct {
 //  3. token == apiKey → admin, resolve tenant if RequireTenant, done.
 //  4. JWT.Extract(token) → 401 if invalid.
 //  5. AdminOnly? → 403.
-//  6. :tenantID param mismatch? → 403.
+//  6. :tenant_id param mismatch? → 403.
 //  7. Set tenantID + RoleTenant, always resolve tenant for JWT → 401 if missing/deleted.
 func AuthMiddleware(apiKey, jwtSecret string, tenantRetriever TenantRetriever, opts AuthOptions) gin.HandlerFunc {
 	// VPC mode — no API key configured, everything is admin.
@@ -97,8 +97,8 @@ func AuthMiddleware(apiKey, jwtSecret string, tenantRetriever TenantRetriever, o
 			return
 		}
 
-		// 6. tenantID param mismatch
-		if paramTenantID := c.Param("tenantID"); paramTenantID != "" && paramTenantID != claims.TenantID {
+		// 6. tenant_id param mismatch
+		if paramTenantID := c.Param("tenant_id"); paramTenantID != "" && paramTenantID != claims.TenantID {
 			c.AbortWithStatus(http.StatusForbidden)
 			return
 		}
@@ -170,13 +170,13 @@ func validateAuthHeader(c *gin.Context) (string, error) {
 }
 
 // tenantIDFromContext returns the tenant ID from context (set by JWT middleware) or
-// falls back to the :tenantID URL param (for API key auth on tenant-scoped routes).
-// Returns empty string when using API key auth on a route with no :tenantID in path.
+// falls back to the :tenant_id URL param (for API key auth on tenant-scoped routes).
+// Returns empty string when using API key auth on a route with no :tenant_id in path.
 func tenantIDFromContext(c *gin.Context) string {
 	if id, ok := c.Get("tenantID"); ok {
 		return id.(string)
 	}
-	return c.Param("tenantID")
+	return c.Param("tenant_id")
 }
 
 // resolveTenantIDFilter returns the effective tenant ID for log queries.

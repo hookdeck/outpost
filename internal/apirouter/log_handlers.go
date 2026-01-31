@@ -195,11 +195,11 @@ func (h *LogHandlers) ListAttempts(c *gin.Context) {
 	h.listAttemptsInternal(c, tenantID, "")
 }
 
-// ListDestinationAttempts handles GET /:tenantID/destinations/:destinationID/attempts
+// ListDestinationAttempts handles GET /:tenant_id/destinations/:destination_id/attempts
 // Same as ListAttempts but scoped to a specific destination via URL param.
 func (h *LogHandlers) ListDestinationAttempts(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	destinationID := c.Param("destinationID")
+	destinationID := c.Param("destination_id")
 	h.listAttemptsInternal(c, tenant.ID, destinationID)
 }
 
@@ -296,14 +296,14 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantID string, dest
 	})
 }
 
-// RetrieveEvent handles GET /events/:eventID
+// RetrieveEvent handles GET /events/:event_id
 func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 	// Authz: JWT users can only query their own tenant's events
 	tenantID, ok := resolveTenantIDFilter(c)
 	if !ok {
 		return
 	}
-	eventID := c.Param("eventID")
+	eventID := c.Param("event_id")
 	event, err := h.logStore.RetrieveEvent(c.Request.Context(), logstore.RetrieveEventRequest{
 		TenantID: tenantID,
 		EventID:  eventID,
@@ -326,14 +326,14 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 	})
 }
 
-// RetrieveAttempt handles GET /attempts/:attemptID
+// RetrieveAttempt handles GET /attempts/:attempt_id
 func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 	// Authz: JWT users can only query their own tenant's attempts
 	tenantID, ok := resolveTenantIDFilter(c)
 	if !ok {
 		return
 	}
-	attemptID := c.Param("attemptID")
+	attemptID := c.Param("attempt_id")
 
 	attemptRecord, err := h.logStore.RetrieveAttempt(c.Request.Context(), logstore.RetrieveAttemptRequest{
 		TenantID:  tenantID,
@@ -350,7 +350,7 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 
 	// Authz: when accessed via a destination-scoped route, verify the attempt
 	// belongs to the destination in the path.
-	if destinationID := c.Param("destinationID"); destinationID != "" {
+	if destinationID := c.Param("destination_id"); destinationID != "" {
 		if attemptRecord.Attempt.DestinationID != destinationID {
 			AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
 			return

@@ -38,7 +38,7 @@ func NewTenantHandlers(
 }
 
 func (h *TenantHandlers) Upsert(c *gin.Context) {
-	tenantID := c.Param("tenantID")
+	tenantID := c.Param("tenant_id")
 
 	// Parse request body for metadata
 	var input struct {

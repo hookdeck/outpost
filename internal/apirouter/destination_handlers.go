@@ -107,7 +107,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 
 func (h *DestinationHandlers) Retrieve(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destinationID"))
+	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
 	if destination == nil {
 		return
 	}
@@ -130,7 +130,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 
 	// Retrieve destination.
 	tenant := mustTenantFromContext(c)
-	originalDestination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destinationID"))
+	originalDestination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
 	if originalDestination == nil {
 		return
 	}
@@ -200,7 +200,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 
 func (h *DestinationHandlers) Delete(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destinationID"))
+	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
 	if destination == nil {
 		return
 	}
@@ -242,7 +242,7 @@ func (h *DestinationHandlers) RetrieveProviderMetadata(c *gin.Context) {
 
 func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool) {
 	tenant := mustTenantFromContext(c)
-	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destinationID"))
+	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
 	if destination == nil {
 		return
 	}

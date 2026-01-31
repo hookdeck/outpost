@@ -60,7 +60,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 		t.Run("resolves tenant when RequireTenant", func(t *testing.T) {
 			r := gin.New()
-			r.GET("/test/:tenantID", apirouter.AuthMiddleware("", testJWTSecret, store, apirouter.AuthOptions{RequireTenant: true}), okHandler)
+			r.GET("/test/:tenant_id", apirouter.AuthMiddleware("", testJWTSecret, store, apirouter.AuthOptions{RequireTenant: true}), okHandler)
 
 			req := httptest.NewRequest(http.MethodGet, "/test/t1", nil)
 			w := httptest.NewRecorder()
@@ -161,7 +161,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	t.Run("JWT wrong tenant param returns 403", func(t *testing.T) {
 		r := gin.New()
-		r.GET("/test/:tenantID", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+		r.GET("/test/:tenant_id", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
 
 		token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: "t1"})
 		require.NoError(t, err)
@@ -210,7 +210,7 @@ func TestAuthMiddleware(t *testing.T) {
 		nilStore := &mockTenantRetriever{tenant: nil}
 		r := gin.New()
 		r.Use(apirouter.ErrorHandlerMiddleware())
-		r.GET("/test/:tenantID", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, nilStore, apirouter.AuthOptions{RequireTenant: true}), okHandler)
+		r.GET("/test/:tenant_id", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, nilStore, apirouter.AuthOptions{RequireTenant: true}), okHandler)
 
 		req := httptest.NewRequest(http.MethodGet, "/test/t1", nil)
 		req.Header.Set("Authorization", "Bearer "+testAPIKey)
@@ -224,7 +224,7 @@ func TestAuthMiddleware(t *testing.T) {
 		errStore := &mockTenantRetriever{err: errors.New("database connection failed")}
 		r := gin.New()
 		r.Use(apirouter.ErrorHandlerMiddleware())
-		r.GET("/test/:tenantID", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, errStore, apirouter.AuthOptions{RequireTenant: true}), okHandler)
+		r.GET("/test/:tenant_id", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, errStore, apirouter.AuthOptions{RequireTenant: true}), okHandler)
 
 		req := httptest.NewRequest(http.MethodGet, "/test/t1", nil)
 		req.Header.Set("Authorization", "Bearer "+testAPIKey)

@@ -155,30 +155,30 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 
 		// Tenants
 		{Method: http.MethodGet, Path: "/tenants", Handler: tenantHandlers.List},
-		{Method: http.MethodPut, Path: "/tenants/:tenantID", Handler: tenantHandlers.Upsert},
-		{Method: http.MethodGet, Path: "/tenants/:tenantID", Handler: tenantHandlers.Retrieve, RequireTenant: true},
-		{Method: http.MethodDelete, Path: "/tenants/:tenantID", Handler: tenantHandlers.Delete, RequireTenant: true},
-		{Method: http.MethodGet, Path: "/tenants/:tenantID/token", Handler: tenantHandlers.RetrieveToken, AdminOnly: true, RequireTenant: true},
-		{Method: http.MethodGet, Path: "/tenants/:tenantID/portal", Handler: tenantHandlers.RetrievePortal, AdminOnly: true, RequireTenant: true},
+		{Method: http.MethodPut, Path: "/tenants/:tenant_id", Handler: tenantHandlers.Upsert},
+		{Method: http.MethodGet, Path: "/tenants/:tenant_id", Handler: tenantHandlers.Retrieve, RequireTenant: true},
+		{Method: http.MethodDelete, Path: "/tenants/:tenant_id", Handler: tenantHandlers.Delete, RequireTenant: true},
+		{Method: http.MethodGet, Path: "/tenants/:tenant_id/token", Handler: tenantHandlers.RetrieveToken, AdminOnly: true, RequireTenant: true},
+		{Method: http.MethodGet, Path: "/tenants/:tenant_id/portal", Handler: tenantHandlers.RetrievePortal, AdminOnly: true, RequireTenant: true},
 
 		// Destinations
-		{Method: http.MethodGet, Path: "/tenants/:tenantID/destinations", Handler: destinationHandlers.List, RequireTenant: true},
-		{Method: http.MethodPost, Path: "/tenants/:tenantID/destinations", Handler: destinationHandlers.Create, RequireTenant: true},
-		{Method: http.MethodGet, Path: "/tenants/:tenantID/destinations/:destinationID", Handler: destinationHandlers.Retrieve, RequireTenant: true},
-		{Method: http.MethodPatch, Path: "/tenants/:tenantID/destinations/:destinationID", Handler: destinationHandlers.Update, RequireTenant: true},
-		{Method: http.MethodDelete, Path: "/tenants/:tenantID/destinations/:destinationID", Handler: destinationHandlers.Delete, RequireTenant: true},
-		{Method: http.MethodPut, Path: "/tenants/:tenantID/destinations/:destinationID/enable", Handler: destinationHandlers.Enable, RequireTenant: true},
-		{Method: http.MethodPut, Path: "/tenants/:tenantID/destinations/:destinationID/disable", Handler: destinationHandlers.Disable, RequireTenant: true},
-		{Method: http.MethodGet, Path: "/tenants/:tenantID/destinations/:destinationID/attempts", Handler: logHandlers.ListDestinationAttempts, RequireTenant: true},
-		{Method: http.MethodGet, Path: "/tenants/:tenantID/destinations/:destinationID/attempts/:attemptID", Handler: logHandlers.RetrieveAttempt, RequireTenant: true},
+		{Method: http.MethodGet, Path: "/tenants/:tenant_id/destinations", Handler: destinationHandlers.List, RequireTenant: true},
+		{Method: http.MethodPost, Path: "/tenants/:tenant_id/destinations", Handler: destinationHandlers.Create, RequireTenant: true},
+		{Method: http.MethodGet, Path: "/tenants/:tenant_id/destinations/:destination_id", Handler: destinationHandlers.Retrieve, RequireTenant: true},
+		{Method: http.MethodPatch, Path: "/tenants/:tenant_id/destinations/:destination_id", Handler: destinationHandlers.Update, RequireTenant: true},
+		{Method: http.MethodDelete, Path: "/tenants/:tenant_id/destinations/:destination_id", Handler: destinationHandlers.Delete, RequireTenant: true},
+		{Method: http.MethodPut, Path: "/tenants/:tenant_id/destinations/:destination_id/enable", Handler: destinationHandlers.Enable, RequireTenant: true},
+		{Method: http.MethodPut, Path: "/tenants/:tenant_id/destinations/:destination_id/disable", Handler: destinationHandlers.Disable, RequireTenant: true},
+		{Method: http.MethodGet, Path: "/tenants/:tenant_id/destinations/:destination_id/attempts", Handler: logHandlers.ListDestinationAttempts, RequireTenant: true},
+		{Method: http.MethodGet, Path: "/tenants/:tenant_id/destinations/:destination_id/attempts/:attempt_id", Handler: logHandlers.RetrieveAttempt, RequireTenant: true},
 
 		// Events
 		{Method: http.MethodGet, Path: "/events", Handler: logHandlers.ListEvents},
-		{Method: http.MethodGet, Path: "/events/:eventID", Handler: logHandlers.RetrieveEvent},
+		{Method: http.MethodGet, Path: "/events/:event_id", Handler: logHandlers.RetrieveEvent},
 
 		// Attempts
 		{Method: http.MethodGet, Path: "/attempts", Handler: logHandlers.ListAttempts},
-		{Method: http.MethodGet, Path: "/attempts/:attemptID", Handler: logHandlers.RetrieveAttempt},
+		{Method: http.MethodGet, Path: "/attempts/:attempt_id", Handler: logHandlers.RetrieveAttempt},
 	}
 
 	registerRoutes(apiRouter, cfg, deps.TenantStore, routes)
