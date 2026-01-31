@@ -2,9 +2,12 @@ package apirouter_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/models"
@@ -152,6 +155,280 @@ func TestAPI_Events(t *testing.T) {
 
 			require.Equal(t, http.StatusForbidden, resp.Code)
 		})
+
+		// Pagination, filtering, and validation are tested comprehensively under
+		// TestAPI_Attempts since attempts are the primary query surface. Events
+		// share the same underlying pagination/filter machinery (ParseCursors,
+		// ParseDir, ParseOrderBy, ParseDateFilter) so we keep a lighter smoke
+		// suite here to confirm the wiring without duplicating every scenario.
+
+		t.Run("Pagination", func(t *testing.T) {
+			h := newAPITest(t)
+
+			now := time.Now()
+			e1 := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTime(now.Add(-2*time.Second)))
+			e2 := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithTime(now.Add(-1*time.Second)))
+			e3 := ef.AnyPointer(ef.WithID("e3"), ef.WithTenantID("t1"), ef.WithTime(now))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1)},
+				{Event: e2, Attempt: attemptForEvent(e2)},
+				{Event: e3, Attempt: attemptForEvent(e3)},
+			}))
+
+			t.Run("forward pagination returns pages in order", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "e3", result.Models[0].ID)
+				assert.NotNil(t, result.Pagination.Next)
+				assert.Nil(t, result.Pagination.Prev)
+			})
+
+			t.Run("next cursor returns second page", func(t *testing.T) {
+				// Get first page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+				require.NotNil(t, page1.Pagination.Next)
+
+				// Get second page
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/events?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var page2 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+				require.Len(t, page2.Models, 1)
+				assert.Equal(t, "e2", page2.Models[0].ID)
+				assert.NotNil(t, page2.Pagination.Next)
+				assert.NotNil(t, page2.Pagination.Prev)
+			})
+
+			t.Run("last page has no next cursor", func(t *testing.T) {
+				// Get first page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+
+				// Get second page
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/events?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page2 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+
+				// Get third (last) page
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/events?limit=1&next=%s", *page2.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var page3 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page3))
+				require.Len(t, page3.Models, 1)
+				assert.Equal(t, "e1", page3.Models[0].ID)
+				assert.Nil(t, page3.Pagination.Next)
+				assert.NotNil(t, page3.Pagination.Prev)
+			})
+
+			t.Run("prev cursor returns previous page", func(t *testing.T) {
+				// Navigate to last page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/events?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page2 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/events?limit=1&next=%s", *page2.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page3 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page3))
+				require.NotNil(t, page3.Pagination.Prev)
+
+				// Go back
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/events?limit=1&prev=%s", *page3.Pagination.Prev), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var prevPage apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &prevPage))
+				require.Len(t, prevPage.Models, 1)
+				assert.Equal(t, "e2", prevPage.Models[0].ID)
+			})
+
+			t.Run("dir asc reverses order", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=1&dir=asc", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "e1", result.Models[0].ID)
+			})
+
+			t.Run("limit caps results", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=2", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 2)
+				assert.NotNil(t, result.Pagination.Next)
+			})
+		})
+
+		t.Run("Filtering", func(t *testing.T) {
+			h := newAPITest(t)
+
+			now := time.Now()
+			e1 := ef.AnyPointer(
+				ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"),
+				ef.WithTopic("user.created"), ef.WithTime(now.Add(-2*time.Hour)),
+			)
+			e2 := ef.AnyPointer(
+				ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithDestinationID("d2"),
+				ef.WithTopic("user.updated"), ef.WithTime(now),
+			)
+			e3 := ef.AnyPointer(
+				ef.WithID("e3"), ef.WithTenantID("t2"), ef.WithDestinationID("d3"),
+				ef.WithTopic("user.created"), ef.WithTime(now),
+			)
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1)},
+				{Event: e2, Attempt: attemptForEvent(e2)},
+				{Event: e3, Attempt: attemptForEvent(e3)},
+			}))
+
+			t.Run("destination_id filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?destination_id=d1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "e1", result.Models[0].ID)
+			})
+
+			t.Run("multiple topics filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?topic=user.created&topic=user.updated", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 3)
+			})
+
+			t.Run("single topic filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?topic=user.updated", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "e2", result.Models[0].ID)
+			})
+
+			t.Run("time gte filter", func(t *testing.T) {
+				cutoff := now.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+				v := url.Values{}
+				v.Set("time[gte]", cutoff)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?"+v.Encode(), nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 2)
+			})
+
+			t.Run("time lte filter", func(t *testing.T) {
+				cutoff := now.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+				v := url.Values{}
+				v.Set("time[lte]", cutoff)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?"+v.Encode(), nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "e1", result.Models[0].ID)
+			})
+
+			t.Run("combined filters", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?topic=user.created&tenant_id=t1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "e1", result.Models[0].ID)
+			})
+		})
+
+		t.Run("Validation", func(t *testing.T) {
+			t.Run("invalid dir returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?dir=sideways", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+
+			t.Run("invalid order_by returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?order_by=name", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+
+			t.Run("both next and prev returns 400", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?next=abc&prev=def", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusBadRequest, resp.Code)
+			})
+
+			t.Run("invalid date format returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?time[gte]=not-a-date", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+		})
 	})
 
 	t.Run("Retrieve", func(t *testing.T) {
@@ -298,6 +575,250 @@ func TestAPI_Attempts(t *testing.T) {
 			resp := h.do(h.withJWT(req, "t1"))
 
 			require.Equal(t, http.StatusForbidden, resp.Code)
+		})
+
+		t.Run("Pagination", func(t *testing.T) {
+			h := newAPITest(t)
+
+			now := time.Now()
+			e1 := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTime(now.Add(-2*time.Second)))
+			e2 := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithTime(now.Add(-1*time.Second)))
+			e3 := ef.AnyPointer(ef.WithID("e3"), ef.WithTenantID("t1"), ef.WithTime(now))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1, af.WithID("a1"), af.WithTime(now.Add(-2*time.Second)))},
+				{Event: e2, Attempt: attemptForEvent(e2, af.WithID("a2"), af.WithTime(now.Add(-1*time.Second)))},
+				{Event: e3, Attempt: attemptForEvent(e3, af.WithID("a3"), af.WithTime(now))},
+			}))
+
+			t.Run("forward pagination returns pages in order", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a3", result.Models[0].ID)
+				assert.NotNil(t, result.Pagination.Next)
+				assert.Nil(t, result.Pagination.Prev)
+			})
+
+			t.Run("next cursor returns second page", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+				require.NotNil(t, page1.Pagination.Next)
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/attempts?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var page2 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+				require.Len(t, page2.Models, 1)
+				assert.Equal(t, "a2", page2.Models[0].ID)
+				assert.NotNil(t, page2.Pagination.Next)
+				assert.NotNil(t, page2.Pagination.Prev)
+			})
+
+			t.Run("last page has no next cursor", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/attempts?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page2 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/attempts?limit=1&next=%s", *page2.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var page3 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page3))
+				require.Len(t, page3.Models, 1)
+				assert.Equal(t, "a1", page3.Models[0].ID)
+				assert.Nil(t, page3.Pagination.Next)
+				assert.NotNil(t, page3.Pagination.Prev)
+			})
+
+			t.Run("prev cursor returns previous page", func(t *testing.T) {
+				// Navigate to last page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/attempts?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page2 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/attempts?limit=1&next=%s", *page2.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page3 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page3))
+				require.NotNil(t, page3.Pagination.Prev)
+
+				// Go back
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/attempts?limit=1&prev=%s", *page3.Pagination.Prev), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var prevPage apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &prevPage))
+				require.Len(t, prevPage.Models, 1)
+				assert.Equal(t, "a2", prevPage.Models[0].ID)
+			})
+
+			t.Run("dir asc reverses order", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?limit=1&dir=asc", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+			})
+
+			t.Run("limit caps results", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?limit=2", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 2)
+				assert.NotNil(t, result.Pagination.Next)
+			})
+		})
+
+		t.Run("Filtering", func(t *testing.T) {
+			h := newAPITest(t)
+
+			now := time.Now()
+			e1 := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"), ef.WithTopic("user.created"))
+			e2 := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithDestinationID("d2"), ef.WithTopic("user.updated"))
+			a1 := attemptForEvent(e1, af.WithID("a1"), af.WithStatus("success"), af.WithTime(now.Add(-2*time.Hour)))
+			a2 := attemptForEvent(e2, af.WithID("a2"), af.WithStatus("failed"), af.WithTime(now))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: a1},
+				{Event: e2, Attempt: a2},
+			}))
+
+			t.Run("status filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?status=success", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+			})
+
+			t.Run("event_id filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?event_id=e1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+			})
+
+			t.Run("destination_id filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?destination_id=d1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+			})
+
+			t.Run("time gte filter", func(t *testing.T) {
+				cutoff := now.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+				v := url.Values{}
+				v.Set("time[gte]", cutoff)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?"+v.Encode(), nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a2", result.Models[0].ID)
+			})
+
+			t.Run("time lte filter", func(t *testing.T) {
+				cutoff := now.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+				v := url.Values{}
+				v.Set("time[lte]", cutoff)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?"+v.Encode(), nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+			})
+		})
+
+		t.Run("Validation", func(t *testing.T) {
+			t.Run("invalid dir returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?dir=sideways", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+
+			t.Run("invalid order_by returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?order_by=name", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+
+			t.Run("both next and prev returns 400", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?next=abc&prev=def", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusBadRequest, resp.Code)
+			})
+
+			t.Run("invalid date format returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?time[gte]=not-a-date", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
 		})
 	})
 

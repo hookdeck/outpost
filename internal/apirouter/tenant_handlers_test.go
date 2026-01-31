@@ -2,9 +2,11 @@ package apirouter_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
@@ -127,6 +129,154 @@ func TestAPI_Tenants(t *testing.T) {
 			assert.Equal(t, 1, result.Count)
 			assert.Len(t, result.Models, 1)
 			assert.Equal(t, "t1", result.Models[0].ID)
+		})
+
+		t.Run("Pagination", func(t *testing.T) {
+			h := newAPITest(t)
+
+			now := time.Now()
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"), tf.WithCreatedAt(now.Add(-2*time.Second))))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2"), tf.WithCreatedAt(now.Add(-1*time.Second))))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t3"), tf.WithCreatedAt(now)))
+
+			t.Run("forward pagination first page", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "t3", result.Models[0].ID)
+				assert.Equal(t, 3, result.Count)
+				assert.NotNil(t, result.Pagination.Next)
+				assert.Nil(t, result.Pagination.Prev)
+			})
+
+			t.Run("next cursor returns second page", func(t *testing.T) {
+				// Get first page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=1", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+				require.NotNil(t, page1.Pagination.Next)
+
+				// Get second page
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/tenants?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var page2 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+				require.Len(t, page2.Models, 1)
+				assert.Equal(t, "t2", page2.Models[0].ID)
+				assert.Equal(t, 3, page2.Count)
+				assert.NotNil(t, page2.Pagination.Next)
+				assert.NotNil(t, page2.Pagination.Prev)
+			})
+
+			t.Run("last page has no next cursor", func(t *testing.T) {
+				// Navigate to last page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=1", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/tenants?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page2 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/tenants?limit=1&next=%s", *page2.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var page3 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page3))
+				require.Len(t, page3.Models, 1)
+				assert.Equal(t, "t1", page3.Models[0].ID)
+				assert.Equal(t, 3, page3.Count)
+				assert.Nil(t, page3.Pagination.Next)
+				assert.NotNil(t, page3.Pagination.Prev)
+			})
+
+			t.Run("prev cursor returns previous page", func(t *testing.T) {
+				// Navigate to last page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=1", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/tenants?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page2 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/tenants?limit=1&next=%s", *page2.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page3 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page3))
+				require.NotNil(t, page3.Pagination.Prev)
+
+				// Go back
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/tenants?limit=1&prev=%s", *page3.Pagination.Prev), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var prevPage tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &prevPage))
+				require.Len(t, prevPage.Models, 1)
+				assert.Equal(t, "t2", prevPage.Models[0].ID)
+			})
+
+			t.Run("dir asc reverses order", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=1&dir=asc", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "t1", result.Models[0].ID)
+			})
+
+			t.Run("limit caps results", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=2", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 2)
+				assert.Equal(t, 3, result.Count)
+				assert.NotNil(t, result.Pagination.Next)
+			})
+		})
+
+		t.Run("Validation", func(t *testing.T) {
+			t.Run("invalid dir returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?dir=sideways", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+
+			t.Run("both next and prev returns 400", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?next=abc&prev=def", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusBadRequest, resp.Code)
+			})
 		})
 	})
 

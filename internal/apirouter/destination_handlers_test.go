@@ -173,6 +173,43 @@ func TestAPI_Destinations(t *testing.T) {
 			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dests))
 			assert.Len(t, dests, 1)
 		})
+
+		t.Run("Filtering", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithType("webhook"), df.WithTopics([]string{"user.created"}),
+			))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d2"), df.WithTenantID("t1"),
+				df.WithType("aws_sqs"), df.WithTopics([]string{"user.deleted"}),
+			))
+
+			t.Run("type filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations?type=webhook", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var dests []destregistry.DestinationDisplay
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dests))
+				require.Len(t, dests, 1)
+				assert.Equal(t, "d1", dests[0].ID)
+			})
+
+			t.Run("topics filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations?topics=user.created", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var dests []destregistry.DestinationDisplay
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dests))
+				require.Len(t, dests, 1)
+				assert.Equal(t, "d1", dests[0].ID)
+			})
+		})
 	})
 
 	t.Run("Update", func(t *testing.T) {
