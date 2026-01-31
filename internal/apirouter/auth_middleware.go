@@ -213,35 +213,3 @@ func mustTenantFromContext(c *gin.Context) *models.Tenant {
 	}
 	return tenant.(*models.Tenant)
 }
-
-func TenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// When apiKey or jwtKey is empty, JWT-only routes should not exist
-		if apiKey == "" || jwtKey == "" {
-			c.AbortWithStatus(http.StatusNotFound)
-			return
-		}
-
-		token, err := validateAuthHeader(c)
-		if err != nil {
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		claims, err := JWT.Extract(jwtKey, token)
-		if err != nil {
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		// If tenantID param exists, verify it matches token
-		if paramTenantID := c.Param("tenantID"); paramTenantID != "" && paramTenantID != claims.TenantID {
-			c.AbortWithStatus(http.StatusForbidden)
-			return
-		}
-
-		c.Set("tenantID", claims.TenantID)
-		c.Set(authRoleKey, RoleTenant)
-		c.Next()
-	}
-}

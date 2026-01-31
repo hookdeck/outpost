@@ -62,7 +62,6 @@ func parseLimit(c *gin.Context, defaultLimit, maxLimit int) int {
 type IncludeOptions struct {
 	Event        bool
 	EventData    bool
-	Destination  bool
 	ResponseData bool
 }
 
@@ -75,8 +74,6 @@ func parseIncludeOptions(c *gin.Context) IncludeOptions {
 		case "event.data":
 			opts.Event = true
 			opts.EventData = true
-		case "destination":
-			opts.Destination = true
 		case "response_data":
 			opts.ResponseData = true
 		}
@@ -97,8 +94,9 @@ type APIAttempt struct {
 	Manual        bool                   `json:"manual"`
 
 	// Expandable fields - string (ID) or object depending on expand
-	Event       interface{} `json:"event"`
-	Destination string      `json:"destination"`
+	Event interface{} `json:"event"`
+
+	Destination string `json:"destination"`
 }
 
 // APIEventSummary is the event object when expand=event (without data)
@@ -145,19 +143,17 @@ type EventPaginatedResult struct {
 // toAPIAttempt converts an AttemptRecord to APIAttempt with expand options
 func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 	api := APIAttempt{
+		ID:            ar.Attempt.ID,
+		Status:        ar.Attempt.Status,
+		DeliveredAt:   ar.Attempt.Time,
+		Code:          ar.Attempt.Code,
 		AttemptNumber: ar.Attempt.AttemptNumber,
 		Manual:        ar.Attempt.Manual,
 		Destination:   ar.Attempt.DestinationID,
 	}
 
-	if ar.Attempt != nil {
-		api.ID = ar.Attempt.ID
-		api.Status = ar.Attempt.Status
-		api.DeliveredAt = ar.Attempt.Time
-		api.Code = ar.Attempt.Code
-		if opts.ResponseData {
-			api.ResponseData = ar.Attempt.ResponseData
-		}
+	if opts.ResponseData {
+		api.ResponseData = ar.Attempt.ResponseData
 	}
 
 	if ar.Event != nil {
@@ -184,11 +180,6 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 	} else {
 		api.Event = ar.Attempt.EventID
 	}
-
-	// TODO: Handle destination expansion
-	// This would require injecting TenantStore into LogHandlers and batch-fetching
-	// destinations by ID. Consider if this is needed - clients can fetch destination
-	// details separately via GET /destinations/:id if needed.
 
 	return api
 }
