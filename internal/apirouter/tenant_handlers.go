@@ -94,6 +94,15 @@ func (h *TenantHandlers) Retrieve(c *gin.Context) {
 }
 
 func (h *TenantHandlers) List(c *gin.Context) {
+	// Authz: JWT users can only see their own tenant
+	if tenant := tenantFromContext(c); tenant != nil {
+		c.JSON(http.StatusOK, tenantstore.TenantPaginatedResult{
+			Models: []models.Tenant{*tenant},
+			Count:  1,
+		})
+		return
+	}
+
 	// Parse and validate cursors (next/prev are mutually exclusive)
 	cursors, errResp := ParseCursors(c)
 	if errResp != nil {

@@ -1,6 +1,7 @@
 package apirouter_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -15,7 +16,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRetryAttempt(t *testing.T) {
+func retryBody(eventID, destinationID string) *bytes.Buffer {
+	body, _ := json.Marshal(map[string]string{
+		"event_id":       eventID,
+		"destination_id": destinationID,
+	})
+	return bytes.NewBuffer(body)
+}
+
+func TestRetry(t *testing.T) {
 	t.Parallel()
 
 	result := setupTestRouterFull(t, "", "")
@@ -35,7 +44,7 @@ func TestRetryAttempt(t *testing.T) {
 		CreatedAt: time.Now(),
 	}))
 
-	// Seed an attempt event
+	// Seed an event
 	eventID := idgen.Event()
 	attemptID := idgen.Attempt()
 	eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
@@ -59,7 +68,7 @@ func TestRetryAttempt(t *testing.T) {
 
 	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
 
-	t.Run("should retry attempt successfully with full event data", func(t *testing.T) {
+	t.Run("should retry successfully with full event data", func(t *testing.T) {
 		// Subscribe to deliveryMQ to capture published task
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -69,7 +78,8 @@ func TestRetryAttempt(t *testing.T) {
 
 		// Trigger manual retry
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+attemptID+"/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/retry", retryBody(eventID, destinationID))
+		req.Header.Set("Content-Type", "application/json")
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusAccepted, w.Code)
@@ -97,20 +107,42 @@ func TestRetryAttempt(t *testing.T) {
 		msg.Ack()
 	})
 
-	t.Run("should return 404 for non-existent attempt", func(t *testing.T) {
+	t.Run("should return 404 for non-existent event", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/attempts/nonexistent/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/retry", retryBody("nonexistent", destinationID))
+		req.Header.Set("Content-Type", "application/json")
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("should return 404 for non-existent tenant", func(t *testing.T) {
+	t.Run("should return 404 for non-existent destination", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/nonexistent/attempts/"+attemptID+"/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/retry", retryBody(eventID, "nonexistent"))
+		req.Header.Set("Content-Type", "application/json")
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("should return 400 when missing event_id", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{"destination_id": destinationID})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", baseAPIPath+"/retry", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("should return 400 when missing destination_id", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{"event_id": eventID})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", baseAPIPath+"/retry", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
 	t.Run("should return 400 when destination is disabled", func(t *testing.T) {
@@ -126,7 +158,7 @@ func TestRetryAttempt(t *testing.T) {
 			DisabledAt: &disabledAt,
 		}))
 
-		// Create an attempt for the disabled destination
+		// Create an event for the disabled destination
 		disabledEventID := idgen.Event()
 		disabledAttemptID := idgen.Attempt()
 
@@ -149,7 +181,8 @@ func TestRetryAttempt(t *testing.T) {
 		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: disabledEvent, Attempt: disabledAttempt}}))
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+disabledAttemptID+"/retry", nil)
+		req, _ := http.NewRequest("POST", baseAPIPath+"/retry", retryBody(disabledEventID, disabledDestinationID))
+		req.Header.Set("Content-Type", "application/json")
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -157,5 +190,50 @@ func TestRetryAttempt(t *testing.T) {
 		var response map[string]interface{}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 		assert.Equal(t, "Destination is disabled", response["message"])
+	})
+
+	t.Run("should return 400 when destination does not match event", func(t *testing.T) {
+		// Create a destination that only matches "order.created" topic
+		mismatchDestinationID := idgen.Destination()
+		require.NoError(t, result.tenantStore.UpsertDestination(context.Background(), models.Destination{
+			ID:        mismatchDestinationID,
+			TenantID:  tenantID,
+			Type:      "webhook",
+			Topics:    []string{"order.created"},
+			CreatedAt: time.Now(),
+		}))
+
+		// Create an event with a different topic
+		mismatchEventID := idgen.Event()
+		mismatchAttemptID := idgen.Attempt()
+
+		mismatchEvent := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID(mismatchEventID),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(mismatchDestinationID),
+			testutil.EventFactory.WithTopic("user.updated"),
+			testutil.EventFactory.WithTime(eventTime),
+		)
+
+		mismatchAttempt := testutil.AttemptFactory.AnyPointer(
+			testutil.AttemptFactory.WithID(mismatchAttemptID),
+			testutil.AttemptFactory.WithEventID(mismatchEventID),
+			testutil.AttemptFactory.WithDestinationID(mismatchDestinationID),
+			testutil.AttemptFactory.WithStatus("failed"),
+			testutil.AttemptFactory.WithTime(attemptTime),
+		)
+
+		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: mismatchEvent, Attempt: mismatchAttempt}}))
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", baseAPIPath+"/retry", retryBody(mismatchEventID, mismatchDestinationID))
+		req.Header.Set("Content-Type", "application/json")
+		result.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var response map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		assert.Equal(t, "destination does not match event", response["message"])
 	})
 }

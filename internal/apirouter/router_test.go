@@ -167,7 +167,7 @@ func TestRouterWithAPIKey(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("should allow tenant-auth request to tenant routes", func(t *testing.T) {
+	t.Run("should return 401 for JWT tenant that doesn't exist in DB", func(t *testing.T) {
 		t.Parallel()
 
 		w := httptest.NewRecorder()
@@ -175,9 +175,8 @@ func TestRouterWithAPIKey(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+validToken)
 		router.ServeHTTP(w, req)
 
-		// A bit awkward that the tenant is not found, but the request is authenticated
-		// and the 404 response is handled by the handler which is what we're testing here (routing).
-		assert.Equal(t, http.StatusNotFound, w.Code)
+		// JWT references a tenant that doesn't exist — this is an auth failure, not a 404.
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
 	t.Run("should block invalid tenant-auth request to tenant routes", func(t *testing.T) {

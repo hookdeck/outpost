@@ -1,6 +1,7 @@
 package apirouter_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,8 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/hookdeck/outpost/internal/apirouter"
+	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/models"
 )
 
 func TestPublicRouter(t *testing.T) {
@@ -22,7 +26,7 @@ func TestPublicRouter(t *testing.T) {
 	t.Run("should accept requests without a token", func(t *testing.T) {
 		t.Parallel()
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenant-id/topics", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/topics", nil)
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
@@ -30,7 +34,7 @@ func TestPublicRouter(t *testing.T) {
 	t.Run("should accept requests with an invalid authorization token", func(t *testing.T) {
 		t.Parallel()
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenant-id/topics", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/topics", nil)
 		req.Header.Set("Authorization", "invalid key")
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -39,7 +43,7 @@ func TestPublicRouter(t *testing.T) {
 	t.Run("should accept requests with a valid authorization token", func(t *testing.T) {
 		t.Parallel()
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenant-id/topics", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/topics", nil)
 		req.Header.Set("Authorization", "Bearer key")
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -223,6 +227,37 @@ func newExpiredJWTToken(t *testing.T, secret string, tenantID string) string {
 	return token
 }
 
+func TestResolveTenantMiddleware(t *testing.T) {
+	t.Parallel()
+
+	const apiKey = ""
+	router, _, redisClient := setupTestRouter(t, apiKey, "")
+
+	t.Run("should reject requests without a tenant", func(t *testing.T) {
+		t.Parallel()
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/invalid_tenant_id/destinations", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("should allow requests with a valid tenant", func(t *testing.T) {
+		t.Parallel()
+
+		tenant := models.Tenant{
+			ID: idgen.String(),
+		}
+		tenantStore := setupTestTenantStore(t, redisClient)
+		err := tenantStore.UpsertTenant(context.Background(), tenant)
+		require.Nil(t, err)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenant.ID+"/destinations", nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
 func TestTenantJWTAuthMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Parallel()
@@ -330,13 +365,13 @@ func TestAuthRole(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
-	t.Run("APIKeyAuthMiddleware", func(t *testing.T) {
+	t.Run("AdminMiddleware", func(t *testing.T) {
 		t.Run("should set RoleAdmin when apiKey is empty", func(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 
-			handler := apirouter.APIKeyAuthMiddleware("")
+			handler := apirouter.AdminMiddleware("")
 			var role string
 			nextHandler := func(c *gin.Context) {
 				val, exists := c.Get("authRole")
@@ -357,7 +392,7 @@ func TestAuthRole(t *testing.T) {
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 			c.Request.Header.Set("Authorization", "Bearer key")
 
-			handler := apirouter.APIKeyAuthMiddleware("key")
+			handler := apirouter.AdminMiddleware("key")
 			var role string
 			nextHandler := func(c *gin.Context) {
 				val, exists := c.Get("authRole")

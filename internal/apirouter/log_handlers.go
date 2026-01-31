@@ -193,11 +193,15 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 	return api
 }
 
-// ListAttempts handles GET /:tenantID/attempts
-// Query params: event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_order
+// ListAttempts handles GET /attempts
+// Query params: tenant_id, event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_order
 func (h *LogHandlers) ListAttempts(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
-	h.listAttemptsInternal(c, tenant.ID, "")
+	// Authz: JWT users can only query their own tenant's attempts
+	tenantID, ok := resolveTenantIDFilter(c)
+	if !ok {
+		return
+	}
+	h.listAttemptsInternal(c, tenantID, "")
 }
 
 // ListDestinationAttempts handles GET /:tenantID/destinations/:destinationID/attempts
@@ -301,12 +305,16 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantID string, dest
 	})
 }
 
-// RetrieveEvent handles GET /:tenantID/events/:eventID
+// RetrieveEvent handles GET /events/:eventID
 func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
+	// Authz: JWT users can only query their own tenant's events
+	tenantID, ok := resolveTenantIDFilter(c)
+	if !ok {
+		return
+	}
 	eventID := c.Param("eventID")
 	event, err := h.logStore.RetrieveEvent(c.Request.Context(), logstore.RetrieveEventRequest{
-		TenantID: tenant.ID,
+		TenantID: tenantID,
 		EventID:  eventID,
 	})
 	if err != nil {
@@ -327,13 +335,17 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 	})
 }
 
-// RetrieveAttempt handles GET /:tenantID/attempts/:attemptID
+// RetrieveAttempt handles GET /attempts/:attemptID
 func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
+	// Authz: JWT users can only query their own tenant's attempts
+	tenantID, ok := resolveTenantIDFilter(c)
+	if !ok {
+		return
+	}
 	attemptID := c.Param("attemptID")
 
 	attemptRecord, err := h.logStore.RetrieveAttempt(c.Request.Context(), logstore.RetrieveAttemptRequest{
-		TenantID:  tenant.ID,
+		TenantID:  tenantID,
 		AttemptID: attemptID,
 	})
 	if err != nil {
@@ -350,23 +362,15 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 	c.JSON(http.StatusOK, toAPIAttempt(attemptRecord, includeOpts))
 }
 
-// AdminListEvents handles GET /events (admin-only, cross-tenant)
-// Query params: tenant_id (optional), destination_id, topic[], start, end, limit, next, prev, sort_order
-func (h *LogHandlers) AdminListEvents(c *gin.Context) {
-	h.listEventsInternal(c, c.Query("tenant_id"))
-}
-
-// AdminListAttempts handles GET /attempts (admin-only, cross-tenant)
-// Query params: tenant_id (optional), event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_order
-func (h *LogHandlers) AdminListAttempts(c *gin.Context) {
-	h.listAttemptsInternal(c, c.Query("tenant_id"), "")
-}
-
-// ListEvents handles GET /:tenantID/events
-// Query params: destination_id, topic[], start, end, limit, next, prev, sort_order
+// ListEvents handles GET /events
+// Query params: tenant_id, destination_id, topic[], start, end, limit, next, prev, sort_order
 func (h *LogHandlers) ListEvents(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
-	h.listEventsInternal(c, tenant.ID)
+	// Authz: JWT users can only query their own tenant's events
+	tenantID, ok := resolveTenantIDFilter(c)
+	if !ok {
+		return
+	}
+	h.listEventsInternal(c, tenantID)
 }
 
 func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {

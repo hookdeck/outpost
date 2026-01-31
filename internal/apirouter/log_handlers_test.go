@@ -37,7 +37,7 @@ func TestListAttempts(t *testing.T) {
 
 	t.Run("should return empty list when no attempts", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts?tenant_id="+tenantID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -75,7 +75,7 @@ func TestListAttempts(t *testing.T) {
 		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts?tenant_id="+tenantID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -95,7 +95,7 @@ func TestListAttempts(t *testing.T) {
 
 	t.Run("should include event when include=event", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?include=event", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts?tenant_id="+tenantID+"&include=event", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -116,7 +116,7 @@ func TestListAttempts(t *testing.T) {
 
 	t.Run("should include event.data when include=event.data", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?include=event.data", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts?tenant_id="+tenantID+"&include=event.data", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -135,7 +135,7 @@ func TestListAttempts(t *testing.T) {
 
 	t.Run("should filter by destination_id", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?destination_id="+destinationID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts?tenant_id="+tenantID+"&destination_id="+destinationID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -149,7 +149,7 @@ func TestListAttempts(t *testing.T) {
 
 	t.Run("should filter by non-existent destination_id", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?destination_id=nonexistent", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts?tenant_id="+tenantID+"&destination_id=nonexistent", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -171,7 +171,7 @@ func TestListAttempts(t *testing.T) {
 
 	t.Run("should exclude response_data by default", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts?tenant_id="+tenantID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -216,7 +216,7 @@ func TestListAttempts(t *testing.T) {
 		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?include=response_data", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts?tenant_id="+tenantID+"&include=response_data", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -243,7 +243,7 @@ func TestListAttempts(t *testing.T) {
 
 	t.Run("should support comma-separated include param", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?include=event,response_data", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts?tenant_id="+tenantID+"&include=event,response_data", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -263,7 +263,7 @@ func TestListAttempts(t *testing.T) {
 
 	t.Run("should return validation error for invalid dir", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?dir=invalid", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts?tenant_id="+tenantID+"&dir=invalid", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
@@ -271,7 +271,7 @@ func TestListAttempts(t *testing.T) {
 
 	t.Run("should accept valid dir param", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?dir=asc", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts?tenant_id="+tenantID+"&dir=asc", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -279,7 +279,7 @@ func TestListAttempts(t *testing.T) {
 
 	t.Run("should cap limit at 1000", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?limit=5000", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts?tenant_id="+tenantID+"&limit=5000", nil)
 		result.router.ServeHTTP(w, req)
 
 		// Should succeed, limit is silently capped
@@ -333,7 +333,7 @@ func TestRetrieveAttempt(t *testing.T) {
 
 	t.Run("should retrieve attempt by ID", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+attemptID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts/"+attemptID+"?tenant_id="+tenantID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -349,7 +349,7 @@ func TestRetrieveAttempt(t *testing.T) {
 
 	t.Run("should include event when include=event", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+attemptID+"?include=event", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts/"+attemptID+"?tenant_id="+tenantID+"&include=event", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -366,7 +366,7 @@ func TestRetrieveAttempt(t *testing.T) {
 
 	t.Run("should include event.data when include=event.data", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+attemptID+"?include=event.data", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/attempts/"+attemptID+"?tenant_id="+tenantID+"&include=event.data", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -448,7 +448,7 @@ func TestRetrieveEvent(t *testing.T) {
 
 	t.Run("should retrieve event by ID", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events/"+eventID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/events/"+eventID+"?tenant_id="+tenantID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -503,7 +503,7 @@ func TestListEvents(t *testing.T) {
 
 	t.Run("should return empty list when no events", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/events?tenant_id="+tenantID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -544,7 +544,7 @@ func TestListEvents(t *testing.T) {
 		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
 
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/events?tenant_id="+tenantID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -563,7 +563,7 @@ func TestListEvents(t *testing.T) {
 
 	t.Run("should filter by destination_id", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?destination_id="+destinationID, nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/events?tenant_id="+tenantID+"&destination_id="+destinationID, nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -577,7 +577,7 @@ func TestListEvents(t *testing.T) {
 
 	t.Run("should filter by non-existent destination_id", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?destination_id=nonexistent", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/events?tenant_id="+tenantID+"&destination_id=nonexistent", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -591,7 +591,7 @@ func TestListEvents(t *testing.T) {
 
 	t.Run("should filter by topic", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?topic=user.created", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/events?tenant_id="+tenantID+"&topic=user.created", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -617,7 +617,7 @@ func TestListEvents(t *testing.T) {
 
 	t.Run("should return validation error for invalid time filter", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?time[gte]=invalid", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/events?tenant_id="+tenantID+"&time[gte]=invalid", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
@@ -625,7 +625,7 @@ func TestListEvents(t *testing.T) {
 
 	t.Run("should return validation error for invalid time lte filter", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?time[lte]=invalid", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/events?tenant_id="+tenantID+"&time[lte]=invalid", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
@@ -633,7 +633,7 @@ func TestListEvents(t *testing.T) {
 
 	t.Run("should return validation error for invalid dir", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?dir=invalid", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/events?tenant_id="+tenantID+"&dir=invalid", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
@@ -641,7 +641,7 @@ func TestListEvents(t *testing.T) {
 
 	t.Run("should accept valid dir param", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?dir=asc", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/events?tenant_id="+tenantID+"&dir=asc", nil)
 		result.router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -649,7 +649,7 @@ func TestListEvents(t *testing.T) {
 
 	t.Run("should cap limit at 1000", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?limit=5000", nil)
+		req, _ := http.NewRequest("GET", baseAPIPath+"/events?tenant_id="+tenantID+"&limit=5000", nil)
 		result.router.ServeHTTP(w, req)
 
 		// Should succeed, limit is silently capped
