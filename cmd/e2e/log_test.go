@@ -112,7 +112,7 @@ func (suite *basicSuite) TestLogAPI() {
 	}
 
 	// Wait for all attempts (30s timeout for slow CI environments)
-	suite.waitForAttempts(suite.T(), "/tenants/"+tenantID+"/attempts", 10, 10*time.Second)
+	suite.waitForAttempts(suite.T(), "/attempts?tenant_id="+tenantID, 10, 10*time.Second)
 
 	// =========================================================================
 	// Attempts Tests
@@ -121,7 +121,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("list all", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/attempts",
+				Path:   "/attempts?tenant_id=" + tenantID,
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -143,7 +143,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("filter by destination_id", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/attempts?destination_id=" + destinationID,
+				Path:   "/attempts?tenant_id=" + tenantID + "&destination_id=" + destinationID,
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -156,7 +156,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("filter by event_id", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/attempts?event_id=" + eventIDs[0],
+				Path:   "/attempts?tenant_id=" + tenantID + "&event_id=" + eventIDs[0],
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -169,7 +169,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("include=event returns event object without data", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/attempts?include=event&limit=1",
+				Path:   "/attempts?tenant_id=" + tenantID + "&include=event&limit=1",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -189,7 +189,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("include=event.data returns event object with data", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/attempts?include=event.data&limit=1",
+				Path:   "/attempts?tenant_id=" + tenantID + "&include=event.data&limit=1",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -207,7 +207,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("include=response_data returns response data", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/attempts?include=response_data&limit=1",
+				Path:   "/attempts?tenant_id=" + tenantID + "&include=response_data&limit=1",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -228,7 +228,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("list all", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events",
+				Path:   "/events?tenant_id=" + tenantID,
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -248,7 +248,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("filter by topic", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?topic=user.created",
+				Path:   "/events?tenant_id=" + tenantID + "&topic=user.created",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -261,7 +261,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("retrieve single event", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events/" + eventIDs[0],
+				Path:   "/events/" + eventIDs[0],
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -275,7 +275,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("retrieve non-existent event returns 404", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events/" + idgen.Event(),
+				Path:   "/events/" + idgen.Event(),
 			}))
 			suite.Require().NoError(err)
 			suite.Equal(http.StatusNotFound, resp.StatusCode)
@@ -285,7 +285,7 @@ func (suite *basicSuite) TestLogAPI() {
 			futureTime := time.Now().Add(1 * time.Hour).UTC().Format(time.RFC3339)
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?time[gte]=" + futureTime,
+				Path:   "/events?tenant_id=" + tenantID + "&time[gte]=" + futureTime,
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -303,7 +303,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("events desc returns newest first", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?dir=desc",
+				Path:   "/events?tenant_id=" + tenantID + "&dir=desc",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -322,7 +322,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("events asc returns oldest first", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?dir=asc",
+				Path:   "/events?tenant_id=" + tenantID + "&dir=asc",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -341,7 +341,7 @@ func (suite *basicSuite) TestLogAPI() {
 		suite.Run("events invalid dir returns 422", func() {
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?dir=invalid",
+				Path:   "/events?tenant_id=" + tenantID + "&dir=invalid",
 			}))
 			suite.Require().NoError(err)
 			suite.Equal(http.StatusUnprocessableEntity, resp.StatusCode)
@@ -359,7 +359,7 @@ func (suite *basicSuite) TestLogAPI() {
 			pageCount := 0
 
 			for {
-				path := "/tenants/" + tenantID + "/events?limit=3&dir=asc"
+				path := "/events?tenant_id=" + tenantID + "&limit=3&dir=asc"
 				if nextCursor != "" {
 					path += "&next=" + nextCursor
 				}
@@ -401,7 +401,7 @@ func (suite *basicSuite) TestLogAPI() {
 			// Get all events to establish a time window
 			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodGET,
-				Path:   "/tenants/" + tenantID + "/events?dir=asc&limit=10",
+				Path:   "/events?tenant_id=" + tenantID + "&dir=asc&limit=10",
 			}))
 			suite.Require().NoError(err)
 			suite.Require().Equal(http.StatusOK, resp.StatusCode)
@@ -424,7 +424,7 @@ func (suite *basicSuite) TestLogAPI() {
 			pageCount := 0
 
 			for {
-				path := "/tenants/" + tenantID + "/events?dir=asc&limit=2"
+				path := "/events?tenant_id=" + tenantID + "&dir=asc&limit=2"
 				path += "&time[gte]=" + timeGTE + "&time[lte]=" + timeLTE
 				if nextCursor != "" {
 					path += "&next=" + nextCursor
@@ -513,10 +513,10 @@ func (suite *basicSuite) TestLogAPI() {
 //  6. Update mock server to SUCCEED (return 200)
 //
 // Test Cases:
-//   - POST /:tenantID/attempts/:attemptID/retry - Successful retry returns 202 Accepted
-//   - POST /:tenantID/attempts/:attemptID/retry (non-existent) - Returns 404
+//   - POST /retry - Successful retry returns 202 Accepted
+//   - POST /retry (non-existent event) - Returns 404
 //   - Verify retry created new attempt - Event now has 2+ attempts
-//   - POST /:tenantID/attempts/:attemptID/retry (disabled destination) - Returns 400
+//   - POST /retry (disabled destination) - Returns 400
 func (suite *basicSuite) TestRetryAPI() {
 	tenantID := idgen.String()
 	destinationID := idgen.Destination()
@@ -604,12 +604,12 @@ func (suite *basicSuite) TestRetryAPI() {
 	suite.RunAPITests(suite.T(), setupTests)
 
 	// Wait for attempt to complete (and fail)
-	suite.waitForAttempts(suite.T(), "/tenants/"+tenantID+"/attempts?event_id="+eventID, 1, 5*time.Second)
+	suite.waitForAttempts(suite.T(), "/attempts?tenant_id="+tenantID+"&event_id="+eventID, 1, 5*time.Second)
 
 	// Get the attempt ID
 	attemptsResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
-		Path:   "/tenants/" + tenantID + "/attempts?event_id=" + eventID,
+		Path:   "/attempts?tenant_id=" + tenantID + "&event_id=" + eventID,
 	}))
 	suite.Require().NoError(err)
 	suite.Require().Equal(http.StatusOK, attemptsResp.StatusCode)
@@ -618,7 +618,6 @@ func (suite *basicSuite) TestRetryAPI() {
 	models := body["models"].([]interface{})
 	suite.Require().NotEmpty(models, "should have at least one attempt")
 	firstAttempt := models[0].(map[string]interface{})
-	attemptID := firstAttempt["id"].(string)
 
 	// Verify first attempt has attempt_number=0
 	suite.Equal(float64(0), firstAttempt["attempt_number"], "first attempt should have attempt_number=0")
@@ -653,12 +652,16 @@ func (suite *basicSuite) TestRetryAPI() {
 
 	// Test retry endpoint
 	retryTests := []APITest{
-		// POST /:tenantID/attempts/:attemptID/retry - successful retry
+		// POST /retry - successful retry
 		{
-			Name: "POST /:tenantID/attempts/:attemptID/retry - retry attempt",
+			Name: "POST /retry - retry event",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/tenants/" + tenantID + "/attempts/" + attemptID + "/retry",
+				Path:   "/retry",
+				Body: map[string]interface{}{
+					"event_id":       eventID,
+					"destination_id": destinationID,
+				},
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -669,12 +672,16 @@ func (suite *basicSuite) TestRetryAPI() {
 				},
 			},
 		},
-		// POST /:tenantID/attempts/:attemptID/retry - non-existent attempt
+		// POST /retry - non-existent event
 		{
-			Name: "POST /:tenantID/attempts/:attemptID/retry - not found",
+			Name: "POST /retry - not found",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/tenants/" + tenantID + "/attempts/" + idgen.Attempt() + "/retry",
+				Path:   "/retry",
+				Body: map[string]interface{}{
+					"event_id":       idgen.Event(),
+					"destination_id": destinationID,
+				},
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -686,12 +693,12 @@ func (suite *basicSuite) TestRetryAPI() {
 	suite.RunAPITests(suite.T(), retryTests)
 
 	// Wait for retry attempt to complete
-	suite.waitForAttempts(suite.T(), "/tenants/"+tenantID+"/attempts?event_id="+eventID, 2, 5*time.Second)
+	suite.waitForAttempts(suite.T(), "/attempts?tenant_id="+tenantID+"&event_id="+eventID, 2, 5*time.Second)
 
 	// Verify retry created a new attempt with incremented attempt_number
 	verifyResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
-		Path:   "/tenants/" + tenantID + "/attempts?event_id=" + eventID + "&dir=asc",
+		Path:   "/attempts?tenant_id=" + tenantID + "&event_id=" + eventID + "&dir=asc",
 	}))
 	suite.Require().NoError(err)
 	suite.Require().Equal(http.StatusOK, verifyResp.StatusCode)
@@ -731,10 +738,14 @@ func (suite *basicSuite) TestRetryAPI() {
 			},
 		},
 		{
-			Name: "POST /:tenantID/attempts/:attemptID/retry - disabled destination",
+			Name: "POST /retry - disabled destination",
 			Request: suite.AuthRequest(httpclient.Request{
 				Method: httpclient.MethodPOST,
-				Path:   "/tenants/" + tenantID + "/attempts/" + attemptID + "/retry",
+				Path:   "/retry",
+				Body: map[string]interface{}{
+					"event_id":       eventID,
+					"destination_id": destinationID,
+				},
 			}),
 			Expected: APITestExpectation{
 				Match: &httpclient.Response{
@@ -773,362 +784,6 @@ func (suite *basicSuite) TestRetryAPI() {
 				Match: &httpclient.Response{
 					StatusCode: http.StatusOK,
 				},
-			},
-		},
-	}
-	suite.RunAPITests(suite.T(), cleanupTests)
-}
-
-// TestAdminLogEndpoints tests the admin-only /events and /attempts endpoints.
-//
-// These endpoints allow cross-tenant queries with optional tenant_id filter.
-//
-// Setup:
-//  1. Create two tenants with destinations
-//  2. Publish events to each tenant
-//  3. Wait for attempts to complete
-//
-// Test Cases:
-//   - GET /events without auth returns 401
-//   - GET /attempts without auth returns 401
-//   - GET /events with JWT returns 401 (admin-only)
-//   - GET /attempts with JWT returns 401 (admin-only)
-//   - GET /events with admin key returns all events (cross-tenant)
-//   - GET /attempts with admin key returns all attempts (cross-tenant)
-//   - GET /events?tenant_id=X filters to single tenant
-//   - GET /attempts?tenant_id=X filters to single tenant
-func (suite *basicSuite) TestAdminLogEndpoints() {
-	tenant1ID := idgen.String()
-	tenant2ID := idgen.String()
-	destination1ID := idgen.Destination()
-	destination2ID := idgen.Destination()
-	event1ID := idgen.Event()
-	event2ID := idgen.Event()
-
-	// Setup: create two tenants with destinations
-	setupTests := []APITest{
-		{
-			Name: "create tenant1",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPUT,
-				Path:   "/tenants/" + tenant1ID,
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{StatusCode: http.StatusCreated},
-			},
-		},
-		{
-			Name: "create tenant2",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPUT,
-				Path:   "/tenants/" + tenant2ID,
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{StatusCode: http.StatusCreated},
-			},
-		},
-		{
-			Name: "setup mock server for tenant1",
-			Request: httpclient.Request{
-				Method:  httpclient.MethodPUT,
-				BaseURL: suite.mockServerBaseURL,
-				Path:    "/destinations",
-				Body: map[string]interface{}{
-					"id":   destination1ID,
-					"type": "webhook",
-					"config": map[string]interface{}{
-						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destination1ID),
-					},
-				},
-			},
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{StatusCode: http.StatusOK},
-			},
-		},
-		{
-			Name: "setup mock server for tenant2",
-			Request: httpclient.Request{
-				Method:  httpclient.MethodPUT,
-				BaseURL: suite.mockServerBaseURL,
-				Path:    "/destinations",
-				Body: map[string]interface{}{
-					"id":   destination2ID,
-					"type": "webhook",
-					"config": map[string]interface{}{
-						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destination2ID),
-					},
-				},
-			},
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{StatusCode: http.StatusOK},
-			},
-		},
-		{
-			Name: "create destination for tenant1",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPOST,
-				Path:   "/tenants/" + tenant1ID + "/destinations",
-				Body: map[string]interface{}{
-					"id":     destination1ID,
-					"type":   "webhook",
-					"topics": "*",
-					"config": map[string]interface{}{
-						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destination1ID),
-					},
-				},
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{StatusCode: http.StatusCreated},
-			},
-		},
-		{
-			Name: "create destination for tenant2",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPOST,
-				Path:   "/tenants/" + tenant2ID + "/destinations",
-				Body: map[string]interface{}{
-					"id":     destination2ID,
-					"type":   "webhook",
-					"topics": "*",
-					"config": map[string]interface{}{
-						"url": fmt.Sprintf("%s/webhook/%s", suite.mockServerBaseURL, destination2ID),
-					},
-				},
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{StatusCode: http.StatusCreated},
-			},
-		},
-		{
-			Name: "publish event to tenant1",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPOST,
-				Path:   "/publish",
-				Body: map[string]interface{}{
-					"id":        event1ID,
-					"tenant_id": tenant1ID,
-					"topic":     "user.created",
-					"data":      map[string]interface{}{"tenant": "1"},
-				},
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{StatusCode: http.StatusAccepted},
-			},
-		},
-		{
-			Name: "publish event to tenant2",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodPOST,
-				Path:   "/publish",
-				Body: map[string]interface{}{
-					"id":        event2ID,
-					"tenant_id": tenant2ID,
-					"topic":     "user.created",
-					"data":      map[string]interface{}{"tenant": "2"},
-				},
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{StatusCode: http.StatusAccepted},
-			},
-		},
-	}
-	suite.RunAPITests(suite.T(), setupTests)
-
-	// Wait for attempts for both tenants
-	suite.waitForAttempts(suite.T(), "/tenants/"+tenant1ID+"/attempts", 1, 5*time.Second)
-	suite.waitForAttempts(suite.T(), "/tenants/"+tenant2ID+"/attempts", 1, 5*time.Second)
-
-	// Get JWT token for tenant1 to test that JWT auth is rejected on admin endpoints
-	tokenResp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
-		Method: httpclient.MethodGET,
-		Path:   "/tenants/" + tenant1ID + "/token",
-	}))
-	suite.Require().NoError(err)
-	suite.Require().Equal(http.StatusOK, tokenResp.StatusCode)
-	bodyMap := tokenResp.Body.(map[string]interface{})
-	jwtToken := bodyMap["token"].(string)
-	suite.Require().NotEmpty(jwtToken)
-
-	// =========================================================================
-	// Auth Tests: verify endpoints require admin API key
-	// =========================================================================
-	suite.Run("auth", func() {
-		suite.Run("GET /events without auth returns 401", func() {
-			resp, err := suite.client.Do(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/events",
-			})
-			suite.Require().NoError(err)
-			suite.Equal(http.StatusUnauthorized, resp.StatusCode)
-		})
-
-		suite.Run("GET /attempts without auth returns 401", func() {
-			resp, err := suite.client.Do(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/attempts",
-			})
-			suite.Require().NoError(err)
-			suite.Equal(http.StatusUnauthorized, resp.StatusCode)
-		})
-
-		suite.Run("GET /events with JWT returns 401 (admin-only)", func() {
-			resp, err := suite.client.Do(suite.AuthJWTRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/events",
-			}, jwtToken))
-			suite.Require().NoError(err)
-			suite.Equal(http.StatusUnauthorized, resp.StatusCode)
-		})
-
-		suite.Run("GET /attempts with JWT returns 401 (admin-only)", func() {
-			resp, err := suite.client.Do(suite.AuthJWTRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/attempts",
-			}, jwtToken))
-			suite.Require().NoError(err)
-			suite.Equal(http.StatusUnauthorized, resp.StatusCode)
-		})
-	})
-
-	// =========================================================================
-	// Cross-tenant query tests
-	// =========================================================================
-	suite.Run("cross_tenant", func() {
-		suite.Run("GET /events returns events from all tenants", func() {
-			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/events",
-			}))
-			suite.Require().NoError(err)
-			suite.Require().Equal(http.StatusOK, resp.StatusCode)
-
-			body := resp.Body.(map[string]interface{})
-			models := body["models"].([]interface{})
-			// Should have at least 2 events (one from each tenant we created)
-			suite.GreaterOrEqual(len(models), 2)
-
-			// Verify we have events from both tenants by checking event IDs
-			eventsSeen := map[string]bool{}
-			for _, item := range models {
-				event := item.(map[string]interface{})
-				if id, ok := event["id"].(string); ok {
-					eventsSeen[id] = true
-				}
-			}
-			suite.True(eventsSeen[event1ID], "should include tenant1 event")
-			suite.True(eventsSeen[event2ID], "should include tenant2 event")
-		})
-
-		suite.Run("GET /attempts returns attempts from all tenants", func() {
-			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/attempts?include=event",
-			}))
-			suite.Require().NoError(err)
-			suite.Require().Equal(http.StatusOK, resp.StatusCode)
-
-			body := resp.Body.(map[string]interface{})
-			models := body["models"].([]interface{})
-			// Should have at least 2 attempts (one from each tenant we created)
-			suite.GreaterOrEqual(len(models), 2)
-
-			// Verify we have attempts from both tenants by checking event IDs
-			eventsSeen := map[string]bool{}
-			for _, item := range models {
-				attempt := item.(map[string]interface{})
-				if event, ok := attempt["event"].(map[string]interface{}); ok {
-					if id, ok := event["id"].(string); ok {
-						eventsSeen[id] = true
-					}
-				}
-			}
-			suite.True(eventsSeen[event1ID], "should include tenant1 attempt")
-			suite.True(eventsSeen[event2ID], "should include tenant2 attempt")
-		})
-	})
-
-	// =========================================================================
-	// tenant_id filter tests
-	// =========================================================================
-	suite.Run("tenant_id_filter", func() {
-		suite.Run("GET /events?tenant_id=X filters to single tenant", func() {
-			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/events?tenant_id=" + tenant1ID,
-			}))
-			suite.Require().NoError(err)
-			suite.Require().Equal(http.StatusOK, resp.StatusCode)
-
-			body := resp.Body.(map[string]interface{})
-			models := body["models"].([]interface{})
-			suite.Len(models, 1)
-
-			// Verify only tenant1 event by ID
-			event := models[0].(map[string]interface{})
-			suite.Equal(event1ID, event["id"])
-		})
-
-		suite.Run("GET /attempts?tenant_id=X filters to single tenant", func() {
-			resp, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodGET,
-				Path:   "/attempts?tenant_id=" + tenant2ID + "&include=event",
-			}))
-			suite.Require().NoError(err)
-			suite.Require().Equal(http.StatusOK, resp.StatusCode)
-
-			body := resp.Body.(map[string]interface{})
-			models := body["models"].([]interface{})
-			suite.Len(models, 1)
-
-			// Verify only tenant2 attempt by event ID
-			attempt := models[0].(map[string]interface{})
-			event := attempt["event"].(map[string]interface{})
-			suite.Equal(event2ID, event["id"])
-		})
-	})
-
-	// Cleanup
-	cleanupTests := []APITest{
-		{
-			Name: "cleanup mock server tenant1",
-			Request: httpclient.Request{
-				Method:  httpclient.MethodDELETE,
-				BaseURL: suite.mockServerBaseURL,
-				Path:    "/destinations/" + destination1ID,
-			},
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{StatusCode: http.StatusOK},
-			},
-		},
-		{
-			Name: "cleanup mock server tenant2",
-			Request: httpclient.Request{
-				Method:  httpclient.MethodDELETE,
-				BaseURL: suite.mockServerBaseURL,
-				Path:    "/destinations/" + destination2ID,
-			},
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{StatusCode: http.StatusOK},
-			},
-		},
-		{
-			Name: "cleanup tenant1",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodDELETE,
-				Path:   "/tenants/" + tenant1ID,
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{StatusCode: http.StatusOK},
-			},
-		},
-		{
-			Name: "cleanup tenant2",
-			Request: suite.AuthRequest(httpclient.Request{
-				Method: httpclient.MethodDELETE,
-				Path:   "/tenants/" + tenant2ID,
-			}),
-			Expected: APITestExpectation{
-				Match: &httpclient.Response{StatusCode: http.StatusOK},
 			},
 		},
 	}

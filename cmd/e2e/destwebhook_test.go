@@ -10,11 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestingT is an interface wrapper around *testing.T
-type TestingT interface {
-	Errorf(format string, args ...interface{})
-}
-
 func (suite *basicSuite) TestDestwebhookPublish() {
 	tenantID := idgen.String()
 	sampleDestinationID := idgen.Destination()
@@ -531,7 +526,7 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 					Body: map[string]interface{}{
 						"message": "validation error",
 						"data": []interface{}{
-							"credentials.secret failed forbidden validation",
+							"credentials.secret is forbidden",
 						},
 					},
 				},
@@ -594,7 +589,7 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 					Body: map[string]interface{}{
 						"message": "validation error",
 						"data": []interface{}{
-							"credentials.secret failed forbidden validation",
+							"credentials.secret is forbidden",
 						},
 					},
 				},
@@ -617,7 +612,7 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 					Body: map[string]interface{}{
 						"message": "validation error",
 						"data": []interface{}{
-							"credentials.previous_secret failed forbidden validation",
+							"credentials.previous_secret is forbidden",
 						},
 					},
 				},
@@ -640,7 +635,7 @@ func (suite *basicSuite) TestDestwebhookTenantSecretManagement() {
 					Body: map[string]interface{}{
 						"message": "validation error",
 						"data": []interface{}{
-							"credentials.previous_secret_invalid_at failed forbidden validation",
+							"credentials.previous_secret_invalid_at is forbidden",
 						},
 					},
 				},
@@ -1468,11 +1463,11 @@ func (suite *basicSuite) TestDeliveryRetry() {
 	suite.waitForMockServerEvents(t, destinationID, 2, 5*time.Second)
 
 	// Wait for attempts to be logged, then verify attempt_number increments on automated retry
-	suite.waitForAttempts(t, "/tenants/"+tenantID+"/attempts", 2, 5*time.Second)
+	suite.waitForAttempts(t, "/attempts?tenant_id="+tenantID, 2, 5*time.Second)
 
 	atmResponse, err := suite.client.Do(suite.AuthRequest(httpclient.Request{
 		Method: httpclient.MethodGET,
-		Path:   "/tenants/" + tenantID + "/attempts?dir=asc",
+		Path:   "/attempts?tenant_id=" + tenantID + "&dir=asc",
 	}))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, atmResponse.StatusCode)
