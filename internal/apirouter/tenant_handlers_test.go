@@ -64,6 +64,33 @@ func TestAPI_Tenants(t *testing.T) {
 			assert.Equal(t, models.Metadata{"env": "prod"}, tenant.Metadata)
 		})
 
+		t.Run("metadata auto-converts non-string values", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := h.jsonReq(http.MethodPut, "/api/v1/tenants/t1", map[string]any{
+				"metadata": map[string]any{
+					"count":   42,
+					"enabled": true,
+					"ratio":   3.14,
+					"empty":   nil,
+					"nested":  map[string]any{"key": "val"},
+				},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusCreated, resp.Code)
+
+			tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
+			require.NoError(t, err)
+			assert.Equal(t, models.Metadata{
+				"count":   "42",
+				"enabled": "true",
+				"ratio":   "3.14",
+				"empty":   "",
+				"nested":  `{"key":"val"}`,
+			}, tenant.Metadata)
+		})
+
 		t.Run("jwt updates own tenant", func(t *testing.T) {
 			h := newAPITest(t)
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
