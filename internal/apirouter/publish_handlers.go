@@ -1,6 +1,7 @@
 package apirouter
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -13,14 +14,18 @@ import (
 	"github.com/hookdeck/outpost/internal/publishmq"
 )
 
+type eventHandler interface {
+	Handle(ctx context.Context, event *models.Event) (*publishmq.HandleResult, error)
+}
+
 type PublishHandlers struct {
 	logger       *logging.Logger
-	eventHandler publishmq.EventHandler
+	eventHandler eventHandler
 }
 
 func NewPublishHandlers(
 	logger *logging.Logger,
-	eventHandler publishmq.EventHandler,
+	eventHandler eventHandler,
 ) *PublishHandlers {
 	return &PublishHandlers{
 		logger:       logger,

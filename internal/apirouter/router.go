@@ -6,16 +6,15 @@ import (
 	"reflect"
 	"strings"
 
+	"fmt"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
-	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/portal"
-	"github.com/hookdeck/outpost/internal/publishmq"
-	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
@@ -47,6 +46,37 @@ type RouterConfig struct {
 	Registry     destregistry.Registry
 	PortalConfig portal.PortalConfig
 	GinMode      string
+}
+
+type RouterDeps struct {
+	TenantStore       tenantstore.TenantStore
+	LogStore          logstore.LogStore
+	Logger            *logging.Logger
+	DeliveryPublisher deliveryPublisher
+	EventHandler      eventHandler
+	Telemetry         telemetry.Telemetry
+}
+
+func (d RouterDeps) validate() error {
+	if d.TenantStore == nil {
+		return fmt.Errorf("apirouter: TenantStore is required")
+	}
+	if d.LogStore == nil {
+		return fmt.Errorf("apirouter: LogStore is required")
+	}
+	if d.Logger == nil {
+		return fmt.Errorf("apirouter: Logger is required")
+	}
+	if d.DeliveryPublisher == nil {
+		return fmt.Errorf("apirouter: DeliveryPublisher is required")
+	}
+	if d.EventHandler == nil {
+		return fmt.Errorf("apirouter: EventHandler is required")
+	}
+	if d.Telemetry == nil {
+		return fmt.Errorf("apirouter: Telemetry is required")
+	}
+	return nil
 }
 
 // registerRoutes registers routes to the given router based on route definitions and config
@@ -86,16 +116,11 @@ func buildMiddlewareChain(cfg RouterConfig, tenantRetriever TenantRetriever, def
 	return chain
 }
 
-func NewRouter(
-	cfg RouterConfig,
-	logger *logging.Logger,
-	redisClient redis.Cmdable,
-	deliveryMQ *deliverymq.DeliveryMQ,
-	tenantStore tenantstore.TenantStore,
-	logStore logstore.LogStore,
-	publishmqEventHandler publishmq.EventHandler,
-	telemetry telemetry.Telemetry,
-) http.Handler {
+func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
+	if err := deps.validate(); err != nil {
+		panic(err)
+	}
+
 	// Only set mode from config if we're not in test mode
 	if gin.Mode() != gin.TestMode {
 		gin.SetMode(cfg.GinMode)
@@ -104,13 +129,13 @@ func NewRouter(
 	r := gin.New()
 	// Core middlewares
 	r.Use(gin.Recovery())
-	r.Use(telemetry.MakeSentryHandler())
+	r.Use(deps.Telemetry.MakeSentryHandler())
 	r.Use(otelgin.Middleware(cfg.ServiceName))
 	r.Use(MetricsMiddleware())
 
 	// Create sanitizer for secure request body logging on 5xx errors
 	sanitizer := NewRequestBodySanitizer(cfg.Registry)
-	r.Use(LoggerMiddlewareWithSanitizer(logger, sanitizer))
+	r.Use(LoggerMiddlewareWithSanitizer(deps.Logger, sanitizer))
 
 	r.Use(LatencyMiddleware()) // LatencyMiddleware must be after Metrics & Logger to fully capture latency first
 
@@ -131,12 +156,12 @@ func NewRouter(
 
 	apiRouter := r.Group("/api/v1")
 
-	tenantHandlers := NewTenantHandlers(logger, telemetry, cfg.JWTSecret, cfg.DeploymentID, tenantStore)
-	destinationHandlers := NewDestinationHandlers(logger, telemetry, tenantStore, cfg.Topics, cfg.Registry)
-	publishHandlers := NewPublishHandlers(logger, publishmqEventHandler)
-	logHandlers := NewLogHandlers(logger, logStore)
-	retryHandlers := NewRetryHandlers(logger, tenantStore, logStore, deliveryMQ)
-	topicHandlers := NewTopicHandlers(logger, cfg.Topics)
+	tenantHandlers := NewTenantHandlers(deps.Logger, deps.Telemetry, cfg.JWTSecret, cfg.DeploymentID, deps.TenantStore)
+	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, cfg.Topics, cfg.Registry)
+	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
+	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore)
+	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher)
+	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
 
 	routes := []RouteDefinition{
 		// Schemas & Topics
@@ -176,7 +201,7 @@ func NewRouter(
 		{Method: http.MethodGet, Path: "/attempts/:attemptID", Handler: logHandlers.RetrieveAttempt, AuthMode: AuthAuthenticated},
 	}
 
-	registerRoutes(apiRouter, cfg, tenantStore, routes)
+	registerRoutes(apiRouter, cfg, deps.TenantStore, routes)
 
 	// Register dev routes
 	if gin.Mode() == gin.DebugMode {

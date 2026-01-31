@@ -1,10 +1,10 @@
 package apirouter
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
@@ -12,24 +12,28 @@ import (
 	"go.uber.org/zap"
 )
 
+type deliveryPublisher interface {
+	Publish(ctx context.Context, task models.DeliveryTask) error
+}
+
 type RetryHandlers struct {
-	logger      *logging.Logger
-	tenantStore tenantstore.TenantStore
-	logStore    logstore.LogStore
-	deliveryMQ  *deliverymq.DeliveryMQ
+	logger            *logging.Logger
+	tenantStore       tenantstore.TenantStore
+	logStore          logstore.LogStore
+	deliveryPublisher deliveryPublisher
 }
 
 func NewRetryHandlers(
 	logger *logging.Logger,
 	tenantStore tenantstore.TenantStore,
 	logStore logstore.LogStore,
-	deliveryMQ *deliverymq.DeliveryMQ,
+	deliveryPublisher deliveryPublisher,
 ) *RetryHandlers {
 	return &RetryHandlers{
-		logger:      logger,
-		tenantStore: tenantStore,
-		logStore:    logStore,
-		deliveryMQ:  deliveryMQ,
+		logger:            logger,
+		tenantStore:       tenantStore,
+		logStore:          logStore,
+		deliveryPublisher: deliveryPublisher,
 	}
 }
 
@@ -104,7 +108,7 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 	// 3. Create and publish manual delivery task
 	task := models.NewManualDeliveryTask(*event, req.DestinationID)
 
-	if err := h.deliveryMQ.Publish(c.Request.Context(), task); err != nil {
+	if err := h.deliveryPublisher.Publish(c.Request.Context(), task); err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
