@@ -258,7 +258,7 @@ func TestAPI_Publish(t *testing.T) {
 			h := newAPITest(t)
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
-				"tenant_id":         "t1",
+				"tenant_id":          "t1",
 				"eligible_for_retry": false,
 			})
 			resp := h.do(h.withAPIKey(req))

@@ -458,3 +458,70 @@ func TestAPI_Destinations(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, resp.Code)
 	})
 }
+
+// TestAPI_DestinationTypes tests the /destination-types endpoints.
+// Note: response body is a passthrough from the registry stub (returns nil);
+// not validated here. 404 path not testable without enhancing the stub.
+func TestAPI_DestinationTypes(t *testing.T) {
+	t.Run("List", func(t *testing.T) {
+		t.Run("api key returns 200", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+		})
+
+		t.Run("jwt returns 200", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+		})
+
+		t.Run("no auth returns 401", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types", nil)
+			resp := h.do(req)
+
+			require.Equal(t, http.StatusUnauthorized, resp.Code)
+		})
+	})
+
+	t.Run("Retrieve", func(t *testing.T) {
+		t.Run("api key returns 200", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types/webhook", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			// The stub returns (nil, nil) for RetrieveProviderMetadata,
+			// so the handler returns 200 with null body.
+			require.Equal(t, http.StatusOK, resp.Code)
+		})
+
+		t.Run("jwt returns 200", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types/webhook", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+		})
+
+		t.Run("no auth returns 401", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types/webhook", nil)
+			resp := h.do(req)
+
+			require.Equal(t, http.StatusUnauthorized, resp.Code)
+		})
+	})
+}

@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/stretchr/testify/assert"
@@ -76,6 +78,32 @@ func TestAPI_Tenants(t *testing.T) {
 			tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
 			require.NoError(t, err)
 			assert.Equal(t, models.Metadata{"role": "owner"}, tenant.Metadata)
+		})
+
+		t.Run("jwt nonexistent tenant returns 401", func(t *testing.T) {
+			h := newAPITest(t)
+			// t1 doesn't exist — resolveTenantMiddleware rejects before handler runs
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusUnauthorized, resp.Code)
+		})
+
+		t.Run("api key deleted tenant recreates", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.DeleteTenant(t.Context(), "t1")
+
+			// Upsert on deleted tenant should recreate it
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusCreated, resp.Code)
+
+			// Verify tenant exists again in store
+			tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
+			require.NoError(t, err)
+			assert.Equal(t, "t1", tenant.ID)
 		})
 	})
 
@@ -361,5 +389,147 @@ func TestAPI_Tenants(t *testing.T) {
 		resp := h.do(req)
 
 		require.Equal(t, http.StatusUnauthorized, resp.Code)
+	})
+
+	t.Run("RetrieveToken", func(t *testing.T) {
+		t.Run("api key returns token and tenant id", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/token", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var body map[string]string
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "t1", body["tenant_id"])
+			assert.NotEmpty(t, body["token"])
+
+			// Verify the returned JWT is valid and has correct claims
+			claims, err := apirouter.JWT.Extract(testJWTSecret, body["token"])
+			require.NoError(t, err)
+			assert.Equal(t, "t1", claims.TenantID)
+		})
+
+		t.Run("nonexistent tenant returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/nope/token", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("jwt returns 401", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/token", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			// Token endpoint is admin-only; JWT auth should be rejected
+			require.Equal(t, http.StatusUnauthorized, resp.Code)
+		})
+
+		t.Run("no auth returns 401", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/token", nil)
+			resp := h.do(req)
+
+			require.Equal(t, http.StatusUnauthorized, resp.Code)
+		})
+	})
+
+	t.Run("RetrievePortal", func(t *testing.T) {
+		t.Run("api key returns redirect url with token", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/portal", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var body map[string]string
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "t1", body["tenant_id"])
+			assert.NotEmpty(t, body["redirect_url"])
+			assert.True(t, strings.Contains(body["redirect_url"], "token="))
+		})
+
+		t.Run("theme dark", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/portal?theme=dark", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var body map[string]string
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.True(t, strings.Contains(body["redirect_url"], "theme=dark"))
+		})
+
+		t.Run("theme light", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/portal?theme=light", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var body map[string]string
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.True(t, strings.Contains(body["redirect_url"], "theme=light"))
+		})
+
+		t.Run("invalid theme omitted", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/portal?theme=neon", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var body map[string]string
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.False(t, strings.Contains(body["redirect_url"], "theme="))
+		})
+
+		t.Run("nonexistent tenant returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/nope/portal", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("jwt returns 401", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/portal", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			// Portal endpoint is admin-only; JWT auth should be rejected
+			require.Equal(t, http.StatusUnauthorized, resp.Code)
+		})
+
+		t.Run("no auth returns 401", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/portal", nil)
+			resp := h.do(req)
+
+			require.Equal(t, http.StatusUnauthorized, resp.Code)
+		})
 	})
 }

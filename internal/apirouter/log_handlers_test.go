@@ -781,6 +781,18 @@ func TestAPI_Attempts(t *testing.T) {
 				require.Len(t, result.Models, 1)
 				assert.Equal(t, "a1", result.Models[0].ID)
 			})
+
+			t.Run("topic filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?topic=user.created", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+			})
 		})
 
 		t.Run("Validation", func(t *testing.T) {
@@ -940,6 +952,34 @@ func TestAPI_Attempts(t *testing.T) {
 			dataMap, ok := eventMap["data"].(map[string]any)
 			require.True(t, ok, "event.data should be present")
 			assert.Equal(t, "val", dataMap["key"])
+		})
+
+		t.Run("include response data", func(t *testing.T) {
+			h := newAPITest(t)
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"))
+			a := attemptForEvent(e, af.WithID("a1"), func(att *models.Attempt) {
+				att.ResponseData = map[string]interface{}{
+					"status": "ok",
+					"body":   "response-body",
+				}
+			})
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?include=response_data", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var raw map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &raw))
+
+			respData, ok := raw["response_data"].(map[string]any)
+			require.True(t, ok, "response_data should be an object when include=response_data")
+			assert.Equal(t, "ok", respData["status"])
+			assert.Equal(t, "response-body", respData["body"])
 		})
 	})
 
