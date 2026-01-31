@@ -37,6 +37,8 @@ const (
 var (
 	tf = testutil.TenantFactory
 	df = testutil.DestinationFactory
+	ef = testutil.EventFactory
+	af = testutil.AttemptFactory
 )
 
 // ---------------------------------------------------------------------------
