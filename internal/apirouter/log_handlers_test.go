@@ -500,6 +500,33 @@ func TestAPI_Attempts(t *testing.T) {
 
 				require.Equal(t, http.StatusForbidden, resp.Code)
 			})
+
+			t.Run("destination belonging to other tenant returns empty list without leaking data", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t2")))
+
+				e := ef.AnyPointer(ef.WithTenantID("t2"), ef.WithDestinationID("d1"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: e, Attempt: attemptForEvent(e)},
+				}))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				// The handler does not validate destination ownership — it passes the
+				// destinationID straight to the log store as a filter alongside the
+				// tenant ID. When the destination belongs to another tenant, the query
+				// returns no matches because no attempts exist for that (tenant, destination)
+				// pair. This means no data leaks, but the API returns 200 with an empty
+				// list instead of 404.
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Empty(t, result.Models, "must not leak attempts from other tenants")
+			})
 		})
 
 		t.Run("Retrieve", func(t *testing.T) {
@@ -525,8 +552,7 @@ func TestAPI_Attempts(t *testing.T) {
 				assert.Equal(t, "d1", attempt.Destination)
 			})
 
-			t.Run("attempt from different destination still returned", func(t *testing.T) {
-				// RetrieveAttempt filters by tenant only, not by destination in path.
+			t.Run("attempt belonging to different destination returns 404", func(t *testing.T) {
 				h := newAPITest(t)
 				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
@@ -542,11 +568,27 @@ func TestAPI_Attempts(t *testing.T) {
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts/a1", nil)
 				resp := h.do(h.withAPIKey(req))
 
-				require.Equal(t, http.StatusOK, resp.Code)
+				require.Equal(t, http.StatusNotFound, resp.Code)
+			})
 
-				var attempt apirouter.APIAttempt
-				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &attempt))
-				assert.Equal(t, "d2", attempt.Destination)
+			t.Run("attempt belonging to other tenant destination returns 404", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t2")))
+
+				e := ef.AnyPointer(ef.WithTenantID("t2"), ef.WithDestinationID("d2"))
+				a := attemptForEvent(e, af.WithID("a1"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: e, Attempt: a},
+				}))
+
+				// d1 belongs to t1 (valid), but a1 belongs to d2/t2
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts/a1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusNotFound, resp.Code)
 			})
 
 			t.Run("jwt other tenant returns 403", func(t *testing.T) {
@@ -565,6 +607,27 @@ func TestAPI_Attempts(t *testing.T) {
 				resp := h.do(h.withJWT(req, "t1"))
 
 				require.Equal(t, http.StatusForbidden, resp.Code)
+			})
+
+			t.Run("destination belonging to other tenant does not leak data", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t2")))
+
+				e := ef.AnyPointer(ef.WithTenantID("t2"), ef.WithDestinationID("d1"))
+				a := attemptForEvent(e, af.WithID("a1"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: e, Attempt: a},
+				}))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts/a1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				// The handler filters by tenant ID, not destination ownership.
+				// The attempt belongs to t2 so the tenant filter excludes it — returns
+				// 404 with no data leaked.
+				require.Equal(t, http.StatusNotFound, resp.Code)
 			})
 		})
 	})
