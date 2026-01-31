@@ -77,16 +77,16 @@ func TestAPI_Retry(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, resp.Code)
 		})
 
-		t.Run("empty JSON returns 400", func(t *testing.T) {
+		t.Run("empty JSON returns 422", func(t *testing.T) {
 			h := setup(t)
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusBadRequest, resp.Code)
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 		})
 
-		t.Run("missing event_id returns 400", func(t *testing.T) {
+		t.Run("missing event_id returns 422", func(t *testing.T) {
 			h := setup(t)
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
@@ -94,10 +94,10 @@ func TestAPI_Retry(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusBadRequest, resp.Code)
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 		})
 
-		t.Run("missing destination_id returns 400", func(t *testing.T) {
+		t.Run("missing destination_id returns 422", func(t *testing.T) {
 			h := setup(t)
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
@@ -105,7 +105,7 @@ func TestAPI_Retry(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusBadRequest, resp.Code)
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 		})
 	})
 

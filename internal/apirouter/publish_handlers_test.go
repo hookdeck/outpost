@@ -110,8 +110,9 @@ func TestAPI_Publish(t *testing.T) {
 
 			var body map[string]any
 			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
-			data := body["data"].(map[string]any)
-			assert.Equal(t, "required", data["topic"])
+			data, ok := body["data"].([]any)
+			require.True(t, ok)
+			assert.Contains(t, data, "topic is required")
 		})
 
 		t.Run("invalid topic returns 422 with detail", func(t *testing.T) {
@@ -127,8 +128,9 @@ func TestAPI_Publish(t *testing.T) {
 
 			var body map[string]any
 			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
-			data := body["data"].(map[string]any)
-			assert.Equal(t, "invalid", data["topic"])
+			data, ok := body["data"].([]any)
+			require.True(t, ok)
+			assert.Contains(t, data, "topic is invalid")
 		})
 
 		t.Run("internal error returns 500", func(t *testing.T) {

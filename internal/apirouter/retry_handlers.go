@@ -48,7 +48,7 @@ type retryRequest struct {
 func (h *RetryHandlers) Retry(c *gin.Context) {
 	var req retryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+		AbortWithValidationError(c, err)
 		return
 	}
 
