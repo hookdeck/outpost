@@ -54,11 +54,30 @@ type apiTest struct {
 	eventHandler *mockEventHandler
 }
 
-func newAPITest(t *testing.T) *apiTest {
+type apiTestOption func(*apiTestConfig)
+
+type apiTestConfig struct {
+	tenantStore tenantstore.TenantStore
+}
+
+func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.tenantStore = ts
+	}
+}
+
+func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	t.Helper()
 
+	cfg := apiTestConfig{
+		tenantStore: tenantstore.NewMemTenantStore(),
+	}
+	for _, o := range opts {
+		o(&cfg)
+	}
+
 	logger := &logging.Logger{Logger: otelzap.New(zap.NewNop())}
-	ts := tenantstore.NewMemTenantStore()
+	ts := cfg.tenantStore
 	ls := logstore.NewMemLogStore()
 	dp := &mockDeliveryPublisher{}
 	eh := &mockEventHandler{}

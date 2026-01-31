@@ -1,6 +1,7 @@
 package apirouter_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,6 +14,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// listUnsupportedStore wraps a TenantStore and overrides ListTenant
+// to return ErrListTenantNotSupported, simulating a store backend
+// (e.g., Redis without RediSearch) that doesn't support listing.
+type listUnsupportedStore struct {
+	tenantstore.TenantStore
+}
+
+func (s *listUnsupportedStore) ListTenant(_ context.Context, _ tenantstore.ListTenantRequest) (*tenantstore.TenantPaginatedResult, error) {
+	return nil, tenantstore.ErrListTenantNotSupported
+}
 
 func TestAPI_Tenants(t *testing.T) {
 	t.Run("Upsert", func(t *testing.T) {
@@ -277,6 +289,15 @@ func TestAPI_Tenants(t *testing.T) {
 
 				require.Equal(t, http.StatusBadRequest, resp.Code)
 			})
+		})
+
+		t.Run("list not supported returns 501", func(t *testing.T) {
+			h := newAPITest(t, withTenantStore(&listUnsupportedStore{tenantstore.NewMemTenantStore()}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotImplemented, resp.Code)
 		})
 	})
 
