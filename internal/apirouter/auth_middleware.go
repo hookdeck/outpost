@@ -105,7 +105,7 @@ func AuthenticatedMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
 
 		// If tenantID param exists, verify it matches token
 		if paramTenantID := c.Param("tenantID"); paramTenantID != "" && paramTenantID != claims.TenantID {
-			c.AbortWithStatus(http.StatusUnauthorized)
+			c.AbortWithStatus(http.StatusForbidden)
 			return
 		}
 
@@ -236,7 +236,7 @@ func TenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
 
 		// If tenantID param exists, verify it matches token
 		if paramTenantID := c.Param("tenantID"); paramTenantID != "" && paramTenantID != claims.TenantID {
-			c.AbortWithStatus(http.StatusUnauthorized)
+			c.AbortWithStatus(http.StatusForbidden)
 			return
 		}
 

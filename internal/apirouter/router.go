@@ -175,7 +175,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 
 		// Tenants
 		{Method: http.MethodGet, Path: "/tenants", Handler: tenantHandlers.List, AuthMode: AuthAuthenticated},
-		{Method: http.MethodPut, Path: "/tenants/:tenantID", Handler: tenantHandlers.Upsert, AuthMode: AuthAdmin},
+		{Method: http.MethodPut, Path: "/tenants/:tenantID", Handler: tenantHandlers.Upsert, AuthMode: AuthAuthenticated},
 		{Method: http.MethodGet, Path: "/tenants/:tenantID", Handler: tenantHandlers.Retrieve, AuthMode: AuthAuthenticated, RequireTenant: true},
 		{Method: http.MethodDelete, Path: "/tenants/:tenantID", Handler: tenantHandlers.Delete, AuthMode: AuthAuthenticated, RequireTenant: true},
 		{Method: http.MethodGet, Path: "/tenants/:tenantID/token", Handler: tenantHandlers.RetrieveToken, AuthMode: AuthAdmin, RequireTenant: true},

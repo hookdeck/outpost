@@ -17,7 +17,7 @@ func TestAPI_Topics(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/topics", nil)
 		resp := h.do(h.withAPIKey(req))
 
-		assert.Equal(t, http.StatusOK, resp.Code)
+		require.Equal(t, http.StatusOK, resp.Code)
 
 		var topics []string
 		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &topics))
@@ -33,7 +33,7 @@ func TestAPI_Topics(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/topics", nil)
 		resp := h.do(h.withJWT(req, "t1"))
 
-		assert.Equal(t, http.StatusOK, resp.Code)
+		require.Equal(t, http.StatusOK, resp.Code)
 
 		var topics []string
 		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &topics))
@@ -45,6 +45,6 @@ func TestAPI_Topics(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/topics", nil)
 		resp := h.do(req)
 
-		assert.Equal(t, http.StatusUnauthorized, resp.Code)
+		require.Equal(t, http.StatusUnauthorized, resp.Code)
 	})
 }

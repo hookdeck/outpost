@@ -92,9 +92,9 @@ func (a *apiTest) do(req *http.Request) *httptest.ResponseRecorder {
 	return w
 }
 
-// doJSON builds a JSON request with the given method/path/body and executes it.
+// jsonReq builds an *http.Request with a JSON body and Content-Type header.
 // body may be nil for requests with no body.
-func (a *apiTest) doJSON(method, path string, body any) *httptest.ResponseRecorder {
+func (a *apiTest) jsonReq(method, path string, body any) *http.Request {
 	a.t.Helper()
 	var reader io.Reader
 	if body != nil {
@@ -106,7 +106,7 @@ func (a *apiTest) doJSON(method, path string, body any) *httptest.ResponseRecord
 	}
 	req := httptest.NewRequest(method, path, reader)
 	req.Header.Set("Content-Type", "application/json")
-	return a.do(req)
+	return req
 }
 
 // withAPIKey adds the API key auth header to the request.
