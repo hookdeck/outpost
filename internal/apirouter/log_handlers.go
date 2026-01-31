@@ -357,6 +357,15 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 		return
 	}
 
+	// Authz: when accessed via a destination-scoped route, verify the attempt
+	// belongs to the destination in the path.
+	if destinationID := c.Param("destinationID"); destinationID != "" {
+		if attemptRecord.Attempt.DestinationID != destinationID {
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
+			return
+		}
+	}
+
 	includeOpts := parseIncludeOptions(c)
 
 	c.JSON(http.StatusOK, toAPIAttempt(attemptRecord, includeOpts))
