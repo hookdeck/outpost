@@ -64,7 +64,7 @@ func APIKeyAuthMiddleware(apiKey string) gin.HandlerFunc {
 	}
 }
 
-func APIKeyOrTenantJWTAuthMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
+func AuthenticatedMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
 	// When apiKey is empty, everything is admin-only through VPC
 	if apiKey == "" {
 		return func(c *gin.Context) {

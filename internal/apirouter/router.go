@@ -69,7 +69,7 @@ func buildMiddlewareChain(cfg RouterConfig, tenantRetriever TenantRetriever, def
 	case AuthAdmin:
 		chain = append(chain, APIKeyAuthMiddleware(cfg.APIKey))
 	case AuthAuthenticated:
-		chain = append(chain, APIKeyOrTenantJWTAuthMiddleware(cfg.APIKey, cfg.JWTSecret))
+		chain = append(chain, AuthenticatedMiddleware(cfg.APIKey, cfg.JWTSecret))
 	case AuthPublic:
 		// no auth middleware
 	}

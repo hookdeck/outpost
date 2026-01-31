@@ -88,7 +88,7 @@ func TestPrivateAPIKeyRouter(t *testing.T) {
 	})
 }
 
-func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
+func TestAuthenticatedMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Parallel()
 
@@ -115,7 +115,7 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 		c.Request.Header.Set("Authorization", "Bearer "+token)
 
 		// Test
-		handler := apirouter.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
+		handler := apirouter.AuthenticatedMiddleware(apiKey, jwtSecret)
 		handler(c)
 
 		assert.Equal(t, http.StatusUnauthorized, c.Writer.Status())
@@ -141,7 +141,7 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 
 		// Create a middleware chain
 		var contextTenantID string
-		handler := apirouter.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
+		handler := apirouter.AuthenticatedMiddleware(apiKey, jwtSecret)
 		nextHandler := func(c *gin.Context) {
 			val, exists := c.Get("tenantID")
 			if exists {
@@ -174,7 +174,7 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 		c.Request.Header.Set("Authorization", "Bearer "+token)
 
 		// Test
-		handler := apirouter.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
+		handler := apirouter.AuthenticatedMiddleware(apiKey, jwtSecret)
 		handler(c)
 
 		assert.Equal(t, http.StatusUnauthorized, c.Writer.Status())
@@ -193,7 +193,7 @@ func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
 		c.Request.Header.Set("Authorization", "Bearer "+apiKey)
 
 		// Test
-		handler := apirouter.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
+		handler := apirouter.AuthenticatedMiddleware(apiKey, jwtSecret)
 		handler(c)
 
 		assert.NotEqual(t, http.StatusUnauthorized, c.Writer.Status())
@@ -373,13 +373,13 @@ func TestAuthRole(t *testing.T) {
 		})
 	})
 
-	t.Run("APIKeyOrTenantJWTAuthMiddleware", func(t *testing.T) {
+	t.Run("AuthenticatedMiddleware", func(t *testing.T) {
 		t.Run("should set RoleAdmin when apiKey is empty", func(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 
-			handler := apirouter.APIKeyOrTenantJWTAuthMiddleware("", "jwt_secret")
+			handler := apirouter.AuthenticatedMiddleware("", "jwt_secret")
 			var role string
 			nextHandler := func(c *gin.Context) {
 				val, exists := c.Get("authRole")
@@ -400,7 +400,7 @@ func TestAuthRole(t *testing.T) {
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 			c.Request.Header.Set("Authorization", "Bearer key")
 
-			handler := apirouter.APIKeyOrTenantJWTAuthMiddleware("key", "jwt_secret")
+			handler := apirouter.AuthenticatedMiddleware("key", "jwt_secret")
 			var role string
 			nextHandler := func(c *gin.Context) {
 				val, exists := c.Get("authRole")
@@ -422,7 +422,7 @@ func TestAuthRole(t *testing.T) {
 			token := newJWTToken(t, "jwt_secret", "tenant-id")
 			c.Request.Header.Set("Authorization", "Bearer "+token)
 
-			handler := apirouter.APIKeyOrTenantJWTAuthMiddleware("key", "jwt_secret")
+			handler := apirouter.AuthenticatedMiddleware("key", "jwt_secret")
 			var role string
 			nextHandler := func(c *gin.Context) {
 				val, exists := c.Get("authRole")
