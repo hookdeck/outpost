@@ -28,7 +28,7 @@ func TestAPI_Publish(t *testing.T) {
 			require.Equal(t, http.StatusUnauthorized, resp.Code)
 		})
 
-		t.Run("jwt returns 401", func(t *testing.T) {
+		t.Run("jwt returns 403", func(t *testing.T) {
 			h := newAPITest(t)
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
@@ -37,7 +37,7 @@ func TestAPI_Publish(t *testing.T) {
 			})
 			resp := h.do(h.withJWT(req, "t1"))
 
-			require.Equal(t, http.StatusUnauthorized, resp.Code)
+			require.Equal(t, http.StatusForbidden, resp.Code)
 		})
 
 		t.Run("api key succeeds", func(t *testing.T) {

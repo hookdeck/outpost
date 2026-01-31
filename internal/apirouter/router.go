@@ -20,19 +20,11 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
-type AuthMode string
-
-const (
-	AuthAdmin         AuthMode = "admin"
-	AuthAuthenticated AuthMode = "authenticated"
-	AuthPublic        AuthMode = "public"
-)
-
 type RouteDefinition struct {
 	Method        string
 	Path          string
 	Handler       gin.HandlerFunc
-	AuthMode      AuthMode
+	AdminOnly     bool
 	RequireTenant bool
 	Middlewares   []gin.HandlerFunc
 }
@@ -90,22 +82,10 @@ func registerRoutes(router *gin.RouterGroup, cfg RouterConfig, tenantRetriever T
 func buildMiddlewareChain(cfg RouterConfig, tenantRetriever TenantRetriever, def RouteDefinition) []gin.HandlerFunc {
 	chain := make([]gin.HandlerFunc, 0)
 
-	// Add auth middleware based on mode
-	switch def.AuthMode {
-	case AuthAdmin:
-		chain = append(chain, AdminMiddleware(cfg.APIKey))
-		if def.RequireTenant {
-			chain = append(chain, resolveTenantMiddleware(tenantRetriever, true))
-		}
-	case AuthAuthenticated:
-		chain = append(chain, AuthenticatedMiddleware(cfg.APIKey, cfg.JWTSecret))
-		// Always add tenant resolution for authenticated routes:
-		// - RequireTenant routes: resolve from param, 404 if missing
-		// - JWT users on non-RequireTenant routes: resolve from context tenantID
-		chain = append(chain, resolveTenantMiddleware(tenantRetriever, def.RequireTenant))
-	case AuthPublic:
-		// no auth middleware
-	}
+	chain = append(chain, AuthMiddleware(cfg.APIKey, cfg.JWTSecret, tenantRetriever, AuthOptions{
+		AdminOnly:     def.AdminOnly,
+		RequireTenant: def.RequireTenant,
+	}))
 
 	// Add custom middlewares
 	chain = append(chain, def.Middlewares...)
@@ -165,40 +145,40 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 
 	routes := []RouteDefinition{
 		// Schemas & Topics
-		{Method: http.MethodGet, Path: "/destination-types", Handler: destinationHandlers.ListProviderMetadata, AuthMode: AuthAuthenticated},
-		{Method: http.MethodGet, Path: "/destination-types/:type", Handler: destinationHandlers.RetrieveProviderMetadata, AuthMode: AuthAuthenticated},
-		{Method: http.MethodGet, Path: "/topics", Handler: topicHandlers.List, AuthMode: AuthAuthenticated},
+		{Method: http.MethodGet, Path: "/destination-types", Handler: destinationHandlers.ListProviderMetadata},
+		{Method: http.MethodGet, Path: "/destination-types/:type", Handler: destinationHandlers.RetrieveProviderMetadata},
+		{Method: http.MethodGet, Path: "/topics", Handler: topicHandlers.List},
 
 		// Publish / Retry
-		{Method: http.MethodPost, Path: "/publish", Handler: publishHandlers.Ingest, AuthMode: AuthAdmin},
-		{Method: http.MethodPost, Path: "/retry", Handler: retryHandlers.Retry, AuthMode: AuthAuthenticated},
+		{Method: http.MethodPost, Path: "/publish", Handler: publishHandlers.Ingest, AdminOnly: true},
+		{Method: http.MethodPost, Path: "/retry", Handler: retryHandlers.Retry},
 
 		// Tenants
-		{Method: http.MethodGet, Path: "/tenants", Handler: tenantHandlers.List, AuthMode: AuthAuthenticated},
-		{Method: http.MethodPut, Path: "/tenants/:tenantID", Handler: tenantHandlers.Upsert, AuthMode: AuthAuthenticated},
-		{Method: http.MethodGet, Path: "/tenants/:tenantID", Handler: tenantHandlers.Retrieve, AuthMode: AuthAuthenticated, RequireTenant: true},
-		{Method: http.MethodDelete, Path: "/tenants/:tenantID", Handler: tenantHandlers.Delete, AuthMode: AuthAuthenticated, RequireTenant: true},
-		{Method: http.MethodGet, Path: "/tenants/:tenantID/token", Handler: tenantHandlers.RetrieveToken, AuthMode: AuthAdmin, RequireTenant: true},
-		{Method: http.MethodGet, Path: "/tenants/:tenantID/portal", Handler: tenantHandlers.RetrievePortal, AuthMode: AuthAdmin, RequireTenant: true},
+		{Method: http.MethodGet, Path: "/tenants", Handler: tenantHandlers.List},
+		{Method: http.MethodPut, Path: "/tenants/:tenantID", Handler: tenantHandlers.Upsert},
+		{Method: http.MethodGet, Path: "/tenants/:tenantID", Handler: tenantHandlers.Retrieve, RequireTenant: true},
+		{Method: http.MethodDelete, Path: "/tenants/:tenantID", Handler: tenantHandlers.Delete, RequireTenant: true},
+		{Method: http.MethodGet, Path: "/tenants/:tenantID/token", Handler: tenantHandlers.RetrieveToken, AdminOnly: true, RequireTenant: true},
+		{Method: http.MethodGet, Path: "/tenants/:tenantID/portal", Handler: tenantHandlers.RetrievePortal, AdminOnly: true, RequireTenant: true},
 
 		// Destinations
-		{Method: http.MethodGet, Path: "/tenants/:tenantID/destinations", Handler: destinationHandlers.List, AuthMode: AuthAuthenticated, RequireTenant: true},
-		{Method: http.MethodPost, Path: "/tenants/:tenantID/destinations", Handler: destinationHandlers.Create, AuthMode: AuthAuthenticated, RequireTenant: true},
-		{Method: http.MethodGet, Path: "/tenants/:tenantID/destinations/:destinationID", Handler: destinationHandlers.Retrieve, AuthMode: AuthAuthenticated, RequireTenant: true},
-		{Method: http.MethodPatch, Path: "/tenants/:tenantID/destinations/:destinationID", Handler: destinationHandlers.Update, AuthMode: AuthAuthenticated, RequireTenant: true},
-		{Method: http.MethodDelete, Path: "/tenants/:tenantID/destinations/:destinationID", Handler: destinationHandlers.Delete, AuthMode: AuthAuthenticated, RequireTenant: true},
-		{Method: http.MethodPut, Path: "/tenants/:tenantID/destinations/:destinationID/enable", Handler: destinationHandlers.Enable, AuthMode: AuthAuthenticated, RequireTenant: true},
-		{Method: http.MethodPut, Path: "/tenants/:tenantID/destinations/:destinationID/disable", Handler: destinationHandlers.Disable, AuthMode: AuthAuthenticated, RequireTenant: true},
-		{Method: http.MethodGet, Path: "/tenants/:tenantID/destinations/:destinationID/attempts", Handler: logHandlers.ListDestinationAttempts, AuthMode: AuthAuthenticated, RequireTenant: true},
-		{Method: http.MethodGet, Path: "/tenants/:tenantID/destinations/:destinationID/attempts/:attemptID", Handler: logHandlers.RetrieveAttempt, AuthMode: AuthAuthenticated, RequireTenant: true},
+		{Method: http.MethodGet, Path: "/tenants/:tenantID/destinations", Handler: destinationHandlers.List, RequireTenant: true},
+		{Method: http.MethodPost, Path: "/tenants/:tenantID/destinations", Handler: destinationHandlers.Create, RequireTenant: true},
+		{Method: http.MethodGet, Path: "/tenants/:tenantID/destinations/:destinationID", Handler: destinationHandlers.Retrieve, RequireTenant: true},
+		{Method: http.MethodPatch, Path: "/tenants/:tenantID/destinations/:destinationID", Handler: destinationHandlers.Update, RequireTenant: true},
+		{Method: http.MethodDelete, Path: "/tenants/:tenantID/destinations/:destinationID", Handler: destinationHandlers.Delete, RequireTenant: true},
+		{Method: http.MethodPut, Path: "/tenants/:tenantID/destinations/:destinationID/enable", Handler: destinationHandlers.Enable, RequireTenant: true},
+		{Method: http.MethodPut, Path: "/tenants/:tenantID/destinations/:destinationID/disable", Handler: destinationHandlers.Disable, RequireTenant: true},
+		{Method: http.MethodGet, Path: "/tenants/:tenantID/destinations/:destinationID/attempts", Handler: logHandlers.ListDestinationAttempts, RequireTenant: true},
+		{Method: http.MethodGet, Path: "/tenants/:tenantID/destinations/:destinationID/attempts/:attemptID", Handler: logHandlers.RetrieveAttempt, RequireTenant: true},
 
 		// Events
-		{Method: http.MethodGet, Path: "/events", Handler: logHandlers.ListEvents, AuthMode: AuthAuthenticated},
-		{Method: http.MethodGet, Path: "/events/:eventID", Handler: logHandlers.RetrieveEvent, AuthMode: AuthAuthenticated},
+		{Method: http.MethodGet, Path: "/events", Handler: logHandlers.ListEvents},
+		{Method: http.MethodGet, Path: "/events/:eventID", Handler: logHandlers.RetrieveEvent},
 
 		// Attempts
-		{Method: http.MethodGet, Path: "/attempts", Handler: logHandlers.ListAttempts, AuthMode: AuthAuthenticated},
-		{Method: http.MethodGet, Path: "/attempts/:attemptID", Handler: logHandlers.RetrieveAttempt, AuthMode: AuthAuthenticated},
+		{Method: http.MethodGet, Path: "/attempts", Handler: logHandlers.ListAttempts},
+		{Method: http.MethodGet, Path: "/attempts/:attemptID", Handler: logHandlers.RetrieveAttempt},
 	}
 
 	registerRoutes(apiRouter, cfg, deps.TenantStore, routes)

@@ -31,6 +31,128 @@ type TenantRetriever interface {
 	RetrieveTenant(ctx context.Context, tenantID string) (*models.Tenant, error)
 }
 
+// AuthOptions configures the behaviour of AuthMiddleware.
+type AuthOptions struct {
+	AdminOnly     bool
+	RequireTenant bool
+}
+
+// AuthMiddleware returns a single gin.HandlerFunc that handles authentication,
+// authorization, and tenant resolution for every route.
+//
+// Flow:
+//  1. VPC mode (apiKey=""): grant admin, resolve tenant if RequireTenant, done.
+//  2. Validate auth header → 401 if missing/malformed.
+//  3. token == apiKey → admin, resolve tenant if RequireTenant, done.
+//  4. JWT.Extract(token) → 401 if invalid.
+//  5. AdminOnly? → 403.
+//  6. :tenantID param mismatch? → 403.
+//  7. Set tenantID + RoleTenant, always resolve tenant for JWT → 401 if missing/deleted.
+func AuthMiddleware(apiKey, jwtSecret string, tenantRetriever TenantRetriever, opts AuthOptions) gin.HandlerFunc {
+	// VPC mode — no API key configured, everything is admin.
+	if apiKey == "" {
+		return func(c *gin.Context) {
+			c.Set(authRoleKey, RoleAdmin)
+			if opts.RequireTenant {
+				resolveTenantOrAbort(c, tenantRetriever, tenantIDFromContext(c), false)
+				if c.IsAborted() {
+					return
+				}
+			}
+			c.Next()
+		}
+	}
+
+	return func(c *gin.Context) {
+		// 2. Validate auth header
+		token, err := validateAuthHeader(c)
+		if err != nil {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		// 3. API key match → admin
+		if token == apiKey {
+			c.Set(authRoleKey, RoleAdmin)
+			if opts.RequireTenant {
+				resolveTenantOrAbort(c, tenantRetriever, tenantIDFromContext(c), false)
+				if c.IsAborted() {
+					return
+				}
+			}
+			c.Next()
+			return
+		}
+
+		// 4. Try JWT
+		claims, err := JWT.Extract(jwtSecret, token)
+		if err != nil {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		// 5. AdminOnly routes reject JWT tokens
+		if opts.AdminOnly {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+
+		// 6. tenantID param mismatch
+		if paramTenantID := c.Param("tenantID"); paramTenantID != "" && paramTenantID != claims.TenantID {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+
+		// 7. Set tenant context and always resolve for JWT
+		c.Set("tenantID", claims.TenantID)
+		c.Set(authRoleKey, RoleTenant)
+		resolveTenantOrAbort(c, tenantRetriever, claims.TenantID, true)
+		if c.IsAborted() {
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// resolveTenantOrAbort looks up the tenant and sets it in context.
+// When isJWT is true, a missing or deleted tenant results in 401 (token is stale).
+// When isJWT is false, a missing or deleted tenant results in 404.
+func resolveTenantOrAbort(c *gin.Context, retriever TenantRetriever, tenantID string, isJWT bool) {
+	if tenantID == "" {
+		if isJWT {
+			c.AbortWithStatus(http.StatusUnauthorized)
+		} else {
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
+		}
+		return
+	}
+
+	tenant, err := retriever.RetrieveTenant(c.Request.Context(), tenantID)
+	if err != nil {
+		if err == tenantstore.ErrTenantDeleted {
+			if isJWT {
+				c.AbortWithStatus(http.StatusUnauthorized)
+			} else {
+				AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
+			}
+			return
+		}
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return
+	}
+	if tenant == nil {
+		if isJWT {
+			c.AbortWithStatus(http.StatusUnauthorized)
+		} else {
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
+		}
+		return
+	}
+
+	c.Set("tenant", tenant)
+}
+
 // validateAuthHeader checks the Authorization header and returns the token if valid
 func validateAuthHeader(c *gin.Context) (string, error) {
 	header := c.GetHeader("Authorization")
@@ -45,125 +167,6 @@ func validateAuthHeader(c *gin.Context) (string, error) {
 		return "", ErrInvalidBearerToken
 	}
 	return token, nil
-}
-
-func AdminMiddleware(apiKey string) gin.HandlerFunc {
-	// When apiKey is empty, everything is admin-only through VPC
-	if apiKey == "" {
-		return func(c *gin.Context) {
-			c.Set(authRoleKey, RoleAdmin)
-			c.Next()
-		}
-	}
-
-	return func(c *gin.Context) {
-		token, err := validateAuthHeader(c)
-		if err != nil {
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		if token != apiKey {
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		c.Set(authRoleKey, RoleAdmin)
-		c.Next()
-	}
-}
-
-func AuthenticatedMiddleware(apiKey string, jwtKey string) gin.HandlerFunc {
-	// When apiKey is empty, everything is admin-only through VPC
-	if apiKey == "" {
-		return func(c *gin.Context) {
-			c.Set(authRoleKey, RoleAdmin)
-			c.Next()
-		}
-	}
-
-	return func(c *gin.Context) {
-		token, err := validateAuthHeader(c)
-		if err != nil {
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		// Try API key first
-		if token == apiKey {
-			c.Set(authRoleKey, RoleAdmin)
-			c.Next()
-			return
-		}
-
-		// Try JWT auth
-		claims, err := JWT.Extract(jwtKey, token)
-		if err != nil {
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		// If tenantID param exists, verify it matches token
-		if paramTenantID := c.Param("tenantID"); paramTenantID != "" && paramTenantID != claims.TenantID {
-			c.AbortWithStatus(http.StatusForbidden)
-			return
-		}
-
-		c.Set("tenantID", claims.TenantID)
-		c.Set(authRoleKey, RoleTenant)
-		c.Next()
-	}
-}
-
-// resolveTenantMiddleware resolves the tenant from the DB and sets it in context.
-// For JWT auth (tenantID already in context), it resolves using that ID.
-// For API key auth on tenant-scoped routes, it resolves using the :tenantID URL param.
-// When requireTenant is true, missing/deleted tenant returns an error (404 for admin, 401 for JWT).
-// When requireTenant is false, it only resolves if JWT set a tenantID in context.
-func resolveTenantMiddleware(tenantRetriever TenantRetriever, requireTenant bool) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		_, isJWT := c.Get("tenantID")
-
-		if !requireTenant && !isJWT {
-			c.Next()
-			return
-		}
-
-		tenantID := tenantIDFromContext(c)
-		if tenantID == "" {
-			if requireTenant {
-				AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
-			} else {
-				c.Next()
-			}
-			return
-		}
-
-		tenant, err := tenantRetriever.RetrieveTenant(c.Request.Context(), tenantID)
-		if err != nil {
-			if err == tenantstore.ErrTenantDeleted {
-				if isJWT {
-					c.AbortWithStatus(http.StatusUnauthorized)
-				} else {
-					AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
-				}
-				return
-			}
-			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-			return
-		}
-		if tenant == nil {
-			if isJWT {
-				c.AbortWithStatus(http.StatusUnauthorized)
-			} else {
-				AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
-			}
-			return
-		}
-
-		c.Set("tenant", tenant)
-		c.Next()
-	}
 }
 
 // tenantIDFromContext returns the tenant ID from context (set by JWT middleware) or

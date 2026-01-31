@@ -82,7 +82,7 @@ func TestAPI_Tenants(t *testing.T) {
 
 		t.Run("jwt nonexistent tenant returns 401", func(t *testing.T) {
 			h := newAPITest(t)
-			// t1 doesn't exist — resolveTenantMiddleware rejects before handler runs
+			// t1 doesn't exist — AuthMiddleware rejects before handler runs
 			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1", nil)
 			resp := h.do(h.withJWT(req, "t1"))
 
@@ -421,7 +421,7 @@ func TestAPI_Tenants(t *testing.T) {
 			require.Equal(t, http.StatusNotFound, resp.Code)
 		})
 
-		t.Run("jwt returns 401", func(t *testing.T) {
+		t.Run("jwt returns 403", func(t *testing.T) {
 			h := newAPITest(t)
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
@@ -429,7 +429,7 @@ func TestAPI_Tenants(t *testing.T) {
 			resp := h.do(h.withJWT(req, "t1"))
 
 			// Token endpoint is admin-only; JWT auth should be rejected
-			require.Equal(t, http.StatusUnauthorized, resp.Code)
+			require.Equal(t, http.StatusForbidden, resp.Code)
 		})
 
 		t.Run("no auth returns 401", func(t *testing.T) {
@@ -511,7 +511,7 @@ func TestAPI_Tenants(t *testing.T) {
 			require.Equal(t, http.StatusNotFound, resp.Code)
 		})
 
-		t.Run("jwt returns 401", func(t *testing.T) {
+		t.Run("jwt returns 403", func(t *testing.T) {
 			h := newAPITest(t)
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
@@ -519,7 +519,7 @@ func TestAPI_Tenants(t *testing.T) {
 			resp := h.do(h.withJWT(req, "t1"))
 
 			// Portal endpoint is admin-only; JWT auth should be rejected
-			require.Equal(t, http.StatusUnauthorized, resp.Code)
+			require.Equal(t, http.StatusForbidden, resp.Code)
 		})
 
 		t.Run("no auth returns 401", func(t *testing.T) {
