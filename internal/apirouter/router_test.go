@@ -20,6 +20,7 @@ import (
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
@@ -31,6 +32,11 @@ func init() {
 const (
 	testAPIKey    = "test-api-key"
 	testJWTSecret = "test-jwt-secret"
+)
+
+var (
+	tf = testutil.TenantFactory
+	df = testutil.DestinationFactory
 )
 
 // ---------------------------------------------------------------------------
@@ -60,7 +66,7 @@ func newAPITest(t *testing.T) *apiTest {
 			ServiceName:  "test",
 			APIKey:       testAPIKey,
 			JWTSecret:    testJWTSecret,
-			Topics:       []string{"user.created", "order.completed"},
+			Topics:       testutil.TestTopics,
 			Registry:     &stubRegistry{},
 			PortalConfig: portal.PortalConfig{},
 		},

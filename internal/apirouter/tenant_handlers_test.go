@@ -32,7 +32,7 @@ func TestAPI_Tenants(t *testing.T) {
 			h := newAPITest(t)
 
 			// Create tenant first
-			h.tenantStore.UpsertTenant(t.Context(), models.Tenant{ID: "t1"})
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
 			// Update with metadata
 			req := h.jsonReq(http.MethodPut, "/api/v1/tenants/t1", map[string]any{
@@ -50,7 +50,7 @@ func TestAPI_Tenants(t *testing.T) {
 
 		t.Run("jwt updates own tenant", func(t *testing.T) {
 			h := newAPITest(t)
-			h.tenantStore.UpsertTenant(t.Context(), models.Tenant{ID: "t1"})
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
 			req := h.jsonReq(http.MethodPut, "/api/v1/tenants/t1", map[string]any{
 				"metadata": map[string]string{"role": "owner"},
@@ -68,7 +68,7 @@ func TestAPI_Tenants(t *testing.T) {
 	t.Run("Retrieve", func(t *testing.T) {
 		t.Run("api key returns tenant", func(t *testing.T) {
 			h := newAPITest(t)
-			h.tenantStore.UpsertTenant(t.Context(), models.Tenant{ID: "t1"})
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1", nil)
 			resp := h.do(h.withAPIKey(req))
@@ -82,7 +82,7 @@ func TestAPI_Tenants(t *testing.T) {
 
 		t.Run("jwt returns own tenant", func(t *testing.T) {
 			h := newAPITest(t)
-			h.tenantStore.UpsertTenant(t.Context(), models.Tenant{ID: "t1"})
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1", nil)
 			resp := h.do(h.withJWT(req, "t1"))
@@ -98,8 +98,8 @@ func TestAPI_Tenants(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Run("api key returns all tenants", func(t *testing.T) {
 			h := newAPITest(t)
-			h.tenantStore.UpsertTenant(t.Context(), models.Tenant{ID: "t1"})
-			h.tenantStore.UpsertTenant(t.Context(), models.Tenant{ID: "t2"})
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants", nil)
 			resp := h.do(h.withAPIKey(req))
@@ -114,8 +114,8 @@ func TestAPI_Tenants(t *testing.T) {
 
 		t.Run("jwt returns only own tenant", func(t *testing.T) {
 			h := newAPITest(t)
-			h.tenantStore.UpsertTenant(t.Context(), models.Tenant{ID: "t1"})
-			h.tenantStore.UpsertTenant(t.Context(), models.Tenant{ID: "t2"})
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants", nil)
 			resp := h.do(h.withJWT(req, "t1"))
@@ -133,7 +133,7 @@ func TestAPI_Tenants(t *testing.T) {
 	t.Run("Delete", func(t *testing.T) {
 		t.Run("api key deletes tenant", func(t *testing.T) {
 			h := newAPITest(t)
-			h.tenantStore.UpsertTenant(t.Context(), models.Tenant{ID: "t1"})
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
 			req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/t1", nil)
 			resp := h.do(h.withAPIKey(req))
@@ -148,7 +148,7 @@ func TestAPI_Tenants(t *testing.T) {
 
 		t.Run("jwt deletes own tenant", func(t *testing.T) {
 			h := newAPITest(t)
-			h.tenantStore.UpsertTenant(t.Context(), models.Tenant{ID: "t1"})
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
 			req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/t1", nil)
 			resp := h.do(h.withJWT(req, "t1"))
@@ -163,8 +163,8 @@ func TestAPI_Tenants(t *testing.T) {
 
 	t.Run("jwt other tenant returns 403", func(t *testing.T) {
 		h := newAPITest(t)
-		h.tenantStore.UpsertTenant(t.Context(), models.Tenant{ID: "t1"})
-		h.tenantStore.UpsertTenant(t.Context(), models.Tenant{ID: "t2"})
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t2", nil)
 		resp := h.do(h.withJWT(req, "t1"))
@@ -174,7 +174,7 @@ func TestAPI_Tenants(t *testing.T) {
 
 	t.Run("deleted tenant jwt returns 401", func(t *testing.T) {
 		h := newAPITest(t)
-		h.tenantStore.UpsertTenant(t.Context(), models.Tenant{ID: "t1"})
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 		h.tenantStore.DeleteTenant(t.Context(), "t1")
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1", nil)
