@@ -248,7 +248,7 @@ func (s *basicSuite) createWebhookDestination(tenantID, topic string, opts ...de
 	outpostBody := map[string]any{
 		"id":     destID,
 		"type":   "webhook",
-		"topics": topic,
+		"topics": []string{topic},
 		"config": map[string]any{
 			"url": fmt.Sprintf("%s/webhook/%s", s.mockServerURL(), destID),
 		},

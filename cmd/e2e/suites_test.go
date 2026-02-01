@@ -65,8 +65,12 @@ func (suite *e2eSuite) SetupSuite() {
 func (s *e2eSuite) TearDownSuite() {
 	if s.cancel != nil {
 		s.cancel()
-		// Wait for application to fully shut down before cleaning up resources
-		<-s.appDone
+		// Wait for application to shut down, but don't block forever.
+		select {
+		case <-s.appDone:
+		case <-time.After(30 * time.Second):
+			log.Println("WARNING: application did not shut down within 30s, proceeding with cleanup")
+		}
 	}
 	s.cleanup()
 }

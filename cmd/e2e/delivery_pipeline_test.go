@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 )
 
 func (s *basicSuite) TestDeliveryPipeline_PublishDeliversToWebhook() {
@@ -125,6 +126,37 @@ func (s *basicSuite) TestDeliveryPipeline_DuplicateEventPublishReturnsDuplicate(
 		"event_id": "dup_test",
 	}, withEventID(eventID))
 	s.True(resp2.Duplicate, "second publish with same ID should be duplicate")
+}
+
+func (s *basicSuite) TestDeliveryPipeline_TopicRoutesOnlyToMatchingDestinations() {
+	topicA := testutil.TestTopics[0] // "user.created"
+	topicB := testutil.TestTopics[1] // "user.deleted"
+
+	tenant := s.createTenant()
+	destA := s.createWebhookDestination(tenant.ID, topicA, withSecret(testSecret))
+	destB := s.createWebhookDestination(tenant.ID, topicB, withSecret(testSecret))
+
+	// Publish an event for each topic
+	s.publish(tenant.ID, topicB, map[string]any{
+		"event_id": "topic_b_1",
+	})
+	s.publish(tenant.ID, topicA, map[string]any{
+		"event_id": "topic_a_1",
+	})
+
+	// Each destination should receive exactly its matching event.
+	// Since topicA was published after topicB, by the time it arrives
+	// the pipeline has already routed the topicB event.
+	eventsA := s.waitForNewMockServerEvents(destA.mockID, 1)
+	eventsB := s.waitForNewMockServerEvents(destB.mockID, 1)
+
+	s.Require().Len(eventsA, 1)
+	s.Equal("topic_a_1", eventsA[0].Payload["event_id"],
+		"%s destination should only receive %s events", topicA, topicA)
+
+	s.Require().Len(eventsB, 1)
+	s.Equal("topic_b_1", eventsB[0].Payload["event_id"],
+		"%s destination should only receive %s events", topicB, topicB)
 }
 
 func (s *basicSuite) TestDeliveryPipeline_EnableAfterDisableResumesDelivery() {
