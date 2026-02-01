@@ -93,6 +93,45 @@ func (s *basicSuite) TestRetry_ManualRetryCreatesNewAttempt() {
 	s.Equal(1, manualCount, "should have exactly one manual retry attempt")
 }
 
+func (s *basicSuite) TestRetry_DuplicateManualRetryExecutesBoth() {
+	tenant := s.createTenant()
+	dest := s.createWebhookDestination(tenant.ID, "*", withSecret(testSecret))
+
+	eventID := idgen.Event()
+	s.publish(tenant.ID, "user.created", map[string]any{
+		"test": "duplicate_manual_retry",
+	}, withEventID(eventID))
+
+	// Wait for initial delivery
+	s.waitForNewAttempts(tenant.ID, 1)
+
+	// First manual retry
+	status := s.retryEvent(eventID, dest.ID)
+	s.Equal(http.StatusAccepted, status)
+	s.waitForNewAttempts(tenant.ID, 2)
+
+	// Second manual retry for same event+destination
+	status = s.retryEvent(eventID, dest.ID)
+	s.Equal(http.StatusAccepted, status)
+	s.waitForNewAttempts(tenant.ID, 3)
+
+	// Verify: 3 attempts total, 2 manual
+	var resp struct {
+		Models []map[string]any `json:"models"`
+	}
+	status = s.doJSON(http.MethodGet, s.apiURL("/attempts?tenant_id="+tenant.ID+"&event_id="+eventID+"&dir=asc"), nil, &resp)
+	s.Require().Equal(http.StatusOK, status)
+	s.Require().Len(resp.Models, 3, "should have 3 attempts: initial + 2 manual retries")
+
+	manualCount := 0
+	for _, atm := range resp.Models {
+		if manual, ok := atm["manual"].(bool); ok && manual {
+			manualCount++
+		}
+	}
+	s.Equal(2, manualCount, "should have exactly 2 manual retry attempts")
+}
+
 func (s *basicSuite) TestRetry_ManualRetryOnDisabledDestinationRejected() {
 	tenant := s.createTenant()
 	dest := s.createWebhookDestination(tenant.ID, "*")
