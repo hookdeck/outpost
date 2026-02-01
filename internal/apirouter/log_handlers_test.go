@@ -1005,7 +1005,7 @@ func TestAPI_Attempts(t *testing.T) {
 				var result apirouter.AttemptPaginatedResult
 				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
 				assert.Len(t, result.Models, 1)
-				assert.Equal(t, "d1", result.Models[0].Destination)
+				assert.Equal(t, "d1", result.Models[0].DestinationID)
 			})
 
 			t.Run("excludes attempts from other tenants same destination", func(t *testing.T) {
@@ -1110,7 +1110,7 @@ func TestAPI_Attempts(t *testing.T) {
 				var attempt apirouter.APIAttempt
 				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &attempt))
 				assert.Equal(t, "a1", attempt.ID)
-				assert.Equal(t, "d1", attempt.Destination)
+				assert.Equal(t, "d1", attempt.DestinationID)
 			})
 
 			t.Run("attempt belonging to different destination returns 404", func(t *testing.T) {

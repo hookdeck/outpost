@@ -93,10 +93,9 @@ type APIAttempt struct {
 	AttemptNumber int                    `json:"attempt_number"`
 	Manual        bool                   `json:"manual"`
 
-	// Expandable fields - string (ID) or object depending on expand
-	Event interface{} `json:"event"`
-
-	Destination string `json:"destination"`
+	EventID       string      `json:"event_id"`
+	DestinationID string      `json:"destination_id"`
+	Event         interface{} `json:"event,omitempty"`
 }
 
 // APIEventSummary is the event object when expand=event (without data)
@@ -149,7 +148,8 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 		Code:          ar.Attempt.Code,
 		AttemptNumber: ar.Attempt.AttemptNumber,
 		Manual:        ar.Attempt.Manual,
-		Destination:   ar.Attempt.DestinationID,
+		EventID:       ar.Attempt.EventID,
+		DestinationID: ar.Attempt.DestinationID,
 	}
 
 	if opts.ResponseData {
@@ -174,11 +174,7 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 				EligibleForRetry: ar.Event.EligibleForRetry,
 				Metadata:         ar.Event.Metadata,
 			}
-		} else {
-			api.Event = ar.Event.ID
 		}
-	} else {
-		api.Event = ar.Attempt.EventID
 	}
 
 	return api

@@ -27,7 +27,7 @@ func (s *basicSuite) TestDeliveryPipeline_PublishDeliversToWebhook() {
 	s.Require().GreaterOrEqual(len(attempts), 1)
 	first := attempts[0]
 	s.NotEmpty(first["id"])
-	s.Equal(dest.ID, first["destination"])
+	s.Equal(dest.ID, first["destination_id"])
 	s.NotEmpty(first["status"])
 }
 

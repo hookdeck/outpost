@@ -75,8 +75,8 @@ func (s *basicSuite) TestLogQueries_Attempts() {
 
 		first := resp.Models[0]
 		s.NotEmpty(first["id"])
-		s.NotEmpty(first["event"])
-		s.Equal(setup.destinationID, first["destination"])
+		s.NotEmpty(first["event_id"])
+		s.Equal(setup.destinationID, first["destination_id"])
 		s.NotEmpty(first["status"])
 		s.NotEmpty(first["delivered_at"])
 		s.Equal(float64(0), first["attempt_number"])

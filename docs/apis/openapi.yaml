@@ -1805,18 +1805,19 @@ components:
           type: boolean
           description: Whether this attempt was manually triggered (e.g., a retry initiated by a user).
           example: false
-        event:
-          oneOf:
-            - type: string
-              description: Event ID (default, no expansion).
-              example: "evt_123"
-            - $ref: "#/components/schemas/EventSummary"
-            - $ref: "#/components/schemas/EventFull"
-          description: The associated event. Returns event ID by default, or included event object when include=event or include=event.data.
-        destination:
+        event_id:
+          type: string
+          description: The ID of the associated event.
+          example: "evt_123"
+        destination_id:
           type: string
           description: The destination ID this attempt was sent to.
           example: "des_456"
+        event:
+          oneOf:
+            - $ref: "#/components/schemas/EventSummary"
+            - $ref: "#/components/schemas/EventFull"
+          description: The associated event object. Only present when include=event or include=event.data.
     EventSummary:
       type: object
       description: Event object without data (returned when include=event).
@@ -2584,15 +2585,15 @@ paths:
                         delivered_at: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
-                        event: "evt_123"
-                        destination: "des_456"
+                        event_id: "evt_123"
+                        destination_id: "des_456"
                       - id: "att_124"
                         status: "failed"
                         delivered_at: "2024-01-02T10:00:01Z"
                         code: "503"
                         attempt_number: 2
-                        event: "evt_789"
-                        destination: "des_789"
+                        event_id: "evt_789"
+                        destination_id: "des_789"
                     pagination:
                       order_by: "time"
                       dir: "desc"
@@ -2608,13 +2609,14 @@ paths:
                         delivered_at: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
+                        event_id: "evt_123"
+                        destination_id: "des_456"
                         event:
                           id: "evt_123"
                           topic: "user.created"
                           time: "2024-01-01T00:00:00Z"
                           eligible_for_retry: false
                           metadata: { "source": "crm" }
-                        destination: "des_456"
                     pagination:
                       order_by: "time"
                       dir: "desc"
@@ -3141,15 +3143,15 @@ paths:
                         delivered_at: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
-                        event: "evt_123"
-                        destination: "des_456"
+                        event_id: "evt_123"
+                        destination_id: "des_456"
                       - id: "atm_124"
                         status: "failed"
                         delivered_at: "2024-01-02T10:00:01Z"
                         code: "503"
                         attempt_number: 2
-                        event: "evt_789"
-                        destination: "des_456"
+                        event_id: "evt_789"
+                        destination_id: "des_456"
                     pagination:
                       order_by: "time"
                       dir: "desc"
@@ -3220,8 +3222,8 @@ paths:
                     delivered_at: "2024-01-01T00:00:05Z"
                     code: "200"
                     attempt_number: 1
-                    event: "evt_123"
-                    destination: "des_456"
+                    event_id: "evt_123"
+                    destination_id: "des_456"
         "404":
           description: Tenant, Destination, or Attempt not found.
 
@@ -3679,15 +3681,15 @@ paths:
                         delivered_at: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
-                        event: "evt_123"
-                        destination: "des_456"
+                        event_id: "evt_123"
+                        destination_id: "des_456"
                       - id: "att_124"
                         status: "failed"
                         delivered_at: "2024-01-02T10:00:01Z"
                         code: "503"
                         attempt_number: 2
-                        event: "evt_789"
-                        destination: "des_456"
+                        event_id: "evt_789"
+                        destination_id: "des_456"
                     pagination:
                       order_by: "time"
                       dir: "desc"
@@ -3703,13 +3705,14 @@ paths:
                         delivered_at: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
+                        event_id: "evt_123"
+                        destination_id: "des_456"
                         event:
                           id: "evt_123"
                           topic: "user.created"
                           time: "2024-01-01T00:00:00Z"
                           eligible_for_retry: false
                           metadata: { "source": "crm" }
-                        destination: "des_456"
                     pagination:
                       order_by: "time"
                       dir: "desc"
@@ -3774,8 +3777,8 @@ paths:
                     delivered_at: "2024-01-01T00:00:05Z"
                     code: "200"
                     attempt_number: 1
-                    event: "evt_123"
-                    destination: "des_456"
+                    event_id: "evt_123"
+                    destination_id: "des_456"
                 AttemptWithIncludeExample:
                   summary: Response with include=event.data,response_data
                   value:
@@ -3788,6 +3791,8 @@ paths:
                       body: '{"status":"ok"}'
                       headers: { "content-type": "application/json" }
                     attempt_number: 1
+                    event_id: "evt_123"
+                    destination_id: "des_456"
                     event:
                       id: "evt_123"
                       topic: "user.created"
@@ -3795,7 +3800,6 @@ paths:
                       eligible_for_retry: false
                       metadata: { "source": "crm" }
                       data: { "user_id": "userid", "status": "active" }
-                    destination: "des_456"
         "404":
           description: Tenant or Attempt not found.
 
