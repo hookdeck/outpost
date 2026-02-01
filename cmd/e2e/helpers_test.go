@@ -67,11 +67,6 @@ type mockServerEvent struct {
 	Payload  map[string]interface{} `json:"payload"`
 }
 
-type tokenResponse struct {
-	Token    string `json:"token"`
-	TenantID string `json:"tenant_id"`
-}
-
 // =============================================================================
 // Mock destination wrapper
 // =============================================================================
@@ -137,12 +132,6 @@ func (d *webhookDestination) SetCredentials(s *basicSuite, creds map[string]stri
 func (s *basicSuite) doJSON(method, url string, body any, result any) int {
 	s.T().Helper()
 	return s.doJSONWithAuth(method, url, fmt.Sprintf("Bearer %s", s.config.APIKey), body, result)
-}
-
-// doJSONWithToken sends a request with a specific Bearer token.
-func (s *basicSuite) doJSONWithToken(method, url string, token string, body any, result any) int {
-	s.T().Helper()
-	return s.doJSONWithAuth(method, url, fmt.Sprintf("Bearer %s", token), body, result)
 }
 
 // doJSONRaw sends a request without any auth header.
@@ -303,31 +292,12 @@ func (s *basicSuite) publish(tenantID, topic string, data map[string]any, opts .
 	return resp
 }
 
-// jwtFor returns a JWT token for the given tenant.
-func (s *basicSuite) jwtFor(tenantID string) string {
-	s.T().Helper()
-	var resp tokenResponse
-	status := s.doJSON(http.MethodGet, s.apiURL("/tenants/"+tenantID+"/token"), nil, &resp)
-	s.Require().Equal(http.StatusOK, status, "failed to get token for tenant %s", tenantID)
-	s.Require().NotEmpty(resp.Token)
-	return resp.Token
-}
-
 // getDestination returns a destination.
 func (s *basicSuite) getDestination(tenantID, destID string) destinationResponse {
 	s.T().Helper()
 	var resp destinationResponse
 	status := s.doJSON(http.MethodGet, s.apiURL(fmt.Sprintf("/tenants/%s/destinations/%s", tenantID, destID)), nil, &resp)
 	s.Require().Equal(http.StatusOK, status, "failed to get destination %s", destID)
-	return resp
-}
-
-// updateDestination patches a destination.
-func (s *basicSuite) updateDestination(tenantID, destID string, body map[string]any) destinationResponse {
-	s.T().Helper()
-	var resp destinationResponse
-	status := s.doJSON(http.MethodPatch, s.apiURL(fmt.Sprintf("/tenants/%s/destinations/%s", tenantID, destID)), body, &resp)
-	s.Require().Equal(http.StatusOK, status, "failed to update destination %s", destID)
 	return resp
 }
 

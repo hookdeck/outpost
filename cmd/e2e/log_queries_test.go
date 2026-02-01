@@ -175,11 +175,6 @@ func (s *basicSuite) TestLogQueries_Events() {
 		s.NotNil(resp["data"])
 	})
 
-	s.Run("retrieve non-existent event returns 404", func() {
-		status := s.doJSON(http.MethodGet, s.apiURL("/events/"+idgen.Event()), nil, nil)
-		s.Equal(http.StatusNotFound, status)
-	})
-
 	s.Run("filter by time[gte] excludes past events", func() {
 		futureTime := time.Now().Add(1 * time.Hour).UTC().Format(time.RFC3339)
 		var resp struct {
@@ -222,11 +217,6 @@ func (s *basicSuite) TestLogQueries_SortOrder() {
 			next := parseTime(resp.Models[i+1]["time"].(string))
 			s.True(curr.Before(next) || curr.Equal(next), "events not in ascending order at index %d", i)
 		}
-	})
-
-	s.Run("events invalid dir returns 422", func() {
-		status := s.doJSON(http.MethodGet, s.apiURL("/events?tenant_id="+setup.tenantID+"&dir=invalid"), nil, nil)
-		s.Equal(http.StatusUnprocessableEntity, status)
 	})
 }
 

@@ -93,11 +93,6 @@ func (s *basicSuite) TestRetry_ManualRetryCreatesNewAttempt() {
 	s.Equal(1, manualCount, "should have exactly one manual retry attempt")
 }
 
-func (s *basicSuite) TestRetry_ManualRetryNonExistentEvent() {
-	status := s.retryEvent(idgen.Event(), idgen.Destination())
-	s.Equal(http.StatusNotFound, status)
-}
-
 func (s *basicSuite) TestRetry_ManualRetryOnDisabledDestinationRejected() {
 	tenant := s.createTenant()
 	dest := s.createWebhookDestination(tenant.ID, "*")

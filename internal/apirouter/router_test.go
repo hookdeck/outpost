@@ -57,12 +57,19 @@ type apiTest struct {
 type apiTestOption func(*apiTestConfig)
 
 type apiTestConfig struct {
-	tenantStore tenantstore.TenantStore
+	tenantStore  tenantstore.TenantStore
+	destRegistry destregistry.Registry
 }
 
 func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.tenantStore = ts
+	}
+}
+
+func withDestRegistry(r destregistry.Registry) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.destRegistry = r
 	}
 }
 
@@ -82,13 +89,18 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	dp := &mockDeliveryPublisher{}
 	eh := &mockEventHandler{}
 
+	var registry destregistry.Registry = &stubRegistry{}
+	if cfg.destRegistry != nil {
+		registry = cfg.destRegistry
+	}
+
 	router := apirouter.NewRouter(
 		apirouter.RouterConfig{
 			ServiceName:  "test",
 			APIKey:       testAPIKey,
 			JWTSecret:    testJWTSecret,
 			Topics:       testutil.TestTopics,
-			Registry:     &stubRegistry{},
+			Registry:     registry,
 			PortalConfig: portal.PortalConfig{},
 		},
 		apirouter.RouterDeps{
