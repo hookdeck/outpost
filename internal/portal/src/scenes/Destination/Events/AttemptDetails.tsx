@@ -12,10 +12,10 @@ const AttemptDetails = ({
 }: {
   navigateAttempt: (path: string, params?: any) => void;
 }) => {
-  const { attempt_id: attemptId } = useParams();
+  const { attempt_id: attemptId, destination_id: destinationId } = useParams();
 
   const { data: attempt } = useSWR<Attempt>(
-    `attempts/${attemptId}?include=event.data,response_data`,
+    `destinations/${destinationId}/attempts/${attemptId}?include=event.data,response_data`,
   );
 
   if (!attempt) {

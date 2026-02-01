@@ -67,10 +67,9 @@ const Attempts: React.FC<AttemptsProps> = ({
       searchParams.set("limit", "15");
     }
 
-    searchParams.set("destination_id", destination.id);
     searchParams.set("include", "event");
 
-    return `attempts?${searchParams.toString()}`;
+    return `destinations/${destination.id}/attempts?${searchParams.toString()}`;
   }, [destination.id, timeRange, urlSearchParams]);
 
   const {
