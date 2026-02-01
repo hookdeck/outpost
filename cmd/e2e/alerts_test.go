@@ -81,4 +81,3 @@ func (s *basicSuite) TestAlerts_SuccessResetsConsecutiveFailureCounter() {
 			"alert %d should have %d consecutive failures", i, expectedCounts[i])
 	}
 }
-
