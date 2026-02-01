@@ -147,9 +147,21 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 		return h.handleError(msg, &PreDeliveryError{err: err})
 	}
 
-	err = h.idempotence.Exec(ctx, idempotencyKeyFromDeliveryTask(task), func(ctx context.Context) error {
+	executed := false
+	idempotencyKey := idempotencyKeyFromDeliveryTask(task)
+	err = h.idempotence.Exec(ctx, idempotencyKey, func(ctx context.Context) error {
+		executed = true
 		return h.doHandle(ctx, task, destination)
 	})
+	if err == nil && !executed {
+		h.logger.Ctx(ctx).Info("delivery task skipped (idempotent)",
+			zap.String("event_id", task.Event.ID),
+			zap.String("tenant_id", task.Event.TenantID),
+			zap.String("destination_id", task.DestinationID),
+			zap.Int("attempt", task.Attempt),
+			zap.Bool("manual", task.Manual),
+			zap.String("idempotency_key", idempotencyKey))
+	}
 	return h.handleError(msg, err)
 }
 
