@@ -85,10 +85,7 @@ const Attempts: React.FC<AttemptsProps> = ({
 
   const table_rows = attemptsList?.models
     ? attemptsList.models.map((attempt) => {
-        const event =
-          typeof attempt.event === "object"
-            ? (attempt.event as EventSummary)
-            : null;
+        const event = attempt.event ? (attempt.event as EventSummary) : null;
         return {
           id: attempt.id,
           active: attempt.id === (attemptId || ""),
@@ -109,7 +106,8 @@ const Attempts: React.FC<AttemptsProps> = ({
                 <Badge text="Failed" danger />
               )}
               <RetryDeliveryButton
-                attemptId={attempt.id}
+                eventId={attempt.event_id}
+                destinationId={attempt.destination_id}
                 disabled={isValidating}
                 loading={isValidating}
                 completed={(success) => {

@@ -25,14 +25,16 @@ interface EventFull extends EventSummary {
 // Attempt represents a delivery attempt for an event to a destination
 interface Attempt {
   id: string;
+  event_id: string;
+  destination_id: string;
   status: "success" | "failed";
   delivered_at: string;
   code?: string;
   response_data?: Record<string, unknown>;
   attempt_number: number;
-  // Expandable fields - string (ID) or object depending on expand param
-  event: string | EventSummary | EventFull;
-  destination: string;
+  manual: boolean;
+  // Expandable field - only present when using include=event
+  event?: EventSummary | EventFull;
 }
 
 interface SeekPagination {

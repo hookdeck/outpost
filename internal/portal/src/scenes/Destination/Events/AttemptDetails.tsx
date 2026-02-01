@@ -22,8 +22,7 @@ const AttemptDetails = ({
     return <div>Loading...</div>;
   }
 
-  const event =
-    typeof attempt.event === "object" ? (attempt.event as EventFull) : null;
+  const event = attempt.event ? (attempt.event as EventFull) : null;
 
   return (
     <div className="drawer">
@@ -33,7 +32,8 @@ const AttemptDetails = ({
         </h3>
         <div className="drawer__header-actions">
           <RetryDeliveryButton
-            attemptId={attempt.id}
+            eventId={attempt.event_id}
+            destinationId={attempt.destination_id}
             disabled={false}
             loading={false}
             completed={() => {}}
