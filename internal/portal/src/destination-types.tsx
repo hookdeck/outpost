@@ -1,6 +1,6 @@
 import { useContext } from "react";
 import useSWR from "swr";
-import { DestinationTypeReference } from "./typings/Destination";
+import type { DestinationTypeReference } from "./typings/Destination";
 import { ApiContext } from "./app";
 
 export function useDestinationTypes(): Record<

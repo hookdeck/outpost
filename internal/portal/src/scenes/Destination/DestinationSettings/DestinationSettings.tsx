@@ -18,7 +18,7 @@ import { useSidebar } from "../../../common/Sidebar/Sidebar";
 import { ApiContext, formatError } from "../../../app";
 import { mutate } from "swr";
 import { showToast } from "../../../common/Toast/Toast";
-import {
+import type {
   Destination,
   DestinationTypeReference,
   Filter,

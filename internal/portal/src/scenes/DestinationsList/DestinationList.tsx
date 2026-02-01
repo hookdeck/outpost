@@ -13,7 +13,7 @@ import Table from "../../common/Table/Table";
 import Tooltip from "../../common/Tooltip/Tooltip";
 import CONFIGS from "../../config";
 import { useDestinationTypes } from "../../destination-types";
-import { Destination } from "../../typings/Destination";
+import type { Destination } from "../../typings/Destination";
 import getLogo from "../../utils/logo";
 
 const DestinationList: React.FC = () => {

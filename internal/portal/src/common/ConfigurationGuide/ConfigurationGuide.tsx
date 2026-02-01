@@ -1,4 +1,4 @@
-import { DestinationTypeReference } from "../../typings/Destination";
+import type { DestinationTypeReference } from "../../typings/Destination";
 import Markdown from "react-markdown";
 
 export const ConfigurationGuide = ({

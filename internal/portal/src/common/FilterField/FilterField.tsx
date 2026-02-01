@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Filter } from "../../typings/Destination";
+import type { Filter } from "../../typings/Destination";
 import "./FilterField.scss";
 
 interface FilterFieldProps {

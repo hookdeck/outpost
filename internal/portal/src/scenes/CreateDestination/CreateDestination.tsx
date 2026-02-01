@@ -14,7 +14,7 @@ import { ApiContext, formatError } from "../../app";
 import { showToast } from "../../common/Toast/Toast";
 import { mutate } from "swr";
 import TopicPicker from "../../common/TopicPicker/TopicPicker";
-import { DestinationTypeReference, Filter } from "../../typings/Destination";
+import type { DestinationTypeReference, Filter } from "../../typings/Destination";
 import { useDestinationTypes } from "../../destination-types";
 import DestinationConfigFields from "../../common/DestinationConfigFields/DestinationConfigFields";
 import FilterField from "../../common/FilterField/FilterField";
