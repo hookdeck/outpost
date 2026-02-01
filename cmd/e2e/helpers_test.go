@@ -57,8 +57,9 @@ type destinationResponse struct {
 }
 
 type publishResponse struct {
-	ID        string `json:"id"`
-	Duplicate bool   `json:"duplicate"`
+	ID             string   `json:"id"`
+	Duplicate      bool     `json:"duplicate"`
+	DestinationIDs []string `json:"destination_ids"`
 }
 
 type mockServerEvent struct {
