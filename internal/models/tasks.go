@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/json"
 
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mqs"
 )
 
@@ -38,6 +39,7 @@ type DeliveryTask struct {
 	DestinationID string             `json:"destination_id"`
 	Attempt       int                `json:"attempt"`
 	Manual        bool               `json:"manual"`
+	Nonce         string             `json:"nonce,omitempty"`
 	Telemetry     *DeliveryTelemetry `json:"telemetry,omitempty"`
 }
 
@@ -56,10 +58,15 @@ func (t *DeliveryTask) ToMessage() (*mqs.Message, error) {
 }
 
 // IdempotencyKey returns the key used for idempotency checks.
-// Uses Event.ID + DestinationID + Manual flag.
-// Manual retries get a different key so they can bypass idempotency of failed automatic deliveries.
+// Manual retries include a nonce so each /retry request gets its own idempotency key,
+// while MQ redeliveries of the same message (same nonce) are still deduplicated.
 func (t *DeliveryTask) IdempotencyKey() string {
 	if t.Manual {
+		// Backward compat (v0.12 -> v0.13): messages already in the queue won't have a nonce.
+		// This check can be removed once all in-flight messages have been processed.
+		if t.Nonce != "" {
+			return t.Event.ID + ":" + t.DestinationID + ":manual:" + t.Nonce
+		}
 		return t.Event.ID + ":" + t.DestinationID + ":manual"
 	}
 	return t.Event.ID + ":" + t.DestinationID
@@ -81,9 +88,11 @@ func NewDeliveryTask(event Event, destinationID string) DeliveryTask {
 }
 
 // NewManualDeliveryTask creates a new DeliveryTask for a manual retry.
+// Each manual retry gets a unique nonce so separate /retry requests are not deduplicated.
 func NewManualDeliveryTask(event Event, destinationID string) DeliveryTask {
 	task := NewDeliveryTask(event, destinationID)
 	task.Manual = true
+	task.Nonce = idgen.String()
 	return task
 }
 
