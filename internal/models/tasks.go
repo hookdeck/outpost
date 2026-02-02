@@ -60,14 +60,11 @@ func (t *DeliveryTask) ToMessage() (*mqs.Message, error) {
 // IdempotencyKey returns the key used for idempotency checks.
 // Manual retries include a nonce so each /retry request gets its own idempotency key,
 // while MQ redeliveries of the same message (same nonce) are still deduplicated.
+// Nonce was added to fix a regression from #653 where removing DeliveryEvent.ID
+// made the manual retry idempotency key static per event+destination.
 func (t *DeliveryTask) IdempotencyKey() string {
 	if t.Manual {
-		// Backward compat (v0.12 -> v0.13): messages already in the queue won't have a nonce.
-		// This check can be removed once all in-flight messages have been processed.
-		if t.Nonce != "" {
-			return t.Event.ID + ":" + t.DestinationID + ":manual:" + t.Nonce
-		}
-		return t.Event.ID + ":" + t.DestinationID + ":manual"
+		return t.Event.ID + ":" + t.DestinationID + ":manual:" + t.Nonce
 	}
 	return t.Event.ID + ":" + t.DestinationID
 }
