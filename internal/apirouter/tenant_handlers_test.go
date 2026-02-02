@@ -3,334 +3,560 @@ package apirouter_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestDestinationUpsertHandler(t *testing.T) {
-	t.Parallel()
-
-	router, _, redisClient := setupTestRouter(t, "", "")
-	tenantStore := setupTestTenantStore(t, redisClient)
-
-	t.Run("should create when there's no existing tenant", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-
-		id := idgen.String()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+id, nil)
-		router.ServeHTTP(w, req)
-
-		var response map[string]any
-		json.Unmarshal(w.Body.Bytes(), &response)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
-		assert.Equal(t, id, response["id"])
-		assert.NotEqual(t, "", response["created_at"])
-		assert.NotEqual(t, "", response["updated_at"])
-		assert.Equal(t, response["created_at"], response["updated_at"])
-	})
-
-	t.Run("should return tenant when there's already one", func(t *testing.T) {
-		t.Parallel()
-
-		// Setup
-		existingResource := models.Tenant{
-			ID:        idgen.String(),
-			CreatedAt: time.Now(),
-		}
-		tenantStore.UpsertTenant(context.Background(), existingResource)
-
-		// Request
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+existingResource.ID, nil)
-		router.ServeHTTP(w, req)
-		var response map[string]any
-		json.Unmarshal(w.Body.Bytes(), &response)
-
-		// Test
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, existingResource.ID, response["id"])
-		createdAt, err := time.Parse(time.RFC3339Nano, response["created_at"].(string))
-		if err != nil {
-			t.Fatal(err)
-		}
-		// Compare at second precision since Redis stores Unix timestamps
-		assert.Equal(t, existingResource.CreatedAt.Unix(), createdAt.Unix())
-
-		// Cleanup
-		tenantStore.DeleteTenant(context.Background(), existingResource.ID)
-	})
+// listUnsupportedStore wraps a TenantStore and overrides ListTenant
+// to return ErrListTenantNotSupported, simulating a store backend
+// (e.g., Redis without RediSearch) that doesn't support listing.
+type listUnsupportedStore struct {
+	tenantstore.TenantStore
 }
 
-func TestTenantRetrieveHandler(t *testing.T) {
-	t.Parallel()
-
-	router, _, redisClient := setupTestRouter(t, "", "")
-	tenantStore := setupTestTenantStore(t, redisClient)
-
-	t.Run("should return 404 when there's no tenant", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/invalid_id", nil)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should retrieve tenant", func(t *testing.T) {
-		t.Parallel()
-
-		// Setup
-		existingResource := models.Tenant{
-			ID:        idgen.String(),
-			CreatedAt: time.Now(),
-		}
-		tenantStore.UpsertTenant(context.Background(), existingResource)
-
-		// Request
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+existingResource.ID, nil)
-		router.ServeHTTP(w, req)
-		var response map[string]any
-		json.Unmarshal(w.Body.Bytes(), &response)
-
-		// Test
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, existingResource.ID, response["id"])
-		createdAt, err := time.Parse(time.RFC3339Nano, response["created_at"].(string))
-		if err != nil {
-			t.Fatal(err)
-		}
-		// Compare at second precision since Redis stores Unix timestamps
-		assert.Equal(t, existingResource.CreatedAt.Unix(), createdAt.Unix())
-
-		// Cleanup
-		tenantStore.DeleteTenant(context.Background(), existingResource.ID)
-	})
+func (s *listUnsupportedStore) ListTenant(_ context.Context, _ tenantstore.ListTenantRequest) (*tenantstore.TenantPaginatedResult, error) {
+	return nil, tenantstore.ErrListTenantNotSupported
 }
 
-func TestTenantDeleteHandler(t *testing.T) {
-	t.Parallel()
+func TestAPI_Tenants(t *testing.T) {
+	t.Run("Upsert", func(t *testing.T) {
+		t.Run("api key creates tenant", func(t *testing.T) {
+			h := newAPITest(t)
 
-	router, _, redisClient := setupTestRouter(t, "", "")
-	tenantStore := setupTestTenantStore(t, redisClient)
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1", nil)
+			resp := h.do(h.withAPIKey(req))
 
-	t.Run("should return 404 when there's no tenant", func(t *testing.T) {
-		t.Parallel()
+			require.Equal(t, http.StatusCreated, resp.Code)
 
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("DELETE", baseAPIPath+"/tenants/invalid_id", nil)
-		router.ServeHTTP(w, req)
+			// Verify tenant exists in store
+			tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
+			require.NoError(t, err)
+			assert.Equal(t, "t1", tenant.ID)
+		})
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
+		t.Run("api key updates metadata", func(t *testing.T) {
+			h := newAPITest(t)
+
+			// Create tenant first
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			// Update with metadata
+			req := h.jsonReq(http.MethodPut, "/api/v1/tenants/t1", map[string]any{
+				"metadata": map[string]string{"env": "prod"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			// Verify metadata in store
+			tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
+			require.NoError(t, err)
+			assert.Equal(t, models.Metadata{"env": "prod"}, tenant.Metadata)
+		})
+
+		t.Run("metadata auto-converts non-string values", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := h.jsonReq(http.MethodPut, "/api/v1/tenants/t1", map[string]any{
+				"metadata": map[string]any{
+					"count":   42,
+					"enabled": true,
+					"ratio":   3.14,
+					"empty":   nil,
+					"nested":  map[string]any{"key": "val"},
+				},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusCreated, resp.Code)
+
+			tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
+			require.NoError(t, err)
+			assert.Equal(t, models.Metadata{
+				"count":   "42",
+				"enabled": "true",
+				"ratio":   "3.14",
+				"empty":   "",
+				"nested":  `{"key":"val"}`,
+			}, tenant.Metadata)
+		})
+
+		t.Run("jwt updates own tenant", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := h.jsonReq(http.MethodPut, "/api/v1/tenants/t1", map[string]any{
+				"metadata": map[string]string{"role": "owner"},
+			})
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
+			require.NoError(t, err)
+			assert.Equal(t, models.Metadata{"role": "owner"}, tenant.Metadata)
+		})
+
+		t.Run("jwt nonexistent tenant returns 401", func(t *testing.T) {
+			h := newAPITest(t)
+			// t1 doesn't exist — AuthMiddleware rejects before handler runs
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusUnauthorized, resp.Code)
+		})
+
+		t.Run("api key deleted tenant recreates", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.DeleteTenant(t.Context(), "t1")
+
+			// Upsert on deleted tenant should recreate it
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusCreated, resp.Code)
+
+			// Verify tenant exists again in store
+			tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
+			require.NoError(t, err)
+			assert.Equal(t, "t1", tenant.ID)
+		})
 	})
 
-	t.Run("should delete tenant", func(t *testing.T) {
-		t.Parallel()
+	t.Run("Retrieve", func(t *testing.T) {
+		t.Run("api key returns tenant", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
-		// Setup
-		existingResource := models.Tenant{
-			ID:        idgen.String(),
-			CreatedAt: time.Now(),
-		}
-		tenantStore.UpsertTenant(context.Background(), existingResource)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1", nil)
+			resp := h.do(h.withAPIKey(req))
 
-		// Request
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("DELETE", baseAPIPath+"/tenants/"+existingResource.ID, nil)
-		router.ServeHTTP(w, req)
-		var response map[string]any
-		json.Unmarshal(w.Body.Bytes(), &response)
+			require.Equal(t, http.StatusOK, resp.Code)
 
-		// Test
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, true, response["success"])
+			var tenant models.Tenant
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &tenant))
+			assert.Equal(t, "t1", tenant.ID)
+		})
+
+		t.Run("jwt returns own tenant", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var tenant models.Tenant
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &tenant))
+			assert.Equal(t, "t1", tenant.ID)
+		})
 	})
 
-	t.Run("should delete tenant and associated destinations", func(t *testing.T) {
-		t.Parallel()
+	t.Run("List", func(t *testing.T) {
+		t.Run("api key returns all tenants", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
 
-		// Setup
-		existingResource := models.Tenant{
-			ID:        idgen.String(),
-			CreatedAt: time.Now(),
-		}
-		tenantStore.UpsertTenant(context.Background(), existingResource)
-		inputDestination := models.Destination{
-			Type:       "webhook",
-			Topics:     []string{"user.created", "user.updated"},
-			DisabledAt: nil,
-			TenantID:   existingResource.ID,
-		}
-		ids := make([]string, 5)
-		for i := 0; i < 5; i++ {
-			ids[i] = idgen.String()
-			inputDestination.ID = ids[i]
-			inputDestination.CreatedAt = time.Now()
-			tenantStore.UpsertDestination(context.Background(), inputDestination)
-		}
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants", nil)
+			resp := h.do(h.withAPIKey(req))
 
-		// Request
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("DELETE", baseAPIPath+"/tenants/"+existingResource.ID, nil)
-		router.ServeHTTP(w, req)
-		var response map[string]any
-		json.Unmarshal(w.Body.Bytes(), &response)
+			require.Equal(t, http.StatusOK, resp.Code)
 
-		// Test
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, true, response["success"])
+			var result tenantstore.TenantPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			assert.Equal(t, 2, result.Count)
+			assert.Len(t, result.Models, 2)
+		})
 
-		destinations, err := tenantStore.ListDestinationByTenant(context.Background(), existingResource.ID)
-		assert.Nil(t, err)
-		assert.Equal(t, 0, len(destinations))
+		t.Run("jwt returns only own tenant", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var result tenantstore.TenantPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			assert.Equal(t, 1, result.Count)
+			assert.Len(t, result.Models, 1)
+			assert.Equal(t, "t1", result.Models[0].ID)
+		})
+
+		t.Run("Pagination", func(t *testing.T) {
+			h := newAPITest(t)
+
+			now := time.Now()
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"), tf.WithCreatedAt(now.Add(-2*time.Second))))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2"), tf.WithCreatedAt(now.Add(-1*time.Second))))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t3"), tf.WithCreatedAt(now)))
+
+			t.Run("forward pagination first page", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "t3", result.Models[0].ID)
+				assert.Equal(t, 3, result.Count)
+				assert.NotNil(t, result.Pagination.Next)
+				assert.Nil(t, result.Pagination.Prev)
+			})
+
+			t.Run("next cursor returns second page", func(t *testing.T) {
+				// Get first page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=1", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+				require.NotNil(t, page1.Pagination.Next)
+
+				// Get second page
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/tenants?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var page2 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+				require.Len(t, page2.Models, 1)
+				assert.Equal(t, "t2", page2.Models[0].ID)
+				assert.Equal(t, 3, page2.Count)
+				assert.NotNil(t, page2.Pagination.Next)
+				assert.NotNil(t, page2.Pagination.Prev)
+			})
+
+			t.Run("last page has no next cursor", func(t *testing.T) {
+				// Navigate to last page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=1", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/tenants?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page2 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/tenants?limit=1&next=%s", *page2.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var page3 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page3))
+				require.Len(t, page3.Models, 1)
+				assert.Equal(t, "t1", page3.Models[0].ID)
+				assert.Equal(t, 3, page3.Count)
+				assert.Nil(t, page3.Pagination.Next)
+				assert.NotNil(t, page3.Pagination.Prev)
+			})
+
+			t.Run("prev cursor returns previous page", func(t *testing.T) {
+				// Navigate to last page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=1", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/tenants?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page2 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/tenants?limit=1&next=%s", *page2.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page3 tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page3))
+				require.NotNil(t, page3.Pagination.Prev)
+
+				// Go back
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/tenants?limit=1&prev=%s", *page3.Pagination.Prev), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var prevPage tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &prevPage))
+				require.Len(t, prevPage.Models, 1)
+				assert.Equal(t, "t2", prevPage.Models[0].ID)
+			})
+
+			t.Run("dir asc reverses order", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=1&dir=asc", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "t1", result.Models[0].ID)
+			})
+
+			t.Run("limit caps results", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=2", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result tenantstore.TenantPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 2)
+				assert.Equal(t, 3, result.Count)
+				assert.NotNil(t, result.Pagination.Next)
+			})
+		})
+
+		t.Run("Validation", func(t *testing.T) {
+			t.Run("invalid dir returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?dir=sideways", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+
+			t.Run("both next and prev returns 400", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?next=abc&prev=def", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusBadRequest, resp.Code)
+			})
+		})
+
+		t.Run("list not supported returns 501", func(t *testing.T) {
+			h := newAPITest(t, withTenantStore(&listUnsupportedStore{tenantstore.NewMemTenantStore()}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotImplemented, resp.Code)
+		})
 	})
-}
 
-func TestTenantRetrieveTokenHandler(t *testing.T) {
-	t.Parallel()
+	t.Run("Delete", func(t *testing.T) {
+		t.Run("api key deletes tenant", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
-	apiKey := "api_key"
-	jwtSecret := "jwt_secret"
-	router, _, redisClient := setupTestRouter(t, apiKey, jwtSecret)
-	tenantStore := setupTestTenantStore(t, redisClient)
+			req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/t1", nil)
+			resp := h.do(h.withAPIKey(req))
 
-	t.Run("should return token and tenant_id", func(t *testing.T) {
-		t.Parallel()
+			require.Equal(t, http.StatusOK, resp.Code)
 
-		// Setup
-		existingResource := models.Tenant{
-			ID:        idgen.String(),
-			CreatedAt: time.Now(),
-		}
-		tenantStore.UpsertTenant(context.Background(), existingResource)
+			// Subsequent GET returns 404
+			req = httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1", nil)
+			resp = h.do(h.withAPIKey(req))
+			assert.Equal(t, http.StatusNotFound, resp.Code)
+		})
 
-		// Request
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+existingResource.ID+"/token", nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		router.ServeHTTP(w, req)
-		var response map[string]any
-		json.Unmarshal(w.Body.Bytes(), &response)
+		t.Run("jwt deletes own tenant", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
-		// Test
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.NotEmpty(t, response["token"])
-		assert.Equal(t, existingResource.ID, response["tenant_id"])
+			req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/t1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
 
-		// Cleanup
-		tenantStore.DeleteTenant(context.Background(), existingResource.ID)
-	})
-}
+			require.Equal(t, http.StatusOK, resp.Code)
 
-func TestTenantRetrievePortalHandler(t *testing.T) {
-	t.Parallel()
-
-	apiKey := "api_key"
-	jwtSecret := "jwt_secret"
-	router, _, redisClient := setupTestRouter(t, apiKey, jwtSecret)
-	tenantStore := setupTestTenantStore(t, redisClient)
-
-	t.Run("should return redirect_url with token and tenant_id in body", func(t *testing.T) {
-		t.Parallel()
-
-		// Setup
-		existingResource := models.Tenant{
-			ID:        idgen.String(),
-			CreatedAt: time.Now(),
-		}
-		tenantStore.UpsertTenant(context.Background(), existingResource)
-
-		// Request
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+existingResource.ID+"/portal", nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		router.ServeHTTP(w, req)
-		var response map[string]any
-		json.Unmarshal(w.Body.Bytes(), &response)
-
-		// Test
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.NotEmpty(t, response["redirect_url"])
-		assert.Contains(t, response["redirect_url"], "token=")
-		assert.Equal(t, existingResource.ID, response["tenant_id"])
-
-		// Cleanup
-		tenantStore.DeleteTenant(context.Background(), existingResource.ID)
+			// Verify deleted in store
+			_, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
+			assert.ErrorIs(t, err, tenantstore.ErrTenantDeleted)
+		})
 	})
 
-	t.Run("should include theme in redirect_url when provided", func(t *testing.T) {
-		t.Parallel()
+	t.Run("jwt other tenant returns 403", func(t *testing.T) {
+		h := newAPITest(t)
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
 
-		// Setup
-		existingResource := models.Tenant{
-			ID:        idgen.String(),
-			CreatedAt: time.Now(),
-		}
-		tenantStore.UpsertTenant(context.Background(), existingResource)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t2", nil)
+		resp := h.do(h.withJWT(req, "t1"))
 
-		// Request
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+existingResource.ID+"/portal?theme=dark", nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		router.ServeHTTP(w, req)
-		var response map[string]any
-		json.Unmarshal(w.Body.Bytes(), &response)
-
-		// Test
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, response["redirect_url"], "token=")
-		assert.Contains(t, response["redirect_url"], "theme=dark")
-		assert.Equal(t, existingResource.ID, response["tenant_id"])
-
-		// Cleanup
-		tenantStore.DeleteTenant(context.Background(), existingResource.ID)
-	})
-}
-
-func TestTenantListHandler(t *testing.T) {
-	t.Parallel()
-
-	router, _, redisClient := setupTestRouter(t, "", "")
-	_ = setupTestTenantStore(t, redisClient)
-
-	// Note: These tests use miniredis which doesn't support RediSearch.
-	// The ListTenant feature requires RediSearch, so we expect 501 Not Implemented.
-
-	t.Run("should return 501 when RediSearch is not available", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants", nil)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
-
-		var response map[string]any
-		json.Unmarshal(w.Body.Bytes(), &response)
-		assert.Contains(t, response["message"], "not enabled")
+		require.Equal(t, http.StatusForbidden, resp.Code)
 	})
 
-	t.Run("should return 400 for invalid limit", func(t *testing.T) {
-		t.Parallel()
+	t.Run("deleted tenant jwt returns 401", func(t *testing.T) {
+		h := newAPITest(t)
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+		h.tenantStore.DeleteTenant(t.Context(), "t1")
 
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants?limit=notanumber", nil)
-		router.ServeHTTP(w, req)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1", nil)
+		resp := h.do(h.withJWT(req, "t1"))
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		require.Equal(t, http.StatusUnauthorized, resp.Code)
+	})
 
-		var response map[string]any
-		json.Unmarshal(w.Body.Bytes(), &response)
-		assert.Contains(t, response["message"], "invalid limit")
+	t.Run("no auth returns 401", func(t *testing.T) {
+		h := newAPITest(t)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants", nil)
+		resp := h.do(req)
+
+		require.Equal(t, http.StatusUnauthorized, resp.Code)
+	})
+
+	t.Run("RetrieveToken", func(t *testing.T) {
+		t.Run("api key returns token and tenant id", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/token", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var body map[string]string
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "t1", body["tenant_id"])
+			assert.NotEmpty(t, body["token"])
+
+			// Verify the returned JWT is valid and has correct claims
+			claims, err := apirouter.JWT.Extract(testJWTSecret, body["token"])
+			require.NoError(t, err)
+			assert.Equal(t, "t1", claims.TenantID)
+		})
+
+		t.Run("nonexistent tenant returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/nope/token", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("jwt returns 403", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/token", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			// Token endpoint is admin-only; JWT auth should be rejected
+			require.Equal(t, http.StatusForbidden, resp.Code)
+		})
+
+		t.Run("no auth returns 401", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/token", nil)
+			resp := h.do(req)
+
+			require.Equal(t, http.StatusUnauthorized, resp.Code)
+		})
+	})
+
+	t.Run("RetrievePortal", func(t *testing.T) {
+		t.Run("api key returns redirect url with token", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/portal", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var body map[string]string
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "t1", body["tenant_id"])
+			assert.NotEmpty(t, body["redirect_url"])
+			assert.True(t, strings.Contains(body["redirect_url"], "token="))
+		})
+
+		t.Run("theme dark", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/portal?theme=dark", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var body map[string]string
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.True(t, strings.Contains(body["redirect_url"], "theme=dark"))
+		})
+
+		t.Run("theme light", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/portal?theme=light", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var body map[string]string
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.True(t, strings.Contains(body["redirect_url"], "theme=light"))
+		})
+
+		t.Run("invalid theme omitted", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/portal?theme=neon", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var body map[string]string
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.False(t, strings.Contains(body["redirect_url"], "theme="))
+		})
+
+		t.Run("nonexistent tenant returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/nope/portal", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("jwt returns 403", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/portal", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			// Portal endpoint is admin-only; JWT auth should be rejected
+			require.Equal(t, http.StatusForbidden, resp.Code)
+		})
+
+		t.Run("no auth returns 401", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/portal", nil)
+			resp := h.do(req)
+
+			require.Equal(t, http.StatusUnauthorized, resp.Code)
+		})
 	})
 }

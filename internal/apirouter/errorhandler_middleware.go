@@ -115,6 +115,8 @@ func formatValidationError(field, tag, param string) string {
 		return fmt.Sprintf("%s must be less than %s", field, param)
 	case "lte":
 		return fmt.Sprintf("%s must be less than or equal to %s", field, param)
+	case "forbidden":
+		return fmt.Sprintf("%s is forbidden", field)
 	default:
 		if param != "" {
 			return fmt.Sprintf("%s failed %s=%s validation", field, tag, param)

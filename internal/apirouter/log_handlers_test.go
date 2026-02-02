@@ -1,658 +1,1204 @@
 package apirouter_test
 
 import (
-	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestListAttempts(t *testing.T) {
-	t.Parallel()
+// attemptForEvent creates an attempt that references the given event.
+func attemptForEvent(event *models.Event, opts ...func(*models.Attempt)) *models.Attempt {
+	return af.AnyPointer(append([]func(*models.Attempt){
+		af.WithEventID(event.ID),
+		af.WithTenantID(event.TenantID),
+		af.WithDestinationID(event.DestinationID),
+	}, opts...)...)
+}
 
-	result := setupTestRouterFull(t, "", "")
+func TestAPI_Events(t *testing.T) {
+	t.Run("List", func(t *testing.T) {
+		t.Run("api key returns all events", func(t *testing.T) {
+			h := newAPITest(t)
 
-	// Create a tenant
-	tenantID := idgen.String()
-	destinationID := idgen.Destination()
-	require.NoError(t, result.tenantStore.UpsertTenant(context.Background(), models.Tenant{
-		ID:        tenantID,
-		CreatedAt: time.Now(),
-	}))
-	require.NoError(t, result.tenantStore.UpsertDestination(context.Background(), models.Destination{
-		ID:        destinationID,
-		TenantID:  tenantID,
-		Type:      "webhook",
-		Topics:    []string{"*"},
-		CreatedAt: time.Now(),
-	}))
+			e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+			e2 := ef.AnyPointer(ef.WithTenantID("t2"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1)},
+				{Event: e2, Attempt: attemptForEvent(e2)},
+			}))
 
-	t.Run("should return empty list when no attempts", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts", nil)
-		result.router.ServeHTTP(w, req)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events", nil)
+			resp := h.do(h.withAPIKey(req))
 
-		assert.Equal(t, http.StatusOK, w.Code)
+			require.Equal(t, http.StatusOK, resp.Code)
 
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			var result apirouter.EventPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			assert.Len(t, result.Models, 2)
+		})
 
-		data := response["models"].([]interface{})
-		assert.Len(t, data, 0)
+		t.Run("api key with tenant_id filter", func(t *testing.T) {
+			h := newAPITest(t)
+
+			e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+			e2 := ef.AnyPointer(ef.WithTenantID("t2"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1)},
+				{Event: e2, Attempt: attemptForEvent(e2)},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events?tenant_id=t1", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var result apirouter.EventPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			assert.Len(t, result.Models, 1)
+			assert.Equal(t, e1.ID, result.Models[0].ID)
+		})
+
+		t.Run("api key with topic filter", func(t *testing.T) {
+			h := newAPITest(t)
+
+			e1 := ef.AnyPointer(ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+			e2 := ef.AnyPointer(ef.WithTenantID("t1"), ef.WithTopic("user.updated"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1)},
+				{Event: e2, Attempt: attemptForEvent(e2)},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events?topic=user.created", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var result apirouter.EventPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			assert.Len(t, result.Models, 1)
+			assert.Equal(t, "user.created", result.Models[0].Topic)
+		})
+
+		t.Run("default pagination metadata", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var result apirouter.EventPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			assert.Equal(t, "time", result.Pagination.OrderBy)
+			assert.Equal(t, "desc", result.Pagination.Dir)
+			assert.Equal(t, 100, result.Pagination.Limit)
+			assert.Nil(t, result.Pagination.Next)
+			assert.Nil(t, result.Pagination.Prev)
+		})
+
+		t.Run("jwt returns own tenant events", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+			e2 := ef.AnyPointer(ef.WithTenantID("t2"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1)},
+				{Event: e2, Attempt: attemptForEvent(e2)},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var result apirouter.EventPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			assert.Len(t, result.Models, 1)
+			assert.Equal(t, e1.ID, result.Models[0].ID)
+		})
+
+		t.Run("jwt with matching tenant_id returns 200", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1)},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events?tenant_id=t1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var result apirouter.EventPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			assert.Len(t, result.Models, 1)
+		})
+
+		t.Run("jwt with mismatched tenant_id returns 403", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events?tenant_id=t2", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusForbidden, resp.Code)
+		})
+
+		// Pagination, filtering, and validation are tested comprehensively under
+		// TestAPI_Attempts since attempts are the primary query surface. Events
+		// share the same underlying pagination/filter machinery (ParseCursors,
+		// ParseDir, ParseOrderBy, ParseDateFilter) so we keep a lighter smoke
+		// suite here to confirm the wiring without duplicating every scenario.
+
+		t.Run("Pagination", func(t *testing.T) {
+			h := newAPITest(t)
+
+			now := time.Now()
+			e1 := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTime(now.Add(-2*time.Second)))
+			e2 := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithTime(now.Add(-1*time.Second)))
+			e3 := ef.AnyPointer(ef.WithID("e3"), ef.WithTenantID("t1"), ef.WithTime(now))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1)},
+				{Event: e2, Attempt: attemptForEvent(e2)},
+				{Event: e3, Attempt: attemptForEvent(e3)},
+			}))
+
+			t.Run("forward pagination returns pages in order", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "e3", result.Models[0].ID)
+				assert.NotNil(t, result.Pagination.Next)
+				assert.Nil(t, result.Pagination.Prev)
+			})
+
+			t.Run("next cursor returns second page", func(t *testing.T) {
+				// Get first page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+				require.NotNil(t, page1.Pagination.Next)
+
+				// Get second page
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/events?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var page2 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+				require.Len(t, page2.Models, 1)
+				assert.Equal(t, "e2", page2.Models[0].ID)
+				assert.NotNil(t, page2.Pagination.Next)
+				assert.NotNil(t, page2.Pagination.Prev)
+			})
+
+			t.Run("last page has no next cursor", func(t *testing.T) {
+				// Get first page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+
+				// Get second page
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/events?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page2 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+
+				// Get third (last) page
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/events?limit=1&next=%s", *page2.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var page3 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page3))
+				require.Len(t, page3.Models, 1)
+				assert.Equal(t, "e1", page3.Models[0].ID)
+				assert.Nil(t, page3.Pagination.Next)
+				assert.NotNil(t, page3.Pagination.Prev)
+			})
+
+			t.Run("prev cursor returns previous page", func(t *testing.T) {
+				// Navigate to last page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/events?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page2 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/events?limit=1&next=%s", *page2.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page3 apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page3))
+				require.NotNil(t, page3.Pagination.Prev)
+
+				// Go back
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/events?limit=1&prev=%s", *page3.Pagination.Prev), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var prevPage apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &prevPage))
+				require.Len(t, prevPage.Models, 1)
+				assert.Equal(t, "e2", prevPage.Models[0].ID)
+			})
+
+			t.Run("dir asc reverses order", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=1&dir=asc", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "e1", result.Models[0].ID)
+			})
+
+			t.Run("limit caps results", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=2", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 2)
+				assert.NotNil(t, result.Pagination.Next)
+			})
+		})
+
+		t.Run("Filtering", func(t *testing.T) {
+			h := newAPITest(t)
+
+			now := time.Now()
+			e1 := ef.AnyPointer(
+				ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"),
+				ef.WithTopic("user.created"), ef.WithTime(now.Add(-2*time.Hour)),
+			)
+			e2 := ef.AnyPointer(
+				ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithDestinationID("d2"),
+				ef.WithTopic("user.updated"), ef.WithTime(now),
+			)
+			e3 := ef.AnyPointer(
+				ef.WithID("e3"), ef.WithTenantID("t2"), ef.WithDestinationID("d3"),
+				ef.WithTopic("user.created"), ef.WithTime(now),
+			)
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1)},
+				{Event: e2, Attempt: attemptForEvent(e2)},
+				{Event: e3, Attempt: attemptForEvent(e3)},
+			}))
+
+			t.Run("destination_id filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?destination_id=d1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "e1", result.Models[0].ID)
+			})
+
+			t.Run("multiple topics filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?topic=user.created&topic=user.updated", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 3)
+			})
+
+			t.Run("single topic filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?topic=user.updated", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "e2", result.Models[0].ID)
+			})
+
+			t.Run("time gte filter", func(t *testing.T) {
+				cutoff := now.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+				v := url.Values{}
+				v.Set("time[gte]", cutoff)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?"+v.Encode(), nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 2)
+			})
+
+			t.Run("time lte filter", func(t *testing.T) {
+				cutoff := now.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+				v := url.Values{}
+				v.Set("time[lte]", cutoff)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?"+v.Encode(), nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "e1", result.Models[0].ID)
+			})
+
+			t.Run("combined filters", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?topic=user.created&tenant_id=t1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "e1", result.Models[0].ID)
+			})
+		})
+
+		t.Run("Validation", func(t *testing.T) {
+			t.Run("invalid dir returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?dir=sideways", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+
+			t.Run("invalid order_by returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?order_by=name", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+
+			t.Run("both next and prev returns 400", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?next=abc&prev=def", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusBadRequest, resp.Code)
+			})
+
+			t.Run("invalid date format returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?time[gte]=not-a-date", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+		})
 	})
 
-	t.Run("should list attempts", func(t *testing.T) {
-		// Seed attempt events
-		eventID := idgen.Event()
-		attemptID := idgen.Attempt()
-		eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
-		attemptTime := eventTime.Add(100 * time.Millisecond)
+	t.Run("Retrieve", func(t *testing.T) {
+		t.Run("api key returns event", func(t *testing.T) {
+			h := newAPITest(t)
 
-		event := testutil.EventFactory.AnyPointer(
-			testutil.EventFactory.WithID(eventID),
-			testutil.EventFactory.WithTenantID(tenantID),
-			testutil.EventFactory.WithDestinationID(destinationID),
-			testutil.EventFactory.WithTopic("user.created"),
-			testutil.EventFactory.WithTime(eventTime),
-		)
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e)},
+			}))
 
-		attempt := testutil.AttemptFactory.AnyPointer(
-			testutil.AttemptFactory.WithID(attemptID),
-			testutil.AttemptFactory.WithEventID(eventID),
-			testutil.AttemptFactory.WithDestinationID(destinationID),
-			testutil.AttemptFactory.WithStatus("success"),
-			testutil.AttemptFactory.WithTime(attemptTime),
-		)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events/e1", nil)
+			resp := h.do(h.withAPIKey(req))
 
-		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
+			require.Equal(t, http.StatusOK, resp.Code)
 
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts", nil)
-		result.router.ServeHTTP(w, req)
+			var event apirouter.APIEvent
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &event))
+			assert.Equal(t, "e1", event.ID)
+		})
 
-		assert.Equal(t, http.StatusOK, w.Code)
+		t.Run("nonexistent event returns 404", func(t *testing.T) {
+			h := newAPITest(t)
 
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events/nope", nil)
+			resp := h.do(h.withAPIKey(req))
 
-		data := response["models"].([]interface{})
-		assert.Len(t, data, 1)
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
 
-		firstAttempt := data[0].(map[string]interface{})
-		assert.Equal(t, attemptID, firstAttempt["id"])
-		assert.Equal(t, "success", firstAttempt["status"])
-		assert.Equal(t, eventID, firstAttempt["event"]) // Not included
-		assert.Equal(t, destinationID, firstAttempt["destination"])
+		t.Run("jwt returns own event", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e)},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events/e1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var event apirouter.APIEvent
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &event))
+			assert.Equal(t, "e1", event.ID)
+		})
+
+		t.Run("jwt other tenant event returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t2"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e)},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events/e1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
 	})
 
-	t.Run("should include event when include=event", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?include=event", nil)
-		result.router.ServeHTTP(w, req)
+	t.Run("no auth returns 401", func(t *testing.T) {
+		h := newAPITest(t)
 
-		assert.Equal(t, http.StatusOK, w.Code)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/events", nil)
+		resp := h.do(req)
 
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-		data := response["models"].([]interface{})
-		require.Len(t, data, 1)
-
-		firstAttempt := data[0].(map[string]interface{})
-		event := firstAttempt["event"].(map[string]interface{})
-		assert.NotNil(t, event["id"])
-		assert.Equal(t, "user.created", event["topic"])
-		// data should not be present without include=event.data
-		assert.Nil(t, event["data"])
-	})
-
-	t.Run("should include event.data when include=event.data", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?include=event.data", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-		data := response["models"].([]interface{})
-		require.Len(t, data, 1)
-
-		firstAttempt := data[0].(map[string]interface{})
-		event := firstAttempt["event"].(map[string]interface{})
-		assert.NotNil(t, event["id"])
-		assert.NotNil(t, event["data"]) // data should be present
-	})
-
-	t.Run("should filter by destination_id", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?destination_id="+destinationID, nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-		data := response["models"].([]interface{})
-		assert.Len(t, data, 1)
-	})
-
-	t.Run("should filter by non-existent destination_id", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?destination_id=nonexistent", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-		data := response["models"].([]interface{})
-		assert.Len(t, data, 0)
-	})
-
-	t.Run("should return 404 for non-existent tenant", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/nonexistent/attempts", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should exclude response_data by default", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-		data := response["models"].([]interface{})
-		require.Len(t, data, 1)
-
-		firstAttempt := data[0].(map[string]interface{})
-		assert.Nil(t, firstAttempt["response_data"])
-	})
-
-	t.Run("should include response_data with include=response_data", func(t *testing.T) {
-		// Seed an attempt with response_data
-		eventID := idgen.Event()
-		attemptID := idgen.Attempt()
-		eventTime := time.Now().Add(-30 * time.Minute).Truncate(time.Millisecond)
-		attemptTime := eventTime.Add(100 * time.Millisecond)
-
-		event := testutil.EventFactory.AnyPointer(
-			testutil.EventFactory.WithID(eventID),
-			testutil.EventFactory.WithTenantID(tenantID),
-			testutil.EventFactory.WithDestinationID(destinationID),
-			testutil.EventFactory.WithTopic("order.created"),
-			testutil.EventFactory.WithTime(eventTime),
-		)
-
-		attempt := testutil.AttemptFactory.AnyPointer(
-			testutil.AttemptFactory.WithID(attemptID),
-			testutil.AttemptFactory.WithEventID(eventID),
-			testutil.AttemptFactory.WithDestinationID(destinationID),
-			testutil.AttemptFactory.WithStatus("success"),
-			testutil.AttemptFactory.WithTime(attemptTime),
-		)
-		attempt.ResponseData = map[string]interface{}{
-			"body":   "OK",
-			"status": float64(200),
-		}
-
-		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?include=response_data", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-		data := response["models"].([]interface{})
-		// Find the attempt we just created
-		var foundAttempt map[string]interface{}
-		for _, d := range data {
-			atm := d.(map[string]interface{})
-			if atm["id"] == attemptID {
-				foundAttempt = atm
-				break
-			}
-		}
-		require.NotNil(t, foundAttempt, "attempt not found in response")
-		require.NotNil(t, foundAttempt["response_data"], "response_data should be included")
-		respData := foundAttempt["response_data"].(map[string]interface{})
-		assert.Equal(t, "OK", respData["body"])
-		assert.Equal(t, float64(200), respData["status"])
-	})
-
-	t.Run("should support comma-separated include param", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?include=event,response_data", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-		data := response["models"].([]interface{})
-		require.GreaterOrEqual(t, len(data), 1)
-
-		firstAttempt := data[0].(map[string]interface{})
-		// event should be included (object, not string)
-		event := firstAttempt["event"].(map[string]interface{})
-		assert.NotNil(t, event["id"])
-		assert.NotNil(t, event["topic"])
-	})
-
-	t.Run("should return validation error for invalid dir", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?dir=invalid", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
-	})
-
-	t.Run("should accept valid dir param", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?dir=asc", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-
-	t.Run("should cap limit at 1000", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts?limit=5000", nil)
-		result.router.ServeHTTP(w, req)
-
-		// Should succeed, limit is silently capped
-		assert.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, http.StatusUnauthorized, resp.Code)
 	})
 }
 
-func TestRetrieveAttempt(t *testing.T) {
-	t.Parallel()
+func TestAPI_Attempts(t *testing.T) {
+	t.Run("List", func(t *testing.T) {
+		t.Run("api key returns all attempts", func(t *testing.T) {
+			h := newAPITest(t)
 
-	result := setupTestRouterFull(t, "", "")
+			e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+			e2 := ef.AnyPointer(ef.WithTenantID("t2"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1)},
+				{Event: e2, Attempt: attemptForEvent(e2)},
+			}))
 
-	// Create a tenant
-	tenantID := idgen.String()
-	destinationID := idgen.Destination()
-	require.NoError(t, result.tenantStore.UpsertTenant(context.Background(), models.Tenant{
-		ID:        tenantID,
-		CreatedAt: time.Now(),
-	}))
-	require.NoError(t, result.tenantStore.UpsertDestination(context.Background(), models.Destination{
-		ID:        destinationID,
-		TenantID:  tenantID,
-		Type:      "webhook",
-		Topics:    []string{"*"},
-		CreatedAt: time.Now(),
-	}))
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts", nil)
+			resp := h.do(h.withAPIKey(req))
 
-	// Seed an attempt event
-	eventID := idgen.Event()
-	attemptID := idgen.Attempt()
-	eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
-	attemptTime := eventTime.Add(100 * time.Millisecond)
+			require.Equal(t, http.StatusOK, resp.Code)
 
-	event := testutil.EventFactory.AnyPointer(
-		testutil.EventFactory.WithID(eventID),
-		testutil.EventFactory.WithTenantID(tenantID),
-		testutil.EventFactory.WithDestinationID(destinationID),
-		testutil.EventFactory.WithTopic("order.created"),
-		testutil.EventFactory.WithTime(eventTime),
-	)
+			var result apirouter.AttemptPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			assert.Len(t, result.Models, 2)
+		})
 
-	attempt := testutil.AttemptFactory.AnyPointer(
-		testutil.AttemptFactory.WithID(attemptID),
-		testutil.AttemptFactory.WithEventID(eventID),
-		testutil.AttemptFactory.WithDestinationID(destinationID),
-		testutil.AttemptFactory.WithStatus("failed"),
-		testutil.AttemptFactory.WithTime(attemptTime),
-	)
+		t.Run("api key with tenant_id filter", func(t *testing.T) {
+			h := newAPITest(t)
 
-	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
+			e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+			e2 := ef.AnyPointer(ef.WithTenantID("t2"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1)},
+				{Event: e2, Attempt: attemptForEvent(e2)},
+			}))
 
-	t.Run("should retrieve attempt by ID", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+attemptID, nil)
-		result.router.ServeHTTP(w, req)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?tenant_id=t1", nil)
+			resp := h.do(h.withAPIKey(req))
 
-		assert.Equal(t, http.StatusOK, w.Code)
+			require.Equal(t, http.StatusOK, resp.Code)
 
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			var result apirouter.AttemptPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			assert.Len(t, result.Models, 1)
+		})
 
-		assert.Equal(t, attemptID, response["id"])
-		assert.Equal(t, "failed", response["status"])
-		assert.Equal(t, eventID, response["event"]) // Not included
-		assert.Equal(t, destinationID, response["destination"])
+		t.Run("jwt returns own tenant attempts", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+			e2 := ef.AnyPointer(ef.WithTenantID("t2"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1)},
+				{Event: e2, Attempt: attemptForEvent(e2)},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var result apirouter.AttemptPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			assert.Len(t, result.Models, 1)
+		})
+
+		t.Run("jwt with mismatched tenant_id returns 403", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?tenant_id=t2", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusForbidden, resp.Code)
+		})
+
+		t.Run("Pagination", func(t *testing.T) {
+			h := newAPITest(t)
+
+			now := time.Now()
+			e1 := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTime(now.Add(-2*time.Second)))
+			e2 := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithTime(now.Add(-1*time.Second)))
+			e3 := ef.AnyPointer(ef.WithID("e3"), ef.WithTenantID("t1"), ef.WithTime(now))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1, af.WithID("a1"), af.WithTime(now.Add(-2*time.Second)))},
+				{Event: e2, Attempt: attemptForEvent(e2, af.WithID("a2"), af.WithTime(now.Add(-1*time.Second)))},
+				{Event: e3, Attempt: attemptForEvent(e3, af.WithID("a3"), af.WithTime(now))},
+			}))
+
+			t.Run("forward pagination returns pages in order", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a3", result.Models[0].ID)
+				assert.NotNil(t, result.Pagination.Next)
+				assert.Nil(t, result.Pagination.Prev)
+			})
+
+			t.Run("next cursor returns second page", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+				require.NotNil(t, page1.Pagination.Next)
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/attempts?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var page2 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+				require.Len(t, page2.Models, 1)
+				assert.Equal(t, "a2", page2.Models[0].ID)
+				assert.NotNil(t, page2.Pagination.Next)
+				assert.NotNil(t, page2.Pagination.Prev)
+			})
+
+			t.Run("last page has no next cursor", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/attempts?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page2 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/attempts?limit=1&next=%s", *page2.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var page3 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page3))
+				require.Len(t, page3.Models, 1)
+				assert.Equal(t, "a1", page3.Models[0].ID)
+				assert.Nil(t, page3.Pagination.Next)
+				assert.NotNil(t, page3.Pagination.Prev)
+			})
+
+			t.Run("prev cursor returns previous page", func(t *testing.T) {
+				// Navigate to last page
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?limit=1&dir=desc", nil)
+				resp := h.do(h.withAPIKey(req))
+				var page1 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page1))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/attempts?limit=1&next=%s", *page1.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page2 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page2))
+
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/attempts?limit=1&next=%s", *page2.Pagination.Next), nil)
+				resp = h.do(h.withAPIKey(req))
+				var page3 apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &page3))
+				require.NotNil(t, page3.Pagination.Prev)
+
+				// Go back
+				req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/attempts?limit=1&prev=%s", *page3.Pagination.Prev), nil)
+				resp = h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var prevPage apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &prevPage))
+				require.Len(t, prevPage.Models, 1)
+				assert.Equal(t, "a2", prevPage.Models[0].ID)
+			})
+
+			t.Run("dir asc reverses order", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?limit=1&dir=asc", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+			})
+
+			t.Run("limit caps results", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?limit=2", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 2)
+				assert.NotNil(t, result.Pagination.Next)
+			})
+		})
+
+		t.Run("Filtering", func(t *testing.T) {
+			h := newAPITest(t)
+
+			now := time.Now()
+			e1 := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"), ef.WithTopic("user.created"))
+			e2 := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithDestinationID("d2"), ef.WithTopic("user.updated"))
+			a1 := attemptForEvent(e1, af.WithID("a1"), af.WithStatus("success"), af.WithTime(now.Add(-2*time.Hour)))
+			a2 := attemptForEvent(e2, af.WithID("a2"), af.WithStatus("failed"), af.WithTime(now))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: a1},
+				{Event: e2, Attempt: a2},
+			}))
+
+			t.Run("status filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?status=success", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+			})
+
+			t.Run("event_id filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?event_id=e1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+			})
+
+			t.Run("destination_id filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?destination_id=d1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+			})
+
+			t.Run("time gte filter", func(t *testing.T) {
+				cutoff := now.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+				v := url.Values{}
+				v.Set("time[gte]", cutoff)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?"+v.Encode(), nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a2", result.Models[0].ID)
+			})
+
+			t.Run("time lte filter", func(t *testing.T) {
+				cutoff := now.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+				v := url.Values{}
+				v.Set("time[lte]", cutoff)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?"+v.Encode(), nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+			})
+
+			t.Run("topic filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?topic=user.created", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+			})
+		})
+
+		t.Run("Validation", func(t *testing.T) {
+			t.Run("invalid dir returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?dir=sideways", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+
+			t.Run("invalid order_by returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?order_by=name", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+
+			t.Run("both next and prev returns 400", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?next=abc&prev=def", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusBadRequest, resp.Code)
+			})
+
+			t.Run("invalid date format returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?time[gte]=not-a-date", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+		})
 	})
 
-	t.Run("should include event when include=event", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+attemptID+"?include=event", nil)
-		result.router.ServeHTTP(w, req)
+	t.Run("Retrieve", func(t *testing.T) {
+		t.Run("api key returns attempt", func(t *testing.T) {
+			h := newAPITest(t)
 
-		assert.Equal(t, http.StatusOK, w.Code)
+			e := ef.AnyPointer(ef.WithTenantID("t1"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
 
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1", nil)
+			resp := h.do(h.withAPIKey(req))
 
-		event := response["event"].(map[string]interface{})
-		assert.Equal(t, eventID, event["id"])
-		assert.Equal(t, "order.created", event["topic"])
-		// data should not be present without include=event.data
-		assert.Nil(t, event["data"])
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var attempt apirouter.APIAttempt
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &attempt))
+			assert.Equal(t, "a1", attempt.ID)
+		})
+
+		t.Run("nonexistent attempt returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/nope", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("jwt returns own attempt", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			e := ef.AnyPointer(ef.WithTenantID("t1"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var attempt apirouter.APIAttempt
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &attempt))
+			assert.Equal(t, "a1", attempt.ID)
+		})
+
+		t.Run("jwt other tenant attempt returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			e := ef.AnyPointer(ef.WithTenantID("t2"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("include event expands event summary", func(t *testing.T) {
+			h := newAPITest(t)
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?include=event", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var raw map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &raw))
+
+			// With include=event, the event field is an object (not just an ID)
+			eventMap, ok := raw["event"].(map[string]any)
+			require.True(t, ok, "event should be an object when include=event")
+			assert.Equal(t, "e1", eventMap["id"])
+			assert.Equal(t, "user.created", eventMap["topic"])
+			// Summary does not include data
+			_, hasData := eventMap["data"]
+			assert.False(t, hasData)
+		})
+
+		t.Run("include event.data expands event with data", func(t *testing.T) {
+			h := newAPITest(t)
+
+			e := ef.AnyPointer(
+				ef.WithID("e1"), ef.WithTenantID("t1"),
+				ef.WithData(map[string]any{"key": "val"}),
+			)
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?include=event.data", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var raw map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &raw))
+
+			eventMap, ok := raw["event"].(map[string]any)
+			require.True(t, ok, "event should be an object when include=event.data")
+			assert.Equal(t, "e1", eventMap["id"])
+			dataMap, ok := eventMap["data"].(map[string]any)
+			require.True(t, ok, "event.data should be present")
+			assert.Equal(t, "val", dataMap["key"])
+		})
+
+		t.Run("include response data", func(t *testing.T) {
+			h := newAPITest(t)
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"))
+			a := attemptForEvent(e, af.WithID("a1"), func(att *models.Attempt) {
+				att.ResponseData = map[string]interface{}{
+					"status": "ok",
+					"body":   "response-body",
+				}
+			})
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?include=response_data", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var raw map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &raw))
+
+			respData, ok := raw["response_data"].(map[string]any)
+			require.True(t, ok, "response_data should be an object when include=response_data")
+			assert.Equal(t, "ok", respData["status"])
+			assert.Equal(t, "response-body", respData["body"])
+		})
 	})
 
-	t.Run("should include event.data when include=event.data", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+attemptID+"?include=event.data", nil)
-		result.router.ServeHTTP(w, req)
+	t.Run("DestinationAttempts", func(t *testing.T) {
+		t.Run("List", func(t *testing.T) {
+			t.Run("api key returns attempts for destination", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
 
-		assert.Equal(t, http.StatusOK, w.Code)
+				e1 := ef.AnyPointer(ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
+				e2 := ef.AnyPointer(ef.WithTenantID("t1"), ef.WithDestinationID("d2"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: e1, Attempt: attemptForEvent(e1)},
+					{Event: e2, Attempt: attemptForEvent(e2)},
+				}))
 
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts", nil)
+				resp := h.do(h.withAPIKey(req))
 
-		event := response["event"].(map[string]interface{})
-		assert.Equal(t, eventID, event["id"])
-		assert.NotNil(t, event["data"]) // data should be present
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 1)
+				assert.Equal(t, "d1", result.Models[0].DestinationID)
+			})
+
+			t.Run("excludes attempts from other tenants same destination", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+				e1 := ef.AnyPointer(ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
+				e2 := ef.AnyPointer(ef.WithTenantID("t2"), ef.WithDestinationID("d1"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: e1, Attempt: attemptForEvent(e1)},
+					{Event: e2, Attempt: attemptForEvent(e2)},
+				}))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 1)
+			})
+
+			t.Run("jwt returns attempts for own destination", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+				e := ef.AnyPointer(ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: e, Attempt: attemptForEvent(e)},
+				}))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts", nil)
+				resp := h.do(h.withJWT(req, "t1"))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 1)
+			})
+
+			t.Run("jwt other tenant returns 403", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t2")))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t2/destinations/d1/attempts", nil)
+				resp := h.do(h.withJWT(req, "t1"))
+
+				require.Equal(t, http.StatusForbidden, resp.Code)
+			})
+
+			t.Run("destination belonging to other tenant returns empty list without leaking data", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t2")))
+
+				e := ef.AnyPointer(ef.WithTenantID("t2"), ef.WithDestinationID("d1"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: e, Attempt: attemptForEvent(e)},
+				}))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				// The handler does not validate destination ownership — it passes the
+				// destinationID straight to the log store as a filter alongside the
+				// tenant ID. When the destination belongs to another tenant, the query
+				// returns no matches because no attempts exist for that (tenant, destination)
+				// pair. This means no data leaks, but the API returns 200 with an empty
+				// list instead of 404.
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Empty(t, result.Models, "must not leak attempts from other tenants")
+			})
+		})
+
+		t.Run("Retrieve", func(t *testing.T) {
+			t.Run("api key retrieves specific attempt", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+				e := ef.AnyPointer(ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
+				a := attemptForEvent(e, af.WithID("a1"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: e, Attempt: a},
+				}))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts/a1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var attempt apirouter.APIAttempt
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &attempt))
+				assert.Equal(t, "a1", attempt.ID)
+				assert.Equal(t, "d1", attempt.DestinationID)
+			})
+
+			t.Run("attempt belonging to different destination returns 404", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1")))
+
+				e := ef.AnyPointer(ef.WithTenantID("t1"), ef.WithDestinationID("d2"))
+				a := attemptForEvent(e, af.WithID("a1"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: e, Attempt: a},
+				}))
+
+				// Request via d1's path, but attempt belongs to d2
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts/a1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusNotFound, resp.Code)
+			})
+
+			t.Run("attempt belonging to other tenant destination returns 404", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t2")))
+
+				e := ef.AnyPointer(ef.WithTenantID("t2"), ef.WithDestinationID("d2"))
+				a := attemptForEvent(e, af.WithID("a1"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: e, Attempt: a},
+				}))
+
+				// d1 belongs to t1 (valid), but a1 belongs to d2/t2
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts/a1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusNotFound, resp.Code)
+			})
+
+			t.Run("jwt other tenant returns 403", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t2")))
+
+				e := ef.AnyPointer(ef.WithTenantID("t2"), ef.WithDestinationID("d1"))
+				a := attemptForEvent(e, af.WithID("a1"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: e, Attempt: a},
+				}))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t2/destinations/d1/attempts/a1", nil)
+				resp := h.do(h.withJWT(req, "t1"))
+
+				require.Equal(t, http.StatusForbidden, resp.Code)
+			})
+
+			t.Run("destination belonging to other tenant does not leak data", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t2")))
+
+				e := ef.AnyPointer(ef.WithTenantID("t2"), ef.WithDestinationID("d1"))
+				a := attemptForEvent(e, af.WithID("a1"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: e, Attempt: a},
+				}))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts/a1", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				// The handler filters by tenant ID, not destination ownership.
+				// The attempt belongs to t2 so the tenant filter excludes it — returns
+				// 404 with no data leaked.
+				require.Equal(t, http.StatusNotFound, resp.Code)
+			})
+		})
 	})
 
-	t.Run("should return 404 for non-existent attempt", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/attempts/nonexistent", nil)
-		result.router.ServeHTTP(w, req)
+	t.Run("no auth returns 401", func(t *testing.T) {
+		h := newAPITest(t)
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts", nil)
+		resp := h.do(req)
 
-	t.Run("should return 404 for non-existent tenant", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/nonexistent/attempts/"+attemptID, nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-}
-
-func TestRetrieveEvent(t *testing.T) {
-	t.Parallel()
-
-	result := setupTestRouterFull(t, "", "")
-
-	// Create a tenant
-	tenantID := idgen.String()
-	destinationID := idgen.Destination()
-	require.NoError(t, result.tenantStore.UpsertTenant(context.Background(), models.Tenant{
-		ID:        tenantID,
-		CreatedAt: time.Now(),
-	}))
-	require.NoError(t, result.tenantStore.UpsertDestination(context.Background(), models.Destination{
-		ID:        destinationID,
-		TenantID:  tenantID,
-		Type:      "webhook",
-		Topics:    []string{"*"},
-		CreatedAt: time.Now(),
-	}))
-
-	// Seed an attempt event
-	eventID := idgen.Event()
-	attemptID := idgen.Attempt()
-	eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
-	attemptTime := eventTime.Add(100 * time.Millisecond)
-
-	event := testutil.EventFactory.AnyPointer(
-		testutil.EventFactory.WithID(eventID),
-		testutil.EventFactory.WithTenantID(tenantID),
-		testutil.EventFactory.WithDestinationID(destinationID),
-		testutil.EventFactory.WithTopic("payment.processed"),
-		testutil.EventFactory.WithTime(eventTime),
-		testutil.EventFactory.WithData(map[string]interface{}{
-			"amount": 100.50,
-		}),
-		testutil.EventFactory.WithMetadata(map[string]string{
-			"source": "stripe",
-		}),
-	)
-
-	attempt := testutil.AttemptFactory.AnyPointer(
-		testutil.AttemptFactory.WithID(attemptID),
-		testutil.AttemptFactory.WithEventID(eventID),
-		testutil.AttemptFactory.WithDestinationID(destinationID),
-		testutil.AttemptFactory.WithStatus("success"),
-		testutil.AttemptFactory.WithTime(attemptTime),
-	)
-
-	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
-
-	t.Run("should retrieve event by ID", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events/"+eventID, nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-		assert.Equal(t, eventID, response["id"])
-		assert.Equal(t, "payment.processed", response["topic"])
-		assert.Equal(t, "stripe", response["metadata"].(map[string]interface{})["source"])
-		assert.Equal(t, 100.50, response["data"].(map[string]interface{})["amount"])
-		// tenant_id is not included in API response (tenant-scoped via URL)
-		assert.Nil(t, response["tenant_id"])
-	})
-
-	t.Run("should return 404 for non-existent event", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events/nonexistent", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should return 404 for non-existent tenant", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/nonexistent/events/"+eventID, nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-}
-
-func TestListEvents(t *testing.T) {
-	t.Parallel()
-
-	result := setupTestRouterFull(t, "", "")
-
-	// Create a tenant
-	tenantID := idgen.String()
-	destinationID := idgen.Destination()
-	require.NoError(t, result.tenantStore.UpsertTenant(context.Background(), models.Tenant{
-		ID:        tenantID,
-		CreatedAt: time.Now(),
-	}))
-	require.NoError(t, result.tenantStore.UpsertDestination(context.Background(), models.Destination{
-		ID:        destinationID,
-		TenantID:  tenantID,
-		Type:      "webhook",
-		Topics:    []string{"*"},
-		CreatedAt: time.Now(),
-	}))
-
-	t.Run("should return empty list when no events", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-		data := response["models"].([]interface{})
-		assert.Len(t, data, 0)
-	})
-
-	t.Run("should list events", func(t *testing.T) {
-		// Seed attempt events
-		eventID := idgen.Event()
-		attemptID := idgen.Attempt()
-		eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
-		attemptTime := eventTime.Add(100 * time.Millisecond)
-
-		event := testutil.EventFactory.AnyPointer(
-			testutil.EventFactory.WithID(eventID),
-			testutil.EventFactory.WithTenantID(tenantID),
-			testutil.EventFactory.WithDestinationID(destinationID),
-			testutil.EventFactory.WithTopic("user.created"),
-			testutil.EventFactory.WithTime(eventTime),
-			testutil.EventFactory.WithData(map[string]interface{}{
-				"user_id": "123",
-			}),
-		)
-
-		attempt := testutil.AttemptFactory.AnyPointer(
-			testutil.AttemptFactory.WithID(attemptID),
-			testutil.AttemptFactory.WithEventID(eventID),
-			testutil.AttemptFactory.WithDestinationID(destinationID),
-			testutil.AttemptFactory.WithStatus("success"),
-			testutil.AttemptFactory.WithTime(attemptTime),
-		)
-
-		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-		data := response["models"].([]interface{})
-		assert.Len(t, data, 1)
-
-		firstEvent := data[0].(map[string]interface{})
-		assert.Equal(t, eventID, firstEvent["id"])
-		assert.Equal(t, "user.created", firstEvent["topic"])
-		assert.NotNil(t, firstEvent["data"])
-	})
-
-	t.Run("should filter by destination_id", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?destination_id="+destinationID, nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-		data := response["models"].([]interface{})
-		assert.GreaterOrEqual(t, len(data), 1)
-	})
-
-	t.Run("should filter by non-existent destination_id", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?destination_id=nonexistent", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-		data := response["models"].([]interface{})
-		assert.Len(t, data, 0)
-	})
-
-	t.Run("should filter by topic", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?topic=user.created", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-		data := response["models"].([]interface{})
-		assert.GreaterOrEqual(t, len(data), 1)
-		for _, item := range data {
-			event := item.(map[string]interface{})
-			assert.Equal(t, "user.created", event["topic"])
-		}
-	})
-
-	t.Run("should return 404 for non-existent tenant", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/nonexistent/events", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should return validation error for invalid time filter", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?time[gte]=invalid", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
-	})
-
-	t.Run("should return validation error for invalid time lte filter", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?time[lte]=invalid", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
-	})
-
-	t.Run("should return validation error for invalid dir", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?dir=invalid", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
-	})
-
-	t.Run("should accept valid dir param", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?dir=asc", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-
-	t.Run("should cap limit at 1000", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID+"/events?limit=5000", nil)
-		result.router.ServeHTTP(w, req)
-
-		// Should succeed, limit is silently capped
-		assert.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, http.StatusUnauthorized, resp.Code)
 	})
 }

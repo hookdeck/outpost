@@ -1,510 +1,236 @@
 package apirouter_test
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/hookdeck/outpost/internal/apirouter"
+	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestPublicRouter(t *testing.T) {
-	t.Parallel()
-
-	const apiKey = ""
-	router, _, _ := setupTestRouter(t, apiKey, "")
-
-	t.Run("should accept requests without a token", func(t *testing.T) {
-		t.Parallel()
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenant-id/topics", nil)
-		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-
-	t.Run("should accept requests with an invalid authorization token", func(t *testing.T) {
-		t.Parallel()
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenant-id/topics", nil)
-		req.Header.Set("Authorization", "invalid key")
-		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-
-	t.Run("should accept requests with a valid authorization token", func(t *testing.T) {
-		t.Parallel()
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenant-id/topics", nil)
-		req.Header.Set("Authorization", "Bearer key")
-		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
+// mockTenantRetriever implements apirouter.TenantRetriever for unit tests.
+type mockTenantRetriever struct {
+	tenant *models.Tenant
+	err    error
 }
 
-func TestPrivateAPIKeyRouter(t *testing.T) {
-	t.Parallel()
+func (m *mockTenantRetriever) RetrieveTenant(_ context.Context, _ string) (*models.Tenant, error) {
+	return m.tenant, m.err
+}
 
-	const apiKey = "key"
-	router, _, _ := setupTestRouter(t, apiKey, "")
+// okHandler is a simple handler that returns 200 when reached.
+var okHandler = func(c *gin.Context) {
+	c.Status(http.StatusOK)
+}
 
-	t.Run("should reject requests without a token", func(t *testing.T) {
-		t.Parallel()
+func TestAuthMiddleware(t *testing.T) {
+	existingTenant := &models.Tenant{ID: "t1"}
+	store := &mockTenantRetriever{tenant: existingTenant}
+
+	t.Run("VPC mode", func(t *testing.T) {
+		t.Run("grants admin without auth header", func(t *testing.T) {
+			r := gin.New()
+			r.GET("/test", apirouter.AuthMiddleware("", testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+		})
+
+		t.Run("grants admin ignores auth header", func(t *testing.T) {
+			r := gin.New()
+			r.GET("/test", apirouter.AuthMiddleware("", testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req.Header.Set("Authorization", "Bearer wrong-key")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+		})
+
+		t.Run("resolves tenant when RequireTenant", func(t *testing.T) {
+			r := gin.New()
+			r.GET("/test/:tenant_id", apirouter.AuthMiddleware("", testJWTSecret, store, apirouter.AuthOptions{RequireTenant: true}), okHandler)
+
+			req := httptest.NewRequest(http.MethodGet, "/test/t1", nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+		})
+	})
+
+	t.Run("missing auth header returns 401", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/tenant_id", nil)
-		router.ServeHTTP(w, req)
+		r.ServeHTTP(w, req)
+
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("should reject requests with an malformed authorization header", func(t *testing.T) {
-		t.Parallel()
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/tenant_id", nil)
-		req.Header.Set("Authorization", "invalid key")
-		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
+	t.Run("malformed bearer prefix returns 401", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
 
-	t.Run("should reject requests with an incorrect authorization token", func(t *testing.T) {
-		t.Parallel()
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Basic "+testAPIKey)
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/tenant_id", nil)
-		req.Header.Set("Authorization", "Bearer invalid")
-		router.ServeHTTP(w, req)
+		r.ServeHTTP(w, req)
+
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("should accept requests with a valid authorization token", func(t *testing.T) {
-		t.Parallel()
+	t.Run("empty bearer token returns 401", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Bearer ")
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/tenant_id", nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusCreated, w.Code)
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
-}
 
-func TestSetTenantIDMiddleware(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	t.Parallel()
+	t.Run("valid API key returns 200", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
 
-	t.Run("should set tenantID from param", func(t *testing.T) {
-		t.Parallel()
-
-		// Setup
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Bearer "+testAPIKey)
 		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Params = []gin.Param{{Key: "tenantID", Value: "test_tenant"}}
+		r.ServeHTTP(w, req)
 
-		// Create a middleware chain
-		var tenantID string
-		handler := apirouter.SetTenantIDMiddleware()
-		nextHandler := func(c *gin.Context) {
-			val, exists := c.Get("tenantID")
-			if exists {
-				tenantID = val.(string)
-			}
-		}
-
-		// Test
-		handler(c)
-		nextHandler(c)
-
-		assert.Equal(t, "test_tenant", tenantID)
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
-	t.Run("should not set tenantID when param is empty", func(t *testing.T) {
-		t.Parallel()
+	t.Run("invalid token not API key not valid JWT returns 401", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
 
-		// Setup
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Bearer not-a-valid-token")
 		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Params = []gin.Param{{Key: "tenantID", Value: ""}}
+		r.ServeHTTP(w, req)
 
-		// Create a middleware chain
-		var tenantIDExists bool
-		handler := apirouter.SetTenantIDMiddleware()
-		nextHandler := func(c *gin.Context) {
-			_, tenantIDExists = c.Get("tenantID")
-		}
-
-		// Test
-		handler(c)
-		nextHandler(c)
-
-		assert.False(t, tenantIDExists)
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("should not set tenantID when param is missing", func(t *testing.T) {
-		t.Parallel()
+	t.Run("valid JWT returns 200", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
 
-		// Setup
+		token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: "t1"})
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
+		r.ServeHTTP(w, req)
 
-		// Create a middleware chain
-		var tenantIDExists bool
-		handler := apirouter.SetTenantIDMiddleware()
-		nextHandler := func(c *gin.Context) {
-			_, tenantIDExists = c.Get("tenantID")
-		}
-
-		// Test
-		handler(c)
-		nextHandler(c)
-
-		assert.False(t, tenantIDExists)
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
-}
 
-func TestAPIKeyOrTenantJWTAuthMiddleware(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	t.Parallel()
+	t.Run("valid JWT on AdminOnly route returns 403", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{AdminOnly: true}), okHandler)
 
-	const jwtSecret = "jwt_secret"
-	const apiKey = "api_key"
-	const tenantID = "test_tenant"
+		token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: "t1"})
+		require.NoError(t, err)
 
-	t.Run("should reject when JWT tenantID doesn't match param", func(t *testing.T) {
-		t.Parallel()
-
-		// Setup
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Params = []gin.Param{{Key: "tenantID", Value: "different_tenant"}}
+		r.ServeHTTP(w, req)
 
-		// Create JWT token for tenantID
-		token, err := apirouter.JWT.New(jwtSecret, apirouter.JWTClaims{TenantID: tenantID})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// Set auth header
-		c.Request = httptest.NewRequest("GET", "/", nil)
-		c.Request.Header.Set("Authorization", "Bearer "+token)
-
-		// Test
-		handler := apirouter.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
-		handler(c)
-
-		assert.Equal(t, http.StatusUnauthorized, c.Writer.Status())
+		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
 
-	t.Run("should accept when JWT tenantID matches param", func(t *testing.T) {
-		t.Parallel()
+	t.Run("JWT wrong tenant param returns 403", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test/:tenant_id", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
 
-		// Setup
+		token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: "t1"})
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodGet, "/test/t2", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Params = []gin.Param{{Key: "tenantID", Value: tenantID}}
+		r.ServeHTTP(w, req)
 
-		// Create JWT token for tenantID
-		token, err := apirouter.JWT.New(jwtSecret, apirouter.JWTClaims{TenantID: tenantID})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// Set auth header
-		c.Request = httptest.NewRequest("GET", "/", nil)
-		c.Request.Header.Set("Authorization", "Bearer "+token)
-
-		// Create a middleware chain
-		var contextTenantID string
-		handler := apirouter.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
-		nextHandler := func(c *gin.Context) {
-			val, exists := c.Get("tenantID")
-			if exists {
-				contextTenantID = val.(string)
-			}
-		}
-
-		// Test
-		handler(c)
-		if c.Writer.Status() == http.StatusUnauthorized {
-			t.Fatal("handler returned unauthorized")
-		}
-		nextHandler(c)
-
-		assert.Equal(t, tenantID, contextTenantID)
+		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
 
-	t.Run("should accept when using API key regardless of tenantID param", func(t *testing.T) {
-		t.Parallel()
+	t.Run("JWT deleted tenant returns 401", func(t *testing.T) {
+		deletedStore := &mockTenantRetriever{err: tenantstore.ErrTenantDeleted}
+		r := gin.New()
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, deletedStore, apirouter.AuthOptions{}), okHandler)
 
-		// Setup
+		token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: "t1"})
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Params = []gin.Param{{Key: "tenantID", Value: "any_tenant"}}
+		r.ServeHTTP(w, req)
 
-		// Set auth header with API key
-		c.Request = httptest.NewRequest("GET", "/", nil)
-		c.Request.Header.Set("Authorization", "Bearer "+apiKey)
-
-		// Test
-		handler := apirouter.APIKeyOrTenantJWTAuthMiddleware(apiKey, jwtSecret)
-		handler(c)
-
-		assert.NotEqual(t, http.StatusUnauthorized, c.Writer.Status())
-	})
-}
-
-func newJWTToken(t *testing.T, secret string, tenantID string) string {
-	token, err := apirouter.JWT.New(secret, apirouter.JWTClaims{TenantID: tenantID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return token
-}
-
-func TestTenantJWTAuthMiddleware(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		apiKey        string
-		jwtSecret     string
-		header        string
-		paramTenantID string
-		wantStatus    int
-		wantTenantID  string
-	}{
-		{
-			name:       "should return 404 when apiKey is empty",
-			apiKey:     "",
-			jwtSecret:  "secret",
-			header:     "Bearer token",
-			wantStatus: http.StatusNotFound,
-		},
-		{
-			name:       "should return 404 when jwtSecret is empty",
-			apiKey:     "key",
-			jwtSecret:  "",
-			header:     "Bearer token",
-			wantStatus: http.StatusNotFound,
-		},
-		{
-			name:         "should return 401 when no auth header",
-			apiKey:       "key",
-			jwtSecret:    "secret",
-			wantStatus:   http.StatusUnauthorized,
-			wantTenantID: "",
-		},
-		{
-			name:         "should return 400 when invalid auth header",
-			apiKey:       "key",
-			jwtSecret:    "secret",
-			header:       "invalid",
-			wantStatus:   http.StatusBadRequest,
-			wantTenantID: "",
-		},
-		{
-			name:         "should return 401 when invalid token",
-			apiKey:       "key",
-			jwtSecret:    "secret",
-			header:       "Bearer invalid",
-			wantStatus:   http.StatusUnauthorized,
-			wantTenantID: "",
-		},
-		{
-			name:         "should return 200 when valid token",
-			apiKey:       "key",
-			jwtSecret:    "secret",
-			header:       "Bearer " + newJWTToken(t, "secret", "tenant-id"),
-			wantStatus:   http.StatusOK,
-			wantTenantID: "tenant-id",
-		},
-		{
-			name:          "should return 401 when tenantID param doesn't match token",
-			apiKey:        "key",
-			jwtSecret:     "secret",
-			header:        "Bearer " + newJWTToken(t, "secret", "tenant-id"),
-			paramTenantID: "other-tenant-id",
-			wantStatus:    http.StatusUnauthorized,
-			wantTenantID:  "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-			if tt.header != "" {
-				c.Request.Header.Set("Authorization", tt.header)
-			}
-			if tt.paramTenantID != "" {
-				c.Params = []gin.Param{{Key: "tenantID", Value: tt.paramTenantID}}
-			}
-
-			handler := apirouter.TenantJWTAuthMiddleware(tt.apiKey, tt.jwtSecret)
-			handler(c)
-
-			t.Logf("Test case: %s, Expected: %d, Got: %d", tt.name, tt.wantStatus, w.Code)
-			assert.Equal(t, tt.wantStatus, w.Code)
-			if tt.wantTenantID != "" {
-				tenantID, exists := c.Get("tenantID")
-				assert.True(t, exists)
-				assert.Equal(t, tt.wantTenantID, tenantID)
-			}
-		})
-	}
-}
-
-func TestAuthRole(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	t.Parallel()
-
-	t.Run("APIKeyAuthMiddleware", func(t *testing.T) {
-		t.Run("should set RoleAdmin when apiKey is empty", func(t *testing.T) {
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-
-			handler := apirouter.APIKeyAuthMiddleware("")
-			var role string
-			nextHandler := func(c *gin.Context) {
-				val, exists := c.Get("authRole")
-				if exists {
-					role = val.(string)
-				}
-			}
-
-			handler(c)
-			nextHandler(c)
-
-			assert.Equal(t, apirouter.RoleAdmin, role)
-		})
-
-		t.Run("should set RoleAdmin when valid API key", func(t *testing.T) {
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-			c.Request.Header.Set("Authorization", "Bearer key")
-
-			handler := apirouter.APIKeyAuthMiddleware("key")
-			var role string
-			nextHandler := func(c *gin.Context) {
-				val, exists := c.Get("authRole")
-				if exists {
-					role = val.(string)
-				}
-			}
-
-			handler(c)
-			nextHandler(c)
-
-			assert.Equal(t, apirouter.RoleAdmin, role)
-		})
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("APIKeyOrTenantJWTAuthMiddleware", func(t *testing.T) {
-		t.Run("should set RoleAdmin when apiKey is empty", func(t *testing.T) {
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	t.Run("JWT missing tenant returns 401", func(t *testing.T) {
+		nilStore := &mockTenantRetriever{tenant: nil}
+		r := gin.New()
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, nilStore, apirouter.AuthOptions{}), okHandler)
 
-			handler := apirouter.APIKeyOrTenantJWTAuthMiddleware("", "jwt_secret")
-			var role string
-			nextHandler := func(c *gin.Context) {
-				val, exists := c.Get("authRole")
-				if exists {
-					role = val.(string)
-				}
-			}
+		token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: "t1"})
+		require.NoError(t, err)
 
-			handler(c)
-			nextHandler(c)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
 
-			assert.Equal(t, apirouter.RoleAdmin, role)
-		})
-
-		t.Run("should set RoleAdmin when using API key", func(t *testing.T) {
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-			c.Request.Header.Set("Authorization", "Bearer key")
-
-			handler := apirouter.APIKeyOrTenantJWTAuthMiddleware("key", "jwt_secret")
-			var role string
-			nextHandler := func(c *gin.Context) {
-				val, exists := c.Get("authRole")
-				if exists {
-					role = val.(string)
-				}
-			}
-
-			handler(c)
-			nextHandler(c)
-
-			assert.Equal(t, apirouter.RoleAdmin, role)
-		})
-
-		t.Run("should set RoleTenant when using valid JWT", func(t *testing.T) {
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-			token := newJWTToken(t, "jwt_secret", "tenant-id")
-			c.Request.Header.Set("Authorization", "Bearer "+token)
-
-			handler := apirouter.APIKeyOrTenantJWTAuthMiddleware("key", "jwt_secret")
-			var role string
-			nextHandler := func(c *gin.Context) {
-				val, exists := c.Get("authRole")
-				if exists {
-					role = val.(string)
-				}
-			}
-
-			handler(c)
-			nextHandler(c)
-
-			assert.Equal(t, apirouter.RoleTenant, role)
-		})
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("TenantJWTAuthMiddleware", func(t *testing.T) {
-		t.Run("should set RoleTenant when using valid JWT", func(t *testing.T) {
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-			token := newJWTToken(t, "jwt_secret", "tenant-id")
-			c.Request.Header.Set("Authorization", "Bearer "+token)
+	t.Run("RequireTenant admin missing tenant returns 404", func(t *testing.T) {
+		nilStore := &mockTenantRetriever{tenant: nil}
+		r := gin.New()
+		r.Use(apirouter.ErrorHandlerMiddleware())
+		r.GET("/test/:tenant_id", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, nilStore, apirouter.AuthOptions{RequireTenant: true}), okHandler)
 
-			handler := apirouter.TenantJWTAuthMiddleware("key", "jwt_secret")
-			var role string
-			nextHandler := func(c *gin.Context) {
-				val, exists := c.Get("authRole")
-				if exists {
-					role = val.(string)
-				}
-			}
+		req := httptest.NewRequest(http.MethodGet, "/test/t1", nil)
+		req.Header.Set("Authorization", "Bearer "+testAPIKey)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
 
-			handler(c)
-			nextHandler(c)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
 
-			assert.Equal(t, apirouter.RoleTenant, role)
-		})
+	t.Run("store error returns 500", func(t *testing.T) {
+		errStore := &mockTenantRetriever{err: errors.New("database connection failed")}
+		r := gin.New()
+		r.Use(apirouter.ErrorHandlerMiddleware())
+		r.GET("/test/:tenant_id", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, errStore, apirouter.AuthOptions{RequireTenant: true}), okHandler)
 
-		t.Run("should not set role when apiKey is empty", func(t *testing.T) {
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-			token := newJWTToken(t, "jwt_secret", "tenant-id")
-			c.Request.Header.Set("Authorization", "Bearer "+token)
+		req := httptest.NewRequest(http.MethodGet, "/test/t1", nil)
+		req.Header.Set("Authorization", "Bearer "+testAPIKey)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
 
-			handler := apirouter.TenantJWTAuthMiddleware("", "jwt_secret")
-			var roleExists bool
-			nextHandler := func(c *gin.Context) {
-				_, roleExists = c.Get("authRole")
-			}
-
-			handler(c)
-			nextHandler(c)
-
-			assert.False(t, roleExists)
-		})
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
 }

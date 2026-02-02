@@ -1,67 +1,527 @@
 package apirouter_test
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
-	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestDestinationCreateHandler(t *testing.T) {
-	t.Parallel()
+// validDestination is a minimal valid create-destination payload.
+func validDestination() map[string]any {
+	return map[string]any{
+		"type":   "webhook",
+		"topics": []string{"user.created"},
+		"config": map[string]string{"url": "https://example.com/hook"},
+	}
+}
 
-	router, _, redisClient := setupTestRouter(t, "", "")
-	tenantStore := setupTestTenantStore(t, redisClient)
+func TestAPI_Destinations(t *testing.T) {
+	t.Run("Create", func(t *testing.T) {
+		t.Run("api key creates destination", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
-	t.Run("should set updated_at equal to created_at on creation", func(t *testing.T) {
-		t.Parallel()
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", validDestination())
+			resp := h.do(h.withAPIKey(req))
 
-		// Setup - create tenant first
-		tenantID := idgen.String()
-		tenant := models.Tenant{
-			ID:        tenantID,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}
-		err := tenantStore.UpsertTenant(context.Background(), tenant)
-		if err != nil {
-			t.Fatal(err)
-		}
+			require.Equal(t, http.StatusCreated, resp.Code)
 
-		// Create destination request
-		body := map[string]any{
-			"type":   "webhook",
-			"topics": []string{"*"},
-			"config": map[string]string{
-				"url": "https://example.com/webhook",
-			},
-		}
-		bodyBytes, _ := json.Marshal(body)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, "t1", dest.TenantID)
+			assert.Equal(t, "webhook", dest.Type)
+			assert.Equal(t, models.Topics{"user.created"}, dest.Topics)
 
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/destinations", bytes.NewReader(bodyBytes))
-		req.Header.Set("Content-Type", "application/json")
-		router.ServeHTTP(w, req)
+			// Verify in store
+			dests, err := h.tenantStore.ListDestinationByTenant(t.Context(), "t1")
+			require.NoError(t, err)
+			assert.Len(t, dests, 1)
+		})
 
-		var response map[string]any
-		json.Unmarshal(w.Body.Bytes(), &response)
+		t.Run("jwt creates destination on own tenant", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
-		assert.Equal(t, http.StatusCreated, w.Code)
-		assert.NotEqual(t, "", response["created_at"])
-		assert.NotEqual(t, "", response["updated_at"])
-		assert.Equal(t, response["created_at"], response["updated_at"])
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", validDestination())
+			resp := h.do(h.withJWT(req, "t1"))
 
-		// Cleanup
-		if destID, ok := response["id"].(string); ok {
-			tenantStore.DeleteDestination(context.Background(), tenantID, destID)
-		}
-		tenantStore.DeleteTenant(context.Background(), tenantID)
+			require.Equal(t, http.StatusCreated, resp.Code)
+		})
+
+		t.Run("missing type returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{
+				"topics": []string{"user.created"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("missing topics returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{
+				"type": "webhook",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("invalid topic returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{
+				"type":   "webhook",
+				"topics": []string{"order.completed"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+	})
+
+	t.Run("Retrieve", func(t *testing.T) {
+		t.Run("api key returns destination", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, "d1", dest.ID)
+		})
+
+		t.Run("nonexistent destination returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/nope", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("jwt returns destination on own tenant", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+		})
+
+		t.Run("destination belonging to other tenant returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t2")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+	})
+
+	t.Run("List", func(t *testing.T) {
+		t.Run("api key returns all destinations for tenant", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dests []destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dests))
+			assert.Len(t, dests, 2)
+		})
+
+		t.Run("jwt returns destinations on own tenant", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dests []destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dests))
+			assert.Len(t, dests, 1)
+		})
+
+		t.Run("Filtering", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithType("webhook"), df.WithTopics([]string{"user.created"}),
+			))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d2"), df.WithTenantID("t1"),
+				df.WithType("aws_sqs"), df.WithTopics([]string{"user.deleted"}),
+			))
+
+			t.Run("type filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations?type=webhook", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var dests []destregistry.DestinationDisplay
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dests))
+				require.Len(t, dests, 1)
+				assert.Equal(t, "d1", dests[0].ID)
+			})
+
+			t.Run("topics filter", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations?topics=user.created", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var dests []destregistry.DestinationDisplay
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dests))
+				require.Len(t, dests, 1)
+				assert.Equal(t, "d1", dests[0].ID)
+			})
+		})
+	})
+
+	t.Run("Update", func(t *testing.T) {
+		t.Run("api key updates destination topics", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"user.created"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.deleted"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"user.deleted"}, dest.Topics)
+		})
+
+		t.Run("api key updates destination config", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithConfig(map[string]string{"url": "https://old.example.com"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"config": map[string]string{"url": "https://new.example.com"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, "https://new.example.com", dest.Config["url"])
+		})
+
+		t.Run("jwt updates destination on own tenant", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"user.created"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.deleted"},
+			})
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+		})
+
+		t.Run("nonexistent destination returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/nope", map[string]any{
+				"topics": []string{"user.deleted"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("destination belonging to other tenant returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t2"), df.WithTopics([]string{"user.created"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.deleted"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		t.Run("api key deletes destination", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+			req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/t1/destinations/d1", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			// Subsequent GET returns 404
+			req = httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
+			resp = h.do(h.withAPIKey(req))
+			assert.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("deleted destination returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+			h.tenantStore.DeleteDestination(t.Context(), "t1", "d1")
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("jwt deletes destination on own tenant", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+			req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/t1/destinations/d1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+		})
+
+		t.Run("destination belonging to other tenant returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t2")))
+
+			req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/t1/destinations/d1", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+	})
+
+	t.Run("Enable/Disable", func(t *testing.T) {
+		t.Run("api key disables destination", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1/destinations/d1/disable", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.NotNil(t, dest.DisabledAt)
+		})
+
+		t.Run("api key enables disabled destination", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+			// Disable first
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1/destinations/d1/disable", nil)
+			h.do(h.withAPIKey(req))
+
+			// Enable
+			req = httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1/destinations/d1/enable", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Nil(t, dest.DisabledAt)
+		})
+
+		t.Run("enable already enabled is noop", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1/destinations/d1/enable", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Nil(t, dest.DisabledAt)
+		})
+
+		t.Run("jwt disable on own tenant", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1/destinations/d1/disable", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+		})
+
+		t.Run("enable destination belonging to other tenant returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t2")))
+
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1/destinations/d1/enable", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("disable destination belonging to other tenant returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t2")))
+
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1/destinations/d1/disable", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+	})
+
+	t.Run("jwt other tenant returns 403", func(t *testing.T) {
+		h := newAPITest(t)
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+		h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t2")))
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t2/destinations", nil)
+		resp := h.do(h.withJWT(req, "t1"))
+
+		require.Equal(t, http.StatusForbidden, resp.Code)
+	})
+
+	t.Run("no auth returns 401", func(t *testing.T) {
+		h := newAPITest(t)
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations", nil)
+		resp := h.do(req)
+
+		require.Equal(t, http.StatusUnauthorized, resp.Code)
+	})
+}
+
+// TestAPI_DestinationTypes tests the /destination-types endpoints.
+// Note: response body is a passthrough from the registry stub (returns nil);
+// not validated here. 404 path not testable without enhancing the stub.
+func TestAPI_DestinationTypes(t *testing.T) {
+	t.Run("List", func(t *testing.T) {
+		t.Run("api key returns 200", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+		})
+
+		t.Run("jwt returns 200", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+		})
+
+		t.Run("no auth returns 401", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types", nil)
+			resp := h.do(req)
+
+			require.Equal(t, http.StatusUnauthorized, resp.Code)
+		})
+	})
+
+	t.Run("Retrieve", func(t *testing.T) {
+		t.Run("api key returns 200", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types/webhook", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			// The stub returns (nil, nil) for RetrieveProviderMetadata,
+			// so the handler returns 200 with null body.
+			require.Equal(t, http.StatusOK, resp.Code)
+		})
+
+		t.Run("jwt returns 200", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types/webhook", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+		})
+
+		t.Run("no auth returns 401", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types/webhook", nil)
+			resp := h.do(req)
+
+			require.Equal(t, http.StatusUnauthorized, resp.Code)
+		})
 	})
 }

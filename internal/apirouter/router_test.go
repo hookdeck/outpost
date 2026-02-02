@@ -2,393 +2,227 @@ package apirouter_test
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hookdeck/outpost/internal/clickhouse"
-	"github.com/hookdeck/outpost/internal/deliverymq"
-	"github.com/hookdeck/outpost/internal/eventtracer"
-	"github.com/hookdeck/outpost/internal/idempotence"
-	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/apirouter"
+	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/publishmq"
-	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
-
-	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/util/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"go.uber.org/zap"
 )
 
-const baseAPIPath = "/api/v1"
-
-type testRouterResult struct {
-	router      http.Handler
-	logger      *logging.Logger
-	redisClient redis.Client
-	tenantStore tenantstore.TenantStore
-	logStore    logstore.LogStore
-	deliveryMQ  *deliverymq.DeliveryMQ
-}
-
-func setupTestRouter(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *testing.T) clickhouse.DB) (http.Handler, *logging.Logger, redis.Client) {
-	result := setupTestRouterFull(t, apiKey, jwtSecret, funcs...)
-	return result.router, result.logger, result.redisClient
-}
-
-func setupTestRouterFull(t *testing.T, apiKey, jwtSecret string, funcs ...func(t *testing.T) clickhouse.DB) testRouterResult {
+func init() {
 	gin.SetMode(gin.TestMode)
-	logger := testutil.CreateTestLogger(t)
-	redisClient := testutil.CreateTestRedisClient(t)
-	deliveryMQ := deliverymq.New()
-	deliveryMQ.Init(context.Background())
-	eventTracer := eventtracer.NewNoopEventTracer()
-	tenantStore := setupTestTenantStore(t, redisClient)
-	logStore := setupTestLogStore(t, funcs...)
-	eventHandler := publishmq.NewEventHandler(logger, deliveryMQ, tenantStore, eventTracer, testutil.TestTopics, idempotence.New(redisClient, idempotence.WithSuccessfulTTL(24*time.Hour)))
+}
+
+const (
+	testAPIKey    = "test-api-key"
+	testJWTSecret = "test-jwt-secret"
+)
+
+var (
+	tf = testutil.TenantFactory
+	df = testutil.DestinationFactory
+	ef = testutil.EventFactory
+	af = testutil.AttemptFactory
+)
+
+// ---------------------------------------------------------------------------
+// apiTest harness
+// ---------------------------------------------------------------------------
+
+type apiTest struct {
+	t            *testing.T
+	router       http.Handler
+	tenantStore  tenantstore.TenantStore
+	logStore     logstore.LogStore
+	deliveryPub  *mockDeliveryPublisher
+	eventHandler *mockEventHandler
+}
+
+type apiTestOption func(*apiTestConfig)
+
+type apiTestConfig struct {
+	tenantStore  tenantstore.TenantStore
+	destRegistry destregistry.Registry
+}
+
+func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.tenantStore = ts
+	}
+}
+
+func withDestRegistry(r destregistry.Registry) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.destRegistry = r
+	}
+}
+
+func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
+	t.Helper()
+
+	cfg := apiTestConfig{
+		tenantStore: tenantstore.NewMemTenantStore(),
+	}
+	for _, o := range opts {
+		o(&cfg)
+	}
+
+	logger := &logging.Logger{Logger: otelzap.New(zap.NewNop())}
+	ts := cfg.tenantStore
+	ls := logstore.NewMemLogStore()
+	dp := &mockDeliveryPublisher{}
+	eh := &mockEventHandler{}
+
+	var registry destregistry.Registry = &stubRegistry{}
+	if cfg.destRegistry != nil {
+		registry = cfg.destRegistry
+	}
+
 	router := apirouter.NewRouter(
 		apirouter.RouterConfig{
-			ServiceName: "",
-			APIKey:      apiKey,
-			JWTSecret:   jwtSecret,
-			Topics:      testutil.TestTopics,
-			Registry:    testutil.Registry,
+			ServiceName:  "test",
+			APIKey:       testAPIKey,
+			JWTSecret:    testJWTSecret,
+			Topics:       testutil.TestTopics,
+			Registry:     registry,
+			PortalConfig: portal.PortalConfig{},
 		},
-		logger,
-		redisClient,
-		deliveryMQ,
-		tenantStore,
-		logStore,
-		eventHandler,
-		&telemetry.NoopTelemetry{},
+		apirouter.RouterDeps{
+			TenantStore:       ts,
+			LogStore:          ls,
+			Logger:            logger,
+			DeliveryPublisher: dp,
+			EventHandler:      eh,
+			Telemetry:         &telemetry.NoopTelemetry{},
+		},
 	)
-	return testRouterResult{
-		router:      router,
-		logger:      logger,
-		redisClient: redisClient,
-		tenantStore: tenantStore,
-		logStore:    logStore,
-		deliveryMQ:  deliveryMQ,
+
+	return &apiTest{
+		t:            t,
+		router:       router,
+		tenantStore:  ts,
+		logStore:     ls,
+		deliveryPub:  dp,
+		eventHandler: eh,
 	}
 }
 
-func setupTestLogStore(t *testing.T, funcs ...func(t *testing.T) clickhouse.DB) logstore.LogStore {
-	var chDB clickhouse.DB
-	for _, f := range funcs {
-		chDB = f(t)
-	}
-	if chDB == nil {
-		return logstore.NewMemLogStore()
-	}
-	logStore, err := logstore.NewLogStore(context.Background(), logstore.DriverOpts{
-		CH: chDB,
-	})
-	require.NoError(t, err)
-	return logStore
+// do executes a request and returns the response recorder.
+func (a *apiTest) do(req *http.Request) *httptest.ResponseRecorder {
+	a.t.Helper()
+	w := httptest.NewRecorder()
+	a.router.ServeHTTP(w, req)
+	return w
 }
 
-func setupTestTenantStore(_ *testing.T, redisClient redis.Client) tenantstore.TenantStore {
-	return tenantstore.New(tenantstore.Config{
-		RedisClient:     redisClient,
-		Secret:          "secret",
-		AvailableTopics: testutil.TestTopics,
-	})
+// jsonReq builds an *http.Request with a JSON body and Content-Type header.
+// body may be nil for requests with no body.
+func (a *apiTest) jsonReq(method, path string, body any) *http.Request {
+	a.t.Helper()
+	var reader io.Reader
+	if body != nil {
+		bs, err := json.Marshal(body)
+		if err != nil {
+			a.t.Fatal(err)
+		}
+		reader = strings.NewReader(string(bs))
+	}
+	req := httptest.NewRequest(method, path, reader)
+	req.Header.Set("Content-Type", "application/json")
+	return req
 }
 
-func TestRouterWithAPIKey(t *testing.T) {
-	t.Parallel()
+// withAPIKey adds the API key auth header to the request.
+func (a *apiTest) withAPIKey(req *http.Request) *http.Request {
+	req.Header.Set("Authorization", "Bearer "+testAPIKey)
+	return req
+}
 
-	apiKey := "api_key"
-	jwtSecret := "jwt_secret"
-	router, _, _ := setupTestRouter(t, apiKey, jwtSecret)
-
-	tenantID := "tenantID"
-	validToken, err := apirouter.JWT.New(jwtSecret, apirouter.JWTClaims{TenantID: tenantID})
+// withJWT adds a JWT auth header for the given tenant.
+func (a *apiTest) withJWT(req *http.Request, tenantID string) *http.Request {
+	a.t.Helper()
+	token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: tenantID})
 	if err != nil {
-		t.Fatal(err)
+		a.t.Fatal(err)
 	}
-
-	t.Run("should block unauthenticated request to admin routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
-	})
-
-	t.Run("should block tenant-auth request to admin routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
-		req.Header.Set("Authorization", "Bearer "+validToken)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
-	})
-
-	t.Run("should allow admin request to admin routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
-	})
-
-	t.Run("should block unauthenticated request to tenant routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenantID", nil)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
-	})
-
-	t.Run("should allow admin request to tenant routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenantIDnotfound", nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should allow tenant-auth request to tenant routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID, nil)
-		req.Header.Set("Authorization", "Bearer "+validToken)
-		router.ServeHTTP(w, req)
-
-		// A bit awkward that the tenant is not found, but the request is authenticated
-		// and the 404 response is handled by the handler which is what we're testing here (routing).
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should block invalid tenant-auth request to tenant routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID, nil)
-		req.Header.Set("Authorization", "Bearer invalid")
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
-	})
+	req.Header.Set("Authorization", "Bearer "+token)
+	return req
 }
 
-func TestRouterWithoutAPIKey(t *testing.T) {
-	t.Parallel()
+// ---------------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------------
 
-	apiKey := ""
-	jwtSecret := "jwt_secret"
-
-	router, _, _ := setupTestRouter(t, apiKey, jwtSecret)
-
-	tenantID := "tenantID"
-	validToken, err := apirouter.JWT.New(jwtSecret, apirouter.JWTClaims{TenantID: tenantID})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("should allow unauthenticated request to admin routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
-	})
-
-	t.Run("should allow tenant-auth request to admin routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
-		req.Header.Set("Authorization", "Bearer "+validToken)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
-	})
-
-	t.Run("should allow admin request to admin routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
-	})
-
-	t.Run("should return 404 for JWT-only routes when apiKey is empty", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/destinations", nil)
-		req.Header.Set("Authorization", "Bearer "+validToken)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should return 404 for JWT-only routes with invalid token when apiKey is empty", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/destinations", nil)
-		req.Header.Set("Authorization", "Bearer invalid")
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should return 404 for JWT-only routes with invalid bearer format when apiKey is empty", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/destinations", nil)
-		req.Header.Set("Authorization", "NotBearer "+validToken)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should allow unauthenticated request to tenant routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenantID", nil)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should allow admin request to tenant routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/tenantIDnotfound", nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should allow tenant-auth request to tenant routes", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID, nil)
-		req.Header.Set("Authorization", "Bearer "+validToken)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
+// mockDeliveryPublisher records Publish calls.
+type mockDeliveryPublisher struct {
+	calls []models.DeliveryTask
+	err   error
 }
 
-func TestTokenAndPortalRoutes(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		apiKey    string
-		jwtSecret string
-		path      string
-	}{
-		{
-			name:      "token route should return 404 when apiKey is empty",
-			apiKey:    "",
-			jwtSecret: "secret",
-			path:      "/tenants/tenant-id/token",
-		},
-		{
-			name:      "token route should return 404 when jwtSecret is empty",
-			apiKey:    "key",
-			jwtSecret: "",
-			path:      "/tenants/tenant-id/token",
-		},
-		{
-			name:      "portal route should return 404 when apiKey is empty",
-			apiKey:    "",
-			jwtSecret: "secret",
-			path:      "/tenants/tenant-id/portal",
-		},
-		{
-			name:      "portal route should return 404 when jwtSecret is empty",
-			apiKey:    "key",
-			jwtSecret: "",
-			path:      "/tenants/tenant-id/portal",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			router, _, _ := setupTestRouter(t, tt.apiKey, tt.jwtSecret)
-
-			w := httptest.NewRecorder()
-			req, _ := http.NewRequest("GET", baseAPIPath+tt.path, nil)
-			if tt.apiKey != "" {
-				req.Header.Set("Authorization", "Bearer "+tt.apiKey)
-			}
-			router.ServeHTTP(w, req)
-
-			assert.Equal(t, http.StatusNotFound, w.Code)
-		})
-	}
+func (m *mockDeliveryPublisher) Publish(_ context.Context, task models.DeliveryTask) error {
+	m.calls = append(m.calls, task)
+	return m.err
 }
 
-func TestTenantsRoutePrefix(t *testing.T) {
-	t.Parallel()
-
-	apiKey := "api_key"
-	router, _, _ := setupTestRouter(t, apiKey, "jwt_secret")
-
-	t.Run("/tenants/ path should work for tenant upsert", func(t *testing.T) {
-		t.Parallel()
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+idgen.String(), nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
-	})
-
-	t.Run("/tenants/ path should work for tenant GET", func(t *testing.T) {
-		t.Parallel()
-
-		// First create a tenant
-		tenantID := idgen.String()
-		createReq, _ := http.NewRequest("PUT", baseAPIPath+"/tenants/"+tenantID, nil)
-		createReq.Header.Set("Authorization", "Bearer "+apiKey)
-		createW := httptest.NewRecorder()
-		router.ServeHTTP(createW, createReq)
-		require.Equal(t, http.StatusCreated, createW.Code)
-
-		// GET via /tenants/ path
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", baseAPIPath+"/tenants/"+tenantID, nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
+// mockEventHandler records Handle calls with configurable return values.
+type mockEventHandler struct {
+	calls  []*models.Event
+	result *publishmq.HandleResult
+	err    error
 }
+
+func (m *mockEventHandler) Handle(_ context.Context, event *models.Event) (*publishmq.HandleResult, error) {
+	m.calls = append(m.calls, event)
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.result != nil {
+		return m.result, nil
+	}
+	return &publishmq.HandleResult{EventID: event.ID}, nil
+}
+
+// stubRegistry is a minimal destregistry.Registry for test setup.
+// Most methods are unused — only the metadata-related ones matter for sanitizer init.
+type stubRegistry struct{}
+
+func (r *stubRegistry) ValidateDestination(context.Context, *models.Destination) error {
+	return nil
+}
+func (r *stubRegistry) PublishEvent(context.Context, *models.Destination, *models.Event) (*models.Attempt, error) {
+	return nil, nil
+}
+func (r *stubRegistry) DisplayDestination(dest *models.Destination) (*destregistry.DestinationDisplay, error) {
+	return &destregistry.DestinationDisplay{Destination: dest}, nil
+}
+func (r *stubRegistry) PreprocessDestination(*models.Destination, *models.Destination, *destregistry.PreprocessDestinationOpts) error {
+	return nil
+}
+func (r *stubRegistry) RegisterProvider(string, destregistry.Provider) error { return nil }
+func (r *stubRegistry) ResolveProvider(*models.Destination) (destregistry.Provider, error) {
+	return nil, nil
+}
+func (r *stubRegistry) ResolvePublisher(context.Context, *models.Destination) (destregistry.Publisher, error) {
+	return nil, nil
+}
+func (r *stubRegistry) MetadataLoader() metadata.MetadataLoader { return nil }
+func (r *stubRegistry) RetrieveProviderMetadata(string) (*metadata.ProviderMetadata, error) {
+	return nil, nil
+}
+func (r *stubRegistry) ListProviderMetadata() []*metadata.ProviderMetadata { return nil }

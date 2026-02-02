@@ -62,7 +62,6 @@ func parseLimit(c *gin.Context, defaultLimit, maxLimit int) int {
 type IncludeOptions struct {
 	Event        bool
 	EventData    bool
-	Destination  bool
 	ResponseData bool
 }
 
@@ -75,8 +74,6 @@ func parseIncludeOptions(c *gin.Context) IncludeOptions {
 		case "event.data":
 			opts.Event = true
 			opts.EventData = true
-		case "destination":
-			opts.Destination = true
 		case "response_data":
 			opts.ResponseData = true
 		}
@@ -96,9 +93,9 @@ type APIAttempt struct {
 	AttemptNumber int                    `json:"attempt_number"`
 	Manual        bool                   `json:"manual"`
 
-	// Expandable fields - string (ID) or object depending on expand
-	Event       interface{} `json:"event"`
-	Destination string      `json:"destination"`
+	EventID       string      `json:"event_id"`
+	DestinationID string      `json:"destination_id"`
+	Event         interface{} `json:"event,omitempty"`
 }
 
 // APIEventSummary is the event object when expand=event (without data)
@@ -145,19 +142,18 @@ type EventPaginatedResult struct {
 // toAPIAttempt converts an AttemptRecord to APIAttempt with expand options
 func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 	api := APIAttempt{
+		ID:            ar.Attempt.ID,
+		Status:        ar.Attempt.Status,
+		DeliveredAt:   ar.Attempt.Time,
+		Code:          ar.Attempt.Code,
 		AttemptNumber: ar.Attempt.AttemptNumber,
 		Manual:        ar.Attempt.Manual,
-		Destination:   ar.Attempt.DestinationID,
+		EventID:       ar.Attempt.EventID,
+		DestinationID: ar.Attempt.DestinationID,
 	}
 
-	if ar.Attempt != nil {
-		api.ID = ar.Attempt.ID
-		api.Status = ar.Attempt.Status
-		api.DeliveredAt = ar.Attempt.Time
-		api.Code = ar.Attempt.Code
-		if opts.ResponseData {
-			api.ResponseData = ar.Attempt.ResponseData
-		}
+	if opts.ResponseData {
+		api.ResponseData = ar.Attempt.ResponseData
 	}
 
 	if ar.Event != nil {
@@ -178,39 +174,28 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 				EligibleForRetry: ar.Event.EligibleForRetry,
 				Metadata:         ar.Event.Metadata,
 			}
-		} else {
-			api.Event = ar.Event.ID
 		}
-	} else {
-		api.Event = ar.Attempt.EventID
 	}
-
-	// TODO: Handle destination expansion
-	// This would require injecting TenantStore into LogHandlers and batch-fetching
-	// destinations by ID. Consider if this is needed - clients can fetch destination
-	// details separately via GET /destinations/:id if needed.
 
 	return api
 }
 
-// ListAttempts handles GET /:tenantID/attempts
-// Query params: event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_order
+// ListAttempts handles GET /attempts
+// Query params: tenant_id, event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_order
 func (h *LogHandlers) ListAttempts(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
-	if tenant == nil {
+	// Authz: JWT users can only query their own tenant's attempts
+	tenantID, ok := resolveTenantIDFilter(c)
+	if !ok {
 		return
 	}
-	h.listAttemptsInternal(c, tenant.ID, "")
+	h.listAttemptsInternal(c, tenantID, "")
 }
 
-// ListDestinationAttempts handles GET /:tenantID/destinations/:destinationID/attempts
+// ListDestinationAttempts handles GET /:tenant_id/destinations/:destination_id/attempts
 // Same as ListAttempts but scoped to a specific destination via URL param.
 func (h *LogHandlers) ListDestinationAttempts(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
-	destinationID := c.Param("destinationID")
+	destinationID := c.Param("destination_id")
 	h.listAttemptsInternal(c, tenant.ID, destinationID)
 }
 
@@ -307,15 +292,16 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantID string, dest
 	})
 }
 
-// RetrieveEvent handles GET /:tenantID/events/:eventID
+// RetrieveEvent handles GET /events/:event_id
 func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
-	if tenant == nil {
+	// Authz: JWT users can only query their own tenant's events
+	tenantID, ok := resolveTenantIDFilter(c)
+	if !ok {
 		return
 	}
-	eventID := c.Param("eventID")
+	eventID := c.Param("event_id")
 	event, err := h.logStore.RetrieveEvent(c.Request.Context(), logstore.RetrieveEventRequest{
-		TenantID: tenant.ID,
+		TenantID: tenantID,
 		EventID:  eventID,
 	})
 	if err != nil {
@@ -336,16 +322,17 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 	})
 }
 
-// RetrieveAttempt handles GET /:tenantID/attempts/:attemptID
+// RetrieveAttempt handles GET /attempts/:attempt_id
 func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
-	if tenant == nil {
+	// Authz: JWT users can only query their own tenant's attempts
+	tenantID, ok := resolveTenantIDFilter(c)
+	if !ok {
 		return
 	}
-	attemptID := c.Param("attemptID")
+	attemptID := c.Param("attempt_id")
 
 	attemptRecord, err := h.logStore.RetrieveAttempt(c.Request.Context(), logstore.RetrieveAttemptRequest{
-		TenantID:  tenant.ID,
+		TenantID:  tenantID,
 		AttemptID: attemptID,
 	})
 	if err != nil {
@@ -357,31 +344,29 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 		return
 	}
 
+	// Authz: when accessed via a destination-scoped route, verify the attempt
+	// belongs to the destination in the path.
+	if destinationID := c.Param("destination_id"); destinationID != "" {
+		if attemptRecord.Attempt.DestinationID != destinationID {
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
+			return
+		}
+	}
+
 	includeOpts := parseIncludeOptions(c)
 
 	c.JSON(http.StatusOK, toAPIAttempt(attemptRecord, includeOpts))
 }
 
-// AdminListEvents handles GET /events (admin-only, cross-tenant)
-// Query params: tenant_id (optional), destination_id, topic[], start, end, limit, next, prev, sort_order
-func (h *LogHandlers) AdminListEvents(c *gin.Context) {
-	h.listEventsInternal(c, c.Query("tenant_id"))
-}
-
-// AdminListAttempts handles GET /attempts (admin-only, cross-tenant)
-// Query params: tenant_id (optional), event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_order
-func (h *LogHandlers) AdminListAttempts(c *gin.Context) {
-	h.listAttemptsInternal(c, c.Query("tenant_id"), "")
-}
-
-// ListEvents handles GET /:tenantID/events
-// Query params: destination_id, topic[], start, end, limit, next, prev, sort_order
+// ListEvents handles GET /events
+// Query params: tenant_id, destination_id, topic[], start, end, limit, next, prev, sort_order
 func (h *LogHandlers) ListEvents(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
-	if tenant == nil {
+	// Authz: JWT users can only query their own tenant's events
+	tenantID, ok := resolveTenantIDFilter(c)
+	if !ok {
 		return
 	}
-	h.listEventsInternal(c, tenant.ID)
+	h.listEventsInternal(c, tenantID)
 }
 
 func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {

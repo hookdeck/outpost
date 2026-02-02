@@ -1,10 +1,10 @@
 package apirouter
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
@@ -12,54 +12,72 @@ import (
 	"go.uber.org/zap"
 )
 
+type deliveryPublisher interface {
+	Publish(ctx context.Context, task models.DeliveryTask) error
+}
+
 type RetryHandlers struct {
-	logger      *logging.Logger
-	tenantStore tenantstore.TenantStore
-	logStore    logstore.LogStore
-	deliveryMQ  *deliverymq.DeliveryMQ
+	logger            *logging.Logger
+	tenantStore       tenantstore.TenantStore
+	logStore          logstore.LogStore
+	deliveryPublisher deliveryPublisher
 }
 
 func NewRetryHandlers(
 	logger *logging.Logger,
 	tenantStore tenantstore.TenantStore,
 	logStore logstore.LogStore,
-	deliveryMQ *deliverymq.DeliveryMQ,
+	deliveryPublisher deliveryPublisher,
 ) *RetryHandlers {
 	return &RetryHandlers{
-		logger:      logger,
-		tenantStore: tenantStore,
-		logStore:    logStore,
-		deliveryMQ:  deliveryMQ,
+		logger:            logger,
+		tenantStore:       tenantStore,
+		logStore:          logStore,
+		deliveryPublisher: deliveryPublisher,
 	}
 }
 
-// RetryAttempt handles POST /:tenantID/attempts/:attemptID/retry
-// Constraints:
-// - Only the latest attempt for an event+destination pair can be retried
-// - Destination must exist and be enabled
-func (h *RetryHandlers) RetryAttempt(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
-	if tenant == nil {
+type retryRequest struct {
+	EventID       string `json:"event_id" binding:"required"`
+	DestinationID string `json:"destination_id" binding:"required"`
+}
+
+// Retry handles POST /retry
+// Accepts { event_id, destination_id } in body.
+// Looks up the event, verifies the destination exists and is enabled, then publishes a manual delivery task.
+func (h *RetryHandlers) Retry(c *gin.Context) {
+	var req retryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		AbortWithValidationError(c, err)
 		return
 	}
-	attemptID := c.Param("attemptID")
 
-	// 1. Look up attempt by ID
-	attemptRecord, err := h.logStore.RetrieveAttempt(c.Request.Context(), logstore.RetrieveAttemptRequest{
-		TenantID:  tenant.ID,
-		AttemptID: attemptID,
+	tenantID := tenantIDFromContext(c)
+
+	// 1. Look up event by ID
+	event, err := h.logStore.RetrieveEvent(c.Request.Context(), logstore.RetrieveEventRequest{
+		TenantID: tenantID,
+		EventID:  req.EventID,
 	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if attemptRecord == nil {
-		AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
+	if event == nil {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("event"))
 		return
 	}
 
+	// Authz: JWT tenant can only retry their own events
+	if tenant := tenantFromContext(c); tenant != nil {
+		if event.TenantID != tenant.ID {
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("event"))
+			return
+		}
+	}
+
 	// 2. Check destination exists and is enabled
-	destination, err := h.tenantStore.RetrieveDestination(c.Request.Context(), tenant.ID, attemptRecord.Attempt.DestinationID)
+	destination, err := h.tenantStore.RetrieveDestination(c.Request.Context(), event.TenantID, req.DestinationID)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -79,19 +97,26 @@ func (h *RetryHandlers) RetryAttempt(c *gin.Context) {
 		return
 	}
 
-	// 3. Create and publish manual delivery task
-	task := models.NewManualDeliveryTask(*attemptRecord.Event, attemptRecord.Attempt.DestinationID)
+	if !destination.MatchEvent(*event) {
+		AbortWithError(c, http.StatusBadRequest, ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "destination does not match event",
+		})
+		return
+	}
 
-	if err := h.deliveryMQ.Publish(c.Request.Context(), task); err != nil {
+	// 3. Create and publish manual delivery task
+	task := models.NewManualDeliveryTask(*event, req.DestinationID)
+
+	if err := h.deliveryPublisher.Publish(c.Request.Context(), task); err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 
 	h.logger.Ctx(c.Request.Context()).Audit("manual retry initiated",
-		zap.String("attempt_id", attemptID),
-		zap.String("event_id", attemptRecord.Event.ID),
-		zap.String("tenant_id", tenant.ID),
-		zap.String("destination_id", attemptRecord.Attempt.DestinationID),
+		zap.String("event_id", event.ID),
+		zap.String("tenant_id", event.TenantID),
+		zap.String("destination_id", req.DestinationID),
 		zap.String("destination_type", destination.Type))
 
 	c.JSON(http.StatusAccepted, gin.H{

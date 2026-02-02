@@ -201,13 +201,14 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			PortalConfig: b.cfg.GetPortalConfig(),
 			GinMode:      b.cfg.GinMode,
 		},
-		b.logger,
-		svc.redisClient,
-		svc.deliveryMQ,
-		svc.tenantStore,
-		svc.logStore,
-		eventHandler,
-		b.telemetry,
+		apirouter.RouterDeps{
+			TenantStore:       svc.tenantStore,
+			LogStore:          svc.logStore,
+			Logger:            b.logger,
+			DeliveryPublisher: svc.deliveryMQ,
+			EventHandler:      eventHandler,
+			Telemetry:         b.telemetry,
+		},
 	)
 
 	// Mount API handler onto base router (everything except /healthz goes to apiHandler)

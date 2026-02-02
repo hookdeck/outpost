@@ -1707,6 +1707,21 @@ components:
           type: boolean
           description: Whether this event was already processed (idempotency hit). If true, the event was not queued again.
           example: false
+    RetryRequest:
+      type: object
+      description: Request body for retrying event delivery to a destination.
+      required:
+        - event_id
+        - destination_id
+      properties:
+        event_id:
+          type: string
+          description: The ID of the event to retry.
+          example: "evt_123"
+        destination_id:
+          type: string
+          description: The ID of the destination to deliver to.
+          example: "des_456"
     Event:
       type: object
       properties:
@@ -1805,18 +1820,19 @@ components:
           type: boolean
           description: Whether this attempt was manually triggered (e.g., a retry initiated by a user).
           example: false
-        event:
-          oneOf:
-            - type: string
-              description: Event ID (default, no expansion).
-              example: "evt_123"
-            - $ref: "#/components/schemas/EventSummary"
-            - $ref: "#/components/schemas/EventFull"
-          description: The associated event. Returns event ID by default, or included event object when include=event or include=event.data.
-        destination:
+        event_id:
+          type: string
+          description: The ID of the associated event.
+          example: "evt_123"
+        destination_id:
           type: string
           description: The destination ID this attempt was sent to.
           example: "des_456"
+        event:
+          oneOf:
+            - $ref: "#/components/schemas/EventSummary"
+            - $ref: "#/components/schemas/EventFull"
+          description: The associated event object. Only present when include=event or include=event.data.
     EventSummary:
       type: object
       description: Event object without data (returned when include=event).
@@ -2456,6 +2472,42 @@ paths:
               schema:
                 $ref: "#/components/schemas/APIErrorResponse"
 
+  /events/{event_id}:
+    parameters:
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the event.
+    get:
+      tags: [Events]
+      summary: Get Event
+      description: |
+        Retrieves details for a specific event.
+
+        When authenticated with a Tenant JWT, only events belonging to that tenant can be accessed.
+        When authenticated with Admin API Key, events from any tenant can be accessed.
+      operationId: getEvent
+      responses:
+        "200":
+          description: Event details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+              examples:
+                EventExample:
+                  value:
+                    id: "evt_123"
+                    topic: "user.created"
+                    time: "2024-01-01T00:00:00Z"
+                    eligible_for_retry: false
+                    metadata: { "source": "crm" }
+                    data: { "user_id": "userid", "status": "active" }
+        "404":
+          description: Event not found.
+
   /attempts:
     get:
       tags: [Attempts]
@@ -2584,15 +2636,15 @@ paths:
                         delivered_at: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
-                        event: "evt_123"
-                        destination: "des_456"
+                        event_id: "evt_123"
+                        destination_id: "des_456"
                       - id: "att_124"
                         status: "failed"
                         delivered_at: "2024-01-02T10:00:01Z"
                         code: "503"
                         attempt_number: 2
-                        event: "evt_789"
-                        destination: "des_789"
+                        event_id: "evt_789"
+                        destination_id: "des_789"
                     pagination:
                       order_by: "time"
                       dir: "desc"
@@ -2608,13 +2660,14 @@ paths:
                         delivered_at: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
+                        event_id: "evt_123"
+                        destination_id: "des_456"
                         event:
                           id: "evt_123"
                           topic: "user.created"
                           time: "2024-01-01T00:00:00Z"
                           eligible_for_retry: false
                           metadata: { "source": "crm" }
-                        destination: "des_456"
                     pagination:
                       order_by: "time"
                       dir: "desc"
@@ -2629,6 +2682,79 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/APIErrorResponse"
+
+  /attempts/{attempt_id}:
+    parameters:
+      - name: attempt_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the attempt.
+    get:
+      tags: [Attempts]
+      summary: Get Attempt
+      description: |
+        Retrieves details for a specific attempt.
+
+        When authenticated with a Tenant JWT, only attempts belonging to that tenant can be accessed.
+        When authenticated with Admin API Key, attempts from any tenant can be accessed.
+      operationId: getAttempt
+      parameters:
+        - name: include
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: |
+            Fields to include in the response. Can be specified multiple times or comma-separated.
+            - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
+            - `event.data`: Include full event with payload data
+            - `response_data`: Include response body and headers
+      responses:
+        "200":
+          description: Attempt details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attempt"
+              examples:
+                AttemptExample:
+                  value:
+                    id: "atm_123"
+                    status: "success"
+                    delivered_at: "2024-01-01T00:00:05Z"
+                    code: "200"
+                    attempt_number: 1
+                    event_id: "evt_123"
+                    destination_id: "des_456"
+                AttemptWithIncludeExample:
+                  summary: Response with include=event.data,response_data
+                  value:
+                    id: "atm_123"
+                    status: "success"
+                    delivered_at: "2024-01-01T00:00:05Z"
+                    code: "200"
+                    response_data:
+                      status_code: 200
+                      body: '{"status":"ok"}'
+                      headers: { "content-type": "application/json" }
+                    attempt_number: 1
+                    event_id: "evt_123"
+                    destination_id: "des_456"
+                    event:
+                      id: "evt_123"
+                      topic: "user.created"
+                      time: "2024-01-01T00:00:00Z"
+                      eligible_for_retry: false
+                      metadata: { "source": "crm" }
+                      data: { "user_id": "userid", "status": "active" }
+        "404":
+          description: Attempt not found.
 
   /tenants/{tenant_id}/portal:
     parameters:
@@ -3141,15 +3267,15 @@ paths:
                         delivered_at: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
-                        event: "evt_123"
-                        destination: "des_456"
+                        event_id: "evt_123"
+                        destination_id: "des_456"
                       - id: "atm_124"
                         status: "failed"
                         delivered_at: "2024-01-02T10:00:01Z"
                         code: "503"
                         attempt_number: 2
-                        event: "evt_789"
-                        destination: "des_456"
+                        event_id: "evt_789"
+                        destination_id: "des_456"
                     pagination:
                       order_by: "time"
                       dir: "desc"
@@ -3220,48 +3346,10 @@ paths:
                     delivered_at: "2024-01-01T00:00:05Z"
                     code: "200"
                     attempt_number: 1
-                    event: "evt_123"
-                    destination: "des_456"
+                    event_id: "evt_123"
+                    destination_id: "des_456"
         "404":
           description: Tenant, Destination, or Attempt not found.
-
-  /tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}/retry:
-    parameters:
-      - name: tenant_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the tenant. Required when using AdminApiKey authentication.
-      - name: destination_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the destination.
-      - name: attempt_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the attempt to retry.
-    post:
-      tags: [Destinations]
-      summary: Retry Destination Attempt
-      description: |
-        Triggers a retry for an attempt scoped to a destination. Only the latest attempt for an event+destination pair can be retried.
-        The destination must exist and be enabled.
-      operationId: retryTenantDestinationAttempt
-      responses:
-        "202":
-          description: Retry accepted for processing.
-        "404":
-          description: Tenant, Destination, or Attempt not found.
-        "409":
-          description: |
-            Attempt not eligible for retry. This can happen when:
-            - The attempt is not the latest for this event+destination pair
-            - The destination is disabled or deleted
 
   # Publish (Admin Only)
   /publish:
@@ -3293,763 +3381,54 @@ paths:
           description: Unprocessable Entity. The event topic was either required or was invalid.
         # Add other error responses
 
-  # Schemas (Tenant Specific - Admin or JWT)
-  /tenants/{tenant_id}/destination-types:
-    parameters:
-      - name: tenant_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the tenant. Required when using AdminApiKey authentication.
-    get:
-      tags: [Schemas]
-      summary: List Destination Type Schemas (for Tenant)
-      description: Returns a list of JSON-based input schemas for each available destination type. Requires Admin API Key or Tenant JWT.
-      operationId: listTenantDestinationTypeSchemas
-      responses:
-        "200":
-          description: A list of destination type schemas.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/DestinationTypeSchema"
-              examples:
-                DestinationTypesExample:
-                  value:
-                    - type: "webhook"
-                      label: "Webhook"
-                      description: "Send event via an HTTP POST request to a URL"
-                      icon: "<svg />"
-                      instructions: "Enter the URL..."
-                      config_fields: [
-                          {
-                            type: "text",
-                            label: "URL",
-                            description: "The URL to send the webhook to.",
-                            pattern: "^https?://.*", # Example pattern
-                            required: true,
-                          },
-                        ]
-                      credential_fields: [
-                          {
-                            type: "text",
-                            label: "Secret",
-                            description: "Optional signing secret.",
-                            required: false,
-                            sensitive: true, # Added sensitive
-                          },
-                        ]
-                    - type: "aws_sqs"
-                      label: "AWS SQS"
-                      description: "Send event to an AWS SQS queue"
-                      icon: "<svg />"
-                      instructions: "Enter Queue URL..."
-                      config_fields:
-                        [
-                          {
-                            type: "text",
-                            label: "Queue URL",
-                            description: "The URL of the SQS queue.",
-                            required: true,
-                          },
-                          {
-                            type: "text",
-                            label: "Endpoint",
-                            description: "Optional custom AWS endpoint URL.",
-                            required: false,
-                          },
-                        ]
-                      credential_fields:
-                        [
-                          {
-                            type: "text",
-                            label: "Key",
-                            description: "AWS Access Key ID.",
-                            required: true,
-                            sensitive: true,
-                          },
-                          {
-                            type: "text",
-                            label: "Secret",
-                            description: "AWS Secret Access Key.",
-                            required: true,
-                            sensitive: true,
-                          },
-                          {
-                            type: "text",
-                            label: "Session",
-                            description: "Optional AWS Session Token.",
-                            required: false,
-                            sensitive: true,
-                          },
-                        ]
-                    - type: "aws_s3"
-                      label: "AWS S3"
-                      description: "Store events in an Amazon S3 bucket"
-                      icon: "<svg />"
-                      instructions: "Enter bucket and region..."
-                      config_fields:
-                        [
-                          {
-                            type: "text",
-                            label: "Bucket Name",
-                            description: "The name of the S3 bucket.",
-                            required: true,
-                          },
-                          {
-                            type: "text",
-                            label: "AWS Region",
-                            description: "The AWS region where the bucket is located.",
-                            required: true,
-                          },
-                        ]
-                      credential_fields:
-                        [
-                          {
-                            type: "text",
-                            label: "Key",
-                            description: "AWS Access Key ID.",
-                            required: true,
-                            sensitive: true,
-                          },
-                          {
-                            type: "text",
-                            label: "Secret",
-                            description: "AWS Secret Access Key.",
-                            required: true,
-                            sensitive: true,
-                          },
-                        ]
-                    - type: "aws_s3"
-                      label: "AWS S3"
-                      description: "Store events in an Amazon S3 bucket"
-                      icon: "<svg />"
-                      instructions: "Enter bucket and region..."
-                      config_fields:
-                        [
-                          {
-                            type: "text",
-                            label: "Bucket Name",
-                            description: "The name of the S3 bucket.",
-                            required: true,
-                          },
-                          {
-                            type: "text",
-                            label: "AWS Region",
-                            description: "The AWS region where the bucket is located.",
-                            required: true,
-                          },
-                        ]
-                      credential_fields:
-                        [
-                          {
-                            type: "text",
-                            label: "Key",
-                            description: "AWS Access Key ID.",
-                            required: true,
-                            sensitive: true,
-                          },
-                          {
-                            type: "text",
-                            label: "Secret",
-                            description: "AWS Secret Access Key.",
-                            required: true,
-                            sensitive: true,
-                          },
-                        ]
-        "404":
-          description: Tenant not found.
-
-  /tenants/{tenant_id}/destination-types/{type}:
-    parameters:
-      - name: tenant_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the tenant. Required when using AdminApiKey authentication.
-      - name: type
-        in: path
-        required: true
-        schema:
-          type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, aws_s3]
-        description: The type of the destination.
-    get:
-      tags: [Schemas]
-      summary: Get Destination Type Schema (for Tenant)
-      description: Returns the input schema for a specific destination type. Requires Admin API Key or Tenant JWT.
-      operationId: getTenantDestinationTypeSchema
-      responses:
-        "200":
-          description: The schema for the specified destination type.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DestinationTypeSchema"
-              examples:
-                WebhookSchemaExample:
-                  value:
-                    type: "webhook"
-                    label: "Webhook"
-                    description: "Send event via an HTTP POST request to a URL"
-                    icon: "<svg />"
-                    instructions: "Enter the URL..."
-                    config_fields: [
-                        {
-                          type: "text",
-                          label: "URL",
-                          description: "The URL to send the webhook to.",
-                          pattern: "^https?://.*", # Example pattern
-                          required: true,
-                        },
-                      ]
-                    credential_fields: [
-                        {
-                          type: "text",
-                          label: "Secret",
-                          description: "Optional signing secret.",
-                          required: false,
-                          sensitive: true, # Added sensitive
-                        },
-                      ]
-        "404":
-          description: Tenant or Destination type not found.
-
-  # Topics (Tenant Specific - Admin or JWT)
-  /tenants/{tenant_id}/topics:
-    parameters:
-      - name: tenant_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the tenant. Required when using AdminApiKey authentication.
-    get:
-      tags: [Topics]
-      summary: List Available Topics (for Tenant)
-      description: Returns a list of available event topics configured in the Outpost instance. Requires Admin API Key or Tenant JWT.
-      operationId: listTenantTopics
-      responses:
-        "200":
-          description: A list of topic names.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: string
-              examples:
-                TopicsListExample:
-                  value:
-                    [
-                      "user.created",
-                      "user.updated",
-                      "order.shipped",
-                      "inventory.updated",
-                    ]
-        "404":
-          description: Tenant not found.
-
-  # Attempts (Tenant Specific - Admin or JWT)
-  /tenants/{tenant_id}/attempts:
-    parameters:
-      - name: tenant_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the tenant. Required when using AdminApiKey authentication.
-    get:
-      tags: [Attempts]
-      summary: List Attempts
-      description: Retrieves a paginated list of attempts for the tenant, with filtering and sorting options.
-      operationId: listTenantAttempts
-      parameters:
-        - name: destination_id
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Filter attempts by destination ID.
-        - name: event_id
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Filter attempts by event ID.
-        - name: status
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [success, failed]
-          description: Filter attempts by status.
-        - name: topic
-          in: query
-          required: false
-          schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
-          description: Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
-        - name: time[gte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 100
-            minimum: 1
-            maximum: 1000
-          description: Number of items per page (default 100, max 1000).
-        - name: next
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Cursor for next page of results.
-        - name: prev
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Cursor for previous page of results.
-        - name: include
-          in: query
-          required: false
-          schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
-          description: |
-            Fields to include in the response. Can be specified multiple times or comma-separated.
-            - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
-            - `event.data`: Include full event with payload data
-            - `response_data`: Include response body and headers
-        - name: order_by
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [time]
-            default: time
-          description: Field to sort by.
-        - name: dir
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-          description: Sort direction.
-      responses:
-        "200":
-          description: A paginated list of attempts.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AttemptPaginatedResult"
-              examples:
-                AttemptsListExample:
-                  value:
-                    models:
-                      - id: "atm_123"
-                        status: "success"
-                        delivered_at: "2024-01-01T00:00:05Z"
-                        code: "200"
-                        attempt_number: 1
-                        event: "evt_123"
-                        destination: "des_456"
-                      - id: "att_124"
-                        status: "failed"
-                        delivered_at: "2024-01-02T10:00:01Z"
-                        code: "503"
-                        attempt_number: 2
-                        event: "evt_789"
-                        destination: "des_456"
-                    pagination:
-                      order_by: "time"
-                      dir: "desc"
-                      limit: 100
-                      next: "MTcwNDA2NzIwMA=="
-                      prev: null
-                AttemptsWithIncludeExample:
-                  summary: Response with include=event
-                  value:
-                    models:
-                      - id: "atm_123"
-                        status: "success"
-                        delivered_at: "2024-01-01T00:00:05Z"
-                        code: "200"
-                        attempt_number: 1
-                        event:
-                          id: "evt_123"
-                          topic: "user.created"
-                          time: "2024-01-01T00:00:00Z"
-                          eligible_for_retry: false
-                          metadata: { "source": "crm" }
-                        destination: "des_456"
-                    pagination:
-                      order_by: "time"
-                      dir: "desc"
-                      limit: 100
-                      next: null
-                      prev: null
-        "404":
-          description: Tenant not found.
-        "422":
-          description: Validation error (invalid query parameters).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/APIErrorResponse"
-
-  /tenants/{tenant_id}/attempts/{attempt_id}:
-    parameters:
-      - name: tenant_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the tenant. Required when using AdminApiKey authentication.
-      - name: attempt_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the attempt.
-    get:
-      tags: [Attempts]
-      summary: Get Attempt
-      description: Retrieves details for a specific attempt.
-      operationId: getTenantAttempt
-      parameters:
-        - name: include
-          in: query
-          required: false
-          schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
-          description: |
-            Fields to include in the response. Can be specified multiple times or comma-separated.
-            - `event`: Include event summary
-            - `event.data`: Include full event with payload data
-            - `response_data`: Include response body and headers
-      responses:
-        "200":
-          description: Attempt details.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Attempt"
-              examples:
-                AttemptExample:
-                  value:
-                    id: "atm_123"
-                    status: "success"
-                    delivered_at: "2024-01-01T00:00:05Z"
-                    code: "200"
-                    attempt_number: 1
-                    event: "evt_123"
-                    destination: "des_456"
-                AttemptWithIncludeExample:
-                  summary: Response with include=event.data,response_data
-                  value:
-                    id: "atm_123"
-                    status: "success"
-                    delivered_at: "2024-01-01T00:00:05Z"
-                    code: "200"
-                    response_data:
-                      status_code: 200
-                      body: '{"status":"ok"}'
-                      headers: { "content-type": "application/json" }
-                    attempt_number: 1
-                    event:
-                      id: "evt_123"
-                      topic: "user.created"
-                      time: "2024-01-01T00:00:00Z"
-                      eligible_for_retry: false
-                      metadata: { "source": "crm" }
-                      data: { "user_id": "userid", "status": "active" }
-                    destination: "des_456"
-        "404":
-          description: Tenant or Attempt not found.
-
-  /tenants/{tenant_id}/attempts/{attempt_id}/retry:
-    parameters:
-      - name: tenant_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the tenant. Required when using AdminApiKey authentication.
-      - name: attempt_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the attempt to retry.
+  # Retry
+  /retry:
     post:
       tags: [Attempts]
-      summary: Retry Attempt
+      summary: Retry Event Delivery
       description: |
-        Triggers a retry for an attempt. Only the latest attempt for an event+destination pair can be retried.
-        The destination must exist and be enabled.
-      operationId: retryTenantAttempt
+        Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+
+        When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
+        When authenticated with Admin API Key, events from any tenant can be retried.
+      operationId: retryEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetryRequest"
       responses:
         "202":
           description: Retry accepted for processing.
-        "404":
-          description: Tenant or Attempt not found.
-        "409":
-          description: |
-            Attempt not eligible for retry. This can happen when:
-            - The attempt is not the latest for this event+destination pair
-            - The destination is disabled or deleted
-
-  # Events (Tenant Specific - Admin or JWT)
-  /tenants/{tenant_id}/events:
-    parameters:
-      - name: tenant_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the tenant. Required when using AdminApiKey authentication.
-    get:
-      tags: [Events]
-      summary: List Events
-      description: Retrieves a list of events for the tenant, supporting cursor navigation and filtering.
-      operationId: listTenantEvents
-      parameters:
-        - name: destination_id
-          in: query
-          required: false
-          schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
-          description: Filter events by destination ID(s).
-        - name: status
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [success, failed]
-          description: Filter events by delivery status.
-        - name: next
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Cursor for next page of results.
-        - name: prev
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Cursor for previous page of results.
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 100
-            minimum: 1
-            maximum: 1000
-          description: Number of items per page (default 100, max 1000).
-        - name: time[gte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter events with time <= value (RFC3339 or YYYY-MM-DD format).
-        - name: order_by
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [time]
-            default: time
-          description: Field to sort by.
-        - name: dir
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-          description: Sort direction.
-      responses:
-        "200":
-          description: A paginated list of events.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EventPaginatedResult"
+                $ref: "#/components/schemas/SuccessResponse"
               examples:
-                EventsListExample:
+                RetryAccepted:
                   value:
-                    models:
-                      - id: "evt_123"
-                        destination_id: "des_456"
-                        topic: "user.created"
-                        time: "2024-01-01T00:00:00Z"
-                        successful_at: "2024-01-01T00:00:05Z"
-                        metadata: { "source": "crm" }
-                        data: { "user_id": "userid", "status": "active" }
-                      - id: "evt_789"
-                        destination_id: "des_456"
-                        topic: "order.shipped"
-                        time: "2024-01-02T10:00:00Z"
-                        successful_at: null
-                        metadata: { "source": "oms" }
-                        data: { "order_id": "orderid", "tracking": "1Z..." }
-                    pagination:
-                      order_by: "time"
-                      dir: "desc"
-                      limit: 100
-                      next: null
-                      prev: null
+                    success: true
+        "400":
+          description: |
+            Bad request. This can happen when:
+            - The destination is disabled
+            - The destination does not match the event's topic
         "404":
-          description: Tenant not found.
+          description: Event or destination not found.
         "422":
-          description: Validation error (invalid query parameters).
+          description: Validation error (missing required fields).
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/APIErrorResponse"
-
-  /tenants/{tenant_id}/events/{event_id}:
-    parameters:
-      - name: tenant_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the tenant. Required when using AdminApiKey authentication.
-      - name: event_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the event.
-    get:
-      tags: [Events]
-      summary: Get Event
-      description: Retrieves details for a specific event.
-      operationId: getTenantEvent
-      responses:
-        "200":
-          description: Event details.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Event"
-              examples:
-                EventExample:
-                  value:
-                    id: "evt_123"
-                    destination_id: "des_456"
-                    topic: "user.created"
-                    time: "2024-01-01T00:00:00Z"
-                    successful_at: "2024-01-01T00:00:05Z"
-                    metadata: { "source": "crm" }
-                    data: { "user_id": "userid", "status": "active" }
-        "404":
-          description: Tenant or Event not found.
-
-  /tenants/{tenant_id}/events/{event_id}/attempts:
-    parameters:
-      - name: tenant_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the tenant. Required when using AdminApiKey authentication.
-      - name: event_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: The ID of the event.
-    get:
-      tags: [Events]
-      summary: List Event Attempts
-      description: Retrieves a list of attempts for a specific event, including response details.
-      operationId: listTenantEventAttempts
-      responses:
-        "200":
-          description: A list of attempts.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/DeliveryAttempt"
-              examples:
-                AttemptsListExample:
-                  value:
-                    - delivered_at: "2024-01-01T00:00:05Z"
-                      status: "success"
-                      response_status_code: 200
-                      response_body: '{"status":"ok"}'
-                      response_headers: { "content-type": "application/json" }
-                    - delivered_at: "2024-01-01T00:00:01Z"
-                      status: "failed"
-                      response_status_code: 503
-                      response_body: "Service Unavailable"
-                      response_headers: { "content-type": "text/plain" }
-        "404":
-          description: Tenant or Event not found.
-
-  # Tenant Agnostic Routes (JWT Auth Only) - Mirroring tenant-specific routes where AllowTenantFromJWT=true
-
-  # Note: Portal routes (/portal, /token) still require AdminApiKey even when tenant is inferred from JWT,
-  # as per router.go logic (Mode=RouteModePortal, AuthScope=AuthScopeAdmin).
-  # They are included here for completeness of paths derived from AllowTenantFromJWT=true,
-  # but their security reflects the Admin requirement.
 
   /destination-types:
     get:
       tags: [Schemas]
-      summary: List Destination Type Schemas (JWT Auth)
-      description: Returns a list of JSON-based input schemas for each available destination type (infers tenant from JWT).
-      operationId: listDestinationTypeSchemasJwt
+      summary: List Destination Type Schemas
+      description: Returns a list of JSON-based input schemas for each available destination type.
+      operationId: listDestinationTypeSchemas
       responses:
         "200":
           description: A list of destination type schemas.
@@ -4188,7 +3567,7 @@ paths:
   /topics:
     get:
       tags: [Topics]
-      summary: List Available Topics)
+      summary: List Available Topics
       description: Returns a list of available event topics configured in the Outpost instance.
       operationId: listTopics
       responses:

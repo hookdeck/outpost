@@ -1,161 +1,286 @@
 package apirouter_test
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestRetryAttempt(t *testing.T) {
-	t.Parallel()
-
-	result := setupTestRouterFull(t, "", "")
-
-	// Create a tenant and destination
-	tenantID := idgen.String()
-	destinationID := idgen.Destination()
-	require.NoError(t, result.tenantStore.UpsertTenant(context.Background(), models.Tenant{
-		ID:        tenantID,
-		CreatedAt: time.Now(),
-	}))
-	require.NoError(t, result.tenantStore.UpsertDestination(context.Background(), models.Destination{
-		ID:        destinationID,
-		TenantID:  tenantID,
-		Type:      "webhook",
-		Topics:    []string{"*"},
-		CreatedAt: time.Now(),
-	}))
-
-	// Seed an attempt event
-	eventID := idgen.Event()
-	attemptID := idgen.Attempt()
-	eventTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
-	attemptTime := eventTime.Add(100 * time.Millisecond)
-
-	event := testutil.EventFactory.AnyPointer(
-		testutil.EventFactory.WithID(eventID),
-		testutil.EventFactory.WithTenantID(tenantID),
-		testutil.EventFactory.WithDestinationID(destinationID),
-		testutil.EventFactory.WithTopic("order.created"),
-		testutil.EventFactory.WithTime(eventTime),
-	)
-
-	attempt := testutil.AttemptFactory.AnyPointer(
-		testutil.AttemptFactory.WithID(attemptID),
-		testutil.AttemptFactory.WithEventID(eventID),
-		testutil.AttemptFactory.WithDestinationID(destinationID),
-		testutil.AttemptFactory.WithStatus("failed"),
-		testutil.AttemptFactory.WithTime(attemptTime),
-	)
-
-	require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: event, Attempt: attempt}}))
-
-	t.Run("should retry attempt successfully with full event data", func(t *testing.T) {
-		// Subscribe to deliveryMQ to capture published task
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		subscription, err := result.deliveryMQ.Subscribe(ctx)
-		require.NoError(t, err)
-
-		// Trigger manual retry
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+attemptID+"/retry", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusAccepted, w.Code)
-
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-		assert.Equal(t, true, response["success"])
-
-		// Verify published task has full event data
-		msg, err := subscription.Receive(ctx)
-		require.NoError(t, err)
-
-		var task models.DeliveryTask
-		require.NoError(t, json.Unmarshal(msg.Body, &task))
-
-		assert.Equal(t, eventID, task.Event.ID)
-		assert.Equal(t, tenantID, task.Event.TenantID)
-		assert.Equal(t, destinationID, task.Event.DestinationID)
-		assert.Equal(t, "order.created", task.Event.Topic)
-		assert.False(t, task.Event.Time.IsZero(), "event time should be set")
-		assert.Equal(t, eventTime.UTC(), task.Event.Time.UTC())
-		assert.Equal(t, event.Data, task.Event.Data, "event data should match original")
-		assert.True(t, task.Manual, "should be marked as manual retry")
-
-		msg.Ack()
-	})
-
-	t.Run("should return 404 for non-existent attempt", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/attempts/nonexistent/retry", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should return 404 for non-existent tenant", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/nonexistent/attempts/"+attemptID+"/retry", nil)
-		result.router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("should return 400 when destination is disabled", func(t *testing.T) {
-		// Create a new destination that's disabled
-		disabledDestinationID := idgen.Destination()
-		disabledAt := time.Now()
-		require.NoError(t, result.tenantStore.UpsertDestination(context.Background(), models.Destination{
-			ID:         disabledDestinationID,
-			TenantID:   tenantID,
-			Type:       "webhook",
-			Topics:     []string{"*"},
-			CreatedAt:  time.Now(),
-			DisabledAt: &disabledAt,
+func TestAPI_Retry(t *testing.T) {
+	// setup creates a standard test harness with a tenant, destination, and event
+	// that are all compatible for a successful retry.
+	setup := func(t *testing.T, opts ...apiTestOption) *apiTest {
+		t.Helper()
+		h := newAPITest(t, opts...)
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+		h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"*"})))
+		e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+			{Event: e, Attempt: attemptForEvent(e)},
 		}))
+		return h
+	}
 
-		// Create an attempt for the disabled destination
-		disabledEventID := idgen.Event()
-		disabledAttemptID := idgen.Attempt()
+	t.Run("Auth", func(t *testing.T) {
+		t.Run("no auth returns 401", func(t *testing.T) {
+			h := setup(t)
 
-		disabledEvent := testutil.EventFactory.AnyPointer(
-			testutil.EventFactory.WithID(disabledEventID),
-			testutil.EventFactory.WithTenantID(tenantID),
-			testutil.EventFactory.WithDestinationID(disabledDestinationID),
-			testutil.EventFactory.WithTopic("order.created"),
-			testutil.EventFactory.WithTime(eventTime),
-		)
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(req)
 
-		disabledAttempt := testutil.AttemptFactory.AnyPointer(
-			testutil.AttemptFactory.WithID(disabledAttemptID),
-			testutil.AttemptFactory.WithEventID(disabledEventID),
-			testutil.AttemptFactory.WithDestinationID(disabledDestinationID),
-			testutil.AttemptFactory.WithStatus("failed"),
-			testutil.AttemptFactory.WithTime(attemptTime),
-		)
+			require.Equal(t, http.StatusUnauthorized, resp.Code)
+		})
 
-		require.NoError(t, result.logStore.InsertMany(context.Background(), []*models.LogEntry{{Event: disabledEvent, Attempt: disabledAttempt}}))
+		t.Run("api key succeeds", func(t *testing.T) {
+			h := setup(t)
 
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("POST", baseAPIPath+"/tenants/"+tenantID+"/attempts/"+disabledAttemptID+"/retry", nil)
-		result.router.ServeHTTP(w, req)
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+			require.Equal(t, http.StatusAccepted, resp.Code)
+		})
 
-		var response map[string]interface{}
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-		assert.Equal(t, "Destination is disabled", response["message"])
+		t.Run("jwt own tenant succeeds", func(t *testing.T) {
+			h := setup(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusAccepted, resp.Code)
+		})
+	})
+
+	t.Run("Validation", func(t *testing.T) {
+		t.Run("no body returns 400", func(t *testing.T) {
+			h := setup(t)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/retry", nil)
+			req.Header.Set("Content-Type", "application/json")
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusBadRequest, resp.Code)
+		})
+
+		t.Run("empty JSON returns 422", func(t *testing.T) {
+			h := setup(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("missing event_id returns 422", func(t *testing.T) {
+			h := setup(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("missing destination_id returns 422", func(t *testing.T) {
+			h := setup(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id": "e1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+	})
+
+	t.Run("Event lookup", func(t *testing.T) {
+		t.Run("event not found returns 404", func(t *testing.T) {
+			h := setup(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "nonexistent",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+	})
+
+	t.Run("Tenant isolation", func(t *testing.T) {
+		t.Run("jwt other tenant event returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+			// Create two tenants
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"*"}))
+			h.tenantStore.UpsertDestination(t.Context(), dest)
+			// Event belongs to t1
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e)},
+			}))
+
+			// JWT for t2 tries to retry t1's event
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withJWT(req, "t2"))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("api key can access any tenant event", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"*"}))
+			h.tenantStore.UpsertDestination(t.Context(), dest)
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e)},
+			}))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusAccepted, resp.Code)
+		})
+	})
+
+	t.Run("Destination checks", func(t *testing.T) {
+		t.Run("destination not found returns 404", func(t *testing.T) {
+			h := setup(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "nonexistent",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("disabled destination returns 400", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			now := time.Now()
+			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"*"}), df.WithDisabledAt(now))
+			h.tenantStore.UpsertDestination(t.Context(), dest)
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e)},
+			}))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusBadRequest, resp.Code)
+		})
+
+		t.Run("topic mismatch returns 400", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			// Destination only accepts "user.deleted"
+			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"user.deleted"}))
+			h.tenantStore.UpsertDestination(t.Context(), dest)
+			// Event has topic "user.created"
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e)},
+			}))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusBadRequest, resp.Code)
+		})
+
+		t.Run("wildcard destination matches any topic", func(t *testing.T) {
+			h := setup(t) // setup uses topics: ["*"]
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusAccepted, resp.Code)
+		})
+	})
+
+	t.Run("Delivery task", func(t *testing.T) {
+		t.Run("queues manual delivery task", func(t *testing.T) {
+			h := setup(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusAccepted, resp.Code)
+			require.Len(t, h.deliveryPub.calls, 1)
+
+			task := h.deliveryPub.calls[0]
+			assert.True(t, task.Manual)
+			assert.Equal(t, "e1", task.Event.ID)
+			assert.Equal(t, "t1", task.Event.TenantID)
+			assert.Equal(t, "d1", task.DestinationID)
+		})
+
+		t.Run("returns success body", func(t *testing.T) {
+			h := setup(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusAccepted, resp.Code)
+
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, true, body["success"])
+		})
+
+		t.Run("publisher error returns 500", func(t *testing.T) {
+			h := setup(t)
+			h.deliveryPub.err = errors.New("queue unavailable")
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusInternalServerError, resp.Code)
+		})
 	})
 }

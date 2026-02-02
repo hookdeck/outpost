@@ -181,6 +181,31 @@ func TestErrorResponse_NotFoundFormat(t *testing.T) {
 	assert.Equal(t, "tenant not found", response["message"])
 }
 
+func TestFormatValidationError_ForbiddenTag(t *testing.T) {
+	t.Parallel()
+
+	type testInput struct {
+		Role string `validate:"forbidden"`
+	}
+
+	validate := validator.New()
+	// Register a custom "forbidden" validator that always fails, so we can test the message.
+	validate.RegisterValidation("forbidden", func(fl validator.FieldLevel) bool {
+		return false
+	})
+
+	input := testInput{Role: "superadmin"}
+	err := validate.Struct(input)
+	require.Error(t, err)
+
+	var errorResponse apirouter.ErrorResponse
+	errorResponse.Parse(err)
+
+	messages, ok := errorResponse.Data.([]string)
+	require.True(t, ok, "Data should be []string, got %T", errorResponse.Data)
+	assert.Contains(t, messages, "role is forbidden")
+}
+
 func TestErrorResponse_InternalServerErrorFormat(t *testing.T) {
 	t.Parallel()
 
