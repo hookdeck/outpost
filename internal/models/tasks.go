@@ -66,6 +66,8 @@ func (t *DeliveryTask) IdempotencyKey() string {
 	if t.Manual {
 		return t.Event.ID + ":" + t.DestinationID + ":manual:" + t.Nonce
 	}
+	// Non-manual deliveries share a key per event+destination. On failure, the
+	// idempotency key is cleared so the scheduled retry can execute with the same key.
 	return t.Event.ID + ":" + t.DestinationID
 }
 
