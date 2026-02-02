@@ -12,18 +12,17 @@ const AttemptDetails = ({
 }: {
   navigateAttempt: (path: string, params?: any) => void;
 }) => {
-  const { attempt_id: attemptId } = useParams();
+  const { attempt_id: attemptId, destination_id: destinationId } = useParams();
 
   const { data: attempt } = useSWR<Attempt>(
-    `attempts/${attemptId}?include=event.data,response_data`,
+    `destinations/${destinationId}/attempts/${attemptId}?include=event.data,response_data`,
   );
 
   if (!attempt) {
     return <div>Loading...</div>;
   }
 
-  const event =
-    typeof attempt.event === "object" ? (attempt.event as EventFull) : null;
+  const event = attempt.event ? (attempt.event as EventFull) : null;
 
   return (
     <div className="drawer">
@@ -33,7 +32,8 @@ const AttemptDetails = ({
         </h3>
         <div className="drawer__header-actions">
           <RetryDeliveryButton
-            attemptId={attempt.id}
+            eventId={attempt.event_id}
+            destinationId={attempt.destination_id}
             disabled={false}
             loading={false}
             completed={() => {}}

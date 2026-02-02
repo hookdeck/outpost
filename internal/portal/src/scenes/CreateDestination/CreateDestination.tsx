@@ -12,9 +12,10 @@ import { useNavigate } from "react-router-dom";
 import { useContext, useEffect, useState } from "react";
 import { ApiContext, formatError } from "../../app";
 import { showToast } from "../../common/Toast/Toast";
-import useSWR, { mutate } from "swr";
+import { mutate } from "swr";
 import TopicPicker from "../../common/TopicPicker/TopicPicker";
 import { DestinationTypeReference, Filter } from "../../typings/Destination";
+import { useDestinationTypes } from "../../destination-types";
 import DestinationConfigFields from "../../common/DestinationConfigFields/DestinationConfigFields";
 import FilterField from "../../common/FilterField/FilterField";
 import { FilterSyntaxGuide } from "../../common/FilterSyntaxGuide/FilterSyntaxGuide";
@@ -30,7 +31,7 @@ type Step = {
   FormFields: (props: {
     defaultValue: Record<string, any>;
     onChange: (value: Record<string, any>) => void;
-    destinations?: DestinationTypeReference[];
+    destinationTypes?: Record<string, DestinationTypeReference>;
   }) => React.ReactNode;
   action: string;
 };
@@ -96,17 +97,17 @@ const DESTINATION_TYPE_STEP: Step = {
     return true;
   },
   FormFields: ({
-    destinations,
+    destinationTypes,
     defaultValue,
     onChange,
   }: {
-    destinations?: DestinationTypeReference[];
+    destinationTypes?: Record<string, DestinationTypeReference>;
     defaultValue: Record<string, any>;
     onChange?: (value: Record<string, any>) => void;
   }) => (
     <div className="destination-types">
       <div className="destination-types__container">
-        {destinations?.map((destination) => (
+        {Object.values(destinationTypes ?? {}).map((destination) => (
           <label key={destination.type} className="destination-type-option">
             <input
               type="radio"
@@ -151,16 +152,14 @@ const CONFIGURATION_STEP: Step = {
   },
   FormFields: ({
     defaultValue,
-    destinations,
+    destinationTypes,
     onChange,
   }: {
     defaultValue: Record<string, any>;
-    destinations?: DestinationTypeReference[];
+    destinationTypes?: Record<string, DestinationTypeReference>;
     onChange?: (value: Record<string, any>) => void;
   }) => {
-    const destinationType = destinations?.find(
-      (d) => d.type === defaultValue.type,
-    );
+    const destinationType = destinationTypes?.[defaultValue.type];
     const [filter, setFilter] = useState<Filter>(defaultValue.filter || null);
     const [showFilter, setShowFilter] = useState(!!defaultValue.filter);
     const [filterValid, setFilterValid] = useState(true);
@@ -262,8 +261,8 @@ export default function CreateDestination() {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [stepValues, setStepValues] = useState<Record<string, any>>({});
   const [isCreating, setIsCreating] = useState(false);
-  const { data: destinations } =
-    useSWR<DestinationTypeReference[]>(`destination-types`);
+  const destinationTypes = useDestinationTypes();
+  const hasDestinationTypes = Object.keys(destinationTypes).length > 0;
   const [isValid, setIsValid] = useState(false);
 
   const currentStep = steps[currentStepIndex];
@@ -281,7 +280,7 @@ export default function CreateDestination() {
   const createDestination = (values: Record<string, any>) => {
     setIsCreating(true);
 
-    const destination_type = destinations?.find((d) => d.type === values.type);
+    const destination_type = destinationTypes[values.type];
 
     let topics: string[];
     if (typeof values.topics === "string") {
@@ -403,10 +402,10 @@ export default function CreateDestination() {
           }}
         >
           <div className="create-destination__step__fields">
-            {destinations ? (
+            {hasDestinationTypes ? (
               <currentStep.FormFields
                 defaultValue={stepValues}
-                destinations={destinations}
+                destinationTypes={destinationTypes}
                 onChange={(values) => {
                   setStepValues((prev) => ({ ...prev, ...values }));
                   if (currentStep.isValid) {

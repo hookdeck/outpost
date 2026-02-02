@@ -15,6 +15,7 @@ import CreateDestination from "./scenes/CreateDestination/CreateDestination";
 
 type ApiClient = {
   fetch: (path: string, init?: RequestInit) => Promise<any>;
+  fetchRoot: (path: string, init?: RequestInit) => Promise<any>;
 };
 
 // API error response from the server
@@ -96,32 +97,42 @@ function AuthenticatedApp({
   tenant: TenantResponse;
   token: string;
 }) {
+  const handleResponse = async (res: Response) => {
+    if (!res.ok) {
+      let error: ApiError;
+      try {
+        const data = await res.json();
+        error = new ApiError(
+          data.message || res.statusText,
+          data.status || res.status,
+          Array.isArray(data.data) ? data.data : undefined,
+        );
+      } catch (e) {
+        error = new ApiError(res.statusText, res.status);
+      }
+      throw error;
+    }
+    return res.json();
+  };
+
+  const makeHeaders = (init?: RequestInit) => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+    ...init?.headers,
+  });
+
   const apiClient: ApiClient = {
     fetch: (path: string, init?: RequestInit) => {
       return fetch(`/api/v1/tenants/${tenant.id}/${path}`, {
         ...init,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          ...init?.headers,
-        },
-      }).then(async (res) => {
-        if (!res.ok) {
-          let error: ApiError;
-          try {
-            const data = await res.json();
-            error = new ApiError(
-              data.message || res.statusText,
-              data.status || res.status,
-              Array.isArray(data.data) ? data.data : undefined,
-            );
-          } catch (e) {
-            error = new ApiError(res.statusText, res.status);
-          }
-          throw error;
-        }
-        return res.json();
-      });
+        headers: makeHeaders(init),
+      }).then(handleResponse);
+    },
+    fetchRoot: (path: string, init?: RequestInit) => {
+      return fetch(`/api/v1/${path}`, {
+        ...init,
+        headers: makeHeaders(init),
+      }).then(handleResponse);
     },
   };
 
