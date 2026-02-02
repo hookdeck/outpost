@@ -27,40 +27,18 @@ func miniredisFactory(t *testing.T) redis.Cmdable {
 	return testutil.CreateTestRedisClient(t)
 }
 
-// redisStackFactory creates a Redis Stack client (with RediSearch).
-func redisStackFactory(t *testing.T) redis.Cmdable {
-	testinfra.Start(t)
-	redisCfg := testinfra.NewRedisStackConfig(t)
-	client, err := redis.New(context.Background(), redisCfg)
-	if err != nil {
-		t.Fatalf("failed to create redis client: %v", err)
+// sharedFactory returns a factory that reuses a single container (via cfg),
+// creating a fresh client and flushing the DB for each sub-test.
+func sharedFactory(cfg *redis.RedisConfig) redisClientFactory {
+	return func(t *testing.T) redis.Cmdable {
+		client, err := redis.New(context.Background(), cfg)
+		if err != nil {
+			t.Fatalf("failed to create redis client: %v", err)
+		}
+		client.FlushDB(context.Background())
+		t.Cleanup(func() { client.Close() })
+		return client
 	}
-	t.Cleanup(func() { client.Close() })
-	return client
-}
-
-// dragonflyFactory creates a Dragonfly client (no RediSearch).
-func dragonflyFactory(t *testing.T) redis.Cmdable {
-	testinfra.Start(t)
-	redisCfg := testinfra.NewDragonflyConfig(t)
-	client, err := redis.New(context.Background(), redisCfg)
-	if err != nil {
-		t.Fatalf("failed to create dragonfly client: %v", err)
-	}
-	t.Cleanup(func() { client.Close() })
-	return client
-}
-
-// dragonflyStackFactory creates a Dragonfly client on DB 0 (with RediSearch).
-func dragonflyStackFactory(t *testing.T) redis.Cmdable {
-	testinfra.Start(t)
-	redisCfg := testinfra.NewDragonflyStackConfig(t)
-	client, err := redis.New(context.Background(), redisCfg)
-	if err != nil {
-		t.Fatalf("failed to create dragonfly stack client: %v", err)
-	}
-	t.Cleanup(func() { client.Close() })
-	return client
 }
 
 // redisTenantStoreHarness implements drivertest.Harness for Redis-backed stores.
@@ -150,12 +128,16 @@ func TestMiniredis_WithDeploymentID(t *testing.T) {
 
 func TestRedisStack(t *testing.T) {
 	t.Parallel()
-	drivertest.RunConformanceTests(t, newHarness(redisStackFactory, ""))
+	testinfra.Start(t)
+	cfg := testinfra.NewRedisStackConfig(t)
+	drivertest.RunConformanceTests(t, newHarness(sharedFactory(cfg), ""))
 }
 
 func TestRedisStack_WithDeploymentID(t *testing.T) {
 	t.Parallel()
-	drivertest.RunConformanceTests(t, newHarness(redisStackFactory, "dp_test_001"))
+	testinfra.Start(t)
+	cfg := testinfra.NewRedisStackConfig(t)
+	drivertest.RunConformanceTests(t, newHarness(sharedFactory(cfg), "dp_test_001"))
 }
 
 // =============================================================================
@@ -164,12 +146,16 @@ func TestRedisStack_WithDeploymentID(t *testing.T) {
 
 func TestDragonfly(t *testing.T) {
 	t.Parallel()
-	drivertest.RunConformanceTests(t, newHarness(dragonflyFactory, ""))
+	testinfra.Start(t)
+	cfg := testinfra.NewDragonflyConfig(t)
+	drivertest.RunConformanceTests(t, newHarness(sharedFactory(cfg), ""))
 }
 
 func TestDragonfly_WithDeploymentID(t *testing.T) {
 	t.Parallel()
-	drivertest.RunConformanceTests(t, newHarness(dragonflyFactory, "dp_test_001"))
+	testinfra.Start(t)
+	cfg := testinfra.NewDragonflyConfig(t)
+	drivertest.RunConformanceTests(t, newHarness(sharedFactory(cfg), "dp_test_001"))
 }
 
 // =============================================================================
@@ -178,12 +164,16 @@ func TestDragonfly_WithDeploymentID(t *testing.T) {
 
 func TestRedisStack_ListTenant(t *testing.T) {
 	t.Parallel()
-	drivertest.RunListTenantTests(t, newHarness(redisStackFactory, ""))
+	testinfra.Start(t)
+	cfg := testinfra.NewRedisStackConfig(t)
+	drivertest.RunListTenantTests(t, newHarness(sharedFactory(cfg), ""))
 }
 
 func TestRedisStack_ListTenant_WithDeploymentID(t *testing.T) {
 	t.Parallel()
-	drivertest.RunListTenantTests(t, newHarness(redisStackFactory, "dp_test_001"))
+	testinfra.Start(t)
+	cfg := testinfra.NewRedisStackConfig(t)
+	drivertest.RunListTenantTests(t, newHarness(sharedFactory(cfg), "dp_test_001"))
 }
 
 // =============================================================================
@@ -192,12 +182,16 @@ func TestRedisStack_ListTenant_WithDeploymentID(t *testing.T) {
 
 func TestDragonflyStack_ListTenant(t *testing.T) {
 	t.Parallel()
-	drivertest.RunListTenantTests(t, newHarness(dragonflyStackFactory, ""))
+	testinfra.Start(t)
+	cfg := testinfra.NewDragonflyStackConfig(t)
+	drivertest.RunListTenantTests(t, newHarness(sharedFactory(cfg), ""))
 }
 
 func TestDragonflyStack_ListTenant_WithDeploymentID(t *testing.T) {
 	t.Parallel()
-	drivertest.RunListTenantTests(t, newHarness(dragonflyStackFactory, "dp_test_001"))
+	testinfra.Start(t)
+	cfg := testinfra.NewDragonflyStackConfig(t)
+	drivertest.RunListTenantTests(t, newHarness(sharedFactory(cfg), "dp_test_001"))
 }
 
 // =============================================================================

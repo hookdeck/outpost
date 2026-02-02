@@ -1118,6 +1118,66 @@ func assertAlertMonitor(t *testing.T, m *mockAlertMonitor, success bool, destina
 	}
 }
 
+func TestManualDelivery_DuplicateRetry(t *testing.T) {
+	// Test scenario:
+	// - First manual retry for event+destination succeeds
+	// - Second manual retry for same event+destination is requested
+	// - Second retry should also execute (not be blocked by idempotency)
+	//
+	// Manual retries are explicit user actions and should always execute,
+	// even if a previous manual retry for the same event+destination already succeeded.
+
+	// Setup test data
+	tenant := models.Tenant{ID: idgen.String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+	)
+
+	// Setup mocks
+	destGetter := &mockDestinationGetter{dest: &destination}
+	retryScheduler := newMockRetryScheduler()
+	publisher := newMockPublisher([]error{nil, nil}) // Both succeed
+	logPublisher := newMockLogPublisher(nil)
+	alertMonitor := newMockAlertMonitor()
+
+	// Setup message handler with Redis for idempotency
+	redis := testutil.CreateTestRedisClient(t)
+	handler := deliverymq.NewMessageHandler(
+		testutil.CreateTestLogger(t),
+		logPublisher,
+		destGetter,
+		publisher,
+		testutil.NewMockEventTracer(nil),
+		retryScheduler,
+		&backoff.ConstantBackoff{Interval: 1 * time.Second},
+		10,
+		alertMonitor,
+		idempotence.New(redis, idempotence.WithSuccessfulTTL(24*time.Hour)),
+	)
+
+	// Step 1: First manual retry succeeds
+	task1 := models.NewManualDeliveryTask(event, destination.ID)
+	mockMsg1, msg1 := newDeliveryMockMessage(task1)
+	err := handler.Handle(context.Background(), msg1)
+	require.NoError(t, err)
+	assert.True(t, mockMsg1.acked, "first manual retry should be acked")
+	assert.Equal(t, 1, publisher.current, "first manual retry should publish")
+	require.Len(t, logPublisher.entries, 1, "first manual retry should log delivery")
+
+	// Step 2: Second manual retry for same event+destination should also execute
+	task2 := models.NewManualDeliveryTask(event, destination.ID)
+	mockMsg2, msg2 := newDeliveryMockMessage(task2)
+	err = handler.Handle(context.Background(), msg2)
+	require.NoError(t, err)
+	assert.True(t, mockMsg2.acked, "second manual retry should be acked")
+	assert.Equal(t, 2, publisher.current, "second manual retry should also publish")
+	require.Len(t, logPublisher.entries, 2, "second manual retry should also log delivery")
+}
+
 func TestMessageHandler_RetryID_MultipleDestinations(t *testing.T) {
 	// Test scenario:
 	// - One event is delivered to TWO different destinations
