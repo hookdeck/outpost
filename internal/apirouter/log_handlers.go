@@ -181,7 +181,7 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 }
 
 // ListAttempts handles GET /attempts
-// Query params: tenant_id, event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_order
+// Query params: tenant_id, event_id, destination_id, status, topic[], time[gte], time[lte], time[gt], time[lt], limit, next, prev, include, order_by, dir
 func (h *LogHandlers) ListAttempts(c *gin.Context) {
 	// Authz: JWT users can only query their own tenant's attempts
 	tenantID, ok := resolveTenantIDFilter(c)
@@ -359,7 +359,7 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 }
 
 // ListEvents handles GET /events
-// Query params: tenant_id, destination_id, topic[], start, end, limit, next, prev, sort_order
+// Query params: tenant_id, destination_id, topic[], time[gte], time[lte], time[gt], time[lt], limit, next, prev, include, order_by, dir
 func (h *LogHandlers) ListEvents(c *gin.Context) {
 	// Authz: JWT users can only query their own tenant's events
 	tenantID, ok := resolveTenantIDFilter(c)
