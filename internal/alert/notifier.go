@@ -110,6 +110,39 @@ func NewConsecutiveFailureAlert(data ConsecutiveFailureData) ConsecutiveFailureA
 	}
 }
 
+// DestinationDisabledData represents the data for a destination disabled alert
+type DestinationDisabledData struct {
+	TenantID               string            `json:"tenant_id"`
+	Destination            *AlertDestination `json:"destination"`
+	DisabledAt             time.Time         `json:"disabled_at"`
+	TriggeringEvent        *AlertedEvent     `json:"triggering_event,omitempty"`
+	ConsecutiveFailures    int               `json:"consecutive_failures"`
+	MaxConsecutiveFailures int               `json:"max_consecutive_failures"`
+	AttemptResponse        map[string]any    `json:"attempt_response"`
+}
+
+// DestinationDisabledAlert represents an alert for when a destination is auto-disabled
+type DestinationDisabledAlert struct {
+	Topic     string                  `json:"topic"`
+	Timestamp time.Time               `json:"timestamp"`
+	Data      DestinationDisabledData `json:"data"`
+}
+
+// MarshalJSON implements json.Marshaler
+func (a DestinationDisabledAlert) MarshalJSON() ([]byte, error) {
+	type Alias DestinationDisabledAlert
+	return json.Marshal(Alias(a))
+}
+
+// NewDestinationDisabledAlert creates a new destination disabled alert with defaults
+func NewDestinationDisabledAlert(data DestinationDisabledData) DestinationDisabledAlert {
+	return DestinationDisabledAlert{
+		Topic:     "alert.destination.disabled",
+		Timestamp: time.Now(),
+		Data:      data,
+	}
+}
+
 type httpAlertNotifier struct {
 	client      *http.Client
 	callbackURL string

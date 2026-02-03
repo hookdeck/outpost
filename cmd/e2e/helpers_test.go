@@ -407,6 +407,23 @@ func (s *basicSuite) waitForAlerts(destID string, count int) {
 	s.Require().FailNowf("timeout", "timed out waiting for %d alerts for %s (got %d)", count, destID, lastCount)
 }
 
+// waitForAlertsByTopic polls until at least count alerts with the specific topic exist for the destination.
+func (s *basicSuite) waitForAlertsByTopic(destID, topic string, count int) {
+	s.T().Helper()
+	timeout := alertPollTimeout
+	deadline := time.Now().Add(timeout)
+	var lastCount int
+
+	for time.Now().Before(deadline) {
+		lastCount = len(s.alertServer.GetAlertsForDestinationByTopic(destID, topic))
+		if lastCount >= count {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	s.Require().FailNowf("timeout", "timed out waiting for %d %s alerts for %s (got %d)", count, topic, destID, lastCount)
+}
+
 // =============================================================================
 // Absence assertion
 // =============================================================================
