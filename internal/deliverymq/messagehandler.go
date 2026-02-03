@@ -298,16 +298,8 @@ func (h *messageHandler) handleAlertAttempt(ctx context.Context, task *models.De
 	alertAttempt := alert.DeliveryAttempt{
 		Success:      attemptResult.Status == models.AttemptStatusSuccess,
 		DeliveryTask: task,
-		Destination: &alert.AlertDestination{
-			ID:         destination.ID,
-			TenantID:   destination.TenantID,
-			Type:       destination.Type,
-			Topics:     destination.Topics,
-			Config:     destination.Config,
-			CreatedAt:  destination.CreatedAt,
-			DisabledAt: destination.DisabledAt,
-		},
-		Timestamp: attemptResult.Time,
+		Destination:  alert.AlertDestinationFromDestination(destination),
+		Timestamp:    attemptResult.Time,
 	}
 
 	if !alertAttempt.Success && err != nil {
@@ -316,14 +308,14 @@ func (h *messageHandler) handleAlertAttempt(ctx context.Context, task *models.De
 		if errors.As(err, &atmErr) {
 			var pubErr *destregistry.ErrDestinationPublishAttempt
 			if errors.As(atmErr.err, &pubErr) {
-				alertAttempt.DeliveryResponse = pubErr.Data
+				alertAttempt.AttemptResponse = pubErr.Data
 			} else {
-				alertAttempt.DeliveryResponse = map[string]interface{}{
+				alertAttempt.AttemptResponse = map[string]interface{}{
 					"error": atmErr.err.Error(),
 				}
 			}
 		} else {
-			alertAttempt.DeliveryResponse = map[string]interface{}{
+			alertAttempt.AttemptResponse = map[string]interface{}{
 				"error":   "unexpected",
 				"message": err.Error(),
 			}

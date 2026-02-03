@@ -82,11 +82,11 @@ func WithDeploymentID(deploymentID string) AlertOption {
 
 // DeliveryAttempt represents a single delivery attempt
 type DeliveryAttempt struct {
-	Success          bool
-	DeliveryTask     *models.DeliveryTask
-	Destination      *AlertDestination
-	Timestamp        time.Time
-	DeliveryResponse map[string]interface{}
+	Success         bool
+	DeliveryTask    *models.DeliveryTask
+	Destination     *AlertDestination
+	Timestamp       time.Time
+	AttemptResponse map[string]interface{}
 }
 
 type alertMonitor struct {
@@ -154,6 +154,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 	}
 
 	alert := NewConsecutiveFailureAlert(ConsecutiveFailureData{
+		TenantID: attempt.Destination.TenantID,
 		Event: AlertedEvent{
 			ID:       attempt.DeliveryTask.Event.ID,
 			Topic:    attempt.DeliveryTask.Event.Topic,
@@ -164,7 +165,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		ConsecutiveFailures:    count,
 		WillDisable:            m.disabler != nil && level == 100,
 		Destination:            attempt.Destination,
-		DeliveryResponse:       attempt.DeliveryResponse,
+		AttemptResponse:        attempt.AttemptResponse,
 	})
 
 	// If we've hit 100% and have a disabler configured, disable the destination

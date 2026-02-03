@@ -50,23 +50,42 @@ type AlertedEvent struct {
 }
 
 type AlertDestination struct {
-	ID         string        `json:"id" redis:"id"`
-	TenantID   string        `json:"tenant_id" redis:"-"`
-	Type       string        `json:"type" redis:"type"`
-	Topics     models.Topics `json:"topics" redis:"-"`
-	Config     models.Config `json:"config" redis:"-"`
-	CreatedAt  time.Time     `json:"created_at" redis:"created_at"`
-	DisabledAt *time.Time    `json:"disabled_at" redis:"disabled_at"`
+	ID         string          `json:"id" redis:"id"`
+	TenantID   string          `json:"tenant_id" redis:"-"`
+	Type       string          `json:"type" redis:"type"`
+	Topics     models.Topics   `json:"topics" redis:"-"`
+	Filter     models.Filter   `json:"filter,omitempty" redis:"-"`
+	Config     models.Config   `json:"config" redis:"-"`
+	Metadata   models.Metadata `json:"metadata,omitempty" redis:"-"`
+	CreatedAt  time.Time       `json:"created_at" redis:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at" redis:"updated_at"`
+	DisabledAt *time.Time      `json:"disabled_at" redis:"disabled_at"`
+}
+
+func AlertDestinationFromDestination(d *models.Destination) *AlertDestination {
+	return &AlertDestination{
+		ID:         d.ID,
+		TenantID:   d.TenantID,
+		Type:       d.Type,
+		Topics:     d.Topics,
+		Filter:     d.Filter,
+		Config:     d.Config,
+		Metadata:   d.Metadata,
+		CreatedAt:  d.CreatedAt,
+		UpdatedAt:  d.UpdatedAt,
+		DisabledAt: d.DisabledAt,
+	}
 }
 
 // ConsecutiveFailureData represents the data needed for a consecutive failure alert
 type ConsecutiveFailureData struct {
+	TenantID               string                 `json:"tenant_id"`
 	Event                  AlertedEvent           `json:"event"`
 	MaxConsecutiveFailures int                    `json:"max_consecutive_failures"`
 	ConsecutiveFailures    int                    `json:"consecutive_failures"`
 	WillDisable            bool                   `json:"will_disable"`
 	Destination            *AlertDestination      `json:"destination"`
-	DeliveryResponse       map[string]interface{} `json:"delivery_response"`
+	AttemptResponse        map[string]interface{} `json:"attempt_response"`
 }
 
 // ConsecutiveFailureAlert represents an alert for consecutive failures

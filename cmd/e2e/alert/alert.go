@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"sync"
 	"time"
-
-	"github.com/hookdeck/outpost/internal/models"
 )
 
 type AlertRequest struct {
@@ -23,12 +21,37 @@ type AlertPayload struct {
 	Data      ConsecutiveFailureData `json:"data"`
 }
 
+// AlertedEvent matches internal/alert.AlertedEvent
+type AlertedEvent struct {
+	ID       string            `json:"id"`
+	Topic    string            `json:"topic"`
+	Metadata map[string]string `json:"metadata"`
+	Data     map[string]any    `json:"data"`
+}
+
+// AlertDestination matches internal/alert.AlertDestination
+type AlertDestination struct {
+	ID         string            `json:"id"`
+	TenantID   string            `json:"tenant_id"`
+	Type       string            `json:"type"`
+	Topics     []string          `json:"topics"`
+	Filter     map[string]any    `json:"filter,omitempty"`
+	Config     map[string]string `json:"config"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
+	CreatedAt  time.Time         `json:"created_at"`
+	UpdatedAt  time.Time         `json:"updated_at"`
+	DisabledAt *time.Time        `json:"disabled_at"`
+}
+
+// ConsecutiveFailureData matches internal/alert.ConsecutiveFailureData
 type ConsecutiveFailureData struct {
-	MaxConsecutiveFailures int                    `json:"max_consecutive_failures"`
-	ConsecutiveFailures    int                    `json:"consecutive_failures"`
-	WillDisable            bool                   `json:"will_disable"`
-	Destination            *models.Destination    `json:"destination"`
-	Data                   map[string]interface{} `json:"data"`
+	TenantID               string            `json:"tenant_id"`
+	Event                  AlertedEvent      `json:"event"`
+	MaxConsecutiveFailures int               `json:"max_consecutive_failures"`
+	ConsecutiveFailures    int               `json:"consecutive_failures"`
+	WillDisable            bool              `json:"will_disable"`
+	Destination            *AlertDestination `json:"destination"`
+	AttemptResponse        map[string]any    `json:"attempt_response"`
 }
 
 type AlertMockServer struct {

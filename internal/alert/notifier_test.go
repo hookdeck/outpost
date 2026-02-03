@@ -102,7 +102,7 @@ func TestAlertNotifier_Notify(t *testing.T) {
 				ConsecutiveFailures:    5,
 				WillDisable:            true,
 				Destination:            dest,
-				DeliveryResponse: map[string]interface{}{
+				AttemptResponse: map[string]interface{}{
 					"status": "error",
 					"data":   map[string]any{"code": "ETIMEDOUT"},
 				},
