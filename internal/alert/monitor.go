@@ -182,7 +182,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 			zap.String("destination_type", attempt.Destination.Type),
 		)
 
-		// Send destination disabled alert
+		// Send destination disabled alert (best-effort, don't fail on notification error)
 		if m.notifier != nil {
 			disabledAlert := NewDestinationDisabledAlert(DestinationDisabledData{
 				TenantID:    attempt.Destination.TenantID,
@@ -204,30 +204,27 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 					zap.String("tenant_id", attempt.Destination.TenantID),
 					zap.String("destination_id", attempt.Destination.ID),
 				)
-				return fmt.Errorf("failed to send destination disabled alert: %w", err)
 			}
 		}
 	}
 
-	// Send alert if notifier is configured
+	// Send alert if notifier is configured (best-effort, don't fail on notification error)
 	if m.notifier != nil {
 		if err := m.notifier.Notify(ctx, alert); err != nil {
-			m.logger.Ctx(ctx).Error("failed to send alert",
+			m.logger.Ctx(ctx).Error("failed to send consecutive failure alert",
 				zap.Error(err),
+				zap.String("event_id", attempt.DeliveryTask.Event.ID),
+				zap.String("tenant_id", attempt.Destination.TenantID),
+				zap.String("destination_id", attempt.Destination.ID),
+			)
+		} else {
+			m.logger.Ctx(ctx).Audit("alert sent",
 				zap.String("event_id", attempt.DeliveryTask.Event.ID),
 				zap.String("tenant_id", attempt.Destination.TenantID),
 				zap.String("destination_id", attempt.Destination.ID),
 				zap.String("destination_type", attempt.Destination.Type),
 			)
-			return fmt.Errorf("failed to send alert: %w", err)
 		}
-
-		m.logger.Ctx(ctx).Audit("alert sent",
-			zap.String("event_id", attempt.DeliveryTask.Event.ID),
-			zap.String("tenant_id", attempt.Destination.TenantID),
-			zap.String("destination_id", attempt.Destination.ID),
-			zap.String("destination_type", attempt.Destination.Type),
-		)
 	}
 
 	return nil
