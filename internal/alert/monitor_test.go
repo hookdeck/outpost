@@ -236,3 +236,89 @@ func TestAlertMonitor_ConsecutiveFailures_AboveThreshold(t *testing.T) {
 	}
 	require.Equal(t, 6, disableCallCount, "Should have called disable 6 times (for failures 20-25)")
 }
+
+func TestAlertMonitor_SendsDestinationDisabledAlert(t *testing.T) {
+	// This test verifies that when a destination is auto-disabled after reaching
+	// the consecutive failure threshold, a DestinationDisabledAlert is sent via
+	// the notifier with topic "alert.destination.disabled".
+	t.Parallel()
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	redisClient := testutil.CreateTestRedisClient(t)
+	notifier := &mockAlertNotifier{}
+	notifier.On("Notify", mock.Anything, mock.Anything).Return(nil)
+	disabler := &mockDestinationDisabler{}
+	disabler.On("DisableDestination", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	autoDisableCount := 5
+	monitor := alert.NewAlertMonitor(
+		logger,
+		redisClient,
+		alert.WithNotifier(notifier),
+		alert.WithDisabler(disabler),
+		alert.WithAutoDisableFailureCount(autoDisableCount),
+		alert.WithAlertThresholds([]int{100}), // Only alert at 100% to simplify test
+	)
+
+	modelsDest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID("dest_disabled_test"),
+		testutil.DestinationFactory.WithTenantID("tenant_disabled_test"),
+	)
+	dest := alert.AlertDestinationFromDestination(&modelsDest)
+	event := testutil.EventFactory.AnyPointer(
+		testutil.EventFactory.WithID("event_123"),
+		testutil.EventFactory.WithTopic("test.event"),
+	)
+	task := &models.DeliveryTask{Event: *event}
+	attemptResponse := map[string]interface{}{
+		"status": "500",
+		"data":   map[string]any{"error": "internal server error"},
+	}
+	attempt := alert.DeliveryAttempt{
+		Success:         false,
+		DeliveryTask:    task,
+		Destination:     dest,
+		AttemptResponse: attemptResponse,
+		Timestamp:       time.Now(),
+	}
+
+	// Send exactly autoDisableCount failures to trigger auto-disable
+	for i := 1; i <= autoDisableCount; i++ {
+		require.NoError(t, monitor.HandleAttempt(ctx, attempt))
+	}
+
+	// Verify destination was disabled
+	disabler.AssertCalled(t, "DisableDestination", mock.Anything, dest.TenantID, dest.ID)
+
+	// Find the DestinationDisabledAlert in the notifier calls
+	var foundDestinationDisabledAlert bool
+	var destinationDisabledAlert alert.DestinationDisabledAlert
+	for _, call := range notifier.Calls {
+		if call.Method == "Notify" {
+			alertArg := call.Arguments.Get(1)
+			if disabledAlert, ok := alertArg.(alert.DestinationDisabledAlert); ok {
+				foundDestinationDisabledAlert = true
+				destinationDisabledAlert = disabledAlert
+				break
+			}
+		}
+	}
+
+	require.True(t, foundDestinationDisabledAlert, "Expected DestinationDisabledAlert to be sent when destination is disabled")
+
+	// Verify the alert topic
+	assert.Equal(t, "alert.destination.disabled", destinationDisabledAlert.Topic, "Alert should have topic 'alert.destination.disabled'")
+
+	// Verify the alert data
+	assert.Equal(t, dest.TenantID, destinationDisabledAlert.Data.TenantID, "TenantID should match")
+	assert.Equal(t, dest, destinationDisabledAlert.Data.Destination, "Destination should match")
+	assert.False(t, destinationDisabledAlert.Data.DisabledAt.IsZero(), "DisabledAt should be set")
+	assert.Equal(t, autoDisableCount, destinationDisabledAlert.Data.ConsecutiveFailures, "ConsecutiveFailures should match threshold")
+	assert.Equal(t, autoDisableCount, destinationDisabledAlert.Data.MaxConsecutiveFailures, "MaxConsecutiveFailures should match configured value")
+	assert.Equal(t, attemptResponse, destinationDisabledAlert.Data.AttemptResponse, "AttemptResponse should match")
+
+	// Verify the triggering event is included
+	require.NotNil(t, destinationDisabledAlert.Data.TriggeringEvent, "TriggeringEvent should be set")
+	assert.Equal(t, event.ID, destinationDisabledAlert.Data.TriggeringEvent.ID, "TriggeringEvent ID should match")
+	assert.Equal(t, event.Topic, destinationDisabledAlert.Data.TriggeringEvent.Topic, "TriggeringEvent Topic should match")
+}

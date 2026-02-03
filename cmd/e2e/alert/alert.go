@@ -16,9 +16,23 @@ type AlertRequest struct {
 }
 
 type AlertPayload struct {
+	Topic     string          `json:"topic"`
+	Timestamp time.Time       `json:"timestamp"`
+	Data      json.RawMessage `json:"data"`
+}
+
+// ConsecutiveFailureAlert is a parsed alert for "alert.consecutive_failure"
+type ConsecutiveFailureAlert struct {
 	Topic     string                 `json:"topic"`
 	Timestamp time.Time              `json:"timestamp"`
 	Data      ConsecutiveFailureData `json:"data"`
+}
+
+// DestinationDisabledAlert is a parsed alert for "alert.destination.disabled"
+type DestinationDisabledAlert struct {
+	Topic     string                  `json:"topic"`
+	Timestamp time.Time               `json:"timestamp"`
+	Data      DestinationDisabledData `json:"data"`
 }
 
 // AlertedEvent matches internal/alert.AlertedEvent
@@ -51,6 +65,17 @@ type ConsecutiveFailureData struct {
 	ConsecutiveFailures    int               `json:"consecutive_failures"`
 	WillDisable            bool              `json:"will_disable"`
 	Destination            *AlertDestination `json:"destination"`
+	AttemptResponse        map[string]any    `json:"attempt_response"`
+}
+
+// DestinationDisabledData matches the expected payload for "alert.destination.disabled"
+type DestinationDisabledData struct {
+	TenantID               string            `json:"tenant_id"`
+	Destination            *AlertDestination `json:"destination"`
+	DisabledAt             time.Time         `json:"disabled_at"`
+	TriggeringEvent        *AlertedEvent     `json:"triggering_event,omitempty"`
+	ConsecutiveFailures    int               `json:"consecutive_failures"`
+	MaxConsecutiveFailures int               `json:"max_consecutive_failures"`
 	AttemptResponse        map[string]any    `json:"attempt_response"`
 }
 
@@ -140,6 +165,11 @@ func (s *AlertMockServer) handleAlert(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// alertDataWithDestination is used to extract destination from any alert type
+type alertDataWithDestination struct {
+	Destination *AlertDestination `json:"destination"`
+}
+
 // Helper methods for assertions
 func (s *AlertMockServer) GetAlertsForDestination(destinationID string) []AlertRequest {
 	s.mu.RLock()
@@ -147,7 +177,11 @@ func (s *AlertMockServer) GetAlertsForDestination(destinationID string) []AlertR
 
 	var filtered []AlertRequest
 	for _, alert := range s.alerts {
-		if alert.Alert.Data.Destination != nil && alert.Alert.Data.Destination.ID == destinationID {
+		var data alertDataWithDestination
+		if err := json.Unmarshal(alert.Alert.Data, &data); err != nil {
+			continue
+		}
+		if data.Destination != nil && data.Destination.ID == destinationID {
 			filtered = append(filtered, alert)
 		}
 	}
@@ -163,4 +197,43 @@ func (s *AlertMockServer) GetLastAlert() *AlertRequest {
 	}
 	alert := s.alerts[len(s.alerts)-1]
 	return &alert
+}
+
+// GetAlertsForDestinationByTopic returns alerts filtered by destination ID and topic
+func (s *AlertMockServer) GetAlertsForDestinationByTopic(destinationID, topic string) []AlertRequest {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var filtered []AlertRequest
+	for _, alert := range s.alerts {
+		if alert.Alert.Topic != topic {
+			continue
+		}
+		var data alertDataWithDestination
+		if err := json.Unmarshal(alert.Alert.Data, &data); err != nil {
+			continue
+		}
+		if data.Destination != nil && data.Destination.ID == destinationID {
+			filtered = append(filtered, alert)
+		}
+	}
+	return filtered
+}
+
+// ParseConsecutiveFailureData parses the Data field as ConsecutiveFailureData
+func (a *AlertRequest) ParseConsecutiveFailureData() (*ConsecutiveFailureData, error) {
+	var data ConsecutiveFailureData
+	if err := json.Unmarshal(a.Alert.Data, &data); err != nil {
+		return nil, err
+	}
+	return &data, nil
+}
+
+// ParseDestinationDisabledData parses the Data field as DestinationDisabledData
+func (a *AlertRequest) ParseDestinationDisabledData() (*DestinationDisabledData, error) {
+	var data DestinationDisabledData
+	if err := json.Unmarshal(a.Alert.Data, &data); err != nil {
+		return nil, err
+	}
+	return &data, nil
 }
