@@ -13,7 +13,7 @@ import (
 
 // DestinationDisabler handles disabling destinations
 type DestinationDisabler interface {
-	DisableDestination(ctx context.Context, tenantID, destinationID string) error
+	DisableDestination(ctx context.Context, tenantID, destinationID string) (models.Destination, error)
 }
 
 // AlertMonitor is the main interface for handling delivery attempt alerts
@@ -170,7 +170,8 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 
 	// If we've hit 100% and have a disabler configured, disable the destination
 	if level == 100 && m.disabler != nil {
-		if err := m.disabler.DisableDestination(ctx, attempt.Destination.TenantID, attempt.Destination.ID); err != nil {
+		disabledDest, err := m.disabler.DisableDestination(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
+		if err != nil {
 			return fmt.Errorf("failed to disable destination: %w", err)
 		}
 
@@ -180,6 +181,32 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 			zap.String("destination_id", attempt.Destination.ID),
 			zap.String("destination_type", attempt.Destination.Type),
 		)
+
+		// Send destination disabled alert
+		if m.notifier != nil {
+			disabledAlert := NewDestinationDisabledAlert(DestinationDisabledData{
+				TenantID:    attempt.Destination.TenantID,
+				Destination: AlertDestinationFromDestination(&disabledDest),
+				DisabledAt:  *disabledDest.DisabledAt,
+				TriggeringEvent: &AlertedEvent{
+					ID:       attempt.DeliveryTask.Event.ID,
+					Topic:    attempt.DeliveryTask.Event.Topic,
+					Metadata: attempt.DeliveryTask.Event.Metadata,
+					Data:     attempt.DeliveryTask.Event.Data,
+				},
+				ConsecutiveFailures:    count,
+				MaxConsecutiveFailures: m.autoDisableFailureCount,
+				AttemptResponse:        attempt.AttemptResponse,
+			})
+			if err := m.notifier.Notify(ctx, disabledAlert); err != nil {
+				m.logger.Ctx(ctx).Error("failed to send destination disabled alert",
+					zap.Error(err),
+					zap.String("tenant_id", attempt.Destination.TenantID),
+					zap.String("destination_id", attempt.Destination.ID),
+				)
+				return fmt.Errorf("failed to send destination disabled alert: %w", err)
+			}
+		}
 	}
 
 	// Send alert if notifier is configured
