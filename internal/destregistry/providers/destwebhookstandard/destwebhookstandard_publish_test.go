@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhookstandard"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/models"
@@ -521,11 +522,8 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		}
 	})
 
-	t.Run("should work with empty custom_headers", func(t *testing.T) {
+	t.Run("should fail CreatePublisher when custom_headers is empty object", func(t *testing.T) {
 		t.Parallel()
-
-		consumer := NewStandardWebhookConsumer()
-		defer consumer.Close()
 
 		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
 		require.NoError(t, err)
@@ -533,7 +531,7 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url":            consumer.server.URL + "/webhook",
+				"url":            "http://example.com/webhook",
 				"custom_headers": `{}`,
 			}),
 			testutil.DestinationFactory.WithCredentials(map[string]string{
@@ -541,26 +539,12 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 			}),
 		)
 
-		publisher, err := provider.CreatePublisher(context.Background(), &dest)
-		require.NoError(t, err)
-		defer publisher.Close()
-
-		event := testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
-		)
-
-		_, err = publisher.Publish(context.Background(), &event)
-		require.NoError(t, err)
-
-		select {
-		case msg := <-consumer.Consume():
-			req := msg.Raw.(*http.Request)
-			// Should still have standard headers
-			assert.NotEmpty(t, req.Header.Get("webhook-id"))
-			assert.NotEmpty(t, req.Header.Get("webhook-timestamp"))
-		case <-time.After(5 * time.Second):
-			t.Fatal("timeout waiting for message")
-		}
+		_, err = provider.CreatePublisher(context.Background(), &dest)
+		require.Error(t, err)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.custom_headers", validationErr.Errors[0].Field)
+		assert.Equal(t, "required", validationErr.Errors[0].Type)
 	})
 
 	t.Run("should work without custom_headers field", func(t *testing.T) {

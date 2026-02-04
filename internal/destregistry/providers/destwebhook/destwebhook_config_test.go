@@ -105,7 +105,7 @@ func TestWebhookDestination_CustomHeadersConfig(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("should parse config with empty custom_headers", func(t *testing.T) {
+	t.Run("should fail on empty custom_headers object", func(t *testing.T) {
 		t.Parallel()
 		destination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
@@ -119,7 +119,11 @@ func TestWebhookDestination_CustomHeadersConfig(t *testing.T) {
 		)
 
 		err := webhookDestination.Validate(context.Background(), &destination)
-		assert.NoError(t, err)
+		assert.Error(t, err)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.custom_headers", validationErr.Errors[0].Field)
+		assert.Equal(t, "invalid", validationErr.Errors[0].Type)
 	})
 
 	t.Run("should parse config without custom_headers field (backward compatibility)", func(t *testing.T) {
