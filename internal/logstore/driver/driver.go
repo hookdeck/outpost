@@ -61,9 +61,8 @@ type ListAttemptResponse struct {
 }
 
 type RetrieveEventRequest struct {
-	TenantID      string // optional - filter by tenant (if empty, searches all tenants)
-	EventID       string // required
-	DestinationID string // optional - if provided, scopes to that destination
+	TenantID string // optional - filter by tenant (if empty, searches all tenants)
+	EventID  string // required
 }
 
 type RetrieveAttemptRequest struct {

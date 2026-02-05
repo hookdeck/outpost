@@ -527,11 +527,6 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 	conditions = append(conditions, "event_id = ?")
 	args = append(args, req.EventID)
 
-	if req.DestinationID != "" {
-		conditions = append(conditions, "destination_id = ?")
-		args = append(args, req.DestinationID)
-	}
-
 	whereClause := strings.Join(conditions, " AND ")
 
 	query := fmt.Sprintf(`

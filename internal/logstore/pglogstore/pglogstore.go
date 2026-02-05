@@ -528,13 +528,6 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 
 	conditions = append(conditions, fmt.Sprintf("event_id = $%d", argNum))
 	args = append(args, req.EventID)
-	argNum++
-
-	if req.DestinationID != "" {
-		conditions = append(conditions, fmt.Sprintf("destination_id = $%d", argNum))
-		args = append(args, req.DestinationID)
-		argNum++
-	}
 
 	whereClause := strings.Join(conditions, " AND ")
 
