@@ -541,7 +541,7 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 			data
 		FROM %s
 		WHERE %s
-		LIMIT 1`, s.attemptsTable, whereClause)
+		LIMIT 1`, s.eventsTable, whereClause)
 
 	rows, err := s.chDB.Query(ctx, query, args...)
 	if err != nil {

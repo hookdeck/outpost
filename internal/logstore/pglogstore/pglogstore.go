@@ -526,24 +526,22 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 		argNum++
 	}
 
-	conditions = append(conditions, fmt.Sprintf("event_id = $%d", argNum))
+	conditions = append(conditions, fmt.Sprintf("id = $%d", argNum))
 	args = append(args, req.EventID)
 
 	whereClause := strings.Join(conditions, " AND ")
 
-	// Query from attempts table (denormalized) to get event data
-	// This handles destination filtering correctly
 	query := fmt.Sprintf(`
 		SELECT
-			event_id,
+			id,
 			tenant_id,
 			destination_id,
 			topic,
 			eligible_for_retry,
-			event_time,
-			event_metadata,
-			event_data
-		FROM attempts
+			time,
+			metadata,
+			data
+		FROM events
 		WHERE %s
 		LIMIT 1`, whereClause)
 
