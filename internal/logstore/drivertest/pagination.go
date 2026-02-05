@@ -304,7 +304,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 	})
 
 	t.Run("ListEvent_WithDestinationFilter", func(t *testing.T) {
-		// TODO: Re-enable once we implement proper destination tracking for events.
+		// TODO(list-event-destination-filter): Re-enable once we implement proper destination tracking for events.
 		t.Skip("ListEvent with DestinationIDs filter is not implemented")
 
 		var tenantID, targetDestID, otherDestID, idPrefix string

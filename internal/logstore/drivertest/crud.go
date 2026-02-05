@@ -164,7 +164,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		})
 
 		t.Run("ListEvent by destination", func(t *testing.T) {
-			// TODO: Re-enable once we implement proper destination tracking for events.
+			// TODO(list-event-destination-filter): Re-enable once we implement proper destination tracking for events.
 			t.Skip("ListEvent with DestinationIDs filter is not implemented")
 
 			destID := destinationIDs[0]
@@ -182,7 +182,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		})
 
 		t.Run("ListEvent by multiple destinations", func(t *testing.T) {
-			// TODO: Re-enable once we implement proper destination tracking for events.
+			// TODO(list-event-destination-filter): Re-enable once we implement proper destination tracking for events.
 			t.Skip("ListEvent with DestinationIDs filter is not implemented")
 
 			destIDs := []string{destinationIDs[0], destinationIDs[1]}

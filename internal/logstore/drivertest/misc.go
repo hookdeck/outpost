@@ -125,7 +125,7 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		t.Run("ListEvent returns all tenants when TenantID empty", func(t *testing.T) {
 			// ListEvent with DestinationIDs filter returns unimplemented error.
 			// Events are destination-agnostic; use ListAttempt for destination filtering.
-			// TODO: Re-enable once we implement proper destination tracking for events.
+			// TODO(list-event-destination-filter): Re-enable once we implement proper destination tracking for events.
 			t.Skip("ListEvent with DestinationIDs filter is not implemented")
 
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
@@ -427,7 +427,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		// return events that have attempts to those destinations.
 		//
 		// ListEvent with DestinationIDs filter returns unimplemented error.
-		// TODO: Re-enable once we implement proper destination tracking for events.
+		// TODO(list-event-destination-filter): Re-enable once we implement proper destination tracking for events.
 		t.Skip("ListEvent with DestinationIDs filter is not implemented")
 
 		tenantID := idgen.String()
