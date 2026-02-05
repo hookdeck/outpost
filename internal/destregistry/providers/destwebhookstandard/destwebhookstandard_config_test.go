@@ -52,7 +52,7 @@ func TestStandardWebhookDestination_CustomHeadersConfig(t *testing.T) {
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.custom_headers", validationErr.Errors[0].Field)
-		assert.Equal(t, "required", validationErr.Errors[0].Type)
+		assert.Equal(t, "invalid", validationErr.Errors[0].Type)
 	})
 
 	t.Run("should parse config without custom_headers field (backward compatibility)", func(t *testing.T) {

@@ -544,7 +544,7 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.custom_headers", validationErr.Errors[0].Field)
-		assert.Equal(t, "required", validationErr.Errors[0].Type)
+		assert.Equal(t, "invalid", validationErr.Errors[0].Type)
 	})
 
 	t.Run("should work without custom_headers field", func(t *testing.T) {
