@@ -410,6 +410,69 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		require.NoError(t, err)
 		require.Len(t, response.Data, 1, "concurrent duplicate inserts should result in exactly 1 record")
 	})
+
+	t.Run("ListEvent_DestinationFilter", func(t *testing.T) {
+		// The event.destination_id field is confusing because it represents the
+		// publish input (explicit destination targeting), NOT the destinations
+		// that matched via routing rules.
+		//
+		// This test ensures we have coverage for the case where an event is
+		// published without a destination_id (topic-based routing) and delivered
+		// to multiple destinations. ListEvent with DestinationIDs filter should
+		// return events that have attempts to those destinations.
+
+		tenantID := idgen.String()
+		destA := idgen.Destination()
+		destB := idgen.Destination()
+		baseTime := time.Now().Truncate(time.Second)
+
+		// Event published WITHOUT destination_id (topic-based routing)
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(""), // empty, topic-based routing
+			testutil.EventFactory.WithTime(baseTime),
+		)
+
+		// Routing matched both dest-A and dest-B
+		attemptA := testutil.AttemptFactory.AnyPointer(
+			testutil.AttemptFactory.WithTenantID(tenantID),
+			testutil.AttemptFactory.WithEventID(event.ID),
+			testutil.AttemptFactory.WithDestinationID(destA),
+			testutil.AttemptFactory.WithTime(baseTime.Add(time.Millisecond)),
+		)
+		attemptB := testutil.AttemptFactory.AnyPointer(
+			testutil.AttemptFactory.WithTenantID(tenantID),
+			testutil.AttemptFactory.WithEventID(event.ID),
+			testutil.AttemptFactory.WithDestinationID(destB),
+			testutil.AttemptFactory.WithTime(baseTime.Add(2*time.Millisecond)),
+		)
+
+		err := logStore.InsertMany(ctx, []*models.LogEntry{
+			{Event: event, Attempt: attemptA},
+			{Event: event, Attempt: attemptB},
+		})
+		require.NoError(t, err)
+		require.NoError(t, h.FlushWrites(ctx))
+
+		// ListAttempt correctly finds attempts for dest-A
+		attemptRes, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+			TenantID:       tenantID,
+			DestinationIDs: []string{destA},
+			Limit:          10,
+		})
+		require.NoError(t, err)
+		require.Len(t, attemptRes.Data, 1, "ListAttempt should find the attempt to dest-A")
+
+		eventRes, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:       tenantID,
+			DestinationIDs: []string{destA},
+			Limit:          10,
+		})
+		require.NoError(t, err)
+
+		assert.Len(t, eventRes.Data, 1,
+			"ListEvent with DestinationIDs filter should return events that have attempts to that destination")
+	})
 }
 
 func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.LogStore, h Harness) {
