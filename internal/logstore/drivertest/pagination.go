@@ -10,6 +10,7 @@ import (
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/pagination/paginationtest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -284,7 +285,28 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 		suite.Run(t)
 	})
 
+	// ListEvent with DestinationIDs filter returns unimplemented error.
+	// Events are destination-agnostic. The destination_id on events represents the
+	// publish input, not matched destinations. To filter by destination, use
+	// ListAttempt which queries actual delivery attempts.
+	t.Run("ListEvent_WithDestinationFilter_ReturnsError", func(t *testing.T) {
+		tenantID := idgen.String()
+		destID := idgen.Destination()
+
+		_, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantID:       tenantID,
+			DestinationIDs: []string{destID},
+			Limit:          10,
+			TimeFilter:     driver.TimeFilter{GTE: &farPast},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not implemented")
+	})
+
 	t.Run("ListEvent_WithDestinationFilter", func(t *testing.T) {
+		// TODO: Re-enable once we implement proper destination tracking for events.
+		t.Skip("ListEvent with DestinationIDs filter is not implemented")
+
 		var tenantID, targetDestID, otherDestID, idPrefix string
 
 		suite := paginationtest.Suite[*models.Event]{
