@@ -46,19 +46,19 @@ const Attempts: React.FC<AttemptsProps> = ({
     switch (timeRange) {
       case "7d":
         searchParams.set(
-          "start",
+          "time[gte]",
           new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(),
         );
         break;
       case "30d":
         searchParams.set(
-          "start",
+          "time[gte]",
           new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(),
         );
         break;
       default: // 24h
         searchParams.set(
-          "start",
+          "time[gte]",
           new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
         );
     }
