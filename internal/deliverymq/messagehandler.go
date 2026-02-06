@@ -356,7 +356,8 @@ func (h *messageHandler) shouldScheduleRetry(task models.DeliveryTask, err error
 	if !task.Event.EligibleForRetry {
 		return false
 	}
-	if _, ok := err.(*destregistry.ErrDestinationPublishAttempt); !ok {
+	var pubErr *destregistry.ErrDestinationPublishAttempt
+	if !errors.As(err, &pubErr) {
 		return false
 	}
 	// Attempt starts at 0 for initial attempt, so we can compare directly
@@ -401,7 +402,8 @@ func (h *messageHandler) shouldNackError(err error) bool {
 
 func (h *messageHandler) shouldNackDeliveryError(err error) bool {
 	// Don't nack if it's a delivery attempt error (handled by retry scheduling)
-	if _, ok := err.(*destregistry.ErrDestinationPublishAttempt); ok {
+	var pubErr *destregistry.ErrDestinationPublishAttempt
+	if errors.As(err, &pubErr) {
 		return false
 	}
 	return true // Nack other delivery errors
