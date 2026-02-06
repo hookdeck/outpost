@@ -53,22 +53,15 @@ func (s *basicSuite) TestAlerts_ConsecutiveFailuresTriggerAlertCallback() {
 		s.NotNil(data.Event.Data, "alert event should have data")
 
 		// ConsecutiveFailures assertions
-		s.Equal(expectedCounts[i], data.ConsecutiveFailures,
+		s.Equal(expectedCounts[i], data.ConsecutiveFailures.Current,
 			"alert %d should have %d consecutive failures", i, expectedCounts[i])
-		s.Equal(20, data.MaxConsecutiveFailures, "max consecutive failures should be 20")
-
-		// WillDisable assertion (should be true for last alert only)
-		if i == len(alerts)-1 {
-			s.True(data.WillDisable, "last alert should have will_disable=true")
-		}
+		s.Equal(20, data.ConsecutiveFailures.Max, "max consecutive failures should be 20")
+		s.Greater(data.ConsecutiveFailures.Threshold, 0, "threshold should be > 0")
 
 		// Attempt assertion
 		s.Require().NotNil(data.Attempt, "alert should have attempt")
 		s.NotEmpty(data.Attempt.ID, "attempt should have ID")
 		s.NotEmpty(data.Attempt.Status, "attempt should have status")
-
-		// Progress assertion
-		s.Greater(data.Progress, 0, "progress should be > 0")
 	}
 }
 
@@ -141,19 +134,15 @@ func (s *basicSuite) TestAlerts_SuccessResetsConsecutiveFailureCounter() {
 		s.NotNil(data.Event.Data, "alert event should have data")
 
 		// ConsecutiveFailures assertions
-		s.Equal(expectedCounts[i], data.ConsecutiveFailures,
+		s.Equal(expectedCounts[i], data.ConsecutiveFailures.Current,
 			"alert %d should have %d consecutive failures", i, expectedCounts[i])
-		s.Equal(20, data.MaxConsecutiveFailures, "max consecutive failures should be 20")
-
-		// WillDisable assertion (none should have will_disable=true since counter resets)
-		s.False(data.WillDisable, "alert %d should have will_disable=false (counter resets)", i)
+		s.Equal(20, data.ConsecutiveFailures.Max, "max consecutive failures should be 20")
+		s.Greater(data.ConsecutiveFailures.Threshold, 0, "threshold should be > 0")
+		s.Less(data.ConsecutiveFailures.Threshold, 100, "threshold should be < 100 (counter resets)")
 
 		// Attempt assertion
 		s.Require().NotNil(data.Attempt, "alert should have attempt")
 		s.NotEmpty(data.Attempt.ID, "attempt should have ID")
-
-		// Progress assertion
-		s.Greater(data.Progress, 0, "progress should be > 0")
 	}
 }
 
@@ -216,10 +205,6 @@ func (s *basicSuite) TestAlerts_DestinationDisabledCallback() {
 		s.NotEmpty(data.Attempt.Status, "attempt should have status")
 	}
 
-	// ConsecutiveFailures assertions
-	s.Equal(20, data.ConsecutiveFailures, "consecutive_failures should be 20")
-	s.Equal(20, data.MaxConsecutiveFailures, "max_consecutive_failures should be 20")
-
-	// Progress assertion
-	s.Equal(100, data.Progress, "progress should be 100 for disabled destination")
+	// Reason assertion
+	s.Equal("consecutive_failure", data.Reason, "reason should be consecutive_failure")
 }

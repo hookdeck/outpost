@@ -346,9 +346,7 @@ func TestAlertMonitor_SendsDestinationDisabledAlert(t *testing.T) {
 	// Verify the alert's DisabledAt matches the destination's DisabledAt exactly
 	assert.Equal(t, disabledAt, destinationDisabledAlert.Data.DisabledAt, "Alert DisabledAt should match destination's DisabledAt exactly")
 	assert.Equal(t, disabledAt, *destinationDisabledAlert.Data.Destination.DisabledAt, "Alert Destination.DisabledAt should match destination's DisabledAt exactly")
-	assert.Equal(t, autoDisableCount, destinationDisabledAlert.Data.ConsecutiveFailures.Current, "ConsecutiveFailures.Current should match threshold")
-	assert.Equal(t, autoDisableCount, destinationDisabledAlert.Data.ConsecutiveFailures.Max, "ConsecutiveFailures.Max should match configured value")
-	assert.Equal(t, 100, destinationDisabledAlert.Data.ConsecutiveFailures.Threshold, "ConsecutiveFailures.Threshold should be 100")
+	assert.Equal(t, "consecutive_failure", destinationDisabledAlert.Data.Reason, "Reason should be consecutive_failure")
 
 	// Verify the attempt is included
 	require.NotNil(t, destinationDisabledAlert.Data.Attempt, "Attempt should be set")

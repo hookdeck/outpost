@@ -102,12 +102,12 @@ func NewConsecutiveFailureAlert(data ConsecutiveFailureData) ConsecutiveFailureA
 
 // DestinationDisabledData represents the data for a destination disabled alert
 type DestinationDisabledData struct {
-	TenantID            string              `json:"tenant_id"`
-	Destination         *AlertDestination   `json:"destination"`
-	DisabledAt          time.Time           `json:"disabled_at"`
-	Attempt             *models.Attempt     `json:"attempt,omitempty"`
-	Event               *models.Event       `json:"event,omitempty"`
-	ConsecutiveFailures ConsecutiveFailures `json:"consecutive_failures"`
+	TenantID    string            `json:"tenant_id"`
+	Destination *AlertDestination `json:"destination"`
+	DisabledAt  time.Time         `json:"disabled_at"`
+	Reason      string            `json:"reason"`
+	Attempt     *models.Attempt   `json:"attempt,omitempty"`
+	Event       *models.Event     `json:"event,omitempty"`
 }
 
 // DestinationDisabledAlert represents an alert for when a destination is auto-disabled
