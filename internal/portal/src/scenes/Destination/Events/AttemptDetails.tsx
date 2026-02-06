@@ -87,7 +87,7 @@ const AttemptDetails = ({
               <div>
                 <dt>Delivered at</dt>
                 <dd className="mono-s time">
-                  {new Date(attempt.delivered_at).toLocaleString("en-US", {
+                  {new Date(attempt.time).toLocaleString("en-US", {
                     year: "numeric",
                     month: "numeric",
                     day: "numeric",

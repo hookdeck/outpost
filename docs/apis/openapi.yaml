@@ -1735,6 +1735,10 @@ components:
         id:
           type: string
           example: "evt_123"
+        tenant_id:
+          type: string
+          description: The tenant this event belongs to.
+          example: "tnt_123"
         destination_id:
           type: string
           example: "des_456"
@@ -1768,29 +1772,6 @@ components:
           description: Freeform JSON data of the event.
           additionalProperties: true
           example: { "user_id": "userid", "status": "active" }
-    DeliveryAttempt:
-      type: object
-      properties:
-        delivered_at:
-          type: string
-          format: date-time
-          example: "2024-01-01T00:00:00Z"
-        status:
-          type: string
-          enum: [success, failed]
-          example: "success"
-        response_status_code:
-          type: integer
-          example: 200
-        response_body:
-          type: string # Or potentially object if JSON
-          example: '{"status":"ok"}'
-        response_headers:
-          type: object
-          additionalProperties:
-            type: string
-          example: { "content-type": "application/json" }
-
     # Attempt schemas for attempts-first API
     Attempt:
       type: object
@@ -1800,12 +1781,16 @@ components:
           type: string
           description: Unique identifier for this attempt.
           example: "atm_123"
+        tenant_id:
+          type: string
+          description: The tenant this attempt belongs to.
+          example: "tnt_123"
         status:
           type: string
           enum: [success, failed]
           description: The attempt status.
           example: "success"
-        delivered_at:
+        time:
           type: string
           format: date-time
           description: Time the attempt was made.
@@ -1847,6 +1832,14 @@ components:
         id:
           type: string
           example: "evt_123"
+        tenant_id:
+          type: string
+          description: The tenant this event belongs to.
+          example: "tnt_123"
+        destination_id:
+          type: string
+          description: The destination this event was delivered to.
+          example: "des_456"
         topic:
           type: string
           example: "user.created"
@@ -1872,6 +1865,14 @@ components:
         id:
           type: string
           example: "evt_123"
+        tenant_id:
+          type: string
+          description: The tenant this event belongs to.
+          example: "tnt_123"
+        destination_id:
+          type: string
+          description: The destination this event was delivered to.
+          example: "des_456"
         topic:
           type: string
           example: "user.created"
@@ -2058,7 +2059,7 @@ tags:
       Each attempt contains:
       - `id`: Unique attempt identifier
       - `status`: success or failed
-      - `delivered_at`: Timestamp of the attempt
+      - `time`: Timestamp of the attempt
       - `code`: HTTP status code or error code
       - `attempt`: Attempt number (1 for first attempt, 2+ for retries)
       - `event`: Associated event (ID or included object)
@@ -2640,14 +2641,14 @@ paths:
                     models:
                       - id: "atm_123"
                         status: "success"
-                        delivered_at: "2024-01-01T00:00:05Z"
+                        time: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
                         event_id: "evt_123"
                         destination_id: "des_456"
                       - id: "att_124"
                         status: "failed"
-                        delivered_at: "2024-01-02T10:00:01Z"
+                        time: "2024-01-02T10:00:01Z"
                         code: "503"
                         attempt_number: 2
                         event_id: "evt_789"
@@ -2664,7 +2665,7 @@ paths:
                     models:
                       - id: "del_123"
                         status: "success"
-                        delivered_at: "2024-01-01T00:00:05Z"
+                        time: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
                         event_id: "evt_123"
@@ -2734,7 +2735,7 @@ paths:
                   value:
                     id: "atm_123"
                     status: "success"
-                    delivered_at: "2024-01-01T00:00:05Z"
+                    time: "2024-01-01T00:00:05Z"
                     code: "200"
                     attempt_number: 1
                     event_id: "evt_123"
@@ -2744,7 +2745,7 @@ paths:
                   value:
                     id: "atm_123"
                     status: "success"
-                    delivered_at: "2024-01-01T00:00:05Z"
+                    time: "2024-01-01T00:00:05Z"
                     code: "200"
                     response_data:
                       status_code: 200
@@ -3271,14 +3272,14 @@ paths:
                     models:
                       - id: "atm_123"
                         status: "success"
-                        delivered_at: "2024-01-01T00:00:05Z"
+                        time: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
                         event_id: "evt_123"
                         destination_id: "des_456"
                       - id: "atm_124"
                         status: "failed"
-                        delivered_at: "2024-01-02T10:00:01Z"
+                        time: "2024-01-02T10:00:01Z"
                         code: "503"
                         attempt_number: 2
                         event_id: "evt_789"
@@ -3350,7 +3351,7 @@ paths:
                   value:
                     id: "atm_123"
                     status: "success"
-                    delivered_at: "2024-01-01T00:00:05Z"
+                    time: "2024-01-01T00:00:05Z"
                     code: "200"
                     attempt_number: 1
                     event_id: "evt_123"

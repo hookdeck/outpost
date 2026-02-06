@@ -90,7 +90,7 @@ const Attempts: React.FC<AttemptsProps> = ({
           active: attempt.id === (attemptId || ""),
           entries: [
             <span className="mono-s attempt-time-cell">
-              {new Date(attempt.delivered_at).toLocaleString("en-US", {
+              {new Date(attempt.time).toLocaleString("en-US", {
                 month: "short",
                 day: "numeric",
                 hour: "numeric",
