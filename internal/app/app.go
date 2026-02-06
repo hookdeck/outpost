@@ -9,10 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/logging"
+	"github.com/hookdeck/outpost/internal/logretention"
 	"github.com/hookdeck/outpost/internal/otel"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/services"
@@ -73,6 +75,10 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 	}
 
 	if err := a.initializeRedis(ctx); err != nil {
+		return err
+	}
+
+	if err := a.applyLogRetentionTTL(ctx); err != nil {
 		return err
 	}
 
@@ -256,4 +262,22 @@ func (a *App) buildServices(ctx context.Context) error {
 	a.builder = builder
 	a.supervisor = supervisor
 	return nil
+}
+
+func (a *App) applyLogRetentionTTL(ctx context.Context) error {
+	// Skip if ClickHouse not configured
+	if a.config.ClickHouse.Addr == "" {
+		return nil
+	}
+
+	a.logger.Debug("applying log retention TTL")
+
+	chConn, err := clickhouse.New(a.config.ClickHouse.ToConfig())
+	if err != nil {
+		a.logger.Error("failed to connect to ClickHouse for TTL management", zap.Error(err))
+		return err
+	}
+	defer chConn.Close()
+
+	return logretention.Apply(ctx, a.redisClient, chConn, a.config.DeploymentID, a.config.ClickHouseLogRetentionTTLDays, a.logger)
 }
