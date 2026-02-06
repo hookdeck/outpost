@@ -86,8 +86,9 @@ func parseIncludeOptions(c *gin.Context) IncludeOptions {
 // APIAttempt is the API response for an attempt
 type APIAttempt struct {
 	ID            string                 `json:"id"`
+	TenantID      string                 `json:"tenant_id"`
 	Status        string                 `json:"status"`
-	DeliveredAt   time.Time              `json:"delivered_at"`
+	Time          time.Time              `json:"time"`
 	Code          string                 `json:"code,omitempty"`
 	ResponseData  map[string]interface{} `json:"response_data,omitempty"`
 	AttemptNumber int                    `json:"attempt_number"`
@@ -101,6 +102,8 @@ type APIAttempt struct {
 // APIEventSummary is the event object when expand=event (without data)
 type APIEventSummary struct {
 	ID               string            `json:"id"`
+	TenantID         string            `json:"tenant_id"`
+	DestinationID    string            `json:"destination_id"`
 	Topic            string            `json:"topic"`
 	Time             time.Time         `json:"time"`
 	EligibleForRetry bool              `json:"eligible_for_retry"`
@@ -110,6 +113,8 @@ type APIEventSummary struct {
 // APIEventFull is the event object when expand=event.data
 type APIEventFull struct {
 	ID               string                 `json:"id"`
+	TenantID         string                 `json:"tenant_id"`
+	DestinationID    string                 `json:"destination_id"`
 	Topic            string                 `json:"topic"`
 	Time             time.Time              `json:"time"`
 	EligibleForRetry bool                   `json:"eligible_for_retry"`
@@ -120,6 +125,8 @@ type APIEventFull struct {
 // APIEvent is the API response for retrieving a single event
 type APIEvent struct {
 	ID               string                 `json:"id"`
+	TenantID         string                 `json:"tenant_id"`
+	DestinationID    string                 `json:"destination_id"`
 	Topic            string                 `json:"topic"`
 	Time             time.Time              `json:"time"`
 	EligibleForRetry bool                   `json:"eligible_for_retry"`
@@ -143,8 +150,9 @@ type EventPaginatedResult struct {
 func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 	api := APIAttempt{
 		ID:            ar.Attempt.ID,
+		TenantID:      ar.Attempt.TenantID,
 		Status:        ar.Attempt.Status,
-		DeliveredAt:   ar.Attempt.Time,
+		Time:          ar.Attempt.Time,
 		Code:          ar.Attempt.Code,
 		AttemptNumber: ar.Attempt.AttemptNumber,
 		Manual:        ar.Attempt.Manual,
@@ -160,6 +168,8 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 		if opts.EventData {
 			api.Event = APIEventFull{
 				ID:               ar.Event.ID,
+				TenantID:         ar.Event.TenantID,
+				DestinationID:    ar.Event.DestinationID,
 				Topic:            ar.Event.Topic,
 				Time:             ar.Event.Time,
 				EligibleForRetry: ar.Event.EligibleForRetry,
@@ -169,6 +179,8 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 		} else if opts.Event {
 			api.Event = APIEventSummary{
 				ID:               ar.Event.ID,
+				TenantID:         ar.Event.TenantID,
+				DestinationID:    ar.Event.DestinationID,
 				Topic:            ar.Event.Topic,
 				Time:             ar.Event.Time,
 				EligibleForRetry: ar.Event.EligibleForRetry,
@@ -314,6 +326,8 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, APIEvent{
 		ID:               event.ID,
+		TenantID:         event.TenantID,
+		DestinationID:    event.DestinationID,
 		Topic:            event.Topic,
 		Time:             event.Time,
 		EligibleForRetry: event.EligibleForRetry,
@@ -443,6 +457,8 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 	for i, e := range response.Data {
 		apiEvents[i] = APIEvent{
 			ID:               e.ID,
+			TenantID:         e.TenantID,
+			DestinationID:    e.DestinationID,
 			Topic:            e.Topic,
 			Time:             e.Time,
 			EligibleForRetry: e.EligibleForRetry,

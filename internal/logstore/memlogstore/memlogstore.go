@@ -357,9 +357,6 @@ func (s *memLogStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEven
 	if req.TenantID != "" && event.TenantID != req.TenantID {
 		return nil, nil
 	}
-	if req.DestinationID != "" && event.DestinationID != req.DestinationID {
-		return nil, nil
-	}
 	return copyEvent(event), nil
 }
 

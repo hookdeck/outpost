@@ -1,6 +1,8 @@
 // Event is stateless - represents the original event without delivery status
 interface Event {
   id: string;
+  tenant_id: string;
+  destination_id: string;
   topic: string;
   time: string;
   eligible_for_retry: boolean;
@@ -11,6 +13,8 @@ interface Event {
 // EventSummary is the event object when expand=event (without data)
 interface EventSummary {
   id: string;
+  tenant_id: string;
+  destination_id: string;
   topic: string;
   time: string;
   eligible_for_retry: boolean;
@@ -25,10 +29,11 @@ interface EventFull extends EventSummary {
 // Attempt represents a delivery attempt for an event to a destination
 interface Attempt {
   id: string;
+  tenant_id: string;
   event_id: string;
   destination_id: string;
   status: "success" | "failed";
-  delivered_at: string;
+  time: string;
   code?: string;
   response_data?: Record<string, unknown>;
   attempt_number: number;

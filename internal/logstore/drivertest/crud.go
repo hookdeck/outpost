@@ -296,17 +296,6 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			assert.Equal(t, tenantID, retrieved.TenantID)
 		})
 
-		t.Run("RetrieveEvent with destination filter", func(t *testing.T) {
-			retrieved, err := logStore.RetrieveEvent(ctx, driver.RetrieveEventRequest{
-				TenantID:      tenantID,
-				EventID:       knownEventID,
-				DestinationID: destinationIDs[0],
-			})
-			require.NoError(t, err)
-			require.NotNil(t, retrieved)
-			assert.Equal(t, destinationIDs[0], retrieved.DestinationID)
-		})
-
 		t.Run("RetrieveEvent non-existent returns nil", func(t *testing.T) {
 			retrieved, err := logStore.RetrieveEvent(ctx, driver.RetrieveEventRequest{
 				TenantID: tenantID,

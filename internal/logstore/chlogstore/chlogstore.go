@@ -2,7 +2,9 @@ package chlogstore
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -527,11 +529,6 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 	conditions = append(conditions, "event_id = ?")
 	args = append(args, req.EventID)
 
-	if req.DestinationID != "" {
-		conditions = append(conditions, "destination_id = ?")
-		args = append(args, req.DestinationID)
-	}
-
 	whereClause := strings.Join(conditions, " AND ")
 
 	query := fmt.Sprintf(`
@@ -546,22 +543,14 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 			data
 		FROM %s
 		WHERE %s
-		LIMIT 1`, s.attemptsTable, whereClause)
+		LIMIT 1`, s.eventsTable, whereClause)
 
-	rows, err := s.chDB.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-	defer rows.Close()
-
-	if !rows.Next() {
-		return nil, nil
-	}
+	row := s.chDB.QueryRow(ctx, query, args...)
 
 	var metadataStr, dataStr string
 	event := &models.Event{}
 
-	if err := rows.Scan(
+	if err := row.Scan(
 		&event.ID,
 		&event.TenantID,
 		&event.DestinationID,
@@ -571,6 +560,9 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 		&metadataStr,
 		&dataStr,
 	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("scan failed: %w", err)
 	}
 
@@ -623,15 +615,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 		WHERE %s
 		LIMIT 1`, s.attemptsTable, whereClause)
 
-	rows, err := s.chDB.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-	defer rows.Close()
-
-	if !rows.Next() {
-		return nil, nil
-	}
+	row := s.chDB.QueryRow(ctx, query, args...)
 
 	var (
 		eventID          string
@@ -651,7 +635,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 		attemptNumber    uint32
 	)
 
-	err = rows.Scan(
+	err := row.Scan(
 		&eventID,
 		&tenantID,
 		&destinationID,
@@ -669,6 +653,9 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 		&attemptNumber,
 	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("scan failed: %w", err)
 	}
 
