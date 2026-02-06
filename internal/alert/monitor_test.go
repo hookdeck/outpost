@@ -303,13 +303,11 @@ func TestAlertMonitor_SendsDestinationDisabledAlert(t *testing.T) {
 		testutil.EventFactory.WithID("event_123"),
 		testutil.EventFactory.WithTopic("test.event"),
 	)
-	testAttempt := &models.Attempt{
-		ID:           "attempt_disabled",
-		Status:       "failed",
-		Code:         "500",
-		ResponseData: map[string]interface{}{"error": "internal server error"},
-		Time:         time.Now(),
-	}
+	testAttempt := testutil.AttemptFactory.AnyPointer(
+		testutil.AttemptFactory.WithID("attempt_disabled"),
+		testutil.AttemptFactory.WithStatus("failed"),
+		testutil.AttemptFactory.WithCode("500"),
+	)
 	attempt := alert.DeliveryAttempt{
 		Event:       event,
 		Destination: dest,
