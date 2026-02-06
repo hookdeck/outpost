@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/hookdeck/outpost/internal/models"
 )
 
 type AlertRequest struct {
@@ -35,14 +37,6 @@ type DestinationDisabledAlert struct {
 	Data      DestinationDisabledData `json:"data"`
 }
 
-// AlertedEvent matches internal/alert.AlertedEvent
-type AlertedEvent struct {
-	ID       string            `json:"id"`
-	Topic    string            `json:"topic"`
-	Metadata map[string]string `json:"metadata"`
-	Data     map[string]any    `json:"data"`
-}
-
 // AlertDestination matches internal/alert.AlertDestination
 type AlertDestination struct {
 	ID         string            `json:"id"`
@@ -60,12 +54,13 @@ type AlertDestination struct {
 // ConsecutiveFailureData matches internal/alert.ConsecutiveFailureData
 type ConsecutiveFailureData struct {
 	TenantID               string            `json:"tenant_id"`
-	Event                  AlertedEvent      `json:"event"`
-	MaxConsecutiveFailures int               `json:"max_consecutive_failures"`
-	ConsecutiveFailures    int               `json:"consecutive_failures"`
-	WillDisable            bool              `json:"will_disable"`
+	Attempt                *models.Attempt   `json:"attempt"`
+	Event                  *models.Event     `json:"event"`
 	Destination            *AlertDestination `json:"destination"`
-	AttemptResponse        map[string]any    `json:"attempt_response"`
+	ConsecutiveFailures    int               `json:"consecutive_failures"`
+	MaxConsecutiveFailures int               `json:"max_consecutive_failures"`
+	Progress               int               `json:"progress"`
+	WillDisable            bool              `json:"will_disable"`
 }
 
 // DestinationDisabledData matches the expected payload for "alert.destination.disabled"
@@ -73,10 +68,11 @@ type DestinationDisabledData struct {
 	TenantID               string            `json:"tenant_id"`
 	Destination            *AlertDestination `json:"destination"`
 	DisabledAt             time.Time         `json:"disabled_at"`
-	TriggeringEvent        *AlertedEvent     `json:"triggering_event,omitempty"`
+	Attempt                *models.Attempt   `json:"attempt,omitempty"`
+	Event                  *models.Event     `json:"event,omitempty"`
 	ConsecutiveFailures    int               `json:"consecutive_failures"`
 	MaxConsecutiveFailures int               `json:"max_consecutive_failures"`
-	AttemptResponse        map[string]any    `json:"attempt_response"`
+	Progress               int               `json:"progress"`
 }
 
 type AlertMockServer struct {

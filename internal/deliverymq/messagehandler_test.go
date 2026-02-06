@@ -258,7 +258,7 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 		"should use GetRetryID for task ID")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
 	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
-	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
+	assertAlertMonitor(t, alertMonitor, false, &destination)
 }
 
 func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
@@ -326,7 +326,7 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 	assert.Equal(t, 1, publisher.current, "should only attempt once")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
 	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
-	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
+	assertAlertMonitor(t, alertMonitor, false, &destination)
 }
 
 func TestMessageHandler_RetryFlow(t *testing.T) {
@@ -833,7 +833,7 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	assert.Empty(t, retryScheduler.schedules, "should not schedule retry for manual delivery")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
 	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
-	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
+	assertAlertMonitor(t, alertMonitor, false, &destination)
 }
 
 func TestManualDelivery_CancelError(t *testing.T) {
@@ -896,7 +896,7 @@ func TestManualDelivery_CancelError(t *testing.T) {
 	assert.Equal(t, models.RetryID(task.Event.ID, task.DestinationID), retryScheduler.canceled[0], "should cancel with correct retry ID")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
 	assert.Equal(t, models.AttemptStatusSuccess, logPublisher.entries[0].Attempt.Status, "delivery status should be OK despite cancel error")
-	assertAlertMonitor(t, alertMonitor, true, &destination, nil)
+	assertAlertMonitor(t, alertMonitor, true, &destination)
 }
 
 func TestManualDelivery_DestinationDisabled(t *testing.T) {
@@ -986,10 +986,10 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 
 	// Setup alert monitor expectations
 	alertMonitor.On("HandleAttempt", mock.Anything, mock.MatchedBy(func(attempt alert.DeliveryAttempt) bool {
-		return attempt.Success && // Should be a successful attempt
-			attempt.Destination.ID == destination.ID && // Should have correct destination
-			attempt.DeliveryTask != nil && // Should have delivery task
-			attempt.AttemptResponse == nil // No error data for success
+		return attempt.Attempt.Status == models.AttemptStatusSuccess &&
+			attempt.Destination.ID == destination.ID &&
+			attempt.Event != nil &&
+			attempt.Attempt != nil
 	})).Return(nil)
 
 	// Setup message handler
@@ -1020,7 +1020,7 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 	// Assert behavior
 	assert.True(t, mockMsg.acked, "message should be acked on success")
 	assert.False(t, mockMsg.nacked, "message should not be nacked on success")
-	assertAlertMonitor(t, alertMonitor, true, &destination, nil)
+	assertAlertMonitor(t, alertMonitor, true, &destination)
 }
 
 func TestMessageHandler_AlertMonitorError(t *testing.T) {
@@ -1094,7 +1094,7 @@ func TestMessageHandler_AlertMonitorError(t *testing.T) {
 }
 
 // Helper function to assert alert monitor calls
-func assertAlertMonitor(t *testing.T, m *mockAlertMonitor, success bool, destination *models.Destination, expectedData map[string]interface{}) {
+func assertAlertMonitor(t *testing.T, m *mockAlertMonitor, success bool, destination *models.Destination) {
 	t.Helper()
 
 	// Wait for the alert monitor to be called
@@ -1107,15 +1107,10 @@ func assertAlertMonitor(t *testing.T, m *mockAlertMonitor, success bool, destina
 	lastCall := calls[len(calls)-1]
 	attempt := lastCall.Arguments[1].(alert.DeliveryAttempt)
 
-	assert.Equal(t, success, attempt.Success, "alert attempt success should match")
+	assert.Equal(t, success, attempt.Attempt.Status == models.AttemptStatusSuccess, "alert attempt success should match")
 	assert.Equal(t, destination.ID, attempt.Destination.ID, "alert attempt destination should match")
-	assert.NotNil(t, attempt.DeliveryTask, "alert attempt should have delivery task")
-
-	if expectedData != nil {
-		assert.Equal(t, expectedData, attempt.AttemptResponse, "alert attempt data should match")
-	} else {
-		assert.Nil(t, attempt.AttemptResponse, "alert attempt should not have data")
-	}
+	assert.NotNil(t, attempt.Event, "alert attempt should have event")
+	assert.NotNil(t, attempt.Attempt, "alert attempt should have attempt data")
 }
 
 func TestManualDelivery_DuplicateRetry(t *testing.T) {

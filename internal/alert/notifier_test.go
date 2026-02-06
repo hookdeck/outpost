@@ -31,11 +31,12 @@ func TestAlertNotifier_Notify(t *testing.T) {
 			err := json.NewDecoder(r.Body).Decode(&body)
 			require.NoError(t, err)
 
-			assert.Equal(t, "alert.consecutive_failure", body["topic"])
+			assert.Equal(t, "alert.destination.consecutive_failure", body["topic"])
 			data := body["data"].(map[string]any)
-			assert.Equal(t, float64(10), data["max_consecutive_failures"])
-			assert.Equal(t, float64(5), data["consecutive_failures"])
-			assert.Equal(t, true, data["will_disable"])
+			cf := data["consecutive_failures"].(map[string]any)
+			assert.Equal(t, float64(5), cf["current"])
+			assert.Equal(t, float64(10), cf["max"])
+			assert.Equal(t, float64(50), cf["threshold"])
 
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -44,13 +45,11 @@ func TestAlertNotifier_Notify(t *testing.T) {
 		notifier := alert.NewHTTPAlertNotifier(ts.URL)
 		dest := &alert.AlertDestination{ID: "dest_123", TenantID: "tenant_123"}
 		testAlert := alert.NewConsecutiveFailureAlert(alert.ConsecutiveFailureData{
-			MaxConsecutiveFailures: 10,
-			ConsecutiveFailures:    5,
-			WillDisable:            true,
-			Destination:            dest,
-			AttemptResponse: map[string]any{
-				"status": "error",
-				"data":   map[string]any{"code": "ETIMEDOUT"},
+			Destination: dest,
+			ConsecutiveFailures: alert.ConsecutiveFailures{
+				Current:   5,
+				Max:       10,
+				Threshold: 50,
 			},
 		})
 
@@ -73,10 +72,12 @@ func TestAlertNotifier_Notify(t *testing.T) {
 		notifier := alert.NewHTTPAlertNotifier(ts.URL, alert.NotifierWithBearerToken("test-token"))
 		dest := &alert.AlertDestination{ID: "dest_123", TenantID: "tenant_123"}
 		testAlert := alert.NewConsecutiveFailureAlert(alert.ConsecutiveFailureData{
-			MaxConsecutiveFailures: 10,
-			ConsecutiveFailures:    5,
-			WillDisable:            true,
-			Destination:            dest,
+			Destination: dest,
+			ConsecutiveFailures: alert.ConsecutiveFailures{
+				Current:   5,
+				Max:       10,
+				Threshold: 50,
+			},
 		})
 
 		err := notifier.Notify(context.Background(), testAlert)
