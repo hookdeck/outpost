@@ -51,28 +51,30 @@ type AlertDestination struct {
 	DisabledAt *time.Time        `json:"disabled_at"`
 }
 
+// ConsecutiveFailures represents the nested consecutive failure state
+type ConsecutiveFailures struct {
+	Current   int `json:"current"`
+	Max       int `json:"max"`
+	Threshold int `json:"threshold"`
+}
+
 // ConsecutiveFailureData matches internal/alert.ConsecutiveFailureData
 type ConsecutiveFailureData struct {
-	TenantID               string            `json:"tenant_id"`
-	Attempt                *models.Attempt   `json:"attempt"`
-	Event                  *models.Event     `json:"event"`
-	Destination            *AlertDestination `json:"destination"`
-	ConsecutiveFailures    int               `json:"consecutive_failures"`
-	MaxConsecutiveFailures int               `json:"max_consecutive_failures"`
-	Progress               int               `json:"progress"`
-	WillDisable            bool              `json:"will_disable"`
+	TenantID            string              `json:"tenant_id"`
+	Attempt             *models.Attempt     `json:"attempt"`
+	Event               *models.Event       `json:"event"`
+	Destination         *AlertDestination   `json:"destination"`
+	ConsecutiveFailures ConsecutiveFailures `json:"consecutive_failures"`
 }
 
 // DestinationDisabledData matches the expected payload for "alert.destination.disabled"
 type DestinationDisabledData struct {
-	TenantID               string            `json:"tenant_id"`
-	Destination            *AlertDestination `json:"destination"`
-	DisabledAt             time.Time         `json:"disabled_at"`
-	Attempt                *models.Attempt   `json:"attempt,omitempty"`
-	Event                  *models.Event     `json:"event,omitempty"`
-	ConsecutiveFailures    int               `json:"consecutive_failures"`
-	MaxConsecutiveFailures int               `json:"max_consecutive_failures"`
-	Progress               int               `json:"progress"`
+	TenantID    string            `json:"tenant_id"`
+	Destination *AlertDestination `json:"destination"`
+	DisabledAt  time.Time         `json:"disabled_at"`
+	Reason      string            `json:"reason"`
+	Attempt     *models.Attempt   `json:"attempt,omitempty"`
+	Event       *models.Event     `json:"event,omitempty"`
 }
 
 type AlertMockServer struct {

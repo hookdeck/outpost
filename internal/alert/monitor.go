@@ -185,13 +185,9 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 				TenantID:    attempt.Destination.TenantID,
 				Destination: AlertDestinationFromDestination(&disabledDest),
 				DisabledAt:  *disabledDest.DisabledAt,
+				Reason:      "consecutive_failure",
 				Attempt:     attempt.Attempt,
 				Event:       attempt.Event,
-				ConsecutiveFailures: ConsecutiveFailures{
-					Current:   count,
-					Max:       m.autoDisableFailureCount,
-					Threshold: 100,
-				},
 			})
 			if err := m.notifier.Notify(ctx, disabledAlert); err != nil {
 				m.logger.Ctx(ctx).Error("failed to send destination disabled alert",
