@@ -12,9 +12,7 @@ import (
 )
 
 // Alert represents any alert that can be sent
-type Alert interface {
-	json.Marshaler
-}
+type Alert interface{}
 
 // AlertNotifier sends alerts to configured destinations
 type AlertNotifier interface {
@@ -40,13 +38,6 @@ func NotifierWithBearerToken(token string) NotifierOption {
 	return func(n *httpAlertNotifier) {
 		n.bearerToken = token
 	}
-}
-
-type AlertedEvent struct {
-	ID       string                 `json:"id"`
-	Topic    string                 `json:"topic"`    // event topic
-	Metadata map[string]string      `json:"metadata"` // event metadata
-	Data     map[string]interface{} `json:"data"`     // event payload
 }
 
 type AlertDestination struct {
@@ -77,15 +68,20 @@ func AlertDestinationFromDestination(d *models.Destination) *AlertDestination {
 	}
 }
 
+// ConsecutiveFailures represents the nested consecutive failure state
+type ConsecutiveFailures struct {
+	Current   int `json:"current"`
+	Max       int `json:"max"`
+	Threshold int `json:"threshold"`
+}
+
 // ConsecutiveFailureData represents the data needed for a consecutive failure alert
 type ConsecutiveFailureData struct {
-	TenantID               string                 `json:"tenant_id"`
-	Event                  AlertedEvent           `json:"event"`
-	MaxConsecutiveFailures int                    `json:"max_consecutive_failures"`
-	ConsecutiveFailures    int                    `json:"consecutive_failures"`
-	WillDisable            bool                   `json:"will_disable"`
-	Destination            *AlertDestination      `json:"destination"`
-	AttemptResponse        map[string]interface{} `json:"attempt_response"`
+	TenantID            string              `json:"tenant_id"`
+	Attempt             *models.Attempt     `json:"attempt"`
+	Event               *models.Event       `json:"event"`
+	Destination         *AlertDestination   `json:"destination"`
+	ConsecutiveFailures ConsecutiveFailures `json:"consecutive_failures"`
 }
 
 // ConsecutiveFailureAlert represents an alert for consecutive failures
@@ -95,16 +91,10 @@ type ConsecutiveFailureAlert struct {
 	Data      ConsecutiveFailureData `json:"data"`
 }
 
-// MarshalJSON implements json.Marshaler
-func (a ConsecutiveFailureAlert) MarshalJSON() ([]byte, error) {
-	type Alias ConsecutiveFailureAlert
-	return json.Marshal(Alias(a))
-}
-
 // NewConsecutiveFailureAlert creates a new consecutive failure alert with defaults
 func NewConsecutiveFailureAlert(data ConsecutiveFailureData) ConsecutiveFailureAlert {
 	return ConsecutiveFailureAlert{
-		Topic:     "alert.consecutive_failure",
+		Topic:     "alert.destination.consecutive_failure",
 		Timestamp: time.Now(),
 		Data:      data,
 	}
@@ -112,13 +102,12 @@ func NewConsecutiveFailureAlert(data ConsecutiveFailureData) ConsecutiveFailureA
 
 // DestinationDisabledData represents the data for a destination disabled alert
 type DestinationDisabledData struct {
-	TenantID               string            `json:"tenant_id"`
-	Destination            *AlertDestination `json:"destination"`
-	DisabledAt             time.Time         `json:"disabled_at"`
-	TriggeringEvent        *AlertedEvent     `json:"triggering_event,omitempty"`
-	ConsecutiveFailures    int               `json:"consecutive_failures"`
-	MaxConsecutiveFailures int               `json:"max_consecutive_failures"`
-	AttemptResponse        map[string]any    `json:"attempt_response"`
+	TenantID            string              `json:"tenant_id"`
+	Destination         *AlertDestination   `json:"destination"`
+	DisabledAt          time.Time           `json:"disabled_at"`
+	Attempt             *models.Attempt     `json:"attempt,omitempty"`
+	Event               *models.Event       `json:"event,omitempty"`
+	ConsecutiveFailures ConsecutiveFailures `json:"consecutive_failures"`
 }
 
 // DestinationDisabledAlert represents an alert for when a destination is auto-disabled
@@ -126,12 +115,6 @@ type DestinationDisabledAlert struct {
 	Topic     string                  `json:"topic"`
 	Timestamp time.Time               `json:"timestamp"`
 	Data      DestinationDisabledData `json:"data"`
-}
-
-// MarshalJSON implements json.Marshaler
-func (a DestinationDisabledAlert) MarshalJSON() ([]byte, error) {
-	type Alias DestinationDisabledAlert
-	return json.Marshal(Alias(a))
 }
 
 // NewDestinationDisabledAlert creates a new destination disabled alert with defaults
@@ -162,7 +145,7 @@ func NewHTTPAlertNotifier(callbackURL string, opts ...NotifierOption) AlertNotif
 }
 
 func (n *httpAlertNotifier) Notify(ctx context.Context, alert Alert) error {
-	body, err := alert.MarshalJSON()
+	body, err := json.Marshal(alert)
 	if err != nil {
 		return fmt.Errorf("failed to marshal alert: %w", err)
 	}

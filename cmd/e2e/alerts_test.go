@@ -22,7 +22,7 @@ func (s *basicSuite) TestAlerts_ConsecutiveFailuresTriggerAlertCallback() {
 
 	// Wait for 4 alert callbacks to be processed
 	s.waitForAlerts(dest.ID, 4)
-	alerts := s.alertServer.GetAlertsForDestinationByTopic(dest.ID, "alert.consecutive_failure")
+	alerts := s.alertServer.GetAlertsForDestinationByTopic(dest.ID, "alert.destination.consecutive_failure")
 	s.Require().Len(alerts, 4, "should have 4 alerts")
 
 	expectedCounts := []int{10, 14, 18, 20}
@@ -35,7 +35,7 @@ func (s *basicSuite) TestAlerts_ConsecutiveFailuresTriggerAlertCallback() {
 		s.Equal(fmt.Sprintf("Bearer %s", s.config.APIKey), alert.AuthHeader, "auth header should match")
 
 		// Topic assertion
-		s.Equal("alert.consecutive_failure", alert.Alert.Topic, "alert topic should be alert.consecutive_failure")
+		s.Equal("alert.destination.consecutive_failure", alert.Alert.Topic, "alert topic should be alert.consecutive_failure")
 
 		// TenantID assertion
 		s.NotEmpty(data.TenantID, "alert should have tenant_id")
@@ -62,8 +62,13 @@ func (s *basicSuite) TestAlerts_ConsecutiveFailuresTriggerAlertCallback() {
 			s.True(data.WillDisable, "last alert should have will_disable=true")
 		}
 
-		// AttemptResponse assertion
-		s.NotNil(data.AttemptResponse, "alert should have attempt_response")
+		// Attempt assertion
+		s.Require().NotNil(data.Attempt, "alert should have attempt")
+		s.NotEmpty(data.Attempt.ID, "attempt should have ID")
+		s.NotEmpty(data.Attempt.Status, "attempt should have status")
+
+		// Progress assertion
+		s.Greater(data.Progress, 0, "progress should be > 0")
 	}
 }
 
@@ -105,7 +110,7 @@ func (s *basicSuite) TestAlerts_SuccessResetsConsecutiveFailureCounter() {
 
 	// Wait for 4 alert callbacks: [10, 14] from first batch, [10, 14] from second batch
 	s.waitForAlerts(dest.ID, 4)
-	alerts := s.alertServer.GetAlertsForDestinationByTopic(dest.ID, "alert.consecutive_failure")
+	alerts := s.alertServer.GetAlertsForDestinationByTopic(dest.ID, "alert.destination.consecutive_failure")
 	s.Require().Len(alerts, 4, "should have 4 alerts")
 
 	expectedCounts := []int{10, 14, 10, 14}
@@ -118,7 +123,7 @@ func (s *basicSuite) TestAlerts_SuccessResetsConsecutiveFailureCounter() {
 		s.Equal(fmt.Sprintf("Bearer %s", s.config.APIKey), alert.AuthHeader, "auth header should match")
 
 		// Topic assertion
-		s.Equal("alert.consecutive_failure", alert.Alert.Topic, "alert topic should be alert.consecutive_failure")
+		s.Equal("alert.destination.consecutive_failure", alert.Alert.Topic, "alert topic should be alert.consecutive_failure")
 
 		// TenantID assertion
 		s.NotEmpty(data.TenantID, "alert should have tenant_id")
@@ -143,8 +148,12 @@ func (s *basicSuite) TestAlerts_SuccessResetsConsecutiveFailureCounter() {
 		// WillDisable assertion (none should have will_disable=true since counter resets)
 		s.False(data.WillDisable, "alert %d should have will_disable=false (counter resets)", i)
 
-		// AttemptResponse assertion
-		s.NotNil(data.AttemptResponse, "alert should have attempt_response")
+		// Attempt assertion
+		s.Require().NotNil(data.Attempt, "alert should have attempt")
+		s.NotEmpty(data.Attempt.ID, "attempt should have ID")
+
+		// Progress assertion
+		s.Greater(data.Progress, 0, "progress should be > 0")
 	}
 }
 
@@ -195,16 +204,22 @@ func (s *basicSuite) TestAlerts_DestinationDisabledCallback() {
 	// DisabledAt assertion
 	s.False(data.DisabledAt.IsZero(), "disabled_at should not be zero")
 
-	// TriggeringEvent assertions (optional but expected)
-	if data.TriggeringEvent != nil {
-		s.NotEmpty(data.TriggeringEvent.ID, "triggering event should have ID")
-		s.Equal("user.created", data.TriggeringEvent.Topic, "triggering event topic should match")
+	// Event assertions (optional but expected)
+	if data.Event != nil {
+		s.NotEmpty(data.Event.ID, "event should have ID")
+		s.Equal("user.created", data.Event.Topic, "event topic should match")
+	}
+
+	// Attempt assertions (optional but expected)
+	if data.Attempt != nil {
+		s.NotEmpty(data.Attempt.ID, "attempt should have ID")
+		s.NotEmpty(data.Attempt.Status, "attempt should have status")
 	}
 
 	// ConsecutiveFailures assertions
 	s.Equal(20, data.ConsecutiveFailures, "consecutive_failures should be 20")
 	s.Equal(20, data.MaxConsecutiveFailures, "max_consecutive_failures should be 20")
 
-	// AttemptResponse assertion
-	s.NotNil(data.AttemptResponse, "alert should have attempt_response")
+	// Progress assertion
+	s.Equal(100, data.Progress, "progress should be 100 for disabled destination")
 }

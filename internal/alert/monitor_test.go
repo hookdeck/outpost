@@ -59,16 +59,16 @@ func TestAlertMonitor_ConsecutiveFailures_MaxFailures(t *testing.T) {
 
 	dest := &alert.AlertDestination{ID: "dest_1", TenantID: "tenant_1"}
 	event := &models.Event{Topic: "test.event"}
-	task := &models.DeliveryTask{Event: *event}
 	attempt := alert.DeliveryAttempt{
-		Success:      false,
-		DeliveryTask: task,
-		Destination:  dest,
-		AttemptResponse: map[string]interface{}{
-			"status": "500",
-			"data":   map[string]any{"error": "test error"},
+		Event:       event,
+		Destination: dest,
+		Attempt: &models.Attempt{
+			ID:           "attempt_1",
+			Status:       "failed",
+			Code:         "500",
+			ResponseData: map[string]interface{}{"error": "test error"},
+			Time:         time.Now(),
 		},
-		Timestamp: time.Now(),
 	}
 
 	// Send 20 consecutive failures
@@ -82,13 +82,12 @@ func TestAlertMonitor_ConsecutiveFailures_MaxFailures(t *testing.T) {
 		if call.Method == "Notify" {
 			if cfAlert, ok := call.Arguments.Get(1).(alert.ConsecutiveFailureAlert); ok {
 				consecutiveFailureCount++
-				failures := cfAlert.Data.ConsecutiveFailures
-				require.Contains(t, []int{10, 14, 18, 20}, failures, "Alert should be sent at 50%, 66%, 90%, and 100% thresholds")
+				cf := cfAlert.Data.ConsecutiveFailures
+				require.Contains(t, []int{10, 14, 18, 20}, cf.Current, "Alert should be sent at 50%, 66%, 90%, and 100% thresholds")
 				require.Equal(t, dest, cfAlert.Data.Destination)
-				require.Equal(t, "alert.consecutive_failure", cfAlert.Topic)
-				require.Equal(t, attempt.AttemptResponse, cfAlert.Data.AttemptResponse)
-				require.Equal(t, 20, cfAlert.Data.MaxConsecutiveFailures)
-				require.Equal(t, failures == 20, cfAlert.Data.WillDisable, "WillDisable should only be true at 100% (20 failures)")
+				require.Equal(t, "alert.destination.consecutive_failure", cfAlert.Topic)
+				require.Equal(t, "attempt_1", cfAlert.Data.Attempt.ID)
+				require.Equal(t, 20, cf.Max)
 			}
 		}
 	}
@@ -133,16 +132,16 @@ func TestAlertMonitor_ConsecutiveFailures_Reset(t *testing.T) {
 
 	dest := &alert.AlertDestination{ID: "dest_1", TenantID: "tenant_1"}
 	event := &models.Event{Topic: "test.event"}
-	task := &models.DeliveryTask{Event: *event}
 	failedAttempt := alert.DeliveryAttempt{
-		Success:      false,
-		DeliveryTask: task,
-		Destination:  dest,
-		AttemptResponse: map[string]interface{}{
-			"status": "500",
-			"data":   map[string]any{"error": "test error"},
+		Event:       event,
+		Destination: dest,
+		Attempt: &models.Attempt{
+			ID:           "attempt_reset",
+			Status:       "failed",
+			Code:         "500",
+			ResponseData: map[string]interface{}{"error": "test error"},
+			Time:         time.Now(),
 		},
-		Timestamp: time.Now(),
 	}
 
 	// Send 14 failures (should trigger 50% and 66% alerts)
@@ -154,8 +153,11 @@ func TestAlertMonitor_ConsecutiveFailures_Reset(t *testing.T) {
 	require.Equal(t, 2, len(notifier.Calls))
 
 	// Send a success to reset the counter
-	successAttempt := failedAttempt
-	successAttempt.Success = true
+	successAttempt := alert.DeliveryAttempt{
+		Event:       event,
+		Destination: dest,
+		Attempt:     &models.Attempt{Status: models.AttemptStatusSuccess},
+	}
 	require.NoError(t, monitor.HandleAttempt(ctx, successAttempt))
 
 	// Clear the mock calls to start fresh
@@ -173,7 +175,7 @@ func TestAlertMonitor_ConsecutiveFailures_Reset(t *testing.T) {
 	var seenCounts []int
 	for _, call := range notifier.Calls {
 		if cfAlert, ok := call.Arguments.Get(1).(alert.ConsecutiveFailureAlert); ok {
-			seenCounts = append(seenCounts, cfAlert.Data.ConsecutiveFailures)
+			seenCounts = append(seenCounts, cfAlert.Data.ConsecutiveFailures.Current)
 		}
 	}
 	assert.Contains(t, seenCounts, 10, "Should have alerted at 50% (10 failures)")
@@ -213,15 +215,16 @@ func TestAlertMonitor_ConsecutiveFailures_AboveThreshold(t *testing.T) {
 
 	dest := &alert.AlertDestination{ID: "dest_above", TenantID: "tenant_above"}
 	event := &models.Event{Topic: "test.event"}
-	task := &models.DeliveryTask{Event: *event}
 	attempt := alert.DeliveryAttempt{
-		Success:      false,
-		DeliveryTask: task,
-		Destination:  dest,
-		AttemptResponse: map[string]interface{}{
-			"status": "500",
+		Event:       event,
+		Destination: dest,
+		Attempt: &models.Attempt{
+			ID:           "attempt_above",
+			Status:       "failed",
+			Code:         "500",
+			ResponseData: map[string]interface{}{"error": "test error"},
+			Time:         time.Now(),
 		},
-		Timestamp: time.Now(),
 	}
 
 	// Send 25 consecutive failures (5 more than the threshold)
@@ -237,16 +240,16 @@ func TestAlertMonitor_ConsecutiveFailures_AboveThreshold(t *testing.T) {
 		if call.Method == "Notify" {
 			if cfAlert, ok := call.Arguments.Get(1).(alert.ConsecutiveFailureAlert); ok {
 				consecutiveFailureCount++
-				if cfAlert.Data.ConsecutiveFailures >= 20 {
+				if cfAlert.Data.ConsecutiveFailures.Current >= 20 {
 					disableNotifyCount++
-					require.True(t, cfAlert.Data.WillDisable, "WillDisable should be true at and above 100%")
+					require.Equal(t, 100, cfAlert.Data.ConsecutiveFailures.Threshold, "Threshold should be 100 at and above max")
 				}
 			}
 		}
 	}
 	// 4 alerts at thresholds (10, 14, 18, 20) + 5 alerts for 21-25
 	require.Equal(t, 9, consecutiveFailureCount, "Should have sent 9 consecutive failure notifications (4 at thresholds + 5 above)")
-	require.Equal(t, 6, disableNotifyCount, "Should have 6 notifications with WillDisable=true (20-25)")
+	require.Equal(t, 6, disableNotifyCount, "Should have 6 notifications at threshold 100 (20-25)")
 
 	// Verify destination was disabled multiple times (once per failure >= 20)
 	var disableCallCount int
@@ -294,17 +297,17 @@ func TestAlertMonitor_SendsDestinationDisabledAlert(t *testing.T) {
 		testutil.EventFactory.WithID("event_123"),
 		testutil.EventFactory.WithTopic("test.event"),
 	)
-	task := &models.DeliveryTask{Event: *event}
-	attemptResponse := map[string]interface{}{
-		"status": "500",
-		"data":   map[string]any{"error": "internal server error"},
+	testAttempt := &models.Attempt{
+		ID:           "attempt_disabled",
+		Status:       "failed",
+		Code:         "500",
+		ResponseData: map[string]interface{}{"error": "internal server error"},
+		Time:         time.Now(),
 	}
 	attempt := alert.DeliveryAttempt{
-		Success:         false,
-		DeliveryTask:    task,
-		Destination:     dest,
-		AttemptResponse: attemptResponse,
-		Timestamp:       time.Now(),
+		Event:       event,
+		Destination: dest,
+		Attempt:     testAttempt,
 	}
 
 	// Send exactly autoDisableCount failures to trigger auto-disable
@@ -343,12 +346,16 @@ func TestAlertMonitor_SendsDestinationDisabledAlert(t *testing.T) {
 	// Verify the alert's DisabledAt matches the destination's DisabledAt exactly
 	assert.Equal(t, disabledAt, destinationDisabledAlert.Data.DisabledAt, "Alert DisabledAt should match destination's DisabledAt exactly")
 	assert.Equal(t, disabledAt, *destinationDisabledAlert.Data.Destination.DisabledAt, "Alert Destination.DisabledAt should match destination's DisabledAt exactly")
-	assert.Equal(t, autoDisableCount, destinationDisabledAlert.Data.ConsecutiveFailures, "ConsecutiveFailures should match threshold")
-	assert.Equal(t, autoDisableCount, destinationDisabledAlert.Data.MaxConsecutiveFailures, "MaxConsecutiveFailures should match configured value")
-	assert.Equal(t, attemptResponse, destinationDisabledAlert.Data.AttemptResponse, "AttemptResponse should match")
+	assert.Equal(t, autoDisableCount, destinationDisabledAlert.Data.ConsecutiveFailures.Current, "ConsecutiveFailures.Current should match threshold")
+	assert.Equal(t, autoDisableCount, destinationDisabledAlert.Data.ConsecutiveFailures.Max, "ConsecutiveFailures.Max should match configured value")
+	assert.Equal(t, 100, destinationDisabledAlert.Data.ConsecutiveFailures.Threshold, "ConsecutiveFailures.Threshold should be 100")
 
-	// Verify the triggering event is included
-	require.NotNil(t, destinationDisabledAlert.Data.TriggeringEvent, "TriggeringEvent should be set")
-	assert.Equal(t, event.ID, destinationDisabledAlert.Data.TriggeringEvent.ID, "TriggeringEvent ID should match")
-	assert.Equal(t, event.Topic, destinationDisabledAlert.Data.TriggeringEvent.Topic, "TriggeringEvent Topic should match")
+	// Verify the attempt is included
+	require.NotNil(t, destinationDisabledAlert.Data.Attempt, "Attempt should be set")
+	assert.Equal(t, testAttempt.ID, destinationDisabledAlert.Data.Attempt.ID, "Attempt ID should match")
+
+	// Verify the event is included
+	require.NotNil(t, destinationDisabledAlert.Data.Event, "Event should be set")
+	assert.Equal(t, event.ID, destinationDisabledAlert.Data.Event.ID, "Event ID should match")
+	assert.Equal(t, event.Topic, destinationDisabledAlert.Data.Event.Topic, "Event Topic should match")
 }
