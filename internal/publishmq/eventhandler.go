@@ -26,8 +26,9 @@ type EventHandler interface {
 }
 
 type HandleResult struct {
-	EventID   string `json:"id"`
-	Duplicate bool   `json:"duplicate"`
+	EventID        string   `json:"id"`
+	Duplicate      bool     `json:"duplicate"`
+	DestinationIDs []string `json:"destination_ids"`
 }
 
 type eventHandler struct {
@@ -101,9 +102,14 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		}
 	}
 
+	if matchedDestinations == nil {
+		matchedDestinations = []string{}
+	}
+
 	result := &HandleResult{
-		EventID:   event.ID,
-		Duplicate: false,
+		EventID:        event.ID,
+		Duplicate:      false,
+		DestinationIDs: matchedDestinations,
 	}
 
 	// Early return if no destinations matched

@@ -11,9 +11,10 @@ func (s *basicSuite) TestDeliveryPipeline_PublishDeliversToWebhook() {
 	tenant := s.createTenant()
 	dest := s.createWebhookDestination(tenant.ID, "*", withSecret(testSecret))
 
-	s.publish(tenant.ID, "user.created", map[string]any{
+	resp := s.publish(tenant.ID, "user.created", map[string]any{
 		"event_id": "delivery_test_1",
 	})
+	s.Equal([]string{dest.ID}, resp.DestinationIDs)
 
 	// Verify mock server received the event
 	events := s.waitForNewMockServerEvents(dest.mockID, 1)

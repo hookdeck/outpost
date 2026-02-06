@@ -259,6 +259,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.NotNil(t, result)
 		require.Equal(t, event.ID, result.EventID)
 		require.False(t, result.Duplicate)
+		require.Len(t, result.DestinationIDs, 3)
 	})
 
 	t.Run("no destinations matched", func(t *testing.T) {
@@ -272,6 +273,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.NotNil(t, result)
 		require.Equal(t, event.ID, result.EventID)
 		require.False(t, result.Duplicate)
+		require.Empty(t, result.DestinationIDs)
 	})
 
 	t.Run("duplicate event - idempotency", func(t *testing.T) {
@@ -291,11 +293,13 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		result1, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
 		require.False(t, result1.Duplicate)
+		require.Len(t, result1.DestinationIDs, 1)
 
 		// Duplicate request
 		result2, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
 		require.True(t, result2.Duplicate) // Duplicate due to idempotency
+		require.Len(t, result2.DestinationIDs, 1)
 	})
 
 	t.Run("with destination_id - queued", func(t *testing.T) {
@@ -314,6 +318,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		result, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
 		require.False(t, result.Duplicate)
+		require.Equal(t, []string{dest.ID}, result.DestinationIDs)
 	})
 
 	t.Run("with destination_id - duplicate event", func(t *testing.T) {
@@ -358,6 +363,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		result, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
 		require.False(t, result.Duplicate)
+		require.Empty(t, result.DestinationIDs)
 	})
 
 	t.Run("with destination_id - not found", func(t *testing.T) {
@@ -370,6 +376,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		result, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
 		require.False(t, result.Duplicate)
+		require.Empty(t, result.DestinationIDs)
 	})
 
 	t.Run("with destination_id - topic mismatch", func(t *testing.T) {
@@ -388,6 +395,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		result, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
 		require.False(t, result.Duplicate)
+		require.Empty(t, result.DestinationIDs)
 	})
 }
 

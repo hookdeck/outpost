@@ -195,7 +195,7 @@ func (m *mockEventHandler) Handle(_ context.Context, event *models.Event) (*publ
 	if m.result != nil {
 		return m.result, nil
 	}
-	return &publishmq.HandleResult{EventID: event.ID}, nil
+	return &publishmq.HandleResult{EventID: event.ID, DestinationIDs: []string{}}, nil
 }
 
 // stubRegistry is a minimal destregistry.Registry for test setup.

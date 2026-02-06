@@ -1698,6 +1698,7 @@ components:
       required:
         - id
         - duplicate
+        - destination_ids
       properties:
         id:
           type: string
@@ -1707,6 +1708,12 @@ components:
           type: boolean
           description: Whether this event was already processed (idempotency hit). If true, the event was not queued again.
           example: false
+        destination_ids:
+          type: array
+          items:
+            type: string
+          description: The IDs of destinations that matched this event. Empty array if no destinations matched.
+          example: ["des_456", "des_789"]
     RetryRequest:
       type: object
       description: Request body for retrying event delivery to a destination.

@@ -147,9 +147,9 @@ func TestAPI_Publish(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		t.Run("returns event ID", func(t *testing.T) {
+		t.Run("returns event ID and destination_ids", func(t *testing.T) {
 			h := newAPITest(t)
-			h.eventHandler.result = &publishmq.HandleResult{EventID: "evt-123"}
+			h.eventHandler.result = &publishmq.HandleResult{EventID: "evt-123", DestinationIDs: []string{"d1"}}
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
@@ -162,11 +162,12 @@ func TestAPI_Publish(t *testing.T) {
 			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
 			assert.Equal(t, "evt-123", result.EventID)
 			assert.False(t, result.Duplicate)
+			assert.Equal(t, []string{"d1"}, result.DestinationIDs)
 		})
 
-		t.Run("returns duplicate flag", func(t *testing.T) {
+		t.Run("returns duplicate flag with empty destination_ids", func(t *testing.T) {
 			h := newAPITest(t)
-			h.eventHandler.result = &publishmq.HandleResult{EventID: "evt-123", Duplicate: true}
+			h.eventHandler.result = &publishmq.HandleResult{EventID: "evt-123", Duplicate: true, DestinationIDs: []string{}}
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
@@ -178,6 +179,7 @@ func TestAPI_Publish(t *testing.T) {
 			var result publishmq.HandleResult
 			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
 			assert.True(t, result.Duplicate)
+			assert.Empty(t, result.DestinationIDs)
 		})
 	})
 
