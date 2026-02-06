@@ -182,8 +182,9 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 				Event:       attempt.Event,
 			})
 			if err := m.notifier.Notify(ctx, disabledAlert); err != nil {
-				m.logger.Ctx(ctx).Error("failed to send destination disabled alert",
+				m.logger.Ctx(ctx).Error("failed to send alert",
 					zap.Error(err),
+					zap.String("topic", disabledAlert.Topic),
 					zap.String("attempt_id", attempt.Attempt.ID),
 					zap.String("event_id", attempt.Event.ID),
 					zap.String("tenant_id", attempt.Destination.TenantID),
@@ -208,8 +209,9 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 	// Send alert if notifier is configured (best-effort, don't fail on notification error)
 	if m.notifier != nil {
 		if err := m.notifier.Notify(ctx, alert); err != nil {
-			m.logger.Ctx(ctx).Error("failed to send consecutive failure alert",
+			m.logger.Ctx(ctx).Error("failed to send alert",
 				zap.Error(err),
+				zap.String("topic", alert.Topic),
 				zap.String("attempt_id", attempt.Attempt.ID),
 				zap.String("event_id", attempt.Event.ID),
 				zap.String("tenant_id", attempt.Destination.TenantID),
@@ -217,6 +219,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 			)
 		} else {
 			m.logger.Ctx(ctx).Audit("alert sent",
+				zap.String("topic", alert.Topic),
 				zap.String("attempt_id", attempt.Attempt.ID),
 				zap.String("event_id", attempt.Event.ID),
 				zap.String("tenant_id", attempt.Destination.TenantID),
