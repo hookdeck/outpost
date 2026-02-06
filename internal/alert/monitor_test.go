@@ -84,7 +84,13 @@ func TestAlertMonitor_ConsecutiveFailures_MaxFailures(t *testing.T) {
 				consecutiveFailureCount++
 				cf := cfAlert.Data.ConsecutiveFailures
 				require.Contains(t, []int{10, 14, 18, 20}, cf.Current, "Alert should be sent at 50%, 66%, 90%, and 100% thresholds")
-				require.Equal(t, dest, cfAlert.Data.Destination)
+				require.Equal(t, dest.ID, cfAlert.Data.Destination.ID)
+				require.Equal(t, dest.TenantID, cfAlert.Data.Destination.TenantID)
+				if cf.Threshold == 100 {
+					require.NotNil(t, cfAlert.Data.Destination.DisabledAt, "Destination should have DisabledAt at threshold 100")
+				} else {
+					require.Nil(t, cfAlert.Data.Destination.DisabledAt, "Destination should not have DisabledAt below threshold 100")
+				}
 				require.Equal(t, "alert.destination.consecutive_failure", cfAlert.Topic)
 				require.Equal(t, "attempt_1", cfAlert.Data.Attempt.ID)
 				require.Equal(t, 20, cf.Max)
@@ -356,4 +362,69 @@ func TestAlertMonitor_SendsDestinationDisabledAlert(t *testing.T) {
 	require.NotNil(t, destinationDisabledAlert.Data.Event, "Event should be set")
 	assert.Equal(t, event.ID, destinationDisabledAlert.Data.Event.ID, "Event ID should match")
 	assert.Equal(t, event.Topic, destinationDisabledAlert.Data.Event.Topic, "Event Topic should match")
+}
+
+func TestAlertMonitor_ConsecutiveFailureAlert_ReflectsDisabledDestination(t *testing.T) {
+	// Tests that the consecutive failure alert at threshold 100 includes
+	// the destination with DisabledAt set, reflecting the post-disable state.
+	t.Parallel()
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	redisClient := testutil.CreateTestRedisClient(t)
+	notifier := &mockAlertNotifier{}
+	notifier.On("Notify", mock.Anything, mock.Anything).Return(nil)
+
+	disabledAt := time.Now()
+	modelsDest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID("dest_reflect"),
+		testutil.DestinationFactory.WithTenantID("tenant_reflect"),
+	)
+	modelsDest.DisabledAt = &disabledAt
+	disabler := &mockDestinationDisabler{}
+	disabler.On("DisableDestination", mock.Anything, mock.Anything, mock.Anything).Return(modelsDest, nil)
+
+	autoDisableCount := 5
+	monitor := alert.NewAlertMonitor(
+		logger,
+		redisClient,
+		alert.WithNotifier(notifier),
+		alert.WithDisabler(disabler),
+		alert.WithAutoDisableFailureCount(autoDisableCount),
+		alert.WithAlertThresholds([]int{100}),
+	)
+
+	dest := &alert.AlertDestination{ID: "dest_reflect", TenantID: "tenant_reflect"}
+	event := testutil.EventFactory.AnyPointer(
+		testutil.EventFactory.WithID("event_reflect"),
+	)
+	attempt := alert.DeliveryAttempt{
+		Event:       event,
+		Destination: dest,
+		Attempt: testutil.AttemptFactory.AnyPointer(
+			testutil.AttemptFactory.WithID("attempt_reflect"),
+			testutil.AttemptFactory.WithStatus("failed"),
+			testutil.AttemptFactory.WithCode("500"),
+		),
+	}
+
+	for i := 1; i <= autoDisableCount; i++ {
+		require.NoError(t, monitor.HandleAttempt(ctx, attempt))
+	}
+
+	// Find the consecutive failure alert at threshold 100
+	var found bool
+	for _, call := range notifier.Calls {
+		if call.Method == "Notify" {
+			if cfAlert, ok := call.Arguments.Get(1).(alert.ConsecutiveFailureAlert); ok {
+				if cfAlert.Data.ConsecutiveFailures.Threshold == 100 {
+					found = true
+					// The destination in the alert should reflect the disabled state
+					require.NotNil(t, cfAlert.Data.Destination.DisabledAt, "Destination in consecutive failure alert at threshold 100 should have DisabledAt set")
+					assert.Equal(t, disabledAt, *cfAlert.Data.Destination.DisabledAt, "DisabledAt should match")
+					break
+				}
+			}
+		}
+	}
+	require.True(t, found, "Should have found a consecutive failure alert at threshold 100")
 }

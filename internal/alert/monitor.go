@@ -150,19 +150,8 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		return nil
 	}
 
-	alert := NewConsecutiveFailureAlert(ConsecutiveFailureData{
-		TenantID:    attempt.Destination.TenantID,
-		Attempt:     attempt.Attempt,
-		Event:       attempt.Event,
-		Destination: attempt.Destination,
-		ConsecutiveFailures: ConsecutiveFailures{
-			Current:   count,
-			Max:       m.autoDisableFailureCount,
-			Threshold: level,
-		},
-	})
-
 	// If we've hit 100% and have a disabler configured, disable the destination
+	alertDest := attempt.Destination
 	if level == 100 && m.disabler != nil {
 		disabledDest, err := m.disabler.DisableDestination(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
 		if err != nil {
@@ -173,17 +162,20 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		}
 
 		m.logger.Ctx(ctx).Audit("destination disabled",
+			zap.String("attempt_id", attempt.Attempt.ID),
 			zap.String("event_id", attempt.Event.ID),
 			zap.String("tenant_id", attempt.Destination.TenantID),
 			zap.String("destination_id", attempt.Destination.ID),
 			zap.String("destination_type", attempt.Destination.Type),
 		)
 
+		alertDest = AlertDestinationFromDestination(&disabledDest)
+
 		// Send destination disabled alert (best-effort, don't fail on notification error)
 		if m.notifier != nil {
 			disabledAlert := NewDestinationDisabledAlert(DestinationDisabledData{
 				TenantID:    attempt.Destination.TenantID,
-				Destination: AlertDestinationFromDestination(&disabledDest),
+				Destination: alertDest,
 				DisabledAt:  *disabledDest.DisabledAt,
 				Reason:      "consecutive_failure",
 				Attempt:     attempt.Attempt,
@@ -192,6 +184,8 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 			if err := m.notifier.Notify(ctx, disabledAlert); err != nil {
 				m.logger.Ctx(ctx).Error("failed to send destination disabled alert",
 					zap.Error(err),
+					zap.String("attempt_id", attempt.Attempt.ID),
+					zap.String("event_id", attempt.Event.ID),
 					zap.String("tenant_id", attempt.Destination.TenantID),
 					zap.String("destination_id", attempt.Destination.ID),
 				)
@@ -199,17 +193,31 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		}
 	}
 
+	alert := NewConsecutiveFailureAlert(ConsecutiveFailureData{
+		TenantID:    attempt.Destination.TenantID,
+		Attempt:     attempt.Attempt,
+		Event:       attempt.Event,
+		Destination: alertDest,
+		ConsecutiveFailures: ConsecutiveFailures{
+			Current:   count,
+			Max:       m.autoDisableFailureCount,
+			Threshold: level,
+		},
+	})
+
 	// Send alert if notifier is configured (best-effort, don't fail on notification error)
 	if m.notifier != nil {
 		if err := m.notifier.Notify(ctx, alert); err != nil {
 			m.logger.Ctx(ctx).Error("failed to send consecutive failure alert",
 				zap.Error(err),
+				zap.String("attempt_id", attempt.Attempt.ID),
 				zap.String("event_id", attempt.Event.ID),
 				zap.String("tenant_id", attempt.Destination.TenantID),
 				zap.String("destination_id", attempt.Destination.ID),
 			)
 		} else {
 			m.logger.Ctx(ctx).Audit("alert sent",
+				zap.String("attempt_id", attempt.Attempt.ID),
 				zap.String("event_id", attempt.Event.ID),
 				zap.String("tenant_id", attempt.Destination.TenantID),
 				zap.String("destination_id", attempt.Destination.ID),
