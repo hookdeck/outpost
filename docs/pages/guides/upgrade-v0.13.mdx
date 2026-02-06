@@ -13,6 +13,8 @@ This guide covers breaking changes and migration steps when upgrading from v0.12
 | [New retry mechanism](#new-retry-mechanism) | Retry endpoint moved and changed format | Update retry calls |
 | [ID prefix delimiter removed](#id-prefix-delimiter-removed) | Custom ID prefixes | Include delimiter in prefix value (e.g., `evt_` instead of `evt`) |
 | [Refined API schema](#refined-api-schema) | Pagination, query filters, and error responses | Update response parsing, query parameters, and error handling |
+| [Empty `custom_headers` rejected](#empty-custom_headers-rejected) | Webhook destination creation/update | Remove empty `custom_headers` or omit the field |
+| [Database schema changes](#database-schema-changes) | PostgreSQL log store | Automatic — migrations run on startup |
 
 ## Delivery Renamed to Attempt
 
@@ -243,6 +245,30 @@ Key differences:
 - New `status` field mirrors the HTTP status code
 - Validation errors in `data` changed from a `{ field: tag }` object to an array of human-readable messages
 
+## Empty `custom_headers` Rejected
+
+Webhook and standard webhook destinations no longer accept an empty `custom_headers` object. Previously, passing `"custom_headers": {}` was silently accepted. In v0.13, this returns a validation error.
+
+If you set `custom_headers`, it must contain at least one entry:
+
+```json
+{
+  "type": "webhook",
+  "config": {
+    "url": "https://example.com/webhooks",
+    "custom_headers": { "x-api-key": "sk_123" }
+  }
+}
+```
+
+If you don't need custom headers, omit the `custom_headers` field entirely instead of passing an empty object.
+
+## Database Schema Changes
+
+v0.13 includes a PostgreSQL schema migration that renames the `deliveries` table to `attempts` and denormalizes event data into it for improved query performance. This migration runs automatically when Outpost starts.
+
+**Before upgrading, back up your PostgreSQL database.** The migration performs destructive operations including dropping the old `event_delivery_index` table and rebuilding indexes.
+
 ## Upgrade Checklist
 
 1. **Before upgrading:**
@@ -256,6 +282,7 @@ Key differences:
    - [ ] Update `GET /tenants` sorting from `order` to `order_by` + `dir`
    - [ ] Update time filter params from `start`/`end` to `time[gte]`/`time[lte]`
    - [ ] Update error response handling if parsing `data` field
+   - [ ] Back up PostgreSQL database
 
 2. **Upgrade:**
-   - [ ] Update Outpost to v0.13 and restart — migrations run automatically on startup
+   - [ ] Update Outpost to v0.13 and restart — database migrations run automatically on startup
