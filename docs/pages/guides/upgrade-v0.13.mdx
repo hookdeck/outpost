@@ -1,0 +1,288 @@
+---
+title: "Upgrade to v0.13"
+---
+
+This guide covers breaking changes and migration steps when upgrading from v0.12 to v0.13.
+
+## Breaking Changes Overview
+
+| Change | Impact | Action Required |
+| --- | --- | --- |
+| [Delivery renamed to Attempt](#delivery-renamed-to-attempt) | All delivery-related endpoints, response types, and config | Update API routes, response handling, and config vars |
+| [Route restructuring](#route-restructuring) | Tenant-scoped event, schema, and topic endpoints removed | Update API client paths |
+| [New retry mechanism](#new-retry-mechanism) | Retry endpoint moved and changed format | Update retry calls |
+| [ID prefix delimiter removed](#id-prefix-delimiter-removed) | Custom ID prefixes | Include delimiter in prefix value (e.g., `evt_` instead of `evt`) |
+| [Refined API schema](#refined-api-schema) | Pagination, query filters, and error responses | Update response parsing, query parameters, and error handling |
+| [Empty `custom_headers` rejected](#empty-custom_headers-rejected) | Webhook destination creation/update | Remove empty `custom_headers` or omit the field |
+| [Database schema changes](#database-schema-changes) | PostgreSQL log store | Automatic — migrations run on startup |
+
+## Delivery Renamed to Attempt
+
+The "delivery" concept in the API has been renamed to "attempt." An attempt represents a single delivery attempt of an event to a destination — the same concept, just a clearer name.
+
+### Attempt Schema
+
+```json
+{
+  "id": "atm_123",
+  "status": "success",
+  "delivered_at": "2024-01-01T00:00:05Z",
+  "code": "200",
+  "attempt_number": 0,
+  "manual": false,
+  "event_id": "evt_123",
+  "destination_id": "des_456",
+  "response_data": {
+    "status_code": 200,
+    "body": "{\"status\":\"ok\"}",
+    "headers": { "content-type": "application/json" }
+  }
+}
+```
+
+- `id`: Unique attempt identifier (default prefix configurable via `IDGEN_ATTEMPT_PREFIX`)
+- `status`: `success` or `failed`
+- `code`: String response status code or error code
+- `attempt_number`: 0 for first attempt, 1+ for retries
+- `manual`: Whether this was a manually triggered retry
+- `event_id`: The ID of the associated event
+- `destination_id`: The destination ID this attempt was sent to
+- `response_data`: Response details (only included when `include=response_data` is specified)
+- `event`: Expanded event object (only present when `include=event` or `include=event.data` is specified)
+
+### The `include` Parameter
+
+The attempt endpoints support an `include` query parameter to expand related data inline:
+
+| Value | Effect |
+| --- | --- |
+| `include=event` | Includes event object with `id`, `topic`, `time`, `eligible_for_retry`, `metadata` |
+| `include=event.data` | Same as `event` plus the full event `data` payload |
+| `include=response_data` | Includes `response_data` with status code, body, and headers |
+
+Multiple values can be combined: `?include=event.data&include=response_data`
+
+### Configuration
+
+| v0.12 | v0.13 |
+| --- | --- |
+| `IDGEN_DELIVERY_PREFIX` | **Removed** — use `IDGEN_ATTEMPT_PREFIX` |
+| `IDGEN_DELIVERY_EVENT_PREFIX` | **Removed** |
+
+If you had customized `IDGEN_DELIVERY_PREFIX`, update it to `IDGEN_ATTEMPT_PREFIX`.
+
+## Route Restructuring
+
+v0.13 restructures the API routes. Events and attempts are now accessed through top-level endpoints or scoped under destinations, rather than deeply nested under tenants. Destination type schemas and topics are no longer tenant-scoped.
+
+### Removed Routes
+
+| v0.12 Route | v0.13 Replacement |
+| --- | --- |
+| `GET /tenants/:tenant_id/events` | `GET /events?tenant_id=:tenant_id` |
+| `GET /tenants/:tenant_id/events/:event_id` | `GET /events/:event_id` |
+| `GET /tenants/:tenant_id/events/:event_id/deliveries` | `GET /attempts?event_id=:event_id` or `GET /tenants/:tenant_id/destinations/:destination_id/attempts?event_id=:event_id` |
+| `GET /tenants/:tenant_id/destinations/:destination_id/events` | `GET /tenants/:tenant_id/destinations/:destination_id/attempts` |
+| `GET /tenants/:tenant_id/destinations/:destination_id/events/:event_id` | `GET /tenants/:tenant_id/destinations/:destination_id/attempts/:attempt_id` |
+| `POST /tenants/:tenant_id/destinations/:destination_id/events/:event_id/retry` | `POST /retry` with `{ "event_id": "...", "destination_id": "..." }` |
+| `GET /tenants/:tenant_id/destination-types` | `GET /destination-types` |
+| `GET /tenants/:tenant_id/destination-types/:type` | `GET /destination-types/:type` |
+| `GET /tenants/:tenant_id/topics` | `GET /topics` |
+
+### New Routes
+
+| Route | Description |
+| --- | --- |
+| `GET /events` | List events (admin cross-tenant, or filtered by `tenant_id`) |
+| `GET /events/:event_id` | Get a specific event by ID |
+| `GET /attempts` | List attempts (admin cross-tenant, with filters) |
+| `GET /attempts/:attempt_id` | Get a specific attempt by ID |
+| `GET /tenants/:tenant_id/destinations/:destination_id/attempts` | List attempts for a destination |
+| `GET /tenants/:tenant_id/destinations/:destination_id/attempts/:attempt_id` | Get a specific attempt for a destination |
+| `POST /retry` | Retry event delivery |
+
+**Action:** Update all API client paths to the new routes.
+
+## New Retry Mechanism
+
+The retry endpoint has been moved from a deeply nested path to a standalone top-level endpoint with a request body:
+
+**v0.12:**
+```
+POST /tenants/:tenant_id/destinations/:destination_id/events/:event_id/retry
+```
+
+**v0.13:**
+```
+POST /retry
+```
+```json
+{
+  "event_id": "evt_123",
+  "destination_id": "des_456"
+}
+```
+
+When authenticated with a Tenant JWT, only events belonging to that tenant can be retried. When authenticated with Admin API Key, events from any tenant can be retried.
+
+**Action:** Update retry calls to use `POST /retry` with `event_id` and `destination_id` in the request body.
+
+## ID Prefix Delimiter Removed
+
+ID generation no longer adds a default `_` delimiter between the prefix and the generated ID. The prefix value is now used as-is.
+
+If you use custom ID prefixes, include the delimiter in the prefix value:
+
+| v0.12 | v0.13 |
+| --- | --- |
+| `IDGEN_EVENT_PREFIX=evt` (produces `evt_xxx`) | `IDGEN_EVENT_PREFIX=evt_` (produces `evt_xxx`) |
+| `IDGEN_DESTINATION_PREFIX=des` (produces `des_xxx`) | `IDGEN_DESTINATION_PREFIX=des_` (produces `des_xxx`) |
+
+This applies to all `IDGEN_*_PREFIX` config vars: `IDGEN_EVENT_PREFIX`, `IDGEN_DESTINATION_PREFIX`, and `IDGEN_ATTEMPT_PREFIX`.
+
+**Action:** Append `_` (or your desired delimiter) to all custom ID prefix values.
+
+## Refined API Schema
+
+v0.13 refines the API pagination, query filters, sorting, and error responses.
+
+### Pagination Response Format
+
+All paginated list endpoints now return a new response envelope.
+
+**v0.12:**
+```json
+{
+  "count": 42,
+  "data": [{ "id": "evt_123", "..." }],
+  "next": "MTcwNDA2NzIwMA==",
+  "prev": ""
+}
+```
+
+**v0.13:**
+```json
+{
+  "models": [{ "id": "evt_123", "..." }],
+  "pagination": {
+    "order_by": "time",
+    "dir": "desc",
+    "limit": 100,
+    "next": "MTcwNDA2NzIwMA==",
+    "prev": null
+  }
+}
+```
+
+Key differences:
+- `data` renamed to `models`
+- `next`/`prev` cursors moved into a `pagination` object alongside `order_by`, `dir`, and `limit`
+- `count` removed from event/attempt list responses (still present on tenant list)
+- Empty cursors are now `null` instead of `""`
+
+**Action:** Update all code that parses paginated responses:
+- `response.data` → `response.models`
+- `response.next` → `response.pagination.next`
+- `response.prev` → `response.pagination.prev`
+
+### Query Filter Format
+
+Time filter parameters have been updated to use a structured format:
+
+**Event and attempt list endpoints:**
+
+| v0.12 | v0.13 |
+| --- | --- |
+| `?start=2024-01-01T00:00:00Z` | `?time[gte]=2024-01-01T00:00:00Z` |
+| `?end=2024-01-31T23:59:59Z` | `?time[lte]=2024-01-31T23:59:59Z` |
+
+**Tenant list endpoint:**
+
+| v0.12 | v0.13 |
+| --- | --- |
+| *(not available)* | `?created_at[gte]=2024-01-01T00:00:00Z` |
+| *(not available)* | `?created_at[lte]=2024-01-31T23:59:59Z` |
+
+The `time[gte]`/`time[lte]` and `created_at[gte]`/`created_at[lte]` filters support both `YYYY-MM-DD` and full RFC3339 timestamps.
+
+### Sorting Parameters
+
+The `order` query parameter on `GET /tenants` has been split into two parameters:
+
+| v0.12 | v0.13 |
+| --- | --- |
+| `?order=desc` | `?order_by=created_at&dir=desc` |
+
+The new `order_by` and `dir` parameters are also available on event and attempt list endpoints:
+
+| Parameter | Values | Default |
+| --- | --- | --- |
+| `order_by` | `time` (events/attempts), `created_at` (tenants) | Varies by endpoint |
+| `dir` | `asc`, `desc` | `desc` |
+
+### Error Response Format
+
+Error responses now include a `status` field and use a consistent structure:
+
+**v0.12:**
+```json
+{
+  "message": "validation error",
+  "data": { "email": "required", "password": "min" }
+}
+```
+
+**v0.13:**
+```json
+{
+  "status": 422,
+  "message": "validation error",
+  "data": ["email is required", "password must be at least 6 characters"]
+}
+```
+
+Key differences:
+- New `status` field mirrors the HTTP status code
+- Validation errors in `data` changed from a `{ field: tag }` object to an array of human-readable messages
+
+## Empty `custom_headers` Rejected
+
+Webhook and standard webhook destinations no longer accept an empty `custom_headers` object. Previously, passing `"custom_headers": {}` was silently accepted. In v0.13, this returns a validation error.
+
+If you set `custom_headers`, it must contain at least one entry:
+
+```json
+{
+  "type": "webhook",
+  "config": {
+    "url": "https://example.com/webhooks",
+    "custom_headers": { "x-api-key": "sk_123" }
+  }
+}
+```
+
+If you don't need custom headers, omit the `custom_headers` field entirely instead of passing an empty object.
+
+## Database Schema Changes
+
+v0.13 includes a PostgreSQL schema migration that renames the `deliveries` table to `attempts` and denormalizes event data into it for improved query performance. This migration runs automatically when Outpost starts.
+
+**Before upgrading, back up your PostgreSQL database.** The migration performs destructive operations including dropping the old `event_delivery_index` table and rebuilding indexes.
+
+## Upgrade Checklist
+
+1. **Before upgrading:**
+   - [ ] Update API clients to use `/attempts` routes instead of `/deliveries` and destination-scoped `/events` routes
+   - [ ] Update retry calls to use `POST /retry` with `event_id` and `destination_id` in request body
+   - [ ] Update destination-types and topics calls to use unscoped routes (`/destination-types`, `/topics`)
+   - [ ] Update event access from `GET /tenants/:id/events/:id` to `GET /events/:id`
+   - [ ] Rename `IDGEN_DELIVERY_PREFIX` to `IDGEN_ATTEMPT_PREFIX` and remove `IDGEN_DELIVERY_EVENT_PREFIX`
+   - [ ] Append delimiter to all custom `IDGEN_*_PREFIX` config values (e.g., `evt` → `evt_`)
+   - [ ] Update response parsing for the new pagination envelope (`models`/`pagination`)
+   - [ ] Update `GET /tenants` sorting from `order` to `order_by` + `dir`
+   - [ ] Update time filter params from `start`/`end` to `time[gte]`/`time[lte]`
+   - [ ] Update error response handling if parsing `data` field
+   - [ ] Back up PostgreSQL database
+
+2. **Upgrade:**
+   - [ ] Update Outpost to v0.13 and restart — database migrations run automatically on startup
