@@ -8,6 +8,13 @@
   padding-left: calc(var(--base-grid-multiplier) * 24);
   padding-right: calc(var(--base-grid-multiplier) * 24);
 
+  &__loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+
   &__header {
     display: flex;
     flex-direction: column;
