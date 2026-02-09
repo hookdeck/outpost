@@ -22,11 +22,18 @@
       flex: 1;
     }
 
+    &:has(button) {
+      input {
+        padding-right: var(--spacing-10);
+      }
+    }
+
     button {
       position: absolute;
       right: 0;
-      padding: var(--spacing-2);
       border: none;
+      border-left: 1px solid var(--colors-outline-neutral);
+      padding: var(--spacing-2);
       background: none;
       cursor: pointer;
       line-height: 0;
