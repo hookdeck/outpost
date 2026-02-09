@@ -298,3 +298,71 @@ func TestDestinationCredentials_AdminCanSetCustomSecret(t *testing.T) {
 			"previous_secret_invalid_at should be cleared")
 	})
 }
+
+func TestDestinationCredentials_ExpiredPreviousSecretNotReturned(t *testing.T) {
+	h := newAPITest(t, withDestRegistry(webhookStandardRegistry(t)))
+	h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+	secret := "whsec_dGVzdHNlY3JldDEyMzQ1Njc4OTBhYmNkZWY="
+	previousSecret := "whsec_dGVzdHNlY3JldDA5ODc2NTQzMjF6eXh3dnU="
+
+	// Create destination with explicit secret
+	createReq := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{
+		"id":     "d1",
+		"type":   "webhook",
+		"topics": []string{"user.created"},
+		"config": map[string]string{"url": "https://example.com/hook"},
+		"credentials": map[string]any{
+			"secret": secret,
+		},
+	})
+	createResp := h.do(h.withAPIKey(createReq))
+	require.Equal(t, http.StatusCreated, createResp.Code)
+
+	t.Run("previous_secret returned when not expired", func(t *testing.T) {
+		// Set previous_secret with future expiry
+		req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+			"credentials": map[string]any{
+				"secret":                     secret,
+				"previous_secret":            previousSecret,
+				"previous_secret_invalid_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+			},
+		})
+		resp := h.do(h.withAPIKey(req))
+		require.Equal(t, http.StatusOK, resp.Code)
+
+		var dest destregistry.DestinationDisplay
+		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+		assert.Equal(t, previousSecret, dest.Credentials["previous_secret"],
+			"previous_secret should be returned when not expired")
+		assert.NotEmpty(t, dest.Credentials["previous_secret_invalid_at"],
+			"previous_secret_invalid_at should be returned when not expired")
+	})
+
+	t.Run("previous_secret stripped when expired", func(t *testing.T) {
+		// Set previous_secret with past expiry
+		req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+			"credentials": map[string]any{
+				"secret":                     secret,
+				"previous_secret":            previousSecret,
+				"previous_secret_invalid_at": time.Now().Add(-1 * time.Hour).Format(time.RFC3339),
+			},
+		})
+		resp := h.do(h.withAPIKey(req))
+		require.Equal(t, http.StatusOK, resp.Code)
+
+		// GET the destination to check what's returned
+		getReq := h.jsonReq(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
+		getResp := h.do(h.withAPIKey(getReq))
+		require.Equal(t, http.StatusOK, getResp.Code)
+
+		var dest destregistry.DestinationDisplay
+		require.NoError(t, json.Unmarshal(getResp.Body.Bytes(), &dest))
+		assert.Equal(t, secret, dest.Credentials["secret"],
+			"current secret should still be returned")
+		assert.Empty(t, dest.Credentials["previous_secret"],
+			"previous_secret should not be returned when expired")
+		assert.Empty(t, dest.Credentials["previous_secret_invalid_at"],
+			"previous_secret_invalid_at should not be returned when expired")
+	})
+}

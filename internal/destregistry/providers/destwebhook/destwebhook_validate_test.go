@@ -792,3 +792,70 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		assert.NotEmpty(t, newDestination.Credentials["previous_secret_invalid_at"])
 	})
 }
+
+func TestWebhookDestination_ObfuscateDestination(t *testing.T) {
+	t.Parallel()
+
+	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+
+	t.Run("should keep previous_secret when not expired", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret":                     "current-secret",
+				"previous_secret":            "old-secret",
+				"previous_secret_invalid_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+			}),
+		)
+
+		result := webhookDestination.ObfuscateDestination(&destination)
+		assert.Equal(t, "current-secret", result.Credentials["secret"])
+		assert.Equal(t, "old-secret", result.Credentials["previous_secret"])
+		assert.NotEmpty(t, result.Credentials["previous_secret_invalid_at"])
+	})
+
+	t.Run("should strip previous_secret when expired", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret":                     "current-secret",
+				"previous_secret":            "old-secret",
+				"previous_secret_invalid_at": time.Now().Add(-1 * time.Hour).Format(time.RFC3339),
+			}),
+		)
+
+		result := webhookDestination.ObfuscateDestination(&destination)
+		assert.Equal(t, "current-secret", result.Credentials["secret"])
+		assert.Empty(t, result.Credentials["previous_secret"],
+			"previous_secret should be stripped when expired")
+		assert.Empty(t, result.Credentials["previous_secret_invalid_at"],
+			"previous_secret_invalid_at should be stripped when expired")
+	})
+
+	t.Run("should handle destination without previous_secret", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "current-secret",
+			}),
+		)
+
+		result := webhookDestination.ObfuscateDestination(&destination)
+		assert.Equal(t, "current-secret", result.Credentials["secret"])
+		assert.Empty(t, result.Credentials["previous_secret"])
+		assert.Empty(t, result.Credentials["previous_secret_invalid_at"])
+	})
+}

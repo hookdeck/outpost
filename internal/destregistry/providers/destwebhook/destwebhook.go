@@ -219,12 +219,25 @@ func (d *WebhookDestination) ObfuscateDestination(destination *models.Destinatio
 		result.Config[key] = value
 	}
 
-	// Copy credentials as is
+	// Check if previous_secret has expired
+	skipPreviousSecret := false
+	if invalidAtStr := destination.Credentials["previous_secret_invalid_at"]; invalidAtStr != "" {
+		if invalidAt, err := time.Parse(time.RFC3339, invalidAtStr); err == nil {
+			if time.Now().After(invalidAt) {
+				skipPreviousSecret = true
+			}
+		}
+	}
+
+	// Copy credentials, omitting expired previous_secret fields
 	// NOTE: Webhook secrets are intentionally not obfuscated for now because:
 	// 1. They're needed for secret rotation logic
 	// 2. They're less security-critical than other provider credentials (e.g. AWS keys)
 	// TODO: Implement proper secret obfuscation later if needed
 	for key, value := range destination.Credentials {
+		if skipPreviousSecret && (key == "previous_secret" || key == "previous_secret_invalid_at") {
+			continue
+		}
 		result.Credentials[key] = value
 	}
 
