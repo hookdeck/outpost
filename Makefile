@@ -166,6 +166,9 @@ test/coverage/html:
 docs/generate/config:
 	go run cmd/configdocsgen/main.go
 
+migrate/redis:
+	docker-compose -f build/dev/compose.yml --env-file .env run --rm --entrypoint "" api go run ./cmd/outpost-migrate-redis apply --all --yes
+
 redis/debug:
 	go run cmd/redis-debug/main.go $(ARGS)
 
