@@ -175,7 +175,7 @@ export function App() {
               {tenant && token ? (
                 <AuthenticatedApp tenant={tenant} token={token} />
               ) : (
-                <div>
+                <div className="layout__loading">
                   <Loading />
                 </div>
               )}
