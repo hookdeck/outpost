@@ -9,7 +9,7 @@ __pycache__/
 .python-version
 .DS_Store
 pyrightconfig.json
-README-PYPI.md
+# README-PYPI.md is committed as a temporary workaround for Speakeasy compile; overwritten by scripts/prepare_readme.py at publish.
 .DS_Store
 **/.speakeasy/temp/
 **/.speakeasy/logs/
