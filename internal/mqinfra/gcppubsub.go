@@ -158,7 +158,7 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 	}
 
 	// Set visibility timeout (acknowledgement deadline)
-	ackDeadline := 10 // default 10 seconds
+	ackDeadline := 60 // default 60 seconds
 	if infra.cfg.Policy.VisibilityTimeout > 0 {
 		ackDeadline = infra.cfg.Policy.VisibilityTimeout
 	}
@@ -181,6 +181,10 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 			DeadLetterPolicy: &pubsub.DeadLetterPolicy{
 				DeadLetterTopic:     dlqTopic.String(),
 				MaxDeliveryAttempts: maxDeliveryAttempts,
+			},
+			RetryPolicy: &pubsub.RetryPolicy{
+				MinimumBackoff: 10 * time.Second,
+				MaximumBackoff: 600 * time.Second,
 			},
 		}
 		_, err = client.CreateSubscription(ctx, subID, subConfig)
