@@ -81,48 +81,18 @@ export async function getTenantOverview(tenantId: string) {
         }))
       : [];
 
-    // Get recent events with proper error handling
+    // Get recent events (v0.13: list returns { models, pagination })
     let recentEvents: any[] = [];
     let totalEvents = 0;
 
     try {
       const eventsResponse = await outpost.events.list({ tenantId });
-      // Handle paginated API response structure
-      if (eventsResponse && typeof eventsResponse === "object") {
-        // Check if it's a paginated response with data array
-        if ("data" in eventsResponse && Array.isArray(eventsResponse.data)) {
-          recentEvents = eventsResponse.data.slice(0, 10);
-          totalEvents =
-            (eventsResponse as any).count || eventsResponse.data.length;
-        } else if (Array.isArray(eventsResponse)) {
-          // Direct array response
-          recentEvents = eventsResponse.slice(0, 10);
-          totalEvents = eventsResponse.length;
-        }
-      }
+      const models = eventsResponse?.models ?? [];
+      recentEvents = models.slice(0, 10);
+      totalEvents = models.length;
       logger.debug(`Events found`, { tenantId, totalEvents });
     } catch (error) {
-      // Handle SDK validation error - the API response is valid but SDK expects different format
-      if (error && typeof error === "object" && "rawValue" in error) {
-        const rawResponse = (error as any).rawValue;
-        if (
-          rawResponse &&
-          typeof rawResponse === "object" &&
-          "data" in rawResponse &&
-          Array.isArray(rawResponse.data)
-        ) {
-          recentEvents = rawResponse.data.slice(0, 10);
-          totalEvents = rawResponse.count || rawResponse.data.length;
-          logger.debug(`Events extracted from validation error`, {
-            tenantId,
-            totalEvents,
-          });
-        } else {
-          logger.warn("Could not fetch events", { error, tenantId });
-        }
-      } else {
-        logger.warn("Could not fetch events", { error, tenantId });
-      }
+      logger.warn("Could not fetch events", { error, tenantId });
     }
 
     const overview = {
