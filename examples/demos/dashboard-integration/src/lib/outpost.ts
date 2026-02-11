@@ -78,13 +78,11 @@ export async function getTenantOverview(tenantId: string) {
 
     // Get recent events (SDK v0.13: list returns { models, pagination })
     let recentEvents: any[] = [];
-    let totalEvents = 0;
     try {
       const eventsResponse = await outpost.events.list({ tenantId });
       const models = eventsResponse?.models ?? [];
       recentEvents = models.slice(0, 10);
-      totalEvents = models.length;
-      logger.debug(`Events found`, { tenantId, totalEvents });
+      logger.debug(`Events found`, { tenantId, count: recentEvents.length });
     } catch (error) {
       logger.warn("Could not fetch events", { error, tenantId });
     }
@@ -97,14 +95,12 @@ export async function getTenantOverview(tenantId: string) {
         totalDestinations: Array.isArray(destinations)
           ? destinations.length
           : 0,
-        totalEvents,
       },
     };
 
     logger.debug(`Complete overview retrieved for tenant: ${tenantId}`, {
       tenantId,
       destinationCount: overview.stats.totalDestinations,
-      eventCount: overview.stats.totalEvents,
     });
     return overview;
   } catch (error) {
