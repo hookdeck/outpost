@@ -224,6 +224,12 @@ run();
 <details open>
 <summary>Available methods</summary>
 
+### [Attempts](docs/sdks/attempts/README.md)
+
+* [list](docs/sdks/attempts/README.md#list) - List Attempts (Admin)
+* [get](docs/sdks/attempts/README.md#get) - Get Attempt
+* [retry](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
+
 ### [Destinations](docs/sdks/destinations/README.md)
 
 * [list](docs/sdks/destinations/README.md#list) - List Destinations
@@ -233,15 +239,13 @@ run();
 * [delete](docs/sdks/destinations/README.md#delete) - Delete Destination
 * [enable](docs/sdks/destinations/README.md#enable) - Enable Destination
 * [disable](docs/sdks/destinations/README.md#disable) - Disable Destination
+* [listAttempts](docs/sdks/destinations/README.md#listattempts) - List Destination Attempts
+* [getAttempt](docs/sdks/destinations/README.md#getattempt) - Get Destination Attempt
 
 ### [Events](docs/sdks/events/README.md)
 
-* [list](docs/sdks/events/README.md#list) - List Events
+* [list](docs/sdks/events/README.md#list) - List Events (Admin)
 * [get](docs/sdks/events/README.md#get) - Get Event
-* [listDeliveries](docs/sdks/events/README.md#listdeliveries) - List Event Delivery Attempts
-* [listByDestination](docs/sdks/events/README.md#listbydestination) - List Events by Destination
-* [getByDestination](docs/sdks/events/README.md#getbydestination) - Get Event by Destination
-* [retry](docs/sdks/events/README.md#retry) - Retry Event Delivery
 
 ### [Health](docs/sdks/health/README.md)
 
@@ -253,9 +257,7 @@ run();
 
 ### [Schemas](docs/sdks/schemas/README.md)
 
-* [listTenantDestinationTypes](docs/sdks/schemas/README.md#listtenantdestinationtypes) - List Destination Type Schemas (for Tenant)
-* [get](docs/sdks/schemas/README.md#get) - Get Destination Type Schema (for Tenant)
-* [listDestinationTypesJwt](docs/sdks/schemas/README.md#listdestinationtypesjwt) - List Destination Type Schemas (JWT Auth)
+* [listDestinationTypesJwt](docs/sdks/schemas/README.md#listdestinationtypesjwt) - List Destination Type Schemas
 * [getDestinationTypeJwt](docs/sdks/schemas/README.md#getdestinationtypejwt) - Get Destination Type Schema
 
 ### [Tenants](docs/sdks/tenants/README.md)
@@ -269,8 +271,7 @@ run();
 
 ### [Topics](docs/sdks/topics/README.md)
 
-* [list](docs/sdks/topics/README.md#list) - List Available Topics (for Tenant)
-* [listJwt](docs/sdks/topics/README.md#listjwt) - List Available Topics)
+* [list](docs/sdks/topics/README.md#list) - List Available Topics
 
 </details>
 <!-- End Available Resources and Operations [operations] -->
@@ -290,33 +291,31 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 
 <summary>Available standalone functions</summary>
 
+- [`attemptsGet`](docs/sdks/attempts/README.md#get) - Get Attempt
+- [`attemptsList`](docs/sdks/attempts/README.md#list) - List Attempts (Admin)
+- [`attemptsRetry`](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 - [`destinationsCreate`](docs/sdks/destinations/README.md#create) - Create Destination
 - [`destinationsDelete`](docs/sdks/destinations/README.md#delete) - Delete Destination
 - [`destinationsDisable`](docs/sdks/destinations/README.md#disable) - Disable Destination
 - [`destinationsEnable`](docs/sdks/destinations/README.md#enable) - Enable Destination
 - [`destinationsGet`](docs/sdks/destinations/README.md#get) - Get Destination
+- [`destinationsGetAttempt`](docs/sdks/destinations/README.md#getattempt) - Get Destination Attempt
 - [`destinationsList`](docs/sdks/destinations/README.md#list) - List Destinations
+- [`destinationsListAttempts`](docs/sdks/destinations/README.md#listattempts) - List Destination Attempts
 - [`destinationsUpdate`](docs/sdks/destinations/README.md#update) - Update Destination
 - [`eventsGet`](docs/sdks/events/README.md#get) - Get Event
-- [`eventsGetByDestination`](docs/sdks/events/README.md#getbydestination) - Get Event by Destination
-- [`eventsList`](docs/sdks/events/README.md#list) - List Events
-- [`eventsListByDestination`](docs/sdks/events/README.md#listbydestination) - List Events by Destination
-- [`eventsListDeliveries`](docs/sdks/events/README.md#listdeliveries) - List Event Delivery Attempts
-- [`eventsRetry`](docs/sdks/events/README.md#retry) - Retry Event Delivery
+- [`eventsList`](docs/sdks/events/README.md#list) - List Events (Admin)
 - [`healthCheck`](docs/sdks/health/README.md#check) - Health Check
 - [`publishEvent`](docs/sdks/publish/README.md#event) - Publish Event
-- [`schemasGet`](docs/sdks/schemas/README.md#get) - Get Destination Type Schema (for Tenant)
 - [`schemasGetDestinationTypeJwt`](docs/sdks/schemas/README.md#getdestinationtypejwt) - Get Destination Type Schema
-- [`schemasListDestinationTypesJwt`](docs/sdks/schemas/README.md#listdestinationtypesjwt) - List Destination Type Schemas (JWT Auth)
-- [`schemasListTenantDestinationTypes`](docs/sdks/schemas/README.md#listtenantdestinationtypes) - List Destination Type Schemas (for Tenant)
+- [`schemasListDestinationTypesJwt`](docs/sdks/schemas/README.md#listdestinationtypesjwt) - List Destination Type Schemas
 - [`tenantsDelete`](docs/sdks/tenants/README.md#delete) - Delete Tenant
 - [`tenantsGet`](docs/sdks/tenants/README.md#get) - Get Tenant
 - [`tenantsGetPortalUrl`](docs/sdks/tenants/README.md#getportalurl) - Get Portal Redirect URL
 - [`tenantsGetToken`](docs/sdks/tenants/README.md#gettoken) - Get Tenant JWT Token
 - [`tenantsListTenants`](docs/sdks/tenants/README.md#listtenants) - List Tenants
 - [`tenantsUpsert`](docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
-- [`topicsList`](docs/sdks/topics/README.md#list) - List Available Topics (for Tenant)
-- [`topicsListJwt`](docs/sdks/topics/README.md#listjwt) - List Available Topics)
+- [`topicsList`](docs/sdks/topics/README.md#list) - List Available Topics
 
 </details>
 <!-- End Standalone functions [standalone-funcs] -->
@@ -471,7 +470,7 @@ run();
 **Primary error:**
 * [`OutpostError`](./src/models/errors/outposterror.ts): The base class for HTTP error responses.
 
-<details><summary>Less common errors (14)</summary>
+<details><summary>Less common errors (15)</summary>
 
 <br />
 
@@ -484,14 +483,15 @@ run();
 
 
 **Inherit from [`OutpostError`](./src/models/errors/outposterror.ts)**:
-* [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 5 of 27 methods.*
-* [`UnauthorizedError`](./src/models/errors/unauthorizederror.ts): A collection of codes that generally means the client was not authenticated correctly for the request they want to make. Applicable to 5 of 27 methods.*
-* [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 5 of 27 methods.*
-* [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request. Applicable to 5 of 27 methods.*
-* [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 27 methods.*
-* [`InternalServerError`](./src/models/errors/internalservererror.ts): A collection of status codes that generally mean the server failed in an unexpected way. Applicable to 5 of 27 methods.*
-* [`ListTenantsBadRequestError`](./src/models/errors/listtenantsbadrequesterror.ts): Invalid request parameters (e.g., invalid cursor, both next and prev provided). Status code `400`. Applicable to 1 of 27 methods.*
-* [`NotImplementedError`](./src/models/errors/notimplementederror.ts): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 27 methods.*
+* [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 5 of 25 methods.*
+* [`UnauthorizedError`](./src/models/errors/unauthorizederror.ts): A collection of codes that generally means the client was not authenticated correctly for the request they want to make. Applicable to 5 of 25 methods.*
+* [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 5 of 25 methods.*
+* [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request. Applicable to 5 of 25 methods.*
+* [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 25 methods.*
+* [`InternalServerError`](./src/models/errors/internalservererror.ts): A collection of status codes that generally mean the server failed in an unexpected way. Applicable to 5 of 25 methods.*
+* [`APIErrorResponse`](./src/models/errors/apierrorresponse.ts): Standard error response format. Status code `422`. Applicable to 4 of 25 methods.*
+* [`ListTenantsBadRequestError`](./src/models/errors/listtenantsbadrequesterror.ts): Invalid request parameters (e.g., invalid cursor, both next and prev provided). Status code `400`. Applicable to 1 of 25 methods.*
+* [`NotImplementedError`](./src/models/errors/notimplementederror.ts): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 25 methods.*
 * [`ResponseValidationError`](./src/models/errors/responsevalidationerror.ts): Type mismatch between the data returned from the server and the structure expected by the SDK. See `error.rawValue` for the raw value and `error.pretty()` for a nicely formatted multi-line string.
 
 </details>
@@ -502,9 +502,37 @@ run();
 <!-- Start Server Selection [server] -->
 ## Server Selection
 
+### Select Server by Index
+
+You can override the default server globally by passing a server index to the `serverIdx: number` optional parameter when initializing the SDK client instance. The selected server will then be used as the default on the operations that use it. This table lists the indexes associated with the available servers:
+
+| #   | Server                                        | Description                        |
+| --- | --------------------------------------------- | ---------------------------------- |
+| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Outpost API (production)           |
+| 1   | `http://localhost:3333/api/v1`                | Local development server base path |
+
+#### Example
+
+```typescript
+import { Outpost } from "@hookdeck/outpost-sdk";
+
+const outpost = new Outpost({
+  serverIdx: 0,
+});
+
+async function run() {
+  const result = await outpost.health.check();
+
+  console.log(result);
+}
+
+run();
+
+```
+
 ### Override Server URL Per-Client
 
-The default server can be overridden globally by passing a URL to the `serverURL: string` optional parameter when initializing the SDK client instance. For example:
+The default server can also be overridden globally by passing a URL to the `serverURL: string` optional parameter when initializing the SDK client instance. For example:
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -536,19 +564,23 @@ The `HTTPClient` constructor takes an optional `fetcher` argument that can be
 used to integrate a third-party HTTP client or when writing tests to mock out
 the HTTP client and feed in fixtures.
 
-The following example shows how to use the `"beforeRequest"` hook to to add a
-custom header and a timeout to requests and how to use the `"requestError"` hook
-to log errors:
+The following example shows how to:
+- route requests through a proxy server using [undici](https://www.npmjs.com/package/undici)'s ProxyAgent
+- use the `"beforeRequest"` hook to add a custom header and a timeout to requests
+- use the `"requestError"` hook to log errors
 
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
+import { ProxyAgent } from "undici";
 import { HTTPClient } from "@hookdeck/outpost-sdk/lib/http";
 
+const dispatcher = new ProxyAgent("http://proxy.example.com:8080");
+
 const httpClient = new HTTPClient({
-  // fetcher takes a function that has the same signature as native `fetch`.
-  fetcher: (request) => {
-    return fetch(request);
-  }
+  // 'fetcher' takes a function that has the same signature as native 'fetch'.
+  fetcher: (input, init) =>
+    // 'dispatcher' is specific to undici and not part of the standard Fetch API.
+    fetch(input, { ...init, dispatcher } as RequestInit),
 });
 
 httpClient.addHook("beforeRequest", (request) => {

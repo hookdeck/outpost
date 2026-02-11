@@ -7,14 +7,17 @@ import * as operations from "../../models/operations/index.js";
 import { formatResult, ToolDefinition } from "../tools.js";
 
 const args = {
-  request: operations.ListTenantEventsRequest$inboundSchema,
+  request: operations.AdminListEventsRequest$inboundSchema,
 };
 
 export const tool$eventsList: ToolDefinition<typeof args> = {
   name: "events-list",
-  description: `List Events
+  description: `List Events (Admin)
 
-Retrieves a list of events for the tenant, supporting cursor navigation (details TBD) and filtering.`,
+Retrieves a list of events across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+
+When \`tenant_id\` is not provided, returns events from all tenants. When \`tenant_id\` is provided, returns only events for that tenant.
+`,
   args,
   tool: async (client, args, ctx) => {
     const [result, apiCall] = await eventsList(

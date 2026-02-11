@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <title>SDK Changelog - typescript</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #1a1a1a;
+            --text-secondary: #666666;
+            --code-bg: #f4f4f4;
+            --border-color: #e0e0e0;
+            --added-color: #22863a;
+            --removed-color: #cb2431;
+            --changed-color: #6f42c1;
+            --breaking-color: #d73a49;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #1a1a1a;
+                --text-color: #e6e6e6;
+                --text-secondary: #a0a0a0;
+                --code-bg: #2d2d2d;
+                --border-color: #404040;
+                --added-color: #85e89d;
+                --removed-color: #f97583;
+                --changed-color: #b392f0;
+                --breaking-color: #f97583;
+            }
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.7;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        code {
+            background: var(--code-bg);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        h2 {
+            color: var(--text-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 12px;
+            margin-top: 32px;
+        }
+        ul {
+            padding-left: 24px;
+            list-style-type: disc;
+            list-style-position: outside;
+        }
+        ul ul {
+            padding-left: 28px;
+            margin-top: 6px;
+            margin-bottom: 6px;
+            list-style-type: circle;
+        }
+        li {
+            margin: 10px 0;
+            display: list-item;
+        }
+        li li {
+            margin: 4px 0;
+            color: var(--text-secondary);
+            display: list-item;
+        }
+        li li code {
+            font-size: 0.85em;
+        }
+        /* Ensure nested list items always show bullets */
+        ul > li {
+            list-style: disc;
+        }
+        ul ul > li {
+            list-style: circle;
+        }
+        strong {
+            font-weight: 600;
+        }
+        /* Semantic coloring for change types */
+        strong:contains('Added'), li:has(strong:contains('Added')) strong:first-of-type {
+            color: var(--added-color);
+        }
+        /* Warning emoji styling */
+        li {
+            list-style-position: outside;
+        }
+    </style>
+</head>
+<body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
+
+<ul>
+<li><code>outpost.tenants.listTenants()</code>:
+
+<ul>
+<li><code>request</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>createdAt[gte]</code> <strong>Added</strong></li>
+<li><code>createdAt[lte]</code> <strong>Added</strong></li>
+<li><code>dir</code> <strong>Added</strong></li>
+<li><code>orderBy</code> <strong>Added</strong></li>
+<li><code>order</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>data</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>models</code> <strong>Added</strong></li>
+<li><code>next</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>pagination</code> <strong>Added</strong></li>
+<li><code>prev</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+</ul></li>
+</ul></li>
+<li><code>outpost.events.get()</code>:
+
+<ul>
+<li><code>request.tenantId</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>status</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>tenantId</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.events.list()</code>:
+
+<ul>
+<li><code>request</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>destinationId</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>dir</code> <strong>Added</strong></li>
+<li><code>end</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>orderBy</code> <strong>Added</strong></li>
+<li><code>start</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>status</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>tenantId</code> <strong>Changed</strong></li>
+<li><code>time[gte]</code> <strong>Added</strong></li>
+<li><code>time[lte]</code> <strong>Added</strong></li>
+<li><code>topic</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>count</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>data</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>models</code> <strong>Added</strong></li>
+<li><code>next</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>pagination</code> <strong>Added</strong></li>
+<li><code>prev</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>error</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[404]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>status[422]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.topics.list()</code>:
+
+<ul>
+<li><code>request</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[400]</code> <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[403]</code> <strong>Added</strong></li>
+<li><code>status[407]</code> <strong>Added</strong></li>
+<li><code>status[408]</code> <strong>Added</strong></li>
+<li><code>status[413]</code> <strong>Added</strong></li>
+<li><code>status[414]</code> <strong>Added</strong></li>
+<li><code>status[415]</code> <strong>Added</strong></li>
+<li><code>status[422]</code> <strong>Added</strong></li>
+<li><code>status[429]</code> <strong>Added</strong></li>
+<li><code>status[431]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+<li><code>status[501]</code> <strong>Added</strong></li>
+<li><code>status[502]</code> <strong>Added</strong></li>
+<li><code>status[503]</code> <strong>Added</strong></li>
+<li><code>status[504]</code> <strong>Added</strong></li>
+<li><code>status[505]</code> <strong>Added</strong></li>
+<li><code>status[506]</code> <strong>Added</strong></li>
+<li><code>status[507]</code> <strong>Added</strong></li>
+<li><code>status[508]</code> <strong>Added</strong></li>
+<li><code>status[510]</code> <strong>Added</strong></li>
+<li><code>status[511]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.destinations.getAttempt()</code>: <strong>Added</strong></li>
+<li><code>outpost.schemas.listTenantDestinationTypes()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>outpost.schemas.get()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>outpost.topics.listJwt()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>outpost.events.listDeliveries()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>outpost.events.listByDestination()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>outpost.events.getByDestination()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>outpost.events.retry()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>outpost.attempts.list()</code>: <strong>Added</strong></li>
+<li><code>outpost.publish.event()</code>:
+
+<ul>
+<li><code>request.time</code> <strong>Added</strong></li>
+<li><code>response.destinationIds</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>outpost.destinations.listAttempts()</code>: <strong>Added</strong></li>
+<li><code>outpost.attempts.retry()</code>: <strong>Added</strong></li>
+<li><code>outpost.attempts.get()</code>: <strong>Added</strong></li>
+</ul>
+</body>
+</html>

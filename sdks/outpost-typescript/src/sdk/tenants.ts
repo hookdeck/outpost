@@ -29,7 +29,7 @@ export class Tenants extends ClientSDK {
   async listTenants(
     request: operations.ListTenantsRequest,
     options?: RequestOptions,
-  ): Promise<components.TenantListResponse> {
+  ): Promise<components.TenantPaginatedResult> {
     return unwrapAsync(tenantsListTenants(
       this,
       request,
