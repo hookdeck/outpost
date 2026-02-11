@@ -222,7 +222,7 @@ describe('Events (PR #491)', () => {
 
       const sdk: Outpost = client.getSDK();
 
-      await sdk.publish.event({
+      const publishResponse = await sdk.publish.event({
         tenantId: client.getTenantId(),
         topic: TEST_TOPICS[0],
         data: {
@@ -230,13 +230,15 @@ describe('Events (PR #491)', () => {
           timestamp: new Date().toISOString(),
         },
       });
-      console.log('Event published (topic matches destination); waiting for attempt...');
+      const eventId = publishResponse.id;
+      console.log(`Event published (id=${eventId}); waiting for attempt...`);
 
       const attempts = await pollForAttempts(
         async () => {
           const response = await sdk.destinations.listAttempts({
             tenantId: client.getTenantId(),
             destinationId: destinationId,
+            eventId,
           });
           return response?.models ?? [];
         },
@@ -244,11 +246,11 @@ describe('Events (PR #491)', () => {
         5000
       );
 
-      expect(attempts.length).to.be.at.least(1, 'Expected at least one attempt: event should be delivered to the destination (mock.hookdeck.com) when tenant, enabled destination, and matching topic are in place');
-
+      expect(attempts.length).to.be.at.least(1, 'Expected at least one attempt for the published event when tenant, enabled destination, and matching topic are in place');
       const attempt = attempts[0];
+      expect(attempt.eventId).to.equal(eventId, 'Attempt should be for the event we just published');
       expect(attempt.status).to.equal('success', 'Delivery to mock.hookdeck.com should succeed');
-      console.log(`Event generated ${attempts.length} attempt(s); attempt status: ${attempt.status}`);
+      console.log(`Event ${eventId} generated attempt; status: ${attempt.status}`);
     });
   });
 });
