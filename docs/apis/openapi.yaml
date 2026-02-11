@@ -11,6 +11,8 @@ security:
   - AdminApiKey: []
   - TenantJwt: []
 servers:
+  - url: https://api.outpost.hookdeck.com/2025-07-01
+    description: Outpost API (production)
   - url: http://localhost:3333/api/v1
     description: Local development server base path
 components:
@@ -1763,10 +1765,6 @@ components:
           additionalProperties:
             type: string
           example: { "source": "crm" }
-        status:
-          type: string
-          enum: [success, failed]
-          example: "success"
         data:
           type: object
           description: Freeform JSON data of the event.
@@ -2375,12 +2373,6 @@ paths:
           schema:
             type: string
           description: Filter events by tenant ID. If not provided, returns events from all tenants.
-        - name: destination_id
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Filter events by destination ID.
         - name: topic
           in: query
           required: false

@@ -6,7 +6,7 @@
   "scripts": {
     "test": "npm run test:validation",
     "test:validation": "mocha --require ts-node/register --extensions ts --timeout 10000 'tests/**/*.test.ts'",
-    "test:failures": "mocha --require ts-node/register --extensions ts --timeout 15000 'tests/**/*.test.ts' --grep \"status field in events returned from list with destinationId|status field when getting a single event|status field in events returned from tenant events list|configured instance topics when TEST_TOPICS is set\"",
+    "test:failures": "mocha --require ts-node/register --extensions ts --timeout 15000 'tests/**/*.test.ts' --grep \"configured instance topics when TEST_TOPICS is set\"",
     "test:watch": "mocha --require ts-node/register --extensions ts --watch --watch-files 'tests/**/*.ts' 'tests/**/*.test.ts'",
     "test:coverage": "nyc npm run test:validation",
     "lint:spec": "spectral lint ../docs/apis/openapi.yaml",
