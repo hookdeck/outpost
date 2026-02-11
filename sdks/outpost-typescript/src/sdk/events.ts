@@ -3,11 +3,7 @@
  */
 
 import { eventsGet } from "../funcs/eventsGet.js";
-import { eventsGetByDestination } from "../funcs/eventsGetByDestination.js";
 import { eventsList } from "../funcs/eventsList.js";
-import { eventsListByDestination } from "../funcs/eventsListByDestination.js";
-import { eventsListDeliveries } from "../funcs/eventsListDeliveries.js";
-import { eventsRetry } from "../funcs/eventsRetry.js";
 import { ClientSDK, RequestOptions } from "../lib/sdks.js";
 import * as components from "../models/components/index.js";
 import * as operations from "../models/operations/index.js";
@@ -15,15 +11,17 @@ import { unwrapAsync } from "../types/fp.js";
 
 export class Events extends ClientSDK {
   /**
-   * List Events
+   * List Events (Admin)
    *
    * @remarks
-   * Retrieves a list of events for the tenant, supporting cursor navigation (details TBD) and filtering.
+   * Retrieves a list of events across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+   *
+   * When `tenant_id` is not provided, returns events from all tenants. When `tenant_id` is provided, returns only events for that tenant.
    */
   async list(
-    request: operations.ListTenantEventsRequest,
+    request: operations.AdminListEventsRequest,
     options?: RequestOptions,
-  ): Promise<operations.ListTenantEventsResponse> {
+  ): Promise<components.EventPaginatedResult> {
     return unwrapAsync(eventsList(
       this,
       request,
@@ -36,80 +34,15 @@ export class Events extends ClientSDK {
    *
    * @remarks
    * Retrieves details for a specific event.
+   *
+   * When authenticated with a Tenant JWT, only events belonging to that tenant can be accessed.
+   * When authenticated with Admin API Key, events from any tenant can be accessed.
    */
   async get(
-    request: operations.GetTenantEventRequest,
+    request: operations.GetEventRequest,
     options?: RequestOptions,
   ): Promise<components.Event> {
     return unwrapAsync(eventsGet(
-      this,
-      request,
-      options,
-    ));
-  }
-
-  /**
-   * List Event Delivery Attempts
-   *
-   * @remarks
-   * Retrieves a list of delivery attempts for a specific event, including response details.
-   */
-  async listDeliveries(
-    request: operations.ListTenantEventDeliveriesRequest,
-    options?: RequestOptions,
-  ): Promise<Array<components.DeliveryAttempt>> {
-    return unwrapAsync(eventsListDeliveries(
-      this,
-      request,
-      options,
-    ));
-  }
-
-  /**
-   * List Events by Destination
-   *
-   * @remarks
-   * Retrieves events associated with a specific destination for the tenant.
-   */
-  async listByDestination(
-    request: operations.ListTenantEventsByDestinationRequest,
-    options?: RequestOptions,
-  ): Promise<operations.ListTenantEventsByDestinationResponse> {
-    return unwrapAsync(eventsListByDestination(
-      this,
-      request,
-      options,
-    ));
-  }
-
-  /**
-   * Get Event by Destination
-   *
-   * @remarks
-   * Retrieves a specific event associated with a specific destination for the tenant.
-   */
-  async getByDestination(
-    request: operations.GetTenantEventByDestinationRequest,
-    options?: RequestOptions,
-  ): Promise<components.Event> {
-    return unwrapAsync(eventsGetByDestination(
-      this,
-      request,
-      options,
-    ));
-  }
-
-  /**
-   * Retry Event Delivery
-   *
-   * @remarks
-   * Triggers a retry for a failed event delivery.
-   */
-  async retry(
-    request: operations.RetryTenantEventRequest,
-    options?: RequestOptions,
-  ): Promise<void> {
-    return unwrapAsync(eventsRetry(
       this,
       request,
       options,

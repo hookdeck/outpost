@@ -7,7 +7,9 @@ import { destinationsDelete } from "../funcs/destinationsDelete.js";
 import { destinationsDisable } from "../funcs/destinationsDisable.js";
 import { destinationsEnable } from "../funcs/destinationsEnable.js";
 import { destinationsGet } from "../funcs/destinationsGet.js";
+import { destinationsGetAttempt } from "../funcs/destinationsGetAttempt.js";
 import { destinationsList } from "../funcs/destinationsList.js";
+import { destinationsListAttempts } from "../funcs/destinationsListAttempts.js";
 import { destinationsUpdate } from "../funcs/destinationsUpdate.js";
 import { ClientSDK, RequestOptions } from "../lib/sdks.js";
 import * as components from "../models/components/index.js";
@@ -128,6 +130,40 @@ export class Destinations extends ClientSDK {
     options?: RequestOptions,
   ): Promise<components.Destination> {
     return unwrapAsync(destinationsDisable(
+      this,
+      request,
+      options,
+    ));
+  }
+
+  /**
+   * List Destination Attempts
+   *
+   * @remarks
+   * Retrieves a paginated list of attempts scoped to a specific destination.
+   */
+  async listAttempts(
+    request: operations.ListTenantDestinationAttemptsRequest,
+    options?: RequestOptions,
+  ): Promise<components.AttemptPaginatedResult> {
+    return unwrapAsync(destinationsListAttempts(
+      this,
+      request,
+      options,
+    ));
+  }
+
+  /**
+   * Get Destination Attempt
+   *
+   * @remarks
+   * Retrieves details for a specific attempt scoped to a destination.
+   */
+  async getAttempt(
+    request: operations.GetTenantDestinationAttemptRequest,
+    options?: RequestOptions,
+  ): Promise<components.Attempt> {
+    return unwrapAsync(destinationsGetAttempt(
       this,
       request,
       options,

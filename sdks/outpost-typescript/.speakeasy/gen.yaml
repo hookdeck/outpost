@@ -21,13 +21,14 @@ generation:
   schemas:
     allOfMergeStrategy: shallowMerge
   requestBodyFieldName: params
+  versioningStrategy: automatic
   persistentEdits: {}
   tests:
     generateTests: true
     generateNewTests: false
     skipResponseBodyAssertions: false
 typescript:
-  version: 0.6.0
+  version: 0.7.0
   acceptHeaderEnum: true
   additionalDependencies:
     dependencies: {}
@@ -65,6 +66,7 @@ typescript:
   inputModelSuffix: input
   jsonpath: rfc9535
   laxMode: strict
+  legacyFileNaming: true
   maxMethodParams: 0
   methodArguments: require-security-and-request
   modelPropertyCasing: camel

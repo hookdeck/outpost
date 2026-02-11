@@ -13,25 +13,24 @@ import {
 } from "./resources.js";
 import { MCPScope } from "./scopes.js";
 import { createRegisterTool } from "./tools.js";
+import { tool$attemptsGet } from "./tools/attemptsGet.js";
+import { tool$attemptsList } from "./tools/attemptsList.js";
+import { tool$attemptsRetry } from "./tools/attemptsRetry.js";
 import { tool$destinationsCreate } from "./tools/destinationsCreate.js";
 import { tool$destinationsDelete } from "./tools/destinationsDelete.js";
 import { tool$destinationsDisable } from "./tools/destinationsDisable.js";
 import { tool$destinationsEnable } from "./tools/destinationsEnable.js";
 import { tool$destinationsGet } from "./tools/destinationsGet.js";
+import { tool$destinationsGetAttempt } from "./tools/destinationsGetAttempt.js";
 import { tool$destinationsList } from "./tools/destinationsList.js";
+import { tool$destinationsListAttempts } from "./tools/destinationsListAttempts.js";
 import { tool$destinationsUpdate } from "./tools/destinationsUpdate.js";
 import { tool$eventsGet } from "./tools/eventsGet.js";
-import { tool$eventsGetByDestination } from "./tools/eventsGetByDestination.js";
 import { tool$eventsList } from "./tools/eventsList.js";
-import { tool$eventsListByDestination } from "./tools/eventsListByDestination.js";
-import { tool$eventsListDeliveries } from "./tools/eventsListDeliveries.js";
-import { tool$eventsRetry } from "./tools/eventsRetry.js";
 import { tool$healthCheck } from "./tools/healthCheck.js";
 import { tool$publishEvent } from "./tools/publishEvent.js";
-import { tool$schemasGet } from "./tools/schemasGet.js";
 import { tool$schemasGetDestinationTypeJwt } from "./tools/schemasGetDestinationTypeJwt.js";
 import { tool$schemasListDestinationTypesJwt } from "./tools/schemasListDestinationTypesJwt.js";
-import { tool$schemasListTenantDestinationTypes } from "./tools/schemasListTenantDestinationTypes.js";
 import { tool$tenantsDelete } from "./tools/tenantsDelete.js";
 import { tool$tenantsGet } from "./tools/tenantsGet.js";
 import { tool$tenantsGetPortalUrl } from "./tools/tenantsGetPortalUrl.js";
@@ -39,7 +38,6 @@ import { tool$tenantsGetToken } from "./tools/tenantsGetToken.js";
 import { tool$tenantsListTenants } from "./tools/tenantsListTenants.js";
 import { tool$tenantsUpsert } from "./tools/tenantsUpsert.js";
 import { tool$topicsList } from "./tools/topicsList.js";
-import { tool$topicsListJwt } from "./tools/topicsListJwt.js";
 
 export function createMCPServer(deps: {
   logger: ConsoleLogger;
@@ -52,7 +50,7 @@ export function createMCPServer(deps: {
 }) {
   const server = new McpServer({
     name: "Outpost",
-    version: "0.6.0",
+    version: "0.7.0",
   });
 
   const client = new OutpostCore({
@@ -90,6 +88,11 @@ export function createMCPServer(deps: {
   tool(tool$tenantsDelete);
   tool(tool$tenantsGetPortalUrl);
   tool(tool$tenantsGetToken);
+  tool(tool$eventsList);
+  tool(tool$eventsGet);
+  tool(tool$attemptsList);
+  tool(tool$attemptsGet);
+  tool(tool$attemptsRetry);
   tool(tool$destinationsList);
   tool(tool$destinationsCreate);
   tool(tool$destinationsGet);
@@ -97,19 +100,12 @@ export function createMCPServer(deps: {
   tool(tool$destinationsDelete);
   tool(tool$destinationsEnable);
   tool(tool$destinationsDisable);
+  tool(tool$destinationsListAttempts);
+  tool(tool$destinationsGetAttempt);
   tool(tool$publishEvent);
-  tool(tool$schemasListTenantDestinationTypes);
-  tool(tool$schemasGet);
   tool(tool$schemasListDestinationTypesJwt);
   tool(tool$schemasGetDestinationTypeJwt);
   tool(tool$topicsList);
-  tool(tool$topicsListJwt);
-  tool(tool$eventsList);
-  tool(tool$eventsGet);
-  tool(tool$eventsListDeliveries);
-  tool(tool$eventsListByDestination);
-  tool(tool$eventsGetByDestination);
-  tool(tool$eventsRetry);
 
   return server;
 }

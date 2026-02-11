@@ -13,6 +13,10 @@ import { Params, pathToFunc } from "./url.js";
  */
 export const ServerList = [
   /**
+   * Outpost API (production)
+   */
+  "https://api.outpost.hookdeck.com/2025-07-01",
+  /**
    * Local development server base path
    */
   "http://localhost:3333/api/v1",
@@ -73,8 +77,8 @@ export function serverURLFromOptions(options: SDKOptions): URL | null {
 export const SDK_METADATA = {
   language: "typescript",
   openapiDocVersion: "0.0.1",
-  sdkVersion: "0.6.0",
-  genVersion: "2.796.1",
+  sdkVersion: "0.7.0",
+  genVersion: "2.818.4",
   userAgent:
-    "speakeasy-sdk/typescript 0.6.0 2.796.1 0.0.1 @hookdeck/outpost-sdk",
+    "speakeasy-sdk/typescript 0.7.0 2.818.4 0.0.1 @hookdeck/outpost-sdk",
 } as const;

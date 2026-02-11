@@ -1,0 +1,23 @@
+# AdminListEventsRequest
+
+## Example Usage
+
+```typescript
+import { AdminListEventsRequest } from "@hookdeck/outpost-sdk/models/operations";
+
+let value: AdminListEventsRequest = {};
+```
+
+## Fields
+
+| Field                                                                                         | Type                                                                                          | Required                                                                                      | Description                                                                                   |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `tenantId`                                                                                    | *string*                                                                                      | :heavy_minus_sign:                                                                            | Filter events by tenant ID. If not provided, returns events from all tenants.                 |
+| `topic`                                                                                       | *operations.AdminListEventsTopic*                                                             | :heavy_minus_sign:                                                                            | Filter events by topic(s). Can be specified multiple times or comma-separated.                |
+| `timeGte`                                                                                     | [Date](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date) | :heavy_minus_sign:                                                                            | Filter events with time >= value (RFC3339 or YYYY-MM-DD format).                              |
+| `timeLte`                                                                                     | [Date](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date) | :heavy_minus_sign:                                                                            | Filter events with time <= value (RFC3339 or YYYY-MM-DD format).                              |
+| `limit`                                                                                       | *number*                                                                                      | :heavy_minus_sign:                                                                            | Number of items per page (default 100, max 1000).                                             |
+| `next`                                                                                        | *string*                                                                                      | :heavy_minus_sign:                                                                            | Cursor for next page of results.                                                              |
+| `prev`                                                                                        | *string*                                                                                      | :heavy_minus_sign:                                                                            | Cursor for previous page of results.                                                          |
+| `orderBy`                                                                                     | [operations.AdminListEventsOrderBy](../../models/operations/adminlisteventsorderby.md)        | :heavy_minus_sign:                                                                            | Field to sort by.                                                                             |
+| `dir`                                                                                         | [operations.AdminListEventsDir](../../models/operations/adminlisteventsdir.md)                | :heavy_minus_sign:                                                                            | Sort direction.                                                                               |

@@ -25,10 +25,10 @@ import { APICall, APIPromise } from "../types/async.js";
 import { Result } from "../types/fp.js";
 
 /**
- * List Destination Type Schemas (JWT Auth)
+ * List Destination Type Schemas
  *
  * @remarks
- * Returns a list of JSON-based input schemas for each available destination type (infers tenant from JWT).
+ * Returns a list of JSON-based input schemas for each available destination type.
  */
 export function schemasListDestinationTypesJwt(
   client: OutpostCore,
@@ -95,7 +95,7 @@ async function $do(
   const context = {
     options: client._options,
     baseURL: options?.serverURL ?? client._baseURL ?? "",
-    operationID: "listDestinationTypeSchemasJwt",
+    operationID: "listDestinationTypeSchemas",
     oAuth2Scopes: null,
 
     resolvedSecurity: requestSecurity,

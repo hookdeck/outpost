@@ -3,6 +3,7 @@
  */
 
 import { ClientSDK } from "../lib/sdks.js";
+import { Attempts } from "./attempts.js";
 import { Destinations } from "./destinations.js";
 import { Events } from "./events.js";
 import { Health } from "./health.js";
@@ -20,6 +21,16 @@ export class Outpost extends ClientSDK {
   private _tenants?: Tenants;
   get tenants(): Tenants {
     return (this._tenants ??= new Tenants(this._options));
+  }
+
+  private _events?: Events;
+  get events(): Events {
+    return (this._events ??= new Events(this._options));
+  }
+
+  private _attempts?: Attempts;
+  get attempts(): Attempts {
+    return (this._attempts ??= new Attempts(this._options));
   }
 
   private _destinations?: Destinations;
@@ -40,10 +51,5 @@ export class Outpost extends ClientSDK {
   private _topics?: Topics;
   get topics(): Topics {
     return (this._topics ??= new Topics(this._options));
-  }
-
-  private _events?: Events;
-  get events(): Events {
-    return (this._events ??= new Events(this._options));
   }
 }

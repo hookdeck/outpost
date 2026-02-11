@@ -88,7 +88,7 @@ run();
 
 ### Response
 
-**Promise\<[components.TenantListResponse](../../models/components/tenantlistresponse.md)\>**
+**Promise\<[components.TenantPaginatedResult](../../models/components/tenantpaginatedresult.md)\>**
 
 ### Errors
 
@@ -104,7 +104,7 @@ Idempotently creates or updates a tenant. Required before associating destinatio
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="upsertTenant" method="put" path="/tenants/{tenant_id}" -->
+<!-- UsageSnippet language="typescript" operationID="upsertTenant" method="put" path="/tenants/{tenant_id}" example="TenantExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -179,7 +179,7 @@ Retrieves details for a specific tenant.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="getTenant" method="get" path="/tenants/{tenant_id}" -->
+<!-- UsageSnippet language="typescript" operationID="getTenant" method="get" path="/tenants/{tenant_id}" example="TenantExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -254,7 +254,7 @@ Deletes the tenant and all associated destinations.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="deleteTenant" method="delete" path="/tenants/{tenant_id}" -->
+<!-- UsageSnippet language="typescript" operationID="deleteTenant" method="delete" path="/tenants/{tenant_id}" example="SuccessExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -329,7 +329,7 @@ Returns a redirect URL containing a JWT to authenticate the user with the portal
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="getTenantPortalUrl" method="get" path="/tenants/{tenant_id}/portal" -->
+<!-- UsageSnippet language="typescript" operationID="getTenantPortalUrl" method="get" path="/tenants/{tenant_id}/portal" example="PortalRedirectExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -404,7 +404,7 @@ Returns a JWT token scoped to the tenant for safe browser API calls.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="getTenantToken" method="get" path="/tenants/{tenant_id}/token" -->
+<!-- UsageSnippet language="typescript" operationID="getTenantToken" method="get" path="/tenants/{tenant_id}/token" example="TenantTokenExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 

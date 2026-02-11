@@ -30,10 +30,13 @@ import { Result } from "../types/fp.js";
  *
  * @remarks
  * Retrieves details for a specific event.
+ *
+ * When authenticated with a Tenant JWT, only events belonging to that tenant can be accessed.
+ * When authenticated with Admin API Key, events from any tenant can be accessed.
  */
 export function eventsGet(
   client: OutpostCore,
-  request: operations.GetTenantEventRequest,
+  request: operations.GetEventRequest,
   options?: RequestOptions,
 ): APIPromise<
   Result<
@@ -57,7 +60,7 @@ export function eventsGet(
 
 async function $do(
   client: OutpostCore,
-  request: operations.GetTenantEventRequest,
+  request: operations.GetEventRequest,
   options?: RequestOptions,
 ): Promise<
   [
@@ -77,7 +80,7 @@ async function $do(
 > {
   const parsed = safeParse(
     request,
-    (value) => operations.GetTenantEventRequest$outboundSchema.parse(value),
+    (value) => operations.GetEventRequest$outboundSchema.parse(value),
     "Input validation failed",
   );
   if (!parsed.ok) {
@@ -91,14 +94,9 @@ async function $do(
       explode: false,
       charEncoding: "percent",
     }),
-    tenant_id: encodeSimple(
-      "tenant_id",
-      payload.tenant_id ?? client._options.tenantId,
-      { explode: false, charEncoding: "percent" },
-    ),
   };
 
-  const path = pathToFunc("/tenants/{tenant_id}/events/{event_id}")(pathParams);
+  const path = pathToFunc("/events/{event_id}")(pathParams);
 
   const headers = new Headers(compactMap({
     Accept: "application/json",
@@ -110,7 +108,7 @@ async function $do(
   const context = {
     options: client._options,
     baseURL: options?.serverURL ?? client._baseURL ?? "",
-    operationID: "getTenantEvent",
+    operationID: "getEvent",
     oAuth2Scopes: null,
 
     resolvedSecurity: requestSecurity,

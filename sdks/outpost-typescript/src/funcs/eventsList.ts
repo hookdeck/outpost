@@ -3,13 +3,14 @@
  */
 
 import { OutpostCore } from "../core.js";
-import { encodeFormQuery, encodeSimple } from "../lib/encodings.js";
+import { encodeFormQuery } from "../lib/encodings.js";
 import * as M from "../lib/matchers.js";
 import { compactMap } from "../lib/primitives.js";
 import { safeParse } from "../lib/schemas.js";
 import { RequestOptions } from "../lib/sdks.js";
 import { extractSecurity, resolveGlobalSecurity } from "../lib/security.js";
 import { pathToFunc } from "../lib/url.js";
+import * as components from "../models/components/index.js";
 import {
   ConnectionError,
   InvalidRequestError,
@@ -17,6 +18,7 @@ import {
   RequestTimeoutError,
   UnexpectedClientError,
 } from "../models/errors/httpclienterrors.js";
+import * as errors from "../models/errors/index.js";
 import { OutpostError } from "../models/errors/outposterror.js";
 import { ResponseValidationError } from "../models/errors/responsevalidationerror.js";
 import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
@@ -25,18 +27,21 @@ import { APICall, APIPromise } from "../types/async.js";
 import { Result } from "../types/fp.js";
 
 /**
- * List Events
+ * List Events (Admin)
  *
  * @remarks
- * Retrieves a list of events for the tenant, supporting cursor navigation (details TBD) and filtering.
+ * Retrieves a list of events across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+ *
+ * When `tenant_id` is not provided, returns events from all tenants. When `tenant_id` is provided, returns only events for that tenant.
  */
 export function eventsList(
   client: OutpostCore,
-  request: operations.ListTenantEventsRequest,
+  request: operations.AdminListEventsRequest,
   options?: RequestOptions,
 ): APIPromise<
   Result<
-    operations.ListTenantEventsResponse,
+    components.EventPaginatedResult,
+    | errors.APIErrorResponse
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -56,12 +61,13 @@ export function eventsList(
 
 async function $do(
   client: OutpostCore,
-  request: operations.ListTenantEventsRequest,
+  request: operations.AdminListEventsRequest,
   options?: RequestOptions,
 ): Promise<
   [
     Result<
-      operations.ListTenantEventsResponse,
+      components.EventPaginatedResult,
+      | errors.APIErrorResponse
       | OutpostError
       | ResponseValidationError
       | ConnectionError
@@ -76,7 +82,7 @@ async function $do(
 > {
   const parsed = safeParse(
     request,
-    (value) => operations.ListTenantEventsRequest$outboundSchema.parse(value),
+    (value) => operations.AdminListEventsRequest$outboundSchema.parse(value),
     "Input validation failed",
   );
   if (!parsed.ok) {
@@ -85,24 +91,18 @@ async function $do(
   const payload = parsed.value;
   const body = null;
 
-  const pathParams = {
-    tenant_id: encodeSimple(
-      "tenant_id",
-      payload.tenant_id ?? client._options.tenantId,
-      { explode: false, charEncoding: "percent" },
-    ),
-  };
-
-  const path = pathToFunc("/tenants/{tenant_id}/events")(pathParams);
+  const path = pathToFunc("/events")();
 
   const query = encodeFormQuery({
-    "destination_id": payload.destination_id,
-    "end": payload.end,
+    "dir": payload.dir,
     "limit": payload.limit,
     "next": payload.next,
+    "order_by": payload.order_by,
     "prev": payload.prev,
-    "start": payload.start,
-    "status": payload.status,
+    "tenant_id": payload.tenant_id,
+    "time[gte]": payload["time[gte]"],
+    "time[lte]": payload["time[lte]"],
+    "topic": payload.topic,
   });
 
   const headers = new Headers(compactMap({
@@ -115,7 +115,7 @@ async function $do(
   const context = {
     options: client._options,
     baseURL: options?.serverURL ?? client._baseURL ?? "",
-    operationID: "listTenantEvents",
+    operationID: "adminListEvents",
     oAuth2Scopes: null,
 
     resolvedSecurity: requestSecurity,
@@ -145,7 +145,7 @@ async function $do(
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: ["404", "4XX", "5XX"],
+    errorCodes: ["401", "422", "4XX", "5XX"],
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });
@@ -154,8 +154,13 @@ async function $do(
   }
   const response = doResult.value;
 
+  const responseFields = {
+    HttpMeta: { Response: response, Request: req },
+  };
+
   const [result] = await M.match<
-    operations.ListTenantEventsResponse,
+    components.EventPaginatedResult,
+    | errors.APIErrorResponse
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -165,10 +170,11 @@ async function $do(
     | UnexpectedClientError
     | SDKValidationError
   >(
-    M.json(200, operations.ListTenantEventsResponse$inboundSchema),
-    M.fail([404, "4XX"]),
+    M.json(200, components.EventPaginatedResult$inboundSchema),
+    M.jsonErr(422, errors.APIErrorResponse$inboundSchema),
+    M.fail([401, "4XX"]),
     M.fail("5XX"),
-  )(response, req);
+  )(response, req, { extraFields: responseFields });
   if (!result.ok) {
     return [result, { status: "complete", request: req, response }];
   }

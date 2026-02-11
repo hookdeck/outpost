@@ -44,7 +44,7 @@ export function tenantsListTenants(
   options?: RequestOptions,
 ): APIPromise<
   Result<
-    components.TenantListResponse,
+    components.TenantPaginatedResult,
     | errors.ListTenantsBadRequestError
     | errors.NotImplementedError
     | OutpostError
@@ -71,7 +71,7 @@ async function $do(
 ): Promise<
   [
     Result<
-      components.TenantListResponse,
+      components.TenantPaginatedResult,
       | errors.ListTenantsBadRequestError
       | errors.NotImplementedError
       | OutpostError
@@ -100,9 +100,12 @@ async function $do(
   const path = pathToFunc("/tenants")();
 
   const query = encodeFormQuery({
+    "created_at[gte]": payload["created_at[gte]"],
+    "created_at[lte]": payload["created_at[lte]"],
+    "dir": payload.dir,
     "limit": payload.limit,
     "next": payload.next,
-    "order": payload.order,
+    "order_by": payload.order_by,
     "prev": payload.prev,
   });
 
@@ -160,7 +163,7 @@ async function $do(
   };
 
   const [result] = await M.match<
-    components.TenantListResponse,
+    components.TenantPaginatedResult,
     | errors.ListTenantsBadRequestError
     | errors.NotImplementedError
     | OutpostError
@@ -172,7 +175,7 @@ async function $do(
     | UnexpectedClientError
     | SDKValidationError
   >(
-    M.json(200, components.TenantListResponse$inboundSchema),
+    M.json(200, components.TenantPaginatedResult$inboundSchema),
     M.jsonErr(400, errors.ListTenantsBadRequestError$inboundSchema),
     M.jsonErr(501, errors.NotImplementedError$inboundSchema),
     M.fail([401, "4XX"]),

@@ -7,9 +7,9 @@ import { formatResult, ToolDefinition } from "../tools.js";
 
 export const tool$schemasListDestinationTypesJwt: ToolDefinition = {
   name: "schemas-list-destination-types-jwt",
-  description: `List Destination Type Schemas (JWT Auth)
+  description: `List Destination Type Schemas
 
-Returns a list of JSON-based input schemas for each available destination type (infers tenant from JWT).`,
+Returns a list of JSON-based input schemas for each available destination type.`,
   tool: async (client, ctx) => {
     const [result, apiCall] = await schemasListDestinationTypesJwt(
       client,

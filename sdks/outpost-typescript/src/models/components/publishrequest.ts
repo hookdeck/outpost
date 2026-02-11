@@ -30,6 +30,10 @@ export type PublishRequest = {
    */
   eligibleForRetry?: boolean | undefined;
   /**
+   * Optional. Custom timestamp for the event. If not provided, defaults to the current time.
+   */
+  time?: Date | undefined;
+  /**
    * Any key-value string pairs for metadata.
    */
   metadata?: { [k: string]: string } | undefined;
@@ -50,6 +54,8 @@ export const PublishRequest$inboundSchema: z.ZodType<
   destination_id: z.string().optional(),
   topic: z.string().optional(),
   eligible_for_retry: z.boolean().optional(),
+  time: z.string().datetime({ offset: true }).transform(v => new Date(v))
+    .optional(),
   metadata: z.record(z.string()).optional(),
   data: z.record(z.any()),
 }).transform((v) => {
@@ -66,6 +72,7 @@ export type PublishRequest$Outbound = {
   destination_id?: string | undefined;
   topic?: string | undefined;
   eligible_for_retry?: boolean | undefined;
+  time?: string | undefined;
   metadata?: { [k: string]: string } | undefined;
   data: { [k: string]: any };
 };
@@ -81,6 +88,7 @@ export const PublishRequest$outboundSchema: z.ZodType<
   destinationId: z.string().optional(),
   topic: z.string().optional(),
   eligibleForRetry: z.boolean().optional(),
+  time: z.date().transform(v => v.toISOString()).optional(),
   metadata: z.record(z.string()).optional(),
   data: z.record(z.any()),
 }).transform((v) => {

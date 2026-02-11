@@ -7,14 +7,18 @@ import * as operations from "../../models/operations/index.js";
 import { formatResult, ToolDefinition } from "../tools.js";
 
 const args = {
-  request: operations.GetTenantEventRequest$inboundSchema,
+  request: operations.GetEventRequest$inboundSchema,
 };
 
 export const tool$eventsGet: ToolDefinition<typeof args> = {
   name: "events-get",
   description: `Get Event
 
-Retrieves details for a specific event.`,
+Retrieves details for a specific event.
+
+When authenticated with a Tenant JWT, only events belonging to that tenant can be accessed.
+When authenticated with Admin API Key, events from any tenant can be accessed.
+`,
   args,
   tool: async (client, args, ctx) => {
     const [result, apiCall] = await eventsGet(

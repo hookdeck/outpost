@@ -36,6 +36,8 @@ By default all destination `credentials` are obfuscated and the values cannot be
 * [delete](#delete) - Delete Destination
 * [enable](#enable) - Enable Destination
 * [disable](#disable) - Disable Destination
+* [listAttempts](#listattempts) - List Destination Attempts
+* [getAttempt](#getattempt) - Get Destination Attempt
 
 ## list
 
@@ -43,7 +45,7 @@ Return a list of the destinations for the tenant. The endpoint is not paged.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="listTenantDestinations" method="get" path="/tenants/{tenant_id}/destinations" -->
+<!-- UsageSnippet language="typescript" operationID="listTenantDestinations" method="get" path="/tenants/{tenant_id}/destinations" example="DestinationsListExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -122,7 +124,7 @@ Creates a new destination for the tenant. The request body structure depends on 
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="createTenantDestination" method="post" path="/tenants/{tenant_id}/destinations" -->
+<!-- UsageSnippet language="typescript" operationID="createTenantDestination" method="post" path="/tenants/{tenant_id}/destinations" example="WebhookCreatedExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -227,7 +229,7 @@ Retrieves details for a specific destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="getTenantDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="typescript" operationID="getTenantDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}" example="WebhookGetExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -306,7 +308,7 @@ Updates the configuration of an existing destination. The request body structure
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="typescript" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" example="DestinationUpdatedExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -409,7 +411,7 @@ Deletes a specific destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="deleteTenantDestination" method="delete" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="typescript" operationID="deleteTenantDestination" method="delete" path="/tenants/{tenant_id}/destinations/{destination_id}" example="SuccessExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -488,7 +490,7 @@ Enables a previously disabled destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="enableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/enable" -->
+<!-- UsageSnippet language="typescript" operationID="enableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/enable" example="WebhookEnabledExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -567,7 +569,7 @@ Disables a previously enabled destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="disableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/disable" -->
+<!-- UsageSnippet language="typescript" operationID="disableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/disable" example="WebhookDisabledExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
@@ -633,6 +635,167 @@ run();
 ### Response
 
 **Promise\<[components.Destination](../../models/components/destination.md)\>**
+
+### Errors
+
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
+
+## listAttempts
+
+Retrieves a paginated list of attempts scoped to a specific destination.
+
+### Example Usage
+
+<!-- UsageSnippet language="typescript" operationID="listTenantDestinationAttempts" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/attempts" example="DestinationAttemptsListExample" -->
+```typescript
+import { Outpost } from "@hookdeck/outpost-sdk";
+
+const outpost = new Outpost({
+  tenantId: "<id>",
+  security: {
+    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
+  },
+});
+
+async function run() {
+  const result = await outpost.destinations.listAttempts({
+    destinationId: "<id>",
+  });
+
+  console.log(result);
+}
+
+run();
+```
+
+### Standalone function
+
+The standalone function version of this method:
+
+```typescript
+import { OutpostCore } from "@hookdeck/outpost-sdk/core.js";
+import { destinationsListAttempts } from "@hookdeck/outpost-sdk/funcs/destinationsListAttempts.js";
+
+// Use `OutpostCore` for best tree-shaking performance.
+// You can create one instance of it to use across an application.
+const outpost = new OutpostCore({
+  tenantId: "<id>",
+  security: {
+    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
+  },
+});
+
+async function run() {
+  const res = await destinationsListAttempts(outpost, {
+    destinationId: "<id>",
+  });
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("destinationsListAttempts failed:", res.error);
+  }
+}
+
+run();
+```
+
+### Parameters
+
+| Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `request`                                                                                                                                                                      | [operations.ListTenantDestinationAttemptsRequest](../../models/operations/listtenantdestinationattemptsrequest.md)                                                             | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
+| `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
+| `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
+| `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
+
+### Response
+
+**Promise\<[components.AttemptPaginatedResult](../../models/components/attemptpaginatedresult.md)\>**
+
+### Errors
+
+| Error Type              | Status Code             | Content Type            |
+| ----------------------- | ----------------------- | ----------------------- |
+| errors.APIErrorResponse | 422                     | application/json        |
+| errors.APIError         | 4XX, 5XX                | \*/\*                   |
+
+## getAttempt
+
+Retrieves details for a specific attempt scoped to a destination.
+
+### Example Usage
+
+<!-- UsageSnippet language="typescript" operationID="getTenantDestinationAttempt" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}" example="DestinationAttemptExample" -->
+```typescript
+import { Outpost } from "@hookdeck/outpost-sdk";
+
+const outpost = new Outpost({
+  tenantId: "<id>",
+  security: {
+    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
+  },
+});
+
+async function run() {
+  const result = await outpost.destinations.getAttempt({
+    destinationId: "<id>",
+    attemptId: "<id>",
+  });
+
+  console.log(result);
+}
+
+run();
+```
+
+### Standalone function
+
+The standalone function version of this method:
+
+```typescript
+import { OutpostCore } from "@hookdeck/outpost-sdk/core.js";
+import { destinationsGetAttempt } from "@hookdeck/outpost-sdk/funcs/destinationsGetAttempt.js";
+
+// Use `OutpostCore` for best tree-shaking performance.
+// You can create one instance of it to use across an application.
+const outpost = new OutpostCore({
+  tenantId: "<id>",
+  security: {
+    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
+  },
+});
+
+async function run() {
+  const res = await destinationsGetAttempt(outpost, {
+    destinationId: "<id>",
+    attemptId: "<id>",
+  });
+  if (res.ok) {
+    const { value: result } = res;
+    console.log(result);
+  } else {
+    console.log("destinationsGetAttempt failed:", res.error);
+  }
+}
+
+run();
+```
+
+### Parameters
+
+| Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `request`                                                                                                                                                                      | [operations.GetTenantDestinationAttemptRequest](../../models/operations/gettenantdestinationattemptrequest.md)                                                                 | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
+| `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
+| `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
+| `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
+
+### Response
+
+**Promise\<[components.Attempt](../../models/components/attempt.md)\>**
 
 ### Errors
 

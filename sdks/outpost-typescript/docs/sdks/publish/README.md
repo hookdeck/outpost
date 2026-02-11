@@ -30,6 +30,7 @@ async function run() {
     tenantId: "<TENANT_ID>",
     destinationId: "<DESTINATION_ID>",
     topic: "topic.name",
+    time: new Date("2024-01-15T10:30:00Z"),
     metadata: {
       "source": "crm",
     },
@@ -67,6 +68,7 @@ async function run() {
     tenantId: "<TENANT_ID>",
     destinationId: "<DESTINATION_ID>",
     topic: "topic.name",
+    time: new Date("2024-01-15T10:30:00Z"),
     metadata: {
       "source": "crm",
     },
