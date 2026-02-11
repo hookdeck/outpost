@@ -123,7 +123,10 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 		return
 	}
 
-	if err := bp.logStore.InsertMany(bp.ctx, entries); err != nil {
+	insertCtx, cancel := context.WithTimeout(bp.ctx, 30*time.Second)
+	defer cancel()
+
+	if err := bp.logStore.InsertMany(insertCtx, entries); err != nil {
 		logger.Error("failed to insert log entries",
 			zap.Error(err),
 			zap.Int("entry_count", len(entries)))
