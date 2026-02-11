@@ -183,8 +183,8 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 				MaxDeliveryAttempts: maxDeliveryAttempts,
 			},
 			RetryPolicy: &pubsub.RetryPolicy{
-				MinimumBackoff: 10 * time.Second,
-				MaximumBackoff: 600 * time.Second,
+				MinimumBackoff: getRetryBackoff(infra.cfg.GCPPubSub.MinRetryBackoff, 10),
+				MaximumBackoff: getRetryBackoff(infra.cfg.GCPPubSub.MaxRetryBackoff, 600),
 			},
 		}
 		_, err = client.CreateSubscription(ctx, subID, subConfig)
@@ -270,6 +270,14 @@ func (infra *infraGCPPubSub) TearDown(ctx context.Context) error {
 // getDuration converts seconds to time.Duration
 func getDuration(seconds int) time.Duration {
 	return time.Duration(seconds) * time.Second
+}
+
+// getRetryBackoff returns the configured backoff or a default value
+func getRetryBackoff(configured int, defaultSeconds int) time.Duration {
+	if configured > 0 {
+		return time.Duration(configured) * time.Second
+	}
+	return time.Duration(defaultSeconds) * time.Second
 }
 
 // Helper function to check if error is an "already exists" error
