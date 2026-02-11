@@ -7,6 +7,8 @@ type PublishResponse struct {
 	ID string `json:"id"`
 	// Whether this event was already processed (idempotency hit). If true, the event was not queued again.
 	Duplicate bool `json:"duplicate"`
+	// The IDs of destinations that matched this event. Empty array if no destinations matched.
+	DestinationIds []string `json:"destination_ids"`
 }
 
 func (p *PublishResponse) GetID() string {
@@ -21,4 +23,11 @@ func (p *PublishResponse) GetDuplicate() bool {
 		return false
 	}
 	return p.Duplicate
+}
+
+func (p *PublishResponse) GetDestinationIds() []string {
+	if p == nil {
+		return []string{}
+	}
+	return p.DestinationIds
 }

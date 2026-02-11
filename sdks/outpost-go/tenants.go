@@ -42,14 +42,7 @@ func newTenants(rootSDK *Outpost, sdkConfig config.SDKConfiguration, hooks *hook
 //
 // The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
 // Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
-func (s *Tenants) ListTenants(ctx context.Context, limit *int64, order *operations.Order, next *string, prev *string, opts ...operations.Option) (*operations.ListTenantsResponse, error) {
-	request := operations.ListTenantsRequest{
-		Limit: limit,
-		Order: order,
-		Next:  next,
-		Prev:  prev,
-	}
-
+func (s *Tenants) ListTenants(ctx context.Context, request operations.ListTenantsRequest, opts ...operations.Option) (*operations.ListTenantsResponse, error) {
 	o := operations.Options{}
 	supportedOptions := []string{
 		operations.SupportedOptionRetries,
@@ -220,12 +213,12 @@ func (s *Tenants) ListTenants(ctx context.Context, limit *int64, order *operatio
 				return nil, err
 			}
 
-			var out components.TenantListResponse
+			var out components.TenantPaginatedResult
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
 				return nil, err
 			}
 
-			res.TenantListResponse = &out
+			res.TenantPaginatedResult = &out
 		default:
 			rawBody, err := utils.ConsumeRawBody(httpRes)
 			if err != nil {

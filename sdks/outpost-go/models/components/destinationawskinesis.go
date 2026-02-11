@@ -54,7 +54,7 @@ type DestinationAWSKinesis struct {
 	UpdatedAt   time.Time             `json:"updated_at"`
 	Config      AWSKinesisConfig      `json:"config"`
 	Credentials AWSKinesisCredentials `json:"credentials"`
-	// Static key-value pairs merged into event metadata on every delivery.
+	// Static key-value pairs merged into event metadata on every attempt.
 	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
 	// Arbitrary contextual information stored with the destination.
 	Metadata map[string]string `json:"metadata,omitempty"`

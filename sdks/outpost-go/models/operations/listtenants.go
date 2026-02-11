@@ -7,20 +7,45 @@ import (
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	"time"
 )
 
-// Order - Sort order by `created_at` timestamp.
-type Order string
+// ListTenantsOrderBy - Field to sort by.
+type ListTenantsOrderBy string
 
 const (
-	OrderAsc  Order = "asc"
-	OrderDesc Order = "desc"
+	ListTenantsOrderByCreatedAt ListTenantsOrderBy = "created_at"
 )
 
-func (e Order) ToPointer() *Order {
+func (e ListTenantsOrderBy) ToPointer() *ListTenantsOrderBy {
 	return &e
 }
-func (e *Order) UnmarshalJSON(data []byte) error {
+func (e *ListTenantsOrderBy) UnmarshalJSON(data []byte) error {
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch v {
+	case "created_at":
+		*e = ListTenantsOrderBy(v)
+		return nil
+	default:
+		return fmt.Errorf("invalid value for ListTenantsOrderBy: %v", v)
+	}
+}
+
+// ListTenantsDir - Sort direction.
+type ListTenantsDir string
+
+const (
+	ListTenantsDirAsc  ListTenantsDir = "asc"
+	ListTenantsDirDesc ListTenantsDir = "desc"
+)
+
+func (e ListTenantsDir) ToPointer() *ListTenantsDir {
+	return &e
+}
+func (e *ListTenantsDir) UnmarshalJSON(data []byte) error {
 	var v string
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
@@ -29,18 +54,24 @@ func (e *Order) UnmarshalJSON(data []byte) error {
 	case "asc":
 		fallthrough
 	case "desc":
-		*e = Order(v)
+		*e = ListTenantsDir(v)
 		return nil
 	default:
-		return fmt.Errorf("invalid value for Order: %v", v)
+		return fmt.Errorf("invalid value for ListTenantsDir: %v", v)
 	}
 }
 
 type ListTenantsRequest struct {
 	// Number of tenants to return per page (1-100, default 20).
 	Limit *int64 `default:"20" queryParam:"style=form,explode=true,name=limit"`
-	// Sort order by `created_at` timestamp.
-	Order *Order `default:"desc" queryParam:"style=form,explode=true,name=order"`
+	// Field to sort by.
+	OrderBy *ListTenantsOrderBy `default:"created_at" queryParam:"style=form,explode=true,name=order_by"`
+	// Sort direction.
+	Dir *ListTenantsDir `default:"desc" queryParam:"style=form,explode=true,name=dir"`
+	// Filter tenants created at or after this time (RFC3339 or YYYY-MM-DD format).
+	CreatedAtGte *time.Time `queryParam:"style=form,explode=true,name=created_at[gte]"`
+	// Filter tenants created at or before this time (RFC3339 or YYYY-MM-DD format).
+	CreatedAtLte *time.Time `queryParam:"style=form,explode=true,name=created_at[lte]"`
 	// Cursor for the next page of results. Mutually exclusive with `prev`.
 	Next *string `queryParam:"style=form,explode=true,name=next"`
 	// Cursor for the previous page of results. Mutually exclusive with `next`.
@@ -65,11 +96,32 @@ func (l *ListTenantsRequest) GetLimit() *int64 {
 	return l.Limit
 }
 
-func (l *ListTenantsRequest) GetOrder() *Order {
+func (l *ListTenantsRequest) GetOrderBy() *ListTenantsOrderBy {
 	if l == nil {
 		return nil
 	}
-	return l.Order
+	return l.OrderBy
+}
+
+func (l *ListTenantsRequest) GetDir() *ListTenantsDir {
+	if l == nil {
+		return nil
+	}
+	return l.Dir
+}
+
+func (l *ListTenantsRequest) GetCreatedAtGte() *time.Time {
+	if l == nil {
+		return nil
+	}
+	return l.CreatedAtGte
+}
+
+func (l *ListTenantsRequest) GetCreatedAtLte() *time.Time {
+	if l == nil {
+		return nil
+	}
+	return l.CreatedAtLte
 }
 
 func (l *ListTenantsRequest) GetNext() *string {
@@ -89,7 +141,7 @@ func (l *ListTenantsRequest) GetPrev() *string {
 type ListTenantsResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
 	// List of tenants.
-	TenantListResponse *components.TenantListResponse
+	TenantPaginatedResult *components.TenantPaginatedResult
 }
 
 func (l *ListTenantsResponse) GetHTTPMeta() components.HTTPMetadata {
@@ -99,9 +151,9 @@ func (l *ListTenantsResponse) GetHTTPMeta() components.HTTPMetadata {
 	return l.HTTPMeta
 }
 
-func (l *ListTenantsResponse) GetTenantListResponse() *components.TenantListResponse {
+func (l *ListTenantsResponse) GetTenantPaginatedResult() *components.TenantPaginatedResult {
 	if l == nil {
 		return nil
 	}
-	return l.TenantListResponse
+	return l.TenantPaginatedResult
 }

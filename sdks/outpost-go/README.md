@@ -124,6 +124,12 @@ func main() {
 <details open>
 <summary>Available methods</summary>
 
+### [Attempts](docs/sdks/attempts/README.md)
+
+* [List](docs/sdks/attempts/README.md#list) - List Attempts (Admin)
+* [Get](docs/sdks/attempts/README.md#get) - Get Attempt
+* [Retry](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
+
 ### [Destinations](docs/sdks/destinations/README.md)
 
 * [List](docs/sdks/destinations/README.md#list) - List Destinations
@@ -133,15 +139,13 @@ func main() {
 * [Delete](docs/sdks/destinations/README.md#delete) - Delete Destination
 * [Enable](docs/sdks/destinations/README.md#enable) - Enable Destination
 * [Disable](docs/sdks/destinations/README.md#disable) - Disable Destination
+* [ListAttempts](docs/sdks/destinations/README.md#listattempts) - List Destination Attempts
+* [GetAttempt](docs/sdks/destinations/README.md#getattempt) - Get Destination Attempt
 
 ### [Events](docs/sdks/events/README.md)
 
-* [List](docs/sdks/events/README.md#list) - List Events
+* [List](docs/sdks/events/README.md#list) - List Events (Admin)
 * [Get](docs/sdks/events/README.md#get) - Get Event
-* [ListDeliveries](docs/sdks/events/README.md#listdeliveries) - List Event Delivery Attempts
-* [ListByDestination](docs/sdks/events/README.md#listbydestination) - List Events by Destination
-* [GetByDestination](docs/sdks/events/README.md#getbydestination) - Get Event by Destination
-* [Retry](docs/sdks/events/README.md#retry) - Retry Event Delivery
 
 ### [Health](docs/sdks/health/README.md)
 
@@ -153,9 +157,7 @@ func main() {
 
 ### [Schemas](docs/sdks/schemas/README.md)
 
-* [ListTenantDestinationTypes](docs/sdks/schemas/README.md#listtenantdestinationtypes) - List Destination Type Schemas (for Tenant)
-* [Get](docs/sdks/schemas/README.md#get) - Get Destination Type Schema (for Tenant)
-* [ListDestinationTypesJwt](docs/sdks/schemas/README.md#listdestinationtypesjwt) - List Destination Type Schemas (JWT Auth)
+* [ListDestinationTypesJwt](docs/sdks/schemas/README.md#listdestinationtypesjwt) - List Destination Type Schemas
 * [GetDestinationTypeJwt](docs/sdks/schemas/README.md#getdestinationtypejwt) - Get Destination Type Schema
 
 ### [Tenants](docs/sdks/tenants/README.md)
@@ -169,8 +171,7 @@ func main() {
 
 ### [Topics](docs/sdks/topics/README.md)
 
-* [List](docs/sdks/topics/README.md#list) - List Available Topics (for Tenant)
-* [ListJwt](docs/sdks/topics/README.md#listjwt) - List Available Topics)
+* [List](docs/sdks/topics/README.md#list) - List Available Topics
 
 </details>
 <!-- End Available Resources and Operations [operations] -->
@@ -426,9 +427,47 @@ func main() {
 <!-- Start Server Selection [server] -->
 ## Server Selection
 
+### Select Server by Index
+
+You can override the default server globally using the `WithServerIndex(serverIndex int)` option when initializing the SDK client instance. The selected server will then be used as the default on the operations that use it. This table lists the indexes associated with the available servers:
+
+| #   | Server                                        | Description                        |
+| --- | --------------------------------------------- | ---------------------------------- |
+| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Outpost API (production)           |
+| 1   | `http://localhost:3333/api/v1`                | Local development server base path |
+
+#### Example
+
+```go
+package main
+
+import (
+	"context"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"log"
+)
+
+func main() {
+	ctx := context.Background()
+
+	s := outpostgo.New(
+		outpostgo.WithServerIndex(0),
+	)
+
+	res, err := s.Health.Check(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if res.Object != nil {
+		// handle response
+	}
+}
+
+```
+
 ### Override Server URL Per-Client
 
-The default server can be overridden globally using the `WithServerURL(serverURL string)` option when initializing the SDK client instance. For example:
+The default server can also be overridden globally using the `WithServerURL(serverURL string)` option when initializing the SDK client instance. For example:
 ```go
 package main
 
