@@ -22,6 +22,7 @@ import(
 	"context"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/types"
 	"log"
 )
 
@@ -39,6 +40,7 @@ func main() {
         TenantID: outpostgo.Pointer("<TENANT_ID>"),
         DestinationID: outpostgo.Pointer("<DESTINATION_ID>"),
         Topic: outpostgo.Pointer("topic.name"),
+        Time: types.MustNewTimeFromString("2024-01-15T10:30:00Z"),
         Metadata: map[string]string{
             "source": "crm",
         },

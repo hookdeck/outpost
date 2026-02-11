@@ -50,11 +50,11 @@ func main() {
         }),
     )
 
-    res, err := s.Tenants.ListTenants(ctx, outpostgo.Pointer[int64](20), operations.OrderDesc.ToPointer(), nil, nil)
+    res, err := s.Tenants.ListTenants(ctx, operations.ListTenantsRequest{})
     if err != nil {
         log.Fatal(err)
     }
-    if res.TenantListResponse != nil {
+    if res.TenantPaginatedResult != nil {
         // handle response
     }
 }
@@ -62,14 +62,11 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                | Type                                                                     | Required                                                                 | Description                                                              |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `ctx`                                                                    | [context.Context](https://pkg.go.dev/context#Context)                    | :heavy_check_mark:                                                       | The context to use for the request.                                      |
-| `limit`                                                                  | **int64*                                                                 | :heavy_minus_sign:                                                       | Number of tenants to return per page (1-100, default 20).                |
-| `order`                                                                  | [*operations.Order](../../models/operations/order.md)                    | :heavy_minus_sign:                                                       | Sort order by `created_at` timestamp.                                    |
-| `next`                                                                   | **string*                                                                | :heavy_minus_sign:                                                       | Cursor for the next page of results. Mutually exclusive with `prev`.     |
-| `prev`                                                                   | **string*                                                                | :heavy_minus_sign:                                                       | Cursor for the previous page of results. Mutually exclusive with `next`. |
-| `opts`                                                                   | [][operations.Option](../../models/operations/option.md)                 | :heavy_minus_sign:                                                       | The options for this request.                                            |
+| Parameter                                                                      | Type                                                                           | Required                                                                       | Description                                                                    |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `ctx`                                                                          | [context.Context](https://pkg.go.dev/context#Context)                          | :heavy_check_mark:                                                             | The context to use for the request.                                            |
+| `request`                                                                      | [operations.ListTenantsRequest](../../models/operations/listtenantsrequest.md) | :heavy_check_mark:                                                             | The request object to use for the request.                                     |
+| `opts`                                                                         | [][operations.Option](../../models/operations/option.md)                       | :heavy_minus_sign:                                                             | The options for this request.                                                  |
 
 ### Response
 
@@ -89,7 +86,7 @@ Idempotently creates or updates a tenant. Required before associating destinatio
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="upsertTenant" method="put" path="/tenants/{tenant_id}" -->
+<!-- UsageSnippet language="go" operationID="upsertTenant" method="put" path="/tenants/{tenant_id}" example="TenantExample" -->
 ```go
 package main
 
@@ -145,7 +142,7 @@ Retrieves details for a specific tenant.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="getTenant" method="get" path="/tenants/{tenant_id}" -->
+<!-- UsageSnippet language="go" operationID="getTenant" method="get" path="/tenants/{tenant_id}" example="TenantExample" -->
 ```go
 package main
 
@@ -200,7 +197,7 @@ Deletes the tenant and all associated destinations.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="deleteTenant" method="delete" path="/tenants/{tenant_id}" -->
+<!-- UsageSnippet language="go" operationID="deleteTenant" method="delete" path="/tenants/{tenant_id}" example="SuccessExample" -->
 ```go
 package main
 
@@ -255,7 +252,7 @@ Returns a redirect URL containing a JWT to authenticate the user with the portal
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="getTenantPortalUrl" method="get" path="/tenants/{tenant_id}/portal" -->
+<!-- UsageSnippet language="go" operationID="getTenantPortalUrl" method="get" path="/tenants/{tenant_id}/portal" example="PortalRedirectExample" -->
 ```go
 package main
 
@@ -311,7 +308,7 @@ Returns a JWT token scoped to the tenant for safe browser API calls.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="getTenantToken" method="get" path="/tenants/{tenant_id}/token" -->
+<!-- UsageSnippet language="go" operationID="getTenantToken" method="get" path="/tenants/{tenant_id}/token" example="TenantTokenExample" -->
 ```go
 package main
 

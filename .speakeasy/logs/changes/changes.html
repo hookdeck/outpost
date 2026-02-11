@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <title>SDK Changelog - go</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #1a1a1a;
+            --text-secondary: #666666;
+            --code-bg: #f4f4f4;
+            --border-color: #e0e0e0;
+            --added-color: #22863a;
+            --removed-color: #cb2431;
+            --changed-color: #6f42c1;
+            --breaking-color: #d73a49;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #1a1a1a;
+                --text-color: #e6e6e6;
+                --text-secondary: #a0a0a0;
+                --code-bg: #2d2d2d;
+                --border-color: #404040;
+                --added-color: #85e89d;
+                --removed-color: #f97583;
+                --changed-color: #b392f0;
+                --breaking-color: #f97583;
+            }
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.7;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        code {
+            background: var(--code-bg);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        h2 {
+            color: var(--text-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 12px;
+            margin-top: 32px;
+        }
+        ul {
+            padding-left: 24px;
+            list-style-type: disc;
+            list-style-position: outside;
+        }
+        ul ul {
+            padding-left: 28px;
+            margin-top: 6px;
+            margin-bottom: 6px;
+            list-style-type: circle;
+        }
+        li {
+            margin: 10px 0;
+            display: list-item;
+        }
+        li li {
+            margin: 4px 0;
+            color: var(--text-secondary);
+            display: list-item;
+        }
+        li li code {
+            font-size: 0.85em;
+        }
+        /* Ensure nested list items always show bullets */
+        ul > li {
+            list-style: disc;
+        }
+        ul ul > li {
+            list-style: circle;
+        }
+        strong {
+            font-weight: 600;
+        }
+        /* Semantic coloring for change types */
+        strong:contains('Added'), li:has(strong:contains('Added')) strong:first-of-type {
+            color: var(--added-color);
+        }
+        /* Warning emoji styling */
+        li {
+            list-style-position: outside;
+        }
+    </style>
+</head>
+<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
+
+<ul>
+<li><code>Outpost.Tenants.ListTenants()</code>:
+
+<ul>
+<li><code>request</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>Limit</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Next</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Order</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Prev</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Request</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>Data</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Models</code> <strong>Added</strong></li>
+<li><code>Next</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Pagination</code> <strong>Added</strong></li>
+<li><code>Prev</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+</ul></li>
+</ul></li>
+<li><code>Outpost.Events.Get()</code>:
+
+<ul>
+<li><code>request.TenantId</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>Status</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>TenantId</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>Outpost.Events.List()</code>:
+
+<ul>
+<li><code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>DestinationId</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Dir</code> <strong>Added</strong></li>
+<li><code>End</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>OrderBy</code> <strong>Added</strong></li>
+<li><code>Start</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Status</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>TenantId</code> <strong>Changed</strong></li>
+<li><code>Time[gte]</code> <strong>Added</strong></li>
+<li><code>Time[lte]</code> <strong>Added</strong></li>
+<li><code>Topic</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>Count</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Data</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Models</code> <strong>Added</strong></li>
+<li><code>Next</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Pagination</code> <strong>Added</strong></li>
+<li><code>Prev</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>error</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[404]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Status[422]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>Outpost.Topics.List()</code>:
+
+<ul>
+<li><code>request.TenantId</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li><code>Status[400]</code> <strong>Added</strong></li>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[403]</code> <strong>Added</strong></li>
+<li><code>Status[407]</code> <strong>Added</strong></li>
+<li><code>Status[408]</code> <strong>Added</strong></li>
+<li><code>Status[413]</code> <strong>Added</strong></li>
+<li><code>Status[414]</code> <strong>Added</strong></li>
+<li><code>Status[415]</code> <strong>Added</strong></li>
+<li><code>Status[422]</code> <strong>Added</strong></li>
+<li><code>Status[429]</code> <strong>Added</strong></li>
+<li><code>Status[431]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
+<li><code>Status[501]</code> <strong>Added</strong></li>
+<li><code>Status[502]</code> <strong>Added</strong></li>
+<li><code>Status[503]</code> <strong>Added</strong></li>
+<li><code>Status[504]</code> <strong>Added</strong></li>
+<li><code>Status[505]</code> <strong>Added</strong></li>
+<li><code>Status[506]</code> <strong>Added</strong></li>
+<li><code>Status[507]</code> <strong>Added</strong></li>
+<li><code>Status[508]</code> <strong>Added</strong></li>
+<li><code>Status[510]</code> <strong>Added</strong></li>
+<li><code>Status[511]</code> <strong>Added</strong></li>
+<li>&rdquo; <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>Outpost.Destinations.GetAttempt()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Schemas.ListTenantDestinationTypes()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Schemas.Get()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Topics.ListJwt()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Events.ListDeliveries()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Events.ListByDestination()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Events.GetByDestination()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Events.Retry()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Attempts.List()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Publish.Event()</code>:
+
+<ul>
+<li><code>request.Request.Time</code> <strong>Added</strong></li>
+<li><code>response.DestinationIds</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>Outpost.Destinations.ListAttempts()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Attempts.Retry()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Attempts.Get()</code>: <strong>Added</strong></li>
+</ul>
+</body>
+</html>
