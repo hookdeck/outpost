@@ -2,7 +2,7 @@
 
 package outpostgo
 
-// Generated from OpenAPI doc version 0.0.1 and generator version 2.796.1
+// Generated from OpenAPI doc version 0.0.1 and generator version 2.818.4
 
 import (
 	"context"
@@ -19,6 +19,8 @@ import (
 
 // ServerList contains the list of servers available to the SDK
 var ServerList = []string{
+	// Outpost API (production)
+	"https://api.outpost.hookdeck.com/2025-07-01",
 	// Local development server base path
 	"http://localhost:3333/api/v1",
 }
@@ -59,6 +61,25 @@ type Outpost struct {
 	// If your system is not multi-tenant, create a single tenant with a hard-code tenant ID upon initialization. If your system has a single tenant but multiple environments, create a tenant per environment, like `live` and `test`.
 	//
 	Tenants *Tenants
+	// Operations related to event history.
+	Events *Events
+	// Attempts represent individual delivery attempts of events to destinations. The attempts API provides an attempt-centric view of event processing.
+	//
+	// Each attempt contains:
+	// - `id`: Unique attempt identifier
+	// - `status`: success or failed
+	// - `time`: Timestamp of the attempt
+	// - `code`: HTTP status code or error code
+	// - `attempt`: Attempt number (1 for first attempt, 2+ for retries)
+	// - `event`: Associated event (ID or included object)
+	// - `destination`: Destination ID
+	//
+	// Use the `include` query parameter to include related data:
+	// - `include=event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
+	// - `include=event.data`: Include full event with payload data
+	// - `include=response_data`: Include response body and headers from the attempt
+	//
+	Attempts *Attempts
 	// Destinations are the endpoints where events are sent. Each destination is associated with a tenant and can be configured to receive specific event topics.
 	//
 	// ```json
@@ -90,8 +111,6 @@ type Outpost struct {
 	Schemas *Schemas
 	// Operations for retrieving available event topics.
 	Topics *Topics
-	// Operations related to event history and deliveries.
-	Events *Events
 
 	sdkConfiguration config.SDKConfiguration
 	hooks            *hooks.Hooks
@@ -174,9 +193,9 @@ func WithTimeout(timeout time.Duration) SDKOption {
 // New creates a new instance of the SDK with the provided options
 func New(opts ...SDKOption) *Outpost {
 	sdk := &Outpost{
-		SDKVersion: "0.5.1",
+		SDKVersion: "0.6.0",
 		sdkConfiguration: config.SDKConfiguration{
-			UserAgent:  "speakeasy-sdk/go 0.5.1 2.796.1 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
+			UserAgent:  "speakeasy-sdk/go 0.6.0 2.818.4 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
 			Globals:    globals.Globals{},
 			ServerList: ServerList,
 		},
@@ -200,11 +219,12 @@ func New(opts ...SDKOption) *Outpost {
 
 	sdk.Health = newHealth(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Tenants = newTenants(sdk, sdk.sdkConfiguration, sdk.hooks)
+	sdk.Events = newEvents(sdk, sdk.sdkConfiguration, sdk.hooks)
+	sdk.Attempts = newAttempts(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Destinations = newDestinations(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Publish = newPublish(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Schemas = newSchemas(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Topics = newTopics(sdk, sdk.sdkConfiguration, sdk.hooks)
-	sdk.Events = newEvents(sdk, sdk.sdkConfiguration, sdk.hooks)
 
 	return sdk
 }

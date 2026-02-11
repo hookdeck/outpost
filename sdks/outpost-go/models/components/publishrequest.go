@@ -2,6 +2,11 @@
 
 package components
 
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+	"time"
+)
+
 type PublishRequest struct {
 	// Optional. A unique identifier for the event. If not provided, a UUID will be generated.
 	ID *string `json:"id,omitempty"`
@@ -13,10 +18,23 @@ type PublishRequest struct {
 	Topic *string `json:"topic,omitempty"`
 	// Should event delivery be retried on failure.
 	EligibleForRetry *bool `json:"eligible_for_retry,omitempty"`
+	// Optional. Custom timestamp for the event. If not provided, defaults to the current time.
+	Time *time.Time `json:"time,omitempty"`
 	// Any key-value string pairs for metadata.
 	Metadata map[string]string `json:"metadata,omitempty"`
 	// Any JSON payload for the event data.
 	Data map[string]any `json:"data"`
+}
+
+func (p PublishRequest) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(p, "", false)
+}
+
+func (p *PublishRequest) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &p, "", false, nil); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p *PublishRequest) GetID() *string {
@@ -52,6 +70,13 @@ func (p *PublishRequest) GetEligibleForRetry() *bool {
 		return nil
 	}
 	return p.EligibleForRetry
+}
+
+func (p *PublishRequest) GetTime() *time.Time {
+	if p == nil {
+		return nil
+	}
+	return p.Time
 }
 
 func (p *PublishRequest) GetMetadata() map[string]string {

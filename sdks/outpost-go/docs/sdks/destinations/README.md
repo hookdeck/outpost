@@ -36,6 +36,8 @@ By default all destination `credentials` are obfuscated and the values cannot be
 * [Delete](#delete) - Delete Destination
 * [Enable](#enable) - Enable Destination
 * [Disable](#disable) - Disable Destination
+* [ListAttempts](#listattempts) - List Destination Attempts
+* [GetAttempt](#getattempt) - Get Destination Attempt
 
 ## List
 
@@ -43,7 +45,7 @@ Return a list of the destinations for the tenant. The endpoint is not paged.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="listTenantDestinations" method="get" path="/tenants/{tenant_id}/destinations" -->
+<!-- UsageSnippet language="go" operationID="listTenantDestinations" method="get" path="/tenants/{tenant_id}/destinations" example="DestinationsListExample" -->
 ```go
 package main
 
@@ -103,7 +105,7 @@ Creates a new destination for the tenant. The request body structure depends on 
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="createTenantDestination" method="post" path="/tenants/{tenant_id}/destinations" -->
+<!-- UsageSnippet language="go" operationID="createTenantDestination" method="post" path="/tenants/{tenant_id}/destinations" example="WebhookCreatedExample" -->
 ```go
 package main
 
@@ -176,7 +178,7 @@ Retrieves details for a specific destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="getTenantDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="go" operationID="getTenantDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}" example="WebhookGetExample" -->
 ```go
 package main
 
@@ -232,7 +234,7 @@ Updates the configuration of an existing destination. The request body structure
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="go" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" example="DestinationUpdatedExample" -->
 ```go
 package main
 
@@ -304,7 +306,7 @@ Deletes a specific destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="deleteTenantDestination" method="delete" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="go" operationID="deleteTenantDestination" method="delete" path="/tenants/{tenant_id}/destinations/{destination_id}" example="SuccessExample" -->
 ```go
 package main
 
@@ -360,7 +362,7 @@ Enables a previously disabled destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="enableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/enable" -->
+<!-- UsageSnippet language="go" operationID="enableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/enable" example="WebhookEnabledExample" -->
 ```go
 package main
 
@@ -416,7 +418,7 @@ Disables a previously enabled destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="disableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/disable" -->
+<!-- UsageSnippet language="go" operationID="disableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/disable" example="WebhookDisabledExample" -->
 ```go
 package main
 
@@ -459,6 +461,123 @@ func main() {
 ### Response
 
 **[*operations.DisableTenantDestinationResponse](../../models/operations/disabletenantdestinationresponse.md), error**
+
+### Errors
+
+| Error Type         | Status Code        | Content Type       |
+| ------------------ | ------------------ | ------------------ |
+| apierrors.APIError | 4XX, 5XX           | \*/\*              |
+
+## ListAttempts
+
+Retrieves a paginated list of attempts scoped to a specific destination.
+
+### Example Usage
+
+<!-- UsageSnippet language="go" operationID="listTenantDestinationAttempts" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/attempts" example="DestinationAttemptsListExample" -->
+```go
+package main
+
+import(
+	"context"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
+	"log"
+)
+
+func main() {
+    ctx := context.Background()
+
+    s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
+        outpostgo.WithSecurity(components.Security{
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
+
+    res, err := s.Destinations.ListAttempts(ctx, operations.ListTenantDestinationAttemptsRequest{
+        DestinationID: "<id>",
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    if res.AttemptPaginatedResult != nil {
+        // handle response
+    }
+}
+```
+
+### Parameters
+
+| Parameter                                                                                                          | Type                                                                                                               | Required                                                                                                           | Description                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `ctx`                                                                                                              | [context.Context](https://pkg.go.dev/context#Context)                                                              | :heavy_check_mark:                                                                                                 | The context to use for the request.                                                                                |
+| `request`                                                                                                          | [operations.ListTenantDestinationAttemptsRequest](../../models/operations/listtenantdestinationattemptsrequest.md) | :heavy_check_mark:                                                                                                 | The request object to use for the request.                                                                         |
+| `opts`                                                                                                             | [][operations.Option](../../models/operations/option.md)                                                           | :heavy_minus_sign:                                                                                                 | The options for this request.                                                                                      |
+
+### Response
+
+**[*operations.ListTenantDestinationAttemptsResponse](../../models/operations/listtenantdestinationattemptsresponse.md), error**
+
+### Errors
+
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| apierrors.APIErrorResponse | 422                        | application/json           |
+| apierrors.APIError         | 4XX, 5XX                   | \*/\*                      |
+
+## GetAttempt
+
+Retrieves details for a specific attempt scoped to a destination.
+
+### Example Usage
+
+<!-- UsageSnippet language="go" operationID="getTenantDestinationAttempt" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}" example="DestinationAttemptExample" -->
+```go
+package main
+
+import(
+	"context"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"log"
+)
+
+func main() {
+    ctx := context.Background()
+
+    s := outpostgo.New(
+        outpostgo.WithTenantID("<id>"),
+        outpostgo.WithSecurity(components.Security{
+            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
+        }),
+    )
+
+    res, err := s.Destinations.GetAttempt(ctx, "<id>", "<id>", nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+    if res.Attempt != nil {
+        // handle response
+    }
+}
+```
+
+### Parameters
+
+| Parameter                                                                                                                                                                                                                          | Type                                                                                                                                                                                                                               | Required                                                                                                                                                                                                                           | Description                                                                                                                                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ctx`                                                                                                                                                                                                                              | [context.Context](https://pkg.go.dev/context#Context)                                                                                                                                                                              | :heavy_check_mark:                                                                                                                                                                                                                 | The context to use for the request.                                                                                                                                                                                                |
+| `destinationID`                                                                                                                                                                                                                    | *string*                                                                                                                                                                                                                           | :heavy_check_mark:                                                                                                                                                                                                                 | The ID of the destination.                                                                                                                                                                                                         |
+| `attemptID`                                                                                                                                                                                                                        | *string*                                                                                                                                                                                                                           | :heavy_check_mark:                                                                                                                                                                                                                 | The ID of the attempt.                                                                                                                                                                                                             |
+| `tenantID`                                                                                                                                                                                                                         | **string*                                                                                                                                                                                                                          | :heavy_minus_sign:                                                                                                                                                                                                                 | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                              |
+| `include`                                                                                                                                                                                                                          | [*operations.GetTenantDestinationAttemptInclude](../../models/operations/gettenantdestinationattemptinclude.md)                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                 | Fields to include in the response. Can be specified multiple times or comma-separated.<br/>- `event`: Include event summary<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/> |
+| `opts`                                                                                                                                                                                                                             | [][operations.Option](../../models/operations/option.md)                                                                                                                                                                           | :heavy_minus_sign:                                                                                                                                                                                                                 | The options for this request.                                                                                                                                                                                                      |
+
+### Response
+
+**[*operations.GetTenantDestinationAttemptResponse](../../models/operations/gettenantdestinationattemptresponse.md), error**
 
 ### Errors
 
