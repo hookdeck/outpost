@@ -74,6 +74,7 @@ workflow:
             target: python
             source: Outpost API (Python)
             output: ./sdks/outpost-python
+            compileCommand: "python scripts/patch_pyproject_readme.py && poetry build"
             publish:
                 pypi:
                     token: $pypi_token
