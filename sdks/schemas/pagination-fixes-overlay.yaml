@@ -39,15 +39,15 @@ actions:
       type: parameter-name-override
       description: "Rename 'prev' query parameter to 'prev_cursor'"
 
-  # GET /events: next=6, prev=7
-  - target: $["paths"]["/events"]["get"]["parameters"][6]
+  # GET /events: tenant_id=0, topic=1, time[gte]=2, time[lte]=3, limit=4, next=5, prev=6 (destination_id removed in v0.13)
+  - target: $["paths"]["/events"]["get"]["parameters"][5]
     update:
       x-speakeasy-name-override: "next_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
       description: "Rename 'next' query parameter to 'next_cursor'"
 
-  - target: $["paths"]["/events"]["get"]["parameters"][7]
+  - target: $["paths"]["/events"]["get"]["parameters"][6]
     update:
       x-speakeasy-name-override: "prev_cursor"
     x-speakeasy-metadata:
