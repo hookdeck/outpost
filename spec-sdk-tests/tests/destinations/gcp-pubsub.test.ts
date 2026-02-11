@@ -88,10 +88,17 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
       expect(destination.config.topic).to.equal('test-topic');
     });
 
-    it('should create a GCP Pub/Sub destination with array of topics', async () => {
+    it('should create a GCP Pub/Sub destination with array of topics', async function () {
+      const sdk = client.getSDK();
+      const instanceTopics = await sdk.topics.list();
+      if (instanceTopics.length < 2) {
+        this.skip();
+        return;
+      }
+      const topicsToUse = instanceTopics.slice(0, 2);
       const destination = await client.createDestination({
         type: 'gcp_pubsub',
-        topics: TEST_TOPICS,
+        topics: topicsToUse,
         config: {
           projectId: 'test-project-topics',
           topic: 'events-topic',
@@ -101,9 +108,8 @@ describe('GCP Pub/Sub Destinations - Contract Tests (SDK-based validation)', () 
         },
       });
 
-      expect(destination.topics).to.have.lengthOf(TEST_TOPICS.length);
-      // Verify all configured test topics are present
-      TEST_TOPICS.forEach((topic) => {
+      expect(destination.topics).to.have.lengthOf(topicsToUse.length);
+      topicsToUse.forEach((topic: string) => {
         expect(destination.topics).to.include(topic);
       });
 

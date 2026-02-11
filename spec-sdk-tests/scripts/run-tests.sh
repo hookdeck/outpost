@@ -45,21 +45,28 @@ fi
 echo -e "${GREEN}✓ API_KEY is configured${NC}"
 echo ""
 
-# Check if API is running
+# Check if API is running (skip when using managed Outpost where /healthz is not available)
 echo -e "${YELLOW}Checking if Outpost API is running...${NC}"
-API_URL=${API_BASE_URL:-http://localhost:3333}
-
-if ! curl -s -f -o /dev/null "$API_URL/healthz" 2>/dev/null; then
-    echo -e "${RED}Error: Outpost API is not running at $API_URL${NC}"
-    echo "Please start Outpost before running tests."
-    echo ""
-    echo "Example:"
-    echo "  cd /path/to/outpost"
-    echo "  go run ./cmd/api"
-    exit 1
+SKIP_HEALTH_CHECK_VAL="${SKIP_HEALTH_CHECK:-false}"
+if [ "$SKIP_HEALTH_CHECK_VAL" = "true" ] || [ "$SKIP_HEALTH_CHECK_VAL" = "1" ] || [ "$SKIP_HEALTH_CHECK_VAL" = "yes" ]; then
+    echo -e "${YELLOW}Skipping health check (SKIP_HEALTH_CHECK=true / managed Outpost)${NC}"
+else
+    API_URL=${API_BASE_URL:-http://localhost:3333}
+    # Strip /api/v1 or similar path if present for healthz
+    API_URL="${API_URL%%/api/*}"
+    if ! curl -s -f -o /dev/null "$API_URL/healthz" 2>/dev/null; then
+        echo -e "${RED}Error: Outpost API is not running at $API_URL${NC}"
+        echo "Please start Outpost before running tests."
+        echo ""
+        echo "Example:"
+        echo "  cd /path/to/outpost"
+        echo "  go run ./cmd/api"
+        echo ""
+        echo "For managed Outpost (api.outpost.hookdeck.com), set SKIP_HEALTH_CHECK=true in .env"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Outpost API is running${NC}"
 fi
-
-echo -e "${GREEN}✓ Outpost API is running${NC}"
 echo ""
 
 echo -e "${GREEN}Running contract tests...${NC}"
