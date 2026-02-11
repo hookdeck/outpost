@@ -6,7 +6,7 @@ info:
   x-speakeasy-metadata:
     type: pagination-fixes
     description: "Fixes pagination field conflicts with Python built-ins; v0.13 uses SeekPagination and models/pagination envelope"
-extends: file:///Users/leggetter/hookdeck/git/outpost/docs/apis/openapi.yaml
+extends: ../../docs/apis/openapi.yaml
 actions:
   # Fix 'next' field in SeekPagination to avoid Python built-in next() conflict
   - target: $["components"]["schemas"]["SeekPagination"]["properties"]["next"]

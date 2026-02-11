@@ -16,7 +16,7 @@ Because the SDK's models and methods are a direct representation of the OpenAPI 
 
 ## Quick Start
 
-The recommended way to run the tests is using the provided script, which ensures the API is healthy before executing the test suite.
+The recommended way to run the tests is using the provided script, which validates configuration and optionally checks API health before running the test suite.
 
 ```bash
 # 1. Ensure all prerequisites are met (see below)
@@ -32,6 +32,8 @@ npm install
 # 5. Run the test script
 ./scripts/run-tests.sh
 ```
+
+**What `run-tests.sh` does:** Loads `.env` from this directory, requires `API_KEY` to be set, then optionally checks that the Outpost API is reachable at `API_BASE_URL` (default `http://localhost:3333`) via `GET /healthz`. For managed Outpost (e.g. api.outpost.hookdeck.com) where `/healthz` is not available, set `SKIP_HEALTH_CHECK=true` in `.env` to skip the health check. Finally it runs `npm test` and reports pass/fail.
 
 ## Prerequisites
 
@@ -135,20 +137,6 @@ The following scripts are available to run, lint, and format the tests:
 | `npm run format:check`    | Checks for formatting issues without modifying files.          |
 | `npm run type-check`      | Runs TypeScript type-checking without compiling.               |
 | `npm run test:failures`   | Runs only the tests that were previously failing (Events + Topics). |
-
-### Debugging API responses (curl)
-
-To see raw API responses and distinguish SDK vs API vs parameter issues, use the curl script. It performs the same requests as the failing Events tests (per the OpenAPI spec: Bearer auth, GET /events with query params, GET /events/{event_id}).
-
-```bash
-# From spec-sdk-tests (uses .env: API_BASE_URL, API_KEY, TENANT_ID)
-./scripts/curl-events.sh
-
-# With destination filter (reproduces the 500 from tests)
-DESTINATION_ID=des_xxx ./scripts/curl-events.sh
-```
-
-Requires `jq` for readable JSON (optional; script still prints body without it).
 
 ## Test Structure
 
