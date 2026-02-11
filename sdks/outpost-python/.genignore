@@ -1,0 +1,3 @@
+# Checked-in so build succeeds (Speakeasy sets readme = "README-PYPI.md" but does not generate it).
+# prepare_readme.py overwrites this at publish time with link-rewritten content for PyPI.
+/README-PYPI.md

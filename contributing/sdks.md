@@ -358,6 +358,18 @@ If publication fails:
 
 > **Note**: This section is for advanced use cases. SDK building and testing is automatically handled in CI/CD when PRs are created. You typically only need this for debugging or local development of the SDKs themselves.
 
+### Replicating the Python SDK generation locally (same as CI)
+
+The GitHub Action runs the **Speakeasy CLI** with your `.speakeasy/workflow.yaml`. To use the same tooling and workflow locally (including the compile step):
+
+1. Install the [Speakeasy CLI](https://speakeasy.com/docs/speakeasy-reference/cli/getting-started).
+2. Set `SPEAKEASY_API_KEY` (same secret as in the repo).
+3. From the **repo root** run:
+   ```bash
+   speakeasy run -t outpost-python
+   ```
+   This runs the same workflow as CI: generation into `sdks/outpost-python`, then the compile step (e.g. `poetry build`). There is no other way to replicate the CI setup locally without pushing and triggering the workflow.
+
 While the CI/CD pipeline handles SDK generation, you can build and test locally if needed:
 
 ### Go SDK

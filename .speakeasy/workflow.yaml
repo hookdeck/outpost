@@ -33,9 +33,9 @@ targets:
         target: python
         source: Outpost API (Python)
         output: ./sdks/outpost-python
-        # Override: Speakeasy generates readme = "README-PYPI.md" but does not emit that file.
-        # We use README.md as the single source of truth; patch pyproject after generation.
-        compileCommand: "python scripts/patch_pyproject_readme.py && poetry build"
+        # Speakeasy sets readme = "README-PYPI.md" but does not generate it. We check in
+        # README-PYPI.md and list it in .genignore so the file survives generation and build succeeds.
+        # prepare_readme.py overwrites it at publish time with link-rewritten content for PyPI.
         publish:
             pypi:
                 token: $pypi_token
