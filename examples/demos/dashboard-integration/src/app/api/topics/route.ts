@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // Fetch topics using the Outpost SDK
-      const topics = await outpostClient.topics.list({ tenantId });
+      // Fetch topics using the Outpost SDK (list is instance-wide; no tenant filter in API)
+      const topics = await outpostClient.topics.list();
 
       logger.info("Topics fetched successfully", {
         tenantId,

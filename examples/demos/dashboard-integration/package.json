@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@auth/pg-adapter": "^1.10.0",
-    "@hookdeck/outpost-sdk": "^0.3.0",
+    "@hookdeck/outpost-sdk": "file:../../../sdks/outpost-typescript",
     "@types/bcryptjs": "^2.4.6",
     "@types/pg": "^8.15.5",
     "bcryptjs": "^3.0.2",

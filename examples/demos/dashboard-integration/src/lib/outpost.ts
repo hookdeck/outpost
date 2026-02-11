@@ -66,25 +66,19 @@ export async function getTenantOverview(tenantId: string) {
     const tenant = await outpost.tenants.get({ tenantId });
     logger.debug(`Tenant found`, { tenantId, tenant });
 
-    // Get destinations for this tenant
-    const destinationsResponse = await outpost.destinations.list({ tenantId });
-    logger.debug(`Destinations found`, {
-      tenantId,
-      count: destinationsResponse?.length,
-    });
-
-    // Transform destinations to match our interface
-    const destinations = Array.isArray(destinationsResponse)
-      ? destinationsResponse.map((dest: any) => ({
+    // Get destinations for this tenant (SDK returns array)
+    const destinationsList = await outpost.destinations.list({ tenantId });
+    const destinations = Array.isArray(destinationsList)
+      ? destinationsList.map((dest: any) => ({
           ...dest,
-          enabled: dest.disabledAt === null, // Convert disabledAt to enabled boolean
+          enabled: dest.disabledAt === null,
         }))
       : [];
+    logger.debug(`Destinations found`, { tenantId, count: destinations.length });
 
-    // Get recent events (v0.13: list returns { models, pagination })
+    // Get recent events (SDK v0.13: list returns { models, pagination })
     let recentEvents: any[] = [];
     let totalEvents = 0;
-
     try {
       const eventsResponse = await outpost.events.list({ tenantId });
       const models = eventsResponse?.models ?? [];
