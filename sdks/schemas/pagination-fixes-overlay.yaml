@@ -2,82 +2,90 @@ overlay: 1.0.0
 x-speakeasy-jsonpath: rfc9535
 info:
   title: Pagination Field Fixes
-  version: 0.0.1
+  version: 0.0.2
   x-speakeasy-metadata:
     type: pagination-fixes
-    description: "Fixes pagination field conflicts with Python built-ins"
-extends: file:///Users/leggetter/hookdeck/git/outpost/docs/apis/openapi.yaml
+    description: "Fixes pagination field conflicts with Python built-ins; v0.13 uses SeekPagination and models/pagination envelope"
+extends: ../../docs/apis/openapi.yaml
 actions:
-  # Fix 'next' field conflict with Python's built-in next() function
-  - target: $["components"]["schemas"]["PaginatedResponse"]["properties"]["next"]
+  # Fix 'next' field in SeekPagination to avoid Python built-in next() conflict
+  - target: $["components"]["schemas"]["SeekPagination"]["properties"]["next"]
     update:
       x-speakeasy-name-override: "next_cursor"
     x-speakeasy-metadata:
       type: field-name-override
       description: "Rename 'next' to 'next_cursor' to avoid Python built-in conflict"
-      
-  # Fix 'prev' field for consistency  
-  - target: $["components"]["schemas"]["PaginatedResponse"]["properties"]["prev"]
+
+  # Fix 'prev' field for consistency
+  - target: $["components"]["schemas"]["SeekPagination"]["properties"]["prev"]
     update:
       x-speakeasy-name-override: "prev_cursor"
     x-speakeasy-metadata:
       type: field-name-override
       description: "Rename 'prev' to 'prev_cursor' for consistency"
 
-  # Fix 'next' query parameter in /tenants endpoint (index 2: limit=0, order=1, next=2, prev=3)
-  - target: $["paths"]["/tenants"]["get"]["parameters"][2]
+  # GET /tenants: parameters limit=0, order_by=1, dir=2, created_at[gte]=3, created_at[lte]=4, next=5, prev=6
+  - target: $["paths"]["/tenants"]["get"]["parameters"][5]
     update:
       x-speakeasy-name-override: "next_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
-      description: "Rename 'next' query parameter to 'next_cursor' to avoid Python built-in conflict"
+      description: "Rename 'next' query parameter to 'next_cursor'"
 
-  # Fix 'prev' query parameter in /tenants endpoint
-  - target: $["paths"]["/tenants"]["get"]["parameters"][3]
+  - target: $["paths"]["/tenants"]["get"]["parameters"][6]
     update:
       x-speakeasy-name-override: "prev_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
-      description: "Rename 'prev' query parameter to 'prev_cursor' for consistency"
+      description: "Rename 'prev' query parameter to 'prev_cursor'"
 
-  # Fix 'next' query parameter in /tenants/{tenant_id}/events endpoint
-  # Parameters: destination_id=0, status=1, next=2, prev=3, limit=4, start=5, end=6
-  - target: $["paths"]["/tenants/{tenant_id}/events"]["get"]["parameters"][2]
+  # GET /events: next=6, prev=7
+  - target: $["paths"]["/events"]["get"]["parameters"][6]
     update:
       x-speakeasy-name-override: "next_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
-      description: "Rename 'next' query parameter to 'next_cursor' to avoid Python built-in conflict"
+      description: "Rename 'next' query parameter to 'next_cursor'"
 
-  # Fix 'prev' query parameter in /tenants/{tenant_id}/events endpoint
-  - target: $["paths"]["/tenants/{tenant_id}/events"]["get"]["parameters"][3]
+  - target: $["paths"]["/events"]["get"]["parameters"][7]
     update:
       x-speakeasy-name-override: "prev_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
-      description: "Rename 'prev' query parameter to 'prev_cursor' for consistency"
+      description: "Rename 'prev' query parameter to 'prev_cursor'"
 
-  # Fix 'next' query parameter in /tenants/{tenant_id}/destinations/{destination_id}/events endpoint
-  # Parameters: status=0, next=1, prev=2, limit=3, start=4, end=5
-  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/events"]["get"]["parameters"][1]
+  # GET /attempts: next=8, prev=9
+  - target: $["paths"]["/attempts"]["get"]["parameters"][8]
     update:
       x-speakeasy-name-override: "next_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
-      description: "Rename 'next' query parameter to 'next_cursor' to avoid Python built-in conflict"
+      description: "Rename 'next' query parameter to 'next_cursor'"
 
-  # Fix 'prev' query parameter in /tenants/{tenant_id}/destinations/{destination_id}/events endpoint
-  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/events"]["get"]["parameters"][2]
+  - target: $["paths"]["/attempts"]["get"]["parameters"][9]
     update:
       x-speakeasy-name-override: "prev_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
-      description: "Rename 'prev' query parameter to 'prev_cursor' for consistency"
-      
-  # Add pagination configuration for events endpoint
-  # Note: The pagination config references the original parameter name 'next' (not 'next_cursor')
-  # because x-speakeasy-name-override only affects generated code, not the OpenAPI spec
-  - target: $["paths"]["/tenants/{tenant_id}/events"]["get"]
+      description: "Rename 'prev' query parameter to 'prev_cursor'"
+
+  # GET /tenants/{tenant_id}/destinations/{destination_id}/attempts: next=6, prev=7
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][6]
+    update:
+      x-speakeasy-name-override: "next_cursor"
+    x-speakeasy-metadata:
+      type: parameter-name-override
+      description: "Rename 'next' query parameter to 'next_cursor'"
+
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][7]
+    update:
+      x-speakeasy-name-override: "prev_cursor"
+    x-speakeasy-metadata:
+      type: parameter-name-override
+      description: "Rename 'prev' query parameter to 'prev_cursor'"
+
+  # Pagination config: GET /tenants (v0.13 envelope: models + pagination.next/prev)
+  - target: $["paths"]["/tenants"]["get"]
     update:
       x-speakeasy-pagination:
         type: cursor
@@ -89,16 +97,33 @@ actions:
             in: parameters
             type: limit
         outputs:
-          nextCursor: $.next
-          results: $.data
+          nextCursor: $.pagination.next
+          results: $.models
+    x-speakeasy-metadata:
+      type: pagination-config
+      description: "Configure cursor-based pagination for tenants listing"
+
+  # Pagination config: GET /events
+  - target: $["paths"]["/events"]["get"]
+    update:
+      x-speakeasy-pagination:
+        type: cursor
+        inputs:
+          - name: next
+            in: parameters
+            type: cursor
+          - name: limit
+            in: parameters
+            type: limit
+        outputs:
+          nextCursor: $.pagination.next
+          results: $.models
     x-speakeasy-metadata:
       type: pagination-config
       description: "Configure cursor-based pagination for events listing"
-      
-  # Add pagination configuration for destination events endpoint
-  # Note: The pagination config references the original parameter name 'next' (not 'next_cursor')
-  # because x-speakeasy-name-override only affects generated code, not the OpenAPI spec
-  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/events"]["get"]
+
+  # Pagination config: GET /attempts
+  - target: $["paths"]["/attempts"]["get"]
     update:
       x-speakeasy-pagination:
         type: cursor
@@ -110,8 +135,27 @@ actions:
             in: parameters
             type: limit
         outputs:
-          nextCursor: $.next
-          results: $.data
+          nextCursor: $.pagination.next
+          results: $.models
     x-speakeasy-metadata:
       type: pagination-config
-      description: "Configure cursor-based pagination for destination events listing"
+      description: "Configure cursor-based pagination for attempts listing"
+
+  # Pagination config: GET /tenants/.../destinations/.../attempts
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]
+    update:
+      x-speakeasy-pagination:
+        type: cursor
+        inputs:
+          - name: next
+            in: parameters
+            type: cursor
+          - name: limit
+            in: parameters
+            type: limit
+        outputs:
+          nextCursor: $.pagination.next
+          results: $.models
+    x-speakeasy-metadata:
+      type: pagination-config
+      description: "Configure cursor-based pagination for destination attempts listing"

@@ -17,21 +17,84 @@ actions:
       created_at: 1745611620644
       reviewed_at: 1745611624395
       type: method-name
+  - target: $["paths"]["/events"]["get"]
+    update:
+      x-speakeasy-name-override: list
+    x-speakeasy-metadata:
+      after: sdk.events.list()
+      before: sdk.Events.adminListEvents()
+      created_at: 1745611620645
+      reviewed_at: 1745611624395
+      type: method-name
+  - target: $["paths"]["/events/{event_id}"]["get"]
+    update:
+      x-speakeasy-name-override: get
+    x-speakeasy-metadata:
+      after: sdk.events.get()
+      before: sdk.Events.getEvent()
+      created_at: 1745611620645
+      reviewed_at: 1745611624395
+      type: method-name
+  - target: $["paths"]["/attempts"]["get"]
+    update:
+      x-speakeasy-name-override: list
+    x-speakeasy-metadata:
+      after: sdk.attempts.list()
+      before: sdk.Attempts.adminListAttempts()
+      created_at: 1745611620645
+      reviewed_at: 1745611624395
+      type: method-name
+  - target: $["paths"]["/attempts/{attempt_id}"]["get"]
+    update:
+      x-speakeasy-name-override: get
+    x-speakeasy-metadata:
+      after: sdk.attempts.get()
+      before: sdk.Attempts.getAttempt()
+      created_at: 1745611620645
+      reviewed_at: 1745611624395
+      type: method-name
+  - target: $["paths"]["/retry"]["post"]
+    update:
+      x-speakeasy-name-override: retry
+    x-speakeasy-metadata:
+      after: sdk.attempts.retry()
+      before: sdk.Attempts.retryEvent()
+      created_at: 1745611620645
+      reviewed_at: 1745611624395
+      type: method-name
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]
+    update:
+      x-speakeasy-name-override: listAttempts
+    x-speakeasy-metadata:
+      after: sdk.destinations.listAttempts()
+      before: sdk.Destinations.listTenantDestinationAttempts()
+      created_at: 1745611620645
+      reviewed_at: 1745611624395
+      type: method-name
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}"]["get"]
+    update:
+      x-speakeasy-name-override: getAttempt
+    x-speakeasy-metadata:
+      after: sdk.destinations.getAttempt()
+      before: sdk.Destinations.getTenantDestinationAttempt()
+      created_at: 1745611620645
+      reviewed_at: 1745611624395
+      type: method-name
+  - target: $["paths"]["/topics"]["get"]
+    update:
+      x-speakeasy-name-override: list
+    x-speakeasy-metadata:
+      after: sdk.topics.list()
+      before: sdk.Topics.listTopics()
+      created_at: 1745611620645
+      reviewed_at: 1745611624395
+      type: method-name
   - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}"]["get"]
     update:
       x-speakeasy-name-override: get
     x-speakeasy-metadata:
       after: sdk.destinations.get()
       before: sdk.Destinations.getTenantDestination()
-      created_at: 1745611620644
-      reviewed_at: 1745611624395
-      type: method-name
-  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}"]["get"]
-    update:
-      x-speakeasy-name-override: getByDestination
-    x-speakeasy-metadata:
-      after: sdk.events.getByDestination()
-      before: sdk.Events.getTenantEventByDestination()
       created_at: 1745611620644
       reviewed_at: 1745611624395
       type: method-name
@@ -98,15 +161,6 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/tenants/{tenant_id}/destination-types"]["get"]
-    update:
-      x-speakeasy-name-override: listTenantDestinationTypes
-    x-speakeasy-metadata:
-      after: sdk.schemas.listTenantDestinationTypes()
-      before: sdk.Schemas.listTenantDestinationTypeSchemas()
-      created_at: 1745611620645
-      reviewed_at: 1745611624395
-      type: method-name
   - target: $["paths"]["/tenants/{tenant_id}/destinations"]["post"]
     update:
       x-speakeasy-name-override: create
@@ -116,66 +170,12 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry"]["post"]
-    update:
-      x-speakeasy-name-override: retry
-    x-speakeasy-metadata:
-      after: sdk.events.retry()
-      before: sdk.Events.retryTenantEvent()
-      created_at: 1745611620645
-      reviewed_at: 1745611624395
-      type: method-name
-  - target: $["paths"]["/tenants/{tenant_id}/events/{event_id}/deliveries"]["get"]
-    update:
-      x-speakeasy-name-override: listDeliveries
-    x-speakeasy-metadata:
-      after: sdk.events.listDeliveries()
-      before: sdk.Events.listTenantEventDeliveries()
-      created_at: 1745611620645
-      reviewed_at: 1745611624395
-      type: method-name
-  - target: $["paths"]["/tenants/{tenant_id}/topics"]["get"]
-    update:
-      x-speakeasy-name-override: list
-    x-speakeasy-metadata:
-      after: sdk.topics.list()
-      before: sdk.Topics.listTenantTopics()
-      created_at: 1745611620645
-      reviewed_at: 1745611624395
-      type: method-name
-  - target: $["paths"]["/tenants/{tenant_id}/events"]["get"]
-    update:
-      x-speakeasy-name-override: list
-    x-speakeasy-metadata:
-      after: sdk.events.list()
-      before: sdk.Events.listTenantEvents()
-      created_at: 1745611620645
-      reviewed_at: 1745611624395
-      type: method-name
   - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}"]["patch"]
     update:
       x-speakeasy-name-override: update
     x-speakeasy-metadata:
       after: sdk.destinations.update()
       before: sdk.Destinations.updateTenantDestination()
-      created_at: 1745611620645
-      reviewed_at: 1745611624395
-      type: method-name
-  - target: $["paths"]["/tenants/{tenant_id}/events/{event_id}"]["get"]
-    update:
-      x-speakeasy-name-override: get
-    x-speakeasy-metadata:
-      after: sdk.events.get()
-      before: sdk.Events.getTenantEvent()
-      created_at: 1745611620645
-      reviewed_at: 1745611624395
-      type: method-name
-  - target: $["paths"]["/tenants/{tenant_id}/destination-types/{type}"]["get"]
-    update:
-      x-speakeasy-name-override: get
-    x-speakeasy-metadata:
-      after: sdk.schemas.get()
-      before: sdk.Schemas.getTenantDestinationTypeSchema()
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
@@ -203,24 +203,6 @@ actions:
     x-speakeasy-metadata:
       after: sdk.destinations.delete()
       before: sdk.Destinations.deleteTenantDestination()
-      created_at: 1745611620645
-      reviewed_at: 1745611624395
-      type: method-name
-  - target: $["paths"]["/topics"]["get"]
-    update:
-      x-speakeasy-name-override: listJwt
-    x-speakeasy-metadata:
-      after: sdk.topics.listJwt()
-      before: sdk.Topics.listTopicsJwt()
-      created_at: 1745611620645
-      reviewed_at: 1745611624395
-      type: method-name
-  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/events"]["get"]
-    update:
-      x-speakeasy-name-override: listByDestination
-    x-speakeasy-metadata:
-      after: sdk.events.listByDestination()
-      before: sdk.Events.listTenantEventsByDestination()
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name

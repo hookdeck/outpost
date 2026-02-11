@@ -2,10 +2,7 @@ import { describe, it, before, after } from 'mocha';
 import { expect } from 'chai';
 import { SdkClient, createSdkClient } from '../utils/sdk-client';
 import { createWebhookDestination } from '../factories/destination.factory';
-import type {
-  Event,
-  EventStatus,
-} from '../../sdks/outpost-typescript/dist/commonjs/models/components';
+import type { Event } from '../../sdks/outpost-typescript/dist/commonjs/models/components';
 import type { Outpost } from '../../sdks/outpost-typescript/dist/commonjs';
 /* eslint-disable no-console */
 /* eslint-disable no-undef */
@@ -17,7 +14,7 @@ if (!process.env.TEST_TOPICS) {
 const TEST_TOPICS = process.env.TEST_TOPICS.split(',').map((t) => t.trim());
 
 /**
- * Poll for events with exponential backoff
+ * Poll for events (any count)
  * @param fetchEvents Function that fetches events
  * @param maxWaitMs Maximum time to wait in milliseconds
  * @param intervalMs Initial interval between polls in milliseconds
@@ -59,24 +56,52 @@ async function pollForEvents(
 }
 
 /**
- * Tests for PR #491: https://github.com/hookdeck/outpost/pull/491
+ * Poll until at least one attempt exists for the destination (event was delivered).
+ * @param fetchAttempts Function that fetches attempts (returns array of attempt objects)
+ * @param maxWaitMs Maximum time to wait in milliseconds
+ * @param intervalMs Interval between polls in milliseconds
+ * @returns Array of attempts, or empty if timeout
+ */
+async function pollForAttempts<T>(
+  fetchAttempts: () => Promise<T[]>,
+  maxWaitMs = 45000,
+  intervalMs = 5000
+): Promise<T[]> {
+  const startTime = Date.now();
+  let pollCount = 0;
+
+  while (Date.now() - startTime < maxWaitMs) {
+    pollCount++;
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`Polling for attempts (poll ${pollCount}, elapsed: ${elapsed}s)...`);
+
+    const attempts = await fetchAttempts();
+    if (attempts.length > 0) {
+      console.log(`✓ Found ${attempts.length} attempt(s) after ${elapsed}s`);
+      return attempts;
+    }
+
+    const remaining = maxWaitMs - (Date.now() - startTime);
+    await new Promise((r) => setTimeout(r, remaining > intervalMs ? intervalMs : Math.max(0, remaining)));
+  }
+
+  const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.warn(`✗ No attempts found after ${totalTime}s`);
+  return [];
+}
+
+/**
+ * Events tests.
  *
- * This PR fixes issue #490 where the Event schema was missing the `status` field
- * that is returned by the API. The API returns events with a `status` field
- * (enum: "success" | "failed") but this field was not defined in the OpenAPI spec,
- * causing SDK clients to not have access to this important field.
- *
- * These tests verify that:
- * 1. Events returned from the API include the `status` field
- * 2. The `status` field has valid values ("success" or "failed")
- * 3. The SDK properly types and exposes the `status` field
+ * Event no longer has a status property in the spec; delivery outcome is on Attempt.
+ * These tests verify listing events, getting a single event by ID, and that publishing
+ * an event results in an attempt (with attempt.status).
  *
  * NOTE: For events to be logged and retrievable, there must be:
- * 1. A configured log store (e.g., PostgreSQL or ClickHouse)
- * 2. A subscriber actively consuming from the destination
- * Without these, events may not appear in the event lists.
+ * - A configured log store (e.g., PostgreSQL or ClickHouse)
+ * - A destination to deliver to (we create a webhook destination)
  */
-describe('Events - Status Field Tests (PR #491)', () => {
+describe('Events (PR #491)', () => {
   let client: SdkClient;
   let destinationId: string;
 
@@ -132,69 +157,46 @@ describe('Events - Status Field Tests (PR #491)', () => {
     }
   });
 
-  describe('GET /api/v1/tenants/{tenant_id}/destinations/{destination_id}/events - Event Status Field', () => {
-    it('should include status field in events returned from listByDestination', async function () {
-      // Increase timeout for this test as it involves publishing and waiting for event delivery
-      this.timeout(45000);
+  describe('GET /events', () => {
+    it('should list events by tenant', async function () {
+      this.timeout(60000);
 
-      // Get the underlying SDK to access the events and publish methods
       const sdk: Outpost = client.getSDK();
 
-      // Publish an event - it will be routed to the destination by topic matching
       await sdk.publish.event({
         tenantId: client.getTenantId(),
         topic: TEST_TOPICS[0],
         data: {
-          test: 'event-status-field-test',
+          test: 'events-list-test',
           timestamp: new Date().toISOString(),
         },
       });
       console.log('Event published successfully');
 
-      // Poll for events with 5s intervals, max 30s wait
       const events = await pollForEvents(
         async () => {
-          const response = await sdk.events.listByDestination({
+          const response = await sdk.events.list({
             tenantId: client.getTenantId(),
-            destinationId: destinationId,
           });
-          return response?.data || [];
+          return response?.models || [];
         },
         30000,
         5000
       );
 
-      if (events.length === 0) {
-        throw new Error('No events found after 30 seconds - event delivery may be failing');
-      }
-
-      // Verify that at least one event has the status field
-      const eventWithStatus = events.find((event: Event) => event.status !== undefined);
-
-      expect(eventWithStatus).to.exist;
-      expect(eventWithStatus!.status).to.exist;
-
-      // Verify the status field has a valid value
-      const validStatuses: EventStatus[] = ['success', 'failed'];
-      expect(validStatuses).to.include(eventWithStatus!.status);
-
-      console.log(`Event status field verified: ${eventWithStatus!.status}`);
+      expect(events.length).to.be.at.least(1, 'Expected at least one event after listing by tenant');
+      console.log(`Listed ${events.length} event(s)`);
     });
 
-    it('should include status field when getting a single event', async function () {
-      // Increase timeout for this test (no need to publish, just retrieve)
+    it('should get a single event by ID', async function () {
       this.timeout(20000);
 
       const sdk: Outpost = client.getSDK();
 
-      // First, list events to get an event ID
-      const response = await sdk.events.listByDestination({
+      const response = await sdk.events.list({
         tenantId: client.getTenantId(),
-        destinationId: destinationId,
       });
-
-      // The SDK wraps the API response in a 'data' property
-      const events = response?.data || [];
+      const events = response?.models || [];
 
       if (events.length === 0) {
         console.warn('No events found - skipping single event test');
@@ -207,67 +209,48 @@ describe('Events - Status Field Tests (PR #491)', () => {
         throw new Error('Event ID is undefined');
       }
 
-      console.log(`Getting event by ID: ${eventId}`);
-
-      // Get the specific event
-      const event = await sdk.events.getByDestination({
-        tenantId: client.getTenantId(),
-        destinationId: destinationId,
-        eventId: eventId,
-      });
-
-      // Verify the status field exists
-      expect(event.status).to.exist;
-      const validStatuses: EventStatus[] = ['success', 'failed'];
-      expect(validStatuses).to.include(event.status);
-
-      console.log(`Single event status field verified: ${event.status}`);
+      const event = await sdk.events.get({ eventId });
+      expect(event).to.exist;
+      expect(event.id).to.equal(eventId);
+      console.log('Single event retrieved by ID');
     });
   });
 
-  describe('GET /api/v1/tenants/{tenant_id}/events - Tenant Events Status Field', () => {
-    it('should include status field in events returned from tenant events list', async function () {
-      // Increase timeout for this test as it involves publishing and waiting for event delivery
-      this.timeout(45000);
+  describe('Event → Attempt', () => {
+    it('publishing an event with matching topic to an enabled destination should generate an attempt', async function () {
+      this.timeout(60000);
 
       const sdk: Outpost = client.getSDK();
 
-      // Publish an event - it will be routed to the destination by topic matching
-      await sdk.publish.event({
+      const publishResponse = await sdk.publish.event({
         tenantId: client.getTenantId(),
         topic: TEST_TOPICS[0],
         data: {
-          test: 'tenant-events-status-test',
+          test: 'event-generates-attempt',
           timestamp: new Date().toISOString(),
         },
       });
-      console.log('Event published successfully');
+      const eventId = publishResponse.id;
+      console.log(`Event published (id=${eventId}); waiting for attempt...`);
 
-      // Poll for events with 5s intervals
-      const events = await pollForEvents(
+      const attempts = await pollForAttempts(
         async () => {
-          const response = await sdk.events.list({
+          const response = await sdk.destinations.listAttempts({
             tenantId: client.getTenantId(),
+            destinationId: destinationId,
+            eventId,
           });
-          return response?.data || [];
+          return response?.models ?? [];
         },
-        30000,
+        45000,
         5000
       );
 
-      if (events.length === 0) {
-        throw new Error('No tenant events found after 30 seconds - event delivery may be failing');
-      }
-
-      // Verify that at least one event has the status field
-      const eventWithStatus = events.find((event: Event) => event.status !== undefined);
-
-      expect(eventWithStatus).to.exist;
-      expect(eventWithStatus!.status).to.exist;
-      const validStatuses: EventStatus[] = ['success', 'failed'];
-      expect(validStatuses).to.include(eventWithStatus!.status);
-
-      console.log(`Tenant event status field verified: ${eventWithStatus!.status}`);
+      expect(attempts.length).to.be.at.least(1, 'Expected at least one attempt for the published event when tenant, enabled destination, and matching topic are in place');
+      const attempt = attempts[0];
+      expect(attempt.eventId).to.equal(eventId, 'Attempt should be for the event we just published');
+      expect(attempt.status).to.equal('success', 'Delivery to mock.hookdeck.com should succeed');
+      console.log(`Event ${eventId} generated attempt; status: ${attempt.status}`);
     });
   });
 });

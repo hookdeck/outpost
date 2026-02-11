@@ -66,63 +66,25 @@ export async function getTenantOverview(tenantId: string) {
     const tenant = await outpost.tenants.get({ tenantId });
     logger.debug(`Tenant found`, { tenantId, tenant });
 
-    // Get destinations for this tenant
-    const destinationsResponse = await outpost.destinations.list({ tenantId });
-    logger.debug(`Destinations found`, {
-      tenantId,
-      count: destinationsResponse?.length,
-    });
-
-    // Transform destinations to match our interface
-    const destinations = Array.isArray(destinationsResponse)
-      ? destinationsResponse.map((dest: any) => ({
+    // Get destinations for this tenant (SDK returns array)
+    const destinationsList = await outpost.destinations.list({ tenantId });
+    const destinations = Array.isArray(destinationsList)
+      ? destinationsList.map((dest: any) => ({
           ...dest,
-          enabled: dest.disabledAt === null, // Convert disabledAt to enabled boolean
+          enabled: dest.disabledAt === null,
         }))
       : [];
+    logger.debug(`Destinations found`, { tenantId, count: destinations.length });
 
-    // Get recent events with proper error handling
+    // Get recent events (SDK v0.13: list returns { models, pagination })
     let recentEvents: any[] = [];
-    let totalEvents = 0;
-
     try {
       const eventsResponse = await outpost.events.list({ tenantId });
-      // Handle paginated API response structure
-      if (eventsResponse && typeof eventsResponse === "object") {
-        // Check if it's a paginated response with data array
-        if ("data" in eventsResponse && Array.isArray(eventsResponse.data)) {
-          recentEvents = eventsResponse.data.slice(0, 10);
-          totalEvents =
-            (eventsResponse as any).count || eventsResponse.data.length;
-        } else if (Array.isArray(eventsResponse)) {
-          // Direct array response
-          recentEvents = eventsResponse.slice(0, 10);
-          totalEvents = eventsResponse.length;
-        }
-      }
-      logger.debug(`Events found`, { tenantId, totalEvents });
+      const models = eventsResponse?.models ?? [];
+      recentEvents = models.slice(0, 10);
+      logger.debug(`Events found`, { tenantId, count: recentEvents.length });
     } catch (error) {
-      // Handle SDK validation error - the API response is valid but SDK expects different format
-      if (error && typeof error === "object" && "rawValue" in error) {
-        const rawResponse = (error as any).rawValue;
-        if (
-          rawResponse &&
-          typeof rawResponse === "object" &&
-          "data" in rawResponse &&
-          Array.isArray(rawResponse.data)
-        ) {
-          recentEvents = rawResponse.data.slice(0, 10);
-          totalEvents = rawResponse.count || rawResponse.data.length;
-          logger.debug(`Events extracted from validation error`, {
-            tenantId,
-            totalEvents,
-          });
-        } else {
-          logger.warn("Could not fetch events", { error, tenantId });
-        }
-      } else {
-        logger.warn("Could not fetch events", { error, tenantId });
-      }
+      logger.warn("Could not fetch events", { error, tenantId });
     }
 
     const overview = {
@@ -133,14 +95,12 @@ export async function getTenantOverview(tenantId: string) {
         totalDestinations: Array.isArray(destinations)
           ? destinations.length
           : 0,
-        totalEvents,
       },
     };
 
     logger.debug(`Complete overview retrieved for tenant: ${tenantId}`, {
       tenantId,
       destinationCount: overview.stats.totalDestinations,
-      eventCount: overview.stats.totalEvents,
     });
     return overview;
   } catch (error) {

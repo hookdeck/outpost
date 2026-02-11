@@ -245,6 +245,67 @@ Key differences:
 - New `status` field mirrors the HTTP status code
 - Validation errors in `data` changed from a `{ field: tag }` object to an array of human-readable messages
 
+## SDK Migration
+
+The official SDKs (TypeScript, Go, Python) are generated from the OpenAPI spec. When you upgrade to SDK versions that target v0.13, the following breaking changes apply. This section shows the migration from the pre–v0.13 SDK API to the v0.13 API.
+
+### List response shape
+
+All list endpoints return `{ models, pagination }` instead of `{ data, next, prev }`.
+
+**Before (v0.12-style SDK):**
+
+```ts
+const response = await outpost.events.listByDestination({ tenantId, destinationId });
+const events = response.data ?? [];
+const nextCursor = response.next;
+```
+
+**After (v0.13 SDK):**
+
+```ts
+const response = await outpost.events.list({ tenantId });
+const events = response.models ?? [];
+const nextCursor = response.pagination?.next;
+```
+
+Use `response.models` for the array of items and `response.pagination` for `next`, `prev`, `order_by`, `dir`, and `limit`.
+
+### Events API
+
+| Before (v0.12-style) | After (v0.13) |
+| --- | --- |
+| `sdk.events.listByDestination({ tenantId, destinationId })` | `sdk.events.list({ tenantId, destinationId })` — or list without `destinationId` for all tenant events |
+| `sdk.events.getByDestination({ tenantId, destinationId, eventId })` | `sdk.events.get({ eventId })` |
+| Tenant-scoped list/get by destination | Use `sdk.events.list({ tenantId })` and filter client-side, or use attempts API for destination-scoped data |
+
+**Note:** `GET /events?destination_id=...` is documented but currently returns 500 in some environments; prefer listing without `destination_id` until that is fixed. See [GitHub issue #688](https://github.com/hookdeck/outpost/issues/688) for details.
+
+### Attempts (formerly deliveries)
+
+| Before (v0.12-style) | After (v0.13) |
+| --- | --- |
+| Delivery-focused endpoints / types | `sdk.attempts.list()`, `sdk.attempts.get()`, `sdk.attempts.retry()` |
+| Destination-scoped deliveries | `sdk.destinations.listAttempts()`, `sdk.destinations.getAttempt()` |
+| Retry via event/destination path | `sdk.attempts.retry({ eventId, destinationId })` |
+
+### Schemas and topics
+
+| Before (v0.12-style) | After (v0.13) |
+| --- | --- |
+| Tenant-scoped destination types / schemas | `sdk.schemas.listDestinationTypes()`, `sdk.schemas.get()` (unscoped) |
+| Tenant-scoped topics | `sdk.topics.list()` (unscoped) |
+
+### Summary checklist for SDK users
+
+1. Replace any use of `response.data` with `response.models` and `response.next`/`response.prev` with `response.pagination?.next` / `response.pagination?.prev`.
+2. Switch events access to `sdk.events.list()` and `sdk.events.get({ eventId })`; remove use of event-by-destination list/get if present.
+3. Switch delivery/retry usage to `sdk.attempts.*` and `sdk.destinations.listAttempts()` / `getAttempt()`.
+4. Use `sdk.attempts.retry({ eventId, destinationId })` for retries.
+5. Use `sdk.schemas.listDestinationTypes()` and `sdk.topics.list()` without tenant scope.
+
+TypeScript SDK v0.13.0 and later reflect these changes. Go and Python SDKs will align with the same API once regenerated from the v0.13 OpenAPI spec.
+
 ## Empty `custom_headers` Rejected
 
 Webhook and standard webhook destinations no longer accept an empty `custom_headers` object. Previously, passing `"custom_headers": {}` was silently accepted. In v0.13, this returns a validation error.
