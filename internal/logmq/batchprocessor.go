@@ -90,13 +90,29 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 		// Validate that both Event and Attempt are present.
 		// The logstore requires both for data consistency.
 		if entry.Event == nil || entry.Attempt == nil {
-			logger.Error("invalid log entry: both event and attempt are required",
+			fields := []zap.Field{
 				zap.Bool("has_event", entry.Event != nil),
 				zap.Bool("has_attempt", entry.Attempt != nil),
-				zap.String("message_id", msg.LoggableID))
+				zap.String("message_id", msg.LoggableID),
+			}
+			if entry.Event != nil {
+				fields = append(fields, zap.String("event_id", entry.Event.ID))
+				fields = append(fields, zap.String("tenant_id", entry.Event.TenantID))
+			}
+			if entry.Attempt != nil {
+				fields = append(fields, zap.String("attempt_id", entry.Attempt.ID))
+				fields = append(fields, zap.String("tenant_id", entry.Attempt.TenantID))
+			}
+			logger.Error("invalid log entry: both event and attempt are required", fields...)
 			msg.Nack()
 			continue
 		}
+
+		logger.Info("added to batch",
+			zap.String("message_id", msg.LoggableID),
+			zap.String("event_id", entry.Event.ID),
+			zap.String("attempt_id", entry.Attempt.ID),
+			zap.String("tenant_id", entry.Event.TenantID))
 
 		entries = append(entries, entry)
 		validMsgs = append(validMsgs, msg)
