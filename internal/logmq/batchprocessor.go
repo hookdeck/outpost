@@ -126,17 +126,21 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 	insertCtx, cancel := context.WithTimeout(bp.ctx, 30*time.Second)
 	defer cancel()
 
+	insertStart := time.Now()
 	if err := bp.logStore.InsertMany(insertCtx, entries); err != nil {
 		logger.Error("failed to insert log entries",
 			zap.Error(err),
-			zap.Int("entry_count", len(entries)))
+			zap.Int("entry_count", len(entries)),
+			zap.Int64("insert_duration_ms", time.Since(insertStart).Milliseconds()))
 		for _, msg := range validMsgs {
 			msg.Nack()
 		}
 		return
 	}
 
-	logger.Info("batch processed successfully", zap.Int("count", len(validMsgs)))
+	logger.Info("batch processed successfully",
+		zap.Int("count", len(validMsgs)),
+		zap.Int64("insert_duration_ms", time.Since(insertStart).Milliseconds()))
 
 	for _, msg := range validMsgs {
 		msg.Ack()
