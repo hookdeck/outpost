@@ -16,6 +16,7 @@ from typing import Callable, Dict, Optional, TYPE_CHECKING, Union, cast
 import weakref
 
 if TYPE_CHECKING:
+    from outpost_sdk.attempts import Attempts
     from outpost_sdk.destinations import Destinations
     from outpost_sdk.events import Events
     from outpost_sdk.health import Health
@@ -34,6 +35,26 @@ class Outpost(BaseSDK):
     r"""The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
 
     If your system is not multi-tenant, create a single tenant with a hard-code tenant ID upon initialization. If your system has a single tenant but multiple environments, create a tenant per environment, like `live` and `test`.
+
+    """
+    events: "Events"
+    r"""Operations related to event history."""
+    attempts: "Attempts"
+    r"""Attempts represent individual delivery attempts of events to destinations. The attempts API provides an attempt-centric view of event processing.
+
+    Each attempt contains:
+    - `id`: Unique attempt identifier
+    - `status`: success or failed
+    - `time`: Timestamp of the attempt
+    - `code`: HTTP status code or error code
+    - `attempt`: Attempt number (1 for first attempt, 2+ for retries)
+    - `event`: Associated event (ID or included object)
+    - `destination`: Destination ID
+
+    Use the `include` query parameter to include related data:
+    - `include=event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
+    - `include=event.data`: Include full event with payload data
+    - `include=response_data`: Include response body and headers from the attempt
 
     """
     destinations: "Destinations"
@@ -68,16 +89,15 @@ class Outpost(BaseSDK):
     r"""Operations for retrieving destination type schemas."""
     topics: "TopicsSDK"
     r"""Operations for retrieving available event topics."""
-    events: "Events"
-    r"""Operations related to event history and deliveries."""
     _sub_sdk_map = {
         "health": ("outpost_sdk.health", "Health"),
         "tenants": ("outpost_sdk.tenants", "Tenants"),
+        "events": ("outpost_sdk.events", "Events"),
+        "attempts": ("outpost_sdk.attempts", "Attempts"),
         "destinations": ("outpost_sdk.destinations", "Destinations"),
         "publish": ("outpost_sdk.publish", "Publish"),
         "schemas": ("outpost_sdk.schemas", "Schemas"),
         "topics": ("outpost_sdk.topics_sdk", "TopicsSDK"),
-        "events": ("outpost_sdk.events", "Events"),
     }
 
     def __init__(

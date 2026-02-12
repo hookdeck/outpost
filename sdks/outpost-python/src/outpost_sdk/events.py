@@ -11,38 +11,45 @@ from typing import Any, Dict, List, Mapping, Optional, Union
 
 
 class Events(BaseSDK):
-    r"""Operations related to event history and deliveries."""
+    r"""Operations related to event history."""
 
     def list(
         self,
         *,
         tenant_id: Optional[str] = None,
-        destination_id: Optional[
-            Union[models.DestinationID, models.DestinationIDTypedDict]
+        topic: Optional[
+            Union[models.AdminListEventsTopic, models.AdminListEventsTopicTypedDict]
         ] = None,
-        status: Optional[models.ListTenantEventsStatus] = None,
+        time_gte: Optional[datetime] = None,
+        time_lte: Optional[datetime] = None,
+        limit: Optional[int] = 100,
         next_cursor: Optional[str] = None,
         prev_cursor: Optional[str] = None,
-        limit: Optional[int] = 100,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        order_by: Optional[
+            models.AdminListEventsOrderBy
+        ] = models.AdminListEventsOrderBy.TIME,
+        direction: Optional[models.AdminListEventsDir] = models.AdminListEventsDir.DESC,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
         http_headers: Optional[Mapping[str, str]] = None,
-    ) -> Optional[models.ListTenantEventsResponse]:
-        r"""List Events
+    ) -> Optional[models.AdminListEventsResponse]:
+        r"""List Events (Admin)
 
-        Retrieves a list of events for the tenant, supporting cursor navigation (details TBD) and filtering.
+        Retrieves a list of events across all tenants. This is an admin-only endpoint that requires the Admin API Key.
 
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param destination_id: Filter events by destination ID(s).
-        :param status: Filter events by delivery status.
-        :param next_cursor: Cursor for next page of results
-        :param prev_cursor: Cursor for previous page of results
-        :param limit: Number of items per page (default 100, max 1000)
-        :param start: Start time filter (RFC3339 format)
-        :param end: End time filter (RFC3339 format)
+        When `tenant_id` is not provided, returns events from all tenants. When `tenant_id` is provided, returns only events for that tenant.
+
+
+        :param tenant_id: Filter events by tenant ID. If not provided, returns events from all tenants.
+        :param topic: Filter events by topic(s). Can be specified multiple times or comma-separated.
+        :param time_gte: Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
+        :param time_lte: Filter events with time <= value (RFC3339 or YYYY-MM-DD format).
+        :param limit: Number of items per page (default 100, max 1000).
+        :param next_cursor: Cursor for next page of results.
+        :param prev_cursor: Cursor for previous page of results.
+        :param order_by: Field to sort by.
+        :param direction: Sort direction.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -58,32 +65,30 @@ class Events(BaseSDK):
         else:
             base_url = self._get_url(base_url, url_variables)
 
-        request = models.ListTenantEventsRequest(
+        request = models.AdminListEventsRequest(
             tenant_id=tenant_id,
-            destination_id=destination_id,
-            status=status,
+            topic=topic,
+            time_gte=time_gte,
+            time_lte=time_lte,
+            limit=limit,
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
-            limit=limit,
-            start=start,
-            end=end,
+            order_by=order_by,
+            direction=direction,
         )
 
         req = self._build_request(
             method="GET",
-            path="/tenants/{tenant_id}/events",
+            path="/events",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
             request_body_required=False,
-            request_has_path_params=True,
+            request_has_path_params=False,
             request_has_query_params=True,
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.ListTenantEventsGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -101,18 +106,18 @@ class Events(BaseSDK):
             hook_ctx=HookContext(
                 config=self.sdk_configuration,
                 base_url=base_url or "",
-                operation_id="listTenantEvents",
+                operation_id="adminListEvents",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "422", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        def next_func() -> Optional[models.ListTenantEventsResponse]:
+        def next_func() -> Optional[models.AdminListEventsResponse]:
             body = utils.unmarshal_json(http_res.text, Union[Dict[Any, Any], List[Any]])
-            next_cursor = JSONPath("$.next").parse(body)
+            next_cursor = JSONPath("$.pagination.next").parse(body)
 
             if len(next_cursor) == 0:
                 return None
@@ -120,7 +125,7 @@ class Events(BaseSDK):
             next_cursor = next_cursor[0]
             if next_cursor is None or str(next_cursor).strip() == "":
                 return None
-            results = JSONPath("$.data").parse(body)
+            results = JSONPath("$.models").parse(body)
             if len(results) == 0 or len(results[0]) == 0:
                 return None
             limit = request.limit if not request.limit is None else 100
@@ -129,24 +134,29 @@ class Events(BaseSDK):
 
             return self.list(
                 tenant_id=tenant_id,
-                destination_id=destination_id,
-                status=status,
+                topic=topic,
+                time_gte=time_gte,
+                time_lte=time_lte,
+                limit=limit,
                 next_cursor=next_cursor,
                 prev_cursor=prev_cursor,
-                limit=limit,
-                start=start,
-                end=end,
+                order_by=order_by,
+                direction=direction,
                 retries=retries,
             )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
-            return models.ListTenantEventsResponse(
-                result=unmarshal_json_response(
-                    models.ListTenantEventsResponseBody, http_res
-                ),
+            return models.AdminListEventsResponse(
+                result=unmarshal_json_response(models.EventPaginatedResult, http_res),
                 next=next_func,
             )
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "422", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
+        if utils.match_response(http_res, ["401", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -159,32 +169,39 @@ class Events(BaseSDK):
         self,
         *,
         tenant_id: Optional[str] = None,
-        destination_id: Optional[
-            Union[models.DestinationID, models.DestinationIDTypedDict]
+        topic: Optional[
+            Union[models.AdminListEventsTopic, models.AdminListEventsTopicTypedDict]
         ] = None,
-        status: Optional[models.ListTenantEventsStatus] = None,
+        time_gte: Optional[datetime] = None,
+        time_lte: Optional[datetime] = None,
+        limit: Optional[int] = 100,
         next_cursor: Optional[str] = None,
         prev_cursor: Optional[str] = None,
-        limit: Optional[int] = 100,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        order_by: Optional[
+            models.AdminListEventsOrderBy
+        ] = models.AdminListEventsOrderBy.TIME,
+        direction: Optional[models.AdminListEventsDir] = models.AdminListEventsDir.DESC,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
         http_headers: Optional[Mapping[str, str]] = None,
-    ) -> Optional[models.ListTenantEventsResponse]:
-        r"""List Events
+    ) -> Optional[models.AdminListEventsResponse]:
+        r"""List Events (Admin)
 
-        Retrieves a list of events for the tenant, supporting cursor navigation (details TBD) and filtering.
+        Retrieves a list of events across all tenants. This is an admin-only endpoint that requires the Admin API Key.
 
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param destination_id: Filter events by destination ID(s).
-        :param status: Filter events by delivery status.
-        :param next_cursor: Cursor for next page of results
-        :param prev_cursor: Cursor for previous page of results
-        :param limit: Number of items per page (default 100, max 1000)
-        :param start: Start time filter (RFC3339 format)
-        :param end: End time filter (RFC3339 format)
+        When `tenant_id` is not provided, returns events from all tenants. When `tenant_id` is provided, returns only events for that tenant.
+
+
+        :param tenant_id: Filter events by tenant ID. If not provided, returns events from all tenants.
+        :param topic: Filter events by topic(s). Can be specified multiple times or comma-separated.
+        :param time_gte: Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
+        :param time_lte: Filter events with time <= value (RFC3339 or YYYY-MM-DD format).
+        :param limit: Number of items per page (default 100, max 1000).
+        :param next_cursor: Cursor for next page of results.
+        :param prev_cursor: Cursor for previous page of results.
+        :param order_by: Field to sort by.
+        :param direction: Sort direction.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -200,32 +217,30 @@ class Events(BaseSDK):
         else:
             base_url = self._get_url(base_url, url_variables)
 
-        request = models.ListTenantEventsRequest(
+        request = models.AdminListEventsRequest(
             tenant_id=tenant_id,
-            destination_id=destination_id,
-            status=status,
+            topic=topic,
+            time_gte=time_gte,
+            time_lte=time_lte,
+            limit=limit,
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
-            limit=limit,
-            start=start,
-            end=end,
+            order_by=order_by,
+            direction=direction,
         )
 
         req = self._build_request_async(
             method="GET",
-            path="/tenants/{tenant_id}/events",
+            path="/events",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
             request_body_required=False,
-            request_has_path_params=True,
+            request_has_path_params=False,
             request_has_query_params=True,
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.ListTenantEventsGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -243,18 +258,18 @@ class Events(BaseSDK):
             hook_ctx=HookContext(
                 config=self.sdk_configuration,
                 base_url=base_url or "",
-                operation_id="listTenantEvents",
+                operation_id="adminListEvents",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "422", "4XX", "5XX"],
             retry_config=retry_config,
         )
 
-        def next_func() -> Optional[models.ListTenantEventsResponse]:
+        def next_func() -> Optional[models.AdminListEventsResponse]:
             body = utils.unmarshal_json(http_res.text, Union[Dict[Any, Any], List[Any]])
-            next_cursor = JSONPath("$.next").parse(body)
+            next_cursor = JSONPath("$.pagination.next").parse(body)
 
             if len(next_cursor) == 0:
                 return None
@@ -262,7 +277,7 @@ class Events(BaseSDK):
             next_cursor = next_cursor[0]
             if next_cursor is None or str(next_cursor).strip() == "":
                 return None
-            results = JSONPath("$.data").parse(body)
+            results = JSONPath("$.models").parse(body)
             if len(results) == 0 or len(results[0]) == 0:
                 return None
             limit = request.limit if not request.limit is None else 100
@@ -271,24 +286,29 @@ class Events(BaseSDK):
 
             return self.list(
                 tenant_id=tenant_id,
-                destination_id=destination_id,
-                status=status,
+                topic=topic,
+                time_gte=time_gte,
+                time_lte=time_lte,
+                limit=limit,
                 next_cursor=next_cursor,
                 prev_cursor=prev_cursor,
-                limit=limit,
-                start=start,
-                end=end,
+                order_by=order_by,
+                direction=direction,
                 retries=retries,
             )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
-            return models.ListTenantEventsResponse(
-                result=unmarshal_json_response(
-                    models.ListTenantEventsResponseBody, http_res
-                ),
+            return models.AdminListEventsResponse(
+                result=unmarshal_json_response(models.EventPaginatedResult, http_res),
                 next=next_func,
             )
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "422", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
+        if utils.match_response(http_res, ["401", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -301,7 +321,6 @@ class Events(BaseSDK):
         self,
         *,
         event_id: str,
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -311,8 +330,11 @@ class Events(BaseSDK):
 
         Retrieves details for a specific event.
 
+        When authenticated with a Tenant JWT, only events belonging to that tenant can be accessed.
+        When authenticated with Admin API Key, events from any tenant can be accessed.
+
+
         :param event_id: The ID of the event.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -328,14 +350,13 @@ class Events(BaseSDK):
         else:
             base_url = self._get_url(base_url, url_variables)
 
-        request = models.GetTenantEventRequest(
-            tenant_id=tenant_id,
+        request = models.GetEventRequest(
             event_id=event_id,
         )
 
         req = self._build_request(
             method="GET",
-            path="/tenants/{tenant_id}/events/{event_id}",
+            path="/events/{event_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -345,9 +366,6 @@ class Events(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.GetTenantEventGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -365,7 +383,7 @@ class Events(BaseSDK):
             hook_ctx=HookContext(
                 config=self.sdk_configuration,
                 base_url=base_url or "",
-                operation_id="getTenantEvent",
+                operation_id="getEvent",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
@@ -389,7 +407,6 @@ class Events(BaseSDK):
         self,
         *,
         event_id: str,
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -399,8 +416,11 @@ class Events(BaseSDK):
 
         Retrieves details for a specific event.
 
+        When authenticated with a Tenant JWT, only events belonging to that tenant can be accessed.
+        When authenticated with Admin API Key, events from any tenant can be accessed.
+
+
         :param event_id: The ID of the event.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -416,14 +436,13 @@ class Events(BaseSDK):
         else:
             base_url = self._get_url(base_url, url_variables)
 
-        request = models.GetTenantEventRequest(
-            tenant_id=tenant_id,
+        request = models.GetEventRequest(
             event_id=event_id,
         )
 
         req = self._build_request_async(
             method="GET",
-            path="/tenants/{tenant_id}/events/{event_id}",
+            path="/events/{event_id}",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
@@ -433,9 +452,6 @@ class Events(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.GetTenantEventGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -453,7 +469,7 @@ class Events(BaseSDK):
             hook_ctx=HookContext(
                 config=self.sdk_configuration,
                 base_url=base_url or "",
-                operation_id="getTenantEvent",
+                operation_id="getEvent",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
@@ -465,826 +481,6 @@ class Events(BaseSDK):
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Event, http_res)
         if utils.match_response(http_res, ["404", "4XX"], "*"):
-            http_res_text = await utils.stream_to_text_async(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-        if utils.match_response(http_res, "5XX", "*"):
-            http_res_text = await utils.stream_to_text_async(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-
-        raise errors.APIError("Unexpected response received", http_res)
-
-    def list_deliveries(
-        self,
-        *,
-        event_id: str,
-        tenant_id: Optional[str] = None,
-        retries: OptionalNullable[utils.RetryConfig] = UNSET,
-        server_url: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-        http_headers: Optional[Mapping[str, str]] = None,
-    ) -> List[models.DeliveryAttempt]:
-        r"""List Event Delivery Attempts
-
-        Retrieves a list of delivery attempts for a specific event, including response details.
-
-        :param event_id: The ID of the event.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param retries: Override the default retry configuration for this method
-        :param server_url: Override the default server URL for this method
-        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
-        :param http_headers: Additional headers to set or replace on requests.
-        """
-        base_url = None
-        url_variables = None
-        if timeout_ms is None:
-            timeout_ms = self.sdk_configuration.timeout_ms
-
-        if server_url is not None:
-            base_url = server_url
-        else:
-            base_url = self._get_url(base_url, url_variables)
-
-        request = models.ListTenantEventDeliveriesRequest(
-            tenant_id=tenant_id,
-            event_id=event_id,
-        )
-
-        req = self._build_request(
-            method="GET",
-            path="/tenants/{tenant_id}/events/{event_id}/deliveries",
-            base_url=base_url,
-            url_variables=url_variables,
-            request=request,
-            request_body_required=False,
-            request_has_path_params=True,
-            request_has_query_params=True,
-            user_agent_header="user-agent",
-            accept_header_value="application/json",
-            http_headers=http_headers,
-            _globals=models.ListTenantEventDeliveriesGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
-            security=self.sdk_configuration.security,
-            allow_empty_value=None,
-            timeout_ms=timeout_ms,
-        )
-
-        if retries == UNSET:
-            if self.sdk_configuration.retry_config is not UNSET:
-                retries = self.sdk_configuration.retry_config
-
-        retry_config = None
-        if isinstance(retries, utils.RetryConfig):
-            retry_config = (retries, ["429", "500", "502", "503", "504"])
-
-        http_res = self.do_request(
-            hook_ctx=HookContext(
-                config=self.sdk_configuration,
-                base_url=base_url or "",
-                operation_id="listTenantEventDeliveries",
-                oauth2_scopes=None,
-                security_source=self.sdk_configuration.security,
-            ),
-            request=req,
-            error_status_codes=["404", "4XX", "5XX"],
-            retry_config=retry_config,
-        )
-
-        if utils.match_response(http_res, "200", "application/json"):
-            return unmarshal_json_response(List[models.DeliveryAttempt], http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
-            http_res_text = utils.stream_to_text(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-        if utils.match_response(http_res, "5XX", "*"):
-            http_res_text = utils.stream_to_text(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-
-        raise errors.APIError("Unexpected response received", http_res)
-
-    async def list_deliveries_async(
-        self,
-        *,
-        event_id: str,
-        tenant_id: Optional[str] = None,
-        retries: OptionalNullable[utils.RetryConfig] = UNSET,
-        server_url: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-        http_headers: Optional[Mapping[str, str]] = None,
-    ) -> List[models.DeliveryAttempt]:
-        r"""List Event Delivery Attempts
-
-        Retrieves a list of delivery attempts for a specific event, including response details.
-
-        :param event_id: The ID of the event.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param retries: Override the default retry configuration for this method
-        :param server_url: Override the default server URL for this method
-        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
-        :param http_headers: Additional headers to set or replace on requests.
-        """
-        base_url = None
-        url_variables = None
-        if timeout_ms is None:
-            timeout_ms = self.sdk_configuration.timeout_ms
-
-        if server_url is not None:
-            base_url = server_url
-        else:
-            base_url = self._get_url(base_url, url_variables)
-
-        request = models.ListTenantEventDeliveriesRequest(
-            tenant_id=tenant_id,
-            event_id=event_id,
-        )
-
-        req = self._build_request_async(
-            method="GET",
-            path="/tenants/{tenant_id}/events/{event_id}/deliveries",
-            base_url=base_url,
-            url_variables=url_variables,
-            request=request,
-            request_body_required=False,
-            request_has_path_params=True,
-            request_has_query_params=True,
-            user_agent_header="user-agent",
-            accept_header_value="application/json",
-            http_headers=http_headers,
-            _globals=models.ListTenantEventDeliveriesGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
-            security=self.sdk_configuration.security,
-            allow_empty_value=None,
-            timeout_ms=timeout_ms,
-        )
-
-        if retries == UNSET:
-            if self.sdk_configuration.retry_config is not UNSET:
-                retries = self.sdk_configuration.retry_config
-
-        retry_config = None
-        if isinstance(retries, utils.RetryConfig):
-            retry_config = (retries, ["429", "500", "502", "503", "504"])
-
-        http_res = await self.do_request_async(
-            hook_ctx=HookContext(
-                config=self.sdk_configuration,
-                base_url=base_url or "",
-                operation_id="listTenantEventDeliveries",
-                oauth2_scopes=None,
-                security_source=self.sdk_configuration.security,
-            ),
-            request=req,
-            error_status_codes=["404", "4XX", "5XX"],
-            retry_config=retry_config,
-        )
-
-        if utils.match_response(http_res, "200", "application/json"):
-            return unmarshal_json_response(List[models.DeliveryAttempt], http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
-            http_res_text = await utils.stream_to_text_async(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-        if utils.match_response(http_res, "5XX", "*"):
-            http_res_text = await utils.stream_to_text_async(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-
-        raise errors.APIError("Unexpected response received", http_res)
-
-    def list_by_destination(
-        self,
-        *,
-        destination_id: str,
-        tenant_id: Optional[str] = None,
-        status: Optional[models.ListTenantEventsByDestinationStatus] = None,
-        next_cursor: Optional[str] = None,
-        prev_cursor: Optional[str] = None,
-        limit: Optional[int] = 100,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        retries: OptionalNullable[utils.RetryConfig] = UNSET,
-        server_url: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-        http_headers: Optional[Mapping[str, str]] = None,
-    ) -> Optional[models.ListTenantEventsByDestinationResponse]:
-        r"""List Events by Destination
-
-        Retrieves events associated with a specific destination for the tenant.
-
-        :param destination_id: The ID of the destination.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param status: Filter events by delivery status.
-        :param next_cursor: Cursor for next page of results
-        :param prev_cursor: Cursor for previous page of results
-        :param limit: Number of items per page (default 100, max 1000)
-        :param start: Start time filter (RFC3339 format)
-        :param end: End time filter (RFC3339 format)
-        :param retries: Override the default retry configuration for this method
-        :param server_url: Override the default server URL for this method
-        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
-        :param http_headers: Additional headers to set or replace on requests.
-        """
-        base_url = None
-        url_variables = None
-        if timeout_ms is None:
-            timeout_ms = self.sdk_configuration.timeout_ms
-
-        if server_url is not None:
-            base_url = server_url
-        else:
-            base_url = self._get_url(base_url, url_variables)
-
-        request = models.ListTenantEventsByDestinationRequest(
-            tenant_id=tenant_id,
-            destination_id=destination_id,
-            status=status,
-            next_cursor=next_cursor,
-            prev_cursor=prev_cursor,
-            limit=limit,
-            start=start,
-            end=end,
-        )
-
-        req = self._build_request(
-            method="GET",
-            path="/tenants/{tenant_id}/destinations/{destination_id}/events",
-            base_url=base_url,
-            url_variables=url_variables,
-            request=request,
-            request_body_required=False,
-            request_has_path_params=True,
-            request_has_query_params=True,
-            user_agent_header="user-agent",
-            accept_header_value="application/json",
-            http_headers=http_headers,
-            _globals=models.ListTenantEventsByDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
-            security=self.sdk_configuration.security,
-            allow_empty_value=None,
-            timeout_ms=timeout_ms,
-        )
-
-        if retries == UNSET:
-            if self.sdk_configuration.retry_config is not UNSET:
-                retries = self.sdk_configuration.retry_config
-
-        retry_config = None
-        if isinstance(retries, utils.RetryConfig):
-            retry_config = (retries, ["429", "500", "502", "503", "504"])
-
-        http_res = self.do_request(
-            hook_ctx=HookContext(
-                config=self.sdk_configuration,
-                base_url=base_url or "",
-                operation_id="listTenantEventsByDestination",
-                oauth2_scopes=None,
-                security_source=self.sdk_configuration.security,
-            ),
-            request=req,
-            error_status_codes=["404", "4XX", "5XX"],
-            retry_config=retry_config,
-        )
-
-        def next_func() -> Optional[models.ListTenantEventsByDestinationResponse]:
-            body = utils.unmarshal_json(http_res.text, Union[Dict[Any, Any], List[Any]])
-            next_cursor = JSONPath("$.next").parse(body)
-
-            if len(next_cursor) == 0:
-                return None
-
-            next_cursor = next_cursor[0]
-            if next_cursor is None or str(next_cursor).strip() == "":
-                return None
-            results = JSONPath("$.data").parse(body)
-            if len(results) == 0 or len(results[0]) == 0:
-                return None
-            limit = request.limit if not request.limit is None else 100
-            if len(results[0]) < limit:
-                return None
-
-            return self.list_by_destination(
-                destination_id=destination_id,
-                tenant_id=tenant_id,
-                status=status,
-                next_cursor=next_cursor,
-                prev_cursor=prev_cursor,
-                limit=limit,
-                start=start,
-                end=end,
-                retries=retries,
-            )
-
-        if utils.match_response(http_res, "200", "application/json"):
-            return models.ListTenantEventsByDestinationResponse(
-                result=unmarshal_json_response(
-                    models.ListTenantEventsByDestinationResponseBody, http_res
-                ),
-                next=next_func,
-            )
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
-            http_res_text = utils.stream_to_text(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-        if utils.match_response(http_res, "5XX", "*"):
-            http_res_text = utils.stream_to_text(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-
-        raise errors.APIError("Unexpected response received", http_res)
-
-    async def list_by_destination_async(
-        self,
-        *,
-        destination_id: str,
-        tenant_id: Optional[str] = None,
-        status: Optional[models.ListTenantEventsByDestinationStatus] = None,
-        next_cursor: Optional[str] = None,
-        prev_cursor: Optional[str] = None,
-        limit: Optional[int] = 100,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        retries: OptionalNullable[utils.RetryConfig] = UNSET,
-        server_url: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-        http_headers: Optional[Mapping[str, str]] = None,
-    ) -> Optional[models.ListTenantEventsByDestinationResponse]:
-        r"""List Events by Destination
-
-        Retrieves events associated with a specific destination for the tenant.
-
-        :param destination_id: The ID of the destination.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param status: Filter events by delivery status.
-        :param next_cursor: Cursor for next page of results
-        :param prev_cursor: Cursor for previous page of results
-        :param limit: Number of items per page (default 100, max 1000)
-        :param start: Start time filter (RFC3339 format)
-        :param end: End time filter (RFC3339 format)
-        :param retries: Override the default retry configuration for this method
-        :param server_url: Override the default server URL for this method
-        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
-        :param http_headers: Additional headers to set or replace on requests.
-        """
-        base_url = None
-        url_variables = None
-        if timeout_ms is None:
-            timeout_ms = self.sdk_configuration.timeout_ms
-
-        if server_url is not None:
-            base_url = server_url
-        else:
-            base_url = self._get_url(base_url, url_variables)
-
-        request = models.ListTenantEventsByDestinationRequest(
-            tenant_id=tenant_id,
-            destination_id=destination_id,
-            status=status,
-            next_cursor=next_cursor,
-            prev_cursor=prev_cursor,
-            limit=limit,
-            start=start,
-            end=end,
-        )
-
-        req = self._build_request_async(
-            method="GET",
-            path="/tenants/{tenant_id}/destinations/{destination_id}/events",
-            base_url=base_url,
-            url_variables=url_variables,
-            request=request,
-            request_body_required=False,
-            request_has_path_params=True,
-            request_has_query_params=True,
-            user_agent_header="user-agent",
-            accept_header_value="application/json",
-            http_headers=http_headers,
-            _globals=models.ListTenantEventsByDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
-            security=self.sdk_configuration.security,
-            allow_empty_value=None,
-            timeout_ms=timeout_ms,
-        )
-
-        if retries == UNSET:
-            if self.sdk_configuration.retry_config is not UNSET:
-                retries = self.sdk_configuration.retry_config
-
-        retry_config = None
-        if isinstance(retries, utils.RetryConfig):
-            retry_config = (retries, ["429", "500", "502", "503", "504"])
-
-        http_res = await self.do_request_async(
-            hook_ctx=HookContext(
-                config=self.sdk_configuration,
-                base_url=base_url or "",
-                operation_id="listTenantEventsByDestination",
-                oauth2_scopes=None,
-                security_source=self.sdk_configuration.security,
-            ),
-            request=req,
-            error_status_codes=["404", "4XX", "5XX"],
-            retry_config=retry_config,
-        )
-
-        def next_func() -> Optional[models.ListTenantEventsByDestinationResponse]:
-            body = utils.unmarshal_json(http_res.text, Union[Dict[Any, Any], List[Any]])
-            next_cursor = JSONPath("$.next").parse(body)
-
-            if len(next_cursor) == 0:
-                return None
-
-            next_cursor = next_cursor[0]
-            if next_cursor is None or str(next_cursor).strip() == "":
-                return None
-            results = JSONPath("$.data").parse(body)
-            if len(results) == 0 or len(results[0]) == 0:
-                return None
-            limit = request.limit if not request.limit is None else 100
-            if len(results[0]) < limit:
-                return None
-
-            return self.list_by_destination(
-                destination_id=destination_id,
-                tenant_id=tenant_id,
-                status=status,
-                next_cursor=next_cursor,
-                prev_cursor=prev_cursor,
-                limit=limit,
-                start=start,
-                end=end,
-                retries=retries,
-            )
-
-        if utils.match_response(http_res, "200", "application/json"):
-            return models.ListTenantEventsByDestinationResponse(
-                result=unmarshal_json_response(
-                    models.ListTenantEventsByDestinationResponseBody, http_res
-                ),
-                next=next_func,
-            )
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
-            http_res_text = await utils.stream_to_text_async(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-        if utils.match_response(http_res, "5XX", "*"):
-            http_res_text = await utils.stream_to_text_async(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-
-        raise errors.APIError("Unexpected response received", http_res)
-
-    def get_by_destination(
-        self,
-        *,
-        destination_id: str,
-        event_id: str,
-        tenant_id: Optional[str] = None,
-        retries: OptionalNullable[utils.RetryConfig] = UNSET,
-        server_url: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-        http_headers: Optional[Mapping[str, str]] = None,
-    ) -> models.Event:
-        r"""Get Event by Destination
-
-        Retrieves a specific event associated with a specific destination for the tenant.
-
-        :param destination_id: The ID of the destination.
-        :param event_id: The ID of the event.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param retries: Override the default retry configuration for this method
-        :param server_url: Override the default server URL for this method
-        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
-        :param http_headers: Additional headers to set or replace on requests.
-        """
-        base_url = None
-        url_variables = None
-        if timeout_ms is None:
-            timeout_ms = self.sdk_configuration.timeout_ms
-
-        if server_url is not None:
-            base_url = server_url
-        else:
-            base_url = self._get_url(base_url, url_variables)
-
-        request = models.GetTenantEventByDestinationRequest(
-            tenant_id=tenant_id,
-            destination_id=destination_id,
-            event_id=event_id,
-        )
-
-        req = self._build_request(
-            method="GET",
-            path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}",
-            base_url=base_url,
-            url_variables=url_variables,
-            request=request,
-            request_body_required=False,
-            request_has_path_params=True,
-            request_has_query_params=True,
-            user_agent_header="user-agent",
-            accept_header_value="application/json",
-            http_headers=http_headers,
-            _globals=models.GetTenantEventByDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
-            security=self.sdk_configuration.security,
-            allow_empty_value=None,
-            timeout_ms=timeout_ms,
-        )
-
-        if retries == UNSET:
-            if self.sdk_configuration.retry_config is not UNSET:
-                retries = self.sdk_configuration.retry_config
-
-        retry_config = None
-        if isinstance(retries, utils.RetryConfig):
-            retry_config = (retries, ["429", "500", "502", "503", "504"])
-
-        http_res = self.do_request(
-            hook_ctx=HookContext(
-                config=self.sdk_configuration,
-                base_url=base_url or "",
-                operation_id="getTenantEventByDestination",
-                oauth2_scopes=None,
-                security_source=self.sdk_configuration.security,
-            ),
-            request=req,
-            error_status_codes=["404", "4XX", "5XX"],
-            retry_config=retry_config,
-        )
-
-        if utils.match_response(http_res, "200", "application/json"):
-            return unmarshal_json_response(models.Event, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
-            http_res_text = utils.stream_to_text(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-        if utils.match_response(http_res, "5XX", "*"):
-            http_res_text = utils.stream_to_text(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-
-        raise errors.APIError("Unexpected response received", http_res)
-
-    async def get_by_destination_async(
-        self,
-        *,
-        destination_id: str,
-        event_id: str,
-        tenant_id: Optional[str] = None,
-        retries: OptionalNullable[utils.RetryConfig] = UNSET,
-        server_url: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-        http_headers: Optional[Mapping[str, str]] = None,
-    ) -> models.Event:
-        r"""Get Event by Destination
-
-        Retrieves a specific event associated with a specific destination for the tenant.
-
-        :param destination_id: The ID of the destination.
-        :param event_id: The ID of the event.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param retries: Override the default retry configuration for this method
-        :param server_url: Override the default server URL for this method
-        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
-        :param http_headers: Additional headers to set or replace on requests.
-        """
-        base_url = None
-        url_variables = None
-        if timeout_ms is None:
-            timeout_ms = self.sdk_configuration.timeout_ms
-
-        if server_url is not None:
-            base_url = server_url
-        else:
-            base_url = self._get_url(base_url, url_variables)
-
-        request = models.GetTenantEventByDestinationRequest(
-            tenant_id=tenant_id,
-            destination_id=destination_id,
-            event_id=event_id,
-        )
-
-        req = self._build_request_async(
-            method="GET",
-            path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}",
-            base_url=base_url,
-            url_variables=url_variables,
-            request=request,
-            request_body_required=False,
-            request_has_path_params=True,
-            request_has_query_params=True,
-            user_agent_header="user-agent",
-            accept_header_value="application/json",
-            http_headers=http_headers,
-            _globals=models.GetTenantEventByDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
-            security=self.sdk_configuration.security,
-            allow_empty_value=None,
-            timeout_ms=timeout_ms,
-        )
-
-        if retries == UNSET:
-            if self.sdk_configuration.retry_config is not UNSET:
-                retries = self.sdk_configuration.retry_config
-
-        retry_config = None
-        if isinstance(retries, utils.RetryConfig):
-            retry_config = (retries, ["429", "500", "502", "503", "504"])
-
-        http_res = await self.do_request_async(
-            hook_ctx=HookContext(
-                config=self.sdk_configuration,
-                base_url=base_url or "",
-                operation_id="getTenantEventByDestination",
-                oauth2_scopes=None,
-                security_source=self.sdk_configuration.security,
-            ),
-            request=req,
-            error_status_codes=["404", "4XX", "5XX"],
-            retry_config=retry_config,
-        )
-
-        if utils.match_response(http_res, "200", "application/json"):
-            return unmarshal_json_response(models.Event, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
-            http_res_text = await utils.stream_to_text_async(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-        if utils.match_response(http_res, "5XX", "*"):
-            http_res_text = await utils.stream_to_text_async(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-
-        raise errors.APIError("Unexpected response received", http_res)
-
-    def retry(
-        self,
-        *,
-        destination_id: str,
-        event_id: str,
-        tenant_id: Optional[str] = None,
-        retries: OptionalNullable[utils.RetryConfig] = UNSET,
-        server_url: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-        http_headers: Optional[Mapping[str, str]] = None,
-    ):
-        r"""Retry Event Delivery
-
-        Triggers a retry for a failed event delivery.
-
-        :param destination_id: The ID of the destination.
-        :param event_id: The ID of the event to retry.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param retries: Override the default retry configuration for this method
-        :param server_url: Override the default server URL for this method
-        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
-        :param http_headers: Additional headers to set or replace on requests.
-        """
-        base_url = None
-        url_variables = None
-        if timeout_ms is None:
-            timeout_ms = self.sdk_configuration.timeout_ms
-
-        if server_url is not None:
-            base_url = server_url
-        else:
-            base_url = self._get_url(base_url, url_variables)
-
-        request = models.RetryTenantEventRequest(
-            tenant_id=tenant_id,
-            destination_id=destination_id,
-            event_id=event_id,
-        )
-
-        req = self._build_request(
-            method="POST",
-            path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry",
-            base_url=base_url,
-            url_variables=url_variables,
-            request=request,
-            request_body_required=False,
-            request_has_path_params=True,
-            request_has_query_params=True,
-            user_agent_header="user-agent",
-            accept_header_value="*/*",
-            http_headers=http_headers,
-            _globals=models.RetryTenantEventGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
-            security=self.sdk_configuration.security,
-            allow_empty_value=None,
-            timeout_ms=timeout_ms,
-        )
-
-        if retries == UNSET:
-            if self.sdk_configuration.retry_config is not UNSET:
-                retries = self.sdk_configuration.retry_config
-
-        retry_config = None
-        if isinstance(retries, utils.RetryConfig):
-            retry_config = (retries, ["429", "500", "502", "503", "504"])
-
-        http_res = self.do_request(
-            hook_ctx=HookContext(
-                config=self.sdk_configuration,
-                base_url=base_url or "",
-                operation_id="retryTenantEvent",
-                oauth2_scopes=None,
-                security_source=self.sdk_configuration.security,
-            ),
-            request=req,
-            error_status_codes=["404", "409", "4XX", "5XX"],
-            retry_config=retry_config,
-        )
-
-        if utils.match_response(http_res, "202", "*"):
-            return
-        if utils.match_response(http_res, ["404", "409", "4XX"], "*"):
-            http_res_text = utils.stream_to_text(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-        if utils.match_response(http_res, "5XX", "*"):
-            http_res_text = utils.stream_to_text(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-
-        raise errors.APIError("Unexpected response received", http_res)
-
-    async def retry_async(
-        self,
-        *,
-        destination_id: str,
-        event_id: str,
-        tenant_id: Optional[str] = None,
-        retries: OptionalNullable[utils.RetryConfig] = UNSET,
-        server_url: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-        http_headers: Optional[Mapping[str, str]] = None,
-    ):
-        r"""Retry Event Delivery
-
-        Triggers a retry for a failed event delivery.
-
-        :param destination_id: The ID of the destination.
-        :param event_id: The ID of the event to retry.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param retries: Override the default retry configuration for this method
-        :param server_url: Override the default server URL for this method
-        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
-        :param http_headers: Additional headers to set or replace on requests.
-        """
-        base_url = None
-        url_variables = None
-        if timeout_ms is None:
-            timeout_ms = self.sdk_configuration.timeout_ms
-
-        if server_url is not None:
-            base_url = server_url
-        else:
-            base_url = self._get_url(base_url, url_variables)
-
-        request = models.RetryTenantEventRequest(
-            tenant_id=tenant_id,
-            destination_id=destination_id,
-            event_id=event_id,
-        )
-
-        req = self._build_request_async(
-            method="POST",
-            path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry",
-            base_url=base_url,
-            url_variables=url_variables,
-            request=request,
-            request_body_required=False,
-            request_has_path_params=True,
-            request_has_query_params=True,
-            user_agent_header="user-agent",
-            accept_header_value="*/*",
-            http_headers=http_headers,
-            _globals=models.RetryTenantEventGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
-            security=self.sdk_configuration.security,
-            allow_empty_value=None,
-            timeout_ms=timeout_ms,
-        )
-
-        if retries == UNSET:
-            if self.sdk_configuration.retry_config is not UNSET:
-                retries = self.sdk_configuration.retry_config
-
-        retry_config = None
-        if isinstance(retries, utils.RetryConfig):
-            retry_config = (retries, ["429", "500", "502", "503", "504"])
-
-        http_res = await self.do_request_async(
-            hook_ctx=HookContext(
-                config=self.sdk_configuration,
-                base_url=base_url or "",
-                operation_id="retryTenantEvent",
-                oauth2_scopes=None,
-                security_source=self.sdk_configuration.security,
-            ),
-            request=req,
-            error_status_codes=["404", "409", "4XX", "5XX"],
-            retry_config=retry_config,
-        )
-
-        if utils.match_response(http_res, "202", "*"):
-            return
-        if utils.match_response(http_res, ["404", "409", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):

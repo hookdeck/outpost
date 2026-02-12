@@ -8,6 +8,7 @@ import sys
 
 if TYPE_CHECKING:
     from .apierror import APIError
+    from .apierrorresponse import APIErrorResponse, APIErrorResponseData, Data
     from .badrequest_error import BadRequestError, BadRequestErrorData
     from .internalservererror import InternalServerError, InternalServerErrorData
     from .listtenantsop import (
@@ -25,8 +26,11 @@ if TYPE_CHECKING:
 
 __all__ = [
     "APIError",
+    "APIErrorResponse",
+    "APIErrorResponseData",
     "BadRequestError",
     "BadRequestErrorData",
+    "Data",
     "InternalServerError",
     "InternalServerErrorData",
     "ListTenantsBadRequestError",
@@ -48,6 +52,9 @@ __all__ = [
 
 _dynamic_imports: dict[str, str] = {
     "APIError": ".apierror",
+    "APIErrorResponse": ".apierrorresponse",
+    "APIErrorResponseData": ".apierrorresponse",
+    "Data": ".apierrorresponse",
     "BadRequestError": ".badrequest_error",
     "BadRequestErrorData": ".badrequest_error",
     "InternalServerError": ".internalservererror",

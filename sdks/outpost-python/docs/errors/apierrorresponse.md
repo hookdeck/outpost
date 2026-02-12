@@ -1,0 +1,12 @@
+# APIErrorResponse
+
+Standard error response format.
+
+
+## Fields
+
+| Field                                                                                         | Type                                                                                          | Required                                                                                      | Description                                                                                   | Example                                                                                       |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `status`                                                                                      | *Optional[int]*                                                                               | :heavy_minus_sign:                                                                            | HTTP status code.                                                                             | 422                                                                                           |
+| `message`                                                                                     | *Optional[str]*                                                                               | :heavy_minus_sign:                                                                            | Human-readable error message.                                                                 | validation error                                                                              |
+| `data`                                                                                        | [Optional[errors.Data]](../errors/data.md)                                                    | :heavy_minus_sign:                                                                            | Additional error details. For validation errors, this is an array of human-readable messages. |                                                                                               |

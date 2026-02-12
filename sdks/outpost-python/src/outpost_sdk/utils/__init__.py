@@ -11,10 +11,7 @@ _T = TypeVar("_T")
 
 async def run_sync_in_thread(func: Callable[..., _T], *args) -> _T:
     """Run a synchronous function in a thread pool to avoid blocking the event loop."""
-    if sys.version_info >= (3, 9):
-        return await asyncio.to_thread(func, *args)
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, func, *args)
+    return await asyncio.to_thread(func, *args)
 
 
 if TYPE_CHECKING:

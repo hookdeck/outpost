@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 from datetime import datetime
-from enum import Enum
 from outpost_sdk.types import (
     BaseModel,
     Nullable,
@@ -15,13 +14,10 @@ from typing import Any, Dict, Optional
 from typing_extensions import NotRequired, TypedDict
 
 
-class EventStatus(str, Enum):
-    SUCCESS = "success"
-    FAILED = "failed"
-
-
 class EventTypedDict(TypedDict):
     id: NotRequired[str]
+    tenant_id: NotRequired[str]
+    r"""The tenant this event belongs to."""
     destination_id: NotRequired[str]
     topic: NotRequired[str]
     time: NotRequired[datetime]
@@ -30,13 +26,15 @@ class EventTypedDict(TypedDict):
     r"""Time the event was successfully delivered."""
     metadata: NotRequired[Nullable[Dict[str, str]]]
     r"""Key-value string pairs of metadata associated with the event."""
-    status: NotRequired[EventStatus]
     data: NotRequired[Dict[str, Any]]
     r"""Freeform JSON data of the event."""
 
 
 class Event(BaseModel):
     id: Optional[str] = None
+
+    tenant_id: Optional[str] = None
+    r"""The tenant this event belongs to."""
 
     destination_id: Optional[str] = None
 
@@ -51,8 +49,6 @@ class Event(BaseModel):
     metadata: OptionalNullable[Dict[str, str]] = UNSET
     r"""Key-value string pairs of metadata associated with the event."""
 
-    status: Optional[EventStatus] = None
-
     data: Optional[Dict[str, Any]] = None
     r"""Freeform JSON data of the event."""
 
@@ -61,12 +57,12 @@ class Event(BaseModel):
         optional_fields = set(
             [
                 "id",
+                "tenant_id",
                 "destination_id",
                 "topic",
                 "time",
                 "successful_at",
                 "metadata",
-                "status",
                 "data",
             ]
         )

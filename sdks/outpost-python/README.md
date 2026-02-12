@@ -85,7 +85,7 @@ It's also possible to write a standalone Python script without needing to set up
 ```python
 #!/usr/bin/env -S uv run --script
 # /// script
-# requires-python = ">=3.9"
+# requires-python = ">=3.10"
 # dependencies = [
 #     "outpost_sdk",
 # ]
@@ -191,6 +191,12 @@ with Outpost(
 <details open>
 <summary>Available methods</summary>
 
+### [Attempts](docs/sdks/attempts/README.md)
+
+* [list](docs/sdks/attempts/README.md#list) - List Attempts (Admin)
+* [get](docs/sdks/attempts/README.md#get) - Get Attempt
+* [retry](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
+
 ### [Destinations](docs/sdks/destinations/README.md)
 
 * [list](docs/sdks/destinations/README.md#list) - List Destinations
@@ -200,15 +206,13 @@ with Outpost(
 * [delete](docs/sdks/destinations/README.md#delete) - Delete Destination
 * [enable](docs/sdks/destinations/README.md#enable) - Enable Destination
 * [disable](docs/sdks/destinations/README.md#disable) - Disable Destination
+* [list_attempts](docs/sdks/destinations/README.md#list_attempts) - List Destination Attempts
+* [get_attempt](docs/sdks/destinations/README.md#get_attempt) - Get Destination Attempt
 
 ### [Events](docs/sdks/events/README.md)
 
-* [list](docs/sdks/events/README.md#list) - List Events
+* [list](docs/sdks/events/README.md#list) - List Events (Admin)
 * [get](docs/sdks/events/README.md#get) - Get Event
-* [list_deliveries](docs/sdks/events/README.md#list_deliveries) - List Event Delivery Attempts
-* [list_by_destination](docs/sdks/events/README.md#list_by_destination) - List Events by Destination
-* [get_by_destination](docs/sdks/events/README.md#get_by_destination) - Get Event by Destination
-* [retry](docs/sdks/events/README.md#retry) - Retry Event Delivery
 
 ### [Health](docs/sdks/health/README.md)
 
@@ -220,9 +224,7 @@ with Outpost(
 
 ### [Schemas](docs/sdks/schemas/README.md)
 
-* [list_tenant_destination_types](docs/sdks/schemas/README.md#list_tenant_destination_types) - List Destination Type Schemas (for Tenant)
-* [get](docs/sdks/schemas/README.md#get) - Get Destination Type Schema (for Tenant)
-* [list_destination_types_jwt](docs/sdks/schemas/README.md#list_destination_types_jwt) - List Destination Type Schemas (JWT Auth)
+* [list_destination_types_jwt](docs/sdks/schemas/README.md#list_destination_types_jwt) - List Destination Type Schemas
 * [get_destination_type_jwt](docs/sdks/schemas/README.md#get_destination_type_jwt) - Get Destination Type Schema
 
 ### [Tenants](docs/sdks/tenants/README.md)
@@ -236,8 +238,7 @@ with Outpost(
 
 ### [Topics](docs/sdks/topicssdk/README.md)
 
-* [list](docs/sdks/topicssdk/README.md#list) - List Available Topics (for Tenant)
-* [list_jwt](docs/sdks/topicssdk/README.md#list_jwt) - List Available Topics)
+* [list](docs/sdks/topicssdk/README.md#list) - List Available Topics
 
 </details>
 <!-- End Available Resources and Operations [operations] -->
@@ -292,13 +293,12 @@ from outpost_sdk import Outpost, models
 
 
 with Outpost(
-    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.events.list(limit=100)
+    res = outpost.tenants.list_tenants(limit=20, order_by=models.ListTenantsOrderBy.CREATED_AT, direction=models.ListTenantsDir.DESC)
 
     while res is not None:
         # Handle items
@@ -394,7 +394,7 @@ with Outpost() as outpost:
 **Primary error:**
 * [`OutpostError`](./src/outpost_sdk/errors/outposterror.py): The base class for HTTP error responses.
 
-<details><summary>Less common errors (13)</summary>
+<details><summary>Less common errors (14)</summary>
 
 <br />
 
@@ -405,14 +405,15 @@ with Outpost() as outpost:
 
 
 **Inherit from [`OutpostError`](./src/outpost_sdk/errors/outposterror.py)**:
-* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 5 of 27 methods.*
-* [`UnauthorizedError`](./src/outpost_sdk/errors/unauthorizederror.py): A collection of codes that generally means the client was not authenticated correctly for the request they want to make. Applicable to 5 of 27 methods.*
-* [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 5 of 27 methods.*
-* [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 27 methods.*
-* [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 27 methods.*
-* [`InternalServerError`](./src/outpost_sdk/errors/internalservererror.py): A collection of status codes that generally mean the server failed in an unexpected way. Applicable to 5 of 27 methods.*
-* [`ListTenantsBadRequestError`](./src/outpost_sdk/errors/listtenantsbadrequesterror.py): Invalid request parameters (e.g., invalid cursor, both next and prev provided). Status code `400`. Applicable to 1 of 27 methods.*
-* [`NotImplementedErrorT`](./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 27 methods.*
+* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 5 of 25 methods.*
+* [`UnauthorizedError`](./src/outpost_sdk/errors/unauthorizederror.py): A collection of codes that generally means the client was not authenticated correctly for the request they want to make. Applicable to 5 of 25 methods.*
+* [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 5 of 25 methods.*
+* [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 25 methods.*
+* [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 25 methods.*
+* [`InternalServerError`](./src/outpost_sdk/errors/internalservererror.py): A collection of status codes that generally mean the server failed in an unexpected way. Applicable to 5 of 25 methods.*
+* [`APIErrorResponse`](./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Status code `422`. Applicable to 4 of 25 methods.*
+* [`ListTenantsBadRequestError`](./src/outpost_sdk/errors/listtenantsbadrequesterror.py): Invalid request parameters (e.g., invalid cursor, both next and prev provided). Status code `400`. Applicable to 1 of 25 methods.*
+* [`NotImplementedErrorT`](./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 25 methods.*
 * [`ResponseValidationError`](./src/outpost_sdk/errors/responsevalidationerror.py): Type mismatch between the response data and the expected Pydantic model. Provides access to the Pydantic validation error via the `cause` attribute.
 
 </details>
@@ -423,9 +424,35 @@ with Outpost() as outpost:
 <!-- Start Server Selection [server] -->
 ## Server Selection
 
+### Select Server by Index
+
+You can override the default server globally by passing a server index to the `server_idx: int` optional parameter when initializing the SDK client instance. The selected server will then be used as the default on the operations that use it. This table lists the indexes associated with the available servers:
+
+| #   | Server                                        | Description                        |
+| --- | --------------------------------------------- | ---------------------------------- |
+| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Outpost API (production)           |
+| 1   | `http://localhost:3333/api/v1`                | Local development server base path |
+
+#### Example
+
+```python
+from outpost_sdk import Outpost
+
+
+with Outpost(
+    server_idx=0,
+) as outpost:
+
+    res = outpost.health.check()
+
+    # Handle response
+    print(res)
+
+```
+
 ### Override Server URL Per-Client
 
-The default server can be overridden globally by passing a URL to the `server_url: str` optional parameter when initializing the SDK client instance. For example:
+The default server can also be overridden globally by passing a URL to the `server_url: str` optional parameter when initializing the SDK client instance. For example:
 ```python
 from outpost_sdk import Outpost
 

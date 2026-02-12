@@ -36,6 +36,8 @@ By default all destination `credentials` are obfuscated and the values cannot be
 * [delete](#delete) - Delete Destination
 * [enable](#enable) - Enable Destination
 * [disable](#disable) - Disable Destination
+* [list_attempts](#list_attempts) - List Destination Attempts
+* [get_attempt](#get_attempt) - Get Destination Attempt
 
 ## list
 
@@ -43,7 +45,7 @@ Return a list of the destinations for the tenant. The endpoint is not paged.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="listTenantDestinations" method="get" path="/tenants/{tenant_id}/destinations" -->
+<!-- UsageSnippet language="python" operationID="listTenantDestinations" method="get" path="/tenants/{tenant_id}/destinations" example="DestinationsListExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -87,7 +89,7 @@ Creates a new destination for the tenant. The request body structure depends on 
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="createTenantDestination" method="post" path="/tenants/{tenant_id}/destinations" -->
+<!-- UsageSnippet language="python" operationID="createTenantDestination" method="post" path="/tenants/{tenant_id}/destinations" example="WebhookCreatedExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -143,7 +145,7 @@ Retrieves details for a specific destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="getTenantDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="python" operationID="getTenantDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}" example="WebhookGetExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -186,7 +188,7 @@ Updates the configuration of an existing destination. The request body structure
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="python" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" example="DestinationUpdatedExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -241,7 +243,7 @@ Deletes a specific destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="deleteTenantDestination" method="delete" path="/tenants/{tenant_id}/destinations/{destination_id}" -->
+<!-- UsageSnippet language="python" operationID="deleteTenantDestination" method="delete" path="/tenants/{tenant_id}/destinations/{destination_id}" example="SuccessExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -284,7 +286,7 @@ Enables a previously disabled destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="enableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/enable" -->
+<!-- UsageSnippet language="python" operationID="enableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/enable" example="WebhookEnabledExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -327,7 +329,7 @@ Disables a previously enabled destination.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="disableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/disable" -->
+<!-- UsageSnippet language="python" operationID="disableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/disable" example="WebhookDisabledExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -357,6 +359,108 @@ with Outpost(
 ### Response
 
 **[models.Destination](../../models/destination.md)**
+
+### Errors
+
+| Error Type      | Status Code     | Content Type    |
+| --------------- | --------------- | --------------- |
+| errors.APIError | 4XX, 5XX        | \*/\*           |
+
+## list_attempts
+
+Retrieves a paginated list of attempts scoped to a specific destination.
+
+### Example Usage
+
+<!-- UsageSnippet language="python" operationID="listTenantDestinationAttempts" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/attempts" example="DestinationAttemptsListExample" -->
+```python
+from outpost_sdk import Outpost, models
+
+
+with Outpost(
+    tenant_id="<id>",
+    security=models.Security(
+        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
+    ),
+) as outpost:
+
+    res = outpost.destinations.list_attempts(destination_id="<id>", limit=100, order_by=models.ListTenantDestinationAttemptsOrderBy.TIME, direction=models.ListTenantDestinationAttemptsDir.DESC)
+
+    while res is not None:
+        # Handle items
+
+        res = res.next()
+
+```
+
+### Parameters
+
+| Parameter                                                                                                                                                                                                                                                                          | Type                                                                                                                                                                                                                                                                               | Required                                                                                                                                                                                                                                                                           | Description                                                                                                                                                                                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `destination_id`                                                                                                                                                                                                                                                                   | *str*                                                                                                                                                                                                                                                                              | :heavy_check_mark:                                                                                                                                                                                                                                                                 | The ID of the destination.                                                                                                                                                                                                                                                         |
+| `tenant_id`                                                                                                                                                                                                                                                                        | *Optional[str]*                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                                                                              |
+| `event_id`                                                                                                                                                                                                                                                                         | *Optional[str]*                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by event ID.                                                                                                                                                                                                                                                       |
+| `status`                                                                                                                                                                                                                                                                           | [Optional[models.ListTenantDestinationAttemptsStatus]](../../models/listtenantdestinationattemptsstatus.md)                                                                                                                                                                        | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by status.                                                                                                                                                                                                                                                         |
+| `topic`                                                                                                                                                                                                                                                                            | [Optional[models.ListTenantDestinationAttemptsTopic]](../../models/listtenantdestinationattemptstopic.md)                                                                                                                                                                          | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by event topic(s). Can be specified multiple times or comma-separated.                                                                                                                                                                                             |
+| `time_gte`                                                                                                                                                                                                                                                                         | [date](https://docs.python.org/3/library/datetime.html#date-objects)                                                                                                                                                                                                               | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format).                                                                                                                                                                                                             |
+| `time_lte`                                                                                                                                                                                                                                                                         | [date](https://docs.python.org/3/library/datetime.html#date-objects)                                                                                                                                                                                                               | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).                                                                                                                                                                                                             |
+| `limit`                                                                                                                                                                                                                                                                            | *Optional[int]*                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Number of items per page (default 100, max 1000).                                                                                                                                                                                                                                  |
+| `next_cursor`                                                                                                                                                                                                                                                                      | *Optional[str]*                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Cursor for next page of results.                                                                                                                                                                                                                                                   |
+| `prev_cursor`                                                                                                                                                                                                                                                                      | *Optional[str]*                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Cursor for previous page of results.                                                                                                                                                                                                                                               |
+| `include`                                                                                                                                                                                                                                                                          | [Optional[models.ListTenantDestinationAttemptsInclude]](../../models/listtenantdestinationattemptsinclude.md)                                                                                                                                                                      | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Fields to include in the response. Can be specified multiple times or comma-separated.<br/>- `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/> |
+| `order_by`                                                                                                                                                                                                                                                                         | [Optional[models.ListTenantDestinationAttemptsOrderBy]](../../models/listtenantdestinationattemptsorderby.md)                                                                                                                                                                      | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Field to sort by.                                                                                                                                                                                                                                                                  |
+| `direction`                                                                                                                                                                                                                                                                        | [Optional[models.ListTenantDestinationAttemptsDir]](../../models/listtenantdestinationattemptsdir.md)                                                                                                                                                                              | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Sort direction.                                                                                                                                                                                                                                                                    |
+| `retries`                                                                                                                                                                                                                                                                          | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                                                                                                                                                                                                                   | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Configuration to override the default retry behavior of the client.                                                                                                                                                                                                                |
+
+### Response
+
+**[models.ListTenantDestinationAttemptsResponse](../../models/listtenantdestinationattemptsresponse.md)**
+
+### Errors
+
+| Error Type              | Status Code             | Content Type            |
+| ----------------------- | ----------------------- | ----------------------- |
+| errors.APIErrorResponse | 422                     | application/json        |
+| errors.APIError         | 4XX, 5XX                | \*/\*                   |
+
+## get_attempt
+
+Retrieves details for a specific attempt scoped to a destination.
+
+### Example Usage
+
+<!-- UsageSnippet language="python" operationID="getTenantDestinationAttempt" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}" example="DestinationAttemptExample" -->
+```python
+from outpost_sdk import Outpost, models
+
+
+with Outpost(
+    tenant_id="<id>",
+    security=models.Security(
+        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
+    ),
+) as outpost:
+
+    res = outpost.destinations.get_attempt(destination_id="<id>", attempt_id="<id>")
+
+    # Handle response
+    print(res)
+
+```
+
+### Parameters
+
+| Parameter                                                                                                                                                                                                                          | Type                                                                                                                                                                                                                               | Required                                                                                                                                                                                                                           | Description                                                                                                                                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `destination_id`                                                                                                                                                                                                                   | *str*                                                                                                                                                                                                                              | :heavy_check_mark:                                                                                                                                                                                                                 | The ID of the destination.                                                                                                                                                                                                         |
+| `attempt_id`                                                                                                                                                                                                                       | *str*                                                                                                                                                                                                                              | :heavy_check_mark:                                                                                                                                                                                                                 | The ID of the attempt.                                                                                                                                                                                                             |
+| `tenant_id`                                                                                                                                                                                                                        | *Optional[str]*                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                 | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                              |
+| `include`                                                                                                                                                                                                                          | [Optional[models.GetTenantDestinationAttemptInclude]](../../models/gettenantdestinationattemptinclude.md)                                                                                                                          | :heavy_minus_sign:                                                                                                                                                                                                                 | Fields to include in the response. Can be specified multiple times or comma-separated.<br/>- `event`: Include event summary<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/> |
+| `retries`                                                                                                                                                                                                                          | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                                                                                                                                                                   | :heavy_minus_sign:                                                                                                                                                                                                                 | Configuration to override the default retry behavior of the client.                                                                                                                                                                |
+
+### Response
+
+**[models.Attempt](../../models/attempt.md)**
 
 ### Errors
 

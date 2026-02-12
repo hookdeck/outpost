@@ -40,26 +40,31 @@ with Outpost(
     ),
 ) as outpost:
 
-    res = outpost.tenants.list_tenants(limit=20, order=models.Order.DESC)
+    res = outpost.tenants.list_tenants(limit=20, order_by=models.ListTenantsOrderBy.CREATED_AT, direction=models.ListTenantsDir.DESC)
 
-    # Handle response
-    print(res)
+    while res is not None:
+        # Handle items
+
+        res = res.next()
 
 ```
 
 ### Parameters
 
-| Parameter                                                                | Type                                                                     | Required                                                                 | Description                                                              |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `limit`                                                                  | *Optional[int]*                                                          | :heavy_minus_sign:                                                       | Number of tenants to return per page (1-100, default 20).                |
-| `order`                                                                  | [Optional[models.Order]](../../models/order.md)                          | :heavy_minus_sign:                                                       | Sort order by `created_at` timestamp.                                    |
-| `next_cursor`                                                            | *Optional[str]*                                                          | :heavy_minus_sign:                                                       | Cursor for the next page of results. Mutually exclusive with `prev`.     |
-| `prev_cursor`                                                            | *Optional[str]*                                                          | :heavy_minus_sign:                                                       | Cursor for the previous page of results. Mutually exclusive with `next`. |
-| `retries`                                                                | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)         | :heavy_minus_sign:                                                       | Configuration to override the default retry behavior of the client.      |
+| Parameter                                                                     | Type                                                                          | Required                                                                      | Description                                                                   |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `limit`                                                                       | *Optional[int]*                                                               | :heavy_minus_sign:                                                            | Number of tenants to return per page (1-100, default 20).                     |
+| `order_by`                                                                    | [Optional[models.ListTenantsOrderBy]](../../models/listtenantsorderby.md)     | :heavy_minus_sign:                                                            | Field to sort by.                                                             |
+| `direction`                                                                   | [Optional[models.ListTenantsDir]](../../models/listtenantsdir.md)             | :heavy_minus_sign:                                                            | Sort direction.                                                               |
+| `created_at_gte`                                                              | [date](https://docs.python.org/3/library/datetime.html#date-objects)          | :heavy_minus_sign:                                                            | Filter tenants created at or after this time (RFC3339 or YYYY-MM-DD format).  |
+| `created_at_lte`                                                              | [date](https://docs.python.org/3/library/datetime.html#date-objects)          | :heavy_minus_sign:                                                            | Filter tenants created at or before this time (RFC3339 or YYYY-MM-DD format). |
+| `next_cursor`                                                                 | *Optional[str]*                                                               | :heavy_minus_sign:                                                            | Cursor for the next page of results. Mutually exclusive with `prev`.          |
+| `prev_cursor`                                                                 | *Optional[str]*                                                               | :heavy_minus_sign:                                                            | Cursor for the previous page of results. Mutually exclusive with `next`.      |
+| `retries`                                                                     | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)              | :heavy_minus_sign:                                                            | Configuration to override the default retry behavior of the client.           |
 
 ### Response
 
-**[models.TenantListResponse](../../models/tenantlistresponse.md)**
+**[models.ListTenantsResponse](../../models/listtenantsresponse.md)**
 
 ### Errors
 
@@ -75,7 +80,7 @@ Idempotently creates or updates a tenant. Required before associating destinatio
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="upsertTenant" method="put" path="/tenants/{tenant_id}" -->
+<!-- UsageSnippet language="python" operationID="upsertTenant" method="put" path="/tenants/{tenant_id}" example="TenantExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -118,7 +123,7 @@ Retrieves details for a specific tenant.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="getTenant" method="get" path="/tenants/{tenant_id}" -->
+<!-- UsageSnippet language="python" operationID="getTenant" method="get" path="/tenants/{tenant_id}" example="TenantExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -160,7 +165,7 @@ Deletes the tenant and all associated destinations.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="deleteTenant" method="delete" path="/tenants/{tenant_id}" -->
+<!-- UsageSnippet language="python" operationID="deleteTenant" method="delete" path="/tenants/{tenant_id}" example="SuccessExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -202,7 +207,7 @@ Returns a redirect URL containing a JWT to authenticate the user with the portal
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="getTenantPortalUrl" method="get" path="/tenants/{tenant_id}/portal" -->
+<!-- UsageSnippet language="python" operationID="getTenantPortalUrl" method="get" path="/tenants/{tenant_id}/portal" example="PortalRedirectExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -245,7 +250,7 @@ Returns a JWT token scoped to the tenant for safe browser API calls.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="getTenantToken" method="get" path="/tenants/{tenant_id}/token" -->
+<!-- UsageSnippet language="python" operationID="getTenantToken" method="get" path="/tenants/{tenant_id}/token" example="TenantTokenExample" -->
 ```python
 from outpost_sdk import Outpost, models
 

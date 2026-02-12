@@ -6,103 +6,16 @@ Operations for retrieving destination type schemas.
 
 ### Available Operations
 
-* [list_tenant_destination_types](#list_tenant_destination_types) - List Destination Type Schemas (for Tenant)
-* [get](#get) - Get Destination Type Schema (for Tenant)
-* [list_destination_types_jwt](#list_destination_types_jwt) - List Destination Type Schemas (JWT Auth)
+* [list_destination_types_jwt](#list_destination_types_jwt) - List Destination Type Schemas
 * [get_destination_type_jwt](#get_destination_type_jwt) - Get Destination Type Schema
-
-## list_tenant_destination_types
-
-Returns a list of JSON-based input schemas for each available destination type. Requires Admin API Key or Tenant JWT.
-
-### Example Usage
-
-<!-- UsageSnippet language="python" operationID="listTenantDestinationTypeSchemas" method="get" path="/tenants/{tenant_id}/destination-types" -->
-```python
-from outpost_sdk import Outpost, models
-
-
-with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
-) as outpost:
-
-    res = outpost.schemas.list_tenant_destination_types()
-
-    # Handle response
-    print(res)
-
-```
-
-### Parameters
-
-| Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
-| `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
-
-### Response
-
-**[List[models.DestinationTypeSchema]](../../models/.md)**
-
-### Errors
-
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
-
-## get
-
-Returns the input schema for a specific destination type. Requires Admin API Key or Tenant JWT.
-
-### Example Usage
-
-<!-- UsageSnippet language="python" operationID="getTenantDestinationTypeSchema" method="get" path="/tenants/{tenant_id}/destination-types/{type}" -->
-```python
-from outpost_sdk import Outpost, models
-
-
-with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
-) as outpost:
-
-    res = outpost.schemas.get(type_=models.GetTenantDestinationTypeSchemaType.HOOKDECK)
-
-    # Handle response
-    print(res)
-
-```
-
-### Parameters
-
-| Parameter                                                                                       | Type                                                                                            | Required                                                                                        | Description                                                                                     |
-| ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `type`                                                                                          | [models.GetTenantDestinationTypeSchemaType](../../models/gettenantdestinationtypeschematype.md) | :heavy_check_mark:                                                                              | The type of the destination.                                                                    |
-| `tenant_id`                                                                                     | *Optional[str]*                                                                                 | :heavy_minus_sign:                                                                              | The ID of the tenant. Required when using AdminApiKey authentication.                           |
-| `retries`                                                                                       | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                                | :heavy_minus_sign:                                                                              | Configuration to override the default retry behavior of the client.                             |
-
-### Response
-
-**[models.DestinationTypeSchema](../../models/destinationtypeschema.md)**
-
-### Errors
-
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
 
 ## list_destination_types_jwt
 
-Returns a list of JSON-based input schemas for each available destination type (infers tenant from JWT).
+Returns a list of JSON-based input schemas for each available destination type.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="listDestinationTypeSchemasJwt" method="get" path="/destination-types" -->
+<!-- UsageSnippet language="python" operationID="listDestinationTypeSchemas" method="get" path="/destination-types" example="DestinationTypesExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
@@ -152,7 +65,7 @@ Returns the input schema for a specific destination type.
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="getDestinationTypeSchema" method="get" path="/destination-types/{type}" -->
+<!-- UsageSnippet language="python" operationID="getDestinationTypeSchema" method="get" path="/destination-types/{type}" example="WebhookSchemaExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
