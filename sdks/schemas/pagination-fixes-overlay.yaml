@@ -24,6 +24,35 @@ actions:
       type: field-name-override
       description: "Rename 'prev' to 'prev_cursor' for consistency"
 
+  # Rename query param 'dir' (sort direction) to 'direction' to avoid Python builtin shadowing (W0622)
+  - target: $["paths"]["/tenants"]["get"]["parameters"][2]
+    update:
+      x-speakeasy-name-override: "direction"
+    x-speakeasy-metadata:
+      type: parameter-name-override
+      description: "Rename 'dir' to 'direction' (sort direction) to avoid shadowing builtin dir()"
+
+  - target: $["paths"]["/events"]["get"]["parameters"][8]
+    update:
+      x-speakeasy-name-override: "direction"
+    x-speakeasy-metadata:
+      type: parameter-name-override
+      description: "Rename 'dir' to 'direction' (sort direction)"
+
+  - target: $["paths"]["/attempts"]["get"]["parameters"][12]
+    update:
+      x-speakeasy-name-override: "direction"
+    x-speakeasy-metadata:
+      type: parameter-name-override
+      description: "Rename 'dir' to 'direction' (sort direction)"
+
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][10]
+    update:
+      x-speakeasy-name-override: "direction"
+    x-speakeasy-metadata:
+      type: parameter-name-override
+      description: "Rename 'dir' to 'direction' (sort direction)"
+
   # GET /tenants: parameters limit=0, order_by=1, dir=2, created_at[gte]=3, created_at[lte]=4, next=5, prev=6
   - target: $["paths"]["/tenants"]["get"]["parameters"][5]
     update:
