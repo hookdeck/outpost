@@ -1,0 +1,16 @@
+# EventSummary
+
+Event object without data (returned when include=event).
+
+
+## Fields
+
+| Field                                                                | Type                                                                 | Required                                                             | Description                                                          | Example                                                              |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `id`                                                                 | *Optional[str]*                                                      | :heavy_minus_sign:                                                   | N/A                                                                  | evt_123                                                              |
+| `tenant_id`                                                          | *Optional[str]*                                                      | :heavy_minus_sign:                                                   | The tenant this event belongs to.                                    | tnt_123                                                              |
+| `destination_id`                                                     | *Optional[str]*                                                      | :heavy_minus_sign:                                                   | The destination this event was delivered to.                         | des_456                                                              |
+| `topic`                                                              | *Optional[str]*                                                      | :heavy_minus_sign:                                                   | N/A                                                                  | user.created                                                         |
+| `time`                                                               | [date](https://docs.python.org/3/library/datetime.html#date-objects) | :heavy_minus_sign:                                                   | Time the event was received.                                         | 2024-01-01T00:00:00Z                                                 |
+| `eligible_for_retry`                                                 | *Optional[bool]*                                                     | :heavy_minus_sign:                                                   | Whether this event can be retried.                                   | true                                                                 |
+| `metadata`                                                           | Dict[str, *str*]                                                     | :heavy_minus_sign:                                                   | N/A                                                                  | {<br/>"source": "crm"<br/>}                                          |

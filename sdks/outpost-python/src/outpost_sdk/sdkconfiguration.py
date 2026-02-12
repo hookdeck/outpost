@@ -17,6 +17,8 @@ from typing import Callable, Dict, Optional, Tuple, Union
 
 
 SERVERS = [
+    "https://api.outpost.hookdeck.com/2025-07-01",
+    # Outpost API (production)
     "http://localhost:3333/api/v1",
     # Local development server base path
 ]

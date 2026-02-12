@@ -212,10 +212,12 @@ components:
                     type: string
                     description: Cursor for next page (empty string if no next page)
                     example: ""
+                    x-speakeasy-name-override: "next_cursor"
                 prev:
                     type: string
                     description: Cursor for previous page (empty string if no previous page)
                     example: ""
+                    x-speakeasy-name-override: "prev_cursor"
         # Destination Type Specific Config/Credentials Schemas
         WebhookConfig:
             type: object
@@ -2090,12 +2092,14 @@ paths:
                   schema:
                     type: string
                   description: Cursor for the next page of results. Mutually exclusive with `prev`.
+                  x-speakeasy-name-override: "next_cursor"
                 - name: prev
                   in: query
                   required: false
                   schema:
                     type: string
                   description: Cursor for the previous page of results. Mutually exclusive with `next`.
+                  x-speakeasy-name-override: "prev_cursor"
             responses:
                 "200":
                     description: List of tenants.
@@ -2839,12 +2843,14 @@ paths:
                   schema:
                     type: string
                   description: Cursor for next page of results
+                  x-speakeasy-name-override: "next_cursor"
                 - name: prev
                   in: query
                   required: false
                   schema:
                     type: string
                   description: Cursor for previous page of results
+                  x-speakeasy-name-override: "prev_cursor"
                 - name: limit
                   in: query
                   required: false
@@ -2907,6 +2913,18 @@ paths:
                     description: Tenant not found.
                     # Add other error responses
             x-speakeasy-name-override: list
+            x-speakeasy-pagination:
+                type: cursor
+                inputs:
+                    - name: next
+                      in: parameters
+                      type: cursor
+                    - name: limit
+                      in: parameters
+                      type: limit
+                outputs:
+                    nextCursor: $.next
+                    results: $.data
     /tenants/{tenant_id}/events/{event_id}:
         parameters:
             - name: tenant_id
@@ -3023,12 +3041,14 @@ paths:
                   schema:
                     type: string
                   description: Cursor for next page of results
+                  x-speakeasy-name-override: "next_cursor"
                 - name: prev
                   in: query
                   required: false
                   schema:
                     type: string
                   description: Cursor for previous page of results
+                  x-speakeasy-name-override: "prev_cursor"
                 - name: limit
                   in: query
                   required: false
@@ -3090,6 +3110,18 @@ paths:
                 "404":
                     description: Tenant or Destination not found.
             x-speakeasy-name-override: listByDestination
+            x-speakeasy-pagination:
+                type: cursor
+                inputs:
+                    - name: next
+                      in: parameters
+                      type: cursor
+                    - name: limit
+                      in: parameters
+                      type: limit
+                outputs:
+                    nextCursor: $.next
+                    results: $.data
     /tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}:
         parameters:
             - name: tenant_id

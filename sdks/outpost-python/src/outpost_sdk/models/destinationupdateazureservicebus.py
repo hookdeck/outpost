@@ -33,7 +33,7 @@ class DestinationUpdateAzureServiceBusTypedDict(TypedDict):
     config: NotRequired[AzureServiceBusConfigTypedDict]
     credentials: NotRequired[AzureServiceBusCredentialsTypedDict]
     delivery_metadata: NotRequired[Nullable[Dict[str, str]]]
-    r"""Static key-value pairs merged into event metadata on every delivery."""
+    r"""Static key-value pairs merged into event metadata on every attempt."""
     metadata: NotRequired[Nullable[Dict[str, str]]]
     r"""Arbitrary contextual information stored with the destination."""
 
@@ -57,7 +57,7 @@ class DestinationUpdateAzureServiceBus(BaseModel):
     credentials: Optional[AzureServiceBusCredentials] = None
 
     delivery_metadata: OptionalNullable[Dict[str, str]] = UNSET
-    r"""Static key-value pairs merged into event metadata on every delivery."""
+    r"""Static key-value pairs merged into event metadata on every attempt."""
 
     metadata: OptionalNullable[Dict[str, str]] = UNSET
     r"""Arbitrary contextual information stored with the destination."""

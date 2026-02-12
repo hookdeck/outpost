@@ -51,7 +51,7 @@ class DestinationAzureServiceBusTypedDict(TypedDict):
     updated_at: NotRequired[datetime]
     r"""ISO Date when the destination was last updated."""
     delivery_metadata: NotRequired[Nullable[Dict[str, str]]]
-    r"""Static key-value pairs merged into event metadata on every delivery."""
+    r"""Static key-value pairs merged into event metadata on every attempt."""
     metadata: NotRequired[Nullable[Dict[str, str]]]
     r"""Arbitrary contextual information stored with the destination."""
     target: NotRequired[str]
@@ -94,7 +94,7 @@ class DestinationAzureServiceBus(BaseModel):
     r"""ISO Date when the destination was last updated."""
 
     delivery_metadata: OptionalNullable[Dict[str, str]] = UNSET
-    r"""Static key-value pairs merged into event metadata on every delivery."""
+    r"""Static key-value pairs merged into event metadata on every attempt."""
 
     metadata: OptionalNullable[Dict[str, str]] = UNSET
     r"""Arbitrary contextual information stored with the destination."""

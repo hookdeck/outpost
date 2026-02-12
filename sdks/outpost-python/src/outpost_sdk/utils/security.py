@@ -135,6 +135,8 @@ def _parse_security_scheme_value(
     elif scheme_type == "http":
         if sub_type == "bearer":
             headers[header_name] = _apply_bearer(value)
+        elif sub_type == "basic":
+            headers[header_name] = value
         elif sub_type == "custom":
             return
         else:

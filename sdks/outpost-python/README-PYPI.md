@@ -18,23 +18,23 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
 <!-- Start Table of Contents [toc] -->
 ## Table of Contents
 <!-- $toc-max-depth=2 -->
-* [Outpost Python SDK](#outpost-python-sdk)
-  * [SDK Installation](#sdk-installation)
-  * [IDE Support](#ide-support)
-  * [SDK Example Usage](#sdk-example-usage)
-  * [Authentication](#authentication)
-  * [Available Resources and Operations](#available-resources-and-operations)
-  * [Global Parameters](#global-parameters)
-  * [Pagination](#pagination)
-  * [Retries](#retries)
-  * [Error Handling](#error-handling)
-  * [Server Selection](#server-selection)
-  * [Custom HTTP Client](#custom-http-client)
-  * [Resource Management](#resource-management)
-  * [Debugging](#debugging)
-* [Development](#development)
-  * [Maturity](#maturity)
-  * [Contributions](#contributions)
+* [Outpost Python SDK](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#outpost-python-sdk)
+  * [SDK Installation](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#sdk-installation)
+  * [IDE Support](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#ide-support)
+  * [SDK Example Usage](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#sdk-example-usage)
+  * [Authentication](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#authentication)
+  * [Available Resources and Operations](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#available-resources-and-operations)
+  * [Global Parameters](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#global-parameters)
+  * [Pagination](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#pagination)
+  * [Retries](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#retries)
+  * [Error Handling](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#error-handling)
+  * [Server Selection](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#server-selection)
+  * [Custom HTTP Client](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#custom-http-client)
+  * [Resource Management](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#resource-management)
+  * [Debugging](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#debugging)
+* [Development](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#development)
+  * [Maturity](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#maturity)
+  * [Contributions](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#contributions)
 
 <!-- End Table of Contents [toc] -->
 
@@ -85,7 +85,7 @@ It's also possible to write a standalone Python script without needing to set up
 ```python
 #!/usr/bin/env -S uv run --script
 # /// script
-# requires-python = ">=3.9"
+# requires-python = ">=3.10"
 # dependencies = [
 #     "outpost_sdk",
 # ]
@@ -191,53 +191,54 @@ with Outpost(
 <details open>
 <summary>Available methods</summary>
 
-### [Destinations](docs/sdks/destinations/README.md)
+### [Attempts](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/attempts/README.md)
 
-* [list](docs/sdks/destinations/README.md#list) - List Destinations
-* [create](docs/sdks/destinations/README.md#create) - Create Destination
-* [get](docs/sdks/destinations/README.md#get) - Get Destination
-* [update](docs/sdks/destinations/README.md#update) - Update Destination
-* [delete](docs/sdks/destinations/README.md#delete) - Delete Destination
-* [enable](docs/sdks/destinations/README.md#enable) - Enable Destination
-* [disable](docs/sdks/destinations/README.md#disable) - Disable Destination
+* [list](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/attempts/README.md#list) - List Attempts (Admin)
+* [get](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/attempts/README.md#get) - Get Attempt
+* [retry](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 
-### [Events](docs/sdks/events/README.md)
+### [Destinations](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md)
 
-* [list](docs/sdks/events/README.md#list) - List Events
-* [get](docs/sdks/events/README.md#get) - Get Event
-* [list_deliveries](docs/sdks/events/README.md#list_deliveries) - List Event Delivery Attempts
-* [list_by_destination](docs/sdks/events/README.md#list_by_destination) - List Events by Destination
-* [get_by_destination](docs/sdks/events/README.md#get_by_destination) - Get Event by Destination
-* [retry](docs/sdks/events/README.md#retry) - Retry Event Delivery
+* [list](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#list) - List Destinations
+* [create](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#create) - Create Destination
+* [get](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#get) - Get Destination
+* [update](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#update) - Update Destination
+* [delete](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#delete) - Delete Destination
+* [enable](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#enable) - Enable Destination
+* [disable](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#disable) - Disable Destination
+* [list_attempts](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#list_attempts) - List Destination Attempts
+* [get_attempt](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#get_attempt) - Get Destination Attempt
 
-### [Health](docs/sdks/health/README.md)
+### [Events](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/events/README.md)
 
-* [check](docs/sdks/health/README.md#check) - Health Check
+* [list](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/events/README.md#list) - List Events (Admin)
+* [get](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/events/README.md#get) - Get Event
 
-### [Publish](docs/sdks/publish/README.md)
+### [Health](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/health/README.md)
 
-* [event](docs/sdks/publish/README.md#event) - Publish Event
+* [check](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/health/README.md#check) - Health Check
 
-### [Schemas](docs/sdks/schemas/README.md)
+### [Publish](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/publish/README.md)
 
-* [list_tenant_destination_types](docs/sdks/schemas/README.md#list_tenant_destination_types) - List Destination Type Schemas (for Tenant)
-* [get](docs/sdks/schemas/README.md#get) - Get Destination Type Schema (for Tenant)
-* [list_destination_types_jwt](docs/sdks/schemas/README.md#list_destination_types_jwt) - List Destination Type Schemas (JWT Auth)
-* [get_destination_type_jwt](docs/sdks/schemas/README.md#get_destination_type_jwt) - Get Destination Type Schema
+* [event](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/publish/README.md#event) - Publish Event
 
-### [Tenants](docs/sdks/tenants/README.md)
+### [Schemas](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/schemas/README.md)
 
-* [list_tenants](docs/sdks/tenants/README.md#list_tenants) - List Tenants
-* [upsert](docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
-* [get](docs/sdks/tenants/README.md#get) - Get Tenant
-* [delete](docs/sdks/tenants/README.md#delete) - Delete Tenant
-* [get_portal_url](docs/sdks/tenants/README.md#get_portal_url) - Get Portal Redirect URL
-* [get_token](docs/sdks/tenants/README.md#get_token) - Get Tenant JWT Token
+* [list_destination_types_jwt](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/schemas/README.md#list_destination_types_jwt) - List Destination Type Schemas
+* [get_destination_type_jwt](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/schemas/README.md#get_destination_type_jwt) - Get Destination Type Schema
 
-### [Topics](docs/sdks/topicssdk/README.md)
+### [Tenants](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md)
 
-* [list](docs/sdks/topicssdk/README.md#list) - List Available Topics (for Tenant)
-* [list_jwt](docs/sdks/topicssdk/README.md#list_jwt) - List Available Topics)
+* [list_tenants](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#list_tenants) - List Tenants
+* [upsert](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
+* [get](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#get) - Get Tenant
+* [delete](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#delete) - Delete Tenant
+* [get_portal_url](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#get_portal_url) - Get Portal Redirect URL
+* [get_token](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#get_token) - Get Tenant JWT Token
+
+### [Topics](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/topicssdk/README.md)
+
+* [list](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/topicssdk/README.md#list) - List Available Topics
 
 </details>
 <!-- End Available Resources and Operations [operations] -->
@@ -292,13 +293,12 @@ from outpost_sdk import Outpost, models
 
 
 with Outpost(
-    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.events.list(limit=100)
+    res = outpost.tenants.list_tenants(limit=20, order_by=models.ListTenantsOrderBy.CREATED_AT, direction=models.ListTenantsDir.DESC)
 
     while res is not None:
         # Handle items
@@ -350,7 +350,7 @@ with Outpost(
 <!-- Start Error Handling [errors] -->
 ## Error Handling
 
-[`OutpostError`](./src/outpost_sdk/errors/outposterror.py) is the base class for all HTTP error responses. It has the following properties:
+[`OutpostError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/outposterror.py) is the base class for all HTTP error responses. It has the following properties:
 
 | Property           | Type             | Description                                                                             |
 | ------------------ | ---------------- | --------------------------------------------------------------------------------------- |
@@ -359,7 +359,7 @@ with Outpost(
 | `err.headers`      | `httpx.Headers`  | HTTP response headers                                                                   |
 | `err.body`         | `str`            | HTTP body. Can be empty string if no body is returned.                                  |
 | `err.raw_response` | `httpx.Response` | Raw HTTP response                                                                       |
-| `err.data`         |                  | Optional. Some errors may contain structured data. [See Error Classes](#error-classes). |
+| `err.data`         |                  | Optional. Some errors may contain structured data. [See Error Classes](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#error-classes). |
 
 ### Example
 ```python
@@ -392,9 +392,9 @@ with Outpost() as outpost:
 
 ### Error Classes
 **Primary error:**
-* [`OutpostError`](./src/outpost_sdk/errors/outposterror.py): The base class for HTTP error responses.
+* [`OutpostError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/outposterror.py): The base class for HTTP error responses.
 
-<details><summary>Less common errors (13)</summary>
+<details><summary>Less common errors (14)</summary>
 
 <br />
 
@@ -404,28 +404,55 @@ with Outpost() as outpost:
     * [`httpx.TimeoutException`](https://www.python-httpx.org/exceptions/#httpx.TimeoutException): HTTP request timed out.
 
 
-**Inherit from [`OutpostError`](./src/outpost_sdk/errors/outposterror.py)**:
-* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 5 of 27 methods.*
-* [`UnauthorizedError`](./src/outpost_sdk/errors/unauthorizederror.py): A collection of codes that generally means the client was not authenticated correctly for the request they want to make. Applicable to 5 of 27 methods.*
-* [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 5 of 27 methods.*
-* [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 27 methods.*
-* [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 27 methods.*
-* [`InternalServerError`](./src/outpost_sdk/errors/internalservererror.py): A collection of status codes that generally mean the server failed in an unexpected way. Applicable to 5 of 27 methods.*
-* [`ListTenantsBadRequestError`](./src/outpost_sdk/errors/listtenantsbadrequesterror.py): Invalid request parameters (e.g., invalid cursor, both next and prev provided). Status code `400`. Applicable to 1 of 27 methods.*
-* [`NotImplementedErrorT`](./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 27 methods.*
-* [`ResponseValidationError`](./src/outpost_sdk/errors/responsevalidationerror.py): Type mismatch between the response data and the expected Pydantic model. Provides access to the Pydantic validation error via the `cause` attribute.
+**Inherit from [`OutpostError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/outposterror.py)**:
+* [`BadRequestError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 5 of 25 methods.*
+* [`UnauthorizedError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/unauthorizederror.py): A collection of codes that generally means the client was not authenticated correctly for the request they want to make. Applicable to 5 of 25 methods.*
+* [`NotFoundError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 5 of 25 methods.*
+* [`TimeoutErrorT`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 25 methods.*
+* [`RateLimitedError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 25 methods.*
+* [`InternalServerError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/internalservererror.py): A collection of status codes that generally mean the server failed in an unexpected way. Applicable to 5 of 25 methods.*
+* [`APIErrorResponse`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Status code `422`. Applicable to 4 of 25 methods.*
+* [`ListTenantsBadRequestError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/listtenantsbadrequesterror.py): Invalid request parameters (e.g., invalid cursor, both next and prev provided). Status code `400`. Applicable to 1 of 25 methods.*
+* [`NotImplementedErrorT`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 25 methods.*
+* [`ResponseValidationError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/responsevalidationerror.py): Type mismatch between the response data and the expected Pydantic model. Provides access to the Pydantic validation error via the `cause` attribute.
 
 </details>
 
-\* Check [the method documentation](#available-resources-and-operations) to see if the error is applicable.
+\* Check [the method documentation](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#available-resources-and-operations) to see if the error is applicable.
 <!-- End Error Handling [errors] -->
 
 <!-- Start Server Selection [server] -->
 ## Server Selection
 
+### Select Server by Index
+
+You can override the default server globally by passing a server index to the `server_idx: int` optional parameter when initializing the SDK client instance. The selected server will then be used as the default on the operations that use it. This table lists the indexes associated with the available servers:
+
+| #   | Server                                        | Description                        |
+| --- | --------------------------------------------- | ---------------------------------- |
+| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Outpost API (production)           |
+| 1   | `http://localhost:3333/api/v1`                | Local development server base path |
+
+#### Example
+
+```python
+from outpost_sdk import Outpost
+
+
+with Outpost(
+    server_idx=0,
+) as outpost:
+
+    res = outpost.health.check()
+
+    # Handle response
+    print(res)
+
+```
+
 ### Override Server URL Per-Client
 
-The default server can be overridden globally by passing a URL to the `server_url: str` optional parameter when initializing the SDK client instance. For example:
+The default server can also be overridden globally by passing a URL to the `server_url: str` optional parameter when initializing the SDK client instance. For example:
 ```python
 from outpost_sdk import Outpost
 

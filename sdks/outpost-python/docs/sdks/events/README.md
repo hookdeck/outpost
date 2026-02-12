@@ -2,36 +2,34 @@
 
 ## Overview
 
-Operations related to event history and deliveries.
+Operations related to event history.
 
 ### Available Operations
 
-* [list](#list) - List Events
+* [list](#list) - List Events (Admin)
 * [get](#get) - Get Event
-* [list_deliveries](#list_deliveries) - List Event Delivery Attempts
-* [list_by_destination](#list_by_destination) - List Events by Destination
-* [get_by_destination](#get_by_destination) - Get Event by Destination
-* [retry](#retry) - Retry Event Delivery
 
 ## list
 
-Retrieves a list of events for the tenant, supporting cursor navigation (details TBD) and filtering.
+Retrieves a list of events across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+
+When `tenant_id` is not provided, returns events from all tenants. When `tenant_id` is provided, returns only events for that tenant.
+
 
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="listTenantEvents" method="get" path="/tenants/{tenant_id}/events" -->
+<!-- UsageSnippet language="python" operationID="adminListEvents" method="get" path="/events" example="AdminEventsListExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
-    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
 ) as outpost:
 
-    res = outpost.events.list(limit=100)
+    res = outpost.events.list(limit=100, order_by=models.AdminListEventsOrderBy.TIME, direction=models.AdminListEventsDir.DESC)
 
     while res is not None:
         # Handle items
@@ -44,39 +42,44 @@ with Outpost(
 
 | Parameter                                                                         | Type                                                                              | Required                                                                          | Description                                                                       |
 | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `tenant_id`                                                                       | *Optional[str]*                                                                   | :heavy_minus_sign:                                                                | The ID of the tenant. Required when using AdminApiKey authentication.             |
-| `destination_id`                                                                  | [Optional[models.DestinationID]](../../models/destinationid.md)                   | :heavy_minus_sign:                                                                | Filter events by destination ID(s).                                               |
-| `status`                                                                          | [Optional[models.ListTenantEventsStatus]](../../models/listtenanteventsstatus.md) | :heavy_minus_sign:                                                                | Filter events by delivery status.                                                 |
-| `next_cursor`                                                                     | *Optional[str]*                                                                   | :heavy_minus_sign:                                                                | Cursor for next page of results                                                   |
-| `prev_cursor`                                                                     | *Optional[str]*                                                                   | :heavy_minus_sign:                                                                | Cursor for previous page of results                                               |
-| `limit`                                                                           | *Optional[int]*                                                                   | :heavy_minus_sign:                                                                | Number of items per page (default 100, max 1000)                                  |
-| `start`                                                                           | [date](https://docs.python.org/3/library/datetime.html#date-objects)              | :heavy_minus_sign:                                                                | Start time filter (RFC3339 format)                                                |
-| `end`                                                                             | [date](https://docs.python.org/3/library/datetime.html#date-objects)              | :heavy_minus_sign:                                                                | End time filter (RFC3339 format)                                                  |
+| `tenant_id`                                                                       | *Optional[str]*                                                                   | :heavy_minus_sign:                                                                | Filter events by tenant ID. If not provided, returns events from all tenants.     |
+| `topic`                                                                           | [Optional[models.AdminListEventsTopic]](../../models/adminlisteventstopic.md)     | :heavy_minus_sign:                                                                | Filter events by topic(s). Can be specified multiple times or comma-separated.    |
+| `time_gte`                                                                        | [date](https://docs.python.org/3/library/datetime.html#date-objects)              | :heavy_minus_sign:                                                                | Filter events with time >= value (RFC3339 or YYYY-MM-DD format).                  |
+| `time_lte`                                                                        | [date](https://docs.python.org/3/library/datetime.html#date-objects)              | :heavy_minus_sign:                                                                | Filter events with time <= value (RFC3339 or YYYY-MM-DD format).                  |
+| `limit`                                                                           | *Optional[int]*                                                                   | :heavy_minus_sign:                                                                | Number of items per page (default 100, max 1000).                                 |
+| `next_cursor`                                                                     | *Optional[str]*                                                                   | :heavy_minus_sign:                                                                | Cursor for next page of results.                                                  |
+| `prev_cursor`                                                                     | *Optional[str]*                                                                   | :heavy_minus_sign:                                                                | Cursor for previous page of results.                                              |
+| `order_by`                                                                        | [Optional[models.AdminListEventsOrderBy]](../../models/adminlisteventsorderby.md) | :heavy_minus_sign:                                                                | Field to sort by.                                                                 |
+| `direction`                                                                       | [Optional[models.AdminListEventsDir]](../../models/adminlisteventsdir.md)         | :heavy_minus_sign:                                                                | Sort direction.                                                                   |
 | `retries`                                                                         | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                  | :heavy_minus_sign:                                                                | Configuration to override the default retry behavior of the client.               |
 
 ### Response
 
-**[models.ListTenantEventsResponse](../../models/listtenanteventsresponse.md)**
+**[models.AdminListEventsResponse](../../models/adminlisteventsresponse.md)**
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type              | Status Code             | Content Type            |
+| ----------------------- | ----------------------- | ----------------------- |
+| errors.APIErrorResponse | 422                     | application/json        |
+| errors.APIError         | 4XX, 5XX                | \*/\*                   |
 
 ## get
 
 Retrieves details for a specific event.
 
+When authenticated with a Tenant JWT, only events belonging to that tenant can be accessed.
+When authenticated with Admin API Key, events from any tenant can be accessed.
+
+
 ### Example Usage
 
-<!-- UsageSnippet language="python" operationID="getTenantEvent" method="get" path="/tenants/{tenant_id}/events/{event_id}" -->
+<!-- UsageSnippet language="python" operationID="getEvent" method="get" path="/events/{event_id}" example="EventExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
-    tenant_id="<id>",
     security=models.Security(
         admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
     ),
@@ -91,192 +94,14 @@ with Outpost(
 
 ### Parameters
 
-| Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `event_id`                                                            | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the event.                                                  |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
-| `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
+| Parameter                                                           | Type                                                                | Required                                                            | Description                                                         |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `event_id`                                                          | *str*                                                               | :heavy_check_mark:                                                  | The ID of the event.                                                |
+| `retries`                                                           | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)    | :heavy_minus_sign:                                                  | Configuration to override the default retry behavior of the client. |
 
 ### Response
 
 **[models.Event](../../models/event.md)**
-
-### Errors
-
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
-
-## list_deliveries
-
-Retrieves a list of delivery attempts for a specific event, including response details.
-
-### Example Usage
-
-<!-- UsageSnippet language="python" operationID="listTenantEventDeliveries" method="get" path="/tenants/{tenant_id}/events/{event_id}/deliveries" -->
-```python
-from outpost_sdk import Outpost, models
-
-
-with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
-) as outpost:
-
-    res = outpost.events.list_deliveries(event_id="<id>")
-
-    # Handle response
-    print(res)
-
-```
-
-### Parameters
-
-| Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `event_id`                                                            | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the event.                                                  |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
-| `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
-
-### Response
-
-**[List[models.DeliveryAttempt]](../../models/.md)**
-
-### Errors
-
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
-
-## list_by_destination
-
-Retrieves events associated with a specific destination for the tenant.
-
-### Example Usage
-
-<!-- UsageSnippet language="python" operationID="listTenantEventsByDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/events" -->
-```python
-from outpost_sdk import Outpost, models
-
-
-with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
-) as outpost:
-
-    res = outpost.events.list_by_destination(destination_id="<id>", limit=100)
-
-    while res is not None:
-        # Handle items
-
-        res = res.next()
-
-```
-
-### Parameters
-
-| Parameter                                                                                                   | Type                                                                                                        | Required                                                                                                    | Description                                                                                                 |
-| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `destination_id`                                                                                            | *str*                                                                                                       | :heavy_check_mark:                                                                                          | The ID of the destination.                                                                                  |
-| `tenant_id`                                                                                                 | *Optional[str]*                                                                                             | :heavy_minus_sign:                                                                                          | The ID of the tenant. Required when using AdminApiKey authentication.                                       |
-| `status`                                                                                                    | [Optional[models.ListTenantEventsByDestinationStatus]](../../models/listtenanteventsbydestinationstatus.md) | :heavy_minus_sign:                                                                                          | Filter events by delivery status.                                                                           |
-| `next_cursor`                                                                                               | *Optional[str]*                                                                                             | :heavy_minus_sign:                                                                                          | Cursor for next page of results                                                                             |
-| `prev_cursor`                                                                                               | *Optional[str]*                                                                                             | :heavy_minus_sign:                                                                                          | Cursor for previous page of results                                                                         |
-| `limit`                                                                                                     | *Optional[int]*                                                                                             | :heavy_minus_sign:                                                                                          | Number of items per page (default 100, max 1000)                                                            |
-| `start`                                                                                                     | [date](https://docs.python.org/3/library/datetime.html#date-objects)                                        | :heavy_minus_sign:                                                                                          | Start time filter (RFC3339 format)                                                                          |
-| `end`                                                                                                       | [date](https://docs.python.org/3/library/datetime.html#date-objects)                                        | :heavy_minus_sign:                                                                                          | End time filter (RFC3339 format)                                                                            |
-| `retries`                                                                                                   | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                                            | :heavy_minus_sign:                                                                                          | Configuration to override the default retry behavior of the client.                                         |
-
-### Response
-
-**[models.ListTenantEventsByDestinationResponse](../../models/listtenanteventsbydestinationresponse.md)**
-
-### Errors
-
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
-
-## get_by_destination
-
-Retrieves a specific event associated with a specific destination for the tenant.
-
-### Example Usage
-
-<!-- UsageSnippet language="python" operationID="getTenantEventByDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}" -->
-```python
-from outpost_sdk import Outpost, models
-
-
-with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
-) as outpost:
-
-    res = outpost.events.get_by_destination(destination_id="<id>", event_id="<id>")
-
-    # Handle response
-    print(res)
-
-```
-
-### Parameters
-
-| Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `destination_id`                                                      | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `event_id`                                                            | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the event.                                                  |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
-| `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
-
-### Response
-
-**[models.Event](../../models/event.md)**
-
-### Errors
-
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
-
-## retry
-
-Triggers a retry for a failed event delivery.
-
-### Example Usage
-
-<!-- UsageSnippet language="python" operationID="retryTenantEvent" method="post" path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry" -->
-```python
-from outpost_sdk import Outpost, models
-
-
-with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
-) as outpost:
-
-    outpost.events.retry(destination_id="<id>", event_id="<id>")
-
-    # Use the SDK ...
-
-```
-
-### Parameters
-
-| Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `destination_id`                                                      | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `event_id`                                                            | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the event to retry.                                         |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
-| `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
 ### Errors
 
