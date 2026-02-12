@@ -12,6 +12,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	defaultMinRetryBackoffSeconds = 10
+	defaultMaxRetryBackoffSeconds = 120
+)
+
 type infraGCPPubSub struct {
 	cfg *MQInfraConfig
 }
@@ -183,8 +188,8 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 				MaxDeliveryAttempts: maxDeliveryAttempts,
 			},
 			RetryPolicy: &pubsub.RetryPolicy{
-				MinimumBackoff: getRetryBackoff(infra.cfg.GCPPubSub.MinRetryBackoff, 10),
-				MaximumBackoff: getRetryBackoff(infra.cfg.GCPPubSub.MaxRetryBackoff, 120),
+				MinimumBackoff: getRetryBackoff(infra.cfg.GCPPubSub.MinRetryBackoff, defaultMinRetryBackoffSeconds),
+				MaximumBackoff: getRetryBackoff(infra.cfg.GCPPubSub.MaxRetryBackoff, defaultMaxRetryBackoffSeconds),
 			},
 		}
 		_, err = client.CreateSubscription(ctx, subID, subConfig)
