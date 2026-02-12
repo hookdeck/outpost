@@ -184,7 +184,7 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 			},
 			RetryPolicy: &pubsub.RetryPolicy{
 				MinimumBackoff: getRetryBackoff(infra.cfg.GCPPubSub.MinRetryBackoff, 10),
-				MaximumBackoff: getRetryBackoff(infra.cfg.GCPPubSub.MaxRetryBackoff, 600),
+				MaximumBackoff: getRetryBackoff(infra.cfg.GCPPubSub.MaxRetryBackoff, 120),
 			},
 		}
 		_, err = client.CreateSubscription(ctx, subID, subConfig)
