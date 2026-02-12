@@ -12,26 +12,66 @@ It's your responsibility to format and deliver the alert to your tenant using yo
 
 ## Consecutive failure alerts
 
-The `ALERT_CONSECUTIVE_FAILURE_COUNT` variable triggers an alert when the consecutive failure count reaches 50%, 70%, 90%, and 100%. At 100%, the destination will be disabled if the configuration is enabled.
+The `ALERT_CONSECUTIVE_FAILURE_COUNT` variable triggers an `alert.destination.consecutive_failure` alert when the consecutive failure count reaches 50%, 70%, 90%, and 100% of the configured threshold. At 100%, the destination will be disabled if `ALERT_AUTO_DISABLE_DESTINATION` is enabled.
 
 ```json
 {
-  "topic": "alert.consecutive_failure",
-  "timestamp": "2025-05-29T05:07:09.269672003Z",
+  "topic": "alert.destination.consecutive_failure",
+  "timestamp": "2025-01-15T10:30:00Z",
   "data": {
-    "event": {
-      "id": "evt_id",
-      "topic": "user.created",
-      "metadata": {},
-      "data": {}
+    "tenant_id": "tenant_123",
+    "event": { ... },
+    "attempt": { ... },
+    "consecutive_failures": {
+      "current": 10,
+      "max": 20,
+      "threshold": 50
     },
-    "max_consecutive_failures": 3,
-    "consecutive_failures": 3,
-    "will_disable": false,
-    "destination": {},
-    "delivery_response": {
-      "body": "{\"success\":false,\"verified\":false,\"payload\":{\"user_id\":\"userid\"}}",
-      "status": 400
+    "destination": {
+      "id": "dest_xyz",
+      "tenant_id": "tenant_123",
+      "type": "webhook",
+      "topics": ["*"],
+      "filter": {},
+      "config": {},
+      "metadata": {},
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z",
+      "disabled_at": null
+    }
+  }
+}
+```
+
+The `destination` object in alert payloads does not include `credentials` or `delivery_metadata` to avoid exposing sensitive information.
+
+When the threshold reaches 100% and the destination is auto-disabled, `destination.disabled_at` will be set in the payload reflecting the post-disable state.
+
+## Destination disabled alerts
+
+When a destination is auto-disabled after reaching the consecutive failure threshold, an `alert.destination.disabled` alert is sent. When both alerts are triggered, the disabled alert is sent first, but ordering is not guaranteed.
+
+```json
+{
+  "topic": "alert.destination.disabled",
+  "timestamp": "2025-01-15T10:30:00Z",
+  "data": {
+    "tenant_id": "tenant_123",
+    "disabled_at": "2025-01-15T10:30:00Z",
+    "reason": "consecutive_failure",
+    "event": { ... },
+    "attempt": { ... },
+    "destination": {
+      "id": "dest_xyz",
+      "tenant_id": "tenant_123",
+      "type": "webhook",
+      "topics": ["*"],
+      "filter": {},
+      "config": {},
+      "metadata": {},
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-15T10:30:00Z",
+      "disabled_at": "2025-01-15T10:30:00Z"
     }
   }
 }
