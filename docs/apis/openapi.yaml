@@ -2184,8 +2184,6 @@ paths:
         The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
         Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
       operationId: listTenants
-      security:
-        - AdminApiKey: []
       parameters:
         - name: limit
           in: query
@@ -2274,7 +2272,7 @@ paths:
                     type: string
                     example: "invalid cursor format"
         "401":
-          description: Unauthorized (Admin API Key missing or invalid).
+          description: Unauthorized (authentication missing or invalid).
         "501":
           description: List Tenants feature is not available. Requires Redis with RediSearch module.
           content:
@@ -2354,18 +2352,16 @@ paths:
           description: Tenant not found.
         # Add other error responses
 
-  # Admin-only endpoints (cross-tenant)
   /events:
     get:
       tags: [Events]
-      summary: List Events (Admin)
+      summary: List Events
       description: |
-        Retrieves a list of events across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+        Retrieves a list of events.
 
-        When `tenant_id` is not provided, returns events from all tenants. When `tenant_id` is provided, returns only events for that tenant.
-      operationId: adminListEvents
-      security:
-        - AdminApiKey: []
+        When authenticated with a Tenant JWT, returns only events belonging to that tenant.
+        When authenticated with Admin API Key, returns events across all tenants. Use `tenant_id` query parameter to filter by tenant.
+      operationId: listEvents
       parameters:
         - name: tenant_id
           in: query
@@ -2464,7 +2460,7 @@ paths:
                       next: "MTcwNDA2NzIwMA=="
                       prev: null
         "401":
-          description: Unauthorized (Admin API Key missing or invalid).
+          description: Unauthorized (authentication missing or invalid).
         "422":
           description: Validation error (invalid query parameters).
           content:
@@ -2511,14 +2507,13 @@ paths:
   /attempts:
     get:
       tags: [Attempts]
-      summary: List Attempts (Admin)
+      summary: List Attempts
       description: |
-        Retrieves a paginated list of attempts across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+        Retrieves a paginated list of attempts.
 
-        When `tenant_id` is not provided, returns attempts from all tenants. When `tenant_id` is provided, returns only attempts for that tenant.
-      operationId: adminListAttempts
-      security:
-        - AdminApiKey: []
+        When authenticated with a Tenant JWT, returns only attempts belonging to that tenant.
+        When authenticated with Admin API Key, returns attempts across all tenants. Use `tenant_id` query parameter to filter by tenant.
+      operationId: listAttempts
       parameters:
         - name: tenant_id
           in: query
@@ -2675,7 +2670,7 @@ paths:
                       next: null
                       prev: null
         "401":
-          description: Unauthorized (Admin API Key missing or invalid).
+          description: Unauthorized (authentication missing or invalid).
         "422":
           description: Validation error (invalid query parameters).
           content:
@@ -2767,8 +2762,10 @@ paths:
     get:
       tags: [Tenants]
       summary: Get Portal Redirect URL
-      description: Returns a redirect URL containing a JWT to authenticate the user with the portal.
+      description: Returns a redirect URL containing a JWT to authenticate the user with the portal. Requires Admin API Key.
       operationId: getTenantPortalUrl
+      security:
+        - AdminApiKey: []
       parameters:
         - name: theme
           in: query
@@ -2804,8 +2801,10 @@ paths:
     get:
       tags: [Tenants]
       summary: Get Tenant JWT Token
-      description: Returns a JWT token scoped to the tenant for safe browser API calls.
+      description: Returns a JWT token scoped to the tenant for safe browser API calls. Requires Admin API Key.
       operationId: getTenantToken
+      security:
+        - AdminApiKey: []
       responses:
         "200":
           description: Tenant JWT token.
@@ -3358,6 +3357,8 @@ paths:
       summary: Publish Event
       description: Publishes an event to the specified topic, potentially routed to a specific destination. Requires Admin API Key.
       operationId: publishEvent
+      security:
+        - AdminApiKey: []
       requestBody:
         required: true
         content:

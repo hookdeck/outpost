@@ -22,7 +22,7 @@ actions:
       x-speakeasy-name-override: list
     x-speakeasy-metadata:
       after: sdk.events.list()
-      before: sdk.Events.adminListEvents()
+      before: sdk.Events.listEvents()
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
@@ -40,7 +40,7 @@ actions:
       x-speakeasy-name-override: list
     x-speakeasy-metadata:
       after: sdk.attempts.list()
-      before: sdk.Attempts.adminListAttempts()
+      before: sdk.Attempts.listAttempts()
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
