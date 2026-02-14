@@ -146,9 +146,9 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		}
 	}
 	shouldRevalidate := false
-	if input.Type != "" {
-		shouldRevalidate = true
-		updatedDestination.Type = input.Type
+	if input.Type != "" && input.Type != originalDestination.Type {
+		AbortWithValidationError(c, errors.New("type cannot be updated"))
+		return
 	}
 	if input.Config != nil {
 		shouldRevalidate = true

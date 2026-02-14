@@ -294,6 +294,37 @@ func TestAPI_Destinations(t *testing.T) {
 
 			require.Equal(t, http.StatusNotFound, resp.Code)
 		})
+
+		t.Run("changing type returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"user.created"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"type": "aws_sqs",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("sending same type is allowed", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"user.created"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"type":   "webhook",
+				"topics": []string{"user.deleted"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+		})
 	})
 
 	t.Run("Delete", func(t *testing.T) {
