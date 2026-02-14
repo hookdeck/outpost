@@ -2,7 +2,8 @@ openapi: 3.1.0
 info:
   title: Outpost API
   version: "0.0.1"
-  description: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
+  description: |
+    The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
   contact:
     name: Outpost Support
     email: support@hookdeck.com
@@ -44,6 +45,37 @@ components:
           "exp": 1704153600
         }
         ```
+  responses:
+    BadRequest:
+      description: Malformed JSON or invalid request parameters.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
+    Unauthorized:
+      description: Missing or invalid authentication credentials.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
+    NotFound:
+      description: Requested resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
+    ValidationError:
+      description: Request body fails validation.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
+    InternalServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
   schemas:
     # Base Schemas
     Tenant:
@@ -1752,12 +1784,6 @@ components:
           format: date-time
           description: Time the event was received/processed.
           example: "2024-01-01T00:00:00Z"
-        successful_at:
-          type: string
-          format: date-time
-          nullable: true
-          description: Time the event was successfully delivered.
-          example: "2024-01-01T00:00:00Z"
         metadata:
           type: object
           nullable: true
@@ -2181,9 +2207,11 @@ paths:
         **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
         If RediSearch is not available, this endpoint returns `501 Not Implemented`.
 
-        The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
-        Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
+        When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
       operationId: listTenants
+      security:
+        - AdminApiKey: []
+        - TenantJwt: []
       parameters:
         - name: limit
           in: query
@@ -2194,14 +2222,6 @@ paths:
             maximum: 100
             default: 20
           description: Number of tenants to return per page (1-100, default 20).
-        - name: order_by
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [created_at]
-            default: created_at
-          description: Field to sort by.
         - name: dir
           in: query
           required: false
@@ -2210,20 +2230,6 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort direction.
-        - name: created_at[gte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter tenants created at or after this time (RFC3339 or YYYY-MM-DD format).
-        - name: created_at[lte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter tenants created at or before this time (RFC3339 or YYYY-MM-DD format).
         - name: next
           in: query
           required: false
@@ -2262,17 +2268,11 @@ paths:
                   prev: null
                 count: 42
         "400":
-          description: Invalid request parameters (e.g., invalid cursor, both next and prev provided).
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "invalid cursor format"
+          $ref: "#/components/responses/BadRequest"
         "401":
-          description: Unauthorized (authentication missing or invalid).
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
         "501":
           description: List Tenants feature is not available. Requires Redis with RediSearch module.
           content:
@@ -2316,7 +2316,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
-        # Add error responses
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     get:
       tags: [Tenants]
       summary: Get Tenant
@@ -2329,9 +2334,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant not found.
-        # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     delete:
       tags: [Tenants]
       summary: Delete Tenant
@@ -2348,9 +2356,12 @@ paths:
                 SuccessExample:
                   value:
                     success: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant not found.
-        # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /events:
     get:
@@ -2362,6 +2373,9 @@ paths:
         When authenticated with a Tenant JWT, returns only events belonging to that tenant.
         When authenticated with Admin API Key, returns events across all tenants. Use `tenant_id` query parameter to filter by tenant.
       operationId: listEvents
+      security:
+        - AdminApiKey: []
+        - TenantJwt: []
       parameters:
         - name: tenant_id
           in: query
@@ -2460,13 +2474,9 @@ paths:
                       next: "MTcwNDA2NzIwMA=="
                       prev: null
         "401":
-          description: Unauthorized (authentication missing or invalid).
-        "422":
-          description: Validation error (invalid query parameters).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/APIErrorResponse"
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /events/{event_id}:
     parameters:
@@ -2501,8 +2511,12 @@ paths:
                     eligible_for_retry: false
                     metadata: { "source": "crm" }
                     data: { "user_id": "userid", "status": "active" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Event not found.
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /attempts:
     get:
@@ -2514,6 +2528,9 @@ paths:
         When authenticated with a Tenant JWT, returns only attempts belonging to that tenant.
         When authenticated with Admin API Key, returns attempts across all tenants. Use `tenant_id` query parameter to filter by tenant.
       operationId: listAttempts
+      security:
+        - AdminApiKey: []
+        - TenantJwt: []
       parameters:
         - name: tenant_id
           in: query
@@ -2670,13 +2687,9 @@ paths:
                       next: null
                       prev: null
         "401":
-          description: Unauthorized (authentication missing or invalid).
-        "422":
-          description: Validation error (invalid query parameters).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/APIErrorResponse"
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /attempts/{attempt_id}:
     parameters:
@@ -2748,8 +2761,12 @@ paths:
                       eligible_for_retry: false
                       metadata: { "source": "crm" }
                       data: { "user_id": "userid", "status": "active" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Attempt not found.
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /tenants/{tenant_id}/portal:
     parameters:
@@ -2786,9 +2803,12 @@ paths:
                   value:
                     redirect_url: "https://webhooks.acme.com/?token=JWT_TOKEN&tenant_id=tenant_123"
                     tenant_id: "tenant_123"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant not found.
-        # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /tenants/{tenant_id}/token:
     parameters:
@@ -2817,9 +2837,12 @@ paths:
                   value:
                     token: "SOME_JWT_TOKEN"
                     tenant_id: "tenant_123"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant not found.
-        # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   # Destinations
   /tenants/{tenant_id}/destinations:
@@ -2907,9 +2930,12 @@ paths:
                       credentials:
                         key: "AKIAIOSFODNN7EXAMPLE"
                         secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant not found.
-        # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     post:
       tags: [Destinations]
       summary: Create Destination
@@ -2942,11 +2968,14 @@ paths:
                     credentials:
                       secret: "whsec_abc123def456"
                       # previous_secret and previous_secret_invalid_at are absent on creation
-        "400":
-          description: Invalid request body or configuration.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant not found.
-        # Add other error responses (e.g., max destinations reached)
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /tenants/{tenant_id}/destinations/{destination_id}:
     parameters:
@@ -2989,8 +3018,12 @@ paths:
                       secret: "whsec_abc123def456"
                       previous_secret: "whsec_prev789xyz012"
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant or Destination not found.
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     patch:
       tags: [Destinations]
       summary: Update Destination
@@ -3026,11 +3059,14 @@ paths:
                       secret: "whsec_abc123def456"
                       previous_secret: "whsec_prev789xyz012"
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
-        "400":
-          description: Invalid request body or configuration.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant or Destination not found.
-        # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     delete:
       tags: [Destinations]
       summary: Delete Destination
@@ -3047,9 +3083,12 @@ paths:
                 SuccessExample:
                   value:
                     success: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant or Destination not found.
-        # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /tenants/{tenant_id}/destinations/{destination_id}/enable:
     parameters:
@@ -3092,9 +3131,12 @@ paths:
                       secret: "whsec_abc123def456"
                       previous_secret: "whsec_prev789xyz012"
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant or Destination not found.
-        # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /tenants/{tenant_id}/destinations/{destination_id}/disable:
     parameters:
@@ -3137,9 +3179,12 @@ paths:
                       secret: "whsec_abc123def456"
                       previous_secret: "whsec_prev789xyz012"
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant or Destination not found.
-        # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   # Destination-scoped Attempts
   /tenants/{tenant_id}/destinations/{destination_id}/attempts:
@@ -3281,14 +3326,12 @@ paths:
                       limit: 100
                       next: "MTcwNDA2NzIwMA=="
                       prev: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant or Destination not found.
-        "422":
-          description: Validation error (invalid query parameters).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/APIErrorResponse"
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}:
     parameters:
@@ -3347,8 +3390,12 @@ paths:
                     attempt_number: 1
                     event_id: "evt_123"
                     destination_id: "des_456"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant, Destination, or Attempt not found.
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   # Publish (Admin Only)
   /publish:
@@ -3372,15 +3419,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublishResponse"
-        "400":
-          description: Invalid request body.
         "401":
-          description: Unauthorized (Admin API Key missing or invalid).
+          $ref: "#/components/responses/Unauthorized"
         "409":
           description: Conflict. An event with the provided `id` already exists.
         "422":
-          description: Unprocessable Entity. The event topic was either required or was invalid.
-        # Add other error responses
+          description: The event topic was either required or was invalid.
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   # Retry
   /retry:
@@ -3415,14 +3461,12 @@ paths:
             Bad request. This can happen when:
             - The destination is disabled
             - The destination does not match the event's topic
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Event or destination not found.
-        "422":
-          description: Validation error (missing required fields).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/APIErrorResponse"
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /destination-types:
     get:
@@ -3510,7 +3554,9 @@ paths:
                           },
                         ]
         "401":
-          description: Unauthorized (Tenant JWT missing or invalid).
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /destination-types/{type}:
     parameters:
@@ -3519,7 +3565,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, aws_s3]
+          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub]
         description: The type of the destination.
     get:
       tags: [Schemas]
@@ -3561,9 +3607,11 @@ paths:
                         },
                       ]
         "401":
-          description: Unauthorized (Tenant JWT missing or invalid).
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Destination type not found.
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /topics:
     get:
@@ -3590,4 +3638,6 @@ paths:
                       "inventory.updated",
                     ]
         "401":
-          description: Unauthorized (Tenant JWT missing or invalid).
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
