@@ -22,6 +22,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(req)
 
@@ -34,6 +35,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withJWT(req, "t1"))
 
@@ -45,6 +47,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -67,6 +70,18 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"topic": "user.created",
+				"data":  map[string]any{"key": "value"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("missing data returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
+				"tenant_id": "t1",
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -91,6 +106,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -103,6 +119,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -121,6 +138,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -139,6 +157,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -153,6 +172,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -171,6 +191,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -189,6 +210,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -203,6 +225,7 @@ func TestAPI_Publish(t *testing.T) {
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"id":        "custom-id",
 				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -217,6 +240,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 			after := time.Now()
@@ -235,6 +259,7 @@ func TestAPI_Publish(t *testing.T) {
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
 				"time":      explicit.Format(time.RFC3339),
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -248,6 +273,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -262,6 +288,7 @@ func TestAPI_Publish(t *testing.T) {
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id":          "t1",
 				"eligible_for_retry": false,
+				"data":               map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -275,6 +302,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "my-tenant",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -289,6 +317,7 @@ func TestAPI_Publish(t *testing.T) {
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
 				"topic":     "user.created",
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -303,6 +332,7 @@ func TestAPI_Publish(t *testing.T) {
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id":      "t1",
 				"destination_id": "dest-1",
+				"data":           map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 
@@ -317,6 +347,7 @@ func TestAPI_Publish(t *testing.T) {
 			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
 				"tenant_id": "t1",
 				"metadata":  map[string]string{"env": "prod"},
+				"data":      map[string]any{"key": "value"},
 			})
 			resp := h.do(h.withAPIKey(req))
 

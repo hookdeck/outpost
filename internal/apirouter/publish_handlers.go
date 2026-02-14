@@ -74,7 +74,7 @@ type PublishedEvent struct {
 	EligibleForRetry *bool                  `json:"eligible_for_retry"`
 	Time             time.Time              `json:"time"`
 	Metadata         map[string]string      `json:"metadata"`
-	Data             map[string]interface{} `json:"data"`
+	Data             map[string]interface{} `json:"data" binding:"required"`
 }
 
 func (p *PublishedEvent) toEvent() models.Event {
