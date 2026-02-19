@@ -25,7 +25,7 @@
   "author": "Outpost Team",
   "license": "Apache-2.0",
   "dependencies": {
-    "@hookdeck/outpost-sdk": "file:../../../sdks/outpost-typescript"
+    "@hookdeck/outpost-sdk": "file:../sdks/outpost-typescript"
   },
   "devDependencies": {
     "@stoplight/spectral-cli": "^6.11.0",

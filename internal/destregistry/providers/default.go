@@ -6,6 +6,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawss3"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawssqs"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destazureservicebus"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destcfqueues"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destgcppubsub"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/desthookdeck"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
@@ -137,6 +138,12 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		return err
 	}
 	registry.RegisterProvider("rabbitmq", rabbitmq)
+
+	cloudflareQueues, err := destcfqueues.New(loader, basePublisherOpts)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("cloudflare_queues", cloudflareQueues)
 
 	return nil
 }

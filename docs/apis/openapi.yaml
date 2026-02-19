@@ -270,6 +270,25 @@ components:
           type: string
           description: Optional AWS Session Token (for temporary credentials).
           example: "AQoDYXdzEPT//////////wEXAMPLE..."
+    CloudflareQueuesConfig:
+      type: object
+      required: [account_id, queue_id]
+      properties:
+        account_id:
+          type: string
+          description: Cloudflare Account ID
+          example: "abc123def456789"
+        queue_id:
+          type: string
+          description: Cloudflare Queue ID
+          example: "my-queue"
+    CloudflareQueuesCredentials:
+      type: object
+      required: [api_token]
+      properties:
+        api_token:
+          type: string
+          description: Cloudflare API Token with queues:write permission
     RabbitMQConfig:
       type: object
       required: [server_url, exchange]
@@ -1096,6 +1115,92 @@ components:
         credentials:
           service_account_json: '{"type":"service_account","project_id":"my-project-123",...}'
 
+    DestinationCloudflareQueues:
+      type: object
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
+      properties:
+        id:
+          type: string
+          description: Control plane generated ID or user provided ID for the destination.
+          example: "des_12345"
+        type:
+          type: string
+          description: Type of the destination.
+          enum: [cloudflare_queues]
+          example: "cloudflare_queues"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO Date when the destination was disabled, or null if enabled.
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
+        config:
+          $ref: "#/components/schemas/CloudflareQueuesConfig"
+        credentials:
+          $ref: "#/components/schemas/CloudflareQueuesCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
+        target:
+          type: string
+          description: A human-readable representation of the destination target (Cloudflare Queue ID). Read-only.
+          readOnly: true
+          example: "my-queue"
+        target_url:
+          type: string
+          format: url
+          nullable: true
+          description: A URL link to the destination target (Cloudflare Dashboard link to the queue). Read-only.
+          readOnly: true
+          example: "https://dash.cloudflare.com/abc123def456789/queues/my-queue"
+      example:
+        id: "des_cf_queues_123"
+        type: "cloudflare_queues"
+        topics: ["*"]
+        disabled_at: null
+        created_at: "2024-03-10T14:30:00Z"
+        updated_at: "2024-03-10T14:30:00Z"
+        config:
+          account_id: "abc123def456789"
+          queue_id: "my-queue"
+        credentials:
+          api_token: "cf_token_..."
+
     # Polymorphic Destination Schema (for Responses)
     Destination:
       oneOf:
@@ -1107,6 +1212,7 @@ components:
         - $ref: "#/components/schemas/DestinationAzureServiceBus"
         - $ref: "#/components/schemas/DestinationAWSS3"
         - $ref: "#/components/schemas/DestinationGCPPubSub"
+        - $ref: "#/components/schemas/DestinationCloudflareQueues"
       discriminator:
         propertyName: type
         mapping:
@@ -1118,6 +1224,7 @@ components:
           azure_servicebus: "#/components/schemas/DestinationAzureServiceBus"
           aws_s3: "#/components/schemas/DestinationAWSS3"
           gcp_pubsub: "#/components/schemas/DestinationGCPPubSub"
+          cloudflare_queues: "#/components/schemas/DestinationCloudflareQueues"
 
     DestinationCreateWebhook:
       type: object
@@ -1393,6 +1500,40 @@ components:
           nullable: true
           description: Arbitrary contextual information stored with the destination.
           example: { "internal-id": "123", "team": "platform" }
+    DestinationCreateCloudflareQueues:
+      type: object
+      required: [type, topics, config, credentials]
+      properties:
+        id:
+          type: string
+          description: Optional user-provided ID. A UUID will be generated if empty.
+          example: "user-provided-id"
+        type:
+          type: string
+          description: Type of the destination. Must be 'cloudflare_queues'.
+          enum: [cloudflare_queues]
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        config:
+          $ref: "#/components/schemas/CloudflareQueuesConfig"
+        credentials:
+          $ref: "#/components/schemas/CloudflareQueuesCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
 
     # Polymorphic Destination Creation Schema (for Request Bodies)
     DestinationCreate:
@@ -1405,6 +1546,7 @@ components:
         - $ref: "#/components/schemas/DestinationCreateAzureServiceBus"
         - $ref: "#/components/schemas/DestinationCreateAWSS3"
         - $ref: "#/components/schemas/DestinationCreateGCPPubSub"
+        - $ref: "#/components/schemas/DestinationCreateCloudflareQueues"
       discriminator:
         propertyName: type
         mapping:
@@ -1416,6 +1558,7 @@ components:
           azure_servicebus: "#/components/schemas/DestinationCreateAzureServiceBus"
           aws_s3: "#/components/schemas/DestinationCreateAWSS3"
           gcp_pubsub: "#/components/schemas/DestinationCreateGCPPubSub"
+          cloudflare_queues: "#/components/schemas/DestinationCreateCloudflareQueues"
 
     # Type-Specific Destination Update Schemas (for Request Bodies)
     WebhookCredentialsUpdate:
@@ -1642,6 +1785,32 @@ components:
           nullable: true
           description: Arbitrary contextual information stored with the destination.
           example: { "internal-id": "123", "team": "platform" }
+    DestinationUpdateCloudflareQueues:
+      type: object
+      # Properties duplicated from DestinationUpdateBase
+      properties:
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        config:
+          $ref: "#/components/schemas/CloudflareQueuesConfig" # account_id/queue_id required here, but PATCH means optional
+        credentials:
+          $ref: "#/components/schemas/CloudflareQueuesCredentials" # api_token required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every delivery.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
 
     # Polymorphic Destination Update Schema (for Request Bodies)
     DestinationUpdate:
@@ -1654,6 +1823,7 @@ components:
         - $ref: "#/components/schemas/DestinationUpdateAzureServiceBus"
         - $ref: "#/components/schemas/DestinationUpdateAWSS3"
         - $ref: "#/components/schemas/DestinationUpdateGCPPubSub"
+        - $ref: "#/components/schemas/DestinationUpdateCloudflareQueues"
     # Event Schemas
     PublishRequest:
       type: object
@@ -1930,6 +2100,7 @@ components:
         - azure_servicebus
         - aws_s3
         - gcp_pubsub
+        - cloudflare_queues
       description: Type of destination.
       example: "webhook"
     DestinationTypeSchema:
