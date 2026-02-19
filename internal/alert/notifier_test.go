@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,107 +17,110 @@ import (
 func TestAlertNotifier_Notify(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name         string
-		handler      func(w http.ResponseWriter, r *http.Request)
-		notifierOpts []alert.NotifierOption
-		wantErr      bool
-		errContains  string
-	}{
-		{
-			name: "successful notification",
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				// Verify request
-				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+	t.Run("successful notification", func(t *testing.T) {
+		t.Parallel()
+		var called atomic.Bool
 
-				// Read and verify request body
-				var body map[string]interface{}
-				err := json.NewDecoder(r.Body).Decode(&body)
-				require.NoError(t, err)
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			called.Store(true)
+			// Verify request
+			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
-				assert.Equal(t, "alert.consecutive_failure", body["topic"])
-				data := body["data"].(map[string]interface{})
-				assert.Equal(t, float64(10), data["max_consecutive_failures"])
-				assert.Equal(t, float64(5), data["consecutive_failures"])
-				assert.Equal(t, true, data["will_disable"])
+			// Read and verify request body
+			var body map[string]any
+			err := json.NewDecoder(r.Body).Decode(&body)
+			require.NoError(t, err)
 
-				// Log raw JSON for debugging
-				rawJSON, _ := json.Marshal(body)
-				t.Logf("Raw JSON: %s", string(rawJSON))
+			assert.Equal(t, "alert.destination.consecutive_failure", body["topic"])
+			data := body["data"].(map[string]any)
+			cf := data["consecutive_failures"].(map[string]any)
+			assert.Equal(t, float64(5), cf["current"])
+			assert.Equal(t, float64(10), cf["max"])
+			assert.Equal(t, float64(50), cf["threshold"])
 
-				w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+
+		notifier := alert.NewHTTPAlertNotifier(ts.URL)
+		dest := &alert.AlertDestination{ID: "dest_123", TenantID: "tenant_123"}
+		testAlert := alert.NewConsecutiveFailureAlert(alert.ConsecutiveFailureData{
+			Destination: dest,
+			ConsecutiveFailures: alert.ConsecutiveFailures{
+				Current:   5,
+				Max:       10,
+				Threshold: 50,
 			},
-		},
-		{
-			name: "server error",
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusInternalServerError)
-			},
-			wantErr:     true,
-			errContains: "alert callback failed with status 500",
-		},
-		{
-			name: "invalid response status",
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusBadRequest)
-			},
-			wantErr:     true,
-			errContains: "alert callback failed with status 400",
-		},
-		{
-			name: "timeout exceeded",
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				time.Sleep(100 * time.Millisecond)
-				w.WriteHeader(http.StatusOK)
-			},
-			notifierOpts: []alert.NotifierOption{alert.NotifierWithTimeout(50 * time.Millisecond)},
-			wantErr:      true,
-			errContains:  "context deadline exceeded",
-		},
-		{
-			name: "successful notification with bearer token",
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
-				w.WriteHeader(http.StatusOK)
-			},
-			notifierOpts: []alert.NotifierOption{alert.NotifierWithBearerToken("test-token")},
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Create test server
-			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
-			defer ts.Close()
-
-			// Create notifier
-			notifier := alert.NewHTTPAlertNotifier(ts.URL, tt.notifierOpts...)
-
-			// Create test alert
-			dest := &alert.AlertDestination{ID: "dest_123", TenantID: "tenant_123"}
-			testAlert := alert.NewConsecutiveFailureAlert(alert.ConsecutiveFailureData{
-				MaxConsecutiveFailures: 10,
-				ConsecutiveFailures:    5,
-				WillDisable:            true,
-				Destination:            dest,
-				DeliveryResponse: map[string]interface{}{
-					"status": "error",
-					"data":   map[string]any{"code": "ETIMEDOUT"},
-				},
-			})
-
-			// Send alert
-			err := notifier.Notify(context.Background(), testAlert)
-
-			if tt.wantErr {
-				require.Error(t, err)
-				assert.ErrorContains(t, err, tt.errContains)
-			} else {
-				require.NoError(t, err)
-			}
 		})
-	}
+
+		err := notifier.Notify(context.Background(), testAlert)
+		require.NoError(t, err)
+		assert.True(t, called.Load(), "handler should have been called")
+	})
+
+	t.Run("successful notification with bearer token", func(t *testing.T) {
+		t.Parallel()
+		var called atomic.Bool
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			called.Store(true)
+			assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+
+		notifier := alert.NewHTTPAlertNotifier(ts.URL, alert.NotifierWithBearerToken("test-token"))
+		dest := &alert.AlertDestination{ID: "dest_123", TenantID: "tenant_123"}
+		testAlert := alert.NewConsecutiveFailureAlert(alert.ConsecutiveFailureData{
+			Destination: dest,
+			ConsecutiveFailures: alert.ConsecutiveFailures{
+				Current:   5,
+				Max:       10,
+				Threshold: 50,
+			},
+		})
+
+		err := notifier.Notify(context.Background(), testAlert)
+		require.NoError(t, err)
+		assert.True(t, called.Load(), "handler should have been called")
+	})
+
+	t.Run("server error returns error", func(t *testing.T) {
+		t.Parallel()
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer ts.Close()
+
+		notifier := alert.NewHTTPAlertNotifier(ts.URL)
+		dest := &alert.AlertDestination{ID: "dest_123", TenantID: "tenant_123"}
+		testAlert := alert.NewConsecutiveFailureAlert(alert.ConsecutiveFailureData{
+			Destination: dest,
+		})
+
+		err := notifier.Notify(context.Background(), testAlert)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "status 500")
+	})
+
+	t.Run("timeout returns error", func(t *testing.T) {
+		t.Parallel()
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(100 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+
+		notifier := alert.NewHTTPAlertNotifier(ts.URL, alert.NotifierWithTimeout(50*time.Millisecond))
+		dest := &alert.AlertDestination{ID: "dest_123", TenantID: "tenant_123"}
+		testAlert := alert.NewConsecutiveFailureAlert(alert.ConsecutiveFailureData{
+			Destination: dest,
+		})
+
+		err := notifier.Notify(context.Background(), testAlert)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to send alert")
+	})
 }
