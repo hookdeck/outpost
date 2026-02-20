@@ -130,6 +130,10 @@ func (h *TenantHandlers) List(c *gin.Context) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errors.New("invalid limit: must be an integer")))
 			return
 		}
+		if limit < 1 || limit > 100 {
+			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errors.New("invalid limit: must be between 1 and 100")))
+			return
+		}
 		req.Limit = limit
 	}
 
