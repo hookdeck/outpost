@@ -315,11 +315,24 @@ export default function CreateDestination() {
           topics: topics,
           ...(filter && Object.keys(filter).length > 0 ? { filter } : {}),
           config: Object.fromEntries(
-            Object.entries(values).filter(([key]) =>
-              destination_type?.config_fields.some(
-                (field) => field.key === key,
-              ),
-            ),
+            Object.entries(values)
+              .filter(([key]) =>
+                destination_type?.config_fields.some(
+                  (field) => field.key === key,
+                ),
+              )
+              .map(([key, value]) => {
+                let configValue = String(value);
+                // Webhook custom_headers must have at least one header or be null/empty
+                if (
+                  destination_type?.type === "webhook" &&
+                  key === "custom_headers" &&
+                  (configValue === "{}" || configValue === "")
+                ) {
+                  configValue = "";
+                }
+                return [key, configValue];
+              }),
           ),
           credentials: Object.fromEntries(
             Object.entries(values).filter(([key]) =>
