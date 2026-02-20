@@ -12,6 +12,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	defaultMinRetryBackoffSeconds = 10
+	defaultMaxRetryBackoffSeconds = 120
+)
+
 type infraGCPPubSub struct {
 	cfg *MQInfraConfig
 }
@@ -158,7 +163,7 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 	}
 
 	// Set visibility timeout (acknowledgement deadline)
-	ackDeadline := 10 // default 10 seconds
+	ackDeadline := 60 // default 60 seconds
 	if infra.cfg.Policy.VisibilityTimeout > 0 {
 		ackDeadline = infra.cfg.Policy.VisibilityTimeout
 	}
@@ -181,6 +186,10 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 			DeadLetterPolicy: &pubsub.DeadLetterPolicy{
 				DeadLetterTopic:     dlqTopic.String(),
 				MaxDeliveryAttempts: maxDeliveryAttempts,
+			},
+			RetryPolicy: &pubsub.RetryPolicy{
+				MinimumBackoff: getRetryBackoff(infra.cfg.GCPPubSub.MinRetryBackoff, defaultMinRetryBackoffSeconds),
+				MaximumBackoff: getRetryBackoff(infra.cfg.GCPPubSub.MaxRetryBackoff, defaultMaxRetryBackoffSeconds),
 			},
 		}
 		_, err = client.CreateSubscription(ctx, subID, subConfig)
@@ -266,6 +275,14 @@ func (infra *infraGCPPubSub) TearDown(ctx context.Context) error {
 // getDuration converts seconds to time.Duration
 func getDuration(seconds int) time.Duration {
 	return time.Duration(seconds) * time.Second
+}
+
+// getRetryBackoff returns the configured backoff or a default value
+func getRetryBackoff(configured int, defaultSeconds int) time.Duration {
+	if configured > 0 {
+		return time.Duration(configured) * time.Second
+	}
+	return time.Duration(defaultSeconds) * time.Second
 }
 
 // Helper function to check if error is an "already exists" error

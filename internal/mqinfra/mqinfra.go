@@ -50,6 +50,8 @@ type GCPPubSubInfraConfig struct {
 	TopicID                   string
 	SubscriptionID            string
 	ServiceAccountCredentials string
+	MinRetryBackoff           int // seconds, for PubSub RetryPolicy (default: 10)
+	MaxRetryBackoff           int // seconds, for PubSub RetryPolicy (default: 600)
 }
 
 type RabbitMQInfraConfig struct {
