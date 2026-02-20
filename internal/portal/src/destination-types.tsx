@@ -11,6 +11,7 @@ export function useDestinationTypes(): Record<
   const { data } = useSWR<DestinationTypeReference[]>(
     "destination-types",
     (path: string) => apiClient.fetchRoot(path),
+    { revalidateIfStale: false },
   );
   if (!data) {
     return {};
