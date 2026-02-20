@@ -6,6 +6,7 @@ import (
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/mqs"
+	"go.uber.org/zap"
 )
 
 // BatchAdder is the interface for adding messages to a batch processor.
@@ -29,7 +30,8 @@ func NewMessageHandler(logger *logging.Logger, batchAdder BatchAdder) consumer.M
 
 func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	logger := h.logger.Ctx(ctx)
-	logger.Info("logmq handler")
+	logger.Info("logmq handler",
+		zap.String("message_id", msg.LoggableID))
 	h.batchAdder.Add(ctx, msg)
 	return nil
 }

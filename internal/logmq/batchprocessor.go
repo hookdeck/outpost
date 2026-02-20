@@ -90,13 +90,29 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 		// Validate that both Event and Attempt are present.
 		// The logstore requires both for data consistency.
 		if entry.Event == nil || entry.Attempt == nil {
-			logger.Error("invalid log entry: both event and attempt are required",
+			fields := []zap.Field{
 				zap.Bool("has_event", entry.Event != nil),
 				zap.Bool("has_attempt", entry.Attempt != nil),
-				zap.String("message_id", msg.LoggableID))
+				zap.String("message_id", msg.LoggableID),
+			}
+			if entry.Event != nil {
+				fields = append(fields, zap.String("event_id", entry.Event.ID))
+				fields = append(fields, zap.String("tenant_id", entry.Event.TenantID))
+			}
+			if entry.Attempt != nil {
+				fields = append(fields, zap.String("attempt_id", entry.Attempt.ID))
+				fields = append(fields, zap.String("tenant_id", entry.Attempt.TenantID))
+			}
+			logger.Error("invalid log entry: both event and attempt are required", fields...)
 			msg.Nack()
 			continue
 		}
+
+		logger.Info("added to batch",
+			zap.String("message_id", msg.LoggableID),
+			zap.String("event_id", entry.Event.ID),
+			zap.String("attempt_id", entry.Attempt.ID),
+			zap.String("tenant_id", entry.Event.TenantID))
 
 		entries = append(entries, entry)
 		validMsgs = append(validMsgs, msg)
@@ -107,17 +123,24 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 		return
 	}
 
-	if err := bp.logStore.InsertMany(bp.ctx, entries); err != nil {
+	insertCtx, cancel := context.WithTimeout(bp.ctx, 30*time.Second)
+	defer cancel()
+
+	insertStart := time.Now()
+	if err := bp.logStore.InsertMany(insertCtx, entries); err != nil {
 		logger.Error("failed to insert log entries",
 			zap.Error(err),
-			zap.Int("entry_count", len(entries)))
+			zap.Int("entry_count", len(entries)),
+			zap.Int64("insert_duration_ms", time.Since(insertStart).Milliseconds()))
 		for _, msg := range validMsgs {
 			msg.Nack()
 		}
 		return
 	}
 
-	logger.Info("batch processed successfully", zap.Int("count", len(validMsgs)))
+	logger.Info("batch processed successfully",
+		zap.Int("count", len(validMsgs)),
+		zap.Int64("insert_duration_ms", time.Since(insertStart).Milliseconds()))
 
 	for _, msg := range validMsgs {
 		msg.Ack()

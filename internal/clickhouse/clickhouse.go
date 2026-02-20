@@ -2,6 +2,7 @@ package clickhouse
 
 import (
 	"crypto/tls"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	chdriver "github.com/ClickHouse/clickhouse-go/v2"
@@ -29,6 +30,8 @@ func New(config *ClickHouseConfig) (DB, error) {
 			Username: config.Username,
 			Password: config.Password,
 		},
+		DialTimeout: 10 * time.Second,
+		ReadTimeout: 30 * time.Second,
 
 		// Debug: true,
 		// Debugf: func(format string, v ...any) {
