@@ -163,6 +163,12 @@ func (f *mockAttemptFactory) WithStatus(status string) func(*models.Attempt) {
 	}
 }
 
+func (f *mockAttemptFactory) WithCode(code string) func(*models.Attempt) {
+	return func(attempt *models.Attempt) {
+		attempt.Code = code
+	}
+}
+
 func (f *mockAttemptFactory) WithTime(time time.Time) func(*models.Attempt) {
 	return func(attempt *models.Attempt) {
 		attempt.Time = time

@@ -18,6 +18,7 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
@@ -413,17 +414,20 @@ func newDestinationDisabler(tenantStore tenantstore.TenantStore) alert.Destinati
 	}
 }
 
-func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) error {
+func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) (models.Destination, error) {
 	destination, err := d.tenantStore.RetrieveDestination(ctx, tenantID, destinationID)
 	if err != nil {
-		return err
+		return models.Destination{}, err
 	}
 	if destination == nil {
-		return nil
+		return models.Destination{}, fmt.Errorf("destination not found")
 	}
 	now := time.Now()
 	destination.DisabledAt = &now
-	return d.tenantStore.UpsertDestination(ctx, *destination)
+	if err := d.tenantStore.UpsertDestination(ctx, *destination); err != nil {
+		return models.Destination{}, err
+	}
+	return *destination, nil
 }
 
 // Helper methods for serviceInstance to initialize common dependencies

@@ -272,7 +272,7 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 		return &PostDeliveryError{err: logErr}
 	}
 
-	go h.handleAlertAttempt(ctx, task, destination, attempt, err)
+	go h.handleAlertAttempt(ctx, destination, &task.Event, attempt)
 
 	// If we have an AttemptError, return it as is
 	var atmErr *AttemptError
@@ -294,47 +294,18 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 	return nil
 }
 
-func (h *messageHandler) handleAlertAttempt(ctx context.Context, task *models.DeliveryTask, destination *models.Destination, attemptResult *models.Attempt, err error) {
-	alertAttempt := alert.DeliveryAttempt{
-		Success:      attemptResult.Status == models.AttemptStatusSuccess,
-		DeliveryTask: task,
-		Destination: &alert.AlertDestination{
-			ID:         destination.ID,
-			TenantID:   destination.TenantID,
-			Type:       destination.Type,
-			Topics:     destination.Topics,
-			Config:     destination.Config,
-			CreatedAt:  destination.CreatedAt,
-			DisabledAt: destination.DisabledAt,
-		},
-		Timestamp: attemptResult.Time,
+func (h *messageHandler) handleAlertAttempt(ctx context.Context, destination *models.Destination, event *models.Event, attempt *models.Attempt) {
+	da := alert.DeliveryAttempt{
+		Event:       event,
+		Destination: alert.AlertDestinationFromDestination(destination),
+		Attempt:     attempt,
 	}
 
-	if !alertAttempt.Success && err != nil {
-		// Extract attempt data if available
-		var atmErr *AttemptError
-		if errors.As(err, &atmErr) {
-			var pubErr *destregistry.ErrDestinationPublishAttempt
-			if errors.As(atmErr.err, &pubErr) {
-				alertAttempt.DeliveryResponse = pubErr.Data
-			} else {
-				alertAttempt.DeliveryResponse = map[string]interface{}{
-					"error": atmErr.err.Error(),
-				}
-			}
-		} else {
-			alertAttempt.DeliveryResponse = map[string]interface{}{
-				"error":   "unexpected",
-				"message": err.Error(),
-			}
-		}
-	}
-
-	if monitorErr := h.alertMonitor.HandleAttempt(ctx, alertAttempt); monitorErr != nil {
+	if monitorErr := h.alertMonitor.HandleAttempt(ctx, da); monitorErr != nil {
 		h.logger.Ctx(ctx).Error("failed to handle alert attempt",
 			zap.Error(monitorErr),
-			zap.String("attempt_id", attemptResult.ID),
-			zap.String("event_id", task.Event.ID),
+			zap.String("attempt_id", attempt.ID),
+			zap.String("event_id", event.ID),
 			zap.String("tenant_id", destination.TenantID),
 			zap.String("destination_id", destination.ID),
 			zap.String("destination_type", destination.Type))
@@ -342,8 +313,8 @@ func (h *messageHandler) handleAlertAttempt(ctx context.Context, task *models.De
 	}
 
 	h.logger.Ctx(ctx).Info("alert attempt handled",
-		zap.String("attempt_id", attemptResult.ID),
-		zap.String("event_id", task.Event.ID),
+		zap.String("attempt_id", attempt.ID),
+		zap.String("event_id", event.ID),
 		zap.String("tenant_id", destination.TenantID),
 		zap.String("destination_id", destination.ID),
 		zap.String("destination_type", destination.Type))
