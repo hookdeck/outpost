@@ -199,6 +199,10 @@ export function App() {
   );
 }
 
+function getRedirectURL() {
+  return CONFIGS.REFRESH_URL || CONFIGS.REFERER_URL;
+}
+
 function useToken() {
   const [token, setToken] = useState(sessionStorage.getItem("token"));
 
@@ -216,7 +220,7 @@ function useToken() {
   }, []);
 
   if (!token) {
-    window.location.replace(CONFIGS.REFERER_URL);
+    window.location.replace(getRedirectURL());
     return;
   }
 
@@ -241,7 +245,7 @@ function useTenant(token?: string): TenantResponse | undefined {
         headers: { Authorization: `Bearer ${token}` },
       }).then((res) => {
         if (!res.ok) {
-          window.location.replace(CONFIGS.REFERER_URL);
+          window.location.replace(getRedirectURL());
           throw new Error("Failed to fetch tenant");
         }
         return res.json();
