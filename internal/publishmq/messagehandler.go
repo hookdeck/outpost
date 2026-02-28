@@ -29,6 +29,12 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 		msg.Nack()
 		return err
 	}
+	// json.RawMessage("null") is non-nil, so null data slips past unmarshaling.
+	// Reject it explicitly since destinations would receive a null body.
+	if string(publishedEvent.Data) == "null" || !json.Valid(publishedEvent.Data) {
+		msg.Nack()
+		return ErrInvalidData
+	}
 	event := publishedEvent.toEvent()
 	_, err := h.eventHandler.Handle(ctx, &event)
 	if err != nil {

@@ -40,6 +40,16 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
+	// json.RawMessage("null") is non-nil, so gin's binding:"required" won't
+	// catch "data": null. We need to reject it explicitly here.
+	if string(publishedEvent.Data) == "null" || !json.Valid(publishedEvent.Data) {
+		AbortWithValidationError(c, ErrorResponse{
+			Code:    http.StatusUnprocessableEntity,
+			Message: "validation error",
+			Data:    []string{"data must be a valid JSON object"},
+		})
+		return
+	}
 	event := publishedEvent.toEvent()
 	result, err := h.eventHandler.Handle(c.Request.Context(), &event)
 	if err != nil {

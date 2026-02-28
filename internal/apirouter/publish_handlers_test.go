@@ -88,6 +88,18 @@ func TestAPI_Publish(t *testing.T) {
 			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 		})
 
+		t.Run("null data returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
+				"tenant_id": "t1",
+				"data":      nil,
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
 		t.Run("no body returns 400", func(t *testing.T) {
 			h := newAPITest(t)
 
