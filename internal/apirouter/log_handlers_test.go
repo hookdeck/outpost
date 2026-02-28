@@ -934,7 +934,7 @@ func TestAPI_Attempts(t *testing.T) {
 
 			e := ef.AnyPointer(
 				ef.WithID("e1"), ef.WithTenantID("t1"),
-				ef.WithData(map[string]any{"key": "val"}),
+				ef.WithDataMap(map[string]any{"key": "val"}),
 			)
 			a := attemptForEvent(e, af.WithID("a1"))
 			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{

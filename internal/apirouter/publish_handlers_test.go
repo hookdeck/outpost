@@ -367,7 +367,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			require.Equal(t, http.StatusAccepted, resp.Code)
 			require.Len(t, h.eventHandler.calls, 1)
-			assert.Equal(t, "bar", h.eventHandler.calls[0].Data["foo"])
+			assert.JSONEq(t, `{"foo":"bar"}`, string(h.eventHandler.calls[0].Data))
 		})
 	})
 }

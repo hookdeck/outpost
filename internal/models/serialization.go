@@ -22,8 +22,8 @@ var _ encoding.BinaryMarshaler = &MapStringString{}
 var _ encoding.BinaryUnmarshaler = &MapStringString{}
 var _ json.Unmarshaler = &MapStringString{}
 
-var _ fmt.Stringer = &Data{}
-var _ encoding.BinaryUnmarshaler = &Data{}
+// Data is a type alias for json.RawMessage — no interface assertions needed.
+// json.RawMessage implements json.Marshaler and json.Unmarshaler natively.
 
 // ============================== Topics serialization ==============================
 
@@ -132,22 +132,9 @@ func (m *MapStringString) UnmarshalJSON(data []byte) error {
 
 // ============================== Data ==============================
 
-type Data map[string]interface{}
-
-func (d *Data) String() string {
-	data, err := json.Marshal(d)
-	if err != nil {
-		return ""
-	}
-	return string(data)
-}
-
-func (d *Data) UnmarshalBinary(data []byte) error {
-	if string(data) == "" {
-		return nil
-	}
-	return json.Unmarshal(data, d)
-}
+// Data holds the event payload as raw JSON bytes so that key order,
+// whitespace and numeric precision survive every serialisation hop.
+type Data = json.RawMessage
 
 // ============================== Metadata ==============================
 

@@ -143,11 +143,7 @@ type GCPPubSubPublisher struct {
 }
 
 func (pub *GCPPubSubPublisher) Format(ctx context.Context, event *models.Event) (*pubsub.Message, error) {
-	// Marshal event data to JSON
-	dataBytes, err := json.Marshal(event.Data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal event data: %w", err)
-	}
+	dataBytes := []byte(event.Data)
 
 	// Create metadata
 	metadata := pub.BasePublisher.MakeMetadata(event, time.Now())

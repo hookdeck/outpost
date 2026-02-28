@@ -2,6 +2,7 @@ package drivertest
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -32,7 +33,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Time:     time.Now(),
 				TenantID: data.tenant.ID,
 				Metadata: map[string]string{},
-				Data:     map[string]interface{}{},
+				Data:     json.RawMessage(`{}`),
 			}
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)
@@ -50,7 +51,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				TenantID:      data.tenant.ID,
 				DestinationID: data.destinations[1].ID,
 				Metadata:      map[string]string{},
-				Data:          map[string]interface{}{},
+				Data:          json.RawMessage(`{}`),
 			}
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)
@@ -65,7 +66,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				TenantID:      data.tenant.ID,
 				DestinationID: "not-found",
 				Metadata:      map[string]string{},
-				Data:          map[string]interface{}{},
+				Data:          json.RawMessage(`{}`),
 			}
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)
@@ -80,7 +81,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				TenantID:      data.tenant.ID,
 				DestinationID: data.destinations[3].ID, // user.deleted
 				Metadata:      map[string]string{},
-				Data:          map[string]interface{}{},
+				Data:          json.RawMessage(`{}`),
 			}
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)
@@ -107,7 +108,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Time:     time.Now(),
 				TenantID: data.tenant.ID,
 				Metadata: map[string]string{},
-				Data:     map[string]interface{}{},
+				Data:     json.RawMessage(`{}`),
 			}
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)
@@ -120,7 +121,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Time:     time.Now(),
 				TenantID: data.tenant.ID,
 				Metadata: map[string]string{},
-				Data:     map[string]interface{}{},
+				Data:     json.RawMessage(`{}`),
 			}
 			matched, err = store.MatchEvent(ctx, event)
 			require.NoError(t, err)
@@ -187,7 +188,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Topic:    "order",
 				Time:     time.Now(),
 				Metadata: map[string]string{},
-				Data:     map[string]interface{}{"type": "order.created"},
+				Data:     json.RawMessage(`{"type":"order.created"}`),
 			}
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)
@@ -203,13 +204,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Topic:    "order",
 				Time:     time.Now(),
 				Metadata: map[string]string{},
-				Data: map[string]interface{}{
-					"type": "order.created",
-					"customer": map[string]interface{}{
-						"id":   "cust_123",
-						"tier": "premium",
-					},
-				},
+				Data:     json.RawMessage(`{"type":"order.created","customer":{"id":"cust_123","tier":"premium"}}`),
 			}
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)
@@ -236,7 +231,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Topic:    "order",
 				Time:     time.Now(),
 				Metadata: map[string]string{},
-				Data:     map[string]interface{}{"type": "order.created"},
+				Data:     json.RawMessage(`{"type":"order.created"}`),
 			}
 			matched, err := store.MatchEvent(ctx, event)
 			require.NoError(t, err)

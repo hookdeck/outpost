@@ -284,7 +284,7 @@ func TestHookdeckProvider_WithClientOption(t *testing.T) {
 	event := testutil.EventFactory.Any(
 		testutil.EventFactory.WithID("event123"),
 		testutil.EventFactory.WithTopic("order.created"),
-		testutil.EventFactory.WithData(map[string]interface{}{
+		testutil.EventFactory.WithDataMap(map[string]interface{}{
 			"order_id": "test123",
 		}),
 	)
@@ -323,7 +323,7 @@ func TestHookdeckPublisher_DirectClientOption(t *testing.T) {
 	event := testutil.EventFactory.Any(
 		testutil.EventFactory.WithID("event123"),
 		testutil.EventFactory.WithTopic("order.created"),
-		testutil.EventFactory.WithData(map[string]interface{}{
+		testutil.EventFactory.WithDataMap(map[string]interface{}{
 			"order_id": "test123",
 		}),
 	)

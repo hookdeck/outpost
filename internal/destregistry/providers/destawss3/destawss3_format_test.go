@@ -26,7 +26,7 @@ func TestAWSS3Publisher_Format_DefaultTemplate(t *testing.T) {
 		Metadata: map[string]string{
 			"meta_key": "meta_value",
 		},
-		Data: map[string]interface{}{"hello": "world"},
+		Data: json.RawMessage(`{"hello":"world"}`),
 	}
 
 	// Use default template
@@ -66,7 +66,7 @@ func TestAWSS3Publisher_Format_DatePartitionTemplate(t *testing.T) {
 		ID:    "event-123",
 		Time:  fixedTime,
 		Topic: "user.created",
-		Data:  map[string]interface{}{"user_id": "user-456"},
+		Data:  json.RawMessage(`{"user_id":"user-456"}`),
 	}
 
 	// Use date partitioning template
@@ -91,7 +91,7 @@ func TestAWSS3Publisher_Format_TopicBasedTemplate(t *testing.T) {
 		ID:    "event-123",
 		Time:  time.Now(),
 		Topic: "user.created",
-		Data:  map[string]interface{}{"user_id": "user-456"},
+		Data:  json.RawMessage(`{"user_id":"user-456"}`),
 	}
 
 	// Use topic-based organization
@@ -115,10 +115,7 @@ func TestAWSS3Publisher_Format_DataFieldTemplate(t *testing.T) {
 	event := models.Event{
 		ID:   "event-123",
 		Time: time.Now(),
-		Data: map[string]interface{}{
-			"user_id": "user-456",
-			"action":  "login",
-		},
+		Data: json.RawMessage(`{"user_id":"user-456","action":"login"}`),
 	}
 
 	// Use data fields in template
@@ -148,11 +145,7 @@ func TestAWSS3Publisher_Format_ComplexTemplate(t *testing.T) {
 			"region": "us-west-2",
 			"env":    "production",
 		},
-		Data: map[string]interface{}{
-			"order_id":    "order-789",
-			"customer_id": "cust-456",
-			"amount":      99.99,
-		},
+		Data: json.RawMessage(`{"order_id":"order-789","customer_id":"cust-456","amount":99.99}`),
 	}
 
 	// Complex template with multiple fields
@@ -188,7 +181,7 @@ func TestAWSS3Publisher_Format_NilResult(t *testing.T) {
 	event := models.Event{
 		ID:   "event-123",
 		Time: time.Now(),
-		Data: map[string]interface{}{},
+		Data: json.RawMessage(`{}`),
 	}
 
 	// Template that accesses non-existent field
@@ -210,9 +203,7 @@ func TestAWSS3Publisher_Format_EmptyResult(t *testing.T) {
 	event := models.Event{
 		ID:   "event-123",
 		Time: time.Now(),
-		Data: map[string]interface{}{
-			"empty": "",
-		},
+		Data: json.RawMessage(`{"empty":""}`),
 	}
 
 	// Template that returns empty string
@@ -234,9 +225,7 @@ func TestAWSS3Publisher_Format_NumericResult(t *testing.T) {
 	event := models.Event{
 		ID:   "event-123",
 		Time: time.Now(),
-		Data: map[string]interface{}{
-			"count": 42,
-		},
+		Data: json.RawMessage(`{"count":42}`),
 	}
 
 	// Template that returns a number
@@ -258,9 +247,7 @@ func TestAWSS3Publisher_Format_BooleanResult(t *testing.T) {
 	event := models.Event{
 		ID:   "event-123",
 		Time: time.Now(),
-		Data: map[string]interface{}{
-			"active": true,
-		},
+		Data: json.RawMessage(`{"active":true}`),
 	}
 
 	// Template that returns a boolean
@@ -283,7 +270,7 @@ func TestAWSS3Publisher_Format_TimeFields(t *testing.T) {
 	event := models.Event{
 		ID:   "event-123",
 		Time: fixedTime,
-		Data: map[string]interface{}{},
+		Data: json.RawMessage(`{}`),
 	}
 
 	tests := []struct {
@@ -351,7 +338,7 @@ func TestAWSS3Publisher_Format_LegacyPatterns(t *testing.T) {
 		ID:    "event-123",
 		Time:  fixedTime,
 		Topic: "user.created",
-		Data:  map[string]interface{}{"user_id": "user-456"},
+		Data:  json.RawMessage(`{"user_id":"user-456"}`),
 	}
 
 	tests := []struct {

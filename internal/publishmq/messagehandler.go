@@ -40,14 +40,14 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 }
 
 type PublishedEvent struct {
-	ID               string                 `json:"id"`
-	TenantID         string                 `json:"tenant_id" binding:"required"`
-	DestinationID    string                 `json:"destination_id"`
-	Topic            string                 `json:"topic"`
-	EligibleForRetry *bool                  `json:"eligible_for_retry"`
-	Time             time.Time              `json:"time"`
-	Metadata         map[string]string      `json:"metadata"`
-	Data             map[string]interface{} `json:"data"`
+	ID               string            `json:"id"`
+	TenantID         string            `json:"tenant_id" binding:"required"`
+	DestinationID    string            `json:"destination_id"`
+	Topic            string            `json:"topic"`
+	EligibleForRetry *bool             `json:"eligible_for_retry"`
+	Time             time.Time         `json:"time"`
+	Metadata         map[string]string `json:"metadata"`
+	Data             json.RawMessage   `json:"data"`
 }
 
 func (p *PublishedEvent) toEvent() models.Event {

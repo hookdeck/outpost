@@ -43,10 +43,10 @@ func NotifierWithBearerToken(token string) NotifierOption {
 }
 
 type AlertedEvent struct {
-	ID       string                 `json:"id"`
-	Topic    string                 `json:"topic"`    // event topic
-	Metadata map[string]string      `json:"metadata"` // event metadata
-	Data     map[string]interface{} `json:"data"`     // event payload
+	ID       string            `json:"id"`
+	Topic    string            `json:"topic"`    // event topic
+	Metadata map[string]string `json:"metadata"` // event metadata
+	Data     json.RawMessage   `json:"data"`     // event payload
 }
 
 type AlertDestination struct {

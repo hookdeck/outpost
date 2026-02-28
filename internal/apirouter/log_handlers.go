@@ -1,6 +1,7 @@
 package apirouter
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -112,26 +113,26 @@ type APIEventSummary struct {
 
 // APIEventFull is the event object when expand=event.data
 type APIEventFull struct {
-	ID               string                 `json:"id"`
-	TenantID         string                 `json:"tenant_id"`
-	DestinationID    string                 `json:"destination_id"`
-	Topic            string                 `json:"topic"`
-	Time             time.Time              `json:"time"`
-	EligibleForRetry bool                   `json:"eligible_for_retry"`
-	Metadata         map[string]string      `json:"metadata,omitempty"`
-	Data             map[string]interface{} `json:"data,omitempty"`
+	ID               string            `json:"id"`
+	TenantID         string            `json:"tenant_id"`
+	DestinationID    string            `json:"destination_id"`
+	Topic            string            `json:"topic"`
+	Time             time.Time         `json:"time"`
+	EligibleForRetry bool              `json:"eligible_for_retry"`
+	Metadata         map[string]string `json:"metadata,omitempty"`
+	Data             json.RawMessage   `json:"data,omitempty"`
 }
 
 // APIEvent is the API response for retrieving a single event
 type APIEvent struct {
-	ID               string                 `json:"id"`
-	TenantID         string                 `json:"tenant_id"`
-	DestinationID    string                 `json:"destination_id"`
-	Topic            string                 `json:"topic"`
-	Time             time.Time              `json:"time"`
-	EligibleForRetry bool                   `json:"eligible_for_retry"`
-	Metadata         map[string]string      `json:"metadata,omitempty"`
-	Data             map[string]interface{} `json:"data,omitempty"`
+	ID               string            `json:"id"`
+	TenantID         string            `json:"tenant_id"`
+	DestinationID    string            `json:"destination_id"`
+	Topic            string            `json:"topic"`
+	Time             time.Time         `json:"time"`
+	EligibleForRetry bool              `json:"eligible_for_retry"`
+	Metadata         map[string]string `json:"metadata,omitempty"`
+	Data             json.RawMessage   `json:"data,omitempty"`
 }
 
 // AttemptPaginatedResult is the paginated response for listing attempts.

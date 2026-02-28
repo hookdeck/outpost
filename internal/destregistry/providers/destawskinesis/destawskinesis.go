@@ -225,9 +225,12 @@ func (p *AWSKinesisPublisher) Format(ctx context.Context, event *models.Event) (
 	var err error
 
 	// Convert data to a map[string]interface{} for JMESPath
-	dataMap := make(map[string]interface{})
-	for k, v := range event.Data {
-		dataMap[k] = v
+	dataMap, err := event.ParsedData()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse event data: %w", err)
+	}
+	if dataMap == nil {
+		dataMap = make(map[string]interface{})
 	}
 
 	if p.metadataInPayload {

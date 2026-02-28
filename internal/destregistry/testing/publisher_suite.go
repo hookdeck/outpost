@@ -133,17 +133,8 @@ func (s *PublisherSuite) TearDownTest() {
 
 // verifyMessage performs base message verification and calls provider-specific assertions
 func (s *PublisherSuite) verifyMessage(msg Message, event models.Event) {
-	// Base verification of data and metadata
-	var body map[string]interface{}
-	err := json.Unmarshal(msg.Data, &body)
-	s.Require().NoError(err, "failed to unmarshal message data")
-
-	// Compare data by converting both to JSON first to handle type differences
-	eventDataJSON, err := json.Marshal(event.Data)
-	s.Require().NoError(err, "failed to marshal event data")
-	msgDataJSON, err := json.Marshal(body)
-	s.Require().NoError(err, "failed to marshal message data")
-	s.Require().JSONEq(string(eventDataJSON), string(msgDataJSON), "message data mismatch")
+	// Base verification of data
+	s.Require().JSONEq(string(event.Data), string(msg.Data), "message data mismatch")
 
 	// Verify that system metadata is present (these should always be included)
 	s.Require().NotEmpty(msg.Metadata["timestamp"], "system metadata 'timestamp' should be present")
@@ -168,7 +159,7 @@ func (s *PublisherSuite) verifyMessage(msg Message, event models.Event) {
 
 func (s *PublisherSuite) TestBasicPublish() {
 	event := testutil.EventFactory.Any(
-		testutil.EventFactory.WithData(map[string]interface{}{
+		testutil.EventFactory.WithDataMap(map[string]interface{}{
 			"test_key": "test_value",
 		}),
 		testutil.EventFactory.WithMetadata(map[string]string{
@@ -202,7 +193,7 @@ func (s *PublisherSuite) TestPublishWithDeliveryMetadata() {
 	defer pub.Close()
 
 	event := testutil.EventFactory.Any(
-		testutil.EventFactory.WithData(map[string]interface{}{
+		testutil.EventFactory.WithDataMap(map[string]interface{}{
 			"test_key": "test_value",
 		}),
 		testutil.EventFactory.WithMetadata(map[string]string{
@@ -233,7 +224,7 @@ func (s *PublisherSuite) TestConcurrentPublish() {
 	events := make([]models.Event, numMessages)
 	for i := 0; i < numMessages; i++ {
 		events[i] = testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{
+			testutil.EventFactory.WithDataMap(map[string]interface{}{
 				"message_id": i,
 			}),
 		)
@@ -318,7 +309,7 @@ func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
 			case <-ticker.C:
 				totalAttempts.Add(1)
 				event := testutil.EventFactory.Any(
-					testutil.EventFactory.WithData(map[string]interface{}{
+					testutil.EventFactory.WithDataMap(map[string]interface{}{
 						"message_id": messageID,
 					}),
 				)

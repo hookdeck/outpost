@@ -113,7 +113,7 @@ func TestCreateRequest(t *testing.T) {
 	event := testutil.EventFactory.AnyPointer(
 		testutil.EventFactory.WithID("event123"),
 		testutil.EventFactory.WithTopic("order.created"),
-		testutil.EventFactory.WithData(map[string]interface{}{
+		testutil.EventFactory.WithDataMap(map[string]interface{}{
 			"order_id": "1234567890",
 			"amount":   100.50,
 			"currency": "USD",

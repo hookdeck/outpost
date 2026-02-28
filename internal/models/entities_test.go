@@ -324,7 +324,7 @@ func TestMatchFilter(t *testing.T) {
 			"user_id":    "user_456",
 			"request_id": "req_789",
 		}),
-		testutil.EventFactory.WithData(map[string]interface{}{
+		testutil.EventFactory.WithDataMap(map[string]interface{}{
 			"type":   "order.created",
 			"amount": float64(100),
 			"customer": map[string]any{
@@ -725,4 +725,67 @@ func TestTenant_JSONMarshalWithUpdatedAt(t *testing.T) {
 	// Verify updated_at is preserved
 	assert.Equal(t, tenant.UpdatedAt.Unix(), unmarshaled.UpdatedAt.Unix())
 	assert.Equal(t, tenant.CreatedAt.Unix(), unmarshaled.CreatedAt.Unix())
+}
+
+// ============================== Event Data (json.RawMessage) tests ==============================
+
+func TestEvent_JSONRoundTrip_PreservesKeyOrder(t *testing.T) {
+	t.Parallel()
+
+	// Keys are deliberately NOT alphabetical — if json.Marshal alphabetises
+	// them, the assertion will fail.
+	rawData := json.RawMessage(`{"zebra":1,"alpha":2,"mango":3}`)
+
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithData(rawData),
+	)
+
+	// Marshal the full event to JSON
+	marshaled, err := json.Marshal(event)
+	assert.NoError(t, err)
+
+	// Unmarshal back into a new Event
+	var roundTripped models.Event
+	err = json.Unmarshal(marshaled, &roundTripped)
+	assert.NoError(t, err)
+
+	// The raw bytes of Data should be identical (not alphabetised)
+	assert.JSONEq(t, string(rawData), string(roundTripped.Data))
+	// Strict byte-level check: key order must be preserved
+	assert.Contains(t, string(roundTripped.Data), `"zebra":1,"alpha":2,"mango":3`)
+}
+
+func TestEvent_ParsedData_ReturnsCorrectMap(t *testing.T) {
+	t.Parallel()
+
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithData(json.RawMessage(`{"a":1,"b":"two"}`)),
+	)
+
+	parsed, err := event.ParsedData()
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]any{"a": float64(1), "b": "two"}, parsed)
+}
+
+func TestEvent_ParsedData_InvalidJSON_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithData(json.RawMessage(`not-json`)),
+	)
+
+	parsed, err := event.ParsedData()
+	assert.Error(t, err)
+	assert.Nil(t, parsed)
+}
+
+func TestEvent_ParsedData_NilData_ReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	event := testutil.EventFactory.Any()
+	event.Data = nil
+
+	parsed, err := event.ParsedData()
+	assert.NoError(t, err)
+	assert.Nil(t, parsed)
 }

@@ -221,16 +221,10 @@ func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
 		}
 
 		var metadata map[string]string
-		var data map[string]any
 
 		if metadataStr != "" {
 			if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
 				return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-			}
-		}
-		if dataStr != "" {
-			if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal data: %w", err)
 			}
 		}
 
@@ -242,7 +236,7 @@ func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
 				Topic:            topic,
 				EligibleForRetry: eligibleForRetry,
 				Time:             eventTime,
-				Data:             data,
+				Data:             json.RawMessage(dataStr),
 				Metadata:         metadata,
 			},
 			eventTime: eventTime,
@@ -462,17 +456,11 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 		}
 
 		var metadata map[string]string
-		var data map[string]any
 		var responseData map[string]any
 
 		if metadataStr != "" {
 			if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
 				return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-			}
-		}
-		if dataStr != "" {
-			if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal data: %w", err)
 			}
 		}
 		if responseDataStr != "" {
@@ -502,7 +490,7 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 					Topic:            topic,
 					EligibleForRetry: eligibleForRetry,
 					Time:             eventTime,
-					Data:             data,
+					Data:             json.RawMessage(dataStr),
 					Metadata:         metadata,
 				},
 			},
@@ -660,17 +648,11 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 	}
 
 	var metadata map[string]string
-	var data map[string]any
 	var responseData map[string]any
 
 	if metadataStr != "" {
 		if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-		}
-	}
-	if dataStr != "" {
-		if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal data: %w", err)
 		}
 	}
 	if responseDataStr != "" {
@@ -699,7 +681,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 			Topic:            topic,
 			EligibleForRetry: eligibleForRetry,
 			Time:             eventTime,
-			Data:             data,
+			Data:             json.RawMessage(dataStr),
 			Metadata:         metadata,
 		},
 	}, nil
@@ -731,11 +713,6 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 			if err != nil {
 				return fmt.Errorf("failed to marshal metadata: %w", err)
 			}
-			dataJSON, err := json.Marshal(e.Data)
-			if err != nil {
-				return fmt.Errorf("failed to marshal data: %w", err)
-			}
-
 			if err := eventBatch.Append(
 				e.ID,
 				e.TenantID,
@@ -744,7 +721,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 				e.EligibleForRetry,
 				e.Time,
 				string(metadataJSON),
-				string(dataJSON),
+				string(e.Data),
 			); err != nil {
 				return fmt.Errorf("events batch append failed: %w", err)
 			}
@@ -774,10 +751,6 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 		if err != nil {
 			return fmt.Errorf("failed to marshal metadata: %w", err)
 		}
-		dataJSON, err := json.Marshal(event.Data)
-		if err != nil {
-			return fmt.Errorf("failed to marshal data: %w", err)
-		}
 		responseDataJSON, err := json.Marshal(a.ResponseData)
 		if err != nil {
 			return fmt.Errorf("failed to marshal response_data: %w", err)
@@ -791,7 +764,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 			event.EligibleForRetry,
 			event.Time,
 			string(metadataJSON),
-			string(dataJSON),
+			string(event.Data),
 			a.ID,
 			a.Status,
 			a.Time,
