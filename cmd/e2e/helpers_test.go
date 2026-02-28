@@ -66,6 +66,7 @@ type mockServerEvent struct {
 	Success  bool                   `json:"success"`
 	Verified bool                   `json:"verified"`
 	Payload  map[string]interface{} `json:"payload"`
+	RawBody  string                 `json:"raw_body"`
 }
 
 // =============================================================================
@@ -263,7 +264,7 @@ func (s *basicSuite) createWebhookDestination(tenantID, topic string, opts ...de
 }
 
 // publish publishes an event.
-func (s *basicSuite) publish(tenantID, topic string, data map[string]any, opts ...publishOpt) publishResponse {
+func (s *basicSuite) publish(tenantID, topic string, data any, opts ...publishOpt) publishResponse {
 	s.T().Helper()
 
 	o := publishOpts{}

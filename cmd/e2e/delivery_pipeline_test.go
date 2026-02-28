@@ -1,6 +1,8 @@
 package e2e_test
 
 import (
+	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/idgen"
@@ -184,4 +186,28 @@ func (s *basicSuite) TestDeliveryPipeline_EnableAfterDisableResumesDelivery() {
 	events := s.waitForNewMockServerEvents(dest.mockID, 1)
 	s.Require().Len(events, 1)
 	s.Equal("post_enable", events[0].Payload["event_id"])
+}
+
+func (s *basicSuite) TestDeliveryPipeline_PreservesJsonKeyOrder() {
+	tenant := s.createTenant()
+	dest := s.createWebhookDestination(tenant.ID, "*")
+
+	// Publish with a specific key order: zebra, alpha, mango
+	s.publish(tenant.ID, "user.created", json.RawMessage(`{"zebra":1,"alpha":2,"mango":3}`))
+
+	events := s.waitForNewMockServerEvents(dest.mockID, 1)
+	s.Require().Len(events, 1)
+
+	// The raw body should preserve the original key order
+	rawBody := events[0].RawBody
+	zebraIdx := strings.Index(rawBody, `"zebra"`)
+	alphaIdx := strings.Index(rawBody, `"alpha"`)
+	mangoIdx := strings.Index(rawBody, `"mango"`)
+
+	s.Require().NotEqual(-1, zebraIdx, "zebra key not found in raw body: %s", rawBody)
+	s.Require().NotEqual(-1, alphaIdx, "alpha key not found in raw body: %s", rawBody)
+	s.Require().NotEqual(-1, mangoIdx, "mango key not found in raw body: %s", rawBody)
+
+	s.Less(zebraIdx, alphaIdx, "zebra should appear before alpha in raw body: %s", rawBody)
+	s.Less(alphaIdx, mangoIdx, "alpha should appear before mango in raw body: %s", rawBody)
 }
