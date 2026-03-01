@@ -67,14 +67,14 @@ func TestAPI_Retry(t *testing.T) {
 	})
 
 	t.Run("Validation", func(t *testing.T) {
-		t.Run("no body returns 400", func(t *testing.T) {
+		t.Run("no body returns 422", func(t *testing.T) {
 			h := setup(t)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/retry", nil)
 			req.Header.Set("Content-Type", "application/json")
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusBadRequest, resp.Code)
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 		})
 
 		t.Run("empty JSON returns 422", func(t *testing.T) {
