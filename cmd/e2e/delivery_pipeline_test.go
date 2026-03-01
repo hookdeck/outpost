@@ -189,49 +189,51 @@ func (s *basicSuite) TestDeliveryPipeline_EnableAfterDisableResumesDelivery() {
 	s.Equal("post_enable", events[0].Payload["event_id"])
 }
 
-func (s *basicSuite) TestDeliveryPipeline_PreservesJsonKeyOrder() {
-	tenant := s.createTenant()
-	dest := s.createWebhookDestination(tenant.ID, "*")
+func (s *basicSuite) TestDeliveryPipeline_PreservesPayloadKeyOrder() {
+	s.Run("delivery preserves key order", func() {
+		tenant := s.createTenant()
+		dest := s.createWebhookDestination(tenant.ID, "*")
 
-	eventID := idgen.Event()
-	// Publish with a specific key order: zebra, alpha, mango
-	s.publish(tenant.ID, "user.created", json.RawMessage(`{"zebra":1,"alpha":2,"mango":3}`), withEventID(eventID))
+		s.publish(tenant.ID, "user.created", json.RawMessage(`{"zebra":1,"alpha":2,"mango":3}`))
 
-	events := s.waitForNewMockServerEvents(dest.mockID, 1)
-	s.Require().Len(events, 1)
+		events := s.waitForNewMockServerEvents(dest.mockID, 1)
+		s.assertKeyOrder(events[0].RawBody, "delivery raw body")
+	})
 
-	// The raw body should preserve the original key order
-	s.assertKeyOrder(events[0].RawBody, "delivery raw body")
+	s.Run("logstore preserves key order", func() {
+		tenant := s.createTenant()
+		dest := s.createWebhookDestination(tenant.ID, "*")
 
-	// Verify logstore also preserves key order
-	eventBody := s.waitForEventInLogstore(eventID)
-	s.assertKeyOrder(string(eventBody), "logstore event response")
-}
+		eventID := idgen.Event()
+		s.publish(tenant.ID, "user.created", json.RawMessage(`{"zebra":1,"alpha":2,"mango":3}`), withEventID(eventID))
 
-func (s *basicSuite) TestDeliveryPipeline_RetryPreservesJsonKeyOrder() {
-	tenant := s.createTenant()
-	dest := s.createWebhookDestination(tenant.ID, "*")
+		// Wait for delivery to complete so logstore has the event
+		s.waitForNewMockServerEvents(dest.mockID, 1)
 
-	eventID := idgen.Event()
-	s.publish(tenant.ID, "user.created", json.RawMessage(`{"zebra":1,"alpha":2,"mango":3}`), withEventID(eventID))
+		eventBody := s.waitForEventInLogstore(eventID)
+		s.assertKeyOrder(string(eventBody), "logstore event response")
+	})
 
-	// Wait for initial delivery
-	s.waitForNewMockServerEvents(dest.mockID, 1)
-	s.waitForNewAttempts(tenant.ID, 1)
+	s.Run("retry preserves key order", func() {
+		tenant := s.createTenant()
+		dest := s.createWebhookDestination(tenant.ID, "*")
 
-	// Clear old events so we can isolate the retry delivery
-	s.clearMockServerEvents(dest.mockID)
+		eventID := idgen.Event()
+		s.publish(tenant.ID, "user.created", json.RawMessage(`{"zebra":1,"alpha":2,"mango":3}`), withEventID(eventID))
 
-	// Manual retry
-	retryStatus := s.retryEvent(eventID, dest.ID)
-	s.Require().Equal(http.StatusAccepted, retryStatus)
+		// Wait for initial delivery
+		s.waitForNewMockServerEvents(dest.mockID, 1)
+		s.waitForNewAttempts(tenant.ID, 1)
 
-	// Wait for retried delivery
-	events := s.waitForNewMockServerEvents(dest.mockID, 1)
-	s.Require().Len(events, 1)
+		// Clear so we only see the retry delivery
+		s.clearMockServerEvents(dest.mockID)
 
-	// Retried delivery should preserve key order
-	s.assertKeyOrder(events[0].RawBody, "retried delivery raw body")
+		retryStatus := s.retryEvent(eventID, dest.ID)
+		s.Require().Equal(http.StatusAccepted, retryStatus)
+
+		events := s.waitForNewMockServerEvents(dest.mockID, 1)
+		s.assertKeyOrder(events[0].RawBody, "retried delivery raw body")
+	})
 }
 
 // assertKeyOrder checks that "zebra" appears before "alpha" appears before "mango"
