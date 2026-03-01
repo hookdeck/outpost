@@ -78,7 +78,6 @@ type webhookDestination struct {
 	mockID string // destination ID on mock server
 }
 
-
 // SetSecret updates the mock server's secret for signature verification.
 func (d *webhookDestination) SetSecret(s *basicSuite, secret string) {
 	s.T().Helper()
