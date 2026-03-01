@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"encoding/json"
+	"net/http"
 	"strings"
 	"time"
 
@@ -192,22 +193,59 @@ func (s *basicSuite) TestDeliveryPipeline_PreservesJsonKeyOrder() {
 	tenant := s.createTenant()
 	dest := s.createWebhookDestination(tenant.ID, "*")
 
+	eventID := idgen.Event()
 	// Publish with a specific key order: zebra, alpha, mango
-	s.publish(tenant.ID, "user.created", json.RawMessage(`{"zebra":1,"alpha":2,"mango":3}`))
+	s.publish(tenant.ID, "user.created", json.RawMessage(`{"zebra":1,"alpha":2,"mango":3}`), withEventID(eventID))
 
 	events := s.waitForNewMockServerEvents(dest.mockID, 1)
 	s.Require().Len(events, 1)
 
 	// The raw body should preserve the original key order
-	rawBody := events[0].RawBody
-	zebraIdx := strings.Index(rawBody, `"zebra"`)
-	alphaIdx := strings.Index(rawBody, `"alpha"`)
-	mangoIdx := strings.Index(rawBody, `"mango"`)
+	s.assertKeyOrder(events[0].RawBody, "delivery raw body")
 
-	s.Require().NotEqual(-1, zebraIdx, "zebra key not found in raw body: %s", rawBody)
-	s.Require().NotEqual(-1, alphaIdx, "alpha key not found in raw body: %s", rawBody)
-	s.Require().NotEqual(-1, mangoIdx, "mango key not found in raw body: %s", rawBody)
+	// Verify logstore also preserves key order
+	eventBody := s.waitForEventInLogstore(eventID)
+	s.assertKeyOrder(string(eventBody), "logstore event response")
+}
 
-	s.Less(zebraIdx, alphaIdx, "zebra should appear before alpha in raw body: %s", rawBody)
-	s.Less(alphaIdx, mangoIdx, "alpha should appear before mango in raw body: %s", rawBody)
+func (s *basicSuite) TestDeliveryPipeline_RetryPreservesJsonKeyOrder() {
+	tenant := s.createTenant()
+	dest := s.createWebhookDestination(tenant.ID, "*")
+
+	eventID := idgen.Event()
+	s.publish(tenant.ID, "user.created", json.RawMessage(`{"zebra":1,"alpha":2,"mango":3}`), withEventID(eventID))
+
+	// Wait for initial delivery
+	s.waitForNewMockServerEvents(dest.mockID, 1)
+	s.waitForNewAttempts(tenant.ID, 1)
+
+	// Clear old events so we can isolate the retry delivery
+	s.clearMockServerEvents(dest.mockID)
+
+	// Manual retry
+	retryStatus := s.retryEvent(eventID, dest.ID)
+	s.Require().Equal(http.StatusAccepted, retryStatus)
+
+	// Wait for retried delivery
+	events := s.waitForNewMockServerEvents(dest.mockID, 1)
+	s.Require().Len(events, 1)
+
+	// Retried delivery should preserve key order
+	s.assertKeyOrder(events[0].RawBody, "retried delivery raw body")
+}
+
+// assertKeyOrder checks that "zebra" appears before "alpha" appears before "mango"
+// in the given string, confirming JSON key order is preserved (not alphabetized).
+func (s *basicSuite) assertKeyOrder(body, label string) {
+	s.T().Helper()
+	zebraIdx := strings.Index(body, `"zebra"`)
+	alphaIdx := strings.Index(body, `"alpha"`)
+	mangoIdx := strings.Index(body, `"mango"`)
+
+	s.Require().NotEqual(-1, zebraIdx, "zebra key not found in %s: %s", label, body)
+	s.Require().NotEqual(-1, alphaIdx, "alpha key not found in %s: %s", label, body)
+	s.Require().NotEqual(-1, mangoIdx, "mango key not found in %s: %s", label, body)
+
+	s.Less(zebraIdx, alphaIdx, "zebra should appear before alpha in %s: %s", label, body)
+	s.Less(alphaIdx, mangoIdx, "alpha should appear before mango in %s: %s", label, body)
 }

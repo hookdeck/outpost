@@ -178,6 +178,39 @@ func (s *basicSuite) doJSONWithAuth(method, url string, authHeader string, body 
 	return resp.StatusCode
 }
 
+// doRawGet sends a GET request and returns the raw response body bytes.
+// Useful when JSON key order matters and unmarshaling into map would lose it.
+func (s *basicSuite) doRawGet(url string) (int, []byte) {
+	s.T().Helper()
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	s.Require().NoError(err)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.config.APIKey))
+
+	resp, err := s.httpClient.Do(req)
+	s.Require().NoError(err)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	s.Require().NoError(err)
+	return resp.StatusCode, body
+}
+
+// waitForEventInLogstore polls until the event appears in the logstore API.
+// Returns the raw response body to preserve JSON key order.
+func (s *basicSuite) waitForEventInLogstore(eventID string) []byte {
+	s.T().Helper()
+	deadline := time.Now().Add(attemptPollTimeout)
+	for time.Now().Before(deadline) {
+		status, body := s.doRawGet(s.apiURL("/events/" + eventID))
+		if status == http.StatusOK {
+			return body
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	s.Require().FailNowf("timeout", "timed out waiting for event %s in logstore", eventID)
+	return nil
+}
+
 // apiURL builds a full URL for the outpost API.
 func (s *basicSuite) apiURL(path string) string {
 	return fmt.Sprintf("http://localhost:%d/api/v1%s", s.config.APIPort, path)
