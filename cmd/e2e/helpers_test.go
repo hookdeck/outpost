@@ -78,20 +78,6 @@ type webhookDestination struct {
 	mockID string // destination ID on mock server
 }
 
-// SetResponse reconfigures the mock server to return a specific HTTP status code.
-func (d *webhookDestination) SetResponse(s *basicSuite, status int) {
-	s.T().Helper()
-	s.doJSON(http.MethodPut, s.mockServerURL()+"/destinations", map[string]any{
-		"id":   d.mockID,
-		"type": "webhook",
-		"config": map[string]any{
-			"url": fmt.Sprintf("%s/webhook/%s", s.mockServerURL(), d.mockID),
-		},
-		"response": map[string]any{
-			"status": status,
-		},
-	}, nil)
-}
 
 // SetSecret updates the mock server's secret for signature verification.
 func (d *webhookDestination) SetSecret(s *basicSuite, secret string) {
@@ -259,12 +245,6 @@ func (s *basicSuite) createWebhookDestination(tenantID, topic string, opts ...de
 			"secret": o.secret,
 		}
 	}
-	if o.responseStatus != 0 {
-		mockBody["response"] = map[string]any{
-			"status": o.responseStatus,
-		}
-	}
-
 	status := s.doJSONRaw(http.MethodPut, s.mockServerURL()+"/destinations", mockBody, nil)
 	s.Require().Equal(http.StatusOK, status, "failed to register mock destination %s", destID)
 
@@ -501,9 +481,8 @@ func (s *basicSuite) clearMockServerEvents(destID string) {
 type destOpt func(*destOpts)
 
 type destOpts struct {
-	secret         string
-	filter         map[string]any
-	responseStatus int
+	secret string
+	filter map[string]any
 }
 
 func withSecret(s string) destOpt {
@@ -512,10 +491,6 @@ func withSecret(s string) destOpt {
 
 func withFilter(f map[string]any) destOpt {
 	return func(o *destOpts) { o.filter = f }
-}
-
-func withResponseStatus(code int) destOpt {
-	return func(o *destOpts) { o.responseStatus = code }
 }
 
 // Publish options
