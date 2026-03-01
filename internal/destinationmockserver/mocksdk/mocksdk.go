@@ -86,9 +86,9 @@ func (sdk *sdk) DeleteDestination(ctx context.Context, id string) error {
 	return nil
 }
 
-func (sdk *sdk) ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}, metadata map[string]string) (*destinationmockserver.Event, error) {
+func (sdk *sdk) ReceiveEvent(ctx context.Context, destinationID string, rawBody []byte, metadata map[string]string) (*destinationmockserver.Event, error) {
 	// TODO: send metadata as headers
-	resp, err := sdk.client.post(ctx, "/webhook/"+destinationID, payload)
+	resp, err := sdk.client.post(ctx, "/webhook/"+destinationID, json.RawMessage(rawBody))
 	if err != nil {
 		return nil, err
 	}

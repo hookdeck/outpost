@@ -1,6 +1,7 @@
 package destinationmockserver
 
 import (
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -78,8 +79,8 @@ func (h *Handlers) ReceiveWebhookEvent(c *gin.Context) {
 		return
 	}
 
-	var input map[string]interface{}
-	if err := c.ShouldBindJSON(&input); err != nil {
+	rawBody, err := io.ReadAll(c.Request.Body)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
@@ -94,7 +95,7 @@ func (h *Handlers) ReceiveWebhookEvent(c *gin.Context) {
 	}
 	log.Println("metadata", metadata)
 
-	if event, err := h.store.ReceiveEvent(c.Request.Context(), destinationID, input, metadata); err != nil {
+	if event, err := h.store.ReceiveEvent(c.Request.Context(), destinationID, rawBody, metadata); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	} else {

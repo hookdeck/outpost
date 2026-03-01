@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/idgen"
@@ -25,9 +26,7 @@ func (f *mockEventFactory) Any(opts ...func(*models.Event)) models.Event {
 		Metadata: map[string]string{
 			"metadatakey": "metadatavalue",
 		},
-		Data: map[string]interface{}{
-			"mykey": "myvalue",
-		},
+		Data: json.RawMessage(`{"mykey":"myvalue"}`),
 	}
 
 	for _, opt := range opts {
@@ -84,9 +83,21 @@ func (f *mockEventFactory) WithMetadata(metadata map[string]string) func(*models
 	}
 }
 
-func (f *mockEventFactory) WithData(data map[string]interface{}) func(*models.Event) {
+func (f *mockEventFactory) WithData(data json.RawMessage) func(*models.Event) {
 	return func(event *models.Event) {
 		event.Data = data
+	}
+}
+
+// WithDataMap is a convenience helper that marshals a map to json.RawMessage.
+// Use when you don't care about key order and want a shorter syntax.
+func (f *mockEventFactory) WithDataMap(data map[string]interface{}) func(*models.Event) {
+	return func(event *models.Event) {
+		b, err := json.Marshal(data)
+		if err != nil {
+			panic("testutil: WithDataMap: " + err.Error())
+		}
+		event.Data = b
 	}
 }
 

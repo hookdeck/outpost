@@ -564,10 +564,7 @@ func (p *StandardWebhookPublisher) Publish(ctx context.Context, event *models.Ev
 // Format creates an HTTP request formatted according to Standard Webhooks specification
 func (p *StandardWebhookPublisher) Format(ctx context.Context, event *models.Event) (*http.Request, error) {
 	now := time.Now()
-	rawBody, err := json.Marshal(event.Data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal event data: %w", err)
-	}
+	rawBody := []byte(event.Data)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", p.url, bytes.NewBuffer(rawBody))
 	if err != nil {

@@ -455,10 +455,8 @@ func copyEvent(e *models.Event) *models.Event {
 		}
 	}
 	if e.Data != nil {
-		copied.Data = make(map[string]any, len(e.Data))
-		for k, v := range e.Data {
-			copied.Data[k] = v
-		}
+		copied.Data = make([]byte, len(e.Data))
+		copy(copied.Data, e.Data)
 	}
 
 	return copied

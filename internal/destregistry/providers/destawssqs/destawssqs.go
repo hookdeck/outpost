@@ -135,10 +135,7 @@ func (p *AWSSQSPublisher) Close() error {
 }
 
 func (p *AWSSQSPublisher) Format(ctx context.Context, event *models.Event) (*sqs.SendMessageInput, error) {
-	dataBytes, err := json.Marshal(event.Data)
-	if err != nil {
-		return nil, err
-	}
+	dataBytes := []byte(event.Data)
 
 	metadata := p.BasePublisher.MakeMetadata(event, time.Now())
 	metadataBytes, err := json.Marshal(metadata)

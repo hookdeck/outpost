@@ -61,7 +61,7 @@ func (e *ErrorResponse) Parse(err error) {
 		return
 	}
 	if isInvalidJSON(err) {
-		e.Code = http.StatusBadRequest
+		e.Code = http.StatusUnprocessableEntity
 		e.Message = "invalid JSON"
 		e.Err = err
 		return

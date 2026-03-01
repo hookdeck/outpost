@@ -448,7 +448,7 @@ func TestEventHandler_Filter(t *testing.T) {
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),
 			testutil.EventFactory.WithTopic("user.created"),
-			testutil.EventFactory.WithData(map[string]interface{}{"amount": float64(150)}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"amount": float64(150)}),
 		)
 
 		result, err := eventHandler.Handle(ctx, event)
@@ -486,7 +486,7 @@ func TestEventHandler_Filter(t *testing.T) {
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),
 			testutil.EventFactory.WithTopic("user.updated"),
-			testutil.EventFactory.WithData(map[string]interface{}{"amount": float64(50)}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"amount": float64(50)}),
 		)
 
 		result, err := eventHandler.Handle(ctx, event)
@@ -517,7 +517,7 @@ func TestEventHandler_Filter(t *testing.T) {
 			testutil.EventFactory.WithTenantID(tenant.ID),
 			testutil.EventFactory.WithDestinationID(dest.ID),
 			testutil.EventFactory.WithTopic("user.deleted"),
-			testutil.EventFactory.WithData(map[string]interface{}{"status": "cancelled"}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"status": "cancelled"}),
 		)
 
 		result, err := eventHandler.Handle(ctx, event)
@@ -554,7 +554,7 @@ func TestEventHandler_Filter(t *testing.T) {
 			testutil.EventFactory.WithTenantID(tenant.ID),
 			testutil.EventFactory.WithDestinationID(dest.ID),
 			testutil.EventFactory.WithTopic("user.created"),
-			testutil.EventFactory.WithData(map[string]interface{}{"currency": "EUR"}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"currency": "EUR"}),
 		)
 
 		result, err := eventHandler.Handle(ctx, event)
@@ -581,7 +581,7 @@ func TestEventHandler_Filter(t *testing.T) {
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),
 			testutil.EventFactory.WithTopic("user.updated"),
-			testutil.EventFactory.WithData(map[string]interface{}{"anything": "goes"}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"anything": "goes"}),
 		)
 
 		result, err := eventHandler.Handle(ctx, event)

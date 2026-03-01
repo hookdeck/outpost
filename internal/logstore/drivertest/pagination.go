@@ -2,6 +2,7 @@ package drivertest
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -54,7 +55,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 					EligibleForRetry: true,
 					Time:             eventTime,
 					Metadata:         map[string]string{},
-					Data:             map[string]any{},
+					Data:             json.RawMessage(`{}`),
 				}
 
 				attempt := &models.Attempt{
@@ -143,7 +144,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 					EligibleForRetry: true,
 					Time:             eventTime,
 					Metadata:         map[string]string{},
-					Data:             map[string]any{},
+					Data:             json.RawMessage(`{}`),
 				}
 
 				attempt := &models.Attempt{
@@ -230,7 +231,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 					EligibleForRetry: true,
 					Time:             eventTime,
 					Metadata:         map[string]string{},
-					Data:             map[string]any{},
+					Data:             json.RawMessage(`{}`),
 				}
 			},
 
@@ -336,7 +337,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 					EligibleForRetry: true,
 					Time:             eventTime,
 					Metadata:         map[string]string{},
-					Data:             map[string]any{},
+					Data:             json.RawMessage(`{}`),
 				}
 			},
 
@@ -450,7 +451,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 				EligibleForRetry: true,
 				Time:             eventTime,
 				Metadata:         map[string]string{},
-				Data:             map[string]any{},
+				Data:             json.RawMessage(`{}`),
 			}
 			attempt := &models.Attempt{
 				ID:            fmt.Sprintf("%s_del_%03d", idPrefix, i),

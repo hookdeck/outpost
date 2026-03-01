@@ -2,6 +2,7 @@ package destwebhook_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -416,7 +417,7 @@ func TestWebhookPublisher_DisableDefaultHeaders(t *testing.T) {
 			require.NoError(t, err)
 
 			event := testutil.EventFactory.Any(
-				testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+				testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
 			)
 
 			req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
@@ -467,7 +468,7 @@ func TestWebhookPublisher_DeliveryMetadata(t *testing.T) {
 			"user-id": "usr_456",
 			"source":  "user-service", // Should override delivery_metadata source
 		}),
-		testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+		testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
 	)
 
 	_, err = publisher.Publish(context.Background(), &event)
@@ -523,7 +524,7 @@ func TestWebhookPublisher_CustomHeaders(t *testing.T) {
 		require.NoError(t, err)
 
 		event := testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
 		)
 
 		req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
@@ -557,7 +558,7 @@ func TestWebhookPublisher_CustomHeaders(t *testing.T) {
 		require.NoError(t, err)
 
 		event := testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
 		)
 
 		req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
@@ -612,7 +613,7 @@ func TestWebhookPublisher_CustomHeaders(t *testing.T) {
 		require.NoError(t, err)
 
 		event := testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
 		)
 
 		req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
@@ -649,7 +650,7 @@ func TestWebhookPublisher_CustomHeaders(t *testing.T) {
 		require.NoError(t, err)
 
 		event := testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
 		)
 
 		req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
@@ -720,7 +721,7 @@ func TestWebhookPublisher_ConnectionErrors(t *testing.T) {
 			defer publisher.Close()
 
 			event := testutil.EventFactory.Any(
-				testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+				testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
 			)
 
 			// Attempt to publish to unreachable endpoint
@@ -792,7 +793,7 @@ func TestWebhookPublisher_HTTPErrors(t *testing.T) {
 			defer publisher.Close()
 
 			event := testutil.EventFactory.Any(
-				testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+				testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
 			)
 
 			delivery, err := publisher.Publish(context.Background(), &event)
@@ -806,6 +807,42 @@ func TestWebhookPublisher_HTTPErrors(t *testing.T) {
 			assert.Equal(t, fmt.Sprintf("%d", tt.statusCode), delivery.Code)
 		})
 	}
+}
+
+// TestWebhookPublisher_PreservesKeyOrder verifies that Format() sends
+// the original JSON key order in the HTTP request body.
+func TestWebhookPublisher_PreservesKeyOrder(t *testing.T) {
+	t.Parallel()
+
+	provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": "http://example.com/webhook",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secret": "test-secret",
+		}),
+	)
+
+	publisher, err := provider.CreatePublisher(context.Background(), &destination)
+	require.NoError(t, err)
+
+	rawData := json.RawMessage(`{"z":1,"a":2,"m":3}`)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithData(rawData),
+	)
+
+	req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+
+	// Key order must match the original raw JSON — not alphabetised.
+	assert.Equal(t, `{"z":1,"a":2,"m":3}`, string(body))
 }
 
 func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
@@ -887,7 +924,7 @@ func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 			require.NoError(t, err)
 
 			event := testutil.EventFactory.Any(
-				testutil.EventFactory.WithData(map[string]interface{}{"hello": "world"}),
+				testutil.EventFactory.WithDataMap(map[string]interface{}{"hello": "world"}),
 			)
 
 			req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)

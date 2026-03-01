@@ -224,35 +224,49 @@ func (p *AWSKinesisPublisher) Format(ctx context.Context, event *models.Event) (
 	var data []byte
 	var err error
 
-	// Convert data to a map[string]interface{} for JMESPath
-	dataMap := make(map[string]interface{})
-	for k, v := range event.Data {
-		dataMap[k] = v
-	}
-
 	if p.metadataInPayload {
 		// Prepare metadata
 		metadata := p.BasePublisher.MakeMetadata(event, time.Now())
-		// Convert metadata to a map[string]interface{} for JMESPath
 		metadataMap := make(map[string]interface{})
 		for k, v := range metadata {
 			metadataMap[k] = v
 		}
 
-		// Create payload with metadata and data
+		// Use json.RawMessage to preserve original key order in data
+		envelope := map[string]interface{}{
+			"metadata": metadataMap,
+			"data":     json.RawMessage(event.Data),
+		}
+
+		data, err = json.Marshal(envelope)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal payload: %w", err)
+		}
+
+		// Build parsed payload for partition key JMESPath evaluation
+		dataMap, err := event.ParsedData()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse event data: %w", err)
+		}
+		if dataMap == nil {
+			dataMap = make(map[string]interface{})
+		}
 		payload = map[string]interface{}{
 			"metadata": metadataMap,
 			"data":     dataMap,
 		}
 	} else {
-		// Use only the event data as the payload
-		payload = dataMap
-	}
+		// Use raw bytes directly to preserve key order
+		data = []byte(event.Data)
 
-	// Serialize payload to JSON
-	data, err = json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal payload: %w", err)
+		// Still need parsed data for partition key JMESPath evaluation
+		payload, err = event.ParsedData()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse event data: %w", err)
+		}
+		if payload == nil {
+			payload = make(map[string]interface{})
+		}
 	}
 
 	// Get partition key from template or use event ID as default

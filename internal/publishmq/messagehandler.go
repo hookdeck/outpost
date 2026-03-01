@@ -29,6 +29,12 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 		msg.Nack()
 		return err
 	}
+	// json.RawMessage is []byte, so null, invalid JSON, and non-object types
+	// slip past unmarshaling. Reject since data must be a JSON object.
+	if !json.Valid(publishedEvent.Data) || publishedEvent.Data[0] != '{' {
+		msg.Nack()
+		return ErrInvalidData
+	}
 	event := publishedEvent.toEvent()
 	_, err := h.eventHandler.Handle(ctx, &event)
 	if err != nil {
@@ -40,14 +46,14 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 }
 
 type PublishedEvent struct {
-	ID               string                 `json:"id"`
-	TenantID         string                 `json:"tenant_id" binding:"required"`
-	DestinationID    string                 `json:"destination_id"`
-	Topic            string                 `json:"topic"`
-	EligibleForRetry *bool                  `json:"eligible_for_retry"`
-	Time             time.Time              `json:"time"`
-	Metadata         map[string]string      `json:"metadata"`
-	Data             map[string]interface{} `json:"data"`
+	ID               string            `json:"id"`
+	TenantID         string            `json:"tenant_id" binding:"required"`
+	DestinationID    string            `json:"destination_id"`
+	Topic            string            `json:"topic"`
+	EligibleForRetry *bool             `json:"eligible_for_retry"`
+	Time             time.Time         `json:"time"`
+	Metadata         map[string]string `json:"metadata"`
+	Data             json.RawMessage   `json:"data"`
 }
 
 func (p *PublishedEvent) toEvent() models.Event {

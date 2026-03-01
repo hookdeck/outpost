@@ -2,6 +2,7 @@ package apirouter
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -39,6 +40,17 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
+	// json.RawMessage is []byte, so binding:"required" only checks non-nil.
+	// We must reject null, invalid JSON, and non-object types (strings,
+	// numbers, arrays) since the system expects data to be a JSON object.
+	if !json.Valid(publishedEvent.Data) || publishedEvent.Data[0] != '{' {
+		AbortWithValidationError(c, ErrorResponse{
+			Code:    http.StatusUnprocessableEntity,
+			Message: "validation error",
+			Data:    []string{"data must be a valid JSON object"},
+		})
+		return
+	}
 	event := publishedEvent.toEvent()
 	result, err := h.eventHandler.Handle(c.Request.Context(), &event)
 	if err != nil {
@@ -67,14 +79,14 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 }
 
 type PublishedEvent struct {
-	ID               string                 `json:"id"`
-	TenantID         string                 `json:"tenant_id" binding:"required"`
-	DestinationID    string                 `json:"destination_id"`
-	Topic            string                 `json:"topic"`
-	EligibleForRetry *bool                  `json:"eligible_for_retry"`
-	Time             time.Time              `json:"time"`
-	Metadata         map[string]string      `json:"metadata"`
-	Data             map[string]interface{} `json:"data" binding:"required"`
+	ID               string            `json:"id"`
+	TenantID         string            `json:"tenant_id" binding:"required"`
+	DestinationID    string            `json:"destination_id"`
+	Topic            string            `json:"topic"`
+	EligibleForRetry *bool             `json:"eligible_for_retry"`
+	Time             time.Time         `json:"time"`
+	Metadata         map[string]string `json:"metadata"`
+	Data             json.RawMessage   `json:"data" binding:"required"`
 }
 
 func (p *PublishedEvent) toEvent() models.Event {

@@ -41,14 +41,14 @@ func (s *basicSuite) TestRetry_FailedDeliveryAutoRetries() {
 
 func (s *basicSuite) TestRetry_ManualRetryCreatesNewAttempt() {
 	tenant := s.createTenant()
-	dest := s.createWebhookDestination(tenant.ID, "*", withSecret(testSecret), withResponseStatus(500))
+	dest := s.createWebhookDestination(tenant.ID, "*", withSecret(testSecret))
 
 	eventID := idgen.Event()
 	s.publish(tenant.ID, "user.created", map[string]any{
 		"user_id": "456",
 	}, withEventID(eventID))
 
-	// Wait for initial attempt to fail
+	// Wait for initial delivery
 	s.waitForNewAttempts(tenant.ID, 1)
 
 	// Verify first attempt has attempt_number=0
@@ -59,9 +59,6 @@ func (s *basicSuite) TestRetry_ManualRetryCreatesNewAttempt() {
 	s.Require().Equal(http.StatusOK, status)
 	s.Require().NotEmpty(attResp.Models)
 	s.Equal(float64(0), attResp.Models[0]["attempt_number"])
-
-	// Reconfigure mock to succeed
-	dest.SetResponse(s, 200)
 
 	// Manual retry
 	retryStatus := s.retryEvent(eventID, dest.ID)

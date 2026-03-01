@@ -19,6 +19,7 @@ import (
 var (
 	ErrInvalidTopic  = errors.New("invalid topic")
 	ErrRequiredTopic = errors.New("topic is required")
+	ErrInvalidData   = errors.New("data must be a valid JSON object")
 )
 
 type EventHandler interface {

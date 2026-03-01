@@ -280,7 +280,7 @@ func TestRabbitMQPublisher_ConnectionErrors(t *testing.T) {
 			defer publisher.Close()
 
 			event := testutil.EventFactory.Any(
-				testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+				testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
 			)
 
 			// Attempt to publish to unreachable endpoint

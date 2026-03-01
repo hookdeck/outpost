@@ -88,14 +88,62 @@ func TestAPI_Publish(t *testing.T) {
 			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 		})
 
-		t.Run("no body returns 400", func(t *testing.T) {
+		t.Run("null data returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
+				"tenant_id": "t1",
+				"data":      nil,
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("string data returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
+				"tenant_id": "t1",
+				"data":      "hello",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("number data returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
+				"tenant_id": "t1",
+				"data":      42,
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("array data returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
+				"tenant_id": "t1",
+				"data":      []any{1, 2, 3},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("no body returns 422", func(t *testing.T) {
 			h := newAPITest(t)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/publish", nil)
 			req.Header.Set("Content-Type", "application/json")
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusBadRequest, resp.Code)
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 		})
 	})
 
@@ -356,6 +404,21 @@ func TestAPI_Publish(t *testing.T) {
 			assert.Equal(t, models.Metadata{"env": "prod"}, h.eventHandler.calls[0].Metadata)
 		})
 
+		t.Run("metadata with non-string values returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
+				"tenant_id": "t1",
+				"metadata": map[string]any{
+					"count": 42,
+				},
+				"data": map[string]any{"key": "value"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
 		t.Run("preserves data", func(t *testing.T) {
 			h := newAPITest(t)
 
@@ -367,7 +430,7 @@ func TestAPI_Publish(t *testing.T) {
 
 			require.Equal(t, http.StatusAccepted, resp.Code)
 			require.Len(t, h.eventHandler.calls, 1)
-			assert.Equal(t, "bar", h.eventHandler.calls[0].Data["foo"])
+			assert.JSONEq(t, `{"foo":"bar"}`, string(h.eventHandler.calls[0].Data))
 		})
 	})
 }

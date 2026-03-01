@@ -19,6 +19,7 @@ type Event struct {
 	Success  bool                   `json:"success"`
 	Verified bool                   `json:"verified"`
 	Payload  map[string]interface{} `json:"payload"`
+	RawBody  string                 `json:"raw_body"`
 }
 
 type MockStore interface {
@@ -27,7 +28,7 @@ type MockStore interface {
 	UpsertDestination(ctx context.Context, destination models.Destination) error
 	DeleteDestination(ctx context.Context, id string) error
 
-	ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}, metadata map[string]string) (*Event, error)
+	ReceiveEvent(ctx context.Context, destinationID string, rawBody []byte, metadata map[string]string) (*Event, error)
 	ListEvent(ctx context.Context, destinationID string) ([]Event, error)
 	ClearEvents(ctx context.Context, destinationID string) error
 }
@@ -85,7 +86,7 @@ func (s *mockStore) DeleteDestination(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *mockStore) ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}, metadata map[string]string) (*Event, error) {
+func (s *mockStore) ReceiveEvent(ctx context.Context, destinationID string, rawBody []byte, metadata map[string]string) (*Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	destination, ok := s.destinations[destinationID]
@@ -97,10 +98,10 @@ func (s *mockStore) ReceiveEvent(ctx context.Context, destinationID string, payl
 		s.events[destinationID] = make([]Event, 0)
 	}
 
-	// Convert payload to JSON for signature verification
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal payload: %w", err)
+	// Unmarshal raw body into map for Payload field
+	var payload map[string]interface{}
+	if err := json.Unmarshal(rawBody, &payload); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
 	// Initialize event
@@ -108,6 +109,7 @@ func (s *mockStore) ReceiveEvent(ctx context.Context, destinationID string, payl
 		Success:  true,
 		Verified: false,
 		Payload:  payload,
+		RawBody:  string(rawBody),
 	}
 
 	// Check if should_err is set
@@ -121,7 +123,7 @@ func (s *mockStore) ReceiveEvent(ctx context.Context, destinationID string, payl
 		if secret := destination.Credentials["secret"]; secret != "" {
 			event.Verified = verifySignature(
 				secret,
-				payloadBytes,
+				rawBody,
 				signature,
 				destination.Config["signature_algorithm"],
 				destination.Config["signature_encoding"],
@@ -137,7 +139,7 @@ func (s *mockStore) ReceiveEvent(ctx context.Context, destinationID string, payl
 						if time.Now().Before(invalidAt) {
 							event.Verified = verifySignature(
 								prevSecret,
-								payloadBytes,
+								rawBody,
 								signature,
 								destination.Config["signature_algorithm"],
 								destination.Config["signature_encoding"],

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -79,9 +80,13 @@ func MatchFilter(filter Filter, event Event) bool {
 		}
 		filterInput["metadata"] = metadata
 	}
-	// Copy data
-	if event.Data != nil {
-		filterInput["data"] = map[string]any(event.Data)
+	// Parse data from raw JSON.
+	// ParsedData() should never fail here: ingestion validates that Data is a
+	// valid JSON object. If it does fail, we fall back to empty data so the
+	// filter runs against no data fields (likely a no-match).
+	parsed, err := event.ParsedData()
+	if err == nil && parsed != nil {
+		filterInput["data"] = parsed
 	}
 	return simplejsonmatch.Match(filterInput, map[string]any(filter))
 }
@@ -98,6 +103,20 @@ type Event struct {
 
 	// Telemetry data, must exist to properly trace events between publish receiver & delivery handler
 	Telemetry *EventTelemetry `json:"telemetry,omitempty"`
+}
+
+// ParsedData unmarshals the raw JSON Data into a map[string]any.
+// This is used by code that needs to inspect individual fields (e.g. filters,
+// partition-key extraction) without losing the original byte representation.
+func (e *Event) ParsedData() (map[string]any, error) {
+	if len(e.Data) == 0 {
+		return nil, nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(e.Data, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 const (

@@ -228,7 +228,7 @@ func scanEvents(rows pgx.Rows) ([]eventWithPosition, error) {
 			eventTime        time.Time
 			topic            string
 			eligibleForRetry bool
-			data             map[string]any
+			data             []byte
 			metadata         map[string]string
 		)
 
@@ -455,7 +455,7 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 			responseData     map[string]any
 			eventTime        time.Time
 			eligibleForRetry bool
-			eventData        map[string]any
+			eventData        []byte
 			eventMetadata    map[string]string
 		)
 
@@ -621,7 +621,7 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 		responseData     map[string]any
 		eventTime        time.Time
 		eligibleForRetry bool
-		eventData        map[string]any
+		eventData        []byte
 		eventMetadata    map[string]string
 	)
 
@@ -741,7 +741,7 @@ func eventArrays(events []*models.Event) []any {
 	times := make([]time.Time, len(events))
 	topics := make([]string, len(events))
 	eligibleForRetries := make([]bool, len(events))
-	datas := make([]map[string]any, len(events))
+	datas := make([][]byte, len(events))
 	metadatas := make([]map[string]string, len(events))
 
 	for i, e := range events {
@@ -784,7 +784,7 @@ func attemptArrays(entries []*models.LogEntry) []any {
 	responseDatas := make([]map[string]any, n)
 	eventTimes := make([]time.Time, n)
 	eligibleForRetries := make([]bool, n)
-	eventDatas := make([]map[string]any, n)
+	eventDatas := make([][]byte, n)
 	eventMetadatas := make([]map[string]string, n)
 
 	for i, entry := range entries {

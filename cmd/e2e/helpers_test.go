@@ -66,6 +66,7 @@ type mockServerEvent struct {
 	Success  bool                   `json:"success"`
 	Verified bool                   `json:"verified"`
 	Payload  map[string]interface{} `json:"payload"`
+	RawBody  string                 `json:"raw_body"`
 }
 
 // =============================================================================
@@ -75,21 +76,6 @@ type mockServerEvent struct {
 type webhookDestination struct {
 	destinationResponse
 	mockID string // destination ID on mock server
-}
-
-// SetResponse reconfigures the mock server to return a specific HTTP status code.
-func (d *webhookDestination) SetResponse(s *basicSuite, status int) {
-	s.T().Helper()
-	s.doJSON(http.MethodPut, s.mockServerURL()+"/destinations", map[string]any{
-		"id":   d.mockID,
-		"type": "webhook",
-		"config": map[string]any{
-			"url": fmt.Sprintf("%s/webhook/%s", s.mockServerURL(), d.mockID),
-		},
-		"response": map[string]any{
-			"status": status,
-		},
-	}, nil)
 }
 
 // SetSecret updates the mock server's secret for signature verification.
@@ -177,6 +163,39 @@ func (s *basicSuite) doJSONWithAuth(method, url string, authHeader string, body 
 	return resp.StatusCode
 }
 
+// doRawGet sends a GET request and returns the raw response body bytes.
+// Useful when JSON key order matters and unmarshaling into map would lose it.
+func (s *basicSuite) doRawGet(url string) (int, []byte) {
+	s.T().Helper()
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	s.Require().NoError(err)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.config.APIKey))
+
+	resp, err := s.httpClient.Do(req)
+	s.Require().NoError(err)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	s.Require().NoError(err)
+	return resp.StatusCode, body
+}
+
+// waitForEventInLogstore polls until the event appears in the logstore API.
+// Returns the raw response body to preserve JSON key order.
+func (s *basicSuite) waitForEventInLogstore(eventID string) []byte {
+	s.T().Helper()
+	deadline := time.Now().Add(attemptPollTimeout)
+	for time.Now().Before(deadline) {
+		status, body := s.doRawGet(s.apiURL("/events/" + eventID))
+		if status == http.StatusOK {
+			return body
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	s.Require().FailNowf("timeout", "timed out waiting for event %s in logstore", eventID)
+	return nil
+}
+
 // apiURL builds a full URL for the outpost API.
 func (s *basicSuite) apiURL(path string) string {
 	return fmt.Sprintf("http://localhost:%d/api/v1%s", s.config.APIPort, path)
@@ -225,12 +244,6 @@ func (s *basicSuite) createWebhookDestination(tenantID, topic string, opts ...de
 			"secret": o.secret,
 		}
 	}
-	if o.responseStatus != 0 {
-		mockBody["response"] = map[string]any{
-			"status": o.responseStatus,
-		}
-	}
-
 	status := s.doJSONRaw(http.MethodPut, s.mockServerURL()+"/destinations", mockBody, nil)
 	s.Require().Equal(http.StatusOK, status, "failed to register mock destination %s", destID)
 
@@ -263,7 +276,7 @@ func (s *basicSuite) createWebhookDestination(tenantID, topic string, opts ...de
 }
 
 // publish publishes an event.
-func (s *basicSuite) publish(tenantID, topic string, data map[string]any, opts ...publishOpt) publishResponse {
+func (s *basicSuite) publish(tenantID, topic string, data any, opts ...publishOpt) publishResponse {
 	s.T().Helper()
 
 	o := publishOpts{}
@@ -467,9 +480,8 @@ func (s *basicSuite) clearMockServerEvents(destID string) {
 type destOpt func(*destOpts)
 
 type destOpts struct {
-	secret         string
-	filter         map[string]any
-	responseStatus int
+	secret string
+	filter map[string]any
 }
 
 func withSecret(s string) destOpt {
@@ -478,10 +490,6 @@ func withSecret(s string) destOpt {
 
 func withFilter(f map[string]any) destOpt {
 	return func(o *destOpts) { o.filter = f }
-}
-
-func withResponseStatus(code int) destOpt {
-	return func(o *destOpts) { o.responseStatus = code }
 }
 
 // Publish options

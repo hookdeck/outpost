@@ -245,8 +245,8 @@ func TestDestinationChanges(t *testing.T) {
 		}
 
 		// Publish first event
-		event1 := &models.Event{Data: map[string]interface{}{"msg": "first"}}
-		_, err = registry.PublishEvent(context.Background(), dest, event1)
+		e1 := testutil.EventFactory.Any(testutil.EventFactory.WithDataMap(map[string]interface{}{"msg": "first"}))
+		_, err = registry.PublishEvent(context.Background(), dest, &e1)
 		require.NoError(t, err)
 
 		// Update destination with new config
@@ -259,8 +259,8 @@ func TestDestinationChanges(t *testing.T) {
 		}
 
 		// Publish second event - should go to new config
-		event2 := &models.Event{Data: map[string]interface{}{"msg": "second"}}
-		_, err = registry.PublishEvent(context.Background(), destUpdated, event2)
+		e2 := testutil.EventFactory.Any(testutil.EventFactory.WithDataMap(map[string]interface{}{"msg": "second"}))
+		_, err = registry.PublishEvent(context.Background(), destUpdated, &e2)
 		require.NoError(t, err)
 
 		firstTarget := publishTarget{providerType: "mock1", config: "config1"}
@@ -270,13 +270,13 @@ func TestDestinationChanges(t *testing.T) {
 		firstEvents := publishedEvents[firstTarget]
 		assert.Len(t, firstEvents, 1, "only first event should go to config1")
 		if len(firstEvents) > 0 {
-			assert.Equal(t, "first", firstEvents[0].Data["msg"])
+			assert.JSONEq(t, `{"msg":"first"}`, string(firstEvents[0].Data))
 		}
 
 		secondEvents := publishedEvents[secondTarget]
 		assert.Len(t, secondEvents, 1, "second event should go to config2")
 		if len(secondEvents) > 0 {
-			assert.Equal(t, "second", secondEvents[0].Data["msg"])
+			assert.JSONEq(t, `{"msg":"second"}`, string(secondEvents[0].Data))
 		}
 	})
 
@@ -300,8 +300,8 @@ func TestDestinationChanges(t *testing.T) {
 		}
 
 		// Publish first event
-		event1 := &models.Event{Data: map[string]interface{}{"msg": "first"}}
-		_, err = registry.PublishEvent(context.Background(), dest, event1)
+		e1 := testutil.EventFactory.Any(testutil.EventFactory.WithDataMap(map[string]interface{}{"msg": "first"}))
+		_, err = registry.PublishEvent(context.Background(), dest, &e1)
 		require.NoError(t, err)
 
 		// Update destination type
@@ -314,8 +314,8 @@ func TestDestinationChanges(t *testing.T) {
 		}
 
 		// Publish second event - should use different provider
-		event2 := &models.Event{Data: map[string]interface{}{"msg": "second"}}
-		_, err = registry.PublishEvent(context.Background(), destUpdated, event2)
+		e2 := testutil.EventFactory.Any(testutil.EventFactory.WithDataMap(map[string]interface{}{"msg": "second"}))
+		_, err = registry.PublishEvent(context.Background(), destUpdated, &e2)
 		require.NoError(t, err)
 
 		firstTarget := publishTarget{providerType: "mock1", config: "config1"}
@@ -325,13 +325,13 @@ func TestDestinationChanges(t *testing.T) {
 		firstEvents := publishedEvents[firstTarget]
 		assert.Len(t, firstEvents, 1, "only first event should go through mock1")
 		if len(firstEvents) > 0 {
-			assert.Equal(t, "first", firstEvents[0].Data["msg"])
+			assert.JSONEq(t, `{"msg":"first"}`, string(firstEvents[0].Data))
 		}
 
 		secondEvents := publishedEvents[secondTarget]
 		assert.Len(t, secondEvents, 1, "second event should go through mock2")
 		if len(secondEvents) > 0 {
-			assert.Equal(t, "second", secondEvents[0].Data["msg"])
+			assert.JSONEq(t, `{"msg":"second"}`, string(secondEvents[0].Data))
 		}
 	})
 }

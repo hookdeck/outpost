@@ -622,10 +622,7 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) (*d
 // Format is a helper function to format the event data into an HTTP request.
 func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*http.Request, error) {
 	now := time.Now()
-	rawBody, err := json.Marshal(event.Data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal event data: %w", err)
-	}
+	rawBody := []byte(event.Data)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", p.url, bytes.NewBuffer(rawBody))
 	if err != nil {
