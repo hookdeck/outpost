@@ -245,6 +245,9 @@ func scanEvents(rows pgx.Rows) ([]eventWithPosition, error) {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 
+		// Normalize to UTC for consistent behavior across backends.
+		eventTime = eventTime.UTC()
+
 		results = append(results, eventWithPosition{
 			Event: &models.Event{
 				ID:               id,
@@ -479,6 +482,10 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 
+		// Normalize to UTC for consistent behavior across backends.
+		attemptTime = attemptTime.UTC()
+		eventTime = eventTime.UTC()
+
 		results = append(results, attemptRecordWithPosition{
 			AttemptRecord: &driver.AttemptRecord{
 				Attempt: &models.Attempt{
@@ -565,6 +572,7 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 		return nil, fmt.Errorf("scan failed: %w", err)
 	}
 
+	event.Time = event.Time.UTC()
 	return event, nil
 }
 
@@ -648,6 +656,10 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 	if err != nil {
 		return nil, fmt.Errorf("scan failed: %w", err)
 	}
+
+	// Normalize to UTC for consistent behavior across backends.
+	attemptTime = attemptTime.UTC()
+	eventTime = eventTime.UTC()
 
 	return &driver.AttemptRecord{
 		Attempt: &models.Attempt{
