@@ -80,12 +80,13 @@ func MatchFilter(filter Filter, event Event) bool {
 		}
 		filterInput["metadata"] = metadata
 	}
-	// Parse data from raw JSON
-	if event.Data != nil {
-		parsed, err := event.ParsedData()
-		if err == nil && parsed != nil {
-			filterInput["data"] = parsed
-		}
+	// Parse data from raw JSON.
+	// ParsedData() should never fail here: ingestion validates that Data is a
+	// valid JSON object. If it does fail, we fall back to empty data so the
+	// filter runs against no data fields (likely a no-match).
+	parsed, err := event.ParsedData()
+	if err == nil && parsed != nil {
+		filterInput["data"] = parsed
 	}
 	return simplejsonmatch.Match(filterInput, map[string]any(filter))
 }
