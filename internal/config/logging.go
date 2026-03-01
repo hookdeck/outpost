@@ -99,6 +99,9 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		// ID Generation
 		zap.String("idgen_type", c.IDGen.Type),
 		zap.String("idgen_event_prefix", c.IDGen.EventPrefix),
+
+		// Retention
+		zap.Int("clickhouse_log_retention_ttl_days", c.ClickHouseLogRetentionTTLDays),
 	}
 
 	// Add MQ-specific fields based on type

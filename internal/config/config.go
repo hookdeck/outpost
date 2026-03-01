@@ -110,6 +110,9 @@ type Config struct {
 
 	// ID Generation
 	IDGen IDGenConfig `yaml:"idgen"`
+
+	// Retention
+	ClickHouseLogRetentionTTLDays int `yaml:"clickhouse_log_retention_ttl_days" env:"CLICKHOUSE_LOG_RETENTION_TTL_DAYS" desc:"Days to retain logs in ClickHouse. 0 = unlimited." required:"N"`
 }
 
 var (
@@ -206,6 +209,8 @@ func (c *Config) InitDefaults() {
 		Type:        "uuidv4",
 		EventPrefix: "",
 	}
+
+	c.ClickHouseLogRetentionTTLDays = 0 // Unlimited by default
 }
 
 func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error {
