@@ -2,7 +2,6 @@ package destgcppubsub_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -112,8 +111,7 @@ func (a *GCPPubSubAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Me
 	assert.True(t, ok, "raw message should be *pubsub.Message")
 
 	// Verify event data
-	expectedData, _ := json.Marshal(event.Data)
-	assert.JSONEq(t, string(expectedData), string(msg.Data), "event data should match")
+	assert.JSONEq(t, string(event.Data), string(msg.Data), "event data should match")
 
 	// Verify system metadata
 	metadata := msg.Metadata

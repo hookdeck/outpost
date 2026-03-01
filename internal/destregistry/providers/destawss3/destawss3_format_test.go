@@ -54,8 +54,7 @@ func TestAWSS3Publisher_Format_DefaultTemplate(t *testing.T) {
 	assert.NotEmpty(t, input.Metadata["timestamp"], "timestamp should be in metadata")
 
 	// Verify checksum
-	data, _ := json.Marshal(event.Data)
-	checksum := sha256.Sum256(data)
+	checksum := sha256.Sum256(event.Data)
 	expectedChecksum := base64.StdEncoding.EncodeToString(checksum[:])
 	assert.Equal(t, expectedChecksum, *input.ChecksumSHA256)
 }

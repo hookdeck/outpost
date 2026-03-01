@@ -241,13 +241,10 @@ func TestMetadataInPayload(t *testing.T) {
 		assert.Equal(t, "42", metadata["another_field"])
 
 		// Check data using JSONEq
-		dataJSON, err := json.Marshal(testEvent.Data)
-		require.NoError(t, err)
-
 		actualDataJSON, err := json.Marshal(actual["data"])
 		require.NoError(t, err)
 
-		assert.JSONEq(t, string(dataJSON), string(actualDataJSON))
+		assert.JSONEq(t, string(testEvent.Data), string(actualDataJSON))
 	})
 
 	t.Run("Without metadata in payload", func(t *testing.T) {
@@ -271,12 +268,9 @@ func TestMetadataInPayload(t *testing.T) {
 		assert.NotContains(t, actualData, "metadata")
 
 		// The payload should be the event data directly
-		dataJSON, err := json.Marshal(testEvent.Data)
-		require.NoError(t, err)
-
 		resultJSON, err := json.Marshal(actualData)
 		require.NoError(t, err)
 
-		assert.JSONEq(t, string(dataJSON), string(resultJSON))
+		assert.JSONEq(t, string(testEvent.Data), string(resultJSON))
 	})
 }

@@ -124,10 +124,8 @@ func (a *HookdeckAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mes
 	require.NoError(t, err)
 
 	// Compare body data with event data
-	eventDataJSON, err := json.Marshal(event.Data)
-	require.NoError(t, err)
 	var eventData map[string]interface{}
-	err = json.Unmarshal(eventDataJSON, &eventData)
+	err = json.Unmarshal(event.Data, &eventData)
 	require.NoError(t, err)
 
 	for k, v := range eventData {
