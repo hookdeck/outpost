@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 
+	"github.com/hookdeck/outpost/internal/version"
 	"go.uber.org/zap"
 )
 
@@ -22,6 +23,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 	fields := []zap.Field{
 		// General
 		zap.String("service", c.Service),
+		zap.String("version", version.Version()),
 		zap.String("config_file_path", func() string {
 			if c.configPath != "" {
 				return c.configPath
