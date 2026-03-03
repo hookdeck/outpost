@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/rsmq"
+	"go.uber.org/zap"
 )
 
 type ScheduleOption func(*ScheduleOptions)
@@ -40,6 +42,7 @@ type config struct {
 	pollBackoff          time.Duration
 	maxConsecutiveErrors int
 	maxErrorBackoff      time.Duration
+	logger               *logging.Logger
 }
 
 func WithVisibilityTimeout(vt uint) func(*config) {
@@ -57,6 +60,12 @@ func WithPollBackoff(backoff time.Duration) func(*config) {
 func WithMaxConsecutiveErrors(n int) func(*config) {
 	return func(c *config) {
 		c.maxConsecutiveErrors = n
+	}
+}
+
+func WithLogger(logger *logging.Logger) func(*config) {
+	return func(c *config) {
+		c.logger = logger
 	}
 }
 
@@ -125,6 +134,10 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 				if backoff > s.config.maxErrorBackoff {
 					backoff = s.config.maxErrorBackoff
 				}
+				s.config.logger.Ctx(ctx).Warn("scheduler receive error, retrying",
+					zap.Error(err),
+					zap.Int("attempt", consecutiveErrors),
+					zap.Duration("backoff", backoff))
 				select {
 				case <-ctx.Done():
 					return nil

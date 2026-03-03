@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/logging"
 	iredis "github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/rsmq"
 	"github.com/hookdeck/outpost/internal/scheduler"
@@ -72,11 +73,18 @@ func createRSMQClient(t *testing.T, redisConfig *iredis.RedisConfig) *rsmq.Redis
 	return rsmq.NewRedisSMQ(adapter, "rsmq")
 }
 
+func createTestLogger(t *testing.T) *logging.Logger {
+	logger, err := logging.NewLogger(logging.WithLogLevel("error"))
+	require.NoError(t, err)
+	return logger
+}
+
 func TestScheduler_Basic(t *testing.T) {
 	t.Parallel()
 
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	rsmqClient := createRSMQClient(t, redisConfig)
+	logger := createTestLogger(t)
 
 	msgs := []string{}
 	exec := func(_ context.Context, id string) error {
@@ -85,7 +93,7 @@ func TestScheduler_Basic(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	s := scheduler.New("scheduler", rsmqClient, exec)
+	s := scheduler.New("scheduler", rsmqClient, exec, scheduler.WithLogger(logger))
 	require.NoError(t, s.Init(ctx))
 	defer s.Shutdown()
 	go s.Monitor(ctx)
@@ -119,6 +127,7 @@ func TestScheduler_ParallelMonitor(t *testing.T) {
 
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	rsmqClient := createRSMQClient(t, redisConfig)
+	logger := createTestLogger(t)
 
 	msgs := []string{}
 	exec := func(_ context.Context, id string) error {
@@ -127,7 +136,7 @@ func TestScheduler_ParallelMonitor(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	s := scheduler.New("scheduler", rsmqClient, exec)
+	s := scheduler.New("scheduler", rsmqClient, exec, scheduler.WithLogger(logger))
 	require.NoError(t, s.Init(ctx))
 	defer s.Shutdown()
 
@@ -164,6 +173,7 @@ func TestScheduler_VisibilityTimeout(t *testing.T) {
 
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	rsmqClient := createRSMQClient(t, redisConfig)
+	logger := createTestLogger(t)
 
 	msgs := []string{}
 	exec := func(_ context.Context, id string) error {
@@ -173,7 +183,7 @@ func TestScheduler_VisibilityTimeout(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
-	s := scheduler.New("scheduler", rsmqClient, exec, scheduler.WithVisibilityTimeout(1))
+	s := scheduler.New("scheduler", rsmqClient, exec, scheduler.WithVisibilityTimeout(1), scheduler.WithLogger(logger))
 	require.NoError(t, s.Init(ctx))
 	defer s.Shutdown()
 
@@ -196,6 +206,7 @@ func TestScheduler_CustomID(t *testing.T) {
 	ctx := context.Background()
 
 	setupTestScheduler := func(t *testing.T) (scheduler.Scheduler, *[]string) {
+		logger := createTestLogger(t)
 		msgs := []string{}
 		exec := func(_ context.Context, task string) error {
 			msgs = append(msgs, task)
@@ -203,7 +214,7 @@ func TestScheduler_CustomID(t *testing.T) {
 		}
 
 		rsmqClient := createRSMQClient(t, redisConfig)
-		s := scheduler.New(idgen.String(), rsmqClient, exec)
+		s := scheduler.New(idgen.String(), rsmqClient, exec, scheduler.WithLogger(logger))
 		require.NoError(t, s.Init(ctx))
 		go s.Monitor(ctx)
 
@@ -301,6 +312,7 @@ func TestScheduler_Cancel(t *testing.T) {
 	ctx := context.Background()
 
 	setupTestScheduler := func(t *testing.T) (scheduler.Scheduler, *[]string) {
+		logger := createTestLogger(t)
 		msgs := []string{}
 		exec := func(_ context.Context, task string) error {
 			msgs = append(msgs, task)
@@ -308,7 +320,7 @@ func TestScheduler_Cancel(t *testing.T) {
 		}
 
 		rsmqClient := createRSMQClient(t, redisConfig)
-		s := scheduler.New(idgen.String(), rsmqClient, exec)
+		s := scheduler.New(idgen.String(), rsmqClient, exec, scheduler.WithLogger(logger))
 		require.NoError(t, s.Init(ctx))
 		go s.Monitor(ctx)
 
@@ -350,6 +362,9 @@ func TestScheduler_Cancel(t *testing.T) {
 func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {
 	t.Parallel()
 
+	logger, err := logging.NewLogger(logging.WithLogLevel("error"))
+	require.NoError(t, err)
+
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	realClient := createRSMQClient(t, redisConfig)
 
@@ -369,6 +384,7 @@ func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {
 	s := scheduler.New("scheduler", mock, exec,
 		scheduler.WithPollBackoff(10*time.Millisecond),
 		scheduler.WithMaxConsecutiveErrors(5),
+		scheduler.WithLogger(logger),
 	)
 	require.NoError(t, s.Init(ctx))
 	defer s.Shutdown()
@@ -387,6 +403,9 @@ func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {
 func TestScheduler_MonitorExhaustsRetries(t *testing.T) {
 	t.Parallel()
 
+	logger, err := logging.NewLogger(logging.WithLogLevel("error"))
+	require.NoError(t, err)
+
 	mock := &alwaysFailRSMQ{
 		err: errors.New("connection reset"),
 	}
@@ -396,10 +415,11 @@ func TestScheduler_MonitorExhaustsRetries(t *testing.T) {
 	s := scheduler.New("scheduler", mock, exec,
 		scheduler.WithPollBackoff(10*time.Millisecond),
 		scheduler.WithMaxConsecutiveErrors(3),
+		scheduler.WithLogger(logger),
 	)
 
 	// Monitor should return an error after exhausting retries
-	err := s.Monitor(context.Background())
+	err = s.Monitor(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "max consecutive errors reached")
 	require.Contains(t, err.Error(), "connection reset")
@@ -407,6 +427,9 @@ func TestScheduler_MonitorExhaustsRetries(t *testing.T) {
 
 func TestScheduler_MonitorCancelsDuringBackoff(t *testing.T) {
 	t.Parallel()
+
+	logger, err := logging.NewLogger(logging.WithLogLevel("error"))
+	require.NoError(t, err)
 
 	mock := &alwaysFailRSMQ{
 		err: errors.New("connection reset"),
@@ -417,12 +440,13 @@ func TestScheduler_MonitorCancelsDuringBackoff(t *testing.T) {
 	s := scheduler.New("scheduler", mock, exec,
 		scheduler.WithPollBackoff(10*time.Millisecond),
 		scheduler.WithMaxConsecutiveErrors(10),
+		scheduler.WithLogger(logger),
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
 	// Monitor should return nil when context is cancelled during backoff
-	err := s.Monitor(ctx)
+	err = s.Monitor(ctx)
 	require.NoError(t, err, "Monitor should return nil on context cancellation")
 }
