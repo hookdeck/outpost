@@ -3,6 +3,7 @@ package scheduler_test
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +14,53 @@ import (
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/require"
 )
+
+// mockRSMQ is a test double that wraps a real RSMQ client and injects
+// transient errors into ReceiveMessage for the first failCount calls.
+type mockRSMQ struct {
+	inner     *rsmq.RedisSMQ
+	calls     atomic.Int64
+	failCount int64
+	failErr   error
+}
+
+func (m *mockRSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int) error {
+	return m.inner.CreateQueue(qname, vt, delay, maxsize)
+}
+
+func (m *mockRSMQ) ReceiveMessage(qname string, vt uint) (*rsmq.QueueMessage, error) {
+	if m.calls.Add(1) <= m.failCount {
+		return nil, m.failErr
+	}
+	return m.inner.ReceiveMessage(qname, vt)
+}
+
+func (m *mockRSMQ) SendMessage(qname string, message string, delay uint, opts ...rsmq.SendMessageOption) (string, error) {
+	return m.inner.SendMessage(qname, message, delay, opts...)
+}
+
+func (m *mockRSMQ) DeleteMessage(qname string, id string) error {
+	return m.inner.DeleteMessage(qname, id)
+}
+
+func (m *mockRSMQ) Quit() error {
+	return m.inner.Quit()
+}
+
+// alwaysFailRSMQ is a test double that always fails ReceiveMessage.
+type alwaysFailRSMQ struct {
+	err error
+}
+
+func (m *alwaysFailRSMQ) CreateQueue(string, uint, uint, int) error { return nil }
+func (m *alwaysFailRSMQ) ReceiveMessage(string, uint) (*rsmq.QueueMessage, error) {
+	return nil, m.err
+}
+func (m *alwaysFailRSMQ) SendMessage(string, string, uint, ...rsmq.SendMessageOption) (string, error) {
+	return "", nil
+}
+func (m *alwaysFailRSMQ) DeleteMessage(string, string) error { return nil }
+func (m *alwaysFailRSMQ) Quit() error                        { return nil }
 
 // createRSMQClient creates an RSMQ client for testing
 func createRSMQClient(t *testing.T, redisConfig *iredis.RedisConfig) *rsmq.RedisSMQ {
@@ -297,4 +345,84 @@ func TestScheduler_Cancel(t *testing.T) {
 		// Cancel again should still not error
 		require.NoError(t, s.Cancel(ctx, id))
 	})
+}
+
+func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {
+	t.Parallel()
+
+	redisConfig := testutil.CreateTestRedisConfig(t)
+	realClient := createRSMQClient(t, redisConfig)
+
+	mock := &mockRSMQ{
+		inner:     realClient,
+		failCount: 3,
+		failErr:   errors.New("connection reset"),
+	}
+
+	msgs := []string{}
+	exec := func(_ context.Context, msg string) error {
+		msgs = append(msgs, msg)
+		return nil
+	}
+
+	ctx := context.Background()
+	s := scheduler.New("scheduler", mock, exec,
+		scheduler.WithPollBackoff(10*time.Millisecond),
+		scheduler.WithMaxConsecutiveErrors(5),
+	)
+	require.NoError(t, s.Init(ctx))
+	defer s.Shutdown()
+
+	go s.Monitor(ctx)
+
+	// Schedule a message — Monitor should recover after 3 transient errors and process it
+	id := idgen.String()
+	require.NoError(t, s.Schedule(ctx, id, 0))
+
+	time.Sleep(time.Second)
+	require.Len(t, msgs, 1)
+	require.Equal(t, id, msgs[0])
+}
+
+func TestScheduler_MonitorExhaustsRetries(t *testing.T) {
+	t.Parallel()
+
+	mock := &alwaysFailRSMQ{
+		err: errors.New("connection reset"),
+	}
+
+	exec := func(_ context.Context, msg string) error { return nil }
+
+	s := scheduler.New("scheduler", mock, exec,
+		scheduler.WithPollBackoff(10*time.Millisecond),
+		scheduler.WithMaxConsecutiveErrors(3),
+	)
+
+	// Monitor should return an error after exhausting retries
+	err := s.Monitor(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "max consecutive errors reached")
+	require.Contains(t, err.Error(), "connection reset")
+}
+
+func TestScheduler_MonitorCancelsDuringBackoff(t *testing.T) {
+	t.Parallel()
+
+	mock := &alwaysFailRSMQ{
+		err: errors.New("connection reset"),
+	}
+
+	exec := func(_ context.Context, msg string) error { return nil }
+
+	s := scheduler.New("scheduler", mock, exec,
+		scheduler.WithPollBackoff(10*time.Millisecond),
+		scheduler.WithMaxConsecutiveErrors(10),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	// Monitor should return nil when context is cancelled during backoff
+	err := s.Monitor(ctx)
+	require.NoError(t, err, "Monitor should return nil on context cancellation")
 }

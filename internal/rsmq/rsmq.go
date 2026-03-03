@@ -141,6 +141,17 @@ type QueueMessage struct {
 	Sent    time.Time
 }
 
+// Client is the subset of *RedisSMQ methods used by consumers (e.g., scheduler)
+type Client interface {
+	CreateQueue(qname string, vt uint, delay uint, maxsize int) error
+	ReceiveMessage(qname string, vt uint) (*QueueMessage, error)
+	SendMessage(qname string, message string, delay uint, opts ...SendMessageOption) (string, error)
+	DeleteMessage(qname string, id string) error
+	Quit() error
+}
+
+var _ Client = (*RedisSMQ)(nil)
+
 // NewRedisSMQ creates and returns new rsmq client
 func NewRedisSMQ(client RedisClient, ns string, logger ...*logging.Logger) *RedisSMQ {
 	if client == nil {
