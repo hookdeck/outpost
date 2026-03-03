@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/idgen"
-	"github.com/hookdeck/outpost/internal/logging"
 	iredis "github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/rsmq"
 	"github.com/hookdeck/outpost/internal/scheduler"
@@ -73,18 +72,12 @@ func createRSMQClient(t *testing.T, redisConfig *iredis.RedisConfig) *rsmq.Redis
 	return rsmq.NewRedisSMQ(adapter, "rsmq")
 }
 
-func createTestLogger(t *testing.T) *logging.Logger {
-	logger, err := logging.NewLogger(logging.WithLogLevel("error"))
-	require.NoError(t, err)
-	return logger
-}
-
 func TestScheduler_Basic(t *testing.T) {
 	t.Parallel()
 
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	rsmqClient := createRSMQClient(t, redisConfig)
-	logger := createTestLogger(t)
+	logger := testutil.CreateTestLogger(t)
 
 	msgs := []string{}
 	exec := func(_ context.Context, id string) error {
@@ -127,7 +120,7 @@ func TestScheduler_ParallelMonitor(t *testing.T) {
 
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	rsmqClient := createRSMQClient(t, redisConfig)
-	logger := createTestLogger(t)
+	logger := testutil.CreateTestLogger(t)
 
 	msgs := []string{}
 	exec := func(_ context.Context, id string) error {
@@ -173,7 +166,7 @@ func TestScheduler_VisibilityTimeout(t *testing.T) {
 
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	rsmqClient := createRSMQClient(t, redisConfig)
-	logger := createTestLogger(t)
+	logger := testutil.CreateTestLogger(t)
 
 	msgs := []string{}
 	exec := func(_ context.Context, id string) error {
@@ -206,7 +199,7 @@ func TestScheduler_CustomID(t *testing.T) {
 	ctx := context.Background()
 
 	setupTestScheduler := func(t *testing.T) (scheduler.Scheduler, *[]string) {
-		logger := createTestLogger(t)
+		logger := testutil.CreateTestLogger(t)
 		msgs := []string{}
 		exec := func(_ context.Context, task string) error {
 			msgs = append(msgs, task)
@@ -312,7 +305,7 @@ func TestScheduler_Cancel(t *testing.T) {
 	ctx := context.Background()
 
 	setupTestScheduler := func(t *testing.T) (scheduler.Scheduler, *[]string) {
-		logger := createTestLogger(t)
+		logger := testutil.CreateTestLogger(t)
 		msgs := []string{}
 		exec := func(_ context.Context, task string) error {
 			msgs = append(msgs, task)
@@ -362,8 +355,7 @@ func TestScheduler_Cancel(t *testing.T) {
 func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {
 	t.Parallel()
 
-	logger, err := logging.NewLogger(logging.WithLogLevel("error"))
-	require.NoError(t, err)
+	logger := testutil.CreateTestLogger(t)
 
 	redisConfig := testutil.CreateTestRedisConfig(t)
 	realClient := createRSMQClient(t, redisConfig)
@@ -403,8 +395,7 @@ func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {
 func TestScheduler_MonitorExhaustsRetries(t *testing.T) {
 	t.Parallel()
 
-	logger, err := logging.NewLogger(logging.WithLogLevel("error"))
-	require.NoError(t, err)
+	logger := testutil.CreateTestLogger(t)
 
 	mock := &alwaysFailRSMQ{
 		err: errors.New("connection reset"),
@@ -419,7 +410,7 @@ func TestScheduler_MonitorExhaustsRetries(t *testing.T) {
 	)
 
 	// Monitor should return an error after exhausting retries
-	err = s.Monitor(context.Background())
+	err := s.Monitor(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "max consecutive errors reached")
 	require.Contains(t, err.Error(), "connection reset")
@@ -428,8 +419,7 @@ func TestScheduler_MonitorExhaustsRetries(t *testing.T) {
 func TestScheduler_MonitorCancelsDuringBackoff(t *testing.T) {
 	t.Parallel()
 
-	logger, err := logging.NewLogger(logging.WithLogLevel("error"))
-	require.NoError(t, err)
+	logger := testutil.CreateTestLogger(t)
 
 	mock := &alwaysFailRSMQ{
 		err: errors.New("connection reset"),
@@ -447,6 +437,6 @@ func TestScheduler_MonitorCancelsDuringBackoff(t *testing.T) {
 	defer cancel()
 
 	// Monitor should return nil when context is cancelled during backoff
-	err = s.Monitor(ctx)
+	err := s.Monitor(ctx)
 	require.NoError(t, err, "Monitor should return nil on context cancellation")
 }
