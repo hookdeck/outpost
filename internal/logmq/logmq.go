@@ -48,6 +48,6 @@ func (q *LogMQ) Publish(ctx context.Context, entry models.LogEntry) error {
 	return q.queue.Publish(ctx, &entry)
 }
 
-func (q *LogMQ) Subscribe(ctx context.Context) (mqs.Subscription, error) {
-	return q.queue.Subscribe(ctx)
+func (q *LogMQ) Subscribe(ctx context.Context, opts ...mqs.SubscribeOption) (mqs.Subscription, error) {
+	return q.queue.Subscribe(ctx, opts...)
 }

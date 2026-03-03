@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"context"
+	"sync"
 
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -67,8 +68,53 @@ var _ Consumer = &consumerImpl{}
 func (c *consumerImpl) Run(ctx context.Context) error {
 	defer c.subscription.Shutdown(ctx)
 
-	tracerProvider := otel.GetTracerProvider()
-	tracer := tracerProvider.Tracer("github.com/hookdeck/outpost/internal/consumer")
+	// If the subscription manages its own concurrency (e.g. GCP native SDK
+	// with MaxOutstandingMessages), skip the consumer-side semaphore.
+	if cs, ok := c.subscription.(mqs.ConcurrentSubscription); ok && cs.SupportsConcurrency() {
+		return c.runConcurrent(ctx)
+	}
+	return c.runWithSemaphore(ctx)
+}
+
+// runConcurrent is used when the subscription manages flow control internally.
+// A WaitGroup tracks in-flight handlers for graceful shutdown.
+func (c *consumerImpl) runConcurrent(ctx context.Context) error {
+	tracer := otel.GetTracerProvider().Tracer("github.com/hookdeck/outpost/internal/consumer")
+
+	var wg sync.WaitGroup
+	var subscriptionErr error
+
+recvLoop:
+	for {
+		msg, err := c.subscription.Receive(ctx)
+		if err != nil {
+			subscriptionErr = err
+			break recvLoop
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			handlerCtx, span := tracer.Start(context.Background(), c.actionWithName("Consumer.Handle"))
+			defer span.End()
+
+			if err := c.handler.Handle(handlerCtx, msg); err != nil {
+				span.RecordError(err)
+				if c.logger != nil {
+					c.logger.Ctx(handlerCtx).Error("consumer handler error", zap.String("name", c.name), zap.Error(err))
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	return subscriptionErr
+}
+
+// runWithSemaphore limits concurrency via a channel-based semaphore.
+func (c *consumerImpl) runWithSemaphore(ctx context.Context) error {
+	tracer := otel.GetTracerProvider().Tracer("github.com/hookdeck/outpost/internal/consumer")
 
 	var subscriptionErr error
 
@@ -93,8 +139,7 @@ recvLoop:
 			handlerCtx, span := tracer.Start(context.Background(), c.actionWithName("Consumer.Handle"))
 			defer span.End()
 
-			err = c.handler.Handle(handlerCtx, msg)
-			if err != nil {
+			if err := c.handler.Handle(handlerCtx, msg); err != nil {
 				span.RecordError(err)
 				if c.logger != nil {
 					c.logger.Ctx(handlerCtx).Error("consumer handler error", zap.String("name", c.name), zap.Error(err))

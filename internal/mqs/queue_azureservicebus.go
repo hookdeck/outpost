@@ -71,7 +71,7 @@ func (q *AzureServiceBusQueue) Publish(ctx context.Context, incomingMessage Inco
 	return q.base.Publish(ctx, q.topic, incomingMessage, nil)
 }
 
-func (q *AzureServiceBusQueue) Subscribe(ctx context.Context) (Subscription, error) {
+func (q *AzureServiceBusQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error) {
 	var err error
 	q.once.Do(func() {
 		err = q.InitClient(ctx)
