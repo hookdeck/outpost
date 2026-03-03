@@ -5,7 +5,7 @@ description: An overview of the Outpost SDKs for Go, TypeScript, and Python.
 
 Outpost provides Software Development Kits (SDKs) to help you integrate your applications with the Outpost API seamlessly. These SDKs are designed to simplify the process of publishing events and managing your Outpost resources.
 
-The SDKs are generated from the <a href="./apis/openapi.yaml">Outpost OpenAPI specification</a> using [Speakeasy](https://speakeasy.com).
+The SDKs are generated from the <a href="https://github.com/hookdeck/outpost/blob/main/docs/apis/openapi.yaml" target="_blank">Outpost OpenAPI specification</a> using [Speakeasy](https://speakeasy.com).
 
 ## Available SDKs
 
@@ -71,7 +71,7 @@ async function manageOutpostResources() {
 
     // 3. Create a destination for the tenant
     console.log(
-      `Creating destination: ${newDestinationName} for tenant ${tenantId}...`
+      `Creating destination: ${newDestinationName} for tenant ${tenantId}...`,
     );
     const destination = await outpostAdmin.destinations.create({
       tenantId,
