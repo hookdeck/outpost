@@ -113,9 +113,10 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 	if cfg.visibilityTimeout > 0 {
 		return scheduler.New("deliverymq-retry", rsmqClient, exec,
 			scheduler.WithPollBackoff(pollBackoff),
-			scheduler.WithVisibilityTimeout(cfg.visibilityTimeout)), nil
+			scheduler.WithVisibilityTimeout(cfg.visibilityTimeout),
+			scheduler.WithLogger(logger)), nil
 	}
-	return scheduler.New("deliverymq-retry", rsmqClient, exec, scheduler.WithPollBackoff(pollBackoff)), nil
+	return scheduler.New("deliverymq-retry", rsmqClient, exec, scheduler.WithPollBackoff(pollBackoff), scheduler.WithLogger(logger)), nil
 }
 
 // RetryTask contains the minimal info needed to retry a delivery.

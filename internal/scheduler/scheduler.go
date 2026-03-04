@@ -2,9 +2,12 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/rsmq"
+	"go.uber.org/zap"
 )
 
 type ScheduleOption func(*ScheduleOptions)
@@ -28,15 +31,18 @@ type Scheduler interface {
 }
 
 type schedulerImpl struct {
-	rsmqClient *rsmq.RedisSMQ
+	rsmqClient rsmq.Client
 	config     *config
 	name       string
 	exec       func(context.Context, string) error
 }
 
 type config struct {
-	visibilityTimeout uint
-	pollBackoff       time.Duration
+	visibilityTimeout    uint
+	pollBackoff          time.Duration
+	maxConsecutiveErrors int
+	maxErrorBackoff      time.Duration
+	logger               *logging.Logger
 }
 
 func WithVisibilityTimeout(vt uint) func(*config) {
@@ -51,10 +57,24 @@ func WithPollBackoff(backoff time.Duration) func(*config) {
 	}
 }
 
-func New(name string, rsmqClient *rsmq.RedisSMQ, exec func(context.Context, string) error, opts ...func(*config)) Scheduler {
+func WithMaxConsecutiveErrors(n int) func(*config) {
+	return func(c *config) {
+		c.maxConsecutiveErrors = n
+	}
+}
+
+func WithLogger(logger *logging.Logger) func(*config) {
+	return func(c *config) {
+		c.logger = logger
+	}
+}
+
+func New(name string, rsmqClient rsmq.Client, exec func(context.Context, string) error, opts ...func(*config)) Scheduler {
 	config := &config{
-		visibilityTimeout: rsmq.UnsetVt,
-		pollBackoff:       100 * time.Millisecond,
+		visibilityTimeout:    rsmq.UnsetVt,
+		pollBackoff:          200 * time.Millisecond,
+		maxConsecutiveErrors: 5,
+		maxErrorBackoff:      5 * time.Second,
 	}
 	for _, opt := range opts {
 		opt(config)
@@ -98,6 +118,7 @@ func (s *schedulerImpl) Schedule(ctx context.Context, task string, delay time.Du
 }
 
 func (s *schedulerImpl) Monitor(ctx context.Context) error {
+	consecutiveErrors := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -105,8 +126,26 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 		default:
 			msg, err := s.rsmqClient.ReceiveMessage(s.name, rsmq.UnsetVt)
 			if err != nil {
-				return err
+				consecutiveErrors++
+				if consecutiveErrors >= s.config.maxConsecutiveErrors {
+					return fmt.Errorf("max consecutive errors reached: %w", err)
+				}
+				backoff := s.config.pollBackoff * time.Duration(1<<(consecutiveErrors-1))
+				if backoff > s.config.maxErrorBackoff {
+					backoff = s.config.maxErrorBackoff
+				}
+				s.config.logger.Ctx(ctx).Warn("scheduler receive error, retrying",
+					zap.Error(err),
+					zap.Int("attempt", consecutiveErrors),
+					zap.Duration("backoff", backoff))
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(backoff):
+				}
+				continue
 			}
+			consecutiveErrors = 0
 			if msg == nil {
 				time.Sleep(s.config.pollBackoff)
 				continue
