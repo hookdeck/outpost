@@ -51,9 +51,9 @@ if (!ADMIN_API_KEY) {
 }
 
 async function manageOutpostResources() {
-  // 1. Create an Outpost instance using the AdminAPIKey
+  // 1. Create an Outpost instance using the API Key
   const outpostAdmin = new Outpost({
-    security: { adminApiKey: ADMIN_API_KEY },
+    security: { apiKey: ADMIN_API_KEY },
     serverURL: `${SERVER_URL}/api/v1`,
   });
 
