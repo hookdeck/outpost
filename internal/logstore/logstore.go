@@ -23,13 +23,16 @@ type RetrieveAttemptRequest = driver.RetrieveAttemptRequest
 type AttemptRecord = driver.AttemptRecord
 type LogEntry = models.LogEntry
 
-type LogStore interface {
-	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
-	ListAttempt(context.Context, ListAttemptRequest) (ListAttemptResponse, error)
-	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
-	RetrieveAttempt(ctx context.Context, request RetrieveAttemptRequest) (*AttemptRecord, error)
-	InsertMany(context.Context, []*models.LogEntry) error
-}
+type MetricsRequest = driver.MetricsRequest
+type MetricsMetadata = driver.MetricsMetadata
+type DateRange = driver.DateRange
+type Granularity = driver.Granularity
+type EventMetricsDataPoint = driver.EventMetricsDataPoint
+type EventMetricsResponse = driver.EventMetricsResponse
+type AttemptMetricsDataPoint = driver.AttemptMetricsDataPoint
+type AttemptMetricsResponse = driver.AttemptMetricsResponse
+
+type LogStore = driver.LogStore
 
 type DriverOpts struct {
 	CH           clickhouse.DB
