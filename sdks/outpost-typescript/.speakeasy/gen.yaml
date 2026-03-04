@@ -67,7 +67,7 @@ typescript:
   jsonpath: rfc9535
   laxMode: strict
   legacyFileNaming: true
-  maxMethodParams: 0
+  maxMethodParams: 4
   methodArguments: require-security-and-request
   modelPropertyCasing: camel
   moduleFormat: dual

@@ -35,6 +35,7 @@ go:
   clientServerStatusCodesAsErrors: true
   defaultErrorName: APIError
   flattenGlobalSecurity: true
+  flatteningOrder: parameters-first
   forwardCompatibleEnumsByDefault: false
   imports:
     option: openapi
