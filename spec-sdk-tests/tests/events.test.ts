@@ -209,7 +209,7 @@ describe('Events (PR #491)', () => {
         throw new Error('Event ID is undefined');
       }
 
-      const event = await sdk.events.get({ eventId });
+      const event = await sdk.events.get(eventId);
       expect(event).to.exist;
       expect(event.id).to.equal(eventId);
       console.log('Single event retrieved by ID');

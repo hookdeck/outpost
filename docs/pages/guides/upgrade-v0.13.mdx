@@ -277,7 +277,7 @@ Use `response.models` for the array of items and `response.pagination` for `next
 | Before (v0.12-style) | After (v0.13) |
 | --- | --- |
 | `sdk.events.listByDestination({ tenantId, destinationId })` | `sdk.events.list({ tenantId, destinationId })` — or list without `destinationId` for all tenant events |
-| `sdk.events.getByDestination({ tenantId, destinationId, eventId })` | `sdk.events.get({ eventId })` |
+| `sdk.events.getByDestination({ tenantId, destinationId, eventId })` | `sdk.events.get(eventId)` — pass event ID as a string |
 | Tenant-scoped list/get by destination | Use `sdk.events.list({ tenantId })` and filter client-side, or use attempts API for destination-scoped data |
 
 **Note:** `GET /events?destination_id=...` is documented but currently returns 500 in some environments; prefer listing without `destination_id` until that is fixed. See [GitHub issue #688](https://github.com/hookdeck/outpost/issues/688) for details.
@@ -300,7 +300,7 @@ Use `response.models` for the array of items and `response.pagination` for `next
 ### Summary checklist for SDK users
 
 1. Replace any use of `response.data` with `response.models` and `response.next`/`response.prev` with `response.pagination?.next` / `response.pagination?.prev`.
-2. Switch events access to `sdk.events.list()` and `sdk.events.get({ eventId })`; remove use of event-by-destination list/get if present.
+2. Switch events access to `sdk.events.list(request)` and `sdk.events.get(eventId)` (event ID as string); remove use of event-by-destination list/get if present.
 3. Switch delivery/retry usage to `sdk.attempts.*` and `sdk.destinations.listAttempts()` / `getAttempt()`.
 4. Use `sdk.attempts.retry({ eventId, destinationId })` for retries.
 5. Use `sdk.schemas.listDestinationTypes()` and `sdk.topics.list()` without tenant scope.
@@ -373,13 +373,30 @@ const outpost = new Outpost({
 });
 const destinations = await outpost.destinations.list({});
 
-// After — tenantId passed per method
+// After — tenantId passed as first (positional) argument to each method
 const outpost = new Outpost({
   apiKey: jwt,
   serverURL: `${SERVER_URL}/api/v1`,
 });
-const destinations = await outpost.destinations.list({ tenantId: "my-tenant" });
+const destinations = await outpost.destinations.list("my-tenant");
 ```
+
+### Positional parameters for tenants and destinations
+
+In v0.13.1, tenant- and destination-scoped methods take **positional arguments** (e.g. `tenantId` first), not a single request object. Update calls as follows:
+
+| Method | Before (object form) | After (v0.13.1 positional) |
+| --- | --- | --- |
+| `tenants.upsert` | `upsert({ tenantId })` or `upsert({ tenantId, params })` | `upsert(tenantId, params?)` |
+| `tenants.delete` | `delete({ tenantId })` | `delete(tenantId)` |
+| `tenants.get` | `get({ tenantId })` | `get(tenantId)` |
+| `destinations.list` | `list({ tenantId, type? })` | `list(tenantId, type?, topics?)` |
+| `destinations.create` | `create({ tenantId, params })` | `create(tenantId, params)` |
+| `destinations.get` | `get({ tenantId, destinationId })` | `get(tenantId, destinationId)` |
+| `destinations.update` | `update({ tenantId, destinationId, params })` | `update(tenantId, destinationId, params)` |
+| `destinations.delete` | `delete({ tenantId, destinationId })` | `delete(tenantId, destinationId)` |
+
+`events.list()` still takes a single request object (e.g. `{ tenantId?, topic?, limit? }`). `events.get()` takes the event ID as a string: `events.get(eventId)`.
 
 ### Method name cleanup
 
@@ -393,8 +410,10 @@ Redundant `Jwt` suffixes have been removed from method names:
 ### Summary checklist for SDK v0.13.1 users
 
 1. Replace `security: { adminApiKey: "..." }` or `security: { tenantJwt: "..." }` with `apiKey: "..."` as a top-level constructor parameter.
-2. Remove `tenantId` from the SDK constructor and pass it to each method call instead.
-3. Rename `getDestinationTypeJwt` to `getDestinationType` and `listDestinationTypesJwt` to `listDestinationTypes`.
+2. Remove `tenantId` from the SDK constructor and pass it as the first (positional) argument to each tenant/destination method (e.g. `destinations.list(tenantId)`, `destinations.get(tenantId, destinationId)`).
+3. Change tenant and destination method calls from object form to positional: `tenants.upsert(tenantId, params?)`, `tenants.delete(tenantId)`, `destinations.create(tenantId, params)`, `destinations.get(tenantId, destinationId)`, `destinations.update(tenantId, destinationId, params)`, `destinations.delete(tenantId, destinationId)`.
+4. Use `events.get(eventId)` with the event ID as a string, not `events.get({ eventId })`.
+5. Rename `getDestinationTypeJwt` to `getDestinationType` and `listDestinationTypesJwt` to `listDestinationTypes`.
 
 ## Empty `custom_headers` Rejected
 
