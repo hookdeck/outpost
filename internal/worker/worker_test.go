@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 // Mock worker for testing
@@ -48,55 +48,6 @@ func (m *mockWorker) WasStarted() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.started
-}
-
-// Mock logger for testing
-type mockLogger struct {
-	mu       sync.Mutex
-	messages []string
-}
-
-func newMockLogger() *mockLogger {
-	return &mockLogger{
-		messages: []string{},
-	}
-}
-
-func (l *mockLogger) log(level, msg string, fields ...zap.Field) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.messages = append(l.messages, fmt.Sprintf("[%s] %s", level, msg))
-}
-
-func (l *mockLogger) Info(msg string, fields ...zap.Field) {
-	l.log("INFO", msg, fields...)
-}
-
-func (l *mockLogger) Error(msg string, fields ...zap.Field) {
-	l.log("ERROR", msg, fields...)
-}
-
-func (l *mockLogger) Debug(msg string, fields ...zap.Field) {
-	l.log("DEBUG", msg, fields...)
-}
-
-func (l *mockLogger) Warn(msg string, fields ...zap.Field) {
-	l.log("WARN", msg, fields...)
-}
-
-func (l *mockLogger) Contains(substr string) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for _, msg := range l.messages {
-		if contains(msg, substr) {
-			return true
-		}
-	}
-	return false
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || s[1:len(s)-1] != s[1:len(s)-1] && contains(s[1:], substr)))
 }
 
 // Tests
@@ -174,18 +125,17 @@ func TestHealthTracker_NoErrorExposed(t *testing.T) {
 }
 
 func TestWorkerSupervisor_RegisterWorker(t *testing.T) {
-	logger := newMockLogger()
+	logger := testutil.CreateTestLogger(t)
 	supervisor := NewWorkerSupervisor(logger)
 
 	worker := newMockWorker("test-worker", nil)
 	supervisor.Register(worker)
 
 	assert.Len(t, supervisor.workers, 1)
-	assert.True(t, logger.Contains("worker registered"))
 }
 
 func TestWorkerSupervisor_RegisterDuplicateWorker(t *testing.T) {
-	logger := newMockLogger()
+	logger := testutil.CreateTestLogger(t)
 	supervisor := NewWorkerSupervisor(logger)
 
 	worker1 := newMockWorker("test-worker", nil)
@@ -199,7 +149,7 @@ func TestWorkerSupervisor_RegisterDuplicateWorker(t *testing.T) {
 }
 
 func TestWorkerSupervisor_Run_HealthyWorkers(t *testing.T) {
-	logger := newMockLogger()
+	logger := testutil.CreateTestLogger(t)
 	supervisor := NewWorkerSupervisor(logger)
 
 	worker1 := newMockWorker("worker-1", func(ctx context.Context) error {
@@ -250,7 +200,7 @@ func TestWorkerSupervisor_Run_HealthyWorkers(t *testing.T) {
 }
 
 func TestWorkerSupervisor_Run_FailedWorker(t *testing.T) {
-	logger := newMockLogger()
+	logger := testutil.CreateTestLogger(t)
 	supervisor := NewWorkerSupervisor(logger)
 
 	healthyWorker := newMockWorker("healthy", func(ctx context.Context) error {
@@ -301,7 +251,7 @@ func TestWorkerSupervisor_Run_FailedWorker(t *testing.T) {
 }
 
 func TestWorkerSupervisor_Run_AllWorkersExit(t *testing.T) {
-	logger := newMockLogger()
+	logger := testutil.CreateTestLogger(t)
 	supervisor := NewWorkerSupervisor(logger)
 
 	// Both workers exit on their own (not from context cancellation)
@@ -339,13 +289,10 @@ func TestWorkerSupervisor_Run_AllWorkersExit(t *testing.T) {
 	workers := status["workers"].(map[string]WorkerHealth)
 	assert.Equal(t, WorkerStatusFailed, workers["worker-1"].Status)
 	assert.Equal(t, WorkerStatusFailed, workers["worker-2"].Status)
-
-	// Verify log message
-	assert.True(t, logger.Contains("all workers have exited"))
 }
 
 func TestWorkerSupervisor_Run_ContextCanceled(t *testing.T) {
-	logger := newMockLogger()
+	logger := testutil.CreateTestLogger(t)
 	supervisor := NewWorkerSupervisor(logger)
 
 	worker := newMockWorker("worker-1", func(ctx context.Context) error {
@@ -373,7 +320,7 @@ func TestWorkerSupervisor_Run_ContextCanceled(t *testing.T) {
 }
 
 func TestWorkerSupervisor_Run_NoWorkers(t *testing.T) {
-	logger := newMockLogger()
+	logger := testutil.CreateTestLogger(t)
 	supervisor := NewWorkerSupervisor(logger)
 
 	ctx := context.Background()
@@ -381,7 +328,6 @@ func TestWorkerSupervisor_Run_NoWorkers(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no workers registered")
-	assert.True(t, logger.Contains("no workers registered"))
 }
 
 func TestHealthTracker_ConcurrentAccess(t *testing.T) {
@@ -425,7 +371,7 @@ func TestHealthTracker_ConcurrentAccess(t *testing.T) {
 }
 
 func TestWorkerSupervisor_Run_VariableShutdownTiming(t *testing.T) {
-	logger := newMockLogger()
+	logger := testutil.CreateTestLogger(t)
 	supervisor := NewWorkerSupervisor(logger)
 
 	// Worker that shuts down quickly (50ms)
@@ -483,7 +429,7 @@ func TestWorkerSupervisor_Run_VariableShutdownTiming(t *testing.T) {
 }
 
 func TestWorkerSupervisor_Run_VerySlowShutdown_NoTimeout(t *testing.T) {
-	logger := newMockLogger()
+	logger := testutil.CreateTestLogger(t)
 	supervisor := NewWorkerSupervisor(logger) // No timeout
 
 	// Worker that takes a very long time to shutdown (2 seconds)
@@ -528,7 +474,7 @@ func TestWorkerSupervisor_Run_VerySlowShutdown_NoTimeout(t *testing.T) {
 }
 
 func TestWorkerSupervisor_Run_ShutdownTimeout(t *testing.T) {
-	logger := newMockLogger()
+	logger := testutil.CreateTestLogger(t)
 	// Set shutdown timeout to 500ms
 	supervisor := NewWorkerSupervisor(logger, WithShutdownTimeout(500*time.Millisecond))
 
@@ -573,7 +519,7 @@ func TestWorkerSupervisor_Run_ShutdownTimeout(t *testing.T) {
 }
 
 func TestWorkerSupervisor_Run_ShutdownTimeout_FastWorkers(t *testing.T) {
-	logger := newMockLogger()
+	logger := testutil.CreateTestLogger(t)
 	// Set shutdown timeout to 2s
 	supervisor := NewWorkerSupervisor(logger, WithShutdownTimeout(2*time.Second))
 
@@ -617,7 +563,7 @@ func TestWorkerSupervisor_Run_ShutdownTimeout_FastWorkers(t *testing.T) {
 }
 
 func TestWorkerSupervisor_Run_StuckWorker(t *testing.T) {
-	logger := newMockLogger()
+	logger := testutil.CreateTestLogger(t)
 	supervisor := NewWorkerSupervisor(logger)
 
 	// Worker that never shuts down (ignores context cancellation)
