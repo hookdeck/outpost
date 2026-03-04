@@ -14,6 +14,7 @@ This guide covers breaking changes and migration steps when upgrading from v0.12
 | [ID prefix delimiter removed](#id-prefix-delimiter-removed) | Custom ID prefixes | Include delimiter in prefix value (e.g., `evt_` instead of `evt`) |
 | [Refined API schema](#refined-api-schema) | Pagination, query filters, and error responses | Update response parsing, query parameters, and error handling |
 | [Empty `custom_headers` rejected](#empty-custom_headers-rejected) | Webhook destination creation/update | Remove empty `custom_headers` or omit the field |
+| [SDK v0.13.1 changes](#sdk-v0131-changes) | SDK security names, global tenant_id, method names | Update SDK constructor and method calls |
 | [Database schema changes](#database-schema-changes) | PostgreSQL log store | Automatic — migrations run on startup |
 
 ## Delivery Renamed to Attempt
@@ -305,6 +306,91 @@ Use `response.models` for the array of items and `response.pagination` for `next
 5. Use `sdk.schemas.listDestinationTypes()` and `sdk.topics.list()` without tenant scope.
 
 TypeScript SDK v0.13.0 and later reflect these changes. Go and Python SDKs will align with the same API once regenerated from the v0.13 OpenAPI spec.
+
+## SDK v0.13.1 Changes
+
+SDK v0.13.1 simplifies security scheme names, removes the global `tenant_id` parameter, and flattens method signatures.
+
+### Security scheme names
+
+The SDK security field names have been simplified:
+
+| Before (v0.13.0) | After (v0.13.1) |
+| --- | --- |
+| `adminApiKey` | `apiKey` |
+| `tenantJwt` | `jwt` |
+
+**TypeScript:**
+
+```ts
+// Before
+const outpost = new Outpost({
+  security: { adminApiKey: "your-api-key" },
+  serverURL: `${SERVER_URL}/api/v1`,
+});
+
+// After
+const outpost = new Outpost({
+  security: { apiKey: "your-api-key" },
+  serverURL: `${SERVER_URL}/api/v1`,
+});
+```
+
+**Go:**
+
+```go
+// Before
+client := outpostgo.New(
+    outpostgo.WithSecurity(components.Security{
+        AdminAPIKey: outpostgo.String(apiKey),
+    }),
+)
+
+// After
+client := outpostgo.New(
+    outpostgo.WithSecurity(components.Security{
+        APIKey: outpostgo.String(apiKey),
+    }),
+)
+```
+
+### Global `tenant_id` parameter removed
+
+The `tenantId` constructor option has been removed. Pass `tenantId` directly to each method that requires it.
+
+**TypeScript:**
+
+```ts
+// Before — tenantId set globally
+const outpost = new Outpost({
+  security: { tenantJwt: jwt },
+  serverURL: `${SERVER_URL}/api/v1`,
+  tenantId: "my-tenant",
+});
+const destinations = await outpost.destinations.list({});
+
+// After — tenantId passed per method
+const outpost = new Outpost({
+  security: { jwt },
+  serverURL: `${SERVER_URL}/api/v1`,
+});
+const destinations = await outpost.destinations.list({ tenantId: "my-tenant" });
+```
+
+### Method name cleanup
+
+Redundant `Jwt` suffixes have been removed from method names:
+
+| Before (v0.13.0) | After (v0.13.1) |
+| --- | --- |
+| `sdk.schemas.getDestinationTypeJwt()` | `sdk.schemas.getDestinationType()` |
+| `sdk.schemas.listDestinationTypesJwt()` | `sdk.schemas.listDestinationTypes()` |
+
+### Summary checklist for SDK v0.13.1 users
+
+1. Rename `adminApiKey` to `apiKey` and `tenantJwt` to `jwt` in SDK security configuration.
+2. Remove `tenantId` from the SDK constructor and pass it to each method call instead.
+3. Rename `getDestinationTypeJwt` to `getDestinationType` and `listDestinationTypesJwt` to `listDestinationTypes`.
 
 ## Empty `custom_headers` Rejected
 
