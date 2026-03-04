@@ -2,7 +2,6 @@ package drivertest
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -11,8 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-var errNotImplemented = errors.New("metrics queries not yet implemented")
 
 func testMetrics(t *testing.T, newHarness HarnessMaker) {
 	t.Helper()
@@ -24,18 +21,6 @@ func testMetrics(t *testing.T, newHarness HarnessMaker) {
 
 	logStore, err := h.MakeDriver(ctx)
 	require.NoError(t, err)
-
-	// Check if metrics is implemented — skip all subtests if not.
-	_, err = logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
-		DateRange: driver.DateRange{
-			Start: time.Now().Add(-time.Hour),
-			End:   time.Now(),
-		},
-		Measures: []string{"count"},
-	})
-	if errors.Is(err, errNotImplemented) || (err != nil && err.Error() == "metrics queries not yet implemented") {
-		t.Skip("metrics not implemented by this driver")
-	}
 
 	// Build and seed the dataset.
 	ds := buildMetricsDataset()
