@@ -309,16 +309,11 @@ TypeScript SDK v0.13.0 and later reflect these changes. Go and Python SDKs will 
 
 ## SDK v0.13.1 Changes
 
-SDK v0.13.1 simplifies security scheme names, removes the global `tenant_id` parameter, and flattens method signatures.
+SDK v0.13.1 flattens security into a single top-level `apiKey` constructor parameter, removes the global `tenant_id` parameter, and cleans up method names.
 
-### Security scheme names
+### Flattened security
 
-The SDK security field names have been simplified:
-
-| Before (v0.13.0) | After (v0.13.1) |
-| --- | --- |
-| `adminApiKey` | `apiKey` |
-| `tenantJwt` | `jwt` |
+The two security schemes (`adminApiKey` / `tenantJwt`) have been collapsed into a single `apiKey` parameter. Pass either an Admin API Key or a Tenant JWT — the SDK sends it as a `Bearer` token in both cases.
 
 **TypeScript:**
 
@@ -329,9 +324,18 @@ const outpost = new Outpost({
   serverURL: `${SERVER_URL}/api/v1`,
 });
 
-// After
+// After — apiKey is a top-level constructor parameter
 const outpost = new Outpost({
-  security: { apiKey: "your-api-key" },
+  apiKey: "your-api-key",
+  serverURL: `${SERVER_URL}/api/v1`,
+});
+```
+
+For tenant JWT authentication, pass the JWT as `apiKey`:
+
+```ts
+const outpost = new Outpost({
+  apiKey: jwt,
   serverURL: `${SERVER_URL}/api/v1`,
 });
 ```
@@ -371,7 +375,7 @@ const destinations = await outpost.destinations.list({});
 
 // After — tenantId passed per method
 const outpost = new Outpost({
-  security: { jwt },
+  apiKey: jwt,
   serverURL: `${SERVER_URL}/api/v1`,
 });
 const destinations = await outpost.destinations.list({ tenantId: "my-tenant" });
@@ -388,7 +392,7 @@ Redundant `Jwt` suffixes have been removed from method names:
 
 ### Summary checklist for SDK v0.13.1 users
 
-1. Rename `adminApiKey` to `apiKey` and `tenantJwt` to `jwt` in SDK security configuration.
+1. Replace `security: { adminApiKey: "..." }` or `security: { tenantJwt: "..." }` with `apiKey: "..."` as a top-level constructor parameter.
 2. Remove `tenantId` from the SDK constructor and pass it to each method call instead.
 3. Rename `getDestinationTypeJwt` to `getDestinationType` and `listDestinationTypesJwt` to `listDestinationTypes`.
 

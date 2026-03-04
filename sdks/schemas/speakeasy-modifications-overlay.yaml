@@ -233,19 +233,3 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $["components"]["securitySchemes"]["AdminApiKey"]
-    update:
-      x-speakeasy-name-override: apiKey
-    x-speakeasy-metadata:
-      after: security.apiKey
-      before: security.adminApiKey
-      created_at: 1745611620645
-      type: user-edit
-  - target: $["components"]["securitySchemes"]["TenantJwt"]
-    update:
-      x-speakeasy-name-override: jwt
-    x-speakeasy-metadata:
-      after: security.jwt
-      before: security.tenantJwt
-      created_at: 1745611620645
-      type: user-edit

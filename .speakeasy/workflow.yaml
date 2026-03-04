@@ -6,6 +6,7 @@ sources:
             - location: ./docs/apis/openapi.yaml
         overlays:
             - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
+            - location: ./sdks/schemas/security-collapse-overlay.yaml
             - location: ./sdks/schemas/error-types.yaml
         registry:
             location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api
@@ -14,6 +15,7 @@ sources:
             - location: ./docs/apis/openapi.yaml
         overlays:
             - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
+            - location: ./sdks/schemas/security-collapse-overlay.yaml
             - location: ./sdks/schemas/error-types.yaml
             - location: ./sdks/schemas/pagination-fixes-overlay.yaml
         registry:

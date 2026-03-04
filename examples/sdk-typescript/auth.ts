@@ -36,14 +36,14 @@ const debugLogger = {
 };
 
 const withJwt  = async (jwt: string) => {
-  const outpost = new Outpost({security: {jwt}, serverURL: `${SERVER_URL}/api/v1`});
+  const outpost = new Outpost({apiKey: jwt, serverURL: `${SERVER_URL}/api/v1`});
   const destinations = await outpost.destinations.list({tenantId: TENANT_ID});
 
   console.log(destinations);
 }
 
 const withAdminApiKey  = async () => {
-  const outpost = new Outpost({security: {apiKey: ADMIN_API_KEY}, serverURL: `${SERVER_URL}/api/v1`});
+  const outpost = new Outpost({apiKey: ADMIN_API_KEY, serverURL: `${SERVER_URL}/api/v1`});
 
   const result = await outpost.health.check();
   console.log(result);

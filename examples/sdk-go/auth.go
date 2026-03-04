@@ -18,7 +18,7 @@ func withJwt(ctx context.Context, jwt string, serverURL string, tenantID string)
 
 	jwtClient := outpostgo.New(
 		outpostgo.WithSecurity(components.Security{
-			Jwt: outpostgo.String(jwt),
+			APIKey: outpostgo.String(jwt),
 		}),
 		outpostgo.WithServerURL(apiServerURL),
 	)
