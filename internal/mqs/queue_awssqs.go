@@ -66,7 +66,7 @@ func (q *AWSQueue) Publish(ctx context.Context, incomingMessage IncomingMessage)
 	return q.base.Publish(ctx, q.topic, incomingMessage, nil)
 }
 
-func (q *AWSQueue) Subscribe(ctx context.Context) (Subscription, error) {
+func (q *AWSQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error) {
 	var err error
 	q.once.Do(func() {
 		err = q.InitSDK(ctx)

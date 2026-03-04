@@ -48,6 +48,6 @@ func (q *DeliveryMQ) Publish(ctx context.Context, task models.DeliveryTask) erro
 	return q.queue.Publish(ctx, &task)
 }
 
-func (q *DeliveryMQ) Subscribe(ctx context.Context) (mqs.Subscription, error) {
-	return q.queue.Subscribe(ctx)
+func (q *DeliveryMQ) Subscribe(ctx context.Context, opts ...mqs.SubscribeOption) (mqs.Subscription, error) {
+	return q.queue.Subscribe(ctx, opts...)
 }

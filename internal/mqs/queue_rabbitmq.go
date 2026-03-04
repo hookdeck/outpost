@@ -54,7 +54,7 @@ func (q *RabbitMQQueue) Publish(ctx context.Context, incomingMessage IncomingMes
 	})
 }
 
-func (q *RabbitMQQueue) Subscribe(ctx context.Context) (Subscription, error) {
+func (q *RabbitMQQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error) {
 	var err error
 	q.once.Do(func() {
 		err = q.InitConn()

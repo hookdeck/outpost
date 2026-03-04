@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
+	nativepubsub "cloud.google.com/go/pubsub"
 	"gocloud.dev/gcp"
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/gcppubsub"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 )
 
@@ -120,43 +123,117 @@ func (q *GCPPubSubQueue) Publish(ctx context.Context, incomingMessage IncomingMe
 	return q.base.Publish(ctx, q.topic, incomingMessage, nil)
 }
 
-func (q *GCPPubSubQueue) Subscribe(ctx context.Context) (Subscription, error) {
-	var err error
-	var subscription *pubsub.Subscription
+func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error) {
+	o := ApplySubscribeOptions(opts)
+	concurrency := o.Concurrency
+
+	var clientOpts []option.ClientOption
 	if q.config.ServiceAccountCredentials != "" {
-		subscription, err = q.createSubscriptionWithCredentials(ctx)
-	} else {
-		subscription, err = q.createSubscriptionWithoutCredentials(ctx)
+		creds, err := google.CredentialsFromJSON(ctx, []byte(q.config.ServiceAccountCredentials), "https://www.googleapis.com/auth/pubsub")
+		if err != nil {
+			return nil, fmt.Errorf("parse credentials: %w", err)
+		}
+		clientOpts = append(clientOpts, option.WithCredentials(creds))
 	}
+
+	client, err := nativepubsub.NewClient(ctx, q.config.ProjectID, clientOpts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create pubsub client: %w", err)
 	}
-	return q.base.Subscribe(ctx, subscription)
+
+	sub := client.Subscription(q.config.SubscriptionID)
+	sub.ReceiveSettings.MaxOutstandingMessages = concurrency
+	// Use a single StreamingPull stream per subscription to keep concurrency
+	// control explicit; scaling is done at the subscription level, not via
+	// additional goroutines within a subscription.
+	sub.ReceiveSettings.NumGoroutines = 1
+	// Disable automatic lease extension so messages are not held beyond the
+	// subscription's ack deadline. We are intentional about consumer processing
+	// logic and do not want the SDK silently extending message leases — if a
+	// handler exceeds the ack deadline, the message should be redelivered.
+	sub.ReceiveSettings.MaxExtension = -1 * time.Second
+
+	msgChan := make(chan *Message, concurrency)
+	subCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+
+	s := &gcpNativeSubscription{
+		msgChan: msgChan,
+		cancel:  cancel,
+		done:    done,
+		client:  client,
+	}
+
+	go func() {
+		defer close(done)
+		defer close(msgChan)
+		// sub.Receive blocks until subCtx is cancelled or a fatal error occurs.
+		// The callback nacks on context cancellation to avoid buffering messages
+		// that won't be processed.
+		s.recvErr = sub.Receive(subCtx, func(_ context.Context, msg *nativepubsub.Message) {
+			m := &Message{
+				QueueMessage: &gcpNativeAcker{msg: msg},
+				LoggableID:   msg.ID,
+				Body:         msg.Data,
+			}
+			select {
+			case msgChan <- m:
+			case <-subCtx.Done():
+				msg.Nack()
+			}
+		})
+	}()
+
+	return s, nil
 }
 
-func (q *GCPPubSubQueue) createSubscriptionWithCredentials(ctx context.Context) (*pubsub.Subscription, error) {
-	conn, err := q.getConn(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	subClient, err := gcppubsub.SubscriberClient(ctx, conn)
-	if err != nil {
-		return nil, err
-	}
-	q.cleanupFns = append(q.cleanupFns, func() {
-		subClient.Close()
-	})
-
-	subscription := gcppubsub.OpenSubscription(subClient, gcp.ProjectID(q.config.ProjectID), q.config.SubscriptionID, nil)
-	return subscription, nil
+// gcpNativeSubscription bridges the native SDK StreamingPull to the mqs.Subscription interface.
+type gcpNativeSubscription struct {
+	msgChan <-chan *Message
+	cancel  context.CancelFunc
+	done    chan struct{}
+	client  *nativepubsub.Client
+	recvErr error // set by the background goroutine when sub.Receive exits
 }
 
-func (q *GCPPubSubQueue) createSubscriptionWithoutCredentials(ctx context.Context) (*pubsub.Subscription, error) {
-	subscription, err := pubsub.OpenSubscription(ctx,
-		fmt.Sprintf("gcppubsub://projects/%s/subscriptions/%s", q.config.ProjectID, q.config.SubscriptionID))
-	if err != nil {
-		return nil, err
+var _ Subscription = &gcpNativeSubscription{}
+var _ ConcurrentSubscription = &gcpNativeSubscription{}
+
+func (s *gcpNativeSubscription) Receive(ctx context.Context) (*Message, error) {
+	select {
+	case msg, ok := <-s.msgChan:
+		if !ok {
+			if s.recvErr != nil {
+				return nil, fmt.Errorf("subscription closed: %w", s.recvErr)
+			}
+			return nil, fmt.Errorf("subscription closed")
+		}
+		return msg, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
-	return subscription, nil
 }
+
+func (s *gcpNativeSubscription) Shutdown(_ context.Context) error {
+	s.cancel()
+	<-s.done
+	// Nack any remaining buffered messages for faster redelivery.
+	for msg := range s.msgChan {
+		msg.Nack()
+	}
+	return s.client.Close()
+}
+
+// SupportsConcurrency returns true — the native SDK manages concurrency via
+// MaxOutstandingMessages, so the consumer should skip its own semaphore.
+func (s *gcpNativeSubscription) SupportsConcurrency() bool {
+	return true
+}
+
+// gcpNativeAcker wraps a native SDK message to implement QueueMessage.
+type gcpNativeAcker struct {
+	msg *nativepubsub.Message
+}
+
+func (a *gcpNativeAcker) Ack()  { a.msg.Ack() }
+func (a *gcpNativeAcker) Nack() { a.msg.Nack() }
