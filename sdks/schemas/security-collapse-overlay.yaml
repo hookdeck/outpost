@@ -1,7 +1,7 @@
 overlay: 1.0.0
 info:
   title: Security Scheme Collapse
-  version: 0.0.1
+  version: 0.0.2
   description: |
     Collapses AdminApiKey and TenantJwt into a single BearerAuth scheme for SDK
     generation. This enables flattenGlobalSecurity to promote the token to a
@@ -30,35 +30,53 @@ actions:
           **Tenant JWT:** Per-tenant token valid for 24 hours, scoped to a specific tenant.
           Used for tenant-scoped operations (listing destinations, viewing events and attempts).
 
-  # Replace global security
+  # Remove global security array then set new value
+  - target: $["security"]
+    remove: true
   - target: $
     update:
       security:
         - BearerAuth: []
 
-  # Update operation-level security: endpoints that list both schemes
+  # Remove and replace operation-level security: endpoints with both schemes
+  - target: $["paths"]["/tenants"]["get"]["security"]
+    remove: true
   - target: $["paths"]["/tenants"]["get"]
     update:
       security:
         - BearerAuth: []
+
+  - target: $["paths"]["/events"]["get"]["security"]
+    remove: true
   - target: $["paths"]["/events"]["get"]
     update:
       security:
         - BearerAuth: []
+
+  - target: $["paths"]["/attempts"]["get"]["security"]
+    remove: true
   - target: $["paths"]["/attempts"]["get"]
     update:
       security:
         - BearerAuth: []
 
-  # Update operation-level security: admin-only endpoints
+  # Remove and replace operation-level security: admin-only endpoints
+  - target: $["paths"]["/tenants/{tenant_id}/portal"]["get"]["security"]
+    remove: true
   - target: $["paths"]["/tenants/{tenant_id}/portal"]["get"]
     update:
       security:
         - BearerAuth: []
+
+  - target: $["paths"]["/tenants/{tenant_id}/token"]["get"]["security"]
+    remove: true
   - target: $["paths"]["/tenants/{tenant_id}/token"]["get"]
     update:
       security:
         - BearerAuth: []
+
+  - target: $["paths"]["/publish"]["post"]["security"]
+    remove: true
   - target: $["paths"]["/publish"]["post"]
     update:
       security:
