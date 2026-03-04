@@ -228,7 +228,7 @@ func scanEvents(rows pgx.Rows) ([]eventWithPosition, error) {
 			eventTime        time.Time
 			topic            string
 			eligibleForRetry bool
-			data             []byte
+			data             string
 			metadata         map[string]string
 		)
 
@@ -256,7 +256,7 @@ func scanEvents(rows pgx.Rows) ([]eventWithPosition, error) {
 				Topic:            topic,
 				EligibleForRetry: eligibleForRetry,
 				Time:             eventTime,
-				Data:             data,
+				Data:             []byte(data),
 				Metadata:         metadata,
 			},
 			eventTime: eventTime,
@@ -458,7 +458,7 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 			responseData     map[string]any
 			eventTime        time.Time
 			eligibleForRetry bool
-			eventData        []byte
+			eventData        string
 			eventMetadata    map[string]string
 		)
 
@@ -507,7 +507,7 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 					Topic:            topic,
 					EligibleForRetry: eligibleForRetry,
 					Time:             eventTime,
-					Data:             eventData,
+					Data:             []byte(eventData),
 					Metadata:         eventMetadata,
 				},
 			},
@@ -555,6 +555,7 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 	row := s.db.QueryRow(ctx, query, args...)
 
 	event := &models.Event{}
+	var dataStr string
 	err := row.Scan(
 		&event.ID,
 		&event.TenantID,
@@ -563,7 +564,7 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 		&event.EligibleForRetry,
 		&event.Time,
 		&event.Metadata,
-		&event.Data,
+		&dataStr,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -572,6 +573,7 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 		return nil, fmt.Errorf("scan failed: %w", err)
 	}
 
+	event.Data = []byte(dataStr)
 	event.Time = event.Time.UTC()
 	return event, nil
 }
@@ -629,7 +631,7 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 		responseData     map[string]any
 		eventTime        time.Time
 		eligibleForRetry bool
-		eventData        []byte
+		eventData        string
 		eventMetadata    map[string]string
 	)
 
@@ -681,7 +683,7 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 			Topic:            topic,
 			EligibleForRetry: eligibleForRetry,
 			Time:             eventTime,
-			Data:             eventData,
+			Data:             []byte(eventData),
 			Metadata:         eventMetadata,
 		},
 	}, nil
@@ -712,7 +714,7 @@ func (s *logStore) InsertMany(ctx context.Context, entries []*models.LogEntry) e
 	if len(events) > 0 {
 		_, err = tx.Exec(ctx, `
 			INSERT INTO events (id, tenant_id, destination_id, time, topic, eligible_for_retry, data, metadata)
-			SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::timestamptz[], $5::text[], $6::boolean[], $7::jsonb[], $8::jsonb[])
+			SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::timestamptz[], $5::text[], $6::boolean[], $7::text[], $8::jsonb[])
 			ON CONFLICT (time, id) DO NOTHING
 		`, eventArrays(events)...)
 		if err != nil {
@@ -731,7 +733,7 @@ func (s *logStore) InsertMany(ctx context.Context, entries []*models.LogEntry) e
 			SELECT * FROM unnest(
 				$1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[],
 				$7::timestamptz[], $8::integer[], $9::boolean[], $10::text[], $11::jsonb[],
-				$12::timestamptz[], $13::boolean[], $14::jsonb[], $15::jsonb[]
+				$12::timestamptz[], $13::boolean[], $14::text[], $15::jsonb[]
 			)
 			ON CONFLICT (time, id) DO UPDATE SET
 				status = EXCLUDED.status,
@@ -753,7 +755,7 @@ func eventArrays(events []*models.Event) []any {
 	times := make([]time.Time, len(events))
 	topics := make([]string, len(events))
 	eligibleForRetries := make([]bool, len(events))
-	datas := make([][]byte, len(events))
+	datas := make([]string, len(events))
 	metadatas := make([]map[string]string, len(events))
 
 	for i, e := range events {
@@ -763,7 +765,7 @@ func eventArrays(events []*models.Event) []any {
 		times[i] = e.Time
 		topics[i] = e.Topic
 		eligibleForRetries[i] = e.EligibleForRetry
-		datas[i] = e.Data
+		datas[i] = string(e.Data)
 		metadatas[i] = e.Metadata
 	}
 
@@ -796,7 +798,7 @@ func attemptArrays(entries []*models.LogEntry) []any {
 	responseDatas := make([]map[string]any, n)
 	eventTimes := make([]time.Time, n)
 	eligibleForRetries := make([]bool, n)
-	eventDatas := make([][]byte, n)
+	eventDatas := make([]string, n)
 	eventMetadatas := make([]map[string]string, n)
 
 	for i, entry := range entries {
@@ -816,7 +818,7 @@ func attemptArrays(entries []*models.LogEntry) []any {
 		responseDatas[i] = a.ResponseData
 		eventTimes[i] = e.Time
 		eligibleForRetries[i] = e.EligibleForRetry
-		eventDatas[i] = e.Data
+		eventDatas[i] = string(e.Data)
 		eventMetadatas[i] = e.Metadata
 	}
 
