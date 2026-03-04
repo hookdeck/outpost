@@ -12,9 +12,9 @@ if (!ADMIN_API_KEY) {
 }
 
 async function manageOutpostResources() {
-  // 1. Create an Outpost instance using the AdminAPIKey
+  // 1. Create an Outpost instance using the Admin API Key
   const outpostAdmin = new Outpost({
-    security: { adminApiKey: ADMIN_API_KEY },
+    apiKey: ADMIN_API_KEY,
     serverURL: `${SERVER_URL}/api/v1`,
   });
 
@@ -25,24 +25,19 @@ async function manageOutpostResources() {
   try {
     // 2. Create a tenant
     console.log(`Creating tenant: ${tenantId}`);
-    const tenant = await outpostAdmin.tenants.upsert({
-      tenantId,
-    });
+    const tenant = await outpostAdmin.tenants.upsert(tenantId);
     console.log("Tenant created successfully:", tenant);
 
     // 3. Create a destination for the tenant
     console.log(
       `Creating destination: ${newDestinationName} for tenant ${tenantId}...`
     );
-    const destination = await outpostAdmin.destinations.create({
-      tenantId,
-      params: {
-        type: "webhook",
-        config: {
-          url: "https://example.com/webhook-receiver",
-        },
-        topics: [topic],
+    const destination = await outpostAdmin.destinations.create(tenantId, {
+      type: "webhook",
+      config: {
+        url: "https://example.com/webhook-receiver",
       },
+      topics: [topic],
     });
     console.log("Destination created successfully:", destination);
 

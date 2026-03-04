@@ -13,9 +13,7 @@ export function getOutpostClient(): Outpost {
       serverURL: `${
         process.env.OUTPOST_BASE_URL || "http://localhost:3333"
       }/api/v1`,
-      security: {
-        adminApiKey: process.env.OUTPOST_API_KEY,
-      },
+      apiKey: process.env.OUTPOST_API_KEY,
     });
   }
 
@@ -27,9 +25,7 @@ export async function createTenant(tenantId: string): Promise<void> {
     logger.info(`Creating tenant in Outpost: ${tenantId}`);
     const outpost = getOutpostClient();
 
-    const tenant = await outpost.tenants.upsert({
-      tenantId,
-    });
+    const tenant = await outpost.tenants.upsert(tenantId);
     logger.info(`Tenant created successfully in Outpost`, { tenantId, tenant });
   } catch (error) {
     logger.error(`Error creating tenant in Outpost: ${tenantId}`, {
@@ -46,10 +42,7 @@ export async function getPortalUrl(
 ): Promise<string> {
   try {
     const outpost = getOutpostClient();
-    const result = await outpost.tenants.getPortalUrl({
-      tenantId,
-      theme: theme as any, // SDK accepts theme as string but types are restrictive
-    });
+    const result = await outpost.tenants.getPortalUrl(tenantId, theme as any);
     return result.redirectUrl || "";
   } catch (error) {
     logger.error("Error getting portal URL", { error, tenantId, theme });
@@ -63,11 +56,11 @@ export async function getTenantOverview(tenantId: string) {
     const outpost = getOutpostClient();
 
     // Get tenant details
-    const tenant = await outpost.tenants.get({ tenantId });
+    const tenant = await outpost.tenants.get(tenantId);
     logger.debug(`Tenant found`, { tenantId, tenant });
 
     // Get destinations for this tenant (SDK returns array)
-    const destinationsList = await outpost.destinations.list({ tenantId });
+    const destinationsList = await outpost.destinations.list(tenantId);
     const destinations = Array.isArray(destinationsList)
       ? destinationsList.map((dest: any) => ({
           ...dest,

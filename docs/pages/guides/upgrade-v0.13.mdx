@@ -383,7 +383,9 @@ const destinations = await outpost.destinations.list("my-tenant");
 
 ### Positional parameters for tenants and destinations
 
-In v0.13.1, tenant- and destination-scoped methods take **positional arguments** (e.g. `tenantId` first), not a single request object. Update calls as follows:
+In v0.13.1, tenant- and destination-scoped methods take **positional arguments** (e.g. `tenantId` first), not a single request object. Update calls as shown in the table below.
+
+**Request body (`params`) change:** The three methods that send a request body — **`tenants.upsert`**, **`destinations.create`**, and **`destinations.update`** — no longer take that body inside a `params` property. Pass the body as the second (or third) argument directly.
 
 | Method | Before (object form) | After (v0.13.1 positional) |
 | --- | --- | --- |
@@ -395,6 +397,43 @@ In v0.13.1, tenant- and destination-scoped methods take **positional arguments**
 | `destinations.get` | `get({ tenantId, destinationId })` | `get(tenantId, destinationId)` |
 | `destinations.update` | `update({ tenantId, destinationId, params })` | `update(tenantId, destinationId, params)` |
 | `destinations.delete` | `delete({ tenantId, destinationId })` | `delete(tenantId, destinationId)` |
+
+**Example — before (v0.13.0):** one object with `tenantId` and (for create/update/upsert) a `params` property for the body:
+
+```ts
+// Tenant upsert: optional body (e.g. metadata)
+await sdk.tenants.upsert({ tenantId: "acme", params: { metadata: { name: "Acme" } } });
+
+// Destination create: body is required (type, config, topics)
+await sdk.destinations.create({
+  tenantId: "acme",
+  params: { type: "webhook", config: { url: "https://example.com/hook" }, topics: ["order.created"] },
+});
+
+// Destination update: body is required (e.g. topics or config changes)
+await sdk.destinations.update({
+  tenantId: "acme",
+  destinationId: "des_abc123",
+  params: { topics: ["order.updated"] },
+});
+```
+
+**Example — after (v0.13.1):** positional arguments; the body is the second or third argument (no `params` wrapper):
+
+```ts
+// Tenant upsert
+await sdk.tenants.upsert("acme", { metadata: { name: "Acme" } });
+
+// Destination create
+await sdk.destinations.create("acme", {
+  type: "webhook",
+  config: { url: "https://example.com/hook" },
+  topics: ["order.created"],
+});
+
+// Destination update
+await sdk.destinations.update("acme", "des_abc123", { topics: ["order.updated"] });
+```
 
 `events.list()` still takes a single request object (e.g. `{ tenantId?, topic?, limit? }`). `events.get()` takes the event ID as a string: `events.get(eventId)`.
 
@@ -411,7 +450,7 @@ Redundant `Jwt` suffixes have been removed from method names:
 
 1. Replace `security: { adminApiKey: "..." }` or `security: { tenantJwt: "..." }` with `apiKey: "..."` as a top-level constructor parameter.
 2. Remove `tenantId` from the SDK constructor and pass it as the first (positional) argument to each tenant/destination method (e.g. `destinations.list(tenantId)`, `destinations.get(tenantId, destinationId)`).
-3. Change tenant and destination method calls from object form to positional: `tenants.upsert(tenantId, params?)`, `tenants.delete(tenantId)`, `destinations.create(tenantId, params)`, `destinations.get(tenantId, destinationId)`, `destinations.update(tenantId, destinationId, params)`, `destinations.delete(tenantId, destinationId)`.
+3. Change tenant and destination method calls from object form to positional: `tenants.upsert(tenantId, params?)`, `tenants.delete(tenantId)`, `destinations.create(tenantId, params)`, `destinations.get(tenantId, destinationId)`, `destinations.update(tenantId, destinationId, params)`, `destinations.delete(tenantId, destinationId)`. Pass the request body (formerly the `params` property) as that positional argument — do not wrap it in `{ params: ... }`.
 4. Use `events.get(eventId)` with the event ID as a string, not `events.get({ eventId })`.
 5. Rename `getDestinationTypeJwt` to `getDestinationType` and `listDestinationTypesJwt` to `listDestinationTypes`.
 
