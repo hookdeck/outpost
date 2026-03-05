@@ -21,26 +21,26 @@ Use the `include` query parameter to include related data:
 
 ### Available Operations
 
-* [List](#list) - List Attempts (Admin)
+* [List](#list) - List Attempts
 * [Get](#get) - Get Attempt
 * [Retry](#retry) - Retry Event Delivery
 
 ## List
 
-Retrieves a paginated list of attempts across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+Retrieves a paginated list of attempts.
 
-When `tenant_id` is not provided, returns attempts from all tenants. When `tenant_id` is provided, returns only attempts for that tenant.
+When authenticated with a Tenant JWT, returns only attempts belonging to that tenant.
+When authenticated with Admin API Key, returns attempts across all tenants. Use `tenant_id` query parameter to filter by tenant.
 
 
 ### Example Usage: AdminAttemptsListExample
 
-<!-- UsageSnippet language="go" operationID="adminListAttempts" method="get" path="/attempts" example="AdminAttemptsListExample" -->
+<!-- UsageSnippet language="go" operationID="listAttempts" method="get" path="/attempts" example="AdminAttemptsListExample" -->
 ```go
 package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
@@ -50,12 +50,10 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Attempts.List(ctx, operations.AdminListAttemptsRequest{})
+    res, err := s.Attempts.List(ctx, operations.ListAttemptsRequest{})
     if err != nil {
         log.Fatal(err)
     }
@@ -66,13 +64,12 @@ func main() {
 ```
 ### Example Usage: AdminAttemptsWithIncludeExample
 
-<!-- UsageSnippet language="go" operationID="adminListAttempts" method="get" path="/attempts" example="AdminAttemptsWithIncludeExample" -->
+<!-- UsageSnippet language="go" operationID="listAttempts" method="get" path="/attempts" example="AdminAttemptsWithIncludeExample" -->
 ```go
 package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
@@ -82,12 +79,10 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Attempts.List(ctx, operations.AdminListAttemptsRequest{})
+    res, err := s.Attempts.List(ctx, operations.ListAttemptsRequest{})
     if err != nil {
         log.Fatal(err)
     }
@@ -99,22 +94,23 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                  | Type                                                                                       | Required                                                                                   | Description                                                                                |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `ctx`                                                                                      | [context.Context](https://pkg.go.dev/context#Context)                                      | :heavy_check_mark:                                                                         | The context to use for the request.                                                        |
-| `request`                                                                                  | [operations.AdminListAttemptsRequest](../../models/operations/adminlistattemptsrequest.md) | :heavy_check_mark:                                                                         | The request object to use for the request.                                                 |
-| `opts`                                                                                     | [][operations.Option](../../models/operations/option.md)                                   | :heavy_minus_sign:                                                                         | The options for this request.                                                              |
+| Parameter                                                                        | Type                                                                             | Required                                                                         | Description                                                                      |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `ctx`                                                                            | [context.Context](https://pkg.go.dev/context#Context)                            | :heavy_check_mark:                                                               | The context to use for the request.                                              |
+| `request`                                                                        | [operations.ListAttemptsRequest](../../models/operations/listattemptsrequest.md) | :heavy_check_mark:                                                               | The request object to use for the request.                                       |
+| `opts`                                                                           | [][operations.Option](../../models/operations/option.md)                         | :heavy_minus_sign:                                                               | The options for this request.                                                    |
 
 ### Response
 
-**[*operations.AdminListAttemptsResponse](../../models/operations/adminlistattemptsresponse.md), error**
+**[*operations.ListAttemptsResponse](../../models/operations/listattemptsresponse.md), error**
 
 ### Errors
 
-| Error Type                 | Status Code                | Content Type               |
-| -------------------------- | -------------------------- | -------------------------- |
-| apierrors.APIErrorResponse | 422                        | application/json           |
-| apierrors.APIError         | 4XX, 5XX                   | \*/\*                      |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
 ## Get
 
@@ -132,18 +128,16 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
 func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
     res, err := s.Attempts.Get(ctx, "<id>", nil)
@@ -151,7 +145,13 @@ func main() {
         log.Fatal(err)
     }
     if res.Attempt != nil {
-        // handle response
+        switch res.Attempt.Event.Type {
+            case components.EventUnionTypeEventSummary:
+                // res.Attempt.Event.EventSummary is populated
+            case components.EventUnionTypeEventFull:
+                // res.Attempt.Event.EventFull is populated
+        }
+
     }
 }
 ```
@@ -163,18 +163,16 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
 func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
     res, err := s.Attempts.Get(ctx, "<id>", nil)
@@ -182,7 +180,13 @@ func main() {
         log.Fatal(err)
     }
     if res.Attempt != nil {
-        // handle response
+        switch res.Attempt.Event.Type {
+            case components.EventUnionTypeEventSummary:
+                // res.Attempt.Event.EventSummary is populated
+            case components.EventUnionTypeEventFull:
+                // res.Attempt.Event.EventFull is populated
+        }
+
     }
 }
 ```
@@ -202,9 +206,12 @@ func main() {
 
 ### Errors
 
-| Error Type         | Status Code        | Content Type       |
-| ------------------ | ------------------ | ------------------ |
-| apierrors.APIError | 4XX, 5XX           | \*/\*              |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
 ## Retry
 
@@ -222,8 +229,8 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
 
@@ -231,9 +238,7 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
     res, err := s.Attempts.Retry(ctx, components.RetryRequest{
@@ -263,7 +268,9 @@ func main() {
 
 ### Errors
 
-| Error Type                 | Status Code                | Content Type               |
-| -------------------------- | -------------------------- | -------------------------- |
-| apierrors.APIErrorResponse | 422                        | application/json           |
-| apierrors.APIError         | 4XX, 5XX                   | \*/\*                      |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |

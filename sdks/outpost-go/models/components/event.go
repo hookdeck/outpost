@@ -15,8 +15,6 @@ type Event struct {
 	Topic         *string `json:"topic,omitempty"`
 	// Time the event was received/processed.
 	Time *time.Time `json:"time,omitempty"`
-	// Time the event was successfully delivered.
-	SuccessfulAt *time.Time `json:"successful_at,omitempty"`
 	// Key-value string pairs of metadata associated with the event.
 	Metadata map[string]string `json:"metadata,omitempty"`
 	// Freeform JSON data of the event.
@@ -67,13 +65,6 @@ func (e *Event) GetTime() *time.Time {
 		return nil
 	}
 	return e.Time
-}
-
-func (e *Event) GetSuccessfulAt() *time.Time {
-	if e == nil {
-		return nil
-	}
-	return e.SuccessfulAt
 }
 
 func (e *Event) GetMetadata() map[string]string {

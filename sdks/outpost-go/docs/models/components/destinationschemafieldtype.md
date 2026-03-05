@@ -1,5 +1,15 @@
 # DestinationSchemaFieldType
 
+## Example Usage
+
+```go
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+)
+
+value := components.DestinationSchemaFieldTypeText
+```
+
 
 ## Values
 

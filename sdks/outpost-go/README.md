@@ -23,7 +23,6 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
   * [SDK Example Usage](#sdk-example-usage)
   * [Authentication](#authentication)
   * [Available Resources and Operations](#available-resources-and-operations)
-  * [Global Parameters](#global-parameters)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
   * [Server Selection](#server-selection)
@@ -79,21 +78,19 @@ func main() {
 
 ### Per-Client Security Schemes
 
-This SDK supports the following security schemes globally:
+This SDK supports the following security scheme globally:
 
-| Name          | Type | Scheme      |
-| ------------- | ---- | ----------- |
-| `AdminAPIKey` | http | HTTP Bearer |
-| `TenantJwt`   | http | HTTP Bearer |
+| Name     | Type | Scheme      |
+| -------- | ---- | ----------- |
+| `APIKey` | http | HTTP Bearer |
 
-You can set the security parameters through the `WithSecurity` option when initializing the SDK client instance. The selected scheme will be used by default to authenticate with the API for all operations that support it. For example:
+You can configure it using the `WithSecurity` option when initializing the SDK client instance. For example:
 ```go
 package main
 
 import (
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
 
@@ -101,9 +98,7 @@ func main() {
 	ctx := context.Background()
 
 	s := outpostgo.New(
-		outpostgo.WithSecurity(components.Security{
-			AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-		}),
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
 	)
 
 	res, err := s.Health.Check(ctx)
@@ -126,7 +121,7 @@ func main() {
 
 ### [Attempts](docs/sdks/attempts/README.md)
 
-* [List](docs/sdks/attempts/README.md#list) - List Attempts (Admin)
+* [List](docs/sdks/attempts/README.md#list) - List Attempts
 * [Get](docs/sdks/attempts/README.md#get) - Get Attempt
 * [Retry](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 
@@ -144,7 +139,7 @@ func main() {
 
 ### [Events](docs/sdks/events/README.md)
 
-* [List](docs/sdks/events/README.md#list) - List Events (Admin)
+* [List](docs/sdks/events/README.md#list) - List Events
 * [Get](docs/sdks/events/README.md#get) - Get Event
 
 ### [Health](docs/sdks/health/README.md)
@@ -157,8 +152,8 @@ func main() {
 
 ### [Schemas](docs/sdks/schemas/README.md)
 
-* [ListDestinationTypesJwt](docs/sdks/schemas/README.md#listdestinationtypesjwt) - List Destination Type Schemas
-* [GetDestinationTypeJwt](docs/sdks/schemas/README.md#getdestinationtypejwt) - Get Destination Type Schema
+* [ListDestinationTypes](docs/sdks/schemas/README.md#listdestinationtypes) - List Destination Type Schemas
+* [GetDestinationType](docs/sdks/schemas/README.md#getdestinationtype) - Get Destination Type Schema
 
 ### [Tenants](docs/sdks/tenants/README.md)
 
@@ -175,56 +170,6 @@ func main() {
 
 </details>
 <!-- End Available Resources and Operations [operations] -->
-
-<!-- Start Global Parameters [global-parameters] -->
-## Global Parameters
-
-A parameter is configured globally. This parameter may be set on the SDK client instance itself during initialization. When configured as an option during SDK initialization, This global value will be used as the default on the operations that use it. When such operations are called, there is a place in each to override the global value, if needed.
-
-For example, you can set `tenant_id` to `"<id>"` at SDK initialization and then you do not have to pass the same value on calls to operations like `Upsert`. But if you want to do so you may, which will locally override the global setting. See the example code below for a demonstration.
-
-
-### Available Globals
-
-The following global parameter is available.
-
-| Name     | Type   | Description             |
-| -------- | ------ | ----------------------- |
-| TenantID | string | The TenantID parameter. |
-
-### Example
-
-```go
-package main
-
-import (
-	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
-	"log"
-)
-
-func main() {
-	ctx := context.Background()
-
-	s := outpostgo.New(
-		outpostgo.WithTenantID("<id>"),
-		outpostgo.WithSecurity(components.Security{
-			AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-		}),
-	)
-
-	res, err := s.Tenants.Upsert(ctx, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if res.Tenant != nil {
-		// handle response
-	}
-}
-
-```
-<!-- End Global Parameters [global-parameters] -->
 
 <!-- Start Retries [retries] -->
 ## Retries

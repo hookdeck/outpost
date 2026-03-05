@@ -2,13 +2,12 @@
 
 package outpostgo
 
-// Generated from OpenAPI doc version 0.0.1 and generator version 2.818.4
+// Generated from OpenAPI doc version 0.0.1 and generator version 2.849.10
 
 import (
 	"context"
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/config"
-	"github.com/hookdeck/outpost/sdks/outpost-go/internal/globals"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/hooks"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
@@ -118,7 +117,7 @@ type Outpost struct {
 
 type SDKOption func(*Outpost)
 
-// WithServerURL allows the overriding of the default server URL
+// WithServerURL allows providing an alternative server URL
 func WithServerURL(serverURL string) SDKOption {
 	return func(sdk *Outpost) {
 		sdk.sdkConfiguration.ServerURL = serverURL
@@ -155,9 +154,10 @@ func WithClient(client HTTPClient) SDKOption {
 }
 
 // WithSecurity configures the SDK to use the provided security details
-func WithSecurity(security components.Security) SDKOption {
+func WithSecurity(apiKey string) SDKOption {
 	return func(sdk *Outpost) {
-		sdk.sdkConfiguration.Security = utils.AsSecuritySource(security)
+		security := components.Security{APIKey: &apiKey}
+		sdk.sdkConfiguration.Security = utils.AsSecuritySource(&security)
 	}
 }
 
@@ -167,13 +167,6 @@ func WithSecuritySource(security func(context.Context) (components.Security, err
 		sdk.sdkConfiguration.Security = func(ctx context.Context) (interface{}, error) {
 			return security(ctx)
 		}
-	}
-}
-
-// WithTenantID allows setting the TenantID parameter for all supported operations
-func WithTenantID(tenantID string) SDKOption {
-	return func(sdk *Outpost) {
-		sdk.sdkConfiguration.Globals.TenantID = &tenantID
 	}
 }
 
@@ -193,10 +186,9 @@ func WithTimeout(timeout time.Duration) SDKOption {
 // New creates a new instance of the SDK with the provided options
 func New(opts ...SDKOption) *Outpost {
 	sdk := &Outpost{
-		SDKVersion: "0.6.0",
+		SDKVersion: "0.7.0",
 		sdkConfiguration: config.SDKConfiguration{
-			UserAgent:  "speakeasy-sdk/go 0.6.0 2.818.4 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
-			Globals:    globals.Globals{},
+			UserAgent:  "speakeasy-sdk/go 0.7.0 2.849.10 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
 			ServerList: ServerList,
 		},
 		hooks: hooks.New(),

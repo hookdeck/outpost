@@ -21,3 +21,15 @@ getAttemptInclude := operations.CreateGetAttemptIncludeStr(string{/* values here
 getAttemptInclude := operations.CreateGetAttemptIncludeArrayOfStr([]string{/* values here */})
 ```
 
+## Union Discrimination
+
+Use the `Type` field to determine which variant is active, then access the corresponding field:
+
+```go
+switch getAttemptInclude.Type {
+	case operations.GetAttemptIncludeTypeStr:
+		// getAttemptInclude.Str is populated
+	case operations.GetAttemptIncludeTypeArrayOfStr:
+		// getAttemptInclude.ArrayOfStr is populated
+}
+```

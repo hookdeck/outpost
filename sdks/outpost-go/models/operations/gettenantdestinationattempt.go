@@ -9,17 +9,6 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
-type GetTenantDestinationAttemptGlobals struct {
-	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
-}
-
-func (g *GetTenantDestinationAttemptGlobals) GetTenantID() *string {
-	if g == nil {
-		return nil
-	}
-	return g.TenantID
-}
-
 type GetTenantDestinationAttemptIncludeType string
 
 const (
@@ -89,7 +78,7 @@ func (u GetTenantDestinationAttemptInclude) MarshalJSON() ([]byte, error) {
 
 type GetTenantDestinationAttemptRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
-	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
+	TenantID string `pathParam:"style=simple,explode=false,name=tenant_id"`
 	// The ID of the destination.
 	DestinationID string `pathParam:"style=simple,explode=false,name=destination_id"`
 	// The ID of the attempt.
@@ -102,9 +91,9 @@ type GetTenantDestinationAttemptRequest struct {
 	Include *GetTenantDestinationAttemptInclude `queryParam:"style=form,explode=true,name=include"`
 }
 
-func (g *GetTenantDestinationAttemptRequest) GetTenantID() *string {
+func (g *GetTenantDestinationAttemptRequest) GetTenantID() string {
 	if g == nil {
-		return nil
+		return ""
 	}
 	return g.TenantID
 }

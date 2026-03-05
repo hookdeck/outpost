@@ -17,3 +17,15 @@ data := apierrors.CreateDataArrayOfStr([]string{/* values here */})
 data := apierrors.CreateDataMapOfAny(map[string]any{/* values here */})
 ```
 
+## Union Discrimination
+
+Use the `Type` field to determine which variant is active, then access the corresponding field:
+
+```go
+switch data.Type {
+	case apierrors.DataTypeArrayOfStr:
+		// data.ArrayOfStr is populated
+	case apierrors.DataTypeMapOfAny:
+		// data.MapOfAny is populated
+}
+```

@@ -40,9 +40,15 @@ func newTenants(rootSDK *Outpost, sdkConfig config.SDKConfiguration, hooks *hook
 // **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
 // If RediSearch is not available, this endpoint returns `501 Not Implemented`.
 //
-// The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
-// Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
-func (s *Tenants) ListTenants(ctx context.Context, request operations.ListTenantsRequest, opts ...operations.Option) (*operations.ListTenantsResponse, error) {
+// When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
+func (s *Tenants) ListTenants(ctx context.Context, limit *int64, dir *operations.ListTenantsDir, next *string, prev *string, opts ...operations.Option) (*operations.ListTenantsResponse, error) {
+	request := operations.ListTenantsRequest{
+		Limit: limit,
+		Dir:   dir,
+		Next:  next,
+		Prev:  prev,
+	}
+
 	o := operations.Options{}
 	supportedOptions := []string{
 		operations.SupportedOptionRetries,
@@ -182,7 +188,7 @@ func (s *Tenants) ListTenants(ctx context.Context, request operations.ListTenant
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"400", "401", "4XX", "501", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"400", "401", "4XX", "500", "501", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err
@@ -234,15 +240,53 @@ func (s *Tenants) ListTenants(ctx context.Context, request operations.ListTenant
 				return nil, err
 			}
 
-			var out apierrors.ListTenantsBadRequestError
+			var out apierrors.BadRequestError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
 				return nil, err
 			}
 
-			out.HTTPMeta = components.HTTPMetadata{
-				Request:  req,
-				Response: httpRes,
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
 			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
+	case httpRes.StatusCode == 401:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.UnauthorizedError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
+	case httpRes.StatusCode == 500:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.InternalServerError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
 			return nil, &out
 		default:
 			rawBody, err := utils.ConsumeRawBody(httpRes)
@@ -276,8 +320,6 @@ func (s *Tenants) ListTenants(ctx context.Context, request operations.ListTenant
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
-	case httpRes.StatusCode == 401:
-		fallthrough
 	case httpRes.StatusCode >= 400 && httpRes.StatusCode < 500:
 		rawBody, err := utils.ConsumeRawBody(httpRes)
 		if err != nil {
@@ -304,14 +346,10 @@ func (s *Tenants) ListTenants(ctx context.Context, request operations.ListTenant
 
 // Upsert - Create or Update Tenant
 // Idempotently creates or updates a tenant. Required before associating destinations.
-func (s *Tenants) Upsert(ctx context.Context, tenantID *string, params *components.TenantUpsert, opts ...operations.Option) (*operations.UpsertTenantResponse, error) {
+func (s *Tenants) Upsert(ctx context.Context, tenantID string, params *components.TenantUpsert, opts ...operations.Option) (*operations.UpsertTenantResponse, error) {
 	request := operations.UpsertTenantRequest{
 		TenantID: tenantID,
 		Params:   params,
-	}
-
-	globals := operations.UpsertTenantGlobals{
-		TenantID: s.sdkConfiguration.Globals.TenantID,
 	}
 
 	o := operations.Options{}
@@ -332,7 +370,7 @@ func (s *Tenants) Upsert(ctx context.Context, tenantID *string, params *componen
 	} else {
 		baseURL = *o.ServerURL
 	}
-	opURL, err := utils.GenerateURL(ctx, baseURL, "/tenants/{tenant_id}", request, globals)
+	opURL, err := utils.GenerateURL(ctx, baseURL, "/tenants/{tenant_id}", request, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error generating URL: %w", err)
 	}
@@ -456,7 +494,7 @@ func (s *Tenants) Upsert(ctx context.Context, tenantID *string, params *componen
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"4XX", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"401", "422", "4XX", "500", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err
@@ -502,6 +540,69 @@ func (s *Tenants) Upsert(ctx context.Context, tenantID *string, params *componen
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
+	case httpRes.StatusCode == 401:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.UnauthorizedError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
+	case httpRes.StatusCode == 422:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.APIErrorResponse
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
+	case httpRes.StatusCode == 500:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.InternalServerError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
 	case httpRes.StatusCode >= 400 && httpRes.StatusCode < 500:
 		rawBody, err := utils.ConsumeRawBody(httpRes)
 		if err != nil {
@@ -528,13 +629,9 @@ func (s *Tenants) Upsert(ctx context.Context, tenantID *string, params *componen
 
 // Get Tenant
 // Retrieves details for a specific tenant.
-func (s *Tenants) Get(ctx context.Context, tenantID *string, opts ...operations.Option) (*operations.GetTenantResponse, error) {
+func (s *Tenants) Get(ctx context.Context, tenantID string, opts ...operations.Option) (*operations.GetTenantResponse, error) {
 	request := operations.GetTenantRequest{
 		TenantID: tenantID,
-	}
-
-	globals := operations.GetTenantGlobals{
-		TenantID: s.sdkConfiguration.Globals.TenantID,
 	}
 
 	o := operations.Options{}
@@ -555,7 +652,7 @@ func (s *Tenants) Get(ctx context.Context, tenantID *string, opts ...operations.
 	} else {
 		baseURL = *o.ServerURL
 	}
-	opURL, err := utils.GenerateURL(ctx, baseURL, "/tenants/{tenant_id}", request, globals)
+	opURL, err := utils.GenerateURL(ctx, baseURL, "/tenants/{tenant_id}", request, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error generating URL: %w", err)
 	}
@@ -672,7 +769,7 @@ func (s *Tenants) Get(ctx context.Context, tenantID *string, opts ...operations.
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"404", "4XX", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"401", "404", "4XX", "500", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err
@@ -716,8 +813,69 @@ func (s *Tenants) Get(ctx context.Context, tenantID *string, opts ...operations.
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
+	case httpRes.StatusCode == 401:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.UnauthorizedError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
 	case httpRes.StatusCode == 404:
-		fallthrough
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.NotFoundError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
+	case httpRes.StatusCode == 500:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.InternalServerError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
 	case httpRes.StatusCode >= 400 && httpRes.StatusCode < 500:
 		rawBody, err := utils.ConsumeRawBody(httpRes)
 		if err != nil {
@@ -744,13 +902,9 @@ func (s *Tenants) Get(ctx context.Context, tenantID *string, opts ...operations.
 
 // Delete Tenant
 // Deletes the tenant and all associated destinations.
-func (s *Tenants) Delete(ctx context.Context, tenantID *string, opts ...operations.Option) (*operations.DeleteTenantResponse, error) {
+func (s *Tenants) Delete(ctx context.Context, tenantID string, opts ...operations.Option) (*operations.DeleteTenantResponse, error) {
 	request := operations.DeleteTenantRequest{
 		TenantID: tenantID,
-	}
-
-	globals := operations.DeleteTenantGlobals{
-		TenantID: s.sdkConfiguration.Globals.TenantID,
 	}
 
 	o := operations.Options{}
@@ -771,7 +925,7 @@ func (s *Tenants) Delete(ctx context.Context, tenantID *string, opts ...operatio
 	} else {
 		baseURL = *o.ServerURL
 	}
-	opURL, err := utils.GenerateURL(ctx, baseURL, "/tenants/{tenant_id}", request, globals)
+	opURL, err := utils.GenerateURL(ctx, baseURL, "/tenants/{tenant_id}", request, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error generating URL: %w", err)
 	}
@@ -888,7 +1042,7 @@ func (s *Tenants) Delete(ctx context.Context, tenantID *string, opts ...operatio
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"404", "4XX", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"401", "404", "4XX", "500", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err
@@ -932,8 +1086,69 @@ func (s *Tenants) Delete(ctx context.Context, tenantID *string, opts ...operatio
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
+	case httpRes.StatusCode == 401:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.UnauthorizedError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
 	case httpRes.StatusCode == 404:
-		fallthrough
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.NotFoundError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
+	case httpRes.StatusCode == 500:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.InternalServerError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
 	case httpRes.StatusCode >= 400 && httpRes.StatusCode < 500:
 		rawBody, err := utils.ConsumeRawBody(httpRes)
 		if err != nil {
@@ -959,15 +1174,11 @@ func (s *Tenants) Delete(ctx context.Context, tenantID *string, opts ...operatio
 }
 
 // GetPortalURL - Get Portal Redirect URL
-// Returns a redirect URL containing a JWT to authenticate the user with the portal.
-func (s *Tenants) GetPortalURL(ctx context.Context, tenantID *string, theme *operations.Theme, opts ...operations.Option) (*operations.GetTenantPortalURLResponse, error) {
+// Returns a redirect URL containing a JWT to authenticate the user with the portal. Requires Admin API Key.
+func (s *Tenants) GetPortalURL(ctx context.Context, tenantID string, theme *operations.Theme, opts ...operations.Option) (*operations.GetTenantPortalURLResponse, error) {
 	request := operations.GetTenantPortalURLRequest{
 		TenantID: tenantID,
 		Theme:    theme,
-	}
-
-	globals := operations.GetTenantPortalURLGlobals{
-		TenantID: s.sdkConfiguration.Globals.TenantID,
 	}
 
 	o := operations.Options{}
@@ -988,7 +1199,7 @@ func (s *Tenants) GetPortalURL(ctx context.Context, tenantID *string, theme *ope
 	} else {
 		baseURL = *o.ServerURL
 	}
-	opURL, err := utils.GenerateURL(ctx, baseURL, "/tenants/{tenant_id}/portal", request, globals)
+	opURL, err := utils.GenerateURL(ctx, baseURL, "/tenants/{tenant_id}/portal", request, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error generating URL: %w", err)
 	}
@@ -1021,7 +1232,7 @@ func (s *Tenants) GetPortalURL(ctx context.Context, tenantID *string, theme *ope
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", s.sdkConfiguration.UserAgent)
 
-	if err := utils.PopulateQueryParams(ctx, req, request, globals, nil); err != nil {
+	if err := utils.PopulateQueryParams(ctx, req, request, nil, nil); err != nil {
 		return nil, fmt.Errorf("error populating query params: %w", err)
 	}
 
@@ -1109,7 +1320,7 @@ func (s *Tenants) GetPortalURL(ctx context.Context, tenantID *string, theme *ope
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"404", "4XX", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"401", "404", "4XX", "500", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err
@@ -1153,8 +1364,69 @@ func (s *Tenants) GetPortalURL(ctx context.Context, tenantID *string, theme *ope
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
+	case httpRes.StatusCode == 401:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.UnauthorizedError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
 	case httpRes.StatusCode == 404:
-		fallthrough
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.NotFoundError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
+	case httpRes.StatusCode == 500:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.InternalServerError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
 	case httpRes.StatusCode >= 400 && httpRes.StatusCode < 500:
 		rawBody, err := utils.ConsumeRawBody(httpRes)
 		if err != nil {
@@ -1180,14 +1452,10 @@ func (s *Tenants) GetPortalURL(ctx context.Context, tenantID *string, theme *ope
 }
 
 // GetToken - Get Tenant JWT Token
-// Returns a JWT token scoped to the tenant for safe browser API calls.
-func (s *Tenants) GetToken(ctx context.Context, tenantID *string, opts ...operations.Option) (*operations.GetTenantTokenResponse, error) {
+// Returns a JWT token scoped to the tenant for safe browser API calls. Requires Admin API Key.
+func (s *Tenants) GetToken(ctx context.Context, tenantID string, opts ...operations.Option) (*operations.GetTenantTokenResponse, error) {
 	request := operations.GetTenantTokenRequest{
 		TenantID: tenantID,
-	}
-
-	globals := operations.GetTenantTokenGlobals{
-		TenantID: s.sdkConfiguration.Globals.TenantID,
 	}
 
 	o := operations.Options{}
@@ -1208,7 +1476,7 @@ func (s *Tenants) GetToken(ctx context.Context, tenantID *string, opts ...operat
 	} else {
 		baseURL = *o.ServerURL
 	}
-	opURL, err := utils.GenerateURL(ctx, baseURL, "/tenants/{tenant_id}/token", request, globals)
+	opURL, err := utils.GenerateURL(ctx, baseURL, "/tenants/{tenant_id}/token", request, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error generating URL: %w", err)
 	}
@@ -1325,7 +1593,7 @@ func (s *Tenants) GetToken(ctx context.Context, tenantID *string, opts ...operat
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"404", "4XX", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"401", "404", "4XX", "500", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err
@@ -1369,8 +1637,69 @@ func (s *Tenants) GetToken(ctx context.Context, tenantID *string, opts ...operat
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
+	case httpRes.StatusCode == 401:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.UnauthorizedError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
 	case httpRes.StatusCode == 404:
-		fallthrough
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.NotFoundError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
+	case httpRes.StatusCode == 500:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.InternalServerError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
 	case httpRes.StatusCode >= 400 && httpRes.StatusCode < 500:
 		rawBody, err := utils.ConsumeRawBody(httpRes)
 		if err != nil {

@@ -21,3 +21,15 @@ listTenantDestinationAttemptsInclude := operations.CreateListTenantDestinationAt
 listTenantDestinationAttemptsInclude := operations.CreateListTenantDestinationAttemptsIncludeArrayOfStr([]string{/* values here */})
 ```
 
+## Union Discrimination
+
+Use the `Type` field to determine which variant is active, then access the corresponding field:
+
+```go
+switch listTenantDestinationAttemptsInclude.Type {
+	case operations.ListTenantDestinationAttemptsIncludeTypeStr:
+		// listTenantDestinationAttemptsInclude.Str is populated
+	case operations.ListTenantDestinationAttemptsIncludeTypeArrayOfStr:
+		// listTenantDestinationAttemptsInclude.ArrayOfStr is populated
+}
+```

@@ -12,12 +12,14 @@ import (
 type GetDestinationTypeSchemaType string
 
 const (
-	GetDestinationTypeSchemaTypeWebhook    GetDestinationTypeSchemaType = "webhook"
-	GetDestinationTypeSchemaTypeAwsSqs     GetDestinationTypeSchemaType = "aws_sqs"
-	GetDestinationTypeSchemaTypeRabbitmq   GetDestinationTypeSchemaType = "rabbitmq"
-	GetDestinationTypeSchemaTypeHookdeck   GetDestinationTypeSchemaType = "hookdeck"
-	GetDestinationTypeSchemaTypeAwsKinesis GetDestinationTypeSchemaType = "aws_kinesis"
-	GetDestinationTypeSchemaTypeAwsS3      GetDestinationTypeSchemaType = "aws_s3"
+	GetDestinationTypeSchemaTypeWebhook         GetDestinationTypeSchemaType = "webhook"
+	GetDestinationTypeSchemaTypeAwsSqs          GetDestinationTypeSchemaType = "aws_sqs"
+	GetDestinationTypeSchemaTypeRabbitmq        GetDestinationTypeSchemaType = "rabbitmq"
+	GetDestinationTypeSchemaTypeHookdeck        GetDestinationTypeSchemaType = "hookdeck"
+	GetDestinationTypeSchemaTypeAwsKinesis      GetDestinationTypeSchemaType = "aws_kinesis"
+	GetDestinationTypeSchemaTypeAzureServicebus GetDestinationTypeSchemaType = "azure_servicebus"
+	GetDestinationTypeSchemaTypeAwsS3           GetDestinationTypeSchemaType = "aws_s3"
+	GetDestinationTypeSchemaTypeGcpPubsub       GetDestinationTypeSchemaType = "gcp_pubsub"
 )
 
 func (e GetDestinationTypeSchemaType) ToPointer() *GetDestinationTypeSchemaType {
@@ -39,7 +41,11 @@ func (e *GetDestinationTypeSchemaType) UnmarshalJSON(data []byte) error {
 		fallthrough
 	case "aws_kinesis":
 		fallthrough
+	case "azure_servicebus":
+		fallthrough
 	case "aws_s3":
+		fallthrough
+	case "gcp_pubsub":
 		*e = GetDestinationTypeSchemaType(v)
 		return nil
 	default:

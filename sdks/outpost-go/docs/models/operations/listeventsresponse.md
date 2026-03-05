@@ -1,4 +1,4 @@
-# AdminListEventsResponse
+# ListEventsResponse
 
 
 ## Fields

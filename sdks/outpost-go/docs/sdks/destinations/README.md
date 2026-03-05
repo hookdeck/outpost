@@ -51,8 +51,8 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
 )
@@ -61,13 +61,10 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithTenantID("<id>"),
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Destinations.List(ctx, outpostgo.Pointer(operations.CreateListTenantDestinationsTypeDestinationType(
+    res, err := s.Destinations.List(ctx, "<id>", outpostgo.Pointer(operations.CreateListTenantDestinationsTypeDestinationType(
         components.DestinationTypeWebhook,
     )), nil)
     if err != nil {
@@ -84,7 +81,7 @@ func main() {
 | Parameter                                                                                       | Type                                                                                            | Required                                                                                        | Description                                                                                     |
 | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `ctx`                                                                                           | [context.Context](https://pkg.go.dev/context#Context)                                           | :heavy_check_mark:                                                                              | The context to use for the request.                                                             |
-| `tenantID`                                                                                      | **string*                                                                                       | :heavy_minus_sign:                                                                              | The ID of the tenant. Required when using AdminApiKey authentication.                           |
+| `tenantID`                                                                                      | *string*                                                                                        | :heavy_check_mark:                                                                              | The ID of the tenant. Required when using AdminApiKey authentication.                           |
 | `type_`                                                                                         | [*operations.ListTenantDestinationsType](../../models/operations/listtenantdestinationstype.md) | :heavy_minus_sign:                                                                              | Filter destinations by type(s).                                                                 |
 | `topics`                                                                                        | [*operations.Topics](../../models/operations/topics.md)                                         | :heavy_minus_sign:                                                                              | Filter destinations by supported topic(s).                                                      |
 | `opts`                                                                                          | [][operations.Option](../../models/operations/option.md)                                        | :heavy_minus_sign:                                                                              | The options for this request.                                                                   |
@@ -95,9 +92,12 @@ func main() {
 
 ### Errors
 
-| Error Type         | Status Code        | Content Type       |
-| ------------------ | ------------------ | ------------------ |
-| apierrors.APIError | 4XX, 5XX           | \*/\*              |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
 ## Create
 
@@ -111,8 +111,8 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
 
@@ -120,13 +120,10 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithTenantID("<id>"),
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Destinations.Create(ctx, components.CreateDestinationCreateRabbitmq(
+    res, err := s.Destinations.Create(ctx, "<id>", components.CreateDestinationCreateRabbitmq(
         components.DestinationCreateRabbitMQ{
             ID: outpostgo.Pointer("user-provided-id"),
             Type: components.DestinationCreateRabbitMQTypeRabbitmq,
@@ -148,7 +145,25 @@ func main() {
         log.Fatal(err)
     }
     if res.Destination != nil {
-        // handle response
+        switch res.Destination.Type {
+            case components.DestinationUnionTypeWebhook:
+                // res.Destination.DestinationWebhook is populated
+            case components.DestinationUnionTypeAwsSqs:
+                // res.Destination.DestinationAWSSQS is populated
+            case components.DestinationUnionTypeRabbitmq:
+                // res.Destination.DestinationRabbitMQ is populated
+            case components.DestinationUnionTypeHookdeck:
+                // res.Destination.DestinationHookdeck is populated
+            case components.DestinationUnionTypeAwsKinesis:
+                // res.Destination.DestinationAWSKinesis is populated
+            case components.DestinationUnionTypeAzureServicebus:
+                // res.Destination.DestinationAzureServiceBus is populated
+            case components.DestinationUnionTypeAwsS3:
+                // res.Destination.DestinationAwss3 is populated
+            case components.DestinationUnionTypeGcpPubsub:
+                // res.Destination.DestinationGCPPubSub is populated
+        }
+
     }
 }
 ```
@@ -158,8 +173,8 @@ func main() {
 | Parameter                                                                    | Type                                                                         | Required                                                                     | Description                                                                  |
 | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `ctx`                                                                        | [context.Context](https://pkg.go.dev/context#Context)                        | :heavy_check_mark:                                                           | The context to use for the request.                                          |
+| `tenantID`                                                                   | *string*                                                                     | :heavy_check_mark:                                                           | The ID of the tenant. Required when using AdminApiKey authentication.        |
 | `params`                                                                     | [components.DestinationCreate](../../models/components/destinationcreate.md) | :heavy_check_mark:                                                           | N/A                                                                          |
-| `tenantID`                                                                   | **string*                                                                    | :heavy_minus_sign:                                                           | The ID of the tenant. Required when using AdminApiKey authentication.        |
 | `opts`                                                                       | [][operations.Option](../../models/operations/option.md)                     | :heavy_minus_sign:                                                           | The options for this request.                                                |
 
 ### Response
@@ -168,9 +183,13 @@ func main() {
 
 ### Errors
 
-| Error Type         | Status Code        | Content Type       |
-| ------------------ | ------------------ | ------------------ |
-| apierrors.APIError | 4XX, 5XX           | \*/\*              |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.APIErrorResponse    | 422                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
 ## Get
 
@@ -184,27 +203,42 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
 func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithTenantID("<id>"),
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Destinations.Get(ctx, "<id>")
+    res, err := s.Destinations.Get(ctx, "<id>", "<id>")
     if err != nil {
         log.Fatal(err)
     }
     if res.Destination != nil {
-        // handle response
+        switch res.Destination.Type {
+            case components.DestinationUnionTypeWebhook:
+                // res.Destination.DestinationWebhook is populated
+            case components.DestinationUnionTypeAwsSqs:
+                // res.Destination.DestinationAWSSQS is populated
+            case components.DestinationUnionTypeRabbitmq:
+                // res.Destination.DestinationRabbitMQ is populated
+            case components.DestinationUnionTypeHookdeck:
+                // res.Destination.DestinationHookdeck is populated
+            case components.DestinationUnionTypeAwsKinesis:
+                // res.Destination.DestinationAWSKinesis is populated
+            case components.DestinationUnionTypeAzureServicebus:
+                // res.Destination.DestinationAzureServiceBus is populated
+            case components.DestinationUnionTypeAwsS3:
+                // res.Destination.DestinationAwss3 is populated
+            case components.DestinationUnionTypeGcpPubsub:
+                // res.Destination.DestinationGCPPubSub is populated
+        }
+
     }
 }
 ```
@@ -214,8 +248,8 @@ func main() {
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `ctx`                                                                 | [context.Context](https://pkg.go.dev/context#Context)                 | :heavy_check_mark:                                                    | The context to use for the request.                                   |
+| `tenantID`                                                            | *string*                                                              | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `destinationID`                                                       | *string*                                                              | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `tenantID`                                                            | **string*                                                             | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `opts`                                                                | [][operations.Option](../../models/operations/option.md)              | :heavy_minus_sign:                                                    | The options for this request.                                         |
 
 ### Response
@@ -224,9 +258,12 @@ func main() {
 
 ### Errors
 
-| Error Type         | Status Code        | Content Type       |
-| ------------------ | ------------------ | ------------------ |
-| apierrors.APIError | 4XX, 5XX           | \*/\*              |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
 ## Update
 
@@ -240,22 +277,20 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 )
 
 func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithTenantID("<id>"),
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Destinations.Update(ctx, "<id>", components.CreateDestinationUpdateDestinationUpdateRabbitMQ(
+    res, err := s.Destinations.Update(ctx, "<id>", "<id>", components.CreateDestinationUpdateDestinationUpdateRabbitMQ(
         components.DestinationUpdateRabbitMQ{
             Topics: outpostgo.Pointer(components.CreateTopicsTopicsEnum(
                 components.TopicsEnumWildcard,
@@ -275,7 +310,11 @@ func main() {
         log.Fatal(err)
     }
     if res.OneOf != nil {
-        // handle response
+        switch res.OneOf.Type {
+            case operations.UpdateTenantDestinationResponseBodyTypeDestination:
+                // res.OneOf.Destination is populated
+        }
+
     }
 }
 ```
@@ -285,9 +324,9 @@ func main() {
 | Parameter                                                                    | Type                                                                         | Required                                                                     | Description                                                                  |
 | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `ctx`                                                                        | [context.Context](https://pkg.go.dev/context#Context)                        | :heavy_check_mark:                                                           | The context to use for the request.                                          |
+| `tenantID`                                                                   | *string*                                                                     | :heavy_check_mark:                                                           | The ID of the tenant. Required when using AdminApiKey authentication.        |
 | `destinationID`                                                              | *string*                                                                     | :heavy_check_mark:                                                           | The ID of the destination.                                                   |
 | `params`                                                                     | [components.DestinationUpdate](../../models/components/destinationupdate.md) | :heavy_check_mark:                                                           | N/A                                                                          |
-| `tenantID`                                                                   | **string*                                                                    | :heavy_minus_sign:                                                           | The ID of the tenant. Required when using AdminApiKey authentication.        |
 | `opts`                                                                       | [][operations.Option](../../models/operations/option.md)                     | :heavy_minus_sign:                                                           | The options for this request.                                                |
 
 ### Response
@@ -296,9 +335,13 @@ func main() {
 
 ### Errors
 
-| Error Type         | Status Code        | Content Type       |
-| ------------------ | ------------------ | ------------------ |
-| apierrors.APIError | 4XX, 5XX           | \*/\*              |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.APIErrorResponse    | 422                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
 ## Delete
 
@@ -312,7 +355,6 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
@@ -321,13 +363,10 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithTenantID("<id>"),
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Destinations.Delete(ctx, "<id>")
+    res, err := s.Destinations.Delete(ctx, "<id>", "<id>")
     if err != nil {
         log.Fatal(err)
     }
@@ -342,8 +381,8 @@ func main() {
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `ctx`                                                                 | [context.Context](https://pkg.go.dev/context#Context)                 | :heavy_check_mark:                                                    | The context to use for the request.                                   |
+| `tenantID`                                                            | *string*                                                              | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `destinationID`                                                       | *string*                                                              | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `tenantID`                                                            | **string*                                                             | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `opts`                                                                | [][operations.Option](../../models/operations/option.md)              | :heavy_minus_sign:                                                    | The options for this request.                                         |
 
 ### Response
@@ -352,9 +391,12 @@ func main() {
 
 ### Errors
 
-| Error Type         | Status Code        | Content Type       |
-| ------------------ | ------------------ | ------------------ |
-| apierrors.APIError | 4XX, 5XX           | \*/\*              |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
 ## Enable
 
@@ -368,27 +410,42 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
 func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithTenantID("<id>"),
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Destinations.Enable(ctx, "<id>")
+    res, err := s.Destinations.Enable(ctx, "<id>", "<id>")
     if err != nil {
         log.Fatal(err)
     }
     if res.Destination != nil {
-        // handle response
+        switch res.Destination.Type {
+            case components.DestinationUnionTypeWebhook:
+                // res.Destination.DestinationWebhook is populated
+            case components.DestinationUnionTypeAwsSqs:
+                // res.Destination.DestinationAWSSQS is populated
+            case components.DestinationUnionTypeRabbitmq:
+                // res.Destination.DestinationRabbitMQ is populated
+            case components.DestinationUnionTypeHookdeck:
+                // res.Destination.DestinationHookdeck is populated
+            case components.DestinationUnionTypeAwsKinesis:
+                // res.Destination.DestinationAWSKinesis is populated
+            case components.DestinationUnionTypeAzureServicebus:
+                // res.Destination.DestinationAzureServiceBus is populated
+            case components.DestinationUnionTypeAwsS3:
+                // res.Destination.DestinationAwss3 is populated
+            case components.DestinationUnionTypeGcpPubsub:
+                // res.Destination.DestinationGCPPubSub is populated
+        }
+
     }
 }
 ```
@@ -398,8 +455,8 @@ func main() {
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `ctx`                                                                 | [context.Context](https://pkg.go.dev/context#Context)                 | :heavy_check_mark:                                                    | The context to use for the request.                                   |
+| `tenantID`                                                            | *string*                                                              | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `destinationID`                                                       | *string*                                                              | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `tenantID`                                                            | **string*                                                             | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `opts`                                                                | [][operations.Option](../../models/operations/option.md)              | :heavy_minus_sign:                                                    | The options for this request.                                         |
 
 ### Response
@@ -408,9 +465,12 @@ func main() {
 
 ### Errors
 
-| Error Type         | Status Code        | Content Type       |
-| ------------------ | ------------------ | ------------------ |
-| apierrors.APIError | 4XX, 5XX           | \*/\*              |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
 ## Disable
 
@@ -424,27 +484,42 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
 func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithTenantID("<id>"),
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Destinations.Disable(ctx, "<id>")
+    res, err := s.Destinations.Disable(ctx, "<id>", "<id>")
     if err != nil {
         log.Fatal(err)
     }
     if res.Destination != nil {
-        // handle response
+        switch res.Destination.Type {
+            case components.DestinationUnionTypeWebhook:
+                // res.Destination.DestinationWebhook is populated
+            case components.DestinationUnionTypeAwsSqs:
+                // res.Destination.DestinationAWSSQS is populated
+            case components.DestinationUnionTypeRabbitmq:
+                // res.Destination.DestinationRabbitMQ is populated
+            case components.DestinationUnionTypeHookdeck:
+                // res.Destination.DestinationHookdeck is populated
+            case components.DestinationUnionTypeAwsKinesis:
+                // res.Destination.DestinationAWSKinesis is populated
+            case components.DestinationUnionTypeAzureServicebus:
+                // res.Destination.DestinationAzureServiceBus is populated
+            case components.DestinationUnionTypeAwsS3:
+                // res.Destination.DestinationAwss3 is populated
+            case components.DestinationUnionTypeGcpPubsub:
+                // res.Destination.DestinationGCPPubSub is populated
+        }
+
     }
 }
 ```
@@ -454,8 +529,8 @@ func main() {
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `ctx`                                                                 | [context.Context](https://pkg.go.dev/context#Context)                 | :heavy_check_mark:                                                    | The context to use for the request.                                   |
+| `tenantID`                                                            | *string*                                                              | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `destinationID`                                                       | *string*                                                              | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `tenantID`                                                            | **string*                                                             | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `opts`                                                                | [][operations.Option](../../models/operations/option.md)              | :heavy_minus_sign:                                                    | The options for this request.                                         |
 
 ### Response
@@ -464,9 +539,12 @@ func main() {
 
 ### Errors
 
-| Error Type         | Status Code        | Content Type       |
-| ------------------ | ------------------ | ------------------ |
-| apierrors.APIError | 4XX, 5XX           | \*/\*              |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
 ## ListAttempts
 
@@ -480,7 +558,6 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
@@ -490,13 +567,11 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithTenantID("<id>"),
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
     res, err := s.Destinations.ListAttempts(ctx, operations.ListTenantDestinationAttemptsRequest{
+        TenantID: "<id>",
         DestinationID: "<id>",
     })
     if err != nil {
@@ -522,10 +597,12 @@ func main() {
 
 ### Errors
 
-| Error Type                 | Status Code                | Content Type               |
-| -------------------------- | -------------------------- | -------------------------- |
-| apierrors.APIErrorResponse | 422                        | application/json           |
-| apierrors.APIError         | 4XX, 5XX                   | \*/\*                      |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
 ## GetAttempt
 
@@ -539,27 +616,30 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
 func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithTenantID("<id>"),
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Destinations.GetAttempt(ctx, "<id>", "<id>", nil)
+    res, err := s.Destinations.GetAttempt(ctx, "<id>", "<id>", "<id>", nil)
     if err != nil {
         log.Fatal(err)
     }
     if res.Attempt != nil {
-        // handle response
+        switch res.Attempt.Event.Type {
+            case components.EventUnionTypeEventSummary:
+                // res.Attempt.Event.EventSummary is populated
+            case components.EventUnionTypeEventFull:
+                // res.Attempt.Event.EventFull is populated
+        }
+
     }
 }
 ```
@@ -569,9 +649,9 @@ func main() {
 | Parameter                                                                                                                                                                                                                          | Type                                                                                                                                                                                                                               | Required                                                                                                                                                                                                                           | Description                                                                                                                                                                                                                        |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ctx`                                                                                                                                                                                                                              | [context.Context](https://pkg.go.dev/context#Context)                                                                                                                                                                              | :heavy_check_mark:                                                                                                                                                                                                                 | The context to use for the request.                                                                                                                                                                                                |
+| `tenantID`                                                                                                                                                                                                                         | *string*                                                                                                                                                                                                                           | :heavy_check_mark:                                                                                                                                                                                                                 | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                              |
 | `destinationID`                                                                                                                                                                                                                    | *string*                                                                                                                                                                                                                           | :heavy_check_mark:                                                                                                                                                                                                                 | The ID of the destination.                                                                                                                                                                                                         |
 | `attemptID`                                                                                                                                                                                                                        | *string*                                                                                                                                                                                                                           | :heavy_check_mark:                                                                                                                                                                                                                 | The ID of the attempt.                                                                                                                                                                                                             |
-| `tenantID`                                                                                                                                                                                                                         | **string*                                                                                                                                                                                                                          | :heavy_minus_sign:                                                                                                                                                                                                                 | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                              |
 | `include`                                                                                                                                                                                                                          | [*operations.GetTenantDestinationAttemptInclude](../../models/operations/gettenantdestinationattemptinclude.md)                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                 | Fields to include in the response. Can be specified multiple times or comma-separated.<br/>- `event`: Include event summary<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/> |
 | `opts`                                                                                                                                                                                                                             | [][operations.Option](../../models/operations/option.md)                                                                                                                                                                           | :heavy_minus_sign:                                                                                                                                                                                                                 | The options for this request.                                                                                                                                                                                                      |
 
@@ -581,6 +661,9 @@ func main() {
 
 ### Errors
 
-| Error Type         | Status Code        | Content Type       |
-| ------------------ | ------------------ | ------------------ |
-| apierrors.APIError | 4XX, 5XX           | \*/\*              |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |

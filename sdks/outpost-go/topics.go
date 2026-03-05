@@ -235,6 +235,8 @@ func (s *Topics) List(ctx context.Context, opts ...operations.Option) (*operatio
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
+	case httpRes.StatusCode == 401:
+		fallthrough
 	case httpRes.StatusCode == 403:
 		fallthrough
 	case httpRes.StatusCode == 407:
@@ -448,8 +450,6 @@ func (s *Topics) List(ctx context.Context, opts ...operations.Option) (*operatio
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
-	case httpRes.StatusCode == 401:
-		fallthrough
 	case httpRes.StatusCode >= 400 && httpRes.StatusCode < 500:
 		rawBody, err := utils.ConsumeRawBody(httpRes)
 		if err != nil {

@@ -6,10 +6,10 @@ Operations for retrieving destination type schemas.
 
 ### Available Operations
 
-* [ListDestinationTypesJwt](#listdestinationtypesjwt) - List Destination Type Schemas
-* [GetDestinationTypeJwt](#getdestinationtypejwt) - Get Destination Type Schema
+* [ListDestinationTypes](#listdestinationtypes) - List Destination Type Schemas
+* [GetDestinationType](#getdestinationtype) - Get Destination Type Schema
 
-## ListDestinationTypesJwt
+## ListDestinationTypes
 
 Returns a list of JSON-based input schemas for each available destination type.
 
@@ -21,7 +21,6 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
@@ -30,12 +29,10 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Schemas.ListDestinationTypesJwt(ctx)
+    res, err := s.Schemas.ListDestinationTypes(ctx)
     if err != nil {
         log.Fatal(err)
     }
@@ -61,7 +58,7 @@ func main() {
 | Error Type                    | Status Code                   | Content Type                  |
 | ----------------------------- | ----------------------------- | ----------------------------- |
 | apierrors.NotFoundError       | 404                           | application/json              |
-| apierrors.UnauthorizedError   | 403, 407                      | application/json              |
+| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
 | apierrors.TimeoutError        | 408                           | application/json              |
 | apierrors.RateLimitedError    | 429                           | application/json              |
 | apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |
@@ -72,7 +69,7 @@ func main() {
 | apierrors.UnauthorizedError   | 511                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
-## GetDestinationTypeJwt
+## GetDestinationType
 
 Returns the input schema for a specific destination type.
 
@@ -84,7 +81,6 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
@@ -94,12 +90,10 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Schemas.GetDestinationTypeJwt(ctx, operations.GetDestinationTypeSchemaTypeRabbitmq)
+    res, err := s.Schemas.GetDestinationType(ctx, operations.GetDestinationTypeSchemaTypeRabbitmq)
     if err != nil {
         log.Fatal(err)
     }
@@ -125,7 +119,8 @@ func main() {
 
 | Error Type                    | Status Code                   | Content Type                  |
 | ----------------------------- | ----------------------------- | ----------------------------- |
-| apierrors.UnauthorizedError   | 403, 407                      | application/json              |
+| apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
 | apierrors.TimeoutError        | 408                           | application/json              |
 | apierrors.RateLimitedError    | 429                           | application/json              |
 | apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |

@@ -19,10 +19,10 @@ targets:
     outpost-go:
         source: Outpost API
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:182d5dd8b4d859c88757372463d753cbba00c2ecfb021e0c070f0893123c9908
-        sourceBlobDigest: sha256:a6532f0ef9fd2dbcef3808650877dce489b5b29c107ec5131d8a48e0d4aac801
+        sourceRevisionDigest: sha256:837c1ec11841961c17673ee40729959fce25fb87c9ca09f822e2d88805b5556a
+        sourceBlobDigest: sha256:0210b5211be69672b9fdb4ed35188fd778a0fc3fad0a7f426d2f0f7d0fb86067
         codeSamplesNamespace: outpost-api-go-code-samples
-        codeSamplesRevisionDigest: sha256:e082c4451fa2bd5b360f3087de7e621687a110a3c2171429bcad085d7a138037
+        codeSamplesRevisionDigest: sha256:23dd5f36760106a03d1683e94c80a2a1299b2b2564c20e0e97c98df856f9d822
     outpost-python:
         source: Outpost API (Python)
         sourceNamespace: outpost-api

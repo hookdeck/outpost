@@ -76,6 +76,13 @@ func MarshalJSON(v interface{}, tag reflect.StructTag, topLevel bool) ([]byte, e
 					continue
 				}
 
+				if omitEmpty && fieldVal.Kind() != reflect.Struct && fieldVal.IsZero() {
+					continue
+				}
+
+				if omitEmpty && isEmptyContainer(field.Type, fieldVal) {
+					continue
+				}
 			}
 
 			if !field.IsExported() && field.Tag.Get("const") == "" {
