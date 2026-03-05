@@ -21,31 +21,30 @@ Use the `include` query parameter to include related data:
 
 ### Available Operations
 
-* [list](#list) - List Attempts (Admin)
+* [list](#list) - List Attempts
 * [get](#get) - Get Attempt
 * [retry](#retry) - Retry Event Delivery
 
 ## list
 
-Retrieves a paginated list of attempts across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+Retrieves a paginated list of attempts.
 
-When `tenant_id` is not provided, returns attempts from all tenants. When `tenant_id` is provided, returns only attempts for that tenant.
+When authenticated with a Tenant JWT, returns only attempts belonging to that tenant.
+When authenticated with Admin API Key, returns attempts across all tenants. Use `tenant_id` query parameter to filter by tenant.
 
 
 ### Example Usage: AdminAttemptsListExample
 
-<!-- UsageSnippet language="python" operationID="adminListAttempts" method="get" path="/attempts" example="AdminAttemptsListExample" -->
+<!-- UsageSnippet language="python" operationID="listAttempts" method="get" path="/attempts" example="AdminAttemptsListExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.attempts.list(limit=100, order_by=models.AdminListAttemptsOrderBy.TIME, direction=models.AdminListAttemptsDir.DESC)
+    res = outpost.attempts.list(limit=100, order_by=models.ListAttemptsOrderBy.TIME, direction=models.ListAttemptsDir.DESC)
 
     while res is not None:
         # Handle items
@@ -55,18 +54,16 @@ with Outpost(
 ```
 ### Example Usage: AdminAttemptsWithIncludeExample
 
-<!-- UsageSnippet language="python" operationID="adminListAttempts" method="get" path="/attempts" example="AdminAttemptsWithIncludeExample" -->
+<!-- UsageSnippet language="python" operationID="listAttempts" method="get" path="/attempts" example="AdminAttemptsWithIncludeExample" -->
 ```python
 from outpost_sdk import Outpost, models
 
 
 with Outpost(
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.attempts.list(limit=100, order_by=models.AdminListAttemptsOrderBy.TIME, direction=models.AdminListAttemptsDir.DESC)
+    res = outpost.attempts.list(limit=100, order_by=models.ListAttemptsOrderBy.TIME, direction=models.ListAttemptsDir.DESC)
 
     while res is not None:
         # Handle items
@@ -82,28 +79,29 @@ with Outpost(
 | `tenant_id`                                                                                                                                                                                                                                                                        | *Optional[str]*                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by tenant ID. If not provided, returns attempts from all tenants.                                                                                                                                                                                                  |
 | `event_id`                                                                                                                                                                                                                                                                         | *Optional[str]*                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by event ID.                                                                                                                                                                                                                                                       |
 | `destination_id`                                                                                                                                                                                                                                                                   | *Optional[str]*                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by destination ID.                                                                                                                                                                                                                                                 |
-| `status`                                                                                                                                                                                                                                                                           | [Optional[models.AdminListAttemptsStatus]](../../models/adminlistattemptsstatus.md)                                                                                                                                                                                                | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by status.                                                                                                                                                                                                                                                         |
-| `topic`                                                                                                                                                                                                                                                                            | [Optional[models.AdminListAttemptsTopic]](../../models/adminlistattemptstopic.md)                                                                                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by event topic(s). Can be specified multiple times or comma-separated.                                                                                                                                                                                             |
+| `status`                                                                                                                                                                                                                                                                           | [Optional[models.ListAttemptsStatus]](../../models/listattemptsstatus.md)                                                                                                                                                                                                          | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by status.                                                                                                                                                                                                                                                         |
+| `topic`                                                                                                                                                                                                                                                                            | [Optional[models.ListAttemptsTopic]](../../models/listattemptstopic.md)                                                                                                                                                                                                            | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by event topic(s). Can be specified multiple times or comma-separated.                                                                                                                                                                                             |
 | `time_gte`                                                                                                                                                                                                                                                                         | [date](https://docs.python.org/3/library/datetime.html#date-objects)                                                                                                                                                                                                               | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format).                                                                                                                                                                                                             |
 | `time_lte`                                                                                                                                                                                                                                                                         | [date](https://docs.python.org/3/library/datetime.html#date-objects)                                                                                                                                                                                                               | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).                                                                                                                                                                                                             |
 | `limit`                                                                                                                                                                                                                                                                            | *Optional[int]*                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Number of items per page (default 100, max 1000).                                                                                                                                                                                                                                  |
 | `next_cursor`                                                                                                                                                                                                                                                                      | *Optional[str]*                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Cursor for next page of results.                                                                                                                                                                                                                                                   |
 | `prev_cursor`                                                                                                                                                                                                                                                                      | *Optional[str]*                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Cursor for previous page of results.                                                                                                                                                                                                                                               |
-| `include`                                                                                                                                                                                                                                                                          | [Optional[models.AdminListAttemptsInclude]](../../models/adminlistattemptsinclude.md)                                                                                                                                                                                              | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Fields to include in the response. Can be specified multiple times or comma-separated.<br/>- `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/> |
-| `order_by`                                                                                                                                                                                                                                                                         | [Optional[models.AdminListAttemptsOrderBy]](../../models/adminlistattemptsorderby.md)                                                                                                                                                                                              | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Field to sort by.                                                                                                                                                                                                                                                                  |
-| `direction`                                                                                                                                                                                                                                                                        | [Optional[models.AdminListAttemptsDir]](../../models/adminlistattemptsdir.md)                                                                                                                                                                                                      | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Sort direction.                                                                                                                                                                                                                                                                    |
+| `include`                                                                                                                                                                                                                                                                          | [Optional[models.ListAttemptsInclude]](../../models/listattemptsinclude.md)                                                                                                                                                                                                        | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Fields to include in the response. Can be specified multiple times or comma-separated.<br/>- `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/> |
+| `order_by`                                                                                                                                                                                                                                                                         | [Optional[models.ListAttemptsOrderBy]](../../models/listattemptsorderby.md)                                                                                                                                                                                                        | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Field to sort by.                                                                                                                                                                                                                                                                  |
+| `direction`                                                                                                                                                                                                                                                                        | [Optional[models.ListAttemptsDir]](../../models/listattemptsdir.md)                                                                                                                                                                                                                | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Sort direction.                                                                                                                                                                                                                                                                    |
 | `retries`                                                                                                                                                                                                                                                                          | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                                                                                                                                                                                                                   | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Configuration to override the default retry behavior of the client.                                                                                                                                                                                                                |
 
 ### Response
 
-**[models.AdminListAttemptsResponse](../../models/adminlistattemptsresponse.md)**
+**[models.ListAttemptsResponse](../../models/listattemptsresponse.md)**
 
 ### Errors
 
-| Error Type              | Status Code             | Content Type            |
-| ----------------------- | ----------------------- | ----------------------- |
-| errors.APIErrorResponse | 422                     | application/json        |
-| errors.APIError         | 4XX, 5XX                | \*/\*                   |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## get
 
@@ -117,13 +115,11 @@ When authenticated with Admin API Key, attempts from any tenant can be accessed.
 
 <!-- UsageSnippet language="python" operationID="getAttempt" method="get" path="/attempts/{attempt_id}" example="AttemptExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
     res = outpost.attempts.get(attempt_id="<id>")
@@ -136,13 +132,11 @@ with Outpost(
 
 <!-- UsageSnippet language="python" operationID="getAttempt" method="get" path="/attempts/{attempt_id}" example="AttemptWithIncludeExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
     res = outpost.attempts.get(attempt_id="<id>")
@@ -166,9 +160,12 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## retry
 
@@ -182,13 +179,11 @@ When authenticated with Admin API Key, events from any tenant can be retried.
 
 <!-- UsageSnippet language="python" operationID="retryEvent" method="post" path="/retry" example="RetryAccepted" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
     res = outpost.attempts.retry(event_id="evt_123", destination_id="des_456")
@@ -212,7 +207,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type              | Status Code             | Content Type            |
-| ----------------------- | ----------------------- | ----------------------- |
-| errors.APIErrorResponse | 422                     | application/json        |
-| errors.APIError         | 4XX, 5XX                | \*/\*                   |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |

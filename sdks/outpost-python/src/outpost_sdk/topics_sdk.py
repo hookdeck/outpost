@@ -107,7 +107,7 @@ class TopicsSDK(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, ["403", "407"], "application/json"):
+        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
@@ -150,7 +150,7 @@ class TopicsSDK(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["401", "4XX"], "*"):
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -255,7 +255,7 @@ class TopicsSDK(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, ["403", "407"], "application/json"):
+        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
@@ -298,7 +298,7 @@ class TopicsSDK(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["401", "4XX"], "*"):
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):

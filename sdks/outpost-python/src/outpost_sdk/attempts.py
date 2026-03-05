@@ -35,9 +35,9 @@ class Attempts(BaseSDK):
         tenant_id: Optional[str] = None,
         event_id: Optional[str] = None,
         destination_id: Optional[str] = None,
-        status: Optional[models.AdminListAttemptsStatus] = None,
+        status: Optional[models.ListAttemptsStatus] = None,
         topic: Optional[
-            Union[models.AdminListAttemptsTopic, models.AdminListAttemptsTopicTypedDict]
+            Union[models.ListAttemptsTopic, models.ListAttemptsTopicTypedDict]
         ] = None,
         time_gte: Optional[datetime] = None,
         time_lte: Optional[datetime] = None,
@@ -45,27 +45,23 @@ class Attempts(BaseSDK):
         next_cursor: Optional[str] = None,
         prev_cursor: Optional[str] = None,
         include: Optional[
-            Union[
-                models.AdminListAttemptsInclude,
-                models.AdminListAttemptsIncludeTypedDict,
-            ]
+            Union[models.ListAttemptsInclude, models.ListAttemptsIncludeTypedDict]
         ] = None,
         order_by: Optional[
-            models.AdminListAttemptsOrderBy
-        ] = models.AdminListAttemptsOrderBy.TIME,
-        direction: Optional[
-            models.AdminListAttemptsDir
-        ] = models.AdminListAttemptsDir.DESC,
+            models.ListAttemptsOrderBy
+        ] = models.ListAttemptsOrderBy.TIME,
+        direction: Optional[models.ListAttemptsDir] = models.ListAttemptsDir.DESC,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
         http_headers: Optional[Mapping[str, str]] = None,
-    ) -> Optional[models.AdminListAttemptsResponse]:
-        r"""List Attempts (Admin)
+    ) -> Optional[models.ListAttemptsResponse]:
+        r"""List Attempts
 
-        Retrieves a paginated list of attempts across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+        Retrieves a paginated list of attempts.
 
-        When `tenant_id` is not provided, returns attempts from all tenants. When `tenant_id` is provided, returns only attempts for that tenant.
+        When authenticated with a Tenant JWT, returns only attempts belonging to that tenant.
+        When authenticated with Admin API Key, returns attempts across all tenants. Use `tenant_id` query parameter to filter by tenant.
 
 
         :param tenant_id: Filter attempts by tenant ID. If not provided, returns attempts from all tenants.
@@ -100,7 +96,7 @@ class Attempts(BaseSDK):
         else:
             base_url = self._get_url(base_url, url_variables)
 
-        request = models.AdminListAttemptsRequest(
+        request = models.ListAttemptsRequest(
             tenant_id=tenant_id,
             event_id=event_id,
             destination_id=destination_id,
@@ -145,16 +141,16 @@ class Attempts(BaseSDK):
             hook_ctx=HookContext(
                 config=self.sdk_configuration,
                 base_url=base_url or "",
-                operation_id="adminListAttempts",
+                operation_id="listAttempts",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["401", "422", "4XX", "5XX"],
+            error_status_codes=["401", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
-        def next_func() -> Optional[models.AdminListAttemptsResponse]:
+        def next_func() -> Optional[models.ListAttemptsResponse]:
             body = utils.unmarshal_json(http_res.text, Union[Dict[Any, Any], List[Any]])
             next_cursor = JSONPath("$.pagination.next").parse(body)
 
@@ -190,16 +186,21 @@ class Attempts(BaseSDK):
 
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
-            return models.AdminListAttemptsResponse(
+            return models.ListAttemptsResponse(
                 result=unmarshal_json_response(models.AttemptPaginatedResult, http_res),
                 next=next_func,
             )
-        if utils.match_response(http_res, "422", "application/json"):
+        if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
-                errors.APIErrorResponseData, http_res
+                errors.UnauthorizedErrorData, http_res
             )
-            raise errors.APIErrorResponse(response_data, http_res)
-        if utils.match_response(http_res, ["401", "4XX"], "*"):
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -214,9 +215,9 @@ class Attempts(BaseSDK):
         tenant_id: Optional[str] = None,
         event_id: Optional[str] = None,
         destination_id: Optional[str] = None,
-        status: Optional[models.AdminListAttemptsStatus] = None,
+        status: Optional[models.ListAttemptsStatus] = None,
         topic: Optional[
-            Union[models.AdminListAttemptsTopic, models.AdminListAttemptsTopicTypedDict]
+            Union[models.ListAttemptsTopic, models.ListAttemptsTopicTypedDict]
         ] = None,
         time_gte: Optional[datetime] = None,
         time_lte: Optional[datetime] = None,
@@ -224,27 +225,23 @@ class Attempts(BaseSDK):
         next_cursor: Optional[str] = None,
         prev_cursor: Optional[str] = None,
         include: Optional[
-            Union[
-                models.AdminListAttemptsInclude,
-                models.AdminListAttemptsIncludeTypedDict,
-            ]
+            Union[models.ListAttemptsInclude, models.ListAttemptsIncludeTypedDict]
         ] = None,
         order_by: Optional[
-            models.AdminListAttemptsOrderBy
-        ] = models.AdminListAttemptsOrderBy.TIME,
-        direction: Optional[
-            models.AdminListAttemptsDir
-        ] = models.AdminListAttemptsDir.DESC,
+            models.ListAttemptsOrderBy
+        ] = models.ListAttemptsOrderBy.TIME,
+        direction: Optional[models.ListAttemptsDir] = models.ListAttemptsDir.DESC,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
         http_headers: Optional[Mapping[str, str]] = None,
-    ) -> Optional[models.AdminListAttemptsResponse]:
-        r"""List Attempts (Admin)
+    ) -> Optional[models.ListAttemptsResponse]:
+        r"""List Attempts
 
-        Retrieves a paginated list of attempts across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+        Retrieves a paginated list of attempts.
 
-        When `tenant_id` is not provided, returns attempts from all tenants. When `tenant_id` is provided, returns only attempts for that tenant.
+        When authenticated with a Tenant JWT, returns only attempts belonging to that tenant.
+        When authenticated with Admin API Key, returns attempts across all tenants. Use `tenant_id` query parameter to filter by tenant.
 
 
         :param tenant_id: Filter attempts by tenant ID. If not provided, returns attempts from all tenants.
@@ -279,7 +276,7 @@ class Attempts(BaseSDK):
         else:
             base_url = self._get_url(base_url, url_variables)
 
-        request = models.AdminListAttemptsRequest(
+        request = models.ListAttemptsRequest(
             tenant_id=tenant_id,
             event_id=event_id,
             destination_id=destination_id,
@@ -324,16 +321,16 @@ class Attempts(BaseSDK):
             hook_ctx=HookContext(
                 config=self.sdk_configuration,
                 base_url=base_url or "",
-                operation_id="adminListAttempts",
+                operation_id="listAttempts",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["401", "422", "4XX", "5XX"],
+            error_status_codes=["401", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
-        def next_func() -> Optional[models.AdminListAttemptsResponse]:
+        def next_func() -> Optional[models.ListAttemptsResponse]:
             body = utils.unmarshal_json(http_res.text, Union[Dict[Any, Any], List[Any]])
             next_cursor = JSONPath("$.pagination.next").parse(body)
 
@@ -369,16 +366,21 @@ class Attempts(BaseSDK):
 
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
-            return models.AdminListAttemptsResponse(
+            return models.ListAttemptsResponse(
                 result=unmarshal_json_response(models.AttemptPaginatedResult, http_res),
                 next=next_func,
             )
-        if utils.match_response(http_res, "422", "application/json"):
+        if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
-                errors.APIErrorResponseData, http_res
+                errors.UnauthorizedErrorData, http_res
             )
-            raise errors.APIErrorResponse(response_data, http_res)
-        if utils.match_response(http_res, ["401", "4XX"], "*"):
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -467,13 +469,27 @@ class Attempts(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Attempt, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -562,13 +578,27 @@ class Attempts(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Attempt, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -654,19 +684,27 @@ class Attempts(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["400", "404", "422", "4XX", "5XX"],
+            error_status_codes=["400", "401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
         response_data: Any = None
         if utils.match_response(http_res, "202", "application/json"):
             return unmarshal_json_response(models.SuccessResponse, http_res)
-        if utils.match_response(http_res, "422", "application/json"):
+        if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
-                errors.APIErrorResponseData, http_res
+                errors.UnauthorizedErrorData, http_res
             )
-            raise errors.APIErrorResponse(response_data, http_res)
-        if utils.match_response(http_res, ["400", "404", "4XX"], "*"):
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, ["400", "4XX"], "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -752,19 +790,27 @@ class Attempts(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["400", "404", "422", "4XX", "5XX"],
+            error_status_codes=["400", "401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
         response_data: Any = None
         if utils.match_response(http_res, "202", "application/json"):
             return unmarshal_json_response(models.SuccessResponse, http_res)
-        if utils.match_response(http_res, "422", "application/json"):
+        if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
-                errors.APIErrorResponseData, http_res
+                errors.UnauthorizedErrorData, http_res
             )
-            raise errors.APIErrorResponse(response_data, http_res)
-        if utils.match_response(http_res, ["400", "404", "4XX"], "*"):
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, ["400", "4XX"], "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):

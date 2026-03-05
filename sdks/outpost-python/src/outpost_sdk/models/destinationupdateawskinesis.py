@@ -92,3 +92,9 @@ class DestinationUpdateAWSKinesis(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationUpdateAWSKinesis.model_rebuild()
+except NameError:
+    pass

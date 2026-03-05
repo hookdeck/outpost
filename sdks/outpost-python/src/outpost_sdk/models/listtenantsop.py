@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 from .tenantpaginatedresult import TenantPaginatedResult, TenantPaginatedResultTypedDict
-from datetime import datetime
 from enum import Enum
 from outpost_sdk.types import BaseModel, UNSET_SENTINEL
 from outpost_sdk.utils import FieldMetadata, QueryParamMetadata
@@ -10,12 +9,6 @@ import pydantic
 from pydantic import model_serializer
 from typing import Callable, Optional
 from typing_extensions import Annotated, NotRequired, TypedDict
-
-
-class ListTenantsOrderBy(str, Enum):
-    r"""Field to sort by."""
-
-    CREATED_AT = "created_at"
 
 
 class ListTenantsDir(str, Enum):
@@ -28,17 +21,11 @@ class ListTenantsDir(str, Enum):
 class ListTenantsRequestTypedDict(TypedDict):
     limit: NotRequired[int]
     r"""Number of tenants to return per page (1-100, default 20)."""
-    order_by: NotRequired[ListTenantsOrderBy]
-    r"""Field to sort by."""
-    direction: NotRequired[ListTenantsDir]
+    dir: NotRequired[ListTenantsDir]
     r"""Sort direction."""
-    created_at_gte: NotRequired[datetime]
-    r"""Filter tenants created at or after this time (RFC3339 or YYYY-MM-DD format)."""
-    created_at_lte: NotRequired[datetime]
-    r"""Filter tenants created at or before this time (RFC3339 or YYYY-MM-DD format)."""
-    next_cursor: NotRequired[str]
+    direction: NotRequired[str]
     r"""Cursor for the next page of results. Mutually exclusive with `prev`."""
-    prev_cursor: NotRequired[str]
+    prev: NotRequired[str]
     r"""Cursor for the previous page of results. Mutually exclusive with `next`."""
 
 
@@ -49,60 +36,28 @@ class ListTenantsRequest(BaseModel):
     ] = 20
     r"""Number of tenants to return per page (1-100, default 20)."""
 
-    order_by: Annotated[
-        Optional[ListTenantsOrderBy],
-        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ] = ListTenantsOrderBy.CREATED_AT
-    r"""Field to sort by."""
-
-    direction: Annotated[
+    dir: Annotated[
         Optional[ListTenantsDir],
-        pydantic.Field(alias="dir"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = ListTenantsDir.DESC
     r"""Sort direction."""
 
-    created_at_gte: Annotated[
-        Optional[datetime],
-        pydantic.Field(alias="created_at[gte]"),
-        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ] = None
-    r"""Filter tenants created at or after this time (RFC3339 or YYYY-MM-DD format)."""
-
-    created_at_lte: Annotated[
-        Optional[datetime],
-        pydantic.Field(alias="created_at[lte]"),
-        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ] = None
-    r"""Filter tenants created at or before this time (RFC3339 or YYYY-MM-DD format)."""
-
-    next_cursor: Annotated[
+    direction: Annotated[
         Optional[str],
         pydantic.Field(alias="next"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Cursor for the next page of results. Mutually exclusive with `prev`."""
 
-    prev_cursor: Annotated[
+    prev: Annotated[
         Optional[str],
-        pydantic.Field(alias="prev"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Cursor for the previous page of results. Mutually exclusive with `next`."""
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
-        optional_fields = set(
-            [
-                "limit",
-                "order_by",
-                "direction",
-                "created_at[gte]",
-                "created_at[lte]",
-                "next_cursor",
-                "prev_cursor",
-            ]
-        )
+        optional_fields = set(["limit", "dir", "direction", "prev"])
         serialized = handler(self)
         m = {}
 

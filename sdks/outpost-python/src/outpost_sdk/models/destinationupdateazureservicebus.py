@@ -95,3 +95,9 @@ class DestinationUpdateAzureServiceBus(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationUpdateAzureServiceBus.model_rebuild()
+except NameError:
+    pass

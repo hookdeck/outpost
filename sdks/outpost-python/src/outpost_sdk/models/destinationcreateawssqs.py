@@ -100,3 +100,9 @@ class DestinationCreateAWSSQS(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationCreateAWSSQS.model_rebuild()
+except NameError:
+    pass

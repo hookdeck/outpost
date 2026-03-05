@@ -40,7 +40,7 @@ class Destinations(BaseSDK):
     def list(
         self,
         *,
-        tenant_id: Optional[str] = None,
+        tenant_id: str,
         type_: Optional[
             Union[
                 models.ListTenantDestinationsType,
@@ -98,9 +98,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.ListTenantDestinationsGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -123,13 +120,27 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(List[models.Destination], http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -141,7 +152,7 @@ class Destinations(BaseSDK):
     async def list_async(
         self,
         *,
-        tenant_id: Optional[str] = None,
+        tenant_id: str,
         type_: Optional[
             Union[
                 models.ListTenantDestinationsType,
@@ -199,9 +210,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.ListTenantDestinationsGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -224,13 +232,27 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(List[models.Destination], http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -242,8 +264,8 @@ class Destinations(BaseSDK):
     def create(
         self,
         *,
+        tenant_id: str,
         params: Union[models.DestinationCreate, models.DestinationCreateTypedDict],
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -253,8 +275,8 @@ class Destinations(BaseSDK):
 
         Creates a new destination for the tenant. The request body structure depends on the `type`.
 
-        :param params:
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param params:
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -287,9 +309,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.CreateTenantDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             get_serialized_body=lambda: utils.serialize_request_body(
                 request.params, False, False, "json", models.DestinationCreate
@@ -315,13 +334,32 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["400", "404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "422", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "201", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["400", "404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "422", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -333,8 +371,8 @@ class Destinations(BaseSDK):
     async def create_async(
         self,
         *,
+        tenant_id: str,
         params: Union[models.DestinationCreate, models.DestinationCreateTypedDict],
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -344,8 +382,8 @@ class Destinations(BaseSDK):
 
         Creates a new destination for the tenant. The request body structure depends on the `type`.
 
-        :param params:
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param params:
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -378,9 +416,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.CreateTenantDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             get_serialized_body=lambda: utils.serialize_request_body(
                 request.params, False, False, "json", models.DestinationCreate
@@ -406,13 +441,32 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["400", "404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "422", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "201", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["400", "404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "422", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -424,8 +478,8 @@ class Destinations(BaseSDK):
     def get(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -435,8 +489,8 @@ class Destinations(BaseSDK):
 
         Retrieves details for a specific destination.
 
-        :param destination_id: The ID of the destination.
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param destination_id: The ID of the destination.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -469,9 +523,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.GetTenantDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -494,13 +545,27 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -512,8 +577,8 @@ class Destinations(BaseSDK):
     async def get_async(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -523,8 +588,8 @@ class Destinations(BaseSDK):
 
         Retrieves details for a specific destination.
 
-        :param destination_id: The ID of the destination.
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param destination_id: The ID of the destination.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -557,9 +622,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.GetTenantDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -582,13 +644,27 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -600,9 +676,9 @@ class Destinations(BaseSDK):
     def update(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
         params: Union[models.DestinationUpdate, models.DestinationUpdateTypedDict],
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -612,9 +688,9 @@ class Destinations(BaseSDK):
 
         Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
 
+        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param destination_id: The ID of the destination.
         :param params:
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -648,9 +724,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.UpdateTenantDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             get_serialized_body=lambda: utils.serialize_request_body(
                 request.params, False, False, "json", models.DestinationUpdate
@@ -676,15 +749,34 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["400", "404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "422", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(
                 models.UpdateTenantDestinationResponse, http_res
             )
-        if utils.match_response(http_res, ["400", "404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "422", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -696,9 +788,9 @@ class Destinations(BaseSDK):
     async def update_async(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
         params: Union[models.DestinationUpdate, models.DestinationUpdateTypedDict],
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -708,9 +800,9 @@ class Destinations(BaseSDK):
 
         Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
 
+        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param destination_id: The ID of the destination.
         :param params:
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -744,9 +836,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.UpdateTenantDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             get_serialized_body=lambda: utils.serialize_request_body(
                 request.params, False, False, "json", models.DestinationUpdate
@@ -772,15 +861,34 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["400", "404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "422", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(
                 models.UpdateTenantDestinationResponse, http_res
             )
-        if utils.match_response(http_res, ["400", "404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "422", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -792,8 +900,8 @@ class Destinations(BaseSDK):
     def delete(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -803,8 +911,8 @@ class Destinations(BaseSDK):
 
         Deletes a specific destination.
 
-        :param destination_id: The ID of the destination.
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param destination_id: The ID of the destination.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -837,9 +945,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.DeleteTenantDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -862,13 +967,27 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.SuccessResponse, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -880,8 +999,8 @@ class Destinations(BaseSDK):
     async def delete_async(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -891,8 +1010,8 @@ class Destinations(BaseSDK):
 
         Deletes a specific destination.
 
-        :param destination_id: The ID of the destination.
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param destination_id: The ID of the destination.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -925,9 +1044,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.DeleteTenantDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -950,13 +1066,27 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.SuccessResponse, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -968,8 +1098,8 @@ class Destinations(BaseSDK):
     def enable(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -979,8 +1109,8 @@ class Destinations(BaseSDK):
 
         Enables a previously disabled destination.
 
-        :param destination_id: The ID of the destination.
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param destination_id: The ID of the destination.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -1013,9 +1143,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.EnableTenantDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -1038,13 +1165,27 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -1056,8 +1197,8 @@ class Destinations(BaseSDK):
     async def enable_async(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -1067,8 +1208,8 @@ class Destinations(BaseSDK):
 
         Enables a previously disabled destination.
 
-        :param destination_id: The ID of the destination.
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param destination_id: The ID of the destination.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -1101,9 +1242,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.EnableTenantDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -1126,13 +1264,27 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -1144,8 +1296,8 @@ class Destinations(BaseSDK):
     def disable(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -1155,8 +1307,8 @@ class Destinations(BaseSDK):
 
         Disables a previously enabled destination.
 
-        :param destination_id: The ID of the destination.
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param destination_id: The ID of the destination.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -1189,9 +1341,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.DisableTenantDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -1214,13 +1363,27 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -1232,8 +1395,8 @@ class Destinations(BaseSDK):
     async def disable_async(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
-        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -1243,8 +1406,8 @@ class Destinations(BaseSDK):
 
         Disables a previously enabled destination.
 
-        :param destination_id: The ID of the destination.
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param destination_id: The ID of the destination.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -1277,9 +1440,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.DisableTenantDestinationGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -1302,13 +1462,27 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -1320,8 +1494,8 @@ class Destinations(BaseSDK):
     def list_attempts(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
-        tenant_id: Optional[str] = None,
         event_id: Optional[str] = None,
         status: Optional[models.ListTenantDestinationAttemptsStatus] = None,
         topic: Optional[
@@ -1356,8 +1530,8 @@ class Destinations(BaseSDK):
 
         Retrieves a paginated list of attempts scoped to a specific destination.
 
-        :param destination_id: The ID of the destination.
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param destination_id: The ID of the destination.
         :param event_id: Filter attempts by event ID.
         :param status: Filter attempts by status.
         :param topic: Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
@@ -1416,9 +1590,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.ListTenantDestinationAttemptsGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -1441,7 +1612,7 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "422", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
@@ -1463,8 +1634,8 @@ class Destinations(BaseSDK):
                 return None
 
             return self.list_attempts(
-                destination_id=destination_id,
                 tenant_id=tenant_id,
+                destination_id=destination_id,
                 event_id=event_id,
                 status=status,
                 topic=topic,
@@ -1485,12 +1656,20 @@ class Destinations(BaseSDK):
                 result=unmarshal_json_response(models.AttemptPaginatedResult, http_res),
                 next=next_func,
             )
-        if utils.match_response(http_res, "422", "application/json"):
+        if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
-                errors.APIErrorResponseData, http_res
+                errors.UnauthorizedErrorData, http_res
             )
-            raise errors.APIErrorResponse(response_data, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -1502,8 +1681,8 @@ class Destinations(BaseSDK):
     async def list_attempts_async(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
-        tenant_id: Optional[str] = None,
         event_id: Optional[str] = None,
         status: Optional[models.ListTenantDestinationAttemptsStatus] = None,
         topic: Optional[
@@ -1538,8 +1717,8 @@ class Destinations(BaseSDK):
 
         Retrieves a paginated list of attempts scoped to a specific destination.
 
-        :param destination_id: The ID of the destination.
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
+        :param destination_id: The ID of the destination.
         :param event_id: Filter attempts by event ID.
         :param status: Filter attempts by status.
         :param topic: Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
@@ -1598,9 +1777,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.ListTenantDestinationAttemptsGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -1623,7 +1799,7 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "422", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
@@ -1645,8 +1821,8 @@ class Destinations(BaseSDK):
                 return None
 
             return self.list_attempts(
-                destination_id=destination_id,
                 tenant_id=tenant_id,
+                destination_id=destination_id,
                 event_id=event_id,
                 status=status,
                 topic=topic,
@@ -1667,12 +1843,20 @@ class Destinations(BaseSDK):
                 result=unmarshal_json_response(models.AttemptPaginatedResult, http_res),
                 next=next_func,
             )
-        if utils.match_response(http_res, "422", "application/json"):
+        if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
-                errors.APIErrorResponseData, http_res
+                errors.UnauthorizedErrorData, http_res
             )
-            raise errors.APIErrorResponse(response_data, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -1684,9 +1868,9 @@ class Destinations(BaseSDK):
     def get_attempt(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
         attempt_id: str,
-        tenant_id: Optional[str] = None,
         include: Optional[
             Union[
                 models.GetTenantDestinationAttemptInclude,
@@ -1702,9 +1886,9 @@ class Destinations(BaseSDK):
 
         Retrieves details for a specific attempt scoped to a destination.
 
+        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param destination_id: The ID of the destination.
         :param attempt_id: The ID of the attempt.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param include: Fields to include in the response. Can be specified multiple times or comma-separated.
             - `event`: Include event summary
             - `event.data`: Include full event with payload data
@@ -1744,9 +1928,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.GetTenantDestinationAttemptGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -1769,13 +1950,27 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Attempt, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -1787,9 +1982,9 @@ class Destinations(BaseSDK):
     async def get_attempt_async(
         self,
         *,
+        tenant_id: str,
         destination_id: str,
         attempt_id: str,
-        tenant_id: Optional[str] = None,
         include: Optional[
             Union[
                 models.GetTenantDestinationAttemptInclude,
@@ -1805,9 +2000,9 @@ class Destinations(BaseSDK):
 
         Retrieves details for a specific attempt scoped to a destination.
 
+        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param destination_id: The ID of the destination.
         :param attempt_id: The ID of the attempt.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param include: Fields to include in the response. Can be specified multiple times or comma-separated.
             - `event`: Include event summary
             - `event.data`: Include full event with payload data
@@ -1847,9 +2042,6 @@ class Destinations(BaseSDK):
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
-            _globals=models.GetTenantDestinationAttemptGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
             security=self.sdk_configuration.security,
             allow_empty_value=None,
             timeout_ms=timeout_ms,
@@ -1872,13 +2064,27 @@ class Destinations(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["404", "4XX", "5XX"],
+            error_status_codes=["401", "404", "4XX", "500", "5XX"],
             retry_config=retry_config,
         )
 
+        response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.Attempt, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):

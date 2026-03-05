@@ -11,7 +11,7 @@ from typing import Any, List, Mapping, Optional
 class Schemas(BaseSDK):
     r"""Operations for retrieving destination type schemas."""
 
-    def list_destination_types_jwt(
+    def list_destination_types(
         self,
         *,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
@@ -107,7 +107,7 @@ class Schemas(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, ["403", "407"], "application/json"):
+        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
@@ -150,7 +150,7 @@ class Schemas(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["401", "4XX"], "*"):
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -159,7 +159,7 @@ class Schemas(BaseSDK):
 
         raise errors.APIError("Unexpected response received", http_res)
 
-    async def list_destination_types_jwt_async(
+    async def list_destination_types_async(
         self,
         *,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
@@ -255,7 +255,7 @@ class Schemas(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, ["403", "407"], "application/json"):
+        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
@@ -298,7 +298,7 @@ class Schemas(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["401", "4XX"], "*"):
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -307,7 +307,7 @@ class Schemas(BaseSDK):
 
         raise errors.APIError("Unexpected response received", http_res)
 
-    def get_destination_type_jwt(
+    def get_destination_type(
         self,
         *,
         type_: models.GetDestinationTypeSchemaType,
@@ -407,7 +407,10 @@ class Schemas(BaseSDK):
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.DestinationTypeSchema, http_res)
-        if utils.match_response(http_res, ["403", "407"], "application/json"):
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
@@ -450,7 +453,7 @@ class Schemas(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["401", "404", "4XX"], "*"):
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -459,7 +462,7 @@ class Schemas(BaseSDK):
 
         raise errors.APIError("Unexpected response received", http_res)
 
-    async def get_destination_type_jwt_async(
+    async def get_destination_type_async(
         self,
         *,
         type_: models.GetDestinationTypeSchemaType,
@@ -559,7 +562,10 @@ class Schemas(BaseSDK):
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.DestinationTypeSchema, http_res)
-        if utils.match_response(http_res, ["403", "407"], "application/json"):
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
@@ -602,7 +608,7 @@ class Schemas(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["401", "404", "4XX"], "*"):
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):

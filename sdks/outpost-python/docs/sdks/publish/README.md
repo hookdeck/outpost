@@ -16,14 +16,12 @@ Publishes an event to the specified topic, potentially routed to a specific dest
 
 <!-- UsageSnippet language="python" operationID="publishEvent" method="post" path="/publish" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 from outpost_sdk.utils import parse_datetime
 
 
 with Outpost(
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
     res = outpost.publish.event(data={
@@ -61,7 +59,7 @@ with Outpost(
 | Error Type                   | Status Code                  | Content Type                 |
 | ---------------------------- | ---------------------------- | ---------------------------- |
 | errors.NotFoundError         | 404                          | application/json             |
-| errors.UnauthorizedError     | 403, 407                     | application/json             |
+| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
 | errors.TimeoutErrorT         | 408                          | application/json             |
 | errors.RateLimitedError      | 429                          | application/json             |
 | errors.BadRequestError       | 413, 414, 415, 422, 431      | application/json             |

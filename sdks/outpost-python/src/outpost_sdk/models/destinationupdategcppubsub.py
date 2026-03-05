@@ -92,3 +92,9 @@ class DestinationUpdateGCPPubSub(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationUpdateGCPPubSub.model_rebuild()
+except NameError:
+    pass

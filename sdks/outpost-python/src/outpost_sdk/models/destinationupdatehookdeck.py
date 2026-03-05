@@ -91,3 +91,9 @@ class DestinationUpdateHookdeck(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationUpdateHookdeck.model_rebuild()
+except NameError:
+    pass

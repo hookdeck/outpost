@@ -15,25 +15,25 @@ from typing import Callable, List, Optional, Union
 from typing_extensions import Annotated, NotRequired, TypeAliasType, TypedDict
 
 
-class AdminListAttemptsStatus(str, Enum):
+class ListAttemptsStatus(str, Enum):
     r"""Filter attempts by status."""
 
     SUCCESS = "success"
     FAILED = "failed"
 
 
-AdminListAttemptsTopicTypedDict = TypeAliasType(
-    "AdminListAttemptsTopicTypedDict", Union[str, List[str]]
+ListAttemptsTopicTypedDict = TypeAliasType(
+    "ListAttemptsTopicTypedDict", Union[str, List[str]]
 )
 r"""Filter attempts by event topic(s). Can be specified multiple times or comma-separated."""
 
 
-AdminListAttemptsTopic = TypeAliasType("AdminListAttemptsTopic", Union[str, List[str]])
+ListAttemptsTopic = TypeAliasType("ListAttemptsTopic", Union[str, List[str]])
 r"""Filter attempts by event topic(s). Can be specified multiple times or comma-separated."""
 
 
-AdminListAttemptsIncludeTypedDict = TypeAliasType(
-    "AdminListAttemptsIncludeTypedDict", Union[str, List[str]]
+ListAttemptsIncludeTypedDict = TypeAliasType(
+    "ListAttemptsIncludeTypedDict", Union[str, List[str]]
 )
 r"""Fields to include in the response. Can be specified multiple times or comma-separated.
 - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -43,9 +43,7 @@ r"""Fields to include in the response. Can be specified multiple times or comma-
 """
 
 
-AdminListAttemptsInclude = TypeAliasType(
-    "AdminListAttemptsInclude", Union[str, List[str]]
-)
+ListAttemptsInclude = TypeAliasType("ListAttemptsInclude", Union[str, List[str]])
 r"""Fields to include in the response. Can be specified multiple times or comma-separated.
 - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 - `event.data`: Include full event with payload data
@@ -54,29 +52,29 @@ r"""Fields to include in the response. Can be specified multiple times or comma-
 """
 
 
-class AdminListAttemptsOrderBy(str, Enum):
+class ListAttemptsOrderBy(str, Enum):
     r"""Field to sort by."""
 
     TIME = "time"
 
 
-class AdminListAttemptsDir(str, Enum):
+class ListAttemptsDir(str, Enum):
     r"""Sort direction."""
 
     ASC = "asc"
     DESC = "desc"
 
 
-class AdminListAttemptsRequestTypedDict(TypedDict):
+class ListAttemptsRequestTypedDict(TypedDict):
     tenant_id: NotRequired[str]
     r"""Filter attempts by tenant ID. If not provided, returns attempts from all tenants."""
     event_id: NotRequired[str]
     r"""Filter attempts by event ID."""
     destination_id: NotRequired[str]
     r"""Filter attempts by destination ID."""
-    status: NotRequired[AdminListAttemptsStatus]
+    status: NotRequired[ListAttemptsStatus]
     r"""Filter attempts by status."""
-    topic: NotRequired[AdminListAttemptsTopicTypedDict]
+    topic: NotRequired[ListAttemptsTopicTypedDict]
     r"""Filter attempts by event topic(s). Can be specified multiple times or comma-separated."""
     time_gte: NotRequired[datetime]
     r"""Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format)."""
@@ -88,20 +86,20 @@ class AdminListAttemptsRequestTypedDict(TypedDict):
     r"""Cursor for next page of results."""
     prev_cursor: NotRequired[str]
     r"""Cursor for previous page of results."""
-    include: NotRequired[AdminListAttemptsIncludeTypedDict]
+    include: NotRequired[ListAttemptsIncludeTypedDict]
     r"""Fields to include in the response. Can be specified multiple times or comma-separated.
     - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
     - `event.data`: Include full event with payload data
     - `response_data`: Include response body and headers
 
     """
-    order_by: NotRequired[AdminListAttemptsOrderBy]
+    order_by: NotRequired[ListAttemptsOrderBy]
     r"""Field to sort by."""
-    direction: NotRequired[AdminListAttemptsDir]
+    direction: NotRequired[ListAttemptsDir]
     r"""Sort direction."""
 
 
-class AdminListAttemptsRequest(BaseModel):
+class ListAttemptsRequest(BaseModel):
     tenant_id: Annotated[
         Optional[str],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
@@ -121,13 +119,13 @@ class AdminListAttemptsRequest(BaseModel):
     r"""Filter attempts by destination ID."""
 
     status: Annotated[
-        Optional[AdminListAttemptsStatus],
+        Optional[ListAttemptsStatus],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Filter attempts by status."""
 
     topic: Annotated[
-        Optional[AdminListAttemptsTopic],
+        Optional[ListAttemptsTopic],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Filter attempts by event topic(s). Can be specified multiple times or comma-separated."""
@@ -167,7 +165,7 @@ class AdminListAttemptsRequest(BaseModel):
     r"""Cursor for previous page of results."""
 
     include: Annotated[
-        Optional[AdminListAttemptsInclude],
+        Optional[ListAttemptsInclude],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Fields to include in the response. Can be specified multiple times or comma-separated.
@@ -178,16 +176,16 @@ class AdminListAttemptsRequest(BaseModel):
     """
 
     order_by: Annotated[
-        Optional[AdminListAttemptsOrderBy],
+        Optional[ListAttemptsOrderBy],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ] = AdminListAttemptsOrderBy.TIME
+    ] = ListAttemptsOrderBy.TIME
     r"""Field to sort by."""
 
     direction: Annotated[
-        Optional[AdminListAttemptsDir],
+        Optional[ListAttemptsDir],
         pydantic.Field(alias="dir"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ] = AdminListAttemptsDir.DESC
+    ] = ListAttemptsDir.DESC
     r"""Sort direction."""
 
     @model_serializer(mode="wrap")
@@ -223,11 +221,11 @@ class AdminListAttemptsRequest(BaseModel):
         return m
 
 
-class AdminListAttemptsResponseTypedDict(TypedDict):
+class ListAttemptsResponseTypedDict(TypedDict):
     result: AttemptPaginatedResultTypedDict
 
 
-class AdminListAttemptsResponse(BaseModel):
-    next: Callable[[], Optional[AdminListAttemptsResponse]]
+class ListAttemptsResponse(BaseModel):
+    next: Callable[[], Optional[ListAttemptsResponse]]
 
     result: AttemptPaginatedResult

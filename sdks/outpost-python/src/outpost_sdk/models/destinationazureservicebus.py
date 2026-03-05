@@ -140,3 +140,9 @@ class DestinationAzureServiceBus(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationAzureServiceBus.model_rebuild()
+except NameError:
+    pass

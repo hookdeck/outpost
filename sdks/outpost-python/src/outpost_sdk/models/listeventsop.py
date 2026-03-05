@@ -12,33 +12,33 @@ from typing import Callable, List, Optional, Union
 from typing_extensions import Annotated, NotRequired, TypeAliasType, TypedDict
 
 
-AdminListEventsTopicTypedDict = TypeAliasType(
-    "AdminListEventsTopicTypedDict", Union[str, List[str]]
+ListEventsTopicTypedDict = TypeAliasType(
+    "ListEventsTopicTypedDict", Union[str, List[str]]
 )
 r"""Filter events by topic(s). Can be specified multiple times or comma-separated."""
 
 
-AdminListEventsTopic = TypeAliasType("AdminListEventsTopic", Union[str, List[str]])
+ListEventsTopic = TypeAliasType("ListEventsTopic", Union[str, List[str]])
 r"""Filter events by topic(s). Can be specified multiple times or comma-separated."""
 
 
-class AdminListEventsOrderBy(str, Enum):
+class ListEventsOrderBy(str, Enum):
     r"""Field to sort by."""
 
     TIME = "time"
 
 
-class AdminListEventsDir(str, Enum):
+class ListEventsDir(str, Enum):
     r"""Sort direction."""
 
     ASC = "asc"
     DESC = "desc"
 
 
-class AdminListEventsRequestTypedDict(TypedDict):
+class ListEventsRequestTypedDict(TypedDict):
     tenant_id: NotRequired[str]
     r"""Filter events by tenant ID. If not provided, returns events from all tenants."""
-    topic: NotRequired[AdminListEventsTopicTypedDict]
+    topic: NotRequired[ListEventsTopicTypedDict]
     r"""Filter events by topic(s). Can be specified multiple times or comma-separated."""
     time_gte: NotRequired[datetime]
     r"""Filter events with time >= value (RFC3339 or YYYY-MM-DD format)."""
@@ -50,13 +50,13 @@ class AdminListEventsRequestTypedDict(TypedDict):
     r"""Cursor for next page of results."""
     prev_cursor: NotRequired[str]
     r"""Cursor for previous page of results."""
-    order_by: NotRequired[AdminListEventsOrderBy]
+    order_by: NotRequired[ListEventsOrderBy]
     r"""Field to sort by."""
-    direction: NotRequired[AdminListEventsDir]
+    direction: NotRequired[ListEventsDir]
     r"""Sort direction."""
 
 
-class AdminListEventsRequest(BaseModel):
+class ListEventsRequest(BaseModel):
     tenant_id: Annotated[
         Optional[str],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
@@ -64,7 +64,7 @@ class AdminListEventsRequest(BaseModel):
     r"""Filter events by tenant ID. If not provided, returns events from all tenants."""
 
     topic: Annotated[
-        Optional[AdminListEventsTopic],
+        Optional[ListEventsTopic],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Filter events by topic(s). Can be specified multiple times or comma-separated."""
@@ -104,16 +104,16 @@ class AdminListEventsRequest(BaseModel):
     r"""Cursor for previous page of results."""
 
     order_by: Annotated[
-        Optional[AdminListEventsOrderBy],
+        Optional[ListEventsOrderBy],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ] = AdminListEventsOrderBy.TIME
+    ] = ListEventsOrderBy.TIME
     r"""Field to sort by."""
 
     direction: Annotated[
-        Optional[AdminListEventsDir],
+        Optional[ListEventsDir],
         pydantic.Field(alias="dir"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ] = AdminListEventsDir.DESC
+    ] = ListEventsDir.DESC
     r"""Sort direction."""
 
     @model_serializer(mode="wrap")
@@ -145,11 +145,11 @@ class AdminListEventsRequest(BaseModel):
         return m
 
 
-class AdminListEventsResponseTypedDict(TypedDict):
+class ListEventsResponseTypedDict(TypedDict):
     result: EventPaginatedResultTypedDict
 
 
-class AdminListEventsResponse(BaseModel):
-    next: Callable[[], Optional[AdminListEventsResponse]]
+class ListEventsResponse(BaseModel):
+    next: Callable[[], Optional[ListEventsResponse]]
 
     result: EventPaginatedResult

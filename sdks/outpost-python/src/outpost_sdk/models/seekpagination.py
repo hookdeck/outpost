@@ -81,3 +81,9 @@ class SeekPagination(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    SeekPagination.model_rebuild()
+except NameError:
+    pass

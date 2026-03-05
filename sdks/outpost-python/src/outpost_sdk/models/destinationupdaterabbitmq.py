@@ -92,3 +92,9 @@ class DestinationUpdateRabbitMQ(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationUpdateRabbitMQ.model_rebuild()
+except NameError:
+    pass

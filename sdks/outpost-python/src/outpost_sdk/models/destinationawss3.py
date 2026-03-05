@@ -130,3 +130,9 @@ class DestinationAwss3(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationAwss3.model_rebuild()
+except NameError:
+    pass

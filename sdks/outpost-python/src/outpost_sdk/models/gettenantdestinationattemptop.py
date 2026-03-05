@@ -8,33 +8,6 @@ from typing import List, Optional, Union
 from typing_extensions import Annotated, NotRequired, TypeAliasType, TypedDict
 
 
-class GetTenantDestinationAttemptGlobalsTypedDict(TypedDict):
-    tenant_id: NotRequired[str]
-
-
-class GetTenantDestinationAttemptGlobals(BaseModel):
-    tenant_id: Annotated[
-        Optional[str],
-        FieldMetadata(path=PathParamMetadata(style="simple", explode=False)),
-    ] = None
-
-    @model_serializer(mode="wrap")
-    def serialize_model(self, handler):
-        optional_fields = set(["tenant_id"])
-        serialized = handler(self)
-        m = {}
-
-        for n, f in type(self).model_fields.items():
-            k = f.alias or n
-            val = serialized.get(k)
-
-            if val != UNSET_SENTINEL:
-                if val is not None or k not in optional_fields:
-                    m[k] = val
-
-        return m
-
-
 GetTenantDestinationAttemptIncludeTypedDict = TypeAliasType(
     "GetTenantDestinationAttemptIncludeTypedDict", Union[str, List[str]]
 )
@@ -58,12 +31,12 @@ r"""Fields to include in the response. Can be specified multiple times or comma-
 
 
 class GetTenantDestinationAttemptRequestTypedDict(TypedDict):
+    tenant_id: str
+    r"""The ID of the tenant. Required when using AdminApiKey authentication."""
     destination_id: str
     r"""The ID of the destination."""
     attempt_id: str
     r"""The ID of the attempt."""
-    tenant_id: NotRequired[str]
-    r"""The ID of the tenant. Required when using AdminApiKey authentication."""
     include: NotRequired[GetTenantDestinationAttemptIncludeTypedDict]
     r"""Fields to include in the response. Can be specified multiple times or comma-separated.
     - `event`: Include event summary
@@ -74,6 +47,11 @@ class GetTenantDestinationAttemptRequestTypedDict(TypedDict):
 
 
 class GetTenantDestinationAttemptRequest(BaseModel):
+    tenant_id: Annotated[
+        str, FieldMetadata(path=PathParamMetadata(style="simple", explode=False))
+    ]
+    r"""The ID of the tenant. Required when using AdminApiKey authentication."""
+
     destination_id: Annotated[
         str, FieldMetadata(path=PathParamMetadata(style="simple", explode=False))
     ]
@@ -83,12 +61,6 @@ class GetTenantDestinationAttemptRequest(BaseModel):
         str, FieldMetadata(path=PathParamMetadata(style="simple", explode=False))
     ]
     r"""The ID of the attempt."""
-
-    tenant_id: Annotated[
-        Optional[str],
-        FieldMetadata(path=PathParamMetadata(style="simple", explode=False)),
-    ] = None
-    r"""The ID of the tenant. Required when using AdminApiKey authentication."""
 
     include: Annotated[
         Optional[GetTenantDestinationAttemptInclude],
@@ -103,7 +75,7 @@ class GetTenantDestinationAttemptRequest(BaseModel):
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
-        optional_fields = set(["tenant_id", "include"])
+        optional_fields = set(["include"])
         serialized = handler(self)
         m = {}
 

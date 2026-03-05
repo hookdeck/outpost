@@ -9,10 +9,9 @@ import httpx
 import importlib
 from outpost_sdk import models, utils
 from outpost_sdk._hooks import SDKHooks
-from outpost_sdk.models import internal
 from outpost_sdk.types import OptionalNullable, UNSET
 import sys
-from typing import Callable, Dict, Optional, TYPE_CHECKING, Union, cast
+from typing import Any, Callable, Dict, Optional, TYPE_CHECKING, Union, cast
 import weakref
 
 if TYPE_CHECKING:
@@ -102,13 +101,10 @@ class Outpost(BaseSDK):
 
     def __init__(
         self,
-        security: Optional[
-            Union[models.Security, Callable[[], models.Security]]
-        ] = None,
-        tenant_id: Optional[str] = None,
+        api_key: Optional[Union[Optional[str], Callable[[], Optional[str]]]] = None,
         server_idx: Optional[int] = None,
-        server_url: Optional[str] = None,
         url_params: Optional[Dict[str, str]] = None,
+        server_url: Optional[str] = None,
         client: Optional[HttpClient] = None,
         async_client: Optional[AsyncHttpClient] = None,
         retry_config: OptionalNullable[RetryConfig] = UNSET,
@@ -117,8 +113,7 @@ class Outpost(BaseSDK):
     ) -> None:
         r"""Instantiates the SDK configuring it with the provided parameters.
 
-        :param security: The security details required for authentication
-        :param tenant_id: Configures the tenant_id parameter for all supported operations
+        :param api_key: The api_key required for authentication
         :param server_idx: The index of the server to use for all methods
         :param server_url: The server URL to use for all methods
         :param url_params: Parameters to optionally template the server URL with
@@ -148,13 +143,16 @@ class Outpost(BaseSDK):
             type(async_client), AsyncHttpClient
         ), "The provided async_client must implement the AsyncHttpClient protocol."
 
+        security: Any = None
+        if callable(api_key):
+            # pylint: disable=unnecessary-lambda-assignment
+            security = lambda: models.Security(api_key=api_key())
+        else:
+            security = models.Security(api_key=api_key)
+
         if server_url is not None:
             if url_params is not None:
                 server_url = utils.template_url(server_url, url_params)
-
-        _globals = internal.Globals(
-            tenant_id=utils.get_global_from_env(tenant_id, "TENANT_ID", str),
-        )
 
         BaseSDK.__init__(
             self,
@@ -163,7 +161,6 @@ class Outpost(BaseSDK):
                 client_supplied=client_supplied,
                 async_client=async_client,
                 async_client_supplied=async_client_supplied,
-                globals=_globals,
                 security=security,
                 server_url=server_url,
                 server_idx=server_idx,
