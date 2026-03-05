@@ -9,6 +9,8 @@ require (
 	github.com/manifoldco/promptui v0.9.0
 )
 
+replace github.com/hookdeck/outpost/sdks/outpost-go => ../../sdks/outpost-go
+
 require (
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/ericlagergren/decimal v0.0.0-20240411145413-00de7ca16731 // indirect

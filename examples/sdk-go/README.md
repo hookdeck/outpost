@@ -2,13 +2,12 @@
 
 This example demonstrates using the Outpost Go SDK. It is structured into a few files:
 *   `main.go`: Handles command-line arguments to select which example to run.
-*   `auth.go`: Contains examples related to authentication and tenant JWTs.
+*   `auth.go`: Contains examples related to authentication and tenant-scoped API keys.
 *   `resources.go`: Contains examples for managing Outpost resources like tenants and destinations.
 *   `create_destination.go`: Contains an example for creating a destination.
 *   `publish_event.go`: Contains an example for publishing an event.
 
-The source code for the Go SDK can be found in the [`sdks/outpost-go/`](../../sdks/outpost-go/) directory.
-
+The source code for the Go SDK can be found in the [`sdks/outpost-go/`](../../sdks/outpost-go/) directory. This example uses the **locally built** SDK (via `replace` in `go.mod`) and targets **Outpost 0.13.1**.
 
 ### Prerequisites
 
@@ -19,7 +18,13 @@ The source code for the Go SDK can be found in the [`sdks/outpost-go/`](../../sd
 
 ### Setup
 
-1.  **Download dependencies:**
+1.  **Build the local SDK** (this example uses a `replace` directive pointing at the local SDK source):
+    ```bash
+    cd ../../sdks/outpost-go && go build ./...
+    cd ../../examples/sdk-go
+    ```
+
+2.  **Download dependencies:**
     *(This will also add the `godotenv` package needed for `.env` file loading)*
     ```bash
     go mod tidy
@@ -30,14 +35,16 @@ The source code for the Go SDK can be found in the [`sdks/outpost-go/`](../../sd
 1.  **Configure environment variables:**
     Create a `.env` file in this directory (`examples/sdk-go`) with the following:
     ```dotenv
-    SERVER_URL="your_outpost_server_url"
+    API_BASE_URL="https://api.outpost.hookdeck.com/2025-07-01"
+    # Or for local: SERVER_URL="http://localhost:3333" (then base is SERVER_URL + /api/v1)
     ADMIN_API_KEY="your_admin_api_key"
     TENANT_ID="your_tenant_id"
     ```
-    Replace the placeholder values with your Outpost server URL, Admin API key, and a Tenant ID to use for the examples.
-    (Note: You'll need to create a `.gitignore` file if you don't want to commit `.env`).
+    Use `API_BASE_URL` for the full API base (e.g. hosted Outpost), or `SERVER_URL` for local (e.g. `http://localhost:3333`).
+    (Note: `.env` is gitignored.)
 
-    *   `SERVER_URL`: The base URL of your Outpost server (e.g., `http://localhost:3333`).
+    *   `API_BASE_URL`: Full API base URL (optional; used when set).
+    *   `SERVER_URL`: Server URL when not using `API_BASE_URL` (e.g., `http://localhost:3333`).
     *   `ADMIN_API_KEY`: Your Outpost Admin API key.
     *   `TENANT_ID`: An identifier for a tenant (e.g., `my_organization`). This is used by the `auth` example and parts of the `manage` example.
 
@@ -51,7 +58,7 @@ The source code for the Go SDK can be found in the [`sdks/outpost-go/`](../../sd
         ```
 
     *   **To run the authentication example (from `auth.go`):**
-        This example demonstrates using the Admin API key to fetch a tenant JWT and then using that JWT.
+        This example demonstrates using the Admin API key to fetch a tenant-scoped API key and then using it for tenant-scoped calls.
         ```bash
         go run . auth
         ```

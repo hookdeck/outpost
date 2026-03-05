@@ -2,7 +2,7 @@
 
 This example demonstrates using the Outpost TypeScript SDK.
 
-The source code for the TypeScript SDK can be found in the [`sdks/outpost-typescript/`](../../sdks/outpost-typescript/) directory.
+The source code for the TypeScript SDK can be found in the [`sdks/outpost-typescript/`](../../sdks/outpost-typescript/) directory. This example uses the **locally built** SDK (`file:../../sdks/outpost-typescript` in `package.json`) and targets **Outpost 0.13.1**.
 
 ### Prerequisites
 
@@ -14,7 +14,13 @@ The source code for the TypeScript SDK can be found in the [`sdks/outpost-typesc
 
 ### Setup
 
-1.  **Install dependencies:**
+1.  **Build the local SDK** (this example uses a `file:` dependency pointing at the local SDK source):
+    ```bash
+    cd ../../sdks/outpost-typescript && npm install && npm run build
+    cd ../../examples/sdk-typescript
+    ```
+
+2.  **Install dependencies:**
     ```bash
     npm install
     ```
@@ -24,11 +30,12 @@ The source code for the TypeScript SDK can be found in the [`sdks/outpost-typesc
 1.  **Configure environment variables:**
     Create a `.env` file in this directory (`examples/sdk-typescript`) with the following:
     ```dotenv
-    SERVER_URL="your_server_url"
+    API_BASE_URL="https://api.outpost.hookdeck.com/2025-07-01"
+    # Or for local: SERVER_URL="http://localhost:3333"
     ADMIN_API_KEY="your_admin_api_key"
     TENANT_ID="your_tenant_id"
     ```
-    Replace the placeholder values with your Outpost server URL, Admin API key, and Tenant ID. (Note: `.env` is already gitignored).
+    Use `API_BASE_URL` for the full API base, or `SERVER_URL` for local. (Note: `.env` is gitignored.)
 
 2.  **Run the example:**
     The example is split into multiple files. You can run each one individually.
@@ -40,7 +47,7 @@ The source code for the TypeScript SDK can be found in the [`sdks/outpost-typesc
         ```
 
     *   **To run the authentication example (from `auth.ts`):**
-        This example demonstrates using the Admin API key to fetch a tenant JWT and then using that JWT.
+        This example demonstrates using the Admin API key to fetch a tenant-scoped API key and then using it for tenant-scoped calls.
         ```bash
         npm run auth
         ```

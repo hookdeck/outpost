@@ -4,11 +4,6 @@ dotenv.config();
 
 
 async function main() {
-  const serverURL = process.env.SERVER_URL;
-  if (!serverURL) {
-    throw new Error("SERVER_URL is not set");
-  }
-
   const apiKey = process.env.ADMIN_API_KEY;
   if (!apiKey) {
     throw new Error("ADMIN_API_KEY is not set");
@@ -19,11 +14,13 @@ async function main() {
     throw new Error("TENANT_ID is not set");
   }
 
+  const apiServerURL =
+    process.env.API_BASE_URL ||
+    `${process.env.SERVER_URL || "http://localhost:3333"}/api/v1`;
+
   const client = new Outpost({
-    serverURL: `${serverURL}/api/v1`,
-    security: {
-      adminApiKey: apiKey,
-    }
+    apiKey,
+    serverURL: apiServerURL,
   });
 
   const topic = "order.created";
@@ -60,4 +57,7 @@ async function main() {
   }
 }
 
-main();
+main().catch((err) => {
+  console.error("Unhandled error:", err);
+  process.exit(1);
+});

@@ -350,11 +350,25 @@ client := outpostgo.New(
     }),
 )
 
-// After
+// After — WithSecurity takes the API key string directly (Bearer token)
 client := outpostgo.New(
-    outpostgo.WithSecurity(components.Security{
-        APIKey: outpostgo.String(apiKey),
-    }),
+    outpostgo.WithSecurity(apiKey),
+)
+```
+
+**Python:**
+
+```py
+# Before
+outpost = Outpost(
+    security=models.Security(admin_api_key=admin_api_key),
+    server_url=f"{server_url}/api/v1",
+)
+
+# After — api_key is a top-level constructor parameter
+outpost = Outpost(
+    api_key=admin_api_key,
+    server_url=f"{server_url}/api/v1",
 )
 ```
 

@@ -4,7 +4,9 @@ dotenv.config();
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
-const SERVER_URL = process.env.OUTPOST_URL || "http://localhost:3333";
+const apiServerURL =
+  process.env.API_BASE_URL ||
+  `${process.env.SERVER_URL || "http://localhost:3333"}/api/v1`;
 
 if (!ADMIN_API_KEY) {
   console.error("Please set the ADMIN_API_KEY environment variable.");
@@ -15,7 +17,7 @@ async function manageOutpostResources() {
   // 1. Create an Outpost instance using the Admin API Key
   const outpostAdmin = new Outpost({
     apiKey: ADMIN_API_KEY,
-    serverURL: `${SERVER_URL}/api/v1`,
+    serverURL: apiServerURL,
   });
 
   const tenantId = `hookdeck`;

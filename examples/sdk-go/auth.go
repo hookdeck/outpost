@@ -5,60 +5,59 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"github.com/joho/godotenv"
 )
 
-func withJwt(ctx context.Context, jwt string, serverURL string, tenantID string) {
-	log.Println("--- Running with Tenant JWT ---")
-
-	apiServerURL := fmt.Sprintf("%s/api/v1", serverURL)
-
-	jwtClient := outpostgo.New(
-		outpostgo.WithSecurity(components.Security{
-			APIKey: outpostgo.String(jwt),
-		}),
+func withTenantApiKey(ctx context.Context, tenantApiKey string, apiServerURL string, tenantID string) {
+	log.Println("--- Running with tenant-scoped API key ---")
+	// 0.13.1: use the tenant-scoped API key (from tenants.GetToken). List destinations only returns destinations for that tenant.
+	client := outpostgo.New(
+		outpostgo.WithSecurity(tenantApiKey),
 		outpostgo.WithServerURL(apiServerURL),
 	)
 
-	destRes, err := jwtClient.Destinations.List(ctx, outpostgo.String(tenantID), nil, nil)
+	destRes, err := client.Destinations.List(ctx, tenantID, nil, nil)
 	if err != nil {
-		log.Fatalf("Failed to list destinations with JWT: %v", err)
+		errStr := err.Error()
+		if strings.Contains(errStr, "401") || strings.Contains(errStr, "Unauthorized") {
+			log.Printf("List destinations with tenant token returned 401. The server could not verify the JWT — ensure API_JWT_SECRET is set on the Outpost deployment (see sdks/schemas/README.md). Error: %v", err)
+		}
+		log.Fatalf("Failed to list destinations with tenant API key: %v", err)
 	}
 
 	if destRes != nil && destRes.Destinations != nil {
-		log.Printf("Successfully listed %d destinations using JWT.", len(destRes.Destinations))
+		log.Printf("Successfully listed %d destinations using tenant API key.", len(destRes.Destinations))
 	} else {
-		log.Println("List destinations with JWT returned no data or an unexpected response structure.")
+		log.Println("List destinations with tenant API key returned no data or an unexpected response structure.")
 	}
 }
 
-func withAdminApiKey(ctx context.Context, serverURL string, adminAPIKey string, tenantID string) {
+func withAdminApiKey(ctx context.Context, apiServerURL string, adminAPIKey string, tenantID string) {
 	log.Println("--- Running with Admin API Key ---")
 
-	apiServerURL := fmt.Sprintf("%s/api/v1", serverURL)
-
 	adminClient := outpostgo.New(
-		outpostgo.WithSecurity(components.Security{
-			APIKey: outpostgo.String(adminAPIKey),
-		}),
+		outpostgo.WithSecurity(adminAPIKey),
 		outpostgo.WithServerURL(apiServerURL),
 	)
 
 	healthRes, err := adminClient.Health.Check(ctx)
 	if err != nil {
-		log.Fatalf("Health check failed: %v", err)
-	}
-
-	if healthRes != nil && healthRes.Res != nil {
-		log.Printf("Health check successful. Details: %s", *healthRes.Res)
+		// Health endpoint not available on managed Outpost (404); continue with rest of example
+		if strings.Contains(err.Error(), "404") {
+			log.Println("Health endpoint not available (e.g. managed Outpost). Skipping.")
+		} else {
+			log.Fatalf("Health check failed: %v", err)
+		}
+	} else if healthRes != nil && healthRes.Object != nil {
+		log.Printf("Health check successful. Details: %+v", healthRes.Object)
 	} else {
 		log.Println("Health check returned no data or an unexpected response structure.")
 	}
 
-	destRes, err := adminClient.Destinations.List(ctx, outpostgo.String(tenantID), nil, nil)
+	destRes, err := adminClient.Destinations.List(ctx, tenantID, nil, nil)
 	if err != nil {
 		log.Fatalf("Failed to list destinations with Admin Key: %v", err)
 	}
@@ -69,14 +68,14 @@ func withAdminApiKey(ctx context.Context, serverURL string, adminAPIKey string, 
 		log.Println("List destinations with Admin Key returned no data or an unexpected response structure.")
 	}
 
-	tokenRes, err := adminClient.Tenants.GetToken(ctx, outpostgo.String(tenantID))
+	tokenRes, err := adminClient.Tenants.GetToken(ctx, tenantID)
 	if err != nil {
 		log.Fatalf("Failed to get tenant token: %v", err)
 	}
 
 	if tokenRes != nil && tokenRes.TenantToken != nil && tokenRes.TenantToken.Token != nil {
-		log.Printf("Successfully obtained tenant JWT for tenant %s.", tenantID)
-		withJwt(ctx, *tokenRes.TenantToken.Token, serverURL, tenantID)
+		log.Printf("Successfully obtained tenant-scoped API key for tenant %s.", tenantID)
+		withTenantApiKey(ctx, *tokenRes.TenantToken.Token, apiServerURL, tenantID)
 	} else {
 		log.Println("Get tenant token returned no data or an unexpected response structure.")
 	}
@@ -89,13 +88,9 @@ func runAuthExample() {
 		log.Println("No .env file found, proceeding without it")
 	}
 
-	serverURL := os.Getenv("SERVER_URL")
 	adminAPIKey := os.Getenv("ADMIN_API_KEY")
 	tenantID := os.Getenv("TENANT_ID")
 
-	if serverURL == "" {
-		log.Fatal("SERVER_URL environment variable not set")
-	}
 	if adminAPIKey == "" {
 		log.Fatal("ADMIN_API_KEY environment variable not set")
 	}
@@ -103,8 +98,18 @@ func runAuthExample() {
 		log.Fatal("TENANT_ID environment variable not set")
 	}
 
+	// Use API_BASE_URL when set (e.g. live Outpost), else SERVER_URL + /api/v1
+	apiServerURL := os.Getenv("API_BASE_URL")
+	if apiServerURL == "" {
+		serverURL := os.Getenv("SERVER_URL")
+		if serverURL == "" {
+			serverURL = "http://localhost:3333"
+		}
+		apiServerURL = fmt.Sprintf("%s/api/v1", serverURL)
+	}
+
 	ctx := context.Background()
-	withAdminApiKey(ctx, serverURL, adminAPIKey, tenantID)
+	withAdminApiKey(ctx, apiServerURL, adminAPIKey, tenantID)
 
 	log.Println("--- Auth example finished ---")
 }

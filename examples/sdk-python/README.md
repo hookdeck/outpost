@@ -2,7 +2,7 @@
 
 This example demonstrates using the Outpost Python SDK.
 
-The source code for the Python SDK can be found in the [`sdks/outpost-python/`](../../sdks/outpost-python/) directory.
+The source code for the Python SDK can be found in the [`sdks/outpost-python/`](../../sdks/outpost-python/) directory. This example uses the **locally built** SDK (path dependency in `pyproject.toml`) and targets **Outpost 0.13.1**.
 
 ### Prerequisites
 
@@ -14,7 +14,13 @@ The source code for the Python SDK can be found in the [`sdks/outpost-python/`](
 
 ### Setup
 
-1.  **Install dependencies:**
+1.  **Build the local SDK** (this example uses a path dependency pointing at the local SDK source):
+    ```bash
+    cd ../../sdks/outpost-python && pip install -e .
+    cd ../../examples/sdk-python
+    ```
+
+2.  **Install dependencies:**
     ```bash
     poetry install
     ```
@@ -29,18 +35,19 @@ The source code for the Python SDK can be found in the [`sdks/outpost-python/`](
 1.  **Configure environment variables:**
     Create a `.env` file in this directory (`examples/sdk-python`) with the following:
     ```dotenv
-    SERVER_URL="your_server_url"
+    API_BASE_URL="https://api.outpost.hookdeck.com/2025-07-01"
+    # Or for local: SERVER_URL="http://localhost:3333"
     ADMIN_API_KEY="your_admin_api_key"
     TENANT_ID="your_tenant_id"
     ```
-    Replace the placeholder values with your Outpost server URL, Admin API key, and Tenant ID. (Note: `.env` is already gitignored).
+    Use `API_BASE_URL` for the full API base, or `SERVER_URL` for local. (Note: `.env` is gitignored.)
 
 2.  **Run the example script:**
     *(Ensure you are inside the Poetry shell activated in the setup step)*
 
     The `app.py` script is now a command-line interface (CLI) that accepts different commands to run specific examples.
 
-    *   **To run the API Key and JWT client auth example:**
+    *   **To run the API Key and tenant-scoped API key auth example:**
         ```bash
         python app.py auth
         ```

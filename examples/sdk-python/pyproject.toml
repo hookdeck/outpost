@@ -7,7 +7,8 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-outpost-sdk = "^0.3.0"
+# Local SDK (0.13.1); build from repo root: cd sdks/outpost-python && pip install -e .
+outpost-sdk = { path = "../../sdks/outpost-python", develop = true }
 python-dotenv = "^1.1.0"
 typer = "^0.16.0"
 questionary = "^2.1.0"
