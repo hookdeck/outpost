@@ -3,22 +3,10 @@
  */
 
 import * as z from "zod/v3";
-import { remap as remap$ } from "../../lib/primitives.js";
 import { safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
-
-/**
- * Field to sort by.
- */
-export const ListTenantsOrderBy = {
-  CreatedAt: "created_at",
-} as const;
-/**
- * Field to sort by.
- */
-export type ListTenantsOrderBy = ClosedEnum<typeof ListTenantsOrderBy>;
 
 /**
  * Sort direction.
@@ -38,21 +26,9 @@ export type ListTenantsRequest = {
    */
   limit?: number | undefined;
   /**
-   * Field to sort by.
-   */
-  orderBy?: ListTenantsOrderBy | undefined;
-  /**
    * Sort direction.
    */
   dir?: ListTenantsDir | undefined;
-  /**
-   * Filter tenants created at or after this time (RFC3339 or YYYY-MM-DD format).
-   */
-  createdAtGte?: Date | undefined;
-  /**
-   * Filter tenants created at or before this time (RFC3339 or YYYY-MM-DD format).
-   */
-  createdAtLte?: Date | undefined;
   /**
    * Cursor for the next page of results. Mutually exclusive with `prev`.
    */
@@ -62,15 +38,6 @@ export type ListTenantsRequest = {
    */
   prev?: string | undefined;
 };
-
-/** @internal */
-export const ListTenantsOrderBy$inboundSchema: z.ZodNativeEnum<
-  typeof ListTenantsOrderBy
-> = z.nativeEnum(ListTenantsOrderBy);
-/** @internal */
-export const ListTenantsOrderBy$outboundSchema: z.ZodNativeEnum<
-  typeof ListTenantsOrderBy
-> = ListTenantsOrderBy$inboundSchema;
 
 /** @internal */
 export const ListTenantsDir$inboundSchema: z.ZodNativeEnum<
@@ -88,30 +55,14 @@ export const ListTenantsRequest$inboundSchema: z.ZodType<
   unknown
 > = z.object({
   limit: z.number().int().default(20),
-  order_by: ListTenantsOrderBy$inboundSchema.default("created_at"),
   dir: ListTenantsDir$inboundSchema.default("desc"),
-  "created_at[gte]": z.string().datetime({ offset: true }).transform(v =>
-    new Date(v)
-  ).optional(),
-  "created_at[lte]": z.string().datetime({ offset: true }).transform(v =>
-    new Date(v)
-  ).optional(),
   next: z.string().optional(),
   prev: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "order_by": "orderBy",
-    "created_at[gte]": "createdAtGte",
-    "created_at[lte]": "createdAtLte",
-  });
 });
 /** @internal */
 export type ListTenantsRequest$Outbound = {
   limit: number;
-  order_by: string;
   dir: string;
-  "created_at[gte]"?: string | undefined;
-  "created_at[lte]"?: string | undefined;
   next?: string | undefined;
   prev?: string | undefined;
 };
@@ -123,18 +74,9 @@ export const ListTenantsRequest$outboundSchema: z.ZodType<
   ListTenantsRequest
 > = z.object({
   limit: z.number().int().default(20),
-  orderBy: ListTenantsOrderBy$outboundSchema.default("created_at"),
   dir: ListTenantsDir$outboundSchema.default("desc"),
-  createdAtGte: z.date().transform(v => v.toISOString()).optional(),
-  createdAtLte: z.date().transform(v => v.toISOString()).optional(),
   next: z.string().optional(),
   prev: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    orderBy: "order_by",
-    createdAtGte: "created_at[gte]",
-    createdAtLte: "created_at[lte]",
-  });
 });
 
 export function listTenantsRequestToJSON(

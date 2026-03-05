@@ -8,10 +8,6 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
-export type GetTenantDestinationAttemptGlobals = {
-  tenantId?: string | undefined;
-};
-
 /**
  * Fields to include in the response. Can be specified multiple times or comma-separated.
  *
@@ -26,7 +22,7 @@ export type GetTenantDestinationAttemptRequest = {
   /**
    * The ID of the tenant. Required when using AdminApiKey authentication.
    */
-  tenantId?: string | undefined;
+  tenantId: string;
   /**
    * The ID of the destination.
    */
@@ -45,56 +41,6 @@ export type GetTenantDestinationAttemptRequest = {
    */
   include?: string | Array<string> | undefined;
 };
-
-/** @internal */
-export const GetTenantDestinationAttemptGlobals$inboundSchema: z.ZodType<
-  GetTenantDestinationAttemptGlobals,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  tenant_id: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
-/** @internal */
-export type GetTenantDestinationAttemptGlobals$Outbound = {
-  tenant_id?: string | undefined;
-};
-
-/** @internal */
-export const GetTenantDestinationAttemptGlobals$outboundSchema: z.ZodType<
-  GetTenantDestinationAttemptGlobals$Outbound,
-  z.ZodTypeDef,
-  GetTenantDestinationAttemptGlobals
-> = z.object({
-  tenantId: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
-
-export function getTenantDestinationAttemptGlobalsToJSON(
-  getTenantDestinationAttemptGlobals: GetTenantDestinationAttemptGlobals,
-): string {
-  return JSON.stringify(
-    GetTenantDestinationAttemptGlobals$outboundSchema.parse(
-      getTenantDestinationAttemptGlobals,
-    ),
-  );
-}
-export function getTenantDestinationAttemptGlobalsFromJSON(
-  jsonString: string,
-): SafeParseResult<GetTenantDestinationAttemptGlobals, SDKValidationError> {
-  return safeParse(
-    jsonString,
-    (x) =>
-      GetTenantDestinationAttemptGlobals$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'GetTenantDestinationAttemptGlobals' from JSON`,
-  );
-}
 
 /** @internal */
 export const GetTenantDestinationAttemptInclude$inboundSchema: z.ZodType<
@@ -140,7 +86,7 @@ export const GetTenantDestinationAttemptRequest$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  tenant_id: z.string().optional(),
+  tenant_id: z.string(),
   destination_id: z.string(),
   attempt_id: z.string(),
   include: z.union([z.string(), z.array(z.string())]).optional(),
@@ -153,7 +99,7 @@ export const GetTenantDestinationAttemptRequest$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type GetTenantDestinationAttemptRequest$Outbound = {
-  tenant_id?: string | undefined;
+  tenant_id: string;
   destination_id: string;
   attempt_id: string;
   include?: string | Array<string> | undefined;
@@ -165,7 +111,7 @@ export const GetTenantDestinationAttemptRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   GetTenantDestinationAttemptRequest
 > = z.object({
-  tenantId: z.string().optional(),
+  tenantId: z.string(),
   destinationId: z.string(),
   attemptId: z.string(),
   include: z.union([z.string(), z.array(z.string())]).optional(),

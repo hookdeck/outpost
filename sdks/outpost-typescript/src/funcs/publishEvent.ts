@@ -105,7 +105,8 @@ async function $do(
     Accept: "application/json",
   }));
 
-  const securityInput = await extractSecurity(client._options.security);
+  const secConfig = await extractSecurity(client._options.apiKey);
+  const securityInput = secConfig == null ? {} : { apiKey: secConfig };
   const requestSecurity = resolveGlobalSecurity(securityInput);
 
   const context = {
@@ -116,7 +117,7 @@ async function $do(
 
     resolvedSecurity: requestSecurity,
 
-    securitySource: client._options.security,
+    securitySource: client._options.apiKey,
     retryConfig: options?.retries
       || client._options.retryConfig
       || { strategy: "none" },
@@ -141,7 +142,6 @@ async function $do(
   const doResult = await client._do(req, {
     context,
     errorCodes: [
-      "400",
       "401",
       "403",
       "404",
@@ -199,7 +199,7 @@ async function $do(
   >(
     M.json(202, components.PublishResponse$inboundSchema),
     M.jsonErr(404, errors.NotFoundError$inboundSchema),
-    M.jsonErr([403, 407], errors.UnauthorizedError$inboundSchema),
+    M.jsonErr([401, 403, 407], errors.UnauthorizedError$inboundSchema),
     M.jsonErr(408, errors.TimeoutError$inboundSchema),
     M.jsonErr(429, errors.RateLimitedError$inboundSchema),
     M.jsonErr([413, 414, 415, 422, 431], errors.BadRequestError$inboundSchema),
@@ -211,7 +211,7 @@ async function $do(
     ),
     M.jsonErr(510, errors.BadRequestError$inboundSchema),
     M.jsonErr(511, errors.UnauthorizedError$inboundSchema),
-    M.fail([400, 401, 409, "4XX"]),
+    M.fail([409, "4XX"]),
     M.fail("5XX"),
   )(response, req, { extraFields: responseFields });
   if (!result.ok) {

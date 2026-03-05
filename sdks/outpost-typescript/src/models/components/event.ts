@@ -21,10 +21,6 @@ export type Event = {
    */
   time?: Date | undefined;
   /**
-   * Time the event was successfully delivered.
-   */
-  successfulAt?: Date | null | undefined;
-  /**
    * Key-value string pairs of metadata associated with the event.
    */
   metadata?: { [k: string]: string } | null | undefined;
@@ -43,16 +39,12 @@ export const Event$inboundSchema: z.ZodType<Event, z.ZodTypeDef, unknown> = z
     topic: z.string().optional(),
     time: z.string().datetime({ offset: true }).transform(v => new Date(v))
       .optional(),
-    successful_at: z.nullable(
-      z.string().datetime({ offset: true }).transform(v => new Date(v)),
-    ).optional(),
     metadata: z.nullable(z.record(z.string())).optional(),
     data: z.record(z.any()).optional(),
   }).transform((v) => {
     return remap$(v, {
       "tenant_id": "tenantId",
       "destination_id": "destinationId",
-      "successful_at": "successfulAt",
     });
   });
 /** @internal */
@@ -62,7 +54,6 @@ export type Event$Outbound = {
   destination_id?: string | undefined;
   topic?: string | undefined;
   time?: string | undefined;
-  successful_at?: string | null | undefined;
   metadata?: { [k: string]: string } | null | undefined;
   data?: { [k: string]: any } | undefined;
 };
@@ -78,14 +69,12 @@ export const Event$outboundSchema: z.ZodType<
   destinationId: z.string().optional(),
   topic: z.string().optional(),
   time: z.date().transform(v => v.toISOString()).optional(),
-  successfulAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
   metadata: z.nullable(z.record(z.string())).optional(),
   data: z.record(z.any()).optional(),
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",
     destinationId: "destination_id",
-    successfulAt: "successful_at",
   });
 });
 

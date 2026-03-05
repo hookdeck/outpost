@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - python</title>
+    <title>SDK Changelog - typescript</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,127 +95,261 @@
         }
     </style>
 </head>
-<body><h2 id="python-sdk-changes">Python SDK Changes:</h2>
+<body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.tenants.list_tenants()</code>:
+<li><code>outpost.attempts.list()</code>: <code>error</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[422]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>outpost.destinations.listAttempts()</code>:
+
+<ul>
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[422]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.publish.event()</code>: <code>error</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[400]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.destinations.getAttempt()</code>:
+
+<ul>
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.tenants.listTenants()</code>:
 
 <ul>
 <li><code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>created_at[gte]</code> <strong>Added</strong></li>
-<li><code>created_at[lte]</code> <strong>Added</strong></li>
-<li><code>direction</code> <strong>Added</strong></li>
-<li><code>order_by</code> <strong>Added</strong></li>
-<li><code>order</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>dir</code> <strong>Added</strong></li>
+<li><code>limit</code> <strong>Added</strong></li>
+<li><code>next</code> <strong>Added</strong></li>
+<li><code>prev</code> <strong>Added</strong></li>
+<li><code>request</code> <strong>Removed</strong> (Breaking ⚠️)</li>
 </ul></li>
-<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>error</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>data</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>models</code> <strong>Added</strong></li>
-<li><code>next</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>pagination</code> <strong>Added</strong></li>
-<li><code>prev</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>additionalProperties</code> <strong>Added</strong></li>
+<li><code>error</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>message</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.events.get()</code>:
+<li><code>outpost.tenants.upsert()</code>:
 
 <ul>
-<li><code>request.tenant_id</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
 
 <ul>
-<li><code>status</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>tenant_id</code> <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[422]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.tenants.get()</code>:
+
+<ul>
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.tenants.delete()</code>:
+
+<ul>
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.tenants.getPortalUrl()</code>:
+
+<ul>
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.tenants.getToken()</code>:
+
+<ul>
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
 <li><code>outpost.events.list()</code>:
 
 <ul>
-<li><code>request</code> <strong>Changed</strong> (Breaking ⚠️)
-
-<ul>
-<li><code>destination_id</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>direction</code> <strong>Added</strong></li>
-<li><code>end</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>order_by</code> <strong>Added</strong></li>
-<li><code>start</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>status</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>tenant_id</code> <strong>Changed</strong></li>
-<li><code>time[gte]</code> <strong>Added</strong></li>
-<li><code>time[lte]</code> <strong>Added</strong></li>
-<li><code>topic</code> <strong>Added</strong></li>
-</ul></li>
-<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
-
-<ul>
-<li><code>count</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>data</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>models</code> <strong>Added</strong></li>
-<li><code>next_cursor</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>pagination</code> <strong>Added</strong></li>
-<li><code>prev_cursor</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-</ul></li>
+<li><code>response.models[].successfulAt</code> <strong>Removed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[404]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>status[422]</code> <strong>Added</strong></li>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[422]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.topics.list()</code>:
+<li><code>outpost.events.get()</code>:
 
 <ul>
-<li><code>request.tenant_id</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>response.successfulAt</code> <strong>Removed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong>
 
 <ul>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[400]</code> <strong>Added</strong></li>
 <li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[403]</code> <strong>Added</strong></li>
-<li><code>status[407]</code> <strong>Added</strong></li>
-<li><code>status[408]</code> <strong>Added</strong></li>
-<li><code>status[413]</code> <strong>Added</strong></li>
-<li><code>status[414]</code> <strong>Added</strong></li>
-<li><code>status[415]</code> <strong>Added</strong></li>
-<li><code>status[422]</code> <strong>Added</strong></li>
-<li><code>status[429]</code> <strong>Added</strong></li>
-<li><code>status[431]</code> <strong>Added</strong></li>
 <li><code>status[500]</code> <strong>Added</strong></li>
-<li><code>status[501]</code> <strong>Added</strong></li>
-<li><code>status[502]</code> <strong>Added</strong></li>
-<li><code>status[503]</code> <strong>Added</strong></li>
-<li><code>status[504]</code> <strong>Added</strong></li>
-<li><code>status[505]</code> <strong>Added</strong></li>
-<li><code>status[506]</code> <strong>Added</strong></li>
-<li><code>status[507]</code> <strong>Added</strong></li>
-<li><code>status[508]</code> <strong>Added</strong></li>
-<li><code>status[510]</code> <strong>Added</strong></li>
-<li><code>status[511]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.destinations.get_attempt()</code>: <strong>Added</strong></li>
-<li><code>outpost.schemas.list_tenant_destination_types()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>outpost.schemas.get()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>outpost.topics.list_jwt()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>outpost.events.list_deliveries()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>outpost.events.list_by_destination()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>outpost.events.get_by_destination()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>outpost.events.retry()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>outpost.attempts.list()</code>: <strong>Added</strong></li>
-<li><code>outpost.publish.event()</code>:
+<li><code>outpost.destinations.disable()</code>:
 
 <ul>
-<li><code>request.time</code> <strong>Added</strong></li>
-<li><code>response.destination_ids</code> <strong>Added</strong></li>
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.destinations.list_attempts()</code>: <strong>Added</strong></li>
-<li><code>outpost.attempts.retry()</code>: <strong>Added</strong></li>
-<li><code>outpost.attempts.get()</code>: <strong>Added</strong></li>
+</ul></li>
+<li><code>outpost.destinations.enable()</code>:
+
+<ul>
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.destinations.update()</code>:
+
+<ul>
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[400]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[422]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.destinations.list()</code>:
+
+<ul>
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.destinations.create()</code>:
+
+<ul>
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[400]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[422]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.destinations.get()</code>:
+
+<ul>
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.attempts.retry()</code>: <code>error</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[422]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>outpost.destinations.delete()</code>:
+
+<ul>
+<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>outpost.schemas.listDestinationTypes()</code>: <strong>Added</strong></li>
+<li><code>outpost.schemas.getDestinationType()</code>: <strong>Added</strong></li>
+<li><code>outpost.attempts.get()</code>: <code>error</code> <strong>Changed</strong>
+
+<ul>
+<li>&rdquo; <strong>Added</strong></li>
+<li><code>status[401]</code> <strong>Added</strong></li>
+<li><code>status[500]</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>outpost.schemas.getDestinationTypeJwt()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>outpost.schemas.listDestinationTypesJwt()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>outpost.topics.list()</code>:  <code>error.status[401]</code> <strong>Added</strong></li>
 </ul>
 </body>
 </html>

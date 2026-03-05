@@ -23,8 +23,7 @@ List all tenants with cursor-based pagination.
 **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
 If RediSearch is not available, this endpoint returns `501 Not Implemented`.
 
-The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
-Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
+When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
 
 
 ### Example Usage
@@ -34,13 +33,11 @@ Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these f
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.tenants.listTenants({});
+  const result = await outpost.tenants.listTenants();
 
   console.log(result);
 }
@@ -59,13 +56,11 @@ import { tenantsListTenants } from "@hookdeck/outpost-sdk/funcs/tenantsListTenan
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const res = await tenantsListTenants(outpost, {});
+  const res = await tenantsListTenants(outpost);
   if (res.ok) {
     const { value: result } = res;
     console.log(result);
@@ -81,7 +76,10 @@ run();
 
 | Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.ListTenantsRequest](../../models/operations/listtenantsrequest.md)                                                                                                 | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
+| `limit`                                                                                                                                                                        | *number*                                                                                                                                                                       | :heavy_minus_sign:                                                                                                                                                             | Number of tenants to return per page (1-100, default 20).                                                                                                                      |
+| `dir`                                                                                                                                                                          | [operations.ListTenantsDir](../../models/operations/listtenantsdir.md)                                                                                                         | :heavy_minus_sign:                                                                                                                                                             | Sort direction.                                                                                                                                                                |
+| `next`                                                                                                                                                                         | *string*                                                                                                                                                                       | :heavy_minus_sign:                                                                                                                                                             | Cursor for the next page of results. Mutually exclusive with `prev`.                                                                                                           |
+| `prev`                                                                                                                                                                         | *string*                                                                                                                                                                       | :heavy_minus_sign:                                                                                                                                                             | Cursor for the previous page of results. Mutually exclusive with `next`.                                                                                                       |
 | `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
 | `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
 | `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
@@ -92,11 +90,13 @@ run();
 
 ### Errors
 
-| Error Type                        | Status Code                       | Content Type                      |
-| --------------------------------- | --------------------------------- | --------------------------------- |
-| errors.ListTenantsBadRequestError | 400                               | application/json                  |
-| errors.NotImplementedError        | 501                               | application/json                  |
-| errors.APIError                   | 4XX, 5XX                          | \*/\*                             |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.BadRequestError     | 400                        | application/json           |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.NotImplementedError | 501                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## upsert
 
@@ -109,14 +109,11 @@ Idempotently creates or updates a tenant. Required before associating destinatio
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.tenants.upsert({});
+  const result = await outpost.tenants.upsert("<id>");
 
   console.log(result);
 }
@@ -135,14 +132,11 @@ import { tenantsUpsert } from "@hookdeck/outpost-sdk/funcs/tenantsUpsert.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const res = await tenantsUpsert(outpost, {});
+  const res = await tenantsUpsert(outpost, "<id>");
   if (res.ok) {
     const { value: result } = res;
     console.log(result);
@@ -158,7 +152,8 @@ run();
 
 | Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.UpsertTenantRequest](../../models/operations/upserttenantrequest.md)                                                                                               | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
+| `tenantId`                                                                                                                                                                     | *string*                                                                                                                                                                       | :heavy_check_mark:                                                                                                                                                             | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                          |
+| `params`                                                                                                                                                                       | [components.TenantUpsert](../../models/components/tenantupsert.md)                                                                                                             | :heavy_minus_sign:                                                                                                                                                             | Optional tenant metadata                                                                                                                                                       |
 | `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
 | `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
 | `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
@@ -169,9 +164,12 @@ run();
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 422                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## get
 
@@ -184,14 +182,11 @@ Retrieves details for a specific tenant.
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.tenants.get({});
+  const result = await outpost.tenants.get("<id>");
 
   console.log(result);
 }
@@ -210,14 +205,11 @@ import { tenantsGet } from "@hookdeck/outpost-sdk/funcs/tenantsGet.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const res = await tenantsGet(outpost, {});
+  const res = await tenantsGet(outpost, "<id>");
   if (res.ok) {
     const { value: result } = res;
     console.log(result);
@@ -233,7 +225,7 @@ run();
 
 | Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.GetTenantRequest](../../models/operations/gettenantrequest.md)                                                                                                     | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
+| `tenantId`                                                                                                                                                                     | *string*                                                                                                                                                                       | :heavy_check_mark:                                                                                                                                                             | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                          |
 | `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
 | `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
 | `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
@@ -244,9 +236,12 @@ run();
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## delete
 
@@ -259,14 +254,11 @@ Deletes the tenant and all associated destinations.
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.tenants.delete({});
+  const result = await outpost.tenants.delete("<id>");
 
   console.log(result);
 }
@@ -285,14 +277,11 @@ import { tenantsDelete } from "@hookdeck/outpost-sdk/funcs/tenantsDelete.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const res = await tenantsDelete(outpost, {});
+  const res = await tenantsDelete(outpost, "<id>");
   if (res.ok) {
     const { value: result } = res;
     console.log(result);
@@ -308,7 +297,7 @@ run();
 
 | Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.DeleteTenantRequest](../../models/operations/deletetenantrequest.md)                                                                                               | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
+| `tenantId`                                                                                                                                                                     | *string*                                                                                                                                                                       | :heavy_check_mark:                                                                                                                                                             | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                          |
 | `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
 | `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
 | `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
@@ -319,13 +308,16 @@ run();
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## getPortalUrl
 
-Returns a redirect URL containing a JWT to authenticate the user with the portal.
+Returns a redirect URL containing a JWT to authenticate the user with the portal. Requires Admin API Key.
 
 ### Example Usage
 
@@ -334,14 +326,11 @@ Returns a redirect URL containing a JWT to authenticate the user with the portal
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.tenants.getPortalUrl({});
+  const result = await outpost.tenants.getPortalUrl("<id>");
 
   console.log(result);
 }
@@ -360,14 +349,11 @@ import { tenantsGetPortalUrl } from "@hookdeck/outpost-sdk/funcs/tenantsGetPorta
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const res = await tenantsGetPortalUrl(outpost, {});
+  const res = await tenantsGetPortalUrl(outpost, "<id>");
   if (res.ok) {
     const { value: result } = res;
     console.log(result);
@@ -383,7 +369,8 @@ run();
 
 | Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.GetTenantPortalUrlRequest](../../models/operations/gettenantportalurlrequest.md)                                                                                   | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
+| `tenantId`                                                                                                                                                                     | *string*                                                                                                                                                                       | :heavy_check_mark:                                                                                                                                                             | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                          |
+| `theme`                                                                                                                                                                        | [operations.Theme](../../models/operations/theme.md)                                                                                                                           | :heavy_minus_sign:                                                                                                                                                             | Optional theme preference for the portal.                                                                                                                                      |
 | `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
 | `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
 | `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
@@ -394,13 +381,16 @@ run();
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## getToken
 
-Returns a JWT token scoped to the tenant for safe browser API calls.
+Returns a JWT token scoped to the tenant for safe browser API calls. Requires Admin API Key.
 
 ### Example Usage
 
@@ -409,14 +399,11 @@ Returns a JWT token scoped to the tenant for safe browser API calls.
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.tenants.getToken({});
+  const result = await outpost.tenants.getToken("<id>");
 
   console.log(result);
 }
@@ -435,14 +422,11 @@ import { tenantsGetToken } from "@hookdeck/outpost-sdk/funcs/tenantsGetToken.js"
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const res = await tenantsGetToken(outpost, {});
+  const res = await tenantsGetToken(outpost, "<id>");
   if (res.ok) {
     const { value: result } = res;
     console.log(result);
@@ -458,7 +442,7 @@ run();
 
 | Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.GetTenantTokenRequest](../../models/operations/gettenanttokenrequest.md)                                                                                           | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
+| `tenantId`                                                                                                                                                                     | *string*                                                                                                                                                                       | :heavy_check_mark:                                                                                                                                                             | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                          |
 | `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
 | `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
 | `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
@@ -469,6 +453,9 @@ run();
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |

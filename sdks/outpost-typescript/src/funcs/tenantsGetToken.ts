@@ -18,6 +18,7 @@ import {
   RequestTimeoutError,
   UnexpectedClientError,
 } from "../models/errors/httpclienterrors.js";
+import * as errors from "../models/errors/index.js";
 import { OutpostError } from "../models/errors/outposterror.js";
 import { ResponseValidationError } from "../models/errors/responsevalidationerror.js";
 import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
@@ -29,15 +30,18 @@ import { Result } from "../types/fp.js";
  * Get Tenant JWT Token
  *
  * @remarks
- * Returns a JWT token scoped to the tenant for safe browser API calls.
+ * Returns a JWT token scoped to the tenant for safe browser API calls. Requires Admin API Key.
  */
 export function tenantsGetToken(
   client: OutpostCore,
-  request: operations.GetTenantTokenRequest,
+  tenantId: string,
   options?: RequestOptions,
 ): APIPromise<
   Result<
     components.TenantToken,
+    | errors.UnauthorizedError
+    | errors.NotFoundError
+    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -50,19 +54,22 @@ export function tenantsGetToken(
 > {
   return new APIPromise($do(
     client,
-    request,
+    tenantId,
     options,
   ));
 }
 
 async function $do(
   client: OutpostCore,
-  request: operations.GetTenantTokenRequest,
+  tenantId: string,
   options?: RequestOptions,
 ): Promise<
   [
     Result<
       components.TenantToken,
+      | errors.UnauthorizedError
+      | errors.NotFoundError
+      | errors.InternalServerError
       | OutpostError
       | ResponseValidationError
       | ConnectionError
@@ -75,8 +82,12 @@ async function $do(
     APICall,
   ]
 > {
+  const input: operations.GetTenantTokenRequest = {
+    tenantId: tenantId,
+  };
+
   const parsed = safeParse(
-    request,
+    input,
     (value) => operations.GetTenantTokenRequest$outboundSchema.parse(value),
     "Input validation failed",
   );
@@ -87,11 +98,10 @@ async function $do(
   const body = null;
 
   const pathParams = {
-    tenant_id: encodeSimple(
-      "tenant_id",
-      payload.tenant_id ?? client._options.tenantId,
-      { explode: false, charEncoding: "percent" },
-    ),
+    tenant_id: encodeSimple("tenant_id", payload.tenant_id, {
+      explode: false,
+      charEncoding: "percent",
+    }),
   };
 
   const path = pathToFunc("/tenants/{tenant_id}/token")(pathParams);
@@ -100,7 +110,8 @@ async function $do(
     Accept: "application/json",
   }));
 
-  const securityInput = await extractSecurity(client._options.security);
+  const secConfig = await extractSecurity(client._options.apiKey);
+  const securityInput = secConfig == null ? {} : { apiKey: secConfig };
   const requestSecurity = resolveGlobalSecurity(securityInput);
 
   const context = {
@@ -111,7 +122,7 @@ async function $do(
 
     resolvedSecurity: requestSecurity,
 
-    securitySource: client._options.security,
+    securitySource: client._options.apiKey,
     retryConfig: options?.retries
       || client._options.retryConfig
       || { strategy: "none" },
@@ -135,7 +146,7 @@ async function $do(
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: ["404", "4XX", "5XX"],
+    errorCodes: ["401", "404", "4XX", "500", "5XX"],
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });
@@ -144,8 +155,15 @@ async function $do(
   }
   const response = doResult.value;
 
+  const responseFields = {
+    HttpMeta: { Response: response, Request: req },
+  };
+
   const [result] = await M.match<
     components.TenantToken,
+    | errors.UnauthorizedError
+    | errors.NotFoundError
+    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -156,9 +174,12 @@ async function $do(
     | SDKValidationError
   >(
     M.json(200, components.TenantToken$inboundSchema),
-    M.fail([404, "4XX"]),
+    M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.jsonErr(404, errors.NotFoundError$inboundSchema),
+    M.jsonErr(500, errors.InternalServerError$inboundSchema),
+    M.fail("4XX"),
     M.fail("5XX"),
-  )(response, req);
+  )(response, req, { extraFields: responseFields });
   if (!result.ok) {
     return [result, { status: "complete", request: req, response }];
   }

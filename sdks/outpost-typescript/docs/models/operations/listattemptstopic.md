@@ -1,4 +1,4 @@
-# AdminListAttemptsTopic
+# ListAttemptsTopic
 
 Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
 

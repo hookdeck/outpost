@@ -25,7 +25,6 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
   * [Authentication](#authentication)
   * [Available Resources and Operations](#available-resources-and-operations)
   * [Standalone functions](#standalone-functions)
-  * [Global Parameters](#global-parameters)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
   * [Server Selection](#server-selection)
@@ -91,9 +90,7 @@ Add the following server definition to your `claude_desktop_config.json` file:
         "-y", "--package", "@hookdeck/outpost-sdk",
         "--",
         "mcp", "start",
-        "--admin-api-key", "...",
-        "--tenant-jwt", "...",
-        "--tenant-id", "..."
+        "--api-key", "..."
       ]
     }
   }
@@ -116,9 +113,7 @@ Create a `.cursor/mcp.json` file in your project root with the following content
         "-y", "--package", "@hookdeck/outpost-sdk",
         "--",
         "mcp", "start",
-        "--admin-api-key", "...",
-        "--tenant-jwt", "...",
-        "--tenant-id", "..."
+        "--api-key", "..."
       ]
     }
   }
@@ -190,21 +185,18 @@ run();
 
 ### Per-Client Security Schemes
 
-This SDK supports the following security schemes globally:
+This SDK supports the following security scheme globally:
 
-| Name          | Type | Scheme      |
-| ------------- | ---- | ----------- |
-| `adminApiKey` | http | HTTP Bearer |
-| `tenantJwt`   | http | HTTP Bearer |
+| Name     | Type | Scheme      |
+| -------- | ---- | ----------- |
+| `apiKey` | http | HTTP Bearer |
 
-You can set the security parameters through the `security` optional parameter when initializing the SDK client instance. The selected scheme will be used by default to authenticate with the API for all operations that support it. For example:
+To authenticate with the API the `apiKey` parameter must be set when initializing the SDK client instance. For example:
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
@@ -226,7 +218,7 @@ run();
 
 ### [Attempts](docs/sdks/attempts/README.md)
 
-* [list](docs/sdks/attempts/README.md#list) - List Attempts (Admin)
+* [list](docs/sdks/attempts/README.md#list) - List Attempts
 * [get](docs/sdks/attempts/README.md#get) - Get Attempt
 * [retry](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 
@@ -244,7 +236,7 @@ run();
 
 ### [Events](docs/sdks/events/README.md)
 
-* [list](docs/sdks/events/README.md#list) - List Events (Admin)
+* [list](docs/sdks/events/README.md#list) - List Events
 * [get](docs/sdks/events/README.md#get) - Get Event
 
 ### [Health](docs/sdks/health/README.md)
@@ -257,8 +249,8 @@ run();
 
 ### [Schemas](docs/sdks/schemas/README.md)
 
-* [listDestinationTypesJwt](docs/sdks/schemas/README.md#listdestinationtypesjwt) - List Destination Type Schemas
-* [getDestinationTypeJwt](docs/sdks/schemas/README.md#getdestinationtypejwt) - Get Destination Type Schema
+* [listDestinationTypes](docs/sdks/schemas/README.md#listdestinationtypes) - List Destination Type Schemas
+* [getDestinationType](docs/sdks/schemas/README.md#getdestinationtype) - Get Destination Type Schema
 
 ### [Tenants](docs/sdks/tenants/README.md)
 
@@ -292,7 +284,7 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 <summary>Available standalone functions</summary>
 
 - [`attemptsGet`](docs/sdks/attempts/README.md#get) - Get Attempt
-- [`attemptsList`](docs/sdks/attempts/README.md#list) - List Attempts (Admin)
+- [`attemptsList`](docs/sdks/attempts/README.md#list) - List Attempts
 - [`attemptsRetry`](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 - [`destinationsCreate`](docs/sdks/destinations/README.md#create) - Create Destination
 - [`destinationsDelete`](docs/sdks/destinations/README.md#delete) - Delete Destination
@@ -304,11 +296,11 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 - [`destinationsListAttempts`](docs/sdks/destinations/README.md#listattempts) - List Destination Attempts
 - [`destinationsUpdate`](docs/sdks/destinations/README.md#update) - Update Destination
 - [`eventsGet`](docs/sdks/events/README.md#get) - Get Event
-- [`eventsList`](docs/sdks/events/README.md#list) - List Events (Admin)
+- [`eventsList`](docs/sdks/events/README.md#list) - List Events
 - [`healthCheck`](docs/sdks/health/README.md#check) - Health Check
 - [`publishEvent`](docs/sdks/publish/README.md#event) - Publish Event
-- [`schemasGetDestinationTypeJwt`](docs/sdks/schemas/README.md#getdestinationtypejwt) - Get Destination Type Schema
-- [`schemasListDestinationTypesJwt`](docs/sdks/schemas/README.md#listdestinationtypesjwt) - List Destination Type Schemas
+- [`schemasGetDestinationType`](docs/sdks/schemas/README.md#getdestinationtype) - Get Destination Type Schema
+- [`schemasListDestinationTypes`](docs/sdks/schemas/README.md#listdestinationtypes) - List Destination Type Schemas
 - [`tenantsDelete`](docs/sdks/tenants/README.md#delete) - Delete Tenant
 - [`tenantsGet`](docs/sdks/tenants/README.md#get) - Get Tenant
 - [`tenantsGetPortalUrl`](docs/sdks/tenants/README.md#getportalurl) - Get Portal Redirect URL
@@ -319,45 +311,6 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 
 </details>
 <!-- End Standalone functions [standalone-funcs] -->
-
-<!-- Start Global Parameters [global-parameters] -->
-## Global Parameters
-
-A parameter is configured globally. This parameter may be set on the SDK client instance itself during initialization. When configured as an option during SDK initialization, This global value will be used as the default on the operations that use it. When such operations are called, there is a place in each to override the global value, if needed.
-
-For example, you can set `tenant_id` to `"<id>"` at SDK initialization and then you do not have to pass the same value on calls to operations like `upsert`. But if you want to do so you may, which will locally override the global setting. See the example code below for a demonstration.
-
-
-### Available Globals
-
-The following global parameter is available.
-
-| Name     | Type   | Description             |
-| -------- | ------ | ----------------------- |
-| tenantId | string | The tenantId parameter. |
-
-### Example
-
-```typescript
-import { Outpost } from "@hookdeck/outpost-sdk";
-
-const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
-});
-
-async function run() {
-  const result = await outpost.tenants.upsert({});
-
-  console.log(result);
-}
-
-run();
-
-```
-<!-- End Global Parameters [global-parameters] -->
 
 <!-- Start Retries [retries] -->
 ## Retries
@@ -467,10 +420,13 @@ run();
 ```
 
 ### Error Classes
-**Primary error:**
+**Primary errors:**
 * [`OutpostError`](./src/models/errors/outposterror.ts): The base class for HTTP error responses.
+  * [`UnauthorizedError`](./src/models/errors/unauthorizederror.ts): A collection of codes that generally means the client was not authenticated correctly for the request they want to make.
+  * [`InternalServerError`](./src/models/errors/internalservererror.ts): A collection of status codes that generally mean the server failed in an unexpected way.
+  * [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. *
 
-<details><summary>Less common errors (15)</summary>
+<details><summary>Less common errors (11)</summary>
 
 <br />
 
@@ -483,14 +439,10 @@ run();
 
 
 **Inherit from [`OutpostError`](./src/models/errors/outposterror.ts)**:
-* [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 5 of 25 methods.*
-* [`UnauthorizedError`](./src/models/errors/unauthorizederror.ts): A collection of codes that generally means the client was not authenticated correctly for the request they want to make. Applicable to 5 of 25 methods.*
-* [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 5 of 25 methods.*
+* [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 6 of 25 methods.*
 * [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request. Applicable to 5 of 25 methods.*
 * [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 25 methods.*
-* [`InternalServerError`](./src/models/errors/internalservererror.ts): A collection of status codes that generally mean the server failed in an unexpected way. Applicable to 5 of 25 methods.*
-* [`APIErrorResponse`](./src/models/errors/apierrorresponse.ts): Standard error response format. Status code `422`. Applicable to 4 of 25 methods.*
-* [`ListTenantsBadRequestError`](./src/models/errors/listtenantsbadrequesterror.ts): Invalid request parameters (e.g., invalid cursor, both next and prev provided). Status code `400`. Applicable to 1 of 25 methods.*
+* [`APIErrorResponse`](./src/models/errors/apierrorresponse.ts): Standard error response format. Status code `422`. Applicable to 3 of 25 methods.*
 * [`NotImplementedError`](./src/models/errors/notimplementederror.ts): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 25 methods.*
 * [`ResponseValidationError`](./src/models/errors/responsevalidationerror.ts): Type mismatch between the data returned from the server and the structure expected by the SDK. See `error.rawValue` for the raw value and `error.pretty()` for a nicely formatted multi-line string.
 

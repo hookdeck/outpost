@@ -39,7 +39,9 @@ export function destinationsListAttempts(
 ): APIPromise<
   Result<
     components.AttemptPaginatedResult,
-    | errors.APIErrorResponse
+    | errors.UnauthorizedError
+    | errors.NotFoundError
+    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -65,7 +67,9 @@ async function $do(
   [
     Result<
       components.AttemptPaginatedResult,
-      | errors.APIErrorResponse
+      | errors.UnauthorizedError
+      | errors.NotFoundError
+      | errors.InternalServerError
       | OutpostError
       | ResponseValidationError
       | ConnectionError
@@ -97,11 +101,10 @@ async function $do(
       explode: false,
       charEncoding: "percent",
     }),
-    tenant_id: encodeSimple(
-      "tenant_id",
-      payload.tenant_id ?? client._options.tenantId,
-      { explode: false, charEncoding: "percent" },
-    ),
+    tenant_id: encodeSimple("tenant_id", payload.tenant_id, {
+      explode: false,
+      charEncoding: "percent",
+    }),
   };
 
   const path = pathToFunc(
@@ -126,7 +129,8 @@ async function $do(
     Accept: "application/json",
   }));
 
-  const securityInput = await extractSecurity(client._options.security);
+  const secConfig = await extractSecurity(client._options.apiKey);
+  const securityInput = secConfig == null ? {} : { apiKey: secConfig };
   const requestSecurity = resolveGlobalSecurity(securityInput);
 
   const context = {
@@ -137,7 +141,7 @@ async function $do(
 
     resolvedSecurity: requestSecurity,
 
-    securitySource: client._options.security,
+    securitySource: client._options.apiKey,
     retryConfig: options?.retries
       || client._options.retryConfig
       || { strategy: "none" },
@@ -162,7 +166,7 @@ async function $do(
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: ["404", "422", "4XX", "5XX"],
+    errorCodes: ["401", "404", "4XX", "500", "5XX"],
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });
@@ -177,7 +181,9 @@ async function $do(
 
   const [result] = await M.match<
     components.AttemptPaginatedResult,
-    | errors.APIErrorResponse
+    | errors.UnauthorizedError
+    | errors.NotFoundError
+    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -188,8 +194,10 @@ async function $do(
     | SDKValidationError
   >(
     M.json(200, components.AttemptPaginatedResult$inboundSchema),
-    M.jsonErr(422, errors.APIErrorResponse$inboundSchema),
-    M.fail([404, "4XX"]),
+    M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.jsonErr(404, errors.NotFoundError$inboundSchema),
+    M.jsonErr(500, errors.InternalServerError$inboundSchema),
+    M.fail("4XX"),
     M.fail("5XX"),
   )(response, req, { extraFields: responseFields });
   if (!result.ok) {

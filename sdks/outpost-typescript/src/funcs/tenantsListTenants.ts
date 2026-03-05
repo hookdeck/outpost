@@ -35,17 +35,21 @@ import { Result } from "../types/fp.js";
  * **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
  * If RediSearch is not available, this endpoint returns `501 Not Implemented`.
  *
- * The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
- * Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
+ * When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
  */
 export function tenantsListTenants(
   client: OutpostCore,
-  request: operations.ListTenantsRequest,
+  limit?: number | undefined,
+  dir?: operations.ListTenantsDir | undefined,
+  next?: string | undefined,
+  prev?: string | undefined,
   options?: RequestOptions,
 ): APIPromise<
   Result<
     components.TenantPaginatedResult,
-    | errors.ListTenantsBadRequestError
+    | errors.BadRequestError
+    | errors.UnauthorizedError
+    | errors.InternalServerError
     | errors.NotImplementedError
     | OutpostError
     | ResponseValidationError
@@ -59,20 +63,28 @@ export function tenantsListTenants(
 > {
   return new APIPromise($do(
     client,
-    request,
+    limit,
+    dir,
+    next,
+    prev,
     options,
   ));
 }
 
 async function $do(
   client: OutpostCore,
-  request: operations.ListTenantsRequest,
+  limit?: number | undefined,
+  dir?: operations.ListTenantsDir | undefined,
+  next?: string | undefined,
+  prev?: string | undefined,
   options?: RequestOptions,
 ): Promise<
   [
     Result<
       components.TenantPaginatedResult,
-      | errors.ListTenantsBadRequestError
+      | errors.BadRequestError
+      | errors.UnauthorizedError
+      | errors.InternalServerError
       | errors.NotImplementedError
       | OutpostError
       | ResponseValidationError
@@ -86,8 +98,15 @@ async function $do(
     APICall,
   ]
 > {
+  const input: operations.ListTenantsRequest = {
+    limit: limit,
+    dir: dir,
+    next: next,
+    prev: prev,
+  };
+
   const parsed = safeParse(
-    request,
+    input,
     (value) => operations.ListTenantsRequest$outboundSchema.parse(value),
     "Input validation failed",
   );
@@ -100,12 +119,9 @@ async function $do(
   const path = pathToFunc("/tenants")();
 
   const query = encodeFormQuery({
-    "created_at[gte]": payload["created_at[gte]"],
-    "created_at[lte]": payload["created_at[lte]"],
     "dir": payload.dir,
     "limit": payload.limit,
     "next": payload.next,
-    "order_by": payload.order_by,
     "prev": payload.prev,
   });
 
@@ -113,7 +129,8 @@ async function $do(
     Accept: "application/json",
   }));
 
-  const securityInput = await extractSecurity(client._options.security);
+  const secConfig = await extractSecurity(client._options.apiKey);
+  const securityInput = secConfig == null ? {} : { apiKey: secConfig };
   const requestSecurity = resolveGlobalSecurity(securityInput);
 
   const context = {
@@ -124,7 +141,7 @@ async function $do(
 
     resolvedSecurity: requestSecurity,
 
-    securitySource: client._options.security,
+    securitySource: client._options.apiKey,
     retryConfig: options?.retries
       || client._options.retryConfig
       || { strategy: "none" },
@@ -149,7 +166,7 @@ async function $do(
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: ["400", "401", "4XX", "501", "5XX"],
+    errorCodes: ["400", "401", "4XX", "500", "501", "5XX"],
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });
@@ -164,7 +181,9 @@ async function $do(
 
   const [result] = await M.match<
     components.TenantPaginatedResult,
-    | errors.ListTenantsBadRequestError
+    | errors.BadRequestError
+    | errors.UnauthorizedError
+    | errors.InternalServerError
     | errors.NotImplementedError
     | OutpostError
     | ResponseValidationError
@@ -176,9 +195,11 @@ async function $do(
     | SDKValidationError
   >(
     M.json(200, components.TenantPaginatedResult$inboundSchema),
-    M.jsonErr(400, errors.ListTenantsBadRequestError$inboundSchema),
+    M.jsonErr(400, errors.BadRequestError$inboundSchema),
+    M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.jsonErr(500, errors.InternalServerError$inboundSchema),
     M.jsonErr(501, errors.NotImplementedError$inboundSchema),
-    M.fail([401, "4XX"]),
+    M.fail("4XX"),
     M.fail("5XX"),
   )(response, req, { extraFields: responseFields });
   if (!result.ok) {

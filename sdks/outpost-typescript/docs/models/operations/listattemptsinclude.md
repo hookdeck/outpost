@@ -1,4 +1,4 @@
-# AdminListAttemptsInclude
+# ListAttemptsInclude
 
 Fields to include in the response. Can be specified multiple times or comma-separated.
 - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)

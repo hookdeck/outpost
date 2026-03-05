@@ -6,7 +6,7 @@
 import { GetDestinationTypeSchemaRequest } from "@hookdeck/outpost-sdk/models/operations";
 
 let value: GetDestinationTypeSchemaRequest = {
-  type: "aws_s3",
+  type: "gcp_pubsub",
 };
 ```
 

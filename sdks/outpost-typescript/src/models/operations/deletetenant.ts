@@ -8,63 +8,12 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
-export type DeleteTenantGlobals = {
-  tenantId?: string | undefined;
-};
-
 export type DeleteTenantRequest = {
   /**
    * The ID of the tenant. Required when using AdminApiKey authentication.
    */
-  tenantId?: string | undefined;
+  tenantId: string;
 };
-
-/** @internal */
-export const DeleteTenantGlobals$inboundSchema: z.ZodType<
-  DeleteTenantGlobals,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  tenant_id: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
-/** @internal */
-export type DeleteTenantGlobals$Outbound = {
-  tenant_id?: string | undefined;
-};
-
-/** @internal */
-export const DeleteTenantGlobals$outboundSchema: z.ZodType<
-  DeleteTenantGlobals$Outbound,
-  z.ZodTypeDef,
-  DeleteTenantGlobals
-> = z.object({
-  tenantId: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
-
-export function deleteTenantGlobalsToJSON(
-  deleteTenantGlobals: DeleteTenantGlobals,
-): string {
-  return JSON.stringify(
-    DeleteTenantGlobals$outboundSchema.parse(deleteTenantGlobals),
-  );
-}
-export function deleteTenantGlobalsFromJSON(
-  jsonString: string,
-): SafeParseResult<DeleteTenantGlobals, SDKValidationError> {
-  return safeParse(
-    jsonString,
-    (x) => DeleteTenantGlobals$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'DeleteTenantGlobals' from JSON`,
-  );
-}
 
 /** @internal */
 export const DeleteTenantRequest$inboundSchema: z.ZodType<
@@ -72,7 +21,7 @@ export const DeleteTenantRequest$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  tenant_id: z.string().optional(),
+  tenant_id: z.string(),
 }).transform((v) => {
   return remap$(v, {
     "tenant_id": "tenantId",
@@ -80,7 +29,7 @@ export const DeleteTenantRequest$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type DeleteTenantRequest$Outbound = {
-  tenant_id?: string | undefined;
+  tenant_id: string;
 };
 
 /** @internal */
@@ -89,7 +38,7 @@ export const DeleteTenantRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   DeleteTenantRequest
 > = z.object({
-  tenantId: z.string().optional(),
+  tenantId: z.string(),
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",

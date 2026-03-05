@@ -88,7 +88,8 @@ async function $do(
     Accept: "application/json",
   }));
 
-  const securityInput = await extractSecurity(client._options.security);
+  const secConfig = await extractSecurity(client._options.apiKey);
+  const securityInput = secConfig == null ? {} : { apiKey: secConfig };
   const requestSecurity = resolveGlobalSecurity(securityInput);
 
   const context = {
@@ -99,7 +100,7 @@ async function $do(
 
     resolvedSecurity: requestSecurity,
 
-    securitySource: client._options.security,
+    securitySource: client._options.apiKey,
     retryConfig: options?.retries
       || client._options.retryConfig
       || { strategy: "none" },
@@ -180,7 +181,7 @@ async function $do(
   >(
     M.json(200, z.array(z.string())),
     M.jsonErr(404, errors.NotFoundError$inboundSchema),
-    M.jsonErr([403, 407], errors.UnauthorizedError$inboundSchema),
+    M.jsonErr([401, 403, 407], errors.UnauthorizedError$inboundSchema),
     M.jsonErr(408, errors.TimeoutError$inboundSchema),
     M.jsonErr(429, errors.RateLimitedError$inboundSchema),
     M.jsonErr(
@@ -195,7 +196,7 @@ async function $do(
     ),
     M.jsonErr(510, errors.BadRequestError$inboundSchema),
     M.jsonErr(511, errors.UnauthorizedError$inboundSchema),
-    M.fail([401, "4XX"]),
+    M.fail("4XX"),
     M.fail("5XX"),
   )(response, req, { extraFields: responseFields });
   if (!result.ok) {

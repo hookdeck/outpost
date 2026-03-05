@@ -21,27 +21,26 @@ Use the `include` query parameter to include related data:
 
 ### Available Operations
 
-* [list](#list) - List Attempts (Admin)
+* [list](#list) - List Attempts
 * [get](#get) - Get Attempt
 * [retry](#retry) - Retry Event Delivery
 
 ## list
 
-Retrieves a paginated list of attempts across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+Retrieves a paginated list of attempts.
 
-When `tenant_id` is not provided, returns attempts from all tenants. When `tenant_id` is provided, returns only attempts for that tenant.
+When authenticated with a Tenant JWT, returns only attempts belonging to that tenant.
+When authenticated with Admin API Key, returns attempts across all tenants. Use `tenant_id` query parameter to filter by tenant.
 
 
 ### Example Usage: AdminAttemptsListExample
 
-<!-- UsageSnippet language="typescript" operationID="adminListAttempts" method="get" path="/attempts" example="AdminAttemptsListExample" -->
+<!-- UsageSnippet language="typescript" operationID="listAttempts" method="get" path="/attempts" example="AdminAttemptsListExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
@@ -64,9 +63,7 @@ import { attemptsList } from "@hookdeck/outpost-sdk/funcs/attemptsList.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
@@ -83,14 +80,12 @@ run();
 ```
 ### Example Usage: AdminAttemptsWithIncludeExample
 
-<!-- UsageSnippet language="typescript" operationID="adminListAttempts" method="get" path="/attempts" example="AdminAttemptsWithIncludeExample" -->
+<!-- UsageSnippet language="typescript" operationID="listAttempts" method="get" path="/attempts" example="AdminAttemptsWithIncludeExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
@@ -113,9 +108,7 @@ import { attemptsList } from "@hookdeck/outpost-sdk/funcs/attemptsList.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
@@ -135,7 +128,7 @@ run();
 
 | Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.AdminListAttemptsRequest](../../models/operations/adminlistattemptsrequest.md)                                                                                     | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
+| `request`                                                                                                                                                                      | [operations.ListAttemptsRequest](../../models/operations/listattemptsrequest.md)                                                                                               | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
 | `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
 | `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
 | `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
@@ -146,10 +139,11 @@ run();
 
 ### Errors
 
-| Error Type              | Status Code             | Content Type            |
-| ----------------------- | ----------------------- | ----------------------- |
-| errors.APIErrorResponse | 422                     | application/json        |
-| errors.APIError         | 4XX, 5XX                | \*/\*                   |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## get
 
@@ -166,15 +160,11 @@ When authenticated with Admin API Key, attempts from any tenant can be accessed.
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.attempts.get({
-    attemptId: "<id>",
-  });
+  const result = await outpost.attempts.get("<id>");
 
   console.log(result);
 }
@@ -193,15 +183,11 @@ import { attemptsGet } from "@hookdeck/outpost-sdk/funcs/attemptsGet.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const res = await attemptsGet(outpost, {
-    attemptId: "<id>",
-  });
+  const res = await attemptsGet(outpost, "<id>");
   if (res.ok) {
     const { value: result } = res;
     console.log(result);
@@ -219,15 +205,11 @@ run();
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.attempts.get({
-    attemptId: "<id>",
-  });
+  const result = await outpost.attempts.get("<id>");
 
   console.log(result);
 }
@@ -246,15 +228,11 @@ import { attemptsGet } from "@hookdeck/outpost-sdk/funcs/attemptsGet.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const res = await attemptsGet(outpost, {
-    attemptId: "<id>",
-  });
+  const res = await attemptsGet(outpost, "<id>");
   if (res.ok) {
     const { value: result } = res;
     console.log(result);
@@ -268,12 +246,13 @@ run();
 
 ### Parameters
 
-| Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.GetAttemptRequest](../../models/operations/getattemptrequest.md)                                                                                                   | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
-| `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
-| `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
-| `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
+| Parameter                                                                                                                                                                                                                                                                          | Type                                                                                                                                                                                                                                                                               | Required                                                                                                                                                                                                                                                                           | Description                                                                                                                                                                                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `attemptId`                                                                                                                                                                                                                                                                        | *string*                                                                                                                                                                                                                                                                           | :heavy_check_mark:                                                                                                                                                                                                                                                                 | The ID of the attempt.                                                                                                                                                                                                                                                             |
+| `include`                                                                                                                                                                                                                                                                          | *operations.GetAttemptInclude*                                                                                                                                                                                                                                                     | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Fields to include in the response. Can be specified multiple times or comma-separated.<br/>- `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/> |
+| `options`                                                                                                                                                                                                                                                                          | RequestOptions                                                                                                                                                                                                                                                                     | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Used to set various options for making HTTP requests.                                                                                                                                                                                                                              |
+| `options.fetchOptions`                                                                                                                                                                                                                                                             | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                                                                                                                            | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed.                                                                                                     |
+| `options.retries`                                                                                                                                                                                                                                                                  | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                                                                                                                      | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Enables retrying HTTP requests under certain failure conditions.                                                                                                                                                                                                                   |
 
 ### Response
 
@@ -281,9 +260,12 @@ run();
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## retry
 
@@ -300,9 +282,7 @@ When authenticated with Admin API Key, events from any tenant can be retried.
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
@@ -328,9 +308,7 @@ import { attemptsRetry } from "@hookdeck/outpost-sdk/funcs/attemptsRetry.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
@@ -364,7 +342,9 @@ run();
 
 ### Errors
 
-| Error Type              | Status Code             | Content Type            |
-| ----------------------- | ----------------------- | ----------------------- |
-| errors.APIErrorResponse | 422                     | application/json        |
-| errors.APIError         | 4XX, 5XX                | \*/\*                   |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |

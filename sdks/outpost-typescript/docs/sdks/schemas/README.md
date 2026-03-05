@@ -6,10 +6,10 @@ Operations for retrieving destination type schemas.
 
 ### Available Operations
 
-* [listDestinationTypesJwt](#listdestinationtypesjwt) - List Destination Type Schemas
-* [getDestinationTypeJwt](#getdestinationtypejwt) - Get Destination Type Schema
+* [listDestinationTypes](#listdestinationtypes) - List Destination Type Schemas
+* [getDestinationType](#getdestinationtype) - Get Destination Type Schema
 
-## listDestinationTypesJwt
+## listDestinationTypes
 
 Returns a list of JSON-based input schemas for each available destination type.
 
@@ -20,13 +20,11 @@ Returns a list of JSON-based input schemas for each available destination type.
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.schemas.listDestinationTypesJwt();
+  const result = await outpost.schemas.listDestinationTypes();
 
   console.log(result);
 }
@@ -40,23 +38,21 @@ The standalone function version of this method:
 
 ```typescript
 import { OutpostCore } from "@hookdeck/outpost-sdk/core.js";
-import { schemasListDestinationTypesJwt } from "@hookdeck/outpost-sdk/funcs/schemasListDestinationTypesJwt.js";
+import { schemasListDestinationTypes } from "@hookdeck/outpost-sdk/funcs/schemasListDestinationTypes.js";
 
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const res = await schemasListDestinationTypesJwt(outpost);
+  const res = await schemasListDestinationTypes(outpost);
   if (res.ok) {
     const { value: result } = res;
     console.log(result);
   } else {
-    console.log("schemasListDestinationTypesJwt failed:", res.error);
+    console.log("schemasListDestinationTypes failed:", res.error);
   }
 }
 
@@ -80,7 +76,7 @@ run();
 | Error Type                   | Status Code                  | Content Type                 |
 | ---------------------------- | ---------------------------- | ---------------------------- |
 | errors.NotFoundError         | 404                          | application/json             |
-| errors.UnauthorizedError     | 403, 407                     | application/json             |
+| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
 | errors.TimeoutError          | 408                          | application/json             |
 | errors.RateLimitedError      | 429                          | application/json             |
 | errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
@@ -91,7 +87,7 @@ run();
 | errors.UnauthorizedError     | 511                          | application/json             |
 | errors.APIError              | 4XX, 5XX                     | \*/\*                        |
 
-## getDestinationTypeJwt
+## getDestinationType
 
 Returns the input schema for a specific destination type.
 
@@ -102,15 +98,11 @@ Returns the input schema for a specific destination type.
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.schemas.getDestinationTypeJwt({
-    type: "rabbitmq",
-  });
+  const result = await outpost.schemas.getDestinationType("rabbitmq");
 
   console.log(result);
 }
@@ -124,25 +116,21 @@ The standalone function version of this method:
 
 ```typescript
 import { OutpostCore } from "@hookdeck/outpost-sdk/core.js";
-import { schemasGetDestinationTypeJwt } from "@hookdeck/outpost-sdk/funcs/schemasGetDestinationTypeJwt.js";
+import { schemasGetDestinationType } from "@hookdeck/outpost-sdk/funcs/schemasGetDestinationType.js";
 
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const res = await schemasGetDestinationTypeJwt(outpost, {
-    type: "rabbitmq",
-  });
+  const res = await schemasGetDestinationType(outpost, "rabbitmq");
   if (res.ok) {
     const { value: result } = res;
     console.log(result);
   } else {
-    console.log("schemasGetDestinationTypeJwt failed:", res.error);
+    console.log("schemasGetDestinationType failed:", res.error);
   }
 }
 
@@ -153,7 +141,7 @@ run();
 
 | Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.GetDestinationTypeSchemaRequest](../../models/operations/getdestinationtypeschemarequest.md)                                                                       | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
+| `type`                                                                                                                                                                         | [operations.GetDestinationTypeSchemaType](../../models/operations/getdestinationtypeschematype.md)                                                                             | :heavy_check_mark:                                                                                                                                                             | The type of the destination.                                                                                                                                                   |
 | `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
 | `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
 | `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
@@ -166,7 +154,8 @@ run();
 
 | Error Type                   | Status Code                  | Content Type                 |
 | ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 403, 407                     | application/json             |
+| errors.NotFoundError         | 404                          | application/json             |
+| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
 | errors.TimeoutError          | 408                          | application/json             |
 | errors.RateLimitedError      | 429                          | application/json             |
 | errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |

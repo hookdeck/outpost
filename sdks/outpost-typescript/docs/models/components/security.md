@@ -12,5 +12,4 @@ let value: Security = {};
 
 | Field              | Type               | Required           | Description        |
 | ------------------ | ------------------ | ------------------ | ------------------ |
-| `adminApiKey`      | *string*           | :heavy_minus_sign: | N/A                |
-| `tenantJwt`        | *string*           | :heavy_minus_sign: | N/A                |
+| `apiKey`           | *string*           | :heavy_minus_sign: | N/A                |

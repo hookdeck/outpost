@@ -197,8 +197,7 @@ export function resolveSecurity(
         applyBearer(state, spec);
         break;
       default:
-        spec satisfies never;
-        throw SecurityError.unrecognizedType(type);
+        throw SecurityError.unrecognizedType((spec satisfies never, type));
     }
   });
 
@@ -246,14 +245,7 @@ export function resolveGlobalSecurity(
       {
         fieldName: "Authorization",
         type: "http:bearer",
-        value: security?.adminApiKey,
-      },
-    ],
-    [
-      {
-        fieldName: "Authorization",
-        type: "http:bearer",
-        value: security?.tenantJwt,
+        value: security?.apiKey,
       },
     ],
   );

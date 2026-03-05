@@ -9,10 +9,6 @@ import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
-export type GetTenantPortalUrlGlobals = {
-  tenantId?: string | undefined;
-};
-
 /**
  * Optional theme preference for the portal.
  */
@@ -29,59 +25,12 @@ export type GetTenantPortalUrlRequest = {
   /**
    * The ID of the tenant. Required when using AdminApiKey authentication.
    */
-  tenantId?: string | undefined;
+  tenantId: string;
   /**
    * Optional theme preference for the portal.
    */
   theme?: Theme | undefined;
 };
-
-/** @internal */
-export const GetTenantPortalUrlGlobals$inboundSchema: z.ZodType<
-  GetTenantPortalUrlGlobals,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  tenant_id: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
-/** @internal */
-export type GetTenantPortalUrlGlobals$Outbound = {
-  tenant_id?: string | undefined;
-};
-
-/** @internal */
-export const GetTenantPortalUrlGlobals$outboundSchema: z.ZodType<
-  GetTenantPortalUrlGlobals$Outbound,
-  z.ZodTypeDef,
-  GetTenantPortalUrlGlobals
-> = z.object({
-  tenantId: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
-
-export function getTenantPortalUrlGlobalsToJSON(
-  getTenantPortalUrlGlobals: GetTenantPortalUrlGlobals,
-): string {
-  return JSON.stringify(
-    GetTenantPortalUrlGlobals$outboundSchema.parse(getTenantPortalUrlGlobals),
-  );
-}
-export function getTenantPortalUrlGlobalsFromJSON(
-  jsonString: string,
-): SafeParseResult<GetTenantPortalUrlGlobals, SDKValidationError> {
-  return safeParse(
-    jsonString,
-    (x) => GetTenantPortalUrlGlobals$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'GetTenantPortalUrlGlobals' from JSON`,
-  );
-}
 
 /** @internal */
 export const Theme$inboundSchema: z.ZodNativeEnum<typeof Theme> = z.nativeEnum(
@@ -97,7 +46,7 @@ export const GetTenantPortalUrlRequest$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  tenant_id: z.string().optional(),
+  tenant_id: z.string(),
   theme: Theme$inboundSchema.optional(),
 }).transform((v) => {
   return remap$(v, {
@@ -106,7 +55,7 @@ export const GetTenantPortalUrlRequest$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type GetTenantPortalUrlRequest$Outbound = {
-  tenant_id?: string | undefined;
+  tenant_id: string;
   theme?: string | undefined;
 };
 
@@ -116,7 +65,7 @@ export const GetTenantPortalUrlRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   GetTenantPortalUrlRequest
 > = z.object({
-  tenantId: z.string().optional(),
+  tenantId: z.string(),
   theme: Theme$outboundSchema.optional(),
 }).transform((v) => {
   return remap$(v, {

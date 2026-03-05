@@ -24,12 +24,16 @@ export class Destinations extends ClientSDK {
    * Return a list of the destinations for the tenant. The endpoint is not paged.
    */
   async list(
-    request: operations.ListTenantDestinationsRequest,
+    tenantId: string,
+    type?: operations.ListTenantDestinationsType | undefined,
+    topics?: operations.Topics | undefined,
     options?: RequestOptions,
   ): Promise<Array<components.Destination>> {
     return unwrapAsync(destinationsList(
       this,
-      request,
+      tenantId,
+      type,
+      topics,
       options,
     ));
   }
@@ -41,12 +45,14 @@ export class Destinations extends ClientSDK {
    * Creates a new destination for the tenant. The request body structure depends on the `type`.
    */
   async create(
-    request: operations.CreateTenantDestinationRequest,
+    tenantId: string,
+    params: components.DestinationCreate,
     options?: RequestOptions,
   ): Promise<components.Destination> {
     return unwrapAsync(destinationsCreate(
       this,
-      request,
+      tenantId,
+      params,
       options,
     ));
   }
@@ -58,12 +64,14 @@ export class Destinations extends ClientSDK {
    * Retrieves details for a specific destination.
    */
   async get(
-    request: operations.GetTenantDestinationRequest,
+    tenantId: string,
+    destinationId: string,
     options?: RequestOptions,
   ): Promise<components.Destination> {
     return unwrapAsync(destinationsGet(
       this,
-      request,
+      tenantId,
+      destinationId,
       options,
     ));
   }
@@ -75,12 +83,16 @@ export class Destinations extends ClientSDK {
    * Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
    */
   async update(
-    request: operations.UpdateTenantDestinationRequest,
+    tenantId: string,
+    destinationId: string,
+    params: components.DestinationUpdate,
     options?: RequestOptions,
   ): Promise<operations.UpdateTenantDestinationResponse> {
     return unwrapAsync(destinationsUpdate(
       this,
-      request,
+      tenantId,
+      destinationId,
+      params,
       options,
     ));
   }
@@ -92,12 +104,14 @@ export class Destinations extends ClientSDK {
    * Deletes a specific destination.
    */
   async delete(
-    request: operations.DeleteTenantDestinationRequest,
+    tenantId: string,
+    destinationId: string,
     options?: RequestOptions,
   ): Promise<components.SuccessResponse> {
     return unwrapAsync(destinationsDelete(
       this,
-      request,
+      tenantId,
+      destinationId,
       options,
     ));
   }
@@ -109,12 +123,14 @@ export class Destinations extends ClientSDK {
    * Enables a previously disabled destination.
    */
   async enable(
-    request: operations.EnableTenantDestinationRequest,
+    tenantId: string,
+    destinationId: string,
     options?: RequestOptions,
   ): Promise<components.Destination> {
     return unwrapAsync(destinationsEnable(
       this,
-      request,
+      tenantId,
+      destinationId,
       options,
     ));
   }
@@ -126,12 +142,14 @@ export class Destinations extends ClientSDK {
    * Disables a previously enabled destination.
    */
   async disable(
-    request: operations.DisableTenantDestinationRequest,
+    tenantId: string,
+    destinationId: string,
     options?: RequestOptions,
   ): Promise<components.Destination> {
     return unwrapAsync(destinationsDisable(
       this,
-      request,
+      tenantId,
+      destinationId,
       options,
     ));
   }
@@ -160,12 +178,18 @@ export class Destinations extends ClientSDK {
    * Retrieves details for a specific attempt scoped to a destination.
    */
   async getAttempt(
-    request: operations.GetTenantDestinationAttemptRequest,
+    tenantId: string,
+    destinationId: string,
+    attemptId: string,
+    include?: operations.GetTenantDestinationAttemptInclude | undefined,
     options?: RequestOptions,
   ): Promise<components.Attempt> {
     return unwrapAsync(destinationsGetAttempt(
       this,
-      request,
+      tenantId,
+      destinationId,
+      attemptId,
+      include,
       options,
     ));
   }

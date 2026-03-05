@@ -9,10 +9,6 @@ import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
-export type ListTenantDestinationAttemptsGlobals = {
-  tenantId?: string | undefined;
-};
-
 /**
  * Filter attempts by status.
  */
@@ -73,7 +69,7 @@ export type ListTenantDestinationAttemptsRequest = {
   /**
    * The ID of the tenant. Required when using AdminApiKey authentication.
    */
-  tenantId?: string | undefined;
+  tenantId: string;
   /**
    * The ID of the destination.
    */
@@ -128,56 +124,6 @@ export type ListTenantDestinationAttemptsRequest = {
    */
   dir?: ListTenantDestinationAttemptsDir | undefined;
 };
-
-/** @internal */
-export const ListTenantDestinationAttemptsGlobals$inboundSchema: z.ZodType<
-  ListTenantDestinationAttemptsGlobals,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  tenant_id: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
-/** @internal */
-export type ListTenantDestinationAttemptsGlobals$Outbound = {
-  tenant_id?: string | undefined;
-};
-
-/** @internal */
-export const ListTenantDestinationAttemptsGlobals$outboundSchema: z.ZodType<
-  ListTenantDestinationAttemptsGlobals$Outbound,
-  z.ZodTypeDef,
-  ListTenantDestinationAttemptsGlobals
-> = z.object({
-  tenantId: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
-
-export function listTenantDestinationAttemptsGlobalsToJSON(
-  listTenantDestinationAttemptsGlobals: ListTenantDestinationAttemptsGlobals,
-): string {
-  return JSON.stringify(
-    ListTenantDestinationAttemptsGlobals$outboundSchema.parse(
-      listTenantDestinationAttemptsGlobals,
-    ),
-  );
-}
-export function listTenantDestinationAttemptsGlobalsFromJSON(
-  jsonString: string,
-): SafeParseResult<ListTenantDestinationAttemptsGlobals, SDKValidationError> {
-  return safeParse(
-    jsonString,
-    (x) =>
-      ListTenantDestinationAttemptsGlobals$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'ListTenantDestinationAttemptsGlobals' from JSON`,
-  );
-}
 
 /** @internal */
 export const ListTenantDestinationAttemptsStatus$inboundSchema: z.ZodNativeEnum<
@@ -289,7 +235,7 @@ export const ListTenantDestinationAttemptsRequest$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  tenant_id: z.string().optional(),
+  tenant_id: z.string(),
   destination_id: z.string(),
   event_id: z.string().optional(),
   status: ListTenantDestinationAttemptsStatus$inboundSchema.optional(),
@@ -316,7 +262,7 @@ export const ListTenantDestinationAttemptsRequest$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type ListTenantDestinationAttemptsRequest$Outbound = {
-  tenant_id?: string | undefined;
+  tenant_id: string;
   destination_id: string;
   event_id?: string | undefined;
   status?: string | undefined;
@@ -337,7 +283,7 @@ export const ListTenantDestinationAttemptsRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   ListTenantDestinationAttemptsRequest
 > = z.object({
-  tenantId: z.string().optional(),
+  tenantId: z.string(),
   destinationId: z.string(),
   eventId: z.string().optional(),
   status: ListTenantDestinationAttemptsStatus$outboundSchema.optional(),

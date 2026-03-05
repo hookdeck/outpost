@@ -27,21 +27,23 @@ import { APICall, APIPromise } from "../types/async.js";
 import { Result } from "../types/fp.js";
 
 /**
- * List Events (Admin)
+ * List Events
  *
  * @remarks
- * Retrieves a list of events across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+ * Retrieves a list of events.
  *
- * When `tenant_id` is not provided, returns events from all tenants. When `tenant_id` is provided, returns only events for that tenant.
+ * When authenticated with a Tenant JWT, returns only events belonging to that tenant.
+ * When authenticated with Admin API Key, returns events across all tenants. Use `tenant_id` query parameter to filter by tenant.
  */
 export function eventsList(
   client: OutpostCore,
-  request: operations.AdminListEventsRequest,
+  request: operations.ListEventsRequest,
   options?: RequestOptions,
 ): APIPromise<
   Result<
     components.EventPaginatedResult,
-    | errors.APIErrorResponse
+    | errors.UnauthorizedError
+    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -61,13 +63,14 @@ export function eventsList(
 
 async function $do(
   client: OutpostCore,
-  request: operations.AdminListEventsRequest,
+  request: operations.ListEventsRequest,
   options?: RequestOptions,
 ): Promise<
   [
     Result<
       components.EventPaginatedResult,
-      | errors.APIErrorResponse
+      | errors.UnauthorizedError
+      | errors.InternalServerError
       | OutpostError
       | ResponseValidationError
       | ConnectionError
@@ -82,7 +85,7 @@ async function $do(
 > {
   const parsed = safeParse(
     request,
-    (value) => operations.AdminListEventsRequest$outboundSchema.parse(value),
+    (value) => operations.ListEventsRequest$outboundSchema.parse(value),
     "Input validation failed",
   );
   if (!parsed.ok) {
@@ -109,18 +112,19 @@ async function $do(
     Accept: "application/json",
   }));
 
-  const securityInput = await extractSecurity(client._options.security);
+  const secConfig = await extractSecurity(client._options.apiKey);
+  const securityInput = secConfig == null ? {} : { apiKey: secConfig };
   const requestSecurity = resolveGlobalSecurity(securityInput);
 
   const context = {
     options: client._options,
     baseURL: options?.serverURL ?? client._baseURL ?? "",
-    operationID: "adminListEvents",
+    operationID: "listEvents",
     oAuth2Scopes: null,
 
     resolvedSecurity: requestSecurity,
 
-    securitySource: client._options.security,
+    securitySource: client._options.apiKey,
     retryConfig: options?.retries
       || client._options.retryConfig
       || { strategy: "none" },
@@ -145,7 +149,7 @@ async function $do(
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: ["401", "422", "4XX", "5XX"],
+    errorCodes: ["401", "4XX", "500", "5XX"],
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });
@@ -160,7 +164,8 @@ async function $do(
 
   const [result] = await M.match<
     components.EventPaginatedResult,
-    | errors.APIErrorResponse
+    | errors.UnauthorizedError
+    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -171,8 +176,9 @@ async function $do(
     | SDKValidationError
   >(
     M.json(200, components.EventPaginatedResult$inboundSchema),
-    M.jsonErr(422, errors.APIErrorResponse$inboundSchema),
-    M.fail([401, "4XX"]),
+    M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.jsonErr(500, errors.InternalServerError$inboundSchema),
+    M.fail("4XX"),
     M.fail("5XX"),
   )(response, req, { extraFields: responseFields });
   if (!result.ok) {
