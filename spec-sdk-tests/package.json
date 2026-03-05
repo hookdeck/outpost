@@ -4,6 +4,7 @@
   "description": "OpenAPI contract testing for Outpost using Speakeasy SDK",
   "private": true,
   "scripts": {
+    "regenerate-sdk": "bash scripts/regenerate-sdk.sh",
     "test": "npm run test:validation",
     "test:validation": "mocha --require ts-node/register --extensions ts --timeout 10000 'tests/**/*.test.ts'",
     "test:failures": "mocha --require ts-node/register --extensions ts --timeout 15000 'tests/**/*.test.ts' --grep \"configured instance topics when TEST_TOPICS is set\"",
