@@ -18,7 +18,13 @@ The source code for the Go SDK can be found in the [`sdks/outpost-go/`](../../sd
 
 ### Setup
 
-1.  **Download dependencies:**
+1.  **Build the local SDK** (this example uses a `replace` directive pointing at the local SDK source):
+    ```bash
+    cd ../../sdks/outpost-go && go build ./...
+    cd ../../examples/sdk-go
+    ```
+
+2.  **Download dependencies:**
     *(This will also add the `godotenv` package needed for `.env` file loading)*
     ```bash
     go mod tidy

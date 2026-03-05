@@ -14,7 +14,13 @@ The source code for the Python SDK can be found in the [`sdks/outpost-python/`](
 
 ### Setup
 
-1.  **Install dependencies:**
+1.  **Build the local SDK** (this example uses a path dependency pointing at the local SDK source):
+    ```bash
+    cd ../../sdks/outpost-python && pip install -e .
+    cd ../../examples/sdk-python
+    ```
+
+2.  **Install dependencies:**
     ```bash
     poetry install
     ```

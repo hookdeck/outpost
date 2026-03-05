@@ -14,7 +14,13 @@ The source code for the TypeScript SDK can be found in the [`sdks/outpost-typesc
 
 ### Setup
 
-1.  **Install dependencies:**
+1.  **Build the local SDK** (this example uses a `file:` dependency pointing at the local SDK source):
+    ```bash
+    cd ../../sdks/outpost-typescript && npm install && npm run build
+    cd ../../examples/sdk-typescript
+    ```
+
+2.  **Install dependencies:**
     ```bash
     npm install
     ```

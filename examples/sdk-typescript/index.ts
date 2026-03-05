@@ -6,7 +6,7 @@ import { Outpost } from "@hookdeck/outpost-sdk";
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
 const apiServerURL =
   process.env.API_BASE_URL ||
-  `${process.env.OUTPOST_URL || process.env.SERVER_URL || "http://localhost:3333"}/api/v1`;
+  `${process.env.SERVER_URL || "http://localhost:3333"}/api/v1`;
 
 if (!ADMIN_API_KEY) {
   console.error("Please set the ADMIN_API_KEY environment variable.");
