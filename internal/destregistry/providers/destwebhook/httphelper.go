@@ -2,7 +2,6 @@ package destwebhook
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -51,15 +50,8 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 		// Extract body for error details
 		var bodyStr string
 		if delivery.Response != nil {
-			if body, ok := delivery.Response["body"]; ok {
-				switch v := body.(type) {
-				case string:
-					bodyStr = v
-				case map[string]interface{}:
-					if jsonBytes, err := json.Marshal(v); err == nil {
-						bodyStr = string(jsonBytes)
-					}
-				}
+			if body, ok := delivery.Response["body"].(string); ok {
+				bodyStr = body
 			}
 		}
 
@@ -131,27 +123,12 @@ func ClassifyNetworkError(err error) string {
 	}
 }
 
-// ParseHTTPResponse reads and parses the HTTP response body into the delivery.
+// ParseHTTPResponse reads the HTTP response body into the delivery as a raw string.
+// The body is stored verbatim regardless of content type to preserve data integrity.
 func ParseHTTPResponse(delivery *destregistry.Delivery, resp *http.Response) {
 	bodyBytes, _ := io.ReadAll(resp.Body)
-
-	if strings.Contains(resp.Header.Get("Content-Type"), "application/json") {
-		var response map[string]interface{}
-		if err := json.Unmarshal(bodyBytes, &response); err != nil {
-			delivery.Response = map[string]interface{}{
-				"status": resp.StatusCode,
-				"body":   string(bodyBytes),
-			}
-			return
-		}
-		delivery.Response = map[string]interface{}{
-			"status": resp.StatusCode,
-			"body":   response,
-		}
-	} else {
-		delivery.Response = map[string]interface{}{
-			"status": resp.StatusCode,
-			"body":   string(bodyBytes),
-		}
+	delivery.Response = map[string]interface{}{
+		"status": resp.StatusCode,
+		"body":   string(bodyBytes),
 	}
 }
