@@ -2,7 +2,6 @@ import { randomUUID } from "crypto";
 import dotenv from "dotenv";
 dotenv.config();
 import { Outpost } from "@hookdeck/outpost-sdk";
-import { log } from "console";
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
 const TENANT_ID = process.env.TENANT_ID;
@@ -18,7 +17,7 @@ if (!TENANT_ID) {
   console.error("Please set the TENANT_ID environment variable.");
   process.exit(1);
 }
-const tenantIdEnv = TENANT_ID as string;
+const tenantId = TENANT_ID as string;
 
 const debugLogger = {
   debug: (message: string) => {
@@ -38,7 +37,7 @@ const debugLogger = {
 // 0.13.1: use the tenant-scoped API key (from tenants.getToken). List destinations only returns destinations for that tenant.
 const withTenantApiKey = async (tenantApiKey: string) => {
   const outpost = new Outpost({ apiKey: tenantApiKey, serverURL: apiServerURL });
-  const destinations = await outpost.destinations.list(tenantIdEnv);
+  const destinations = await outpost.destinations.list(tenantId);
 
   console.log(destinations);
 }
@@ -56,7 +55,6 @@ const withAdminApiKey = async () => {
     console.log(msg);
   }
 
-  const tenantId = tenantIdEnv;
   const topic = `user.created`;
   const newDestinationName = `My Test Destination ${randomUUID()}`;
 
@@ -94,13 +92,13 @@ const withAdminApiKey = async () => {
 
   console.log("Event published successfully");
 
-  const destinations = await outpost.destinations.list(tenantIdEnv);
+  const destinations = await outpost.destinations.list(tenantId);
 
   console.log(destinations);
 
   // Get portal URL (Admin API Key required)
   try {
-    const portal = await outpost.tenants.getPortalUrl(tenantIdEnv);
+    const portal = await outpost.tenants.getPortalUrl(tenantId);
     console.log("Portal URL:", portal.redirectUrl ?? portal);
   } catch (err: unknown) {
     const msg = err && typeof err === "object" && "statusCode" in err && (err as { statusCode: number }).statusCode === 404
@@ -109,8 +107,8 @@ const withAdminApiKey = async () => {
     console.log("Get portal URL:", msg);
   }
 
-  const tokenRes = await outpost.tenants.getToken(tenantIdEnv);
-  log("Token response:", tokenRes);
+  const tokenRes = await outpost.tenants.getToken(tenantId);
+  console.log("Token response:", tokenRes);
 
   await withTenantApiKey(tokenRes.token!);
 }

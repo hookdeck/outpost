@@ -24,10 +24,7 @@ func runCreateDestinationExample() {
 
 	apiServerURL := os.Getenv("API_BASE_URL")
 	if apiServerURL == "" {
-		serverURL := os.Getenv("OUTPOST_URL")
-		if serverURL == "" {
-			serverURL = os.Getenv("SERVER_URL")
-		}
+		serverURL := os.Getenv("SERVER_URL")
 		if serverURL == "" {
 			serverURL = "http://localhost:3333"
 		}
