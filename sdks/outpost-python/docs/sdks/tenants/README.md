@@ -23,8 +23,7 @@ List all tenants with cursor-based pagination.
 **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
 If RediSearch is not available, this endpoint returns `501 Not Implemented`.
 
-The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
-Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
+When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
 
 
 ### Example Usage
@@ -35,12 +34,10 @@ from outpost_sdk import Outpost, models
 
 
 with Outpost(
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.tenants.list_tenants(limit=20, order_by=models.ListTenantsOrderBy.CREATED_AT, direction=models.ListTenantsDir.DESC)
+    res = outpost.tenants.list_tenants(limit=20, dir=models.ListTenantsDir.DESC)
 
     while res is not None:
         # Handle items
@@ -51,16 +48,13 @@ with Outpost(
 
 ### Parameters
 
-| Parameter                                                                     | Type                                                                          | Required                                                                      | Description                                                                   |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `limit`                                                                       | *Optional[int]*                                                               | :heavy_minus_sign:                                                            | Number of tenants to return per page (1-100, default 20).                     |
-| `order_by`                                                                    | [Optional[models.ListTenantsOrderBy]](../../models/listtenantsorderby.md)     | :heavy_minus_sign:                                                            | Field to sort by.                                                             |
-| `direction`                                                                   | [Optional[models.ListTenantsDir]](../../models/listtenantsdir.md)             | :heavy_minus_sign:                                                            | Sort direction.                                                               |
-| `created_at_gte`                                                              | [date](https://docs.python.org/3/library/datetime.html#date-objects)          | :heavy_minus_sign:                                                            | Filter tenants created at or after this time (RFC3339 or YYYY-MM-DD format).  |
-| `created_at_lte`                                                              | [date](https://docs.python.org/3/library/datetime.html#date-objects)          | :heavy_minus_sign:                                                            | Filter tenants created at or before this time (RFC3339 or YYYY-MM-DD format). |
-| `next_cursor`                                                                 | *Optional[str]*                                                               | :heavy_minus_sign:                                                            | Cursor for the next page of results. Mutually exclusive with `prev`.          |
-| `prev_cursor`                                                                 | *Optional[str]*                                                               | :heavy_minus_sign:                                                            | Cursor for the previous page of results. Mutually exclusive with `next`.      |
-| `retries`                                                                     | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)              | :heavy_minus_sign:                                                            | Configuration to override the default retry behavior of the client.           |
+| Parameter                                                                | Type                                                                     | Required                                                                 | Description                                                              |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `limit`                                                                  | *Optional[int]*                                                          | :heavy_minus_sign:                                                       | Number of tenants to return per page (1-100, default 20).                |
+| `dir`                                                                    | [Optional[models.ListTenantsDir]](../../models/listtenantsdir.md)        | :heavy_minus_sign:                                                       | Sort direction.                                                          |
+| `direction`                                                              | *Optional[str]*                                                          | :heavy_minus_sign:                                                       | Cursor for the next page of results. Mutually exclusive with `prev`.     |
+| `prev`                                                                   | *Optional[str]*                                                          | :heavy_minus_sign:                                                       | Cursor for the previous page of results. Mutually exclusive with `next`. |
+| `retries`                                                                | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)         | :heavy_minus_sign:                                                       | Configuration to override the default retry behavior of the client.      |
 
 ### Response
 
@@ -68,11 +62,13 @@ with Outpost(
 
 ### Errors
 
-| Error Type                        | Status Code                       | Content Type                      |
-| --------------------------------- | --------------------------------- | --------------------------------- |
-| errors.ListTenantsBadRequestError | 400                               | application/json                  |
-| errors.NotImplementedErrorT       | 501                               | application/json                  |
-| errors.APIError                   | 4XX, 5XX                          | \*/\*                             |
+| Error Type                  | Status Code                 | Content Type                |
+| --------------------------- | --------------------------- | --------------------------- |
+| errors.BadRequestError      | 400                         | application/json            |
+| errors.UnauthorizedError    | 401                         | application/json            |
+| errors.InternalServerError  | 500                         | application/json            |
+| errors.NotImplementedErrorT | 501                         | application/json            |
+| errors.APIError             | 4XX, 5XX                    | \*/\*                       |
 
 ## upsert
 
@@ -82,17 +78,14 @@ Idempotently creates or updates a tenant. Required before associating destinatio
 
 <!-- UsageSnippet language="python" operationID="upsertTenant" method="put" path="/tenants/{tenant_id}" example="TenantExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.tenants.upsert()
+    res = outpost.tenants.upsert(tenant_id="<id>")
 
     # Handle response
     print(res)
@@ -103,8 +96,8 @@ with Outpost(
 
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
-| `params`                                                              | [Optional[models.TenantUpsert]](../../models/tenantupsert.md)         | :heavy_minus_sign:                                                    | Optional tenant metadata                                              |
+| `tenant_id`                                                           | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `metadata`                                                            | Dict[str, *str*]                                                      | :heavy_minus_sign:                                                    | Optional metadata to store with the tenant.                           |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
 ### Response
@@ -113,9 +106,12 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 422                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## get
 
@@ -125,17 +121,14 @@ Retrieves details for a specific tenant.
 
 <!-- UsageSnippet language="python" operationID="getTenant" method="get" path="/tenants/{tenant_id}" example="TenantExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.tenants.get()
+    res = outpost.tenants.get(tenant_id="<id>")
 
     # Handle response
     print(res)
@@ -146,7 +139,7 @@ with Outpost(
 
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `tenant_id`                                                           | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
 ### Response
@@ -155,9 +148,12 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## delete
 
@@ -167,17 +163,14 @@ Deletes the tenant and all associated destinations.
 
 <!-- UsageSnippet language="python" operationID="deleteTenant" method="delete" path="/tenants/{tenant_id}" example="SuccessExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.tenants.delete()
+    res = outpost.tenants.delete(tenant_id="<id>")
 
     # Handle response
     print(res)
@@ -188,7 +181,7 @@ with Outpost(
 
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `tenant_id`                                                           | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
 ### Response
@@ -197,29 +190,29 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## get_portal_url
 
-Returns a redirect URL containing a JWT to authenticate the user with the portal.
+Returns a redirect URL containing a JWT to authenticate the user with the portal. Requires Admin API Key.
 
 ### Example Usage
 
 <!-- UsageSnippet language="python" operationID="getTenantPortalUrl" method="get" path="/tenants/{tenant_id}/portal" example="PortalRedirectExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.tenants.get_portal_url()
+    res = outpost.tenants.get_portal_url(tenant_id="<id>")
 
     # Handle response
     print(res)
@@ -230,7 +223,7 @@ with Outpost(
 
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `tenant_id`                                                           | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `theme`                                                               | [Optional[models.Theme]](../../models/theme.md)                       | :heavy_minus_sign:                                                    | Optional theme preference for the portal.                             |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
@@ -240,29 +233,29 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## get_token
 
-Returns a JWT token scoped to the tenant for safe browser API calls.
+Returns a JWT token scoped to the tenant for safe browser API calls. Requires Admin API Key.
 
 ### Example Usage
 
 <!-- UsageSnippet language="python" operationID="getTenantToken" method="get" path="/tenants/{tenant_id}/token" example="TenantTokenExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.tenants.get_token()
+    res = outpost.tenants.get_token(tenant_id="<id>")
 
     # Handle response
     print(res)
@@ -273,7 +266,7 @@ with Outpost(
 
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `tenant_id`                                                           | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
 ### Response
@@ -282,6 +275,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |

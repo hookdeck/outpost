@@ -130,3 +130,9 @@ class DestinationWebhook(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationWebhook.model_rebuild()
+except NameError:
+    pass

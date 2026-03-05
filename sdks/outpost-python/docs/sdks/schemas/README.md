@@ -6,10 +6,10 @@ Operations for retrieving destination type schemas.
 
 ### Available Operations
 
-* [list_destination_types_jwt](#list_destination_types_jwt) - List Destination Type Schemas
-* [get_destination_type_jwt](#get_destination_type_jwt) - Get Destination Type Schema
+* [list_destination_types](#list_destination_types) - List Destination Type Schemas
+* [get_destination_type](#get_destination_type) - Get Destination Type Schema
 
-## list_destination_types_jwt
+## list_destination_types
 
 Returns a list of JSON-based input schemas for each available destination type.
 
@@ -17,16 +17,14 @@ Returns a list of JSON-based input schemas for each available destination type.
 
 <!-- UsageSnippet language="python" operationID="listDestinationTypeSchemas" method="get" path="/destination-types" example="DestinationTypesExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.schemas.list_destination_types_jwt()
+    res = outpost.schemas.list_destination_types()
 
     # Handle response
     print(res)
@@ -48,7 +46,7 @@ with Outpost(
 | Error Type                   | Status Code                  | Content Type                 |
 | ---------------------------- | ---------------------------- | ---------------------------- |
 | errors.NotFoundError         | 404                          | application/json             |
-| errors.UnauthorizedError     | 403, 407                     | application/json             |
+| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
 | errors.TimeoutErrorT         | 408                          | application/json             |
 | errors.RateLimitedError      | 429                          | application/json             |
 | errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |
@@ -59,7 +57,7 @@ with Outpost(
 | errors.UnauthorizedError     | 511                          | application/json             |
 | errors.APIError              | 4XX, 5XX                     | \*/\*                        |
 
-## get_destination_type_jwt
+## get_destination_type
 
 Returns the input schema for a specific destination type.
 
@@ -71,12 +69,10 @@ from outpost_sdk import Outpost, models
 
 
 with Outpost(
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.schemas.get_destination_type_jwt(type_=models.GetDestinationTypeSchemaType.RABBITMQ)
+    res = outpost.schemas.get_destination_type(type_=models.GetDestinationTypeSchemaType.RABBITMQ)
 
     # Handle response
     print(res)
@@ -98,7 +94,8 @@ with Outpost(
 
 | Error Type                   | Status Code                  | Content Type                 |
 | ---------------------------- | ---------------------------- | ---------------------------- |
-| errors.UnauthorizedError     | 403, 407                     | application/json             |
+| errors.NotFoundError         | 404                          | application/json             |
+| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
 | errors.TimeoutErrorT         | 408                          | application/json             |
 | errors.RateLimitedError      | 429                          | application/json             |
 | errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |

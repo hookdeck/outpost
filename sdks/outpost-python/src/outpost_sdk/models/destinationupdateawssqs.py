@@ -92,3 +92,9 @@ class DestinationUpdateAWSSQS(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationUpdateAWSSQS.model_rebuild()
+except NameError:
+    pass

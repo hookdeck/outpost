@@ -9,33 +9,6 @@ from typing import List, Optional, Union
 from typing_extensions import Annotated, NotRequired, TypeAliasType, TypedDict
 
 
-class ListTenantDestinationsGlobalsTypedDict(TypedDict):
-    tenant_id: NotRequired[str]
-
-
-class ListTenantDestinationsGlobals(BaseModel):
-    tenant_id: Annotated[
-        Optional[str],
-        FieldMetadata(path=PathParamMetadata(style="simple", explode=False)),
-    ] = None
-
-    @model_serializer(mode="wrap")
-    def serialize_model(self, handler):
-        optional_fields = set(["tenant_id"])
-        serialized = handler(self)
-        m = {}
-
-        for n, f in type(self).model_fields.items():
-            k = f.alias or n
-            val = serialized.get(k)
-
-            if val != UNSET_SENTINEL:
-                if val is not None or k not in optional_fields:
-                    m[k] = val
-
-        return m
-
-
 ListTenantDestinationsTypeTypedDict = TypeAliasType(
     "ListTenantDestinationsTypeTypedDict", Union[DestinationType, List[DestinationType]]
 )
@@ -61,7 +34,7 @@ r"""Filter destinations by supported topic(s)."""
 
 
 class ListTenantDestinationsRequestTypedDict(TypedDict):
-    tenant_id: NotRequired[str]
+    tenant_id: str
     r"""The ID of the tenant. Required when using AdminApiKey authentication."""
     type: NotRequired[ListTenantDestinationsTypeTypedDict]
     r"""Filter destinations by type(s)."""
@@ -71,9 +44,8 @@ class ListTenantDestinationsRequestTypedDict(TypedDict):
 
 class ListTenantDestinationsRequest(BaseModel):
     tenant_id: Annotated[
-        Optional[str],
-        FieldMetadata(path=PathParamMetadata(style="simple", explode=False)),
-    ] = None
+        str, FieldMetadata(path=PathParamMetadata(style="simple", explode=False))
+    ]
     r"""The ID of the tenant. Required when using AdminApiKey authentication."""
 
     type: Annotated[
@@ -90,7 +62,7 @@ class ListTenantDestinationsRequest(BaseModel):
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
-        optional_fields = set(["tenant_id", "type", "topics"])
+        optional_fields = set(["type", "topics"])
         serialized = handler(self)
         m = {}
 

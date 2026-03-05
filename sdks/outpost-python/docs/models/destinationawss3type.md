@@ -2,6 +2,14 @@
 
 Type of the destination.
 
+## Example Usage
+
+```python
+from outpost_sdk.models import DestinationAwss3Type
+
+value = DestinationAwss3Type.AWS_S3
+```
+
 
 ## Values
 

@@ -51,13 +51,10 @@ from outpost_sdk import Outpost, models
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.destinations.list(type_=models.DestinationType.WEBHOOK)
+    res = outpost.destinations.list(tenant_id="<id>", type_=models.DestinationType.WEBHOOK)
 
     # Handle response
     print(res)
@@ -68,7 +65,7 @@ with Outpost(
 
 | Parameter                                                                                     | Type                                                                                          | Required                                                                                      | Description                                                                                   |
 | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `tenant_id`                                                                                   | *Optional[str]*                                                                               | :heavy_minus_sign:                                                                            | The ID of the tenant. Required when using AdminApiKey authentication.                         |
+| `tenant_id`                                                                                   | *str*                                                                                         | :heavy_check_mark:                                                                            | The ID of the tenant. Required when using AdminApiKey authentication.                         |
 | `type`                                                                                        | [Optional[models.ListTenantDestinationsType]](../../models/listtenantdestinationstype.md)     | :heavy_minus_sign:                                                                            | Filter destinations by type(s).                                                               |
 | `topics`                                                                                      | [Optional[models.ListTenantDestinationsTopics]](../../models/listtenantdestinationstopics.md) | :heavy_minus_sign:                                                                            | Filter destinations by supported topic(s).                                                    |
 | `retries`                                                                                     | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                              | :heavy_minus_sign:                                                                            | Configuration to override the default retry behavior of the client.                           |
@@ -79,9 +76,12 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## create
 
@@ -95,13 +95,10 @@ from outpost_sdk import Outpost, models
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.destinations.create(params={
+    res = outpost.destinations.create(tenant_id="<id>", params={
         "id": "user-provided-id",
         "type": models.DestinationCreateRabbitMQType.RABBITMQ,
         "topics": models.TopicsEnum.WILDCARD_,
@@ -125,8 +122,8 @@ with Outpost(
 
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `tenant_id`                                                           | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `params`                                                              | [models.DestinationCreate](../../models/destinationcreate.md)         | :heavy_check_mark:                                                    | N/A                                                                   |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
 ### Response
@@ -135,9 +132,13 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.APIErrorResponse    | 422                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## get
 
@@ -147,17 +148,14 @@ Retrieves details for a specific destination.
 
 <!-- UsageSnippet language="python" operationID="getTenantDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}" example="WebhookGetExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.destinations.get(destination_id="<id>")
+    res = outpost.destinations.get(tenant_id="<id>", destination_id="<id>")
 
     # Handle response
     print(res)
@@ -168,8 +166,8 @@ with Outpost(
 
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `tenant_id`                                                           | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `destination_id`                                                      | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
 ### Response
@@ -178,9 +176,12 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## update
 
@@ -194,13 +195,10 @@ from outpost_sdk import Outpost, models
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.destinations.update(destination_id="<id>", params={
+    res = outpost.destinations.update(tenant_id="<id>", destination_id="<id>", params={
         "topics": models.TopicsEnum.WILDCARD_,
         "config": {
             "server_url": "localhost:5672",
@@ -222,9 +220,9 @@ with Outpost(
 
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `tenant_id`                                                           | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `destination_id`                                                      | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the destination.                                            |
 | `params`                                                              | [models.DestinationUpdate](../../models/destinationupdate.md)         | :heavy_check_mark:                                                    | N/A                                                                   |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
 ### Response
@@ -233,9 +231,13 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.APIErrorResponse    | 422                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## delete
 
@@ -245,17 +247,14 @@ Deletes a specific destination.
 
 <!-- UsageSnippet language="python" operationID="deleteTenantDestination" method="delete" path="/tenants/{tenant_id}/destinations/{destination_id}" example="SuccessExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.destinations.delete(destination_id="<id>")
+    res = outpost.destinations.delete(tenant_id="<id>", destination_id="<id>")
 
     # Handle response
     print(res)
@@ -266,8 +265,8 @@ with Outpost(
 
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `tenant_id`                                                           | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `destination_id`                                                      | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
 ### Response
@@ -276,9 +275,12 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## enable
 
@@ -288,17 +290,14 @@ Enables a previously disabled destination.
 
 <!-- UsageSnippet language="python" operationID="enableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/enable" example="WebhookEnabledExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.destinations.enable(destination_id="<id>")
+    res = outpost.destinations.enable(tenant_id="<id>", destination_id="<id>")
 
     # Handle response
     print(res)
@@ -309,8 +308,8 @@ with Outpost(
 
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `tenant_id`                                                           | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `destination_id`                                                      | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
 ### Response
@@ -319,9 +318,12 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## disable
 
@@ -331,17 +333,14 @@ Disables a previously enabled destination.
 
 <!-- UsageSnippet language="python" operationID="disableTenantDestination" method="put" path="/tenants/{tenant_id}/destinations/{destination_id}/disable" example="WebhookDisabledExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.destinations.disable(destination_id="<id>")
+    res = outpost.destinations.disable(tenant_id="<id>", destination_id="<id>")
 
     # Handle response
     print(res)
@@ -352,8 +351,8 @@ with Outpost(
 
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `tenant_id`                                                           | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `destination_id`                                                      | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `tenant_id`                                                           | *Optional[str]*                                                       | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
 ### Response
@@ -362,9 +361,12 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## list_attempts
 
@@ -378,13 +380,10 @@ from outpost_sdk import Outpost, models
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.destinations.list_attempts(destination_id="<id>", limit=100, order_by=models.ListTenantDestinationAttemptsOrderBy.TIME, direction=models.ListTenantDestinationAttemptsDir.DESC)
+    res = outpost.destinations.list_attempts(tenant_id="<id>", destination_id="<id>", limit=100, order_by=models.ListTenantDestinationAttemptsOrderBy.TIME, direction=models.ListTenantDestinationAttemptsDir.DESC)
 
     while res is not None:
         # Handle items
@@ -397,8 +396,8 @@ with Outpost(
 
 | Parameter                                                                                                                                                                                                                                                                          | Type                                                                                                                                                                                                                                                                               | Required                                                                                                                                                                                                                                                                           | Description                                                                                                                                                                                                                                                                        |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tenant_id`                                                                                                                                                                                                                                                                        | *str*                                                                                                                                                                                                                                                                              | :heavy_check_mark:                                                                                                                                                                                                                                                                 | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                                                                              |
 | `destination_id`                                                                                                                                                                                                                                                                   | *str*                                                                                                                                                                                                                                                                              | :heavy_check_mark:                                                                                                                                                                                                                                                                 | The ID of the destination.                                                                                                                                                                                                                                                         |
-| `tenant_id`                                                                                                                                                                                                                                                                        | *Optional[str]*                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                                                                              |
 | `event_id`                                                                                                                                                                                                                                                                         | *Optional[str]*                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by event ID.                                                                                                                                                                                                                                                       |
 | `status`                                                                                                                                                                                                                                                                           | [Optional[models.ListTenantDestinationAttemptsStatus]](../../models/listtenantdestinationattemptsstatus.md)                                                                                                                                                                        | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by status.                                                                                                                                                                                                                                                         |
 | `topic`                                                                                                                                                                                                                                                                            | [Optional[models.ListTenantDestinationAttemptsTopic]](../../models/listtenantdestinationattemptstopic.md)                                                                                                                                                                          | :heavy_minus_sign:                                                                                                                                                                                                                                                                 | Filter attempts by event topic(s). Can be specified multiple times or comma-separated.                                                                                                                                                                                             |
@@ -418,10 +417,12 @@ with Outpost(
 
 ### Errors
 
-| Error Type              | Status Code             | Content Type            |
-| ----------------------- | ----------------------- | ----------------------- |
-| errors.APIErrorResponse | 422                     | application/json        |
-| errors.APIError         | 4XX, 5XX                | \*/\*                   |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## get_attempt
 
@@ -431,17 +432,14 @@ Retrieves details for a specific attempt scoped to a destination.
 
 <!-- UsageSnippet language="python" operationID="getTenantDestinationAttempt" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}" example="DestinationAttemptExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.destinations.get_attempt(destination_id="<id>", attempt_id="<id>")
+    res = outpost.destinations.get_attempt(tenant_id="<id>", destination_id="<id>", attempt_id="<id>")
 
     # Handle response
     print(res)
@@ -452,9 +450,9 @@ with Outpost(
 
 | Parameter                                                                                                                                                                                                                          | Type                                                                                                                                                                                                                               | Required                                                                                                                                                                                                                           | Description                                                                                                                                                                                                                        |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tenant_id`                                                                                                                                                                                                                        | *str*                                                                                                                                                                                                                              | :heavy_check_mark:                                                                                                                                                                                                                 | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                              |
 | `destination_id`                                                                                                                                                                                                                   | *str*                                                                                                                                                                                                                              | :heavy_check_mark:                                                                                                                                                                                                                 | The ID of the destination.                                                                                                                                                                                                         |
 | `attempt_id`                                                                                                                                                                                                                       | *str*                                                                                                                                                                                                                              | :heavy_check_mark:                                                                                                                                                                                                                 | The ID of the attempt.                                                                                                                                                                                                             |
-| `tenant_id`                                                                                                                                                                                                                        | *Optional[str]*                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                 | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                              |
 | `include`                                                                                                                                                                                                                          | [Optional[models.GetTenantDestinationAttemptInclude]](../../models/gettenantdestinationattemptinclude.md)                                                                                                                          | :heavy_minus_sign:                                                                                                                                                                                                                 | Fields to include in the response. Can be specified multiple times or comma-separated.<br/>- `event`: Include event summary<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/> |
 | `retries`                                                                                                                                                                                                                          | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                                                                                                                                                                   | :heavy_minus_sign:                                                                                                                                                                                                                 | Configuration to override the default retry behavior of the client.                                                                                                                                                                |
 
@@ -464,6 +462,9 @@ with Outpost(
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |

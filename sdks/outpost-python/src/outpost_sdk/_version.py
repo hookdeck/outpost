@@ -3,10 +3,10 @@
 import importlib.metadata
 
 __title__: str = "outpost_sdk"
-__version__: str = "0.6.0"
+__version__: str = "0.7.0"
 __openapi_doc_version__: str = "0.0.1"
-__gen_version__: str = "2.818.4"
-__user_agent__: str = "speakeasy-sdk/python 0.6.0 2.818.4 0.0.1 outpost_sdk"
+__gen_version__: str = "2.849.10"
+__user_agent__: str = "speakeasy-sdk/python 0.7.0 2.849.10 0.0.1 outpost_sdk"
 
 try:
     if __package__ is not None:

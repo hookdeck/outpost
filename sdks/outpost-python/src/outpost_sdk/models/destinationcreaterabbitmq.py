@@ -100,3 +100,9 @@ class DestinationCreateRabbitMQ(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationCreateRabbitMQ.model_rebuild()
+except NameError:
+    pass

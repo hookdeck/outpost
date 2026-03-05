@@ -2,6 +2,14 @@
 
 Sort direction.
 
+## Example Usage
+
+```python
+from outpost_sdk.models import ListTenantDestinationAttemptsDir
+
+value = ListTenantDestinationAttemptsDir.ASC
+```
+
 
 ## Values
 

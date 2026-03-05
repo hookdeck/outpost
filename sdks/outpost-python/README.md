@@ -24,7 +24,6 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
   * [SDK Example Usage](#sdk-example-usage)
   * [Authentication](#authentication)
   * [Available Resources and Operations](#available-resources-and-operations)
-  * [Global Parameters](#global-parameters)
   * [Pagination](#pagination)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
@@ -159,22 +158,19 @@ asyncio.run(main())
 
 ### Per-Client Security Schemes
 
-This SDK supports the following security schemes globally:
+This SDK supports the following security scheme globally:
 
-| Name            | Type | Scheme      |
-| --------------- | ---- | ----------- |
-| `admin_api_key` | http | HTTP Bearer |
-| `tenant_jwt`    | http | HTTP Bearer |
+| Name      | Type | Scheme      |
+| --------- | ---- | ----------- |
+| `api_key` | http | HTTP Bearer |
 
-You can set the security parameters through the `security` optional parameter when initializing the SDK client instance. The selected scheme will be used by default to authenticate with the API for all operations that support it. For example:
+To authenticate with the API the `api_key` parameter must be set when initializing the SDK client instance. For example:
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
     res = outpost.health.check()
@@ -193,7 +189,7 @@ with Outpost(
 
 ### [Attempts](docs/sdks/attempts/README.md)
 
-* [list](docs/sdks/attempts/README.md#list) - List Attempts (Admin)
+* [list](docs/sdks/attempts/README.md#list) - List Attempts
 * [get](docs/sdks/attempts/README.md#get) - Get Attempt
 * [retry](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 
@@ -211,7 +207,7 @@ with Outpost(
 
 ### [Events](docs/sdks/events/README.md)
 
-* [list](docs/sdks/events/README.md#list) - List Events (Admin)
+* [list](docs/sdks/events/README.md#list) - List Events
 * [get](docs/sdks/events/README.md#get) - Get Event
 
 ### [Health](docs/sdks/health/README.md)
@@ -224,8 +220,8 @@ with Outpost(
 
 ### [Schemas](docs/sdks/schemas/README.md)
 
-* [list_destination_types_jwt](docs/sdks/schemas/README.md#list_destination_types_jwt) - List Destination Type Schemas
-* [get_destination_type_jwt](docs/sdks/schemas/README.md#get_destination_type_jwt) - Get Destination Type Schema
+* [list_destination_types](docs/sdks/schemas/README.md#list_destination_types) - List Destination Type Schemas
+* [get_destination_type](docs/sdks/schemas/README.md#get_destination_type) - Get Destination Type Schema
 
 ### [Tenants](docs/sdks/tenants/README.md)
 
@@ -243,43 +239,6 @@ with Outpost(
 </details>
 <!-- End Available Resources and Operations [operations] -->
 
-<!-- Start Global Parameters [global-parameters] -->
-## Global Parameters
-
-A parameter is configured globally. This parameter may be set on the SDK client instance itself during initialization. When configured as an option during SDK initialization, This global value will be used as the default on the operations that use it. When such operations are called, there is a place in each to override the global value, if needed.
-
-For example, you can set `tenant_id` to `"<id>"` at SDK initialization and then you do not have to pass the same value on calls to operations like `upsert`. But if you want to do so you may, which will locally override the global setting. See the example code below for a demonstration.
-
-
-### Available Globals
-
-The following global parameter is available.
-
-| Name      | Type | Description              |
-| --------- | ---- | ------------------------ |
-| tenant_id | str  | The tenant_id parameter. |
-
-### Example
-
-```python
-from outpost_sdk import Outpost, models
-
-
-with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
-) as outpost:
-
-    res = outpost.tenants.upsert()
-
-    # Handle response
-    print(res)
-
-```
-<!-- End Global Parameters [global-parameters] -->
-
 <!-- Start Pagination [pagination] -->
 ## Pagination
 
@@ -293,12 +252,10 @@ from outpost_sdk import Outpost, models
 
 
 with Outpost(
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.tenants.list_tenants(limit=20, order_by=models.ListTenantsOrderBy.CREATED_AT, direction=models.ListTenantsDir.DESC)
+    res = outpost.tenants.list_tenants(limit=20, dir=models.ListTenantsDir.DESC)
 
     while res is not None:
         # Handle items
@@ -391,10 +348,13 @@ with Outpost() as outpost:
 ```
 
 ### Error Classes
-**Primary error:**
+**Primary errors:**
 * [`OutpostError`](./src/outpost_sdk/errors/outposterror.py): The base class for HTTP error responses.
+  * [`UnauthorizedError`](./src/outpost_sdk/errors/unauthorizederror.py): A collection of codes that generally means the client was not authenticated correctly for the request they want to make.
+  * [`InternalServerError`](./src/outpost_sdk/errors/internalservererror.py): A collection of status codes that generally mean the server failed in an unexpected way.
+  * [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. *
 
-<details><summary>Less common errors (14)</summary>
+<details><summary>Less common errors (10)</summary>
 
 <br />
 
@@ -405,14 +365,10 @@ with Outpost() as outpost:
 
 
 **Inherit from [`OutpostError`](./src/outpost_sdk/errors/outposterror.py)**:
-* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 5 of 25 methods.*
-* [`UnauthorizedError`](./src/outpost_sdk/errors/unauthorizederror.py): A collection of codes that generally means the client was not authenticated correctly for the request they want to make. Applicable to 5 of 25 methods.*
-* [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 5 of 25 methods.*
+* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 6 of 25 methods.*
 * [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 25 methods.*
 * [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 25 methods.*
-* [`InternalServerError`](./src/outpost_sdk/errors/internalservererror.py): A collection of status codes that generally mean the server failed in an unexpected way. Applicable to 5 of 25 methods.*
-* [`APIErrorResponse`](./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Status code `422`. Applicable to 4 of 25 methods.*
-* [`ListTenantsBadRequestError`](./src/outpost_sdk/errors/listtenantsbadrequesterror.py): Invalid request parameters (e.g., invalid cursor, both next and prev provided). Status code `400`. Applicable to 1 of 25 methods.*
+* [`APIErrorResponse`](./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Status code `422`. Applicable to 3 of 25 methods.*
 * [`NotImplementedErrorT`](./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 25 methods.*
 * [`ResponseValidationError`](./src/outpost_sdk/errors/responsevalidationerror.py): Type mismatch between the response data and the expected Pydantic model. Provides access to the Pydantic validation error via the `cause` attribute.
 

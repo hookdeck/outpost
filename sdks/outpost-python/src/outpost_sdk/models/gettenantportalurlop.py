@@ -9,33 +9,6 @@ from typing import Optional
 from typing_extensions import Annotated, NotRequired, TypedDict
 
 
-class GetTenantPortalURLGlobalsTypedDict(TypedDict):
-    tenant_id: NotRequired[str]
-
-
-class GetTenantPortalURLGlobals(BaseModel):
-    tenant_id: Annotated[
-        Optional[str],
-        FieldMetadata(path=PathParamMetadata(style="simple", explode=False)),
-    ] = None
-
-    @model_serializer(mode="wrap")
-    def serialize_model(self, handler):
-        optional_fields = set(["tenant_id"])
-        serialized = handler(self)
-        m = {}
-
-        for n, f in type(self).model_fields.items():
-            k = f.alias or n
-            val = serialized.get(k)
-
-            if val != UNSET_SENTINEL:
-                if val is not None or k not in optional_fields:
-                    m[k] = val
-
-        return m
-
-
 class Theme(str, Enum):
     r"""Optional theme preference for the portal."""
 
@@ -44,7 +17,7 @@ class Theme(str, Enum):
 
 
 class GetTenantPortalURLRequestTypedDict(TypedDict):
-    tenant_id: NotRequired[str]
+    tenant_id: str
     r"""The ID of the tenant. Required when using AdminApiKey authentication."""
     theme: NotRequired[Theme]
     r"""Optional theme preference for the portal."""
@@ -52,9 +25,8 @@ class GetTenantPortalURLRequestTypedDict(TypedDict):
 
 class GetTenantPortalURLRequest(BaseModel):
     tenant_id: Annotated[
-        Optional[str],
-        FieldMetadata(path=PathParamMetadata(style="simple", explode=False)),
-    ] = None
+        str, FieldMetadata(path=PathParamMetadata(style="simple", explode=False))
+    ]
     r"""The ID of the tenant. Required when using AdminApiKey authentication."""
 
     theme: Annotated[
@@ -65,7 +37,7 @@ class GetTenantPortalURLRequest(BaseModel):
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
-        optional_fields = set(["tenant_id", "theme"])
+        optional_fields = set(["theme"])
         serialized = handler(self)
         m = {}
 

@@ -92,3 +92,9 @@ class DestinationUpdateAwss3(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationUpdateAwss3.model_rebuild()
+except NameError:
+    pass

@@ -16,13 +16,11 @@ Returns a list of available event topics configured in the Outpost instance.
 
 <!-- UsageSnippet language="python" operationID="listTopics" method="get" path="/topics" example="TopicsListExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
     res = outpost.topics.list()
@@ -47,7 +45,7 @@ with Outpost(
 | Error Type                   | Status Code                  | Content Type                 |
 | ---------------------------- | ---------------------------- | ---------------------------- |
 | errors.NotFoundError         | 404                          | application/json             |
-| errors.UnauthorizedError     | 403, 407                     | application/json             |
+| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
 | errors.TimeoutErrorT         | 408                          | application/json             |
 | errors.RateLimitedError      | 429                          | application/json             |
 | errors.BadRequestError       | 400, 413, 414, 415, 422, 431 | application/json             |

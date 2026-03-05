@@ -2,6 +2,14 @@
 
 Type of destination.
 
+## Example Usage
+
+```python
+from outpost_sdk.models import DestinationType
+
+value = DestinationType.WEBHOOK
+```
+
 
 ## Values
 

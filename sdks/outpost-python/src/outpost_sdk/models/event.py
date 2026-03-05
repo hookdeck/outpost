@@ -22,8 +22,6 @@ class EventTypedDict(TypedDict):
     topic: NotRequired[str]
     time: NotRequired[datetime]
     r"""Time the event was received/processed."""
-    successful_at: NotRequired[Nullable[datetime]]
-    r"""Time the event was successfully delivered."""
     metadata: NotRequired[Nullable[Dict[str, str]]]
     r"""Key-value string pairs of metadata associated with the event."""
     data: NotRequired[Dict[str, Any]]
@@ -43,9 +41,6 @@ class Event(BaseModel):
     time: Optional[datetime] = None
     r"""Time the event was received/processed."""
 
-    successful_at: OptionalNullable[datetime] = UNSET
-    r"""Time the event was successfully delivered."""
-
     metadata: OptionalNullable[Dict[str, str]] = UNSET
     r"""Key-value string pairs of metadata associated with the event."""
 
@@ -55,18 +50,9 @@ class Event(BaseModel):
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
         optional_fields = set(
-            [
-                "id",
-                "tenant_id",
-                "destination_id",
-                "topic",
-                "time",
-                "successful_at",
-                "metadata",
-                "data",
-            ]
+            ["id", "tenant_id", "destination_id", "topic", "time", "metadata", "data"]
         )
-        nullable_fields = set(["successful_at", "metadata"])
+        nullable_fields = set(["metadata"])
         serialized = handler(self)
         m = {}
 

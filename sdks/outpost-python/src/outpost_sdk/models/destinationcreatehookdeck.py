@@ -101,3 +101,9 @@ class DestinationCreateHookdeck(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationCreateHookdeck.model_rebuild()
+except NameError:
+    pass

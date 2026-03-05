@@ -1,13 +1,13 @@
-# Dir
+# ListAttemptsDir
 
 Sort direction.
 
 ## Example Usage
 
 ```python
-from outpost_sdk.models import Dir
+from outpost_sdk.models import ListAttemptsDir
 
-value = Dir.ASC
+value = ListAttemptsDir.ASC
 ```
 
 
