@@ -1,4 +1,4 @@
-# AdminListEventsTopic
+# ListEventsTopic
 
 Filter events by topic(s). Can be specified multiple times or comma-separated.
 

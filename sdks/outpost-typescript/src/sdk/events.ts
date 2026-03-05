@@ -11,15 +11,16 @@ import { unwrapAsync } from "../types/fp.js";
 
 export class Events extends ClientSDK {
   /**
-   * List Events (Admin)
+   * List Events
    *
    * @remarks
-   * Retrieves a list of events across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+   * Retrieves a list of events.
    *
-   * When `tenant_id` is not provided, returns events from all tenants. When `tenant_id` is provided, returns only events for that tenant.
+   * When authenticated with a Tenant JWT, returns only events belonging to that tenant.
+   * When authenticated with Admin API Key, returns events across all tenants. Use `tenant_id` query parameter to filter by tenant.
    */
   async list(
-    request: operations.AdminListEventsRequest,
+    request: operations.ListEventsRequest,
     options?: RequestOptions,
   ): Promise<components.EventPaginatedResult> {
     return unwrapAsync(eventsList(
@@ -39,12 +40,12 @@ export class Events extends ClientSDK {
    * When authenticated with Admin API Key, events from any tenant can be accessed.
    */
   async get(
-    request: operations.GetEventRequest,
+    eventId: string,
     options?: RequestOptions,
   ): Promise<components.Event> {
     return unwrapAsync(eventsGet(
       this,
-      request,
+      eventId,
       options,
     ));
   }

@@ -36,37 +36,6 @@ export class NotImplementedError extends OutpostError {
   }
 }
 
-/**
- * Invalid request parameters (e.g., invalid cursor, both next and prev provided).
- */
-export type ListTenantsBadRequestErrorData = {
-  error?: string | undefined;
-};
-
-/**
- * Invalid request parameters (e.g., invalid cursor, both next and prev provided).
- */
-export class ListTenantsBadRequestError extends OutpostError {
-  error?: string | undefined;
-
-  /** The original data that was passed to this error instance. */
-  data$: ListTenantsBadRequestErrorData;
-
-  constructor(
-    err: ListTenantsBadRequestErrorData,
-    httpMeta: { response: Response; request: Request; body: string },
-  ) {
-    const message = "message" in err && typeof err.message === "string"
-      ? err.message
-      : `API error occurred: ${JSON.stringify(err)}`;
-    super(message, httpMeta);
-    this.data$ = err;
-    if (err.error != null) this.error = err.error;
-
-    this.name = "ListTenantsBadRequestError";
-  }
-}
-
 /** @internal */
 export const NotImplementedError$inboundSchema: z.ZodType<
   NotImplementedError,
@@ -97,41 +66,6 @@ export const NotImplementedError$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   NotImplementedError
 > = z.instanceof(NotImplementedError)
-  .transform(v => v.data$)
-  .pipe(z.object({
-    error: z.string().optional(),
-  }));
-
-/** @internal */
-export const ListTenantsBadRequestError$inboundSchema: z.ZodType<
-  ListTenantsBadRequestError,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  error: z.string().optional(),
-  request$: z.instanceof(Request),
-  response$: z.instanceof(Response),
-  body$: z.string(),
-})
-  .transform((v) => {
-    return new ListTenantsBadRequestError(v, {
-      request: v.request$,
-      response: v.response$,
-      body: v.body$,
-    });
-  });
-
-/** @internal */
-export type ListTenantsBadRequestError$Outbound = {
-  error?: string | undefined;
-};
-
-/** @internal */
-export const ListTenantsBadRequestError$outboundSchema: z.ZodType<
-  ListTenantsBadRequestError$Outbound,
-  z.ZodTypeDef,
-  ListTenantsBadRequestError
-> = z.instanceof(ListTenantsBadRequestError)
   .transform(v => v.data$)
   .pipe(z.object({
     error: z.string().optional(),

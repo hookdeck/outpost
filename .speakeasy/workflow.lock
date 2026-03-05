@@ -1,12 +1,11 @@
-speakeasyVersion: 1.712.0
+speakeasyVersion: 1.741.7
 sources:
     Outpost API:
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:182d5dd8b4d859c88757372463d753cbba00c2ecfb021e0c070f0893123c9908
-        sourceBlobDigest: sha256:a6532f0ef9fd2dbcef3808650877dce489b5b29c107ec5131d8a48e0d4aac801
+        sourceRevisionDigest: sha256:837c1ec11841961c17673ee40729959fce25fb87c9ca09f822e2d88805b5556a
+        sourceBlobDigest: sha256:0210b5211be69672b9fdb4ed35188fd778a0fc3fad0a7f426d2f0f7d0fb86067
         tags:
             - latest
-            - speakeasy-sdk-regen-1770829484
             - 0.0.1
     Outpost API (Python):
         sourceNamespace: outpost-api
@@ -34,10 +33,10 @@ targets:
     outpost-ts:
         source: Outpost API
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:182d5dd8b4d859c88757372463d753cbba00c2ecfb021e0c070f0893123c9908
-        sourceBlobDigest: sha256:a6532f0ef9fd2dbcef3808650877dce489b5b29c107ec5131d8a48e0d4aac801
+        sourceRevisionDigest: sha256:837c1ec11841961c17673ee40729959fce25fb87c9ca09f822e2d88805b5556a
+        sourceBlobDigest: sha256:0210b5211be69672b9fdb4ed35188fd778a0fc3fad0a7f426d2f0f7d0fb86067
         codeSamplesNamespace: outpost-api-typescript-code-samples
-        codeSamplesRevisionDigest: sha256:8df9372209564fec60cfeb1afd3a24af3fcd976b3fdd2fa234601a7059d04210
+        codeSamplesRevisionDigest: sha256:8815a2efc3e22c8d9f31523a06aa4177ae7f3be6416c8fcc7547a21945621fae
 workflow:
     workflowVersion: 1.0.0
     speakeasyVersion: latest
@@ -47,6 +46,7 @@ workflow:
                 - location: ./docs/apis/openapi.yaml
             overlays:
                 - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
+                - location: ./sdks/schemas/security-collapse-overlay.yaml
                 - location: ./sdks/schemas/error-types.yaml
             registry:
                 location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api
@@ -55,6 +55,7 @@ workflow:
                 - location: ./docs/apis/openapi.yaml
             overlays:
                 - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
+                - location: ./sdks/schemas/security-collapse-overlay.yaml
                 - location: ./sdks/schemas/error-types.yaml
                 - location: ./sdks/schemas/pagination-fixes-overlay.yaml
             registry:

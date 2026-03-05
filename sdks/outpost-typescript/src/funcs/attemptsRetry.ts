@@ -41,7 +41,9 @@ export function attemptsRetry(
 ): APIPromise<
   Result<
     components.SuccessResponse,
-    | errors.APIErrorResponse
+    | errors.UnauthorizedError
+    | errors.NotFoundError
+    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -67,7 +69,9 @@ async function $do(
   [
     Result<
       components.SuccessResponse,
-      | errors.APIErrorResponse
+      | errors.UnauthorizedError
+      | errors.NotFoundError
+      | errors.InternalServerError
       | OutpostError
       | ResponseValidationError
       | ConnectionError
@@ -98,7 +102,8 @@ async function $do(
     Accept: "application/json",
   }));
 
-  const securityInput = await extractSecurity(client._options.security);
+  const secConfig = await extractSecurity(client._options.apiKey);
+  const securityInput = secConfig == null ? {} : { apiKey: secConfig };
   const requestSecurity = resolveGlobalSecurity(securityInput);
 
   const context = {
@@ -109,7 +114,7 @@ async function $do(
 
     resolvedSecurity: requestSecurity,
 
-    securitySource: client._options.security,
+    securitySource: client._options.apiKey,
     retryConfig: options?.retries
       || client._options.retryConfig
       || { strategy: "none" },
@@ -133,7 +138,7 @@ async function $do(
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: ["400", "404", "422", "4XX", "5XX"],
+    errorCodes: ["400", "401", "404", "4XX", "500", "5XX"],
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });
@@ -148,7 +153,9 @@ async function $do(
 
   const [result] = await M.match<
     components.SuccessResponse,
-    | errors.APIErrorResponse
+    | errors.UnauthorizedError
+    | errors.NotFoundError
+    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -159,8 +166,10 @@ async function $do(
     | SDKValidationError
   >(
     M.json(202, components.SuccessResponse$inboundSchema),
-    M.jsonErr(422, errors.APIErrorResponse$inboundSchema),
-    M.fail([400, 404, "4XX"]),
+    M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.jsonErr(404, errors.NotFoundError$inboundSchema),
+    M.jsonErr(500, errors.InternalServerError$inboundSchema),
+    M.fail([400, "4XX"]),
     M.fail("5XX"),
   )(response, req, { extraFields: responseFields });
   if (!result.ok) {

@@ -12,32 +12,32 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 /**
  * Filter events by topic(s). Can be specified multiple times or comma-separated.
  */
-export type AdminListEventsTopic = string | Array<string>;
+export type ListEventsTopic = string | Array<string>;
 
 /**
  * Field to sort by.
  */
-export const AdminListEventsOrderBy = {
+export const ListEventsOrderBy = {
   Time: "time",
 } as const;
 /**
  * Field to sort by.
  */
-export type AdminListEventsOrderBy = ClosedEnum<typeof AdminListEventsOrderBy>;
+export type ListEventsOrderBy = ClosedEnum<typeof ListEventsOrderBy>;
 
 /**
  * Sort direction.
  */
-export const AdminListEventsDir = {
+export const ListEventsDir = {
   Asc: "asc",
   Desc: "desc",
 } as const;
 /**
  * Sort direction.
  */
-export type AdminListEventsDir = ClosedEnum<typeof AdminListEventsDir>;
+export type ListEventsDir = ClosedEnum<typeof ListEventsDir>;
 
-export type AdminListEventsRequest = {
+export type ListEventsRequest = {
   /**
    * Filter events by tenant ID. If not provided, returns events from all tenants.
    */
@@ -69,67 +69,65 @@ export type AdminListEventsRequest = {
   /**
    * Field to sort by.
    */
-  orderBy?: AdminListEventsOrderBy | undefined;
+  orderBy?: ListEventsOrderBy | undefined;
   /**
    * Sort direction.
    */
-  dir?: AdminListEventsDir | undefined;
+  dir?: ListEventsDir | undefined;
 };
 
 /** @internal */
-export const AdminListEventsTopic$inboundSchema: z.ZodType<
-  AdminListEventsTopic,
+export const ListEventsTopic$inboundSchema: z.ZodType<
+  ListEventsTopic,
   z.ZodTypeDef,
   unknown
 > = z.union([z.string(), z.array(z.string())]);
 /** @internal */
-export type AdminListEventsTopic$Outbound = string | Array<string>;
+export type ListEventsTopic$Outbound = string | Array<string>;
 
 /** @internal */
-export const AdminListEventsTopic$outboundSchema: z.ZodType<
-  AdminListEventsTopic$Outbound,
+export const ListEventsTopic$outboundSchema: z.ZodType<
+  ListEventsTopic$Outbound,
   z.ZodTypeDef,
-  AdminListEventsTopic
+  ListEventsTopic
 > = z.union([z.string(), z.array(z.string())]);
 
-export function adminListEventsTopicToJSON(
-  adminListEventsTopic: AdminListEventsTopic,
+export function listEventsTopicToJSON(
+  listEventsTopic: ListEventsTopic,
 ): string {
-  return JSON.stringify(
-    AdminListEventsTopic$outboundSchema.parse(adminListEventsTopic),
-  );
+  return JSON.stringify(ListEventsTopic$outboundSchema.parse(listEventsTopic));
 }
-export function adminListEventsTopicFromJSON(
+export function listEventsTopicFromJSON(
   jsonString: string,
-): SafeParseResult<AdminListEventsTopic, SDKValidationError> {
+): SafeParseResult<ListEventsTopic, SDKValidationError> {
   return safeParse(
     jsonString,
-    (x) => AdminListEventsTopic$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'AdminListEventsTopic' from JSON`,
+    (x) => ListEventsTopic$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListEventsTopic' from JSON`,
   );
 }
 
 /** @internal */
-export const AdminListEventsOrderBy$inboundSchema: z.ZodNativeEnum<
-  typeof AdminListEventsOrderBy
-> = z.nativeEnum(AdminListEventsOrderBy);
+export const ListEventsOrderBy$inboundSchema: z.ZodNativeEnum<
+  typeof ListEventsOrderBy
+> = z.nativeEnum(ListEventsOrderBy);
 /** @internal */
-export const AdminListEventsOrderBy$outboundSchema: z.ZodNativeEnum<
-  typeof AdminListEventsOrderBy
-> = AdminListEventsOrderBy$inboundSchema;
+export const ListEventsOrderBy$outboundSchema: z.ZodNativeEnum<
+  typeof ListEventsOrderBy
+> = ListEventsOrderBy$inboundSchema;
 
 /** @internal */
-export const AdminListEventsDir$inboundSchema: z.ZodNativeEnum<
-  typeof AdminListEventsDir
-> = z.nativeEnum(AdminListEventsDir);
+export const ListEventsDir$inboundSchema: z.ZodNativeEnum<
+  typeof ListEventsDir
+> = z.nativeEnum(ListEventsDir);
 /** @internal */
-export const AdminListEventsDir$outboundSchema: z.ZodNativeEnum<
-  typeof AdminListEventsDir
-> = AdminListEventsDir$inboundSchema;
+export const ListEventsDir$outboundSchema: z.ZodNativeEnum<
+  typeof ListEventsDir
+> = ListEventsDir$inboundSchema;
 
 /** @internal */
-export const AdminListEventsRequest$inboundSchema: z.ZodType<
-  AdminListEventsRequest,
+export const ListEventsRequest$inboundSchema: z.ZodType<
+  ListEventsRequest,
   z.ZodTypeDef,
   unknown
 > = z.object({
@@ -142,8 +140,8 @@ export const AdminListEventsRequest$inboundSchema: z.ZodType<
   limit: z.number().int().default(100),
   next: z.string().optional(),
   prev: z.string().optional(),
-  order_by: AdminListEventsOrderBy$inboundSchema.default("time"),
-  dir: AdminListEventsDir$inboundSchema.default("desc"),
+  order_by: ListEventsOrderBy$inboundSchema.default("time"),
+  dir: ListEventsDir$inboundSchema.default("desc"),
 }).transform((v) => {
   return remap$(v, {
     "tenant_id": "tenantId",
@@ -153,7 +151,7 @@ export const AdminListEventsRequest$inboundSchema: z.ZodType<
   });
 });
 /** @internal */
-export type AdminListEventsRequest$Outbound = {
+export type ListEventsRequest$Outbound = {
   tenant_id?: string | undefined;
   topic?: string | Array<string> | undefined;
   "time[gte]"?: string | undefined;
@@ -166,10 +164,10 @@ export type AdminListEventsRequest$Outbound = {
 };
 
 /** @internal */
-export const AdminListEventsRequest$outboundSchema: z.ZodType<
-  AdminListEventsRequest$Outbound,
+export const ListEventsRequest$outboundSchema: z.ZodType<
+  ListEventsRequest$Outbound,
   z.ZodTypeDef,
-  AdminListEventsRequest
+  ListEventsRequest
 > = z.object({
   tenantId: z.string().optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
@@ -178,8 +176,8 @@ export const AdminListEventsRequest$outboundSchema: z.ZodType<
   limit: z.number().int().default(100),
   next: z.string().optional(),
   prev: z.string().optional(),
-  orderBy: AdminListEventsOrderBy$outboundSchema.default("time"),
-  dir: AdminListEventsDir$outboundSchema.default("desc"),
+  orderBy: ListEventsOrderBy$outboundSchema.default("time"),
+  dir: ListEventsDir$outboundSchema.default("desc"),
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",
@@ -189,19 +187,19 @@ export const AdminListEventsRequest$outboundSchema: z.ZodType<
   });
 });
 
-export function adminListEventsRequestToJSON(
-  adminListEventsRequest: AdminListEventsRequest,
+export function listEventsRequestToJSON(
+  listEventsRequest: ListEventsRequest,
 ): string {
   return JSON.stringify(
-    AdminListEventsRequest$outboundSchema.parse(adminListEventsRequest),
+    ListEventsRequest$outboundSchema.parse(listEventsRequest),
   );
 }
-export function adminListEventsRequestFromJSON(
+export function listEventsRequestFromJSON(
   jsonString: string,
-): SafeParseResult<AdminListEventsRequest, SDKValidationError> {
+): SafeParseResult<ListEventsRequest, SDKValidationError> {
   return safeParse(
     jsonString,
-    (x) => AdminListEventsRequest$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'AdminListEventsRequest' from JSON`,
+    (x) => ListEventsRequest$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListEventsRequest' from JSON`,
   );
 }

@@ -1,6 +1,6 @@
 {
   "name": "@hookdeck/outpost-sdk",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "author": "Speakeasy",
   "type": "module",
   "bin": {
@@ -43,7 +43,7 @@
     "eslint": "^9.26.0",
     "express": "^4.21.2",
     "globals": "^15.14.0",
-    "tshy": "^2.0.0",
+    "tshy": "^3.3.2",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.26.0"
   },

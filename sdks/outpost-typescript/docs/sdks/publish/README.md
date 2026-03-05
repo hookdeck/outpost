@@ -19,9 +19,7 @@ Publishes an event to the specified topic, potentially routed to a specific dest
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
@@ -57,9 +55,7 @@ import { publishEvent } from "@hookdeck/outpost-sdk/funcs/publishEvent.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
@@ -106,7 +102,7 @@ run();
 | Error Type                   | Status Code                  | Content Type                 |
 | ---------------------------- | ---------------------------- | ---------------------------- |
 | errors.NotFoundError         | 404                          | application/json             |
-| errors.UnauthorizedError     | 403, 407                     | application/json             |
+| errors.UnauthorizedError     | 401, 403, 407                | application/json             |
 | errors.TimeoutError          | 408                          | application/json             |
 | errors.RateLimitedError      | 429                          | application/json             |
 | errors.BadRequestError       | 413, 414, 415, 422, 431      | application/json             |

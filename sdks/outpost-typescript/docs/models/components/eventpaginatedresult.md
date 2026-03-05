@@ -15,7 +15,6 @@ let value: EventPaginatedResult = {
       destinationId: "des_456",
       topic: "user.created",
       time: new Date("2024-01-01T00:00:00Z"),
-      successfulAt: new Date("2024-01-01T00:00:00Z"),
       metadata: {
         "source": "crm",
       },

@@ -9,15 +9,11 @@ import { Result as SafeParseResult } from "../../types/fp.js";
 import * as components from "../components/index.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
-export type UpsertTenantGlobals = {
-  tenantId?: string | undefined;
-};
-
 export type UpsertTenantRequest = {
   /**
    * The ID of the tenant. Required when using AdminApiKey authentication.
    */
-  tenantId?: string | undefined;
+  tenantId: string;
   /**
    * Optional tenant metadata
    */
@@ -25,59 +21,12 @@ export type UpsertTenantRequest = {
 };
 
 /** @internal */
-export const UpsertTenantGlobals$inboundSchema: z.ZodType<
-  UpsertTenantGlobals,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  tenant_id: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
-/** @internal */
-export type UpsertTenantGlobals$Outbound = {
-  tenant_id?: string | undefined;
-};
-
-/** @internal */
-export const UpsertTenantGlobals$outboundSchema: z.ZodType<
-  UpsertTenantGlobals$Outbound,
-  z.ZodTypeDef,
-  UpsertTenantGlobals
-> = z.object({
-  tenantId: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
-
-export function upsertTenantGlobalsToJSON(
-  upsertTenantGlobals: UpsertTenantGlobals,
-): string {
-  return JSON.stringify(
-    UpsertTenantGlobals$outboundSchema.parse(upsertTenantGlobals),
-  );
-}
-export function upsertTenantGlobalsFromJSON(
-  jsonString: string,
-): SafeParseResult<UpsertTenantGlobals, SDKValidationError> {
-  return safeParse(
-    jsonString,
-    (x) => UpsertTenantGlobals$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'UpsertTenantGlobals' from JSON`,
-  );
-}
-
-/** @internal */
 export const UpsertTenantRequest$inboundSchema: z.ZodType<
   UpsertTenantRequest,
   z.ZodTypeDef,
   unknown
 > = z.object({
-  tenant_id: z.string().optional(),
+  tenant_id: z.string(),
   params: components.TenantUpsert$inboundSchema.optional(),
 }).transform((v) => {
   return remap$(v, {
@@ -86,7 +35,7 @@ export const UpsertTenantRequest$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type UpsertTenantRequest$Outbound = {
-  tenant_id?: string | undefined;
+  tenant_id: string;
   params?: components.TenantUpsert$Outbound | undefined;
 };
 
@@ -96,7 +45,7 @@ export const UpsertTenantRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   UpsertTenantRequest
 > = z.object({
-  tenantId: z.string().optional(),
+  tenantId: z.string(),
   params: components.TenantUpsert$outboundSchema.optional(),
 }).transform((v) => {
   return remap$(v, {

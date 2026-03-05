@@ -12,15 +12,16 @@ import { unwrapAsync } from "../types/fp.js";
 
 export class Attempts extends ClientSDK {
   /**
-   * List Attempts (Admin)
+   * List Attempts
    *
    * @remarks
-   * Retrieves a paginated list of attempts across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+   * Retrieves a paginated list of attempts.
    *
-   * When `tenant_id` is not provided, returns attempts from all tenants. When `tenant_id` is provided, returns only attempts for that tenant.
+   * When authenticated with a Tenant JWT, returns only attempts belonging to that tenant.
+   * When authenticated with Admin API Key, returns attempts across all tenants. Use `tenant_id` query parameter to filter by tenant.
    */
   async list(
-    request: operations.AdminListAttemptsRequest,
+    request: operations.ListAttemptsRequest,
     options?: RequestOptions,
   ): Promise<components.AttemptPaginatedResult> {
     return unwrapAsync(attemptsList(
@@ -40,12 +41,14 @@ export class Attempts extends ClientSDK {
    * When authenticated with Admin API Key, attempts from any tenant can be accessed.
    */
   async get(
-    request: operations.GetAttemptRequest,
+    attemptId: string,
+    include?: operations.GetAttemptInclude | undefined,
     options?: RequestOptions,
   ): Promise<components.Attempt> {
     return unwrapAsync(attemptsGet(
       this,
-      request,
+      attemptId,
+      include,
       options,
     ));
   }

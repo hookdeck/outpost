@@ -7,16 +7,17 @@ import * as operations from "../../models/operations/index.js";
 import { formatResult, ToolDefinition } from "../tools.js";
 
 const args = {
-  request: operations.AdminListAttemptsRequest$inboundSchema,
+  request: operations.ListAttemptsRequest$inboundSchema,
 };
 
 export const tool$attemptsList: ToolDefinition<typeof args> = {
   name: "attempts-list",
-  description: `List Attempts (Admin)
+  description: `List Attempts
 
-Retrieves a paginated list of attempts across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+Retrieves a paginated list of attempts.
 
-When \`tenant_id\` is not provided, returns attempts from all tenants. When \`tenant_id\` is provided, returns only attempts for that tenant.
+When authenticated with a Tenant JWT, returns only attempts belonging to that tenant.
+When authenticated with Admin API Key, returns attempts across all tenants. Use \`tenant_id\` query parameter to filter by tenant.
 `,
   args,
   tool: async (client, args, ctx) => {

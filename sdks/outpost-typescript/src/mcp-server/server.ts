@@ -29,8 +29,8 @@ import { tool$eventsGet } from "./tools/eventsGet.js";
 import { tool$eventsList } from "./tools/eventsList.js";
 import { tool$healthCheck } from "./tools/healthCheck.js";
 import { tool$publishEvent } from "./tools/publishEvent.js";
-import { tool$schemasGetDestinationTypeJwt } from "./tools/schemasGetDestinationTypeJwt.js";
-import { tool$schemasListDestinationTypesJwt } from "./tools/schemasListDestinationTypesJwt.js";
+import { tool$schemasGetDestinationType } from "./tools/schemasGetDestinationType.js";
+import { tool$schemasListDestinationTypes } from "./tools/schemasListDestinationTypes.js";
 import { tool$tenantsDelete } from "./tools/tenantsDelete.js";
 import { tool$tenantsGet } from "./tools/tenantsGet.js";
 import { tool$tenantsGetPortalUrl } from "./tools/tenantsGetPortalUrl.js";
@@ -44,18 +44,16 @@ export function createMCPServer(deps: {
   allowedTools?: string[] | undefined;
   scopes?: MCPScope[] | undefined;
   serverURL?: string | undefined;
-  security?: SDKOptions["security"] | undefined;
-  tenantId?: SDKOptions["tenantId"] | undefined;
+  apiKey?: SDKOptions["apiKey"] | undefined;
   serverIdx?: SDKOptions["serverIdx"] | undefined;
 }) {
   const server = new McpServer({
     name: "Outpost",
-    version: "0.7.0",
+    version: "0.8.0",
   });
 
   const client = new OutpostCore({
-    security: deps.security,
-    tenantId: deps.tenantId,
+    apiKey: deps.apiKey,
     serverURL: deps.serverURL,
     serverIdx: deps.serverIdx,
   });
@@ -103,8 +101,8 @@ export function createMCPServer(deps: {
   tool(tool$destinationsListAttempts);
   tool(tool$destinationsGetAttempt);
   tool(tool$publishEvent);
-  tool(tool$schemasListDestinationTypesJwt);
-  tool(tool$schemasGetDestinationTypeJwt);
+  tool(tool$schemasListDestinationTypes);
+  tool(tool$schemasGetDestinationType);
   tool(tool$topicsList);
 
   return server;

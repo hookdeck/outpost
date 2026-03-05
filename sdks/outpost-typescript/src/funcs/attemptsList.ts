@@ -27,21 +27,23 @@ import { APICall, APIPromise } from "../types/async.js";
 import { Result } from "../types/fp.js";
 
 /**
- * List Attempts (Admin)
+ * List Attempts
  *
  * @remarks
- * Retrieves a paginated list of attempts across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+ * Retrieves a paginated list of attempts.
  *
- * When `tenant_id` is not provided, returns attempts from all tenants. When `tenant_id` is provided, returns only attempts for that tenant.
+ * When authenticated with a Tenant JWT, returns only attempts belonging to that tenant.
+ * When authenticated with Admin API Key, returns attempts across all tenants. Use `tenant_id` query parameter to filter by tenant.
  */
 export function attemptsList(
   client: OutpostCore,
-  request: operations.AdminListAttemptsRequest,
+  request: operations.ListAttemptsRequest,
   options?: RequestOptions,
 ): APIPromise<
   Result<
     components.AttemptPaginatedResult,
-    | errors.APIErrorResponse
+    | errors.UnauthorizedError
+    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -61,13 +63,14 @@ export function attemptsList(
 
 async function $do(
   client: OutpostCore,
-  request: operations.AdminListAttemptsRequest,
+  request: operations.ListAttemptsRequest,
   options?: RequestOptions,
 ): Promise<
   [
     Result<
       components.AttemptPaginatedResult,
-      | errors.APIErrorResponse
+      | errors.UnauthorizedError
+      | errors.InternalServerError
       | OutpostError
       | ResponseValidationError
       | ConnectionError
@@ -82,7 +85,7 @@ async function $do(
 > {
   const parsed = safeParse(
     request,
-    (value) => operations.AdminListAttemptsRequest$outboundSchema.parse(value),
+    (value) => operations.ListAttemptsRequest$outboundSchema.parse(value),
     "Input validation failed",
   );
   if (!parsed.ok) {
@@ -113,18 +116,19 @@ async function $do(
     Accept: "application/json",
   }));
 
-  const securityInput = await extractSecurity(client._options.security);
+  const secConfig = await extractSecurity(client._options.apiKey);
+  const securityInput = secConfig == null ? {} : { apiKey: secConfig };
   const requestSecurity = resolveGlobalSecurity(securityInput);
 
   const context = {
     options: client._options,
     baseURL: options?.serverURL ?? client._baseURL ?? "",
-    operationID: "adminListAttempts",
+    operationID: "listAttempts",
     oAuth2Scopes: null,
 
     resolvedSecurity: requestSecurity,
 
-    securitySource: client._options.security,
+    securitySource: client._options.apiKey,
     retryConfig: options?.retries
       || client._options.retryConfig
       || { strategy: "none" },
@@ -149,7 +153,7 @@ async function $do(
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: ["401", "422", "4XX", "5XX"],
+    errorCodes: ["401", "4XX", "500", "5XX"],
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });
@@ -164,7 +168,8 @@ async function $do(
 
   const [result] = await M.match<
     components.AttemptPaginatedResult,
-    | errors.APIErrorResponse
+    | errors.UnauthorizedError
+    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -175,8 +180,9 @@ async function $do(
     | SDKValidationError
   >(
     M.json(200, components.AttemptPaginatedResult$inboundSchema),
-    M.jsonErr(422, errors.APIErrorResponse$inboundSchema),
-    M.fail([401, "4XX"]),
+    M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.jsonErr(500, errors.InternalServerError$inboundSchema),
+    M.fail("4XX"),
     M.fail("5XX"),
   )(response, req, { extraFields: responseFields });
   if (!result.ok) {

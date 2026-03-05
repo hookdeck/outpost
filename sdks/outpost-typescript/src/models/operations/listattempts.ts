@@ -12,21 +12,19 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 /**
  * Filter attempts by status.
  */
-export const AdminListAttemptsStatus = {
+export const ListAttemptsStatus = {
   Success: "success",
   Failed: "failed",
 } as const;
 /**
  * Filter attempts by status.
  */
-export type AdminListAttemptsStatus = ClosedEnum<
-  typeof AdminListAttemptsStatus
->;
+export type ListAttemptsStatus = ClosedEnum<typeof ListAttemptsStatus>;
 
 /**
  * Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
  */
-export type AdminListAttemptsTopic = string | Array<string>;
+export type ListAttemptsTopic = string | Array<string>;
 
 /**
  * Fields to include in the response. Can be specified multiple times or comma-separated.
@@ -36,34 +34,32 @@ export type AdminListAttemptsTopic = string | Array<string>;
  * - `event.data`: Include full event with payload data
  * - `response_data`: Include response body and headers
  */
-export type AdminListAttemptsInclude = string | Array<string>;
+export type ListAttemptsInclude = string | Array<string>;
 
 /**
  * Field to sort by.
  */
-export const AdminListAttemptsOrderBy = {
+export const ListAttemptsOrderBy = {
   Time: "time",
 } as const;
 /**
  * Field to sort by.
  */
-export type AdminListAttemptsOrderBy = ClosedEnum<
-  typeof AdminListAttemptsOrderBy
->;
+export type ListAttemptsOrderBy = ClosedEnum<typeof ListAttemptsOrderBy>;
 
 /**
  * Sort direction.
  */
-export const AdminListAttemptsDir = {
+export const ListAttemptsDir = {
   Asc: "asc",
   Desc: "desc",
 } as const;
 /**
  * Sort direction.
  */
-export type AdminListAttemptsDir = ClosedEnum<typeof AdminListAttemptsDir>;
+export type ListAttemptsDir = ClosedEnum<typeof ListAttemptsDir>;
 
-export type AdminListAttemptsRequest = {
+export type ListAttemptsRequest = {
   /**
    * Filter attempts by tenant ID. If not provided, returns attempts from all tenants.
    */
@@ -79,7 +75,7 @@ export type AdminListAttemptsRequest = {
   /**
    * Filter attempts by status.
    */
-  status?: AdminListAttemptsStatus | undefined;
+  status?: ListAttemptsStatus | undefined;
   /**
    * Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
    */
@@ -116,116 +112,116 @@ export type AdminListAttemptsRequest = {
   /**
    * Field to sort by.
    */
-  orderBy?: AdminListAttemptsOrderBy | undefined;
+  orderBy?: ListAttemptsOrderBy | undefined;
   /**
    * Sort direction.
    */
-  dir?: AdminListAttemptsDir | undefined;
+  dir?: ListAttemptsDir | undefined;
 };
 
 /** @internal */
-export const AdminListAttemptsStatus$inboundSchema: z.ZodNativeEnum<
-  typeof AdminListAttemptsStatus
-> = z.nativeEnum(AdminListAttemptsStatus);
+export const ListAttemptsStatus$inboundSchema: z.ZodNativeEnum<
+  typeof ListAttemptsStatus
+> = z.nativeEnum(ListAttemptsStatus);
 /** @internal */
-export const AdminListAttemptsStatus$outboundSchema: z.ZodNativeEnum<
-  typeof AdminListAttemptsStatus
-> = AdminListAttemptsStatus$inboundSchema;
+export const ListAttemptsStatus$outboundSchema: z.ZodNativeEnum<
+  typeof ListAttemptsStatus
+> = ListAttemptsStatus$inboundSchema;
 
 /** @internal */
-export const AdminListAttemptsTopic$inboundSchema: z.ZodType<
-  AdminListAttemptsTopic,
+export const ListAttemptsTopic$inboundSchema: z.ZodType<
+  ListAttemptsTopic,
   z.ZodTypeDef,
   unknown
 > = z.union([z.string(), z.array(z.string())]);
 /** @internal */
-export type AdminListAttemptsTopic$Outbound = string | Array<string>;
+export type ListAttemptsTopic$Outbound = string | Array<string>;
 
 /** @internal */
-export const AdminListAttemptsTopic$outboundSchema: z.ZodType<
-  AdminListAttemptsTopic$Outbound,
+export const ListAttemptsTopic$outboundSchema: z.ZodType<
+  ListAttemptsTopic$Outbound,
   z.ZodTypeDef,
-  AdminListAttemptsTopic
+  ListAttemptsTopic
 > = z.union([z.string(), z.array(z.string())]);
 
-export function adminListAttemptsTopicToJSON(
-  adminListAttemptsTopic: AdminListAttemptsTopic,
+export function listAttemptsTopicToJSON(
+  listAttemptsTopic: ListAttemptsTopic,
 ): string {
   return JSON.stringify(
-    AdminListAttemptsTopic$outboundSchema.parse(adminListAttemptsTopic),
+    ListAttemptsTopic$outboundSchema.parse(listAttemptsTopic),
   );
 }
-export function adminListAttemptsTopicFromJSON(
+export function listAttemptsTopicFromJSON(
   jsonString: string,
-): SafeParseResult<AdminListAttemptsTopic, SDKValidationError> {
+): SafeParseResult<ListAttemptsTopic, SDKValidationError> {
   return safeParse(
     jsonString,
-    (x) => AdminListAttemptsTopic$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'AdminListAttemptsTopic' from JSON`,
+    (x) => ListAttemptsTopic$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListAttemptsTopic' from JSON`,
   );
 }
 
 /** @internal */
-export const AdminListAttemptsInclude$inboundSchema: z.ZodType<
-  AdminListAttemptsInclude,
+export const ListAttemptsInclude$inboundSchema: z.ZodType<
+  ListAttemptsInclude,
   z.ZodTypeDef,
   unknown
 > = z.union([z.string(), z.array(z.string())]);
 /** @internal */
-export type AdminListAttemptsInclude$Outbound = string | Array<string>;
+export type ListAttemptsInclude$Outbound = string | Array<string>;
 
 /** @internal */
-export const AdminListAttemptsInclude$outboundSchema: z.ZodType<
-  AdminListAttemptsInclude$Outbound,
+export const ListAttemptsInclude$outboundSchema: z.ZodType<
+  ListAttemptsInclude$Outbound,
   z.ZodTypeDef,
-  AdminListAttemptsInclude
+  ListAttemptsInclude
 > = z.union([z.string(), z.array(z.string())]);
 
-export function adminListAttemptsIncludeToJSON(
-  adminListAttemptsInclude: AdminListAttemptsInclude,
+export function listAttemptsIncludeToJSON(
+  listAttemptsInclude: ListAttemptsInclude,
 ): string {
   return JSON.stringify(
-    AdminListAttemptsInclude$outboundSchema.parse(adminListAttemptsInclude),
+    ListAttemptsInclude$outboundSchema.parse(listAttemptsInclude),
   );
 }
-export function adminListAttemptsIncludeFromJSON(
+export function listAttemptsIncludeFromJSON(
   jsonString: string,
-): SafeParseResult<AdminListAttemptsInclude, SDKValidationError> {
+): SafeParseResult<ListAttemptsInclude, SDKValidationError> {
   return safeParse(
     jsonString,
-    (x) => AdminListAttemptsInclude$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'AdminListAttemptsInclude' from JSON`,
+    (x) => ListAttemptsInclude$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListAttemptsInclude' from JSON`,
   );
 }
 
 /** @internal */
-export const AdminListAttemptsOrderBy$inboundSchema: z.ZodNativeEnum<
-  typeof AdminListAttemptsOrderBy
-> = z.nativeEnum(AdminListAttemptsOrderBy);
+export const ListAttemptsOrderBy$inboundSchema: z.ZodNativeEnum<
+  typeof ListAttemptsOrderBy
+> = z.nativeEnum(ListAttemptsOrderBy);
 /** @internal */
-export const AdminListAttemptsOrderBy$outboundSchema: z.ZodNativeEnum<
-  typeof AdminListAttemptsOrderBy
-> = AdminListAttemptsOrderBy$inboundSchema;
+export const ListAttemptsOrderBy$outboundSchema: z.ZodNativeEnum<
+  typeof ListAttemptsOrderBy
+> = ListAttemptsOrderBy$inboundSchema;
 
 /** @internal */
-export const AdminListAttemptsDir$inboundSchema: z.ZodNativeEnum<
-  typeof AdminListAttemptsDir
-> = z.nativeEnum(AdminListAttemptsDir);
+export const ListAttemptsDir$inboundSchema: z.ZodNativeEnum<
+  typeof ListAttemptsDir
+> = z.nativeEnum(ListAttemptsDir);
 /** @internal */
-export const AdminListAttemptsDir$outboundSchema: z.ZodNativeEnum<
-  typeof AdminListAttemptsDir
-> = AdminListAttemptsDir$inboundSchema;
+export const ListAttemptsDir$outboundSchema: z.ZodNativeEnum<
+  typeof ListAttemptsDir
+> = ListAttemptsDir$inboundSchema;
 
 /** @internal */
-export const AdminListAttemptsRequest$inboundSchema: z.ZodType<
-  AdminListAttemptsRequest,
+export const ListAttemptsRequest$inboundSchema: z.ZodType<
+  ListAttemptsRequest,
   z.ZodTypeDef,
   unknown
 > = z.object({
   tenant_id: z.string().optional(),
   event_id: z.string().optional(),
   destination_id: z.string().optional(),
-  status: AdminListAttemptsStatus$inboundSchema.optional(),
+  status: ListAttemptsStatus$inboundSchema.optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
   "time[gte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
     .optional(),
@@ -235,8 +231,8 @@ export const AdminListAttemptsRequest$inboundSchema: z.ZodType<
   next: z.string().optional(),
   prev: z.string().optional(),
   include: z.union([z.string(), z.array(z.string())]).optional(),
-  order_by: AdminListAttemptsOrderBy$inboundSchema.default("time"),
-  dir: AdminListAttemptsDir$inboundSchema.default("desc"),
+  order_by: ListAttemptsOrderBy$inboundSchema.default("time"),
+  dir: ListAttemptsDir$inboundSchema.default("desc"),
 }).transform((v) => {
   return remap$(v, {
     "tenant_id": "tenantId",
@@ -248,7 +244,7 @@ export const AdminListAttemptsRequest$inboundSchema: z.ZodType<
   });
 });
 /** @internal */
-export type AdminListAttemptsRequest$Outbound = {
+export type ListAttemptsRequest$Outbound = {
   tenant_id?: string | undefined;
   event_id?: string | undefined;
   destination_id?: string | undefined;
@@ -265,15 +261,15 @@ export type AdminListAttemptsRequest$Outbound = {
 };
 
 /** @internal */
-export const AdminListAttemptsRequest$outboundSchema: z.ZodType<
-  AdminListAttemptsRequest$Outbound,
+export const ListAttemptsRequest$outboundSchema: z.ZodType<
+  ListAttemptsRequest$Outbound,
   z.ZodTypeDef,
-  AdminListAttemptsRequest
+  ListAttemptsRequest
 > = z.object({
   tenantId: z.string().optional(),
   eventId: z.string().optional(),
   destinationId: z.string().optional(),
-  status: AdminListAttemptsStatus$outboundSchema.optional(),
+  status: ListAttemptsStatus$outboundSchema.optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
   timeGte: z.date().transform(v => v.toISOString()).optional(),
   timeLte: z.date().transform(v => v.toISOString()).optional(),
@@ -281,8 +277,8 @@ export const AdminListAttemptsRequest$outboundSchema: z.ZodType<
   next: z.string().optional(),
   prev: z.string().optional(),
   include: z.union([z.string(), z.array(z.string())]).optional(),
-  orderBy: AdminListAttemptsOrderBy$outboundSchema.default("time"),
-  dir: AdminListAttemptsDir$outboundSchema.default("desc"),
+  orderBy: ListAttemptsOrderBy$outboundSchema.default("time"),
+  dir: ListAttemptsDir$outboundSchema.default("desc"),
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",
@@ -294,19 +290,19 @@ export const AdminListAttemptsRequest$outboundSchema: z.ZodType<
   });
 });
 
-export function adminListAttemptsRequestToJSON(
-  adminListAttemptsRequest: AdminListAttemptsRequest,
+export function listAttemptsRequestToJSON(
+  listAttemptsRequest: ListAttemptsRequest,
 ): string {
   return JSON.stringify(
-    AdminListAttemptsRequest$outboundSchema.parse(adminListAttemptsRequest),
+    ListAttemptsRequest$outboundSchema.parse(listAttemptsRequest),
   );
 }
-export function adminListAttemptsRequestFromJSON(
+export function listAttemptsRequestFromJSON(
   jsonString: string,
-): SafeParseResult<AdminListAttemptsRequest, SDKValidationError> {
+): SafeParseResult<ListAttemptsRequest, SDKValidationError> {
   return safeParse(
     jsonString,
-    (x) => AdminListAttemptsRequest$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'AdminListAttemptsRequest' from JSON`,
+    (x) => ListAttemptsRequest$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListAttemptsRequest' from JSON`,
   );
 }

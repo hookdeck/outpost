@@ -1,83 +1,136 @@
-## Python SDK Changes:
-* `outpost.tenants.list_tenants()`: 
-  * `request` **Changed** (Breaking ⚠️)
-    - `created_at[gte]` **Added**
-    - `created_at[lte]` **Added**
-    - `direction` **Added**
-    - `order_by` **Added**
-    - `order` **Removed** (Breaking ⚠️)
-  * `response` **Changed** (Breaking ⚠️)
-    - `data` **Removed** (Breaking ⚠️)
-    - `models` **Added**
-    - `next` **Removed** (Breaking ⚠️)
-    - `pagination` **Added**
-    - `prev` **Removed** (Breaking ⚠️)
-* `outpost.events.get()`: 
-  *  `request.tenant_id` **Removed** (Breaking ⚠️)
-  * `response` **Changed** (Breaking ⚠️)
-    - `status` **Removed** (Breaking ⚠️)
-    - `tenant_id` **Added**
-* `outpost.events.list()`: 
-  * `request` **Changed** (Breaking ⚠️)
-    - `destination_id` **Removed** (Breaking ⚠️)
-    - `direction` **Added**
-    - `end` **Removed** (Breaking ⚠️)
-    - `order_by` **Added**
-    - `start` **Removed** (Breaking ⚠️)
-    - `status` **Removed** (Breaking ⚠️)
-    - `tenant_id` **Changed**
-    - `time[gte]` **Added**
-    - `time[lte]` **Added**
-    - `topic` **Added**
-  * `response` **Changed** (Breaking ⚠️)
-    - `count` **Removed** (Breaking ⚠️)
-    - `data` **Removed** (Breaking ⚠️)
-    - `models` **Added**
-    - `next_cursor` **Removed** (Breaking ⚠️)
-    - `pagination` **Added**
-    - `prev_cursor` **Removed** (Breaking ⚠️)
+## Typescript SDK Changes:
+* `outpost.attempts.list()`: `error` **Changed** (Breaking ⚠️)
+    - `` **Added**
+    - `status[422]` **Removed** (Breaking ⚠️)
+    - `status[500]` **Added**
+* `outpost.destinations.listAttempts()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed** (Breaking ⚠️)
+    - `` **Added**
     - `status[401]` **Added**
-    - `status[404]` **Removed** (Breaking ⚠️)
-    - `status[422]` **Added**
-* `outpost.topics.list()`: 
-  *  `request.tenant_id` **Removed** (Breaking ⚠️)
+    - `status[422]` **Removed** (Breaking ⚠️)
+    - `status[500]` **Added**
+* `outpost.publish.event()`: `error` **Changed** (Breaking ⚠️)
+    - `` **Added**
+    - `status[400]` **Removed** (Breaking ⚠️)
+* `outpost.destinations.getAttempt()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed**
     - `` **Added**
-    - `status[400]` **Added**
     - `status[401]` **Added**
-    - `status[403]` **Added**
-    - `status[407]` **Added**
-    - `status[408]` **Added**
-    - `status[413]` **Added**
-    - `status[414]` **Added**
-    - `status[415]` **Added**
-    - `status[422]` **Added**
-    - `status[429]` **Added**
-    - `status[431]` **Added**
     - `status[500]` **Added**
-    - `status[501]` **Added**
-    - `status[502]` **Added**
-    - `status[503]` **Added**
-    - `status[504]` **Added**
-    - `status[505]` **Added**
-    - `status[506]` **Added**
-    - `status[507]` **Added**
-    - `status[508]` **Added**
-    - `status[510]` **Added**
-    - `status[511]` **Added**
-* `outpost.destinations.get_attempt()`: **Added**
-* `outpost.schemas.list_tenant_destination_types()`: **Removed** (Breaking ⚠️)
-* `outpost.schemas.get()`: **Removed** (Breaking ⚠️)
-* `outpost.topics.list_jwt()`: **Removed** (Breaking ⚠️)
-* `outpost.events.list_deliveries()`: **Removed** (Breaking ⚠️)
-* `outpost.events.list_by_destination()`: **Removed** (Breaking ⚠️)
-* `outpost.events.get_by_destination()`: **Removed** (Breaking ⚠️)
-* `outpost.events.retry()`: **Removed** (Breaking ⚠️)
-* `outpost.attempts.list()`: **Added**
-* `outpost.publish.event()`: 
-  *  `request.time` **Added**
-  *  `response.destination_ids` **Added**
-* `outpost.destinations.list_attempts()`: **Added**
-* `outpost.attempts.retry()`: **Added**
-* `outpost.attempts.get()`: **Added**
+* `outpost.tenants.listTenants()`: 
+  * `request` **Changed** (Breaking ⚠️)
+    - `dir` **Added**
+    - `limit` **Added**
+    - `next` **Added**
+    - `prev` **Added**
+    - `request` **Removed** (Breaking ⚠️)
+  * `error` **Changed** (Breaking ⚠️)
+    - `` **Added**
+    - `additionalProperties` **Added**
+    - `error` **Removed** (Breaking ⚠️)
+    - `message` **Added**
+    - `status[500]` **Added**
+* `outpost.tenants.upsert()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
+  * `error` **Changed**
+    - `status[401]` **Added**
+    - `status[422]` **Added**
+    - `status[500]` **Added**
+* `outpost.tenants.get()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
+  * `error` **Changed**
+    - `` **Added**
+    - `status[401]` **Added**
+    - `status[500]` **Added**
+* `outpost.tenants.delete()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
+  * `error` **Changed**
+    - `` **Added**
+    - `status[401]` **Added**
+    - `status[500]` **Added**
+* `outpost.tenants.getPortalUrl()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
+  * `error` **Changed**
+    - `` **Added**
+    - `status[401]` **Added**
+    - `status[500]` **Added**
+* `outpost.tenants.getToken()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
+  * `error` **Changed**
+    - `` **Added**
+    - `status[401]` **Added**
+    - `status[500]` **Added**
+* `outpost.events.list()`: 
+  *  `response.models[].successfulAt` **Removed** (Breaking ⚠️)
+  * `error` **Changed** (Breaking ⚠️)
+    - `` **Added**
+    - `status[422]` **Removed** (Breaking ⚠️)
+    - `status[500]` **Added**
+* `outpost.events.get()`: 
+  *  `response.successfulAt` **Removed** (Breaking ⚠️)
+  * `error` **Changed**
+    - `` **Added**
+    - `status[401]` **Added**
+    - `status[500]` **Added**
+* `outpost.destinations.disable()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
+  * `error` **Changed**
+    - `` **Added**
+    - `status[401]` **Added**
+    - `status[500]` **Added**
+* `outpost.destinations.enable()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
+  * `error` **Changed**
+    - `` **Added**
+    - `status[401]` **Added**
+    - `status[500]` **Added**
+* `outpost.destinations.update()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
+  * `error` **Changed** (Breaking ⚠️)
+    - `` **Added**
+    - `status[400]` **Removed** (Breaking ⚠️)
+    - `status[401]` **Added**
+    - `status[422]` **Added**
+    - `status[500]` **Added**
+* `outpost.destinations.list()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
+  * `error` **Changed**
+    - `` **Added**
+    - `status[401]` **Added**
+    - `status[500]` **Added**
+* `outpost.destinations.create()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
+  * `error` **Changed** (Breaking ⚠️)
+    - `` **Added**
+    - `status[400]` **Removed** (Breaking ⚠️)
+    - `status[401]` **Added**
+    - `status[422]` **Added**
+    - `status[500]` **Added**
+* `outpost.destinations.get()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
+  * `error` **Changed**
+    - `` **Added**
+    - `status[401]` **Added**
+    - `status[500]` **Added**
+* `outpost.attempts.retry()`: `error` **Changed** (Breaking ⚠️)
+    - `` **Added**
+    - `status[401]` **Added**
+    - `status[422]` **Removed** (Breaking ⚠️)
+    - `status[500]` **Added**
+* `outpost.destinations.delete()`: 
+  *  `request.tenantId` **Changed** (Breaking ⚠️)
+  * `error` **Changed**
+    - `` **Added**
+    - `status[401]` **Added**
+    - `status[500]` **Added**
+* `outpost.schemas.listDestinationTypes()`: **Added**
+* `outpost.schemas.getDestinationType()`: **Added**
+* `outpost.attempts.get()`: `error` **Changed**
+    - `` **Added**
+    - `status[401]` **Added**
+    - `status[500]` **Added**
+* `outpost.schemas.getDestinationTypeJwt()`: **Removed** (Breaking ⚠️)
+* `outpost.schemas.listDestinationTypesJwt()`: **Removed** (Breaking ⚠️)
+* `outpost.topics.list()`:  `error.status[401]` **Added**

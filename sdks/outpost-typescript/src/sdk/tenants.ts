@@ -23,16 +23,21 @@ export class Tenants extends ClientSDK {
    * **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
    * If RediSearch is not available, this endpoint returns `501 Not Implemented`.
    *
-   * The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
-   * Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
+   * When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
    */
   async listTenants(
-    request: operations.ListTenantsRequest,
+    limit?: number | undefined,
+    dir?: operations.ListTenantsDir | undefined,
+    next?: string | undefined,
+    prev?: string | undefined,
     options?: RequestOptions,
   ): Promise<components.TenantPaginatedResult> {
     return unwrapAsync(tenantsListTenants(
       this,
-      request,
+      limit,
+      dir,
+      next,
+      prev,
       options,
     ));
   }
@@ -44,12 +49,14 @@ export class Tenants extends ClientSDK {
    * Idempotently creates or updates a tenant. Required before associating destinations.
    */
   async upsert(
-    request: operations.UpsertTenantRequest,
+    tenantId: string,
+    params?: components.TenantUpsert | undefined,
     options?: RequestOptions,
   ): Promise<components.Tenant> {
     return unwrapAsync(tenantsUpsert(
       this,
-      request,
+      tenantId,
+      params,
       options,
     ));
   }
@@ -61,12 +68,12 @@ export class Tenants extends ClientSDK {
    * Retrieves details for a specific tenant.
    */
   async get(
-    request: operations.GetTenantRequest,
+    tenantId: string,
     options?: RequestOptions,
   ): Promise<components.Tenant> {
     return unwrapAsync(tenantsGet(
       this,
-      request,
+      tenantId,
       options,
     ));
   }
@@ -78,12 +85,12 @@ export class Tenants extends ClientSDK {
    * Deletes the tenant and all associated destinations.
    */
   async delete(
-    request: operations.DeleteTenantRequest,
+    tenantId: string,
     options?: RequestOptions,
   ): Promise<components.SuccessResponse> {
     return unwrapAsync(tenantsDelete(
       this,
-      request,
+      tenantId,
       options,
     ));
   }
@@ -92,15 +99,17 @@ export class Tenants extends ClientSDK {
    * Get Portal Redirect URL
    *
    * @remarks
-   * Returns a redirect URL containing a JWT to authenticate the user with the portal.
+   * Returns a redirect URL containing a JWT to authenticate the user with the portal. Requires Admin API Key.
    */
   async getPortalUrl(
-    request: operations.GetTenantPortalUrlRequest,
+    tenantId: string,
+    theme?: operations.Theme | undefined,
     options?: RequestOptions,
   ): Promise<components.PortalRedirect> {
     return unwrapAsync(tenantsGetPortalUrl(
       this,
-      request,
+      tenantId,
+      theme,
       options,
     ));
   }
@@ -109,15 +118,15 @@ export class Tenants extends ClientSDK {
    * Get Tenant JWT Token
    *
    * @remarks
-   * Returns a JWT token scoped to the tenant for safe browser API calls.
+   * Returns a JWT token scoped to the tenant for safe browser API calls. Requires Admin API Key.
    */
   async getToken(
-    request: operations.GetTenantTokenRequest,
+    tenantId: string,
     options?: RequestOptions,
   ): Promise<components.TenantToken> {
     return unwrapAsync(tenantsGetToken(
       this,
-      request,
+      tenantId,
       options,
     ));
   }
