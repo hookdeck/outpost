@@ -1,23 +1,27 @@
 import os
 from dotenv import load_dotenv
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 def run():
     load_dotenv()
 
-    server_url = os.environ.get("SERVER_URL", "http://localhost:3333")
     admin_api_key = os.environ.get("ADMIN_API_KEY")
     tenant_id = os.environ.get("TENANT_ID", "hookdeck")
 
     if not admin_api_key:
         raise Exception("ADMIN_API_KEY not set")
 
+    # Use API_BASE_URL when set (e.g. live Outpost), else SERVER_URL + /api/v1
+    api_server_url = os.environ.get("API_BASE_URL")
+    if not api_server_url:
+        server_url = os.environ.get("SERVER_URL", "http://localhost:3333")
+        api_server_url = f"{server_url}/api/v1"
+
+    # 0.13.1: api_key
     client = Outpost(
-        server_url=f"{server_url}/api/v1",
-        security=models.Security(
-            admin_api_key=admin_api_key,
-        ),
+        api_key=admin_api_key,
+        server_url=api_server_url,
     )
 
     topic = "order.created"

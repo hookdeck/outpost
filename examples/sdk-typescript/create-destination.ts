@@ -6,7 +6,9 @@ import type { DestinationCreateAzureServiceBus } from "@hookdeck/outpost-sdk/mod
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
 const TENANT_ID = process.env.TENANT_ID || "hookdeck";
-const SERVER_URL = process.env.OUTPOST_URL || "http://localhost:3333";
+const apiServerURL =
+  process.env.API_BASE_URL ||
+  `${process.env.OUTPOST_URL || process.env.SERVER_URL || "http://localhost:3333"}/api/v1`;
 
 if (!ADMIN_API_KEY) {
   console.error("Please set the ADMIN_API_KEY environment variable.");
@@ -16,7 +18,7 @@ if (!ADMIN_API_KEY) {
 async function main() {
   const outpostAdmin = new Outpost({
     apiKey: ADMIN_API_KEY,
-    serverURL: `${SERVER_URL}/api/v1`,
+    serverURL: apiServerURL,
   });
 
   await outpostAdmin.tenants.upsert(TENANT_ID);

@@ -13,15 +13,21 @@ def run():
 
     admin_api_key = os.getenv("ADMIN_API_KEY")
     tenant_id = os.getenv("TENANT_ID", "hookdeck")
-    server_url = os.getenv("OUTPOST_URL", "http://localhost:3333")
 
     if not admin_api_key:
         print("Please set the ADMIN_API_KEY environment variable.")
         sys.exit(1)
 
+    # Use API_BASE_URL when set (e.g. live Outpost), else SERVER_URL/OUTPOST_URL + /api/v1
+    api_server_url = os.getenv("API_BASE_URL")
+    if not api_server_url:
+        server_url = os.getenv("OUTPOST_URL") or os.getenv("SERVER_URL", "http://localhost:3333")
+        api_server_url = f"{server_url}/api/v1"
+
+    # 0.13.1: api_key
     sdk = Outpost(
-        security=models.Security(admin_api_key=admin_api_key),
-        server_url=f"{server_url}/api/v1",
+        api_key=admin_api_key,
+        server_url=api_server_url,
     )
 
     sdk.tenants.upsert(tenant_id=tenant_id)

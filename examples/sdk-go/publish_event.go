@@ -22,16 +22,21 @@ func runPublishEventExample() {
 		tenantID = "hookdeck"
 	}
 
-	serverURL := os.Getenv("OUTPOST_URL")
-	if serverURL == "" {
-		serverURL = "http://localhost:3333"
+	apiServerURL := os.Getenv("API_BASE_URL")
+	if apiServerURL == "" {
+		serverURL := os.Getenv("OUTPOST_URL")
+		if serverURL == "" {
+			serverURL = os.Getenv("SERVER_URL")
+		}
+		if serverURL == "" {
+			serverURL = "http://localhost:3333"
+		}
+		apiServerURL = fmt.Sprintf("%s/api/v1", serverURL)
 	}
 
 	client := outpostgo.New(
-		outpostgo.WithSecurity(components.Security{
-			AdminAPIKey: &adminAPIKey,
-		}),
-		outpostgo.WithServerURL(fmt.Sprintf("%s/api/v1", serverURL)),
+		outpostgo.WithSecurity(adminAPIKey),
+		outpostgo.WithServerURL(apiServerURL),
 	)
 
 	topic := "order.created"

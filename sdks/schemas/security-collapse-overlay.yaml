@@ -22,13 +22,13 @@ actions:
         scheme: bearer
         x-speakeasy-name-override: apiKey
         description: |
-          Bearer token for authentication. Use either an Admin API Key or a Tenant JWT.
+          Bearer token for authentication. The SDK exposes a single "apiKey" parameter; its value can be either:
 
           **Admin API Key:** Static key configured via the `API_KEY` environment variable.
-          Required for admin operations (publishing events, managing tenants, generating tokens).
+          Required for admin operations (publishing events, managing tenants, generating tenant tokens).
 
-          **Tenant JWT:** Per-tenant token valid for 24 hours, scoped to a specific tenant.
-          Used for tenant-scoped operations (listing destinations, viewing events and attempts).
+          **JWT (tenant token):** Obtained via GET /tenants/{tenant_id}/token (requires Admin API Key). Valid for 24 hours, scoped to one tenant.
+          Use for tenant-scoped operations (e.g. listing destinations for that tenant).
 
   # Remove global security array then set new value
   - target: $["security"]

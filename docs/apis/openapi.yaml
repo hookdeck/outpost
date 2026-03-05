@@ -141,8 +141,8 @@ components:
         redirect_url:
           type: string
           format: url
-          description: Redirect URL containing a JWT to authenticate the user with the portal.
-          example: "https://webhooks.acme.com/?token=JWT_TOKEN&tenant_id=tenant_123"
+          description: Redirect URL containing a token to authenticate the user with the portal.
+          example: "https://webhooks.acme.com/?token=TOKEN&tenant_id=tenant_123"
         tenant_id:
           type: string
           description: The ID of the tenant associated with this portal session.
@@ -152,11 +152,11 @@ components:
       properties:
         token:
           type: string
-          description: JWT token scoped to the tenant for safe browser API calls.
-          example: "SOME_JWT_TOKEN"
+          description: Tenant-scoped API key. Use as the Bearer token for tenant-scoped API calls.
+          example: "SOME_TENANT_API_KEY"
         tenant_id:
           type: string
-          description: The ID of the tenant this token is scoped to.
+          description: The ID of the tenant this API key is scoped to.
           example: "tenant_123"
     SuccessResponse:
       type: object
@@ -2817,17 +2817,17 @@ paths:
         required: true
         schema:
           type: string
-        description: The ID of the tenant. Required when using AdminApiKey authentication.
+        description: The ID of the tenant. Required when using Admin API Key authentication.
     get:
       tags: [Tenants]
-      summary: Get Tenant JWT Token
-      description: Returns a JWT token scoped to the tenant for safe browser API calls. Requires Admin API Key.
+      summary: Get Tenant-Scoped API Key
+      description: Returns a tenant-scoped API key for the given tenant. Use it as the API key (Bearer token) for tenant-scoped operations. Requires Admin API Key.
       operationId: getTenantToken
       security:
         - AdminApiKey: []
       responses:
         "200":
-          description: Tenant JWT token.
+          description: Tenant-scoped API key.
           content:
             application/json:
               schema:
@@ -2835,7 +2835,7 @@ paths:
               examples:
                 TenantTokenExample:
                   value:
-                    token: "SOME_JWT_TOKEN"
+                    token: "SOME_TENANT_API_KEY"
                     tenant_id: "tenant_123"
         "401":
           $ref: "#/components/responses/Unauthorized"

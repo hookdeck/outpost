@@ -12,13 +12,10 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
-func manageOutpostResources(adminAPIKey string, serverURL string) {
-	// 1. Create an Outpost instance using the AdminAPIKey
-	apiServerURL := fmt.Sprintf("%s/api/v1", serverURL)
+func manageOutpostResources(adminAPIKey string, apiServerURL string) {
+	// 1. Create an Outpost instance using the AdminAPIKey (apiServerURL is API_BASE_URL or SERVER_URL + /api/v1)
 	outpostAdmin := outpostgo.New(
-		outpostgo.WithSecurity(components.Security{
-			AdminAPIKey: outpostgo.String(adminAPIKey),
-		}),
+		outpostgo.WithSecurity(adminAPIKey),
 		outpostgo.WithServerURL(apiServerURL),
 	)
 
@@ -30,7 +27,7 @@ func manageOutpostResources(adminAPIKey string, serverURL string) {
 
 	// 2. Create a tenant
 	log.Printf("Creating tenant: %s\n", tenantID)
-	tenantRes, err := outpostAdmin.Tenants.Upsert(ctx, outpostgo.String(tenantID))
+	tenantRes, err := outpostAdmin.Tenants.Upsert(ctx, tenantID, nil)
 	if err != nil {
 		log.Fatalf("Failed to create tenant: %v\n", err)
 	}
@@ -57,8 +54,8 @@ func manageOutpostResources(adminAPIKey string, serverURL string) {
 
 	destRes, err := outpostAdmin.Destinations.Create(
 		ctx,
+		tenantID,
 		destinationBody,
-		outpostgo.String(tenantID),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create destination: %v\n", err)
