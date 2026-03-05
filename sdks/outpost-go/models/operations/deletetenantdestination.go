@@ -6,27 +6,16 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
-type DeleteTenantDestinationGlobals struct {
-	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
-}
-
-func (d *DeleteTenantDestinationGlobals) GetTenantID() *string {
-	if d == nil {
-		return nil
-	}
-	return d.TenantID
-}
-
 type DeleteTenantDestinationRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
-	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
+	TenantID string `pathParam:"style=simple,explode=false,name=tenant_id"`
 	// The ID of the destination.
 	DestinationID string `pathParam:"style=simple,explode=false,name=destination_id"`
 }
 
-func (d *DeleteTenantDestinationRequest) GetTenantID() *string {
+func (d *DeleteTenantDestinationRequest) GetTenantID() string {
 	if d == nil {
-		return nil
+		return ""
 	}
 	return d.TenantID
 }

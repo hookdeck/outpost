@@ -51,3 +51,27 @@ destination := components.CreateDestinationAwsS3(components.DestinationAwss3{/* 
 destination := components.CreateDestinationGcpPubsub(components.DestinationGCPPubSub{/* values here */})
 ```
 
+## Union Discrimination
+
+Use the `Type` field to determine which variant is active, then access the corresponding field:
+
+```go
+switch destination.Type {
+	case components.DestinationUnionTypeWebhook:
+		// destination.DestinationWebhook is populated
+	case components.DestinationUnionTypeAwsSqs:
+		// destination.DestinationAWSSQS is populated
+	case components.DestinationUnionTypeRabbitmq:
+		// destination.DestinationRabbitMQ is populated
+	case components.DestinationUnionTypeHookdeck:
+		// destination.DestinationHookdeck is populated
+	case components.DestinationUnionTypeAwsKinesis:
+		// destination.DestinationAWSKinesis is populated
+	case components.DestinationUnionTypeAzureServicebus:
+		// destination.DestinationAzureServiceBus is populated
+	case components.DestinationUnionTypeAwsS3:
+		// destination.DestinationAwss3 is populated
+	case components.DestinationUnionTypeGcpPubsub:
+		// destination.DestinationGCPPubSub is populated
+}
+```

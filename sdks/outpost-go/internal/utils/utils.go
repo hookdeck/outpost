@@ -265,13 +265,20 @@ func contains(arr []string, str string) bool {
 	return false
 }
 
+func DrainBody(res *http.Response) {
+	io.Copy(io.Discard, res.Body)
+	res.Body.Close()
+	res.Body = io.NopCloser(bytes.NewReader(nil))
+}
+
 func ConsumeRawBody(res *http.Response) ([]byte, error) {
+	defer res.Body.Close()
+
 	rawBody, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, fmt.Errorf("error reading response body: %w", err)
 	}
 
-	res.Body.Close()
 	res.Body = io.NopCloser(bytes.NewBuffer(rawBody))
 
 	return rawBody, nil

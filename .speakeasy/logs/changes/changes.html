@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - typescript</title>
+    <title>SDK Changelog - go</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,261 +95,262 @@
         }
     </style>
 </head>
-<body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
+<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.attempts.list()</code>: <code>error</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>Outpost.Attempts.List()</code>: <code>error</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
+<li><code>Status[422]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[422]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.destinations.listAttempts()</code>:
+<li><code>Outpost.Destinations.ListAttempts()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.Request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[422]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[422]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.publish.event()</code>: <code>error</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>Outpost.Publish.Event()</code>: <code>error</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
+<li><code>Status[400]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[400]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
 </ul></li>
-<li><code>outpost.destinations.getAttempt()</code>:
+<li><code>Outpost.Destinations.GetAttempt()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong>
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.tenants.listTenants()</code>:
+<li><code>Outpost.Tenants.ListTenants()</code>:
 
 <ul>
 <li><code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>dir</code> <strong>Added</strong></li>
-<li><code>limit</code> <strong>Added</strong></li>
-<li><code>next</code> <strong>Added</strong></li>
-<li><code>prev</code> <strong>Added</strong></li>
-<li><code>request</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Dir</code> <strong>Added</strong></li>
+<li><code>Limit</code> <strong>Added</strong></li>
+<li><code>Next</code> <strong>Added</strong></li>
+<li><code>Prev</code> <strong>Added</strong></li>
+<li><code>Request</code> <strong>Removed</strong> (Breaking ⚠️)</li>
 </ul></li>
 <li><code>error</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
+<li><code>AdditionalProperties</code> <strong>Added</strong></li>
+<li><code>Error</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>HttpMeta</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Message</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>additionalProperties</code> <strong>Added</strong></li>
-<li><code>error</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>message</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.tenants.upsert()</code>:
+<li><code>Outpost.Tenants.Upsert()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong>
 
 <ul>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[422]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[422]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.tenants.get()</code>:
+<li><code>Outpost.Tenants.Get()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong>
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.tenants.delete()</code>:
+<li><code>Outpost.Tenants.Delete()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong>
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.tenants.getPortalUrl()</code>:
+<li><code>Outpost.Tenants.GetPortalUrl()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong>
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.tenants.getToken()</code>:
+<li><code>Outpost.Tenants.GetToken()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong>
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.events.list()</code>:
+<li><code>Outpost.Events.List()</code>:
 
 <ul>
-<li><code>response.models[].successfulAt</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>response.Models[].SuccessfulAt</code> <strong>Removed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
+<li><code>Status[422]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[422]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.events.get()</code>:
+<li><code>Outpost.Events.Get()</code>:
 
 <ul>
-<li><code>response.successfulAt</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>response.SuccessfulAt</code> <strong>Removed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong>
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.destinations.disable()</code>:
+<li><code>Outpost.Destinations.Disable()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong>
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.destinations.enable()</code>:
+<li><code>Outpost.Destinations.Enable()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong>
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.destinations.update()</code>:
+<li><code>Outpost.Destinations.Update()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
+<li><code>Status[400]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[422]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[400]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[422]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.destinations.list()</code>:
+<li><code>Outpost.Destinations.List()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong>
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.destinations.create()</code>:
+<li><code>Outpost.Destinations.Create()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
+<li><code>Status[400]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[422]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[400]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[422]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.destinations.get()</code>:
+<li><code>Outpost.Destinations.Get()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong>
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.attempts.retry()</code>: <code>error</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>Outpost.Attempts.Retry()</code>: <code>error</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[422]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[422]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.destinations.delete()</code>:
+<li><code>Outpost.Destinations.Delete()</code>:
 
 <ul>
-<li><code>request.tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>error</code> <strong>Changed</strong>
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.schemas.listDestinationTypes()</code>: <strong>Added</strong></li>
-<li><code>outpost.schemas.getDestinationType()</code>: <strong>Added</strong></li>
-<li><code>outpost.attempts.get()</code>: <code>error</code> <strong>Changed</strong>
+<li><code>Outpost.Schemas.ListDestinationTypes()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Schemas.GetDestinationType()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Attempts.Get()</code>: <code>error</code> <strong>Changed</strong>
 
 <ul>
+<li><code>Status[401]</code> <strong>Added</strong></li>
+<li><code>Status[500]</code> <strong>Added</strong></li>
 <li>&rdquo; <strong>Added</strong></li>
-<li><code>status[401]</code> <strong>Added</strong></li>
-<li><code>status[500]</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.schemas.getDestinationTypeJwt()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>outpost.schemas.listDestinationTypesJwt()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>outpost.topics.list()</code>:  <code>error.status[401]</code> <strong>Added</strong></li>
+<li><code>Outpost.Schemas.GetDestinationTypeJwt()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Schemas.ListDestinationTypesJwt()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Topics.List()</code>:  <code>error.status[401]</code> <strong>Added</strong></li>
 </ul>
 </body>
 </html>

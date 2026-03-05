@@ -1,136 +1,137 @@
-## Typescript SDK Changes:
-* `outpost.attempts.list()`: `error` **Changed** (Breaking ⚠️)
+## Go SDK Changes:
+* `Outpost.Attempts.List()`: `error` **Changed** (Breaking ⚠️)
+    - `Status[422]` **Removed** (Breaking ⚠️)
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[422]` **Removed** (Breaking ⚠️)
-    - `status[500]` **Added**
-* `outpost.destinations.listAttempts()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+* `Outpost.Destinations.ListAttempts()`: 
+  *  `request.Request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed** (Breaking ⚠️)
+    - `Status[401]` **Added**
+    - `Status[422]` **Removed** (Breaking ⚠️)
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[422]` **Removed** (Breaking ⚠️)
-    - `status[500]` **Added**
-* `outpost.publish.event()`: `error` **Changed** (Breaking ⚠️)
+* `Outpost.Publish.Event()`: `error` **Changed** (Breaking ⚠️)
+    - `Status[400]` **Removed** (Breaking ⚠️)
     - `` **Added**
-    - `status[400]` **Removed** (Breaking ⚠️)
-* `outpost.destinations.getAttempt()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+* `Outpost.Destinations.GetAttempt()`: 
+  *  `request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed**
+    - `Status[401]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[500]` **Added**
-* `outpost.tenants.listTenants()`: 
+* `Outpost.Tenants.ListTenants()`: 
   * `request` **Changed** (Breaking ⚠️)
-    - `dir` **Added**
-    - `limit` **Added**
-    - `next` **Added**
-    - `prev` **Added**
-    - `request` **Removed** (Breaking ⚠️)
+    - `Dir` **Added**
+    - `Limit` **Added**
+    - `Next` **Added**
+    - `Prev` **Added**
+    - `Request` **Removed** (Breaking ⚠️)
   * `error` **Changed** (Breaking ⚠️)
+    - `AdditionalProperties` **Added**
+    - `Error` **Removed** (Breaking ⚠️)
+    - `HttpMeta` **Removed** (Breaking ⚠️)
+    - `Message` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `additionalProperties` **Added**
-    - `error` **Removed** (Breaking ⚠️)
-    - `message` **Added**
-    - `status[500]` **Added**
-* `outpost.tenants.upsert()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+* `Outpost.Tenants.Upsert()`: 
+  *  `request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed**
-    - `status[401]` **Added**
-    - `status[422]` **Added**
-    - `status[500]` **Added**
-* `outpost.tenants.get()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+    - `Status[401]` **Added**
+    - `Status[422]` **Added**
+    - `Status[500]` **Added**
+* `Outpost.Tenants.Get()`: 
+  *  `request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed**
+    - `Status[401]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[500]` **Added**
-* `outpost.tenants.delete()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+* `Outpost.Tenants.Delete()`: 
+  *  `request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed**
+    - `Status[401]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[500]` **Added**
-* `outpost.tenants.getPortalUrl()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+* `Outpost.Tenants.GetPortalUrl()`: 
+  *  `request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed**
+    - `Status[401]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[500]` **Added**
-* `outpost.tenants.getToken()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+* `Outpost.Tenants.GetToken()`: 
+  *  `request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed**
+    - `Status[401]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[500]` **Added**
-* `outpost.events.list()`: 
-  *  `response.models[].successfulAt` **Removed** (Breaking ⚠️)
+* `Outpost.Events.List()`: 
+  *  `response.Models[].SuccessfulAt` **Removed** (Breaking ⚠️)
   * `error` **Changed** (Breaking ⚠️)
+    - `Status[422]` **Removed** (Breaking ⚠️)
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[422]` **Removed** (Breaking ⚠️)
-    - `status[500]` **Added**
-* `outpost.events.get()`: 
-  *  `response.successfulAt` **Removed** (Breaking ⚠️)
+* `Outpost.Events.Get()`: 
+  *  `response.SuccessfulAt` **Removed** (Breaking ⚠️)
   * `error` **Changed**
+    - `Status[401]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[500]` **Added**
-* `outpost.destinations.disable()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+* `Outpost.Destinations.Disable()`: 
+  *  `request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed**
+    - `Status[401]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[500]` **Added**
-* `outpost.destinations.enable()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+* `Outpost.Destinations.Enable()`: 
+  *  `request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed**
+    - `Status[401]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[500]` **Added**
-* `outpost.destinations.update()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+* `Outpost.Destinations.Update()`: 
+  *  `request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed** (Breaking ⚠️)
+    - `Status[400]` **Removed** (Breaking ⚠️)
+    - `Status[401]` **Added**
+    - `Status[422]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[400]` **Removed** (Breaking ⚠️)
-    - `status[401]` **Added**
-    - `status[422]` **Added**
-    - `status[500]` **Added**
-* `outpost.destinations.list()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+* `Outpost.Destinations.List()`: 
+  *  `request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed**
+    - `Status[401]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[500]` **Added**
-* `outpost.destinations.create()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+* `Outpost.Destinations.Create()`: 
+  *  `request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed** (Breaking ⚠️)
+    - `Status[400]` **Removed** (Breaking ⚠️)
+    - `Status[401]` **Added**
+    - `Status[422]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[400]` **Removed** (Breaking ⚠️)
-    - `status[401]` **Added**
-    - `status[422]` **Added**
-    - `status[500]` **Added**
-* `outpost.destinations.get()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+* `Outpost.Destinations.Get()`: 
+  *  `request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed**
+    - `Status[401]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[500]` **Added**
-* `outpost.attempts.retry()`: `error` **Changed** (Breaking ⚠️)
+* `Outpost.Attempts.Retry()`: `error` **Changed** (Breaking ⚠️)
+    - `Status[401]` **Added**
+    - `Status[422]` **Removed** (Breaking ⚠️)
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[422]` **Removed** (Breaking ⚠️)
-    - `status[500]` **Added**
-* `outpost.destinations.delete()`: 
-  *  `request.tenantId` **Changed** (Breaking ⚠️)
+* `Outpost.Destinations.Delete()`: 
+  *  `request.TenantId` **Changed** (Breaking ⚠️)
   * `error` **Changed**
+    - `Status[401]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[500]` **Added**
-* `outpost.schemas.listDestinationTypes()`: **Added**
-* `outpost.schemas.getDestinationType()`: **Added**
-* `outpost.attempts.get()`: `error` **Changed**
+* `Outpost.Schemas.ListDestinationTypes()`: **Added**
+* `Outpost.Schemas.GetDestinationType()`: **Added**
+* `Outpost.Attempts.Get()`: `error` **Changed**
+    - `Status[401]` **Added**
+    - `Status[500]` **Added**
     - `` **Added**
-    - `status[401]` **Added**
-    - `status[500]` **Added**
-* `outpost.schemas.getDestinationTypeJwt()`: **Removed** (Breaking ⚠️)
-* `outpost.schemas.listDestinationTypesJwt()`: **Removed** (Breaking ⚠️)
-* `outpost.topics.list()`:  `error.status[401]` **Added**
+* `Outpost.Schemas.GetDestinationTypeJwt()`: **Removed** (Breaking ⚠️)
+* `Outpost.Schemas.ListDestinationTypesJwt()`: **Removed** (Breaking ⚠️)
+* `Outpost.Topics.List()`:  `error.status[401]` **Added**

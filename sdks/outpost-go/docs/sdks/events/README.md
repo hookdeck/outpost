@@ -6,25 +6,25 @@ Operations related to event history.
 
 ### Available Operations
 
-* [List](#list) - List Events (Admin)
+* [List](#list) - List Events
 * [Get](#get) - Get Event
 
 ## List
 
-Retrieves a list of events across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+Retrieves a list of events.
 
-When `tenant_id` is not provided, returns events from all tenants. When `tenant_id` is provided, returns only events for that tenant.
+When authenticated with a Tenant JWT, returns only events belonging to that tenant.
+When authenticated with Admin API Key, returns events across all tenants. Use `tenant_id` query parameter to filter by tenant.
 
 
 ### Example Usage
 
-<!-- UsageSnippet language="go" operationID="adminListEvents" method="get" path="/events" example="AdminEventsListExample" -->
+<!-- UsageSnippet language="go" operationID="listEvents" method="get" path="/events" example="AdminEventsListExample" -->
 ```go
 package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
@@ -34,12 +34,10 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Events.List(ctx, operations.AdminListEventsRequest{})
+    res, err := s.Events.List(ctx, operations.ListEventsRequest{})
     if err != nil {
         log.Fatal(err)
     }
@@ -51,22 +49,23 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                              | Type                                                                                   | Required                                                                               | Description                                                                            |
-| -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `ctx`                                                                                  | [context.Context](https://pkg.go.dev/context#Context)                                  | :heavy_check_mark:                                                                     | The context to use for the request.                                                    |
-| `request`                                                                              | [operations.AdminListEventsRequest](../../models/operations/adminlisteventsrequest.md) | :heavy_check_mark:                                                                     | The request object to use for the request.                                             |
-| `opts`                                                                                 | [][operations.Option](../../models/operations/option.md)                               | :heavy_minus_sign:                                                                     | The options for this request.                                                          |
+| Parameter                                                                    | Type                                                                         | Required                                                                     | Description                                                                  |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `ctx`                                                                        | [context.Context](https://pkg.go.dev/context#Context)                        | :heavy_check_mark:                                                           | The context to use for the request.                                          |
+| `request`                                                                    | [operations.ListEventsRequest](../../models/operations/listeventsrequest.md) | :heavy_check_mark:                                                           | The request object to use for the request.                                   |
+| `opts`                                                                       | [][operations.Option](../../models/operations/option.md)                     | :heavy_minus_sign:                                                           | The options for this request.                                                |
 
 ### Response
 
-**[*operations.AdminListEventsResponse](../../models/operations/adminlisteventsresponse.md), error**
+**[*operations.ListEventsResponse](../../models/operations/listeventsresponse.md), error**
 
 ### Errors
 
-| Error Type                 | Status Code                | Content Type               |
-| -------------------------- | -------------------------- | -------------------------- |
-| apierrors.APIErrorResponse | 422                        | application/json           |
-| apierrors.APIError         | 4XX, 5XX                   | \*/\*                      |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
 ## Get
 
@@ -84,7 +83,6 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
@@ -93,9 +91,7 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
     res, err := s.Events.Get(ctx, "<id>")
@@ -122,6 +118,9 @@ func main() {
 
 ### Errors
 
-| Error Type         | Status Code        | Content Type       |
-| ------------------ | ------------------ | ------------------ |
-| apierrors.APIError | 4XX, 5XX           | \*/\*              |
+| Error Type                    | Status Code                   | Content Type                  |
+| ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.InternalServerError | 500                           | application/json              |
+| apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |

@@ -4,7 +4,6 @@ package config
 
 import (
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/internal/globals"
 	"github.com/hookdeck/outpost/sdks/outpost-go/retry"
 	"net/http"
 	"time"
@@ -21,7 +20,6 @@ type SDKConfiguration struct {
 	ServerIndex int
 	ServerList  []string
 	UserAgent   string
-	Globals     globals.Globals
 	RetryConfig *retry.Config
 	Timeout     *time.Duration
 }

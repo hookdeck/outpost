@@ -20,7 +20,6 @@ package main
 
 import(
 	"context"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"log"
 )
@@ -29,9 +28,7 @@ func main() {
     ctx := context.Background()
 
     s := outpostgo.New(
-        outpostgo.WithSecurity(components.Security{
-            AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-        }),
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
     res, err := s.Topics.List(ctx)
@@ -60,7 +57,7 @@ func main() {
 | Error Type                    | Status Code                   | Content Type                  |
 | ----------------------------- | ----------------------------- | ----------------------------- |
 | apierrors.NotFoundError       | 404                           | application/json              |
-| apierrors.UnauthorizedError   | 403, 407                      | application/json              |
+| apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
 | apierrors.TimeoutError        | 408                           | application/json              |
 | apierrors.RateLimitedError    | 429                           | application/json              |
 | apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431  | application/json              |

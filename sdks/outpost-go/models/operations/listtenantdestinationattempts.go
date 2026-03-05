@@ -11,17 +11,6 @@ import (
 	"time"
 )
 
-type ListTenantDestinationAttemptsGlobals struct {
-	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
-}
-
-func (l *ListTenantDestinationAttemptsGlobals) GetTenantID() *string {
-	if l == nil {
-		return nil
-	}
-	return l.TenantID
-}
-
 // ListTenantDestinationAttemptsStatus - Filter attempts by status.
 type ListTenantDestinationAttemptsStatus string
 
@@ -233,7 +222,7 @@ func (e *ListTenantDestinationAttemptsDir) UnmarshalJSON(data []byte) error {
 
 type ListTenantDestinationAttemptsRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
-	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
+	TenantID string `pathParam:"style=simple,explode=false,name=tenant_id"`
 	// The ID of the destination.
 	DestinationID string `pathParam:"style=simple,explode=false,name=destination_id"`
 	// Filter attempts by event ID.
@@ -275,9 +264,9 @@ func (l *ListTenantDestinationAttemptsRequest) UnmarshalJSON(data []byte) error 
 	return nil
 }
 
-func (l *ListTenantDestinationAttemptsRequest) GetTenantID() *string {
+func (l *ListTenantDestinationAttemptsRequest) GetTenantID() string {
 	if l == nil {
-		return nil
+		return ""
 	}
 	return l.TenantID
 }

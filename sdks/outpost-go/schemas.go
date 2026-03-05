@@ -32,9 +32,9 @@ func newSchemas(rootSDK *Outpost, sdkConfig config.SDKConfiguration, hooks *hook
 	}
 }
 
-// ListDestinationTypesJwt - List Destination Type Schemas
+// ListDestinationTypes - List Destination Type Schemas
 // Returns a list of JSON-based input schemas for each available destination type.
-func (s *Schemas) ListDestinationTypesJwt(ctx context.Context, opts ...operations.Option) (*operations.ListDestinationTypeSchemasResponse, error) {
+func (s *Schemas) ListDestinationTypes(ctx context.Context, opts ...operations.Option) (*operations.ListDestinationTypeSchemasResponse, error) {
 	o := operations.Options{}
 	supportedOptions := []string{
 		operations.SupportedOptionRetries,
@@ -235,6 +235,8 @@ func (s *Schemas) ListDestinationTypesJwt(ctx context.Context, opts ...operation
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
+	case httpRes.StatusCode == 401:
+		fallthrough
 	case httpRes.StatusCode == 403:
 		fallthrough
 	case httpRes.StatusCode == 407:
@@ -448,8 +450,6 @@ func (s *Schemas) ListDestinationTypesJwt(ctx context.Context, opts ...operation
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
-	case httpRes.StatusCode == 401:
-		fallthrough
 	case httpRes.StatusCode >= 400 && httpRes.StatusCode < 500:
 		rawBody, err := utils.ConsumeRawBody(httpRes)
 		if err != nil {
@@ -474,9 +474,9 @@ func (s *Schemas) ListDestinationTypesJwt(ctx context.Context, opts ...operation
 
 }
 
-// GetDestinationTypeJwt - Get Destination Type Schema
+// GetDestinationType - Get Destination Type Schema
 // Returns the input schema for a specific destination type.
-func (s *Schemas) GetDestinationTypeJwt(ctx context.Context, type_ operations.GetDestinationTypeSchemaType, opts ...operations.Option) (*operations.GetDestinationTypeSchemaResponse, error) {
+func (s *Schemas) GetDestinationType(ctx context.Context, type_ operations.GetDestinationTypeSchemaType, opts ...operations.Option) (*operations.GetDestinationTypeSchemaResponse, error) {
 	request := operations.GetDestinationTypeSchemaRequest{
 		Type: type_,
 	}
@@ -660,6 +660,29 @@ func (s *Schemas) GetDestinationTypeJwt(ctx context.Context, type_ operations.Ge
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
+	case httpRes.StatusCode == 404:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.NotFoundError
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, err
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
+	case httpRes.StatusCode == 401:
+		fallthrough
 	case httpRes.StatusCode == 403:
 		fallthrough
 	case httpRes.StatusCode == 407:
@@ -873,10 +896,6 @@ func (s *Schemas) GetDestinationTypeJwt(ctx context.Context, type_ operations.Ge
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
-	case httpRes.StatusCode == 401:
-		fallthrough
-	case httpRes.StatusCode == 404:
-		fallthrough
 	case httpRes.StatusCode >= 400 && httpRes.StatusCode < 500:
 		rawBody, err := utils.ConsumeRawBody(httpRes)
 		if err != nil {
