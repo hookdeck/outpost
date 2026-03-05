@@ -1,0 +1,83 @@
+overlay: 1.0.0
+info:
+  title: Security Scheme Collapse
+  version: 0.0.2
+  description: |
+    Collapses AdminApiKey and TenantJwt into a single BearerAuth scheme for SDK
+    generation. This enables flattenGlobalSecurity to promote the token to a
+    top-level constructor parameter. The original OpenAPI spec retains both
+    schemes for documentation purposes.
+actions:
+  # Remove original security schemes
+  - target: $["components"]["securitySchemes"]["AdminApiKey"]
+    remove: true
+  - target: $["components"]["securitySchemes"]["TenantJwt"]
+    remove: true
+
+  # Add collapsed security scheme
+  - target: $["components"]["securitySchemes"]
+    update:
+      BearerAuth:
+        type: http
+        scheme: bearer
+        x-speakeasy-name-override: apiKey
+        description: |
+          Bearer token for authentication. Use either an Admin API Key or a Tenant JWT.
+
+          **Admin API Key:** Static key configured via the `API_KEY` environment variable.
+          Required for admin operations (publishing events, managing tenants, generating tokens).
+
+          **Tenant JWT:** Per-tenant token valid for 24 hours, scoped to a specific tenant.
+          Used for tenant-scoped operations (listing destinations, viewing events and attempts).
+
+  # Remove global security array then set new value
+  - target: $["security"]
+    remove: true
+  - target: $
+    update:
+      security:
+        - BearerAuth: []
+
+  # Remove and replace operation-level security: endpoints with both schemes
+  - target: $["paths"]["/tenants"]["get"]["security"]
+    remove: true
+  - target: $["paths"]["/tenants"]["get"]
+    update:
+      security:
+        - BearerAuth: []
+
+  - target: $["paths"]["/events"]["get"]["security"]
+    remove: true
+  - target: $["paths"]["/events"]["get"]
+    update:
+      security:
+        - BearerAuth: []
+
+  - target: $["paths"]["/attempts"]["get"]["security"]
+    remove: true
+  - target: $["paths"]["/attempts"]["get"]
+    update:
+      security:
+        - BearerAuth: []
+
+  # Remove and replace operation-level security: admin-only endpoints
+  - target: $["paths"]["/tenants/{tenant_id}/portal"]["get"]["security"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/portal"]["get"]
+    update:
+      security:
+        - BearerAuth: []
+
+  - target: $["paths"]["/tenants/{tenant_id}/token"]["get"]["security"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/token"]["get"]
+    update:
+      security:
+        - BearerAuth: []
+
+  - target: $["paths"]["/publish"]["post"]["security"]
+    remove: true
+  - target: $["paths"]["/publish"]["post"]
+    update:
+      security:
+        - BearerAuth: []

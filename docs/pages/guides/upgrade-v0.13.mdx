@@ -14,6 +14,7 @@ This guide covers breaking changes and migration steps when upgrading from v0.12
 | [ID prefix delimiter removed](#id-prefix-delimiter-removed) | Custom ID prefixes | Include delimiter in prefix value (e.g., `evt_` instead of `evt`) |
 | [Refined API schema](#refined-api-schema) | Pagination, query filters, and error responses | Update response parsing, query parameters, and error handling |
 | [Empty `custom_headers` rejected](#empty-custom_headers-rejected) | Webhook destination creation/update | Remove empty `custom_headers` or omit the field |
+| [SDK v0.13.1 changes](#sdk-v0131-changes) | SDK security names, global tenant_id, method names | Update SDK constructor and method calls |
 | [Database schema changes](#database-schema-changes) | PostgreSQL log store | Automatic — migrations run on startup |
 
 ## Delivery Renamed to Attempt
@@ -276,7 +277,7 @@ Use `response.models` for the array of items and `response.pagination` for `next
 | Before (v0.12-style) | After (v0.13) |
 | --- | --- |
 | `sdk.events.listByDestination({ tenantId, destinationId })` | `sdk.events.list({ tenantId, destinationId })` — or list without `destinationId` for all tenant events |
-| `sdk.events.getByDestination({ tenantId, destinationId, eventId })` | `sdk.events.get({ eventId })` |
+| `sdk.events.getByDestination({ tenantId, destinationId, eventId })` | `sdk.events.get(eventId)` — pass event ID as a string |
 | Tenant-scoped list/get by destination | Use `sdk.events.list({ tenantId })` and filter client-side, or use attempts API for destination-scoped data |
 
 **Note:** `GET /events?destination_id=...` is documented but currently returns 500 in some environments; prefer listing without `destination_id` until that is fixed. See [GitHub issue #688](https://github.com/hookdeck/outpost/issues/688) for details.
@@ -299,12 +300,159 @@ Use `response.models` for the array of items and `response.pagination` for `next
 ### Summary checklist for SDK users
 
 1. Replace any use of `response.data` with `response.models` and `response.next`/`response.prev` with `response.pagination?.next` / `response.pagination?.prev`.
-2. Switch events access to `sdk.events.list()` and `sdk.events.get({ eventId })`; remove use of event-by-destination list/get if present.
+2. Switch events access to `sdk.events.list(request)` and `sdk.events.get(eventId)` (event ID as string); remove use of event-by-destination list/get if present.
 3. Switch delivery/retry usage to `sdk.attempts.*` and `sdk.destinations.listAttempts()` / `getAttempt()`.
 4. Use `sdk.attempts.retry({ eventId, destinationId })` for retries.
 5. Use `sdk.schemas.listDestinationTypes()` and `sdk.topics.list()` without tenant scope.
 
 TypeScript SDK v0.13.0 and later reflect these changes. Go and Python SDKs will align with the same API once regenerated from the v0.13 OpenAPI spec.
+
+## SDK v0.13.1 Changes
+
+SDK v0.13.1 flattens security into a single top-level `apiKey` constructor parameter, removes the global `tenant_id` parameter, and cleans up method names.
+
+### Flattened security
+
+The two security schemes (`adminApiKey` / `tenantJwt`) have been collapsed into a single `apiKey` parameter. Pass either an Admin API Key or a Tenant JWT — the SDK sends it as a `Bearer` token in both cases.
+
+**TypeScript:**
+
+```ts
+// Before
+const outpost = new Outpost({
+  security: { adminApiKey: "your-api-key" },
+  serverURL: `${SERVER_URL}/api/v1`,
+});
+
+// After — apiKey is a top-level constructor parameter
+const outpost = new Outpost({
+  apiKey: "your-api-key",
+  serverURL: `${SERVER_URL}/api/v1`,
+});
+```
+
+For tenant JWT authentication, pass the JWT as `apiKey`:
+
+```ts
+const outpost = new Outpost({
+  apiKey: jwt,
+  serverURL: `${SERVER_URL}/api/v1`,
+});
+```
+
+**Go:**
+
+```go
+// Before
+client := outpostgo.New(
+    outpostgo.WithSecurity(components.Security{
+        AdminAPIKey: outpostgo.String(apiKey),
+    }),
+)
+
+// After
+client := outpostgo.New(
+    outpostgo.WithSecurity(components.Security{
+        APIKey: outpostgo.String(apiKey),
+    }),
+)
+```
+
+### Global `tenant_id` parameter removed
+
+The `tenantId` constructor option has been removed. Pass `tenantId` directly to each method that requires it.
+
+**TypeScript:**
+
+```ts
+// Before — tenantId set globally
+const outpost = new Outpost({
+  security: { tenantJwt: jwt },
+  serverURL: `${SERVER_URL}/api/v1`,
+  tenantId: "my-tenant",
+});
+const destinations = await outpost.destinations.list({});
+
+// After — tenantId passed as first (positional) argument to each method
+const outpost = new Outpost({
+  apiKey: jwt,
+  serverURL: `${SERVER_URL}/api/v1`,
+});
+const destinations = await outpost.destinations.list("my-tenant");
+```
+
+### Positional parameters for tenants and destinations
+
+In v0.13.1, tenant- and destination-scoped methods take **positional arguments** (e.g. `tenantId` first), not a single request object. Update calls as shown in the table below.
+
+**Request body (`params`) change:** The three methods that send a request body — **`tenants.upsert`**, **`destinations.create`**, and **`destinations.update`** — no longer take that body inside a `params` property. Pass the body as the second (or third) argument directly.
+
+| Method | Before (object form) | After (v0.13.1 positional) |
+| --- | --- | --- |
+| `tenants.upsert` | `upsert({ tenantId })` or `upsert({ tenantId, params })` | `upsert(tenantId, params?)` |
+| `tenants.delete` | `delete({ tenantId })` | `delete(tenantId)` |
+| `tenants.get` | `get({ tenantId })` | `get(tenantId)` |
+| `destinations.list` | `list({ tenantId, type? })` | `list(tenantId, type?, topics?)` |
+| `destinations.create` | `create({ tenantId, params })` | `create(tenantId, params)` |
+| `destinations.get` | `get({ tenantId, destinationId })` | `get(tenantId, destinationId)` |
+| `destinations.update` | `update({ tenantId, destinationId, params })` | `update(tenantId, destinationId, params)` |
+| `destinations.delete` | `delete({ tenantId, destinationId })` | `delete(tenantId, destinationId)` |
+
+**Example — before (v0.13.0):** one object with `tenantId` and (for create/update/upsert) a `params` property for the body:
+
+```ts
+// Tenant upsert: optional body (e.g. metadata)
+await sdk.tenants.upsert({ tenantId: "acme", params: { metadata: { name: "Acme" } } });
+
+// Destination create: body is required (type, config, topics)
+await sdk.destinations.create({
+  tenantId: "acme",
+  params: { type: "webhook", config: { url: "https://example.com/hook" }, topics: ["order.created"] },
+});
+
+// Destination update: body is required (e.g. topics or config changes)
+await sdk.destinations.update({
+  tenantId: "acme",
+  destinationId: "des_abc123",
+  params: { topics: ["order.updated"] },
+});
+```
+
+**Example — after (v0.13.1):** positional arguments; the body is the second or third argument (no `params` wrapper):
+
+```ts
+// Tenant upsert
+await sdk.tenants.upsert("acme", { metadata: { name: "Acme" } });
+
+// Destination create
+await sdk.destinations.create("acme", {
+  type: "webhook",
+  config: { url: "https://example.com/hook" },
+  topics: ["order.created"],
+});
+
+// Destination update
+await sdk.destinations.update("acme", "des_abc123", { topics: ["order.updated"] });
+```
+
+`events.list()` still takes a single request object (e.g. `{ tenantId?, topic?, limit? }`). `events.get()` takes the event ID as a string: `events.get(eventId)`.
+
+### Method name cleanup
+
+Redundant `Jwt` suffixes have been removed from method names:
+
+| Before (v0.13.0) | After (v0.13.1) |
+| --- | --- |
+| `sdk.schemas.getDestinationTypeJwt()` | `sdk.schemas.getDestinationType()` |
+| `sdk.schemas.listDestinationTypesJwt()` | `sdk.schemas.listDestinationTypes()` |
+
+### Summary checklist for SDK v0.13.1 users
+
+1. Replace `security: { adminApiKey: "..." }` or `security: { tenantJwt: "..." }` with `apiKey: "..."` as a top-level constructor parameter.
+2. Remove `tenantId` from the SDK constructor and pass it as the first (positional) argument to each tenant/destination method (e.g. `destinations.list(tenantId)`, `destinations.get(tenantId, destinationId)`).
+3. Change tenant and destination method calls from object form to positional: `tenants.upsert(tenantId, params?)`, `tenants.delete(tenantId)`, `destinations.create(tenantId, params)`, `destinations.get(tenantId, destinationId)`, `destinations.update(tenantId, destinationId, params)`, `destinations.delete(tenantId, destinationId)`. Pass the request body (formerly the `params` property) as that positional argument — do not wrap it in `{ params: ... }`.
+4. Use `events.get(eventId)` with the event ID as a string, not `events.get({ eventId })`.
+5. Rename `getDestinationTypeJwt` to `getDestinationType` and `listDestinationTypesJwt` to `listDestinationTypes`.
 
 ## Empty `custom_headers` Rejected
 

@@ -100,9 +100,9 @@ actions:
       type: method-name
   - target: $["paths"]["/destination-types/{type}"]["get"]
     update:
-      x-speakeasy-name-override: getDestinationTypeJwt
+      x-speakeasy-name-override: getDestinationType
     x-speakeasy-metadata:
-      after: sdk.schemas.getDestinationTypeJwt()
+      after: sdk.schemas.getDestinationType()
       before: sdk.Schemas.getDestinationTypeSchemaJwt()
       created_at: 1745611620645
       reviewed_at: 1745611624395
@@ -118,9 +118,9 @@ actions:
       type: method-name
   - target: $["paths"]["/destination-types"]["get"]
     update:
-      x-speakeasy-name-override: listDestinationTypesJwt
+      x-speakeasy-name-override: listDestinationTypes
     x-speakeasy-metadata:
-      after: sdk.schemas.listDestinationTypesJwt()
+      after: sdk.schemas.listDestinationTypes()
       before: sdk.Schemas.listDestinationTypeSchemasJwt()
       created_at: 1745611620645
       reviewed_at: 1745611624395
@@ -233,14 +233,3 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
-  - target: $
-    update:
-      x-speakeasy-globals:
-        parameters:
-          - name: tenant_id
-            in: path
-            schema:
-              type: string
-    x-speakeasy-metadata:
-      created_at: 1745612981892
-      type: user-edit

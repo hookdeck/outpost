@@ -130,7 +130,7 @@ export async function createTenant(tenantId: string): Promise<void> {
   const outpost = getOutpostClient();
 
   try {
-    await outpost.tenants.upsert({ tenantId });
+    await outpost.tenants.upsert(tenantId);
     logger.info("Tenant created/updated successfully", { tenantId });
   } catch (error) {
     logger.error("Failed to create tenant", { tenantId, error });

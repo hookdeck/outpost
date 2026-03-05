@@ -2,7 +2,7 @@ import inquirer from 'inquirer';
 import dotenv from "dotenv";
 dotenv.config();
 import { Outpost } from "@hookdeck/outpost-sdk";
-import { CreateTenantDestinationRequest } from '@hookdeck/outpost-sdk/dist/esm/models/operations';
+import type { DestinationCreateAzureServiceBus } from "@hookdeck/outpost-sdk/models/components";
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
 const TENANT_ID = process.env.TENANT_ID || "hookdeck";
@@ -15,13 +15,11 @@ if (!ADMIN_API_KEY) {
 
 async function main() {
   const outpostAdmin = new Outpost({
-    security: { adminApiKey: ADMIN_API_KEY },
+    apiKey: ADMIN_API_KEY,
     serverURL: `${SERVER_URL}/api/v1`,
   });
 
-  await outpostAdmin.tenants.upsert({
-    tenantId: TENANT_ID,
-  });
+  await outpostAdmin.tenants.upsert(TENANT_ID);
 
   const { destinationType } = await inquirer.prompt([
     {
@@ -32,7 +30,7 @@ async function main() {
     },
   ]);
 
-  let destinationCreateRequest: CreateTenantDestinationRequest | null = null;
+  let destinationBody: DestinationCreateAzureServiceBus | null = null;
 
   if (destinationType === 'azure_servicebus') {
     console.log(`
@@ -95,19 +93,16 @@ az servicebus queue authorization-rule keys list \\
             message: 'Enter Azure Service Bus Topic or Queue name:',
         }
     ]);
-    destinationCreateRequest = {
-      tenantId: TENANT_ID,
-      params: {
-        credentials: {
-          connectionString,
-        },
-        type: "azure_servicebus",
-        config: {
-          name: topic_or_queue_name
-        },
-        topics: "*",
-      }
-    }
+    destinationBody = {
+      credentials: {
+        connectionString,
+      },
+      type: "azure_servicebus",
+      config: {
+        name: topic_or_queue_name
+      },
+      topics: "*",
+    };
 
   } else {
     console.log(`Destination type "${destinationType}" is not supported by this script.`);
@@ -115,7 +110,11 @@ az servicebus queue authorization-rule keys list \\
   }
 
   try {
-    const destination = await outpostAdmin.destinations.create(destinationCreateRequest);
+    if (!destinationBody) {
+      console.error("No destination configuration selected.");
+      return;
+    }
+    const destination = await outpostAdmin.destinations.create(TENANT_ID, destinationBody);
     console.log("Destination created successfully:", destination);
   } catch (error) {
     console.error("An error occurred:", error);

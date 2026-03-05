@@ -36,14 +36,14 @@ const debugLogger = {
 };
 
 const withJwt  = async (jwt: string) => {
-  const outpost = new Outpost({security: {tenantJwt: jwt}, serverURL: `${SERVER_URL}/api/v1`, tenantId: TENANT_ID });
-  const destinations = await outpost.destinations.list({});
+  const outpost = new Outpost({apiKey: jwt, serverURL: `${SERVER_URL}/api/v1`});
+  const destinations = await outpost.destinations.list(TENANT_ID);
 
   console.log(destinations);
 }
 
 const withAdminApiKey  = async () => {
-  const outpost = new Outpost({security: {adminApiKey: ADMIN_API_KEY}, serverURL: `${SERVER_URL}/api/v1`});
+  const outpost = new Outpost({apiKey: ADMIN_API_KEY, serverURL: `${SERVER_URL}/api/v1`});
 
   const result = await outpost.health.check();
   console.log(result);
@@ -53,23 +53,18 @@ const withAdminApiKey  = async () => {
   const newDestinationName = `My Test Destination ${randomUUID()}`;
 
   console.log(`Creating tenant: ${tenantId}`);
-  const tenant = await outpost.tenants.upsert({
-    tenantId: tenantId,
-  });
+  const tenant = await outpost.tenants.upsert(tenantId);
   console.log("Tenant created successfully:", tenant);
 
   console.log(
     `Creating destination: ${newDestinationName} for tenant ${tenantId}...`
   );
-  const destination = await outpost.destinations.create({
-    tenantId,
-    params: {
-      type: "webhook",
-      config: {
-        url: "https://example.com/webhook-receiver",
-      },
-      topics: ["user.created"],
-    }
+  const destination = await outpost.destinations.create(tenantId, {
+    type: "webhook",
+    config: {
+      url: "https://example.com/webhook-receiver",
+    },
+    topics: ["user.created"],
   });
   console.log("Destination created successfully:", destination);
 
@@ -91,11 +86,11 @@ const withAdminApiKey  = async () => {
 
   console.log("Event published successfully");
 
-  const destinations = await outpost.destinations.list({tenantId: TENANT_ID})
+  const destinations = await outpost.destinations.list(TENANT_ID);
 
   console.log(destinations);
 
-  const jwt = await outpost.tenants.getToken({tenantId: TENANT_ID});
+  const jwt = await outpost.tenants.getToken(TENANT_ID);
 
   await withJwt(jwt.token!);
 }
