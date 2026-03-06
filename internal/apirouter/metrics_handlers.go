@@ -349,7 +349,7 @@ func attemptDataPointToAPI(dp logstore.AttemptMetricsDataPoint, measures, dimens
 		case "manual":
 			dims["manual"] = derefBool(dp.Manual)
 		case "attempt_number":
-			dims["attempt_number"] = derefIntFromIntPtr(dp.AttemptNumber)
+			dims["attempt_number"] = derefInt(dp.AttemptNumber)
 		}
 	}
 
@@ -363,13 +363,6 @@ func attemptDataPointToAPI(dp logstore.AttemptMetricsDataPoint, measures, dimens
 // --- Deref helpers ---
 
 func derefInt(p *int) int {
-	if p != nil {
-		return *p
-	}
-	return 0
-}
-
-func derefIntFromIntPtr(p *int) int {
 	if p != nil {
 		return *p
 	}
