@@ -99,7 +99,7 @@ az servicebus queue authorization-rule keys list \\
     try:
         resp = sdk.destinations.create(
             tenant_id=tenant_id,
-            destination_create=models.DestinationCreateAzureServiceBus(
+            body=models.DestinationCreateAzureServiceBus(
                 type=(models.DestinationCreateAzureServiceBusType.AZURE_SERVICEBUS),
                 credentials=models.AzureServiceBusCredentials(
                     connection_string=connection_string
