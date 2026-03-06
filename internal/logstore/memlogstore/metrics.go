@@ -2,6 +2,7 @@ package memlogstore
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/logstore/driver"
@@ -28,6 +29,7 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 	// Group by dimensions + time bucket
 	type groupKey struct {
 		timeBucket string
+		tenantID   string
 		topic      string
 		destID     string
 		eligible   string
@@ -42,6 +44,8 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 		}
 		for _, dim := range req.Dimensions {
 			switch dim {
+			case "tenant_id":
+				key.tenantID = event.TenantID
 			case "topic":
 				key.topic = event.Topic
 			case "destination_id":
@@ -70,6 +74,9 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 		// Dimensions
 		for _, dim := range req.Dimensions {
 			switch dim {
+			case "tenant_id":
+				v := key.tenantID
+				dp.TenantID = &v
 			case "topic":
 				v := key.topic
 				dp.Topic = &v
@@ -132,6 +139,7 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 	// Group by dimensions + time bucket
 	type groupKey struct {
 		timeBucket string
+		tenantID   string
 		destID     string
 		topic      string
 		status     string
@@ -149,6 +157,8 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 		}
 		for _, dim := range req.Dimensions {
 			switch dim {
+			case "tenant_id":
+				key.tenantID = ae.event.TenantID
 			case "destination_id":
 				key.destID = ae.attempt.DestinationID
 			case "topic":
@@ -163,6 +173,8 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 				} else {
 					key.manual = "false"
 				}
+			case "attempt_number":
+				key.attemptNum = fmt.Sprintf("%d", ae.attempt.AttemptNumber)
 			}
 		}
 		groups[key] = append(groups[key], ae)
@@ -181,6 +193,9 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 		// Dimensions
 		for _, dim := range req.Dimensions {
 			switch dim {
+			case "tenant_id":
+				v := key.tenantID
+				dp.TenantID = &v
 			case "destination_id":
 				v := key.destID
 				dp.DestinationID = &v
@@ -196,6 +211,9 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 			case "manual":
 				v := key.manual == "true"
 				dp.Manual = &v
+			case "attempt_number":
+				v := attempts[0].attempt.AttemptNumber
+				dp.AttemptNumber = &v
 			}
 		}
 

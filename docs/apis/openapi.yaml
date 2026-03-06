@@ -2035,6 +2035,69 @@ components:
           description: Regex pattern for validation (compatible with HTML5 pattern attribute).
           example: "^[a-zA-Z0-9_]+$"
 
+    MetricsDataPoint:
+      type: object
+      properties:
+        time_bucket:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Start of the time bucket. Null when no granularity is specified.
+          example: "2026-03-02T14:00:00Z"
+        dimensions:
+          type: object
+          additionalProperties:
+            type: string
+          description: Dimension values for this data point. Empty object when no dimensions are requested.
+          example:
+            destination_id: "dest_abc"
+            topic: "user.created"
+        metrics:
+          type: object
+          additionalProperties: {}
+          description: Requested measure values for this data point.
+          example:
+            count: 1423
+            error_rate: 0.02
+
+    MetricsMetadata:
+      type: object
+      properties:
+        granularity:
+          type:
+            - string
+            - "null"
+          description: The granularity used for time bucketing, or null if none was specified.
+          example: "1h"
+        query_time_ms:
+          type: integer
+          description: Query execution time in milliseconds.
+          example: 42
+        row_count:
+          type: integer
+          description: Number of data points returned.
+          example: 2
+        row_limit:
+          type: integer
+          description: Maximum number of rows the query will return.
+          example: 100000
+        truncated:
+          type: boolean
+          description: Whether the results were truncated due to hitting the row limit.
+          example: false
+
+    MetricsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetricsDataPoint"
+          description: Array of aggregated data points.
+        metadata:
+          $ref: "#/components/schemas/MetricsMetadata"
+
 # Security is applied per-operation based on AuthScope
 
 tags:
@@ -2095,6 +2158,9 @@ tags:
       - `include=response_data`: Include response body and headers from the attempt
   - name: Events
     description: Operations related to event history.
+  - name: Metrics
+    description: |
+      Aggregated metrics for events and delivery attempts. Supports time bucketing, dimensional grouping, and filtering.
 
 paths:
   /healthz:
@@ -3728,5 +3794,273 @@ paths:
                     ]
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /metrics/events:
+    get:
+      tags: [Metrics]
+      summary: Get Event Metrics
+      description: |
+        Returns aggregated event publish metrics. Supports time bucketing via granularity,
+        dimensional grouping, and filtering.
+
+        **Measures:** `count`
+
+        **Dimensions:** `tenant_id` (admin-only), `topic`, `destination_id`, `eligible_for_retry`
+
+        **Filters:** `tenant_id` (admin-only), `topic`, `destination_id`, `eligible_for_retry`
+      operationId: getEventMetrics
+      parameters:
+        - name: date_range[start]
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Start of the date range (inclusive). ISO 8601 timestamp.
+          example: "2026-03-02T00:00:00Z"
+        - name: date_range[end]
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: End of the date range (exclusive). ISO 8601 timestamp.
+          example: "2026-03-03T00:00:00Z"
+        - name: granularity
+          in: query
+          required: false
+          schema:
+            type: string
+          description: |
+            Time bucketing granularity. Pattern: `<number><unit>`.
+            Units: `s` (1-60), `m` (1-60), `h` (1-24), `d` (1-31), `w` (1-4), `M` (1-12).
+            When omitted, returns a single aggregate row per dimension combination.
+          example: "1h"
+        - name: measures[]
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [count]
+          description: Measures to compute. At least one required.
+          example: ["count"]
+        - name: dimensions[]
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [tenant_id, topic, destination_id, eligible_for_retry]
+          description: Dimensions to group results by.
+        - name: filters[topic]
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by topic name. Supports comma-separated values.
+        - name: filters[destination_id]
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by destination ID. Supports comma-separated values.
+        - name: filters[eligible_for_retry]
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: Filter by retry eligibility.
+        - name: filters[tenant_id]
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by tenant ID. Admin-only — rejected with 403 for JWT callers.
+      responses:
+        "200":
+          description: Aggregated event metrics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetricsResponse"
+              examples:
+                HourlyEventCount:
+                  value:
+                    data:
+                      - time_bucket: "2026-03-02T14:00:00Z"
+                        dimensions:
+                          topic: "user.created"
+                        metrics:
+                          count: 1423
+                      - time_bucket: "2026-03-02T15:00:00Z"
+                        dimensions:
+                          topic: "user.created"
+                        metrics:
+                          count: 1891
+                    metadata:
+                      granularity: "1h"
+                      query_time_ms: 42
+                      row_count: 2
+                      row_limit: 100000
+                      truncated: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: JWT caller attempted to use admin-only dimension or filter (tenant_id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /metrics/attempts:
+    get:
+      tags: [Metrics]
+      summary: Get Attempt Metrics
+      description: |
+        Returns aggregated delivery attempt metrics. Supports time bucketing via granularity,
+        dimensional grouping, and filtering.
+
+        **Measures:** `count`, `successful_count`, `failed_count`, `error_rate`,
+        `first_attempt_count`, `retry_count`, `manual_retry_count`, `avg_attempt_number`
+
+        **Dimensions:** `tenant_id` (admin-only), `destination_id`, `topic`, `status`, `code`, `manual`, `attempt_number`
+
+        **Filters:** `tenant_id` (admin-only), `destination_id`, `topic`, `status`, `code`, `manual`, `attempt_number`
+      operationId: getAttemptMetrics
+      parameters:
+        - name: date_range[start]
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Start of the date range (inclusive). ISO 8601 timestamp.
+          example: "2026-03-02T00:00:00Z"
+        - name: date_range[end]
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: End of the date range (exclusive). ISO 8601 timestamp.
+          example: "2026-03-03T00:00:00Z"
+        - name: granularity
+          in: query
+          required: false
+          schema:
+            type: string
+          description: |
+            Time bucketing granularity. Pattern: `<number><unit>`.
+            Units: `s` (1-60), `m` (1-60), `h` (1-24), `d` (1-31), `w` (1-4), `M` (1-12).
+            When omitted, returns a single aggregate row per dimension combination.
+          example: "1h"
+        - name: measures[]
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [count, successful_count, failed_count, error_rate, first_attempt_count, retry_count, manual_retry_count, avg_attempt_number]
+          description: Measures to compute. At least one required.
+          example: ["count", "error_rate"]
+        - name: dimensions[]
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [tenant_id, destination_id, topic, status, code, manual, attempt_number]
+          description: Dimensions to group results by.
+        - name: filters[destination_id]
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by destination ID. Supports comma-separated values.
+        - name: filters[topic]
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by topic name. Supports comma-separated values.
+        - name: filters[status]
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [success, failed]
+          description: Filter by attempt status.
+        - name: filters[code]
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by HTTP status code. Supports comma-separated values.
+        - name: filters[manual]
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: Filter by manual retry flag.
+        - name: filters[attempt_number]
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by attempt number.
+        - name: filters[tenant_id]
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by tenant ID. Admin-only — rejected with 403 for JWT callers.
+      responses:
+        "200":
+          description: Aggregated attempt metrics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetricsResponse"
+              examples:
+                DailyAttemptCounts:
+                  value:
+                    data:
+                      - time_bucket: "2026-03-02T00:00:00Z"
+                        dimensions:
+                          destination_id: "dest_abc"
+                        metrics:
+                          count: 1423
+                          successful_count: 1393
+                          failed_count: 30
+                          error_rate: 0.0211
+                    metadata:
+                      granularity: "1d"
+                      query_time_ms: 38
+                      row_count: 1
+                      row_limit: 100000
+                      truncated: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: JWT caller attempted to use admin-only dimension or filter (tenant_id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
         "500":
           $ref: "#/components/responses/InternalServerError"
