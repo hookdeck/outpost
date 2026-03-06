@@ -86,7 +86,7 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 	t.Run("TenantIsolation", func(t *testing.T) {
 		t.Run("ListAttempt isolates by tenant", func(t *testing.T) {
 			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenant1ID,
+				TenantIDs:  []string{tenant1ID},
 				Limit:      100,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
@@ -95,7 +95,7 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			assert.Equal(t, "tenant1-event", response.Data[0].Event.ID)
 
 			response, err = logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenant2ID,
+				TenantIDs:  []string{tenant2ID},
 				Limit:      100,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
@@ -129,7 +129,7 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			t.Skip("ListEvent with DestinationIDs filter is not implemented")
 
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantID:       "",
+				TenantIDs:      nil,
 				DestinationIDs: []string{destinationID},
 				Limit:          100,
 				TimeFilter:     driver.TimeFilter{GTE: &startTime},
@@ -147,7 +147,7 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 
 		t.Run("ListAttempt returns all tenants when TenantID empty", func(t *testing.T) {
 			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:       "",
+				TenantIDs:      nil,
 				DestinationIDs: []string{destinationID},
 				Limit:          100,
 				TimeFilter:     driver.TimeFilter{GTE: &startTime},
@@ -223,7 +223,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 
 		t.Run("invalid SortOrder uses default (desc)", func(t *testing.T) {
 			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				SortOrder:  "sideways",
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
 				Limit:      10,
@@ -254,7 +254,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 
 		t.Run("nil DestinationIDs equals empty DestinationIDs", func(t *testing.T) {
 			responseNil, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:       tenantID,
+				TenantIDs:      []string{tenantID},
 				DestinationIDs: nil,
 				TimeFilter:     driver.TimeFilter{GTE: &startTime},
 				Limit:          10,
@@ -262,7 +262,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			require.NoError(t, err)
 
 			responseEmpty, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:       tenantID,
+				TenantIDs:      []string{tenantID},
 				DestinationIDs: []string{},
 				TimeFilter:     driver.TimeFilter{GTE: &startTime},
 				Limit:          10,
@@ -313,7 +313,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 
 		t.Run("GTE is inclusive (>=)", func(t *testing.T) {
 			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				TimeFilter: driver.TimeFilter{GTE: &boundaryTime},
 				Limit:      10,
 			})
@@ -324,7 +324,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		t.Run("LTE is inclusive (<=)", func(t *testing.T) {
 			farPast := boundaryTime.Add(-1 * time.Hour)
 			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				TimeFilter: driver.TimeFilter{GTE: &farPast, LTE: &boundaryTime},
 				Limit:      10,
 			})
@@ -351,7 +351,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 
 		t.Run("modifying ListAttempt result doesn't affect subsequent queries", func(t *testing.T) {
 			response1, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      10,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
@@ -362,7 +362,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 			response1.Data[0].Event.ID = "MODIFIED"
 
 			response2, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      10,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
@@ -408,7 +408,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 
 		// Assert: still exactly 1 record
 		response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-			TenantID:   tenantID,
+			TenantIDs:  []string{tenantID},
 			Limit:      100,
 			TimeFilter: driver.TimeFilter{GTE: &startTime},
 		})
@@ -465,7 +465,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 
 		// ListAttempt correctly finds attempts for dest-A
 		attemptRes, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-			TenantID:       tenantID,
+			TenantIDs:      []string{tenantID},
 			DestinationIDs: []string{destA},
 			Limit:          10,
 		})
@@ -473,7 +473,7 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		require.Len(t, attemptRes.Data, 1, "ListAttempt should find the attempt to dest-A")
 
 		eventRes, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-			TenantID:       tenantID,
+			TenantIDs:      []string{tenantID},
 			DestinationIDs: []string{destA},
 			Limit:          10,
 		})
@@ -500,7 +500,7 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				_, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-					TenantID:   tenantID,
+					TenantIDs:  []string{tenantID},
 					SortOrder:  "desc",
 					Next:       tc.cursor,
 					TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -538,7 +538,7 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 
 		t.Run("delivery_time desc", func(t *testing.T) {
 			page1, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				SortOrder:  "desc",
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
 				Limit:      2,
@@ -547,7 +547,7 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 			require.NotEmpty(t, page1.Next)
 
 			page2, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				SortOrder:  "desc",
 				Next:       page1.Next,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -559,7 +559,7 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 
 		t.Run("delivery_time asc", func(t *testing.T) {
 			page1, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				SortOrder:  "asc",
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
 				Limit:      2,
@@ -568,7 +568,7 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 			require.NotEmpty(t, page1.Next)
 
 			page2, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				SortOrder:  "asc",
 				Next:       page1.Next,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},

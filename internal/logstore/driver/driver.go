@@ -29,7 +29,8 @@ type ListEventRequest struct {
 	Prev           string
 	Limit          int
 	TimeFilter     TimeFilter // optional - filter events by time
-	TenantID       string     // optional - filter by tenant (if empty, returns all tenants)
+	TenantIDs      []string   // optional - filter by tenant (if empty, returns all tenants)
+	EventIDs       []string   // optional - filter by event ID
 	DestinationIDs []string   // optional
 	Topics         []string   // optional
 	SortOrder      string     // optional: "asc", "desc" (default: "desc")
@@ -46,8 +47,8 @@ type ListAttemptRequest struct {
 	Prev           string
 	Limit          int
 	TimeFilter     TimeFilter // optional - filter attempts by time
-	TenantID       string     // optional - filter by tenant (if empty, returns all tenants)
-	EventID        string     // optional - filter for specific event
+	TenantIDs      []string   // optional - filter by tenant (if empty, returns all tenants)
+	EventIDs       []string   // optional - filter by event ID
 	DestinationIDs []string   // optional
 	Status         string     // optional: "success", "failed"
 	Topics         []string   // optional

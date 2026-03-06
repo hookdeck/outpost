@@ -69,8 +69,8 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 
 			// Verify via List
 			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
-				EventID:    event.ID,
+				TenantIDs:  []string{tenantID},
+				EventIDs:   []string{event.ID},
 				Limit:      10,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
@@ -131,7 +131,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 
 			// Verify all inserted
 			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      100,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})
@@ -154,7 +154,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		t.Run("ListEvent by destination returns error", func(t *testing.T) {
 			destID := destinationIDs[0]
 			_, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantID:       tenantID,
+				TenantIDs:      []string{tenantID},
 				DestinationIDs: []string{destID},
 				Limit:          100,
 				TimeFilter:     driver.TimeFilter{GTE: &startTime},
@@ -169,7 +169,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 
 			destID := destinationIDs[0]
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantID:       tenantID,
+				TenantIDs:      []string{tenantID},
 				DestinationIDs: []string{destID},
 				Limit:          100,
 				TimeFilter:     driver.TimeFilter{GTE: &startTime},
@@ -187,7 +187,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 
 			destIDs := []string{destinationIDs[0], destinationIDs[1]}
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantID:       tenantID,
+				TenantIDs:      []string{tenantID},
 				DestinationIDs: destIDs,
 				Limit:          100,
 				TimeFilter:     driver.TimeFilter{GTE: &startTime},
@@ -200,7 +200,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		t.Run("ListEvent by topic", func(t *testing.T) {
 			topic := testutil.TestTopics[0]
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Topics:     []string{topic},
 				Limit:      100,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -213,7 +213,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			eventStart := baseTime.Add(-5 * time.Minute)
 			eventEnd := baseTime
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				TimeFilter: driver.TimeFilter{GTE: &eventStart, LTE: &eventEnd},
 				Limit:      100,
 			})
@@ -228,7 +228,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		t.Run("ListAttempt by destination", func(t *testing.T) {
 			destID := destinationIDs[0]
 			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:       tenantID,
+				TenantIDs:      []string{tenantID},
 				DestinationIDs: []string{destID},
 				Limit:          100,
 				TimeFilter:     driver.TimeFilter{GTE: &startTime},
@@ -241,7 +241,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 
 		t.Run("ListAttempt by status", func(t *testing.T) {
 			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Status:     "success",
 				Limit:      100,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -255,7 +255,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		t.Run("ListAttempt by topic", func(t *testing.T) {
 			topic := testutil.TestTopics[0]
 			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Topics:     []string{topic},
 				Limit:      100,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
@@ -269,8 +269,8 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		t.Run("ListAttempt by event ID", func(t *testing.T) {
 			eventID := "batch_evt_00"
 			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
-				EventID:    eventID,
+				TenantIDs:  []string{tenantID},
+				EventIDs:   []string{eventID},
 				Limit:      100,
 				TimeFilter: driver.TimeFilter{GTE: &startTime},
 			})

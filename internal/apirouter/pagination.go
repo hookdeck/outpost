@@ -94,10 +94,13 @@ func ParseOrderBy(c *gin.Context, allowedValues []string) (string, *ErrorRespons
 	}
 }
 
-// ParseArrayParam parses bracket notation array parameters (e.g., field[0]=a&field[1]=b).
-// Returns the parsed array in index order. Supports both numeric indices [0], [1] and
-// simple repeated params field[]=a&field[]=b.
-func ParseArrayParam(c *gin.Context, fieldName string) []string {
+// ParseArrayQueryParam parses array query parameters. Supports three formats:
+//   - Indexed bracket notation: field[0]=a&field[1]=b
+//   - Unindexed bracket notation: field[]=a&field[]=b
+//   - Plain repeated params: field=a&field=b (fallback when no bracket notation present)
+//
+// Returns nil if the parameter is absent entirely.
+func ParseArrayQueryParam(c *gin.Context, fieldName string) []string {
 	queryMap := c.Request.URL.Query()
 	prefix := fieldName + "["
 
@@ -149,8 +152,13 @@ func ParseArrayParam(c *gin.Context, fieldName string) []string {
 		return result
 	}
 
-	// Return unindexed values if any
-	return unindexed
+	// Return unindexed bracket values if any (field[]=value)
+	if len(unindexed) > 0 {
+		return unindexed
+	}
+
+	// Fall back to plain field=value or repeated field=value&field=value2
+	return queryMap[fieldName]
 }
 
 // DateFilterResult holds the parsed date filter values.

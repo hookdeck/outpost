@@ -179,23 +179,24 @@ func tenantIDFromContext(c *gin.Context) string {
 	return c.Param("tenant_id")
 }
 
-// resolveTenantIDFilter returns the effective tenant ID for log queries.
-// If JWT set tenantID in context and a tenant_id query param is also provided,
-// they must match — otherwise abort with 403.
-func resolveTenantIDFilter(c *gin.Context) (string, bool) {
-	ctxTenantID := tenantIDFromContext(c)
-	queryTenantID := c.Query("tenant_id")
-	if ctxTenantID != "" && queryTenantID != "" && ctxTenantID != queryTenantID {
-		AbortWithError(c, http.StatusForbidden, ErrorResponse{
-			Code:    http.StatusForbidden,
-			Message: "tenant_id query parameter does not match authenticated tenant",
-		})
-		return "", false
+// resolveTenantIDsFilter returns the effective tenant IDs for log queries.
+// JWT auth: tenant_id must be absent or a single value matching the JWT tenant — otherwise aborts 403.
+// API key auth: parses tenant_id as a bracket-notation array (e.g. tenant_id[0]=a&tenant_id[1]=b).
+// Returns (nil, false) if the request was aborted.
+func resolveTenantIDsFilter(c *gin.Context) ([]string, bool) {
+	if ctxTenantID := tenantIDFromContext(c); ctxTenantID != "" {
+		queryIDs := ParseArrayQueryParam(c, "tenant_id")
+		if len(queryIDs) > 0 && (len(queryIDs) != 1 || queryIDs[0] != ctxTenantID) {
+			AbortWithError(c, http.StatusForbidden, ErrorResponse{
+				Code:    http.StatusForbidden,
+				Message: "tenant_id query parameter does not match authenticated tenant",
+			})
+			return nil, false
+		}
+		return []string{ctxTenantID}, true
 	}
-	if ctxTenantID != "" {
-		return ctxTenantID, true
-	}
-	return queryTenantID, true
+	// API key auth: support multi-value tenant_id filter
+	return ParseArrayQueryParam(c, "tenant_id"), true
 }
 
 // tenantFromContext returns the resolved tenant from context, if present.

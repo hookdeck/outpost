@@ -123,9 +123,14 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 	var conditions []string
 	var args []any
 
-	if req.TenantID != "" {
-		conditions = append(conditions, "tenant_id = ?")
-		args = append(args, req.TenantID)
+	if len(req.TenantIDs) > 0 {
+		conditions = append(conditions, "tenant_id IN ?")
+		args = append(args, req.TenantIDs)
+	}
+
+	if len(req.EventIDs) > 0 {
+		conditions = append(conditions, "event_id IN ?")
+		args = append(args, req.EventIDs)
 	}
 
 	if len(req.DestinationIDs) > 0 {
@@ -331,14 +336,14 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 	var conditions []string
 	var args []any
 
-	if req.TenantID != "" {
-		conditions = append(conditions, "tenant_id = ?")
-		args = append(args, req.TenantID)
+	if len(req.TenantIDs) > 0 {
+		conditions = append(conditions, "tenant_id IN ?")
+		args = append(args, req.TenantIDs)
 	}
 
-	if req.EventID != "" {
-		conditions = append(conditions, "event_id = ?")
-		args = append(args, req.EventID)
+	if len(req.EventIDs) > 0 {
+		conditions = append(conditions, "event_id IN ?")
+		args = append(args, req.EventIDs)
 	}
 
 	if len(req.DestinationIDs) > 0 {

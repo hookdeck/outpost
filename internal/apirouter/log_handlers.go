@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -27,21 +26,6 @@ func NewLogHandlers(
 		logger:   logger,
 		logStore: logStore,
 	}
-}
-
-// parseQueryArray parses a query parameter that can be specified as repeated params
-// (e.g., ?topic=a&topic=b) or comma-separated (e.g., ?topic=a,b) or both.
-func parseQueryArray(c *gin.Context, key string) []string {
-	var result []string
-	for _, v := range c.QueryArray(key) {
-		for _, part := range strings.Split(v, ",") {
-			part = strings.TrimSpace(part)
-			if part != "" {
-				result = append(result, part)
-			}
-		}
-	}
-	return result
 }
 
 // parseLimit parses the limit query parameter with a default and maximum value.
@@ -68,7 +52,7 @@ type IncludeOptions struct {
 
 func parseIncludeOptions(c *gin.Context) IncludeOptions {
 	opts := IncludeOptions{}
-	for _, e := range parseQueryArray(c, "include") {
+	for _, e := range ParseArrayQueryParam(c, "include") {
 		switch e {
 		case "event":
 			opts.Event = true
@@ -194,14 +178,14 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 }
 
 // ListAttempts handles GET /attempts
-// Query params: tenant_id, event_id, destination_id, status, topic[], time[gte], time[lte], time[gt], time[lt], limit, next, prev, include, order_by, dir
+// Query params: tenant_id[], event_id[], destination_id[], status, topic[], time[gte], time[lte], time[gt], time[lt], limit, next, prev, include, order_by, dir
 func (h *LogHandlers) ListAttempts(c *gin.Context) {
 	// Authz: JWT users can only query their own tenant's attempts
-	tenantID, ok := resolveTenantIDFilter(c)
+	tenantIDs, ok := resolveTenantIDsFilter(c)
 	if !ok {
 		return
 	}
-	h.listAttemptsInternal(c, tenantID, "")
+	h.listAttemptsInternal(c, tenantIDs, "")
 }
 
 // ListDestinationAttempts handles GET /:tenant_id/destinations/:destination_id/attempts
@@ -209,10 +193,10 @@ func (h *LogHandlers) ListAttempts(c *gin.Context) {
 func (h *LogHandlers) ListDestinationAttempts(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 	destinationID := c.Param("destination_id")
-	h.listAttemptsInternal(c, tenant.ID, destinationID)
+	h.listAttemptsInternal(c, []string{tenant.ID}, destinationID)
 }
 
-func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantID string, destinationID string) {
+func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, destinationID string) {
 	// Parse and validate cursors (next/prev are mutually exclusive)
 	cursors, errResp := ParseCursors(c)
 	if errResp != nil {
@@ -254,16 +238,16 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantID string, dest
 	var destinationIDs []string
 	if destinationID != "" {
 		destinationIDs = []string{destinationID}
-	} else if destID := c.Query("destination_id"); destID != "" {
-		destinationIDs = []string{destID}
+	} else {
+		destinationIDs = ParseArrayQueryParam(c, "destination_id")
 	}
 
 	req := logstore.ListAttemptRequest{
-		TenantID:       tenantID,
-		EventID:        c.Query("event_id"),
+		TenantIDs:      tenantIDs,
+		EventIDs:       ParseArrayQueryParam(c, "event_id"),
 		DestinationIDs: destinationIDs,
 		Status:         c.Query("status"),
-		Topics:         parseQueryArray(c, "topic"),
+		Topics:         ParseArrayQueryParam(c, "topic"),
 		TimeFilter: logstore.TimeFilter{
 			GTE: attemptTimeFilter.GTE,
 			LTE: attemptTimeFilter.LTE,
@@ -308,9 +292,13 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantID string, dest
 // RetrieveEvent handles GET /events/:event_id
 func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 	// Authz: JWT users can only query their own tenant's events
-	tenantID, ok := resolveTenantIDFilter(c)
+	tenantIDs, ok := resolveTenantIDsFilter(c)
 	if !ok {
 		return
+	}
+	tenantID := ""
+	if len(tenantIDs) == 1 {
+		tenantID = tenantIDs[0]
 	}
 	eventID := c.Param("event_id")
 	event, err := h.logStore.RetrieveEvent(c.Request.Context(), logstore.RetrieveEventRequest{
@@ -340,9 +328,13 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 // RetrieveAttempt handles GET /attempts/:attempt_id
 func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 	// Authz: JWT users can only query their own tenant's attempts
-	tenantID, ok := resolveTenantIDFilter(c)
+	tenantIDs, ok := resolveTenantIDsFilter(c)
 	if !ok {
 		return
+	}
+	tenantID := ""
+	if len(tenantIDs) == 1 {
+		tenantID = tenantIDs[0]
 	}
 	attemptID := c.Param("attempt_id")
 
@@ -374,17 +366,17 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 }
 
 // ListEvents handles GET /events
-// Query params: tenant_id, destination_id, topic[], time[gte], time[lte], time[gt], time[lt], limit, next, prev, include, order_by, dir
+// Query params: tenant_id[], id[], destination_id, topic[], time[gte], time[lte], time[gt], time[lt], limit, next, prev, order_by, dir
 func (h *LogHandlers) ListEvents(c *gin.Context) {
 	// Authz: JWT users can only query their own tenant's events
-	tenantID, ok := resolveTenantIDFilter(c)
+	tenantIDs, ok := resolveTenantIDsFilter(c)
 	if !ok {
 		return
 	}
-	h.listEventsInternal(c, tenantID)
+	h.listEventsInternal(c, tenantIDs)
 }
 
-func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
+func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantIDs []string) {
 	// Parse and validate cursors (next/prev are mutually exclusive)
 	cursors, errResp := ParseCursors(c)
 	if errResp != nil {
@@ -429,9 +421,10 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 	}
 
 	req := logstore.ListEventRequest{
-		TenantID:       tenantID,
+		TenantIDs:      tenantIDs,
+		EventIDs:       ParseArrayQueryParam(c, "id"),
 		DestinationIDs: destinationIDs,
-		Topics:         parseQueryArray(c, "topic"),
+		Topics:         ParseArrayQueryParam(c, "topic"),
 		TimeFilter: logstore.TimeFilter{
 			GTE: eventTimeFilter.GTE,
 			LTE: eventTimeFilter.LTE,

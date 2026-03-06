@@ -35,8 +35,8 @@ func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetr
 }
 
 func (h *DestinationHandlers) List(c *gin.Context) {
-	typeParams := c.QueryArray("type")
-	topicsParams := c.QueryArray("topics")
+	typeParams := ParseArrayQueryParam(c, "type")
+	topicsParams := ParseArrayQueryParam(c, "topics")
 	var opts tenantstore.ListDestinationByTenantOpts
 	if len(typeParams) > 0 || len(topicsParams) > 0 {
 		opts = tenantstore.WithDestinationFilter(tenantstore.DestinationFilter{
