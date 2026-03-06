@@ -49,21 +49,21 @@ func (s stringSet) contains(v string) bool {
 }
 
 var (
-	eventMeasures    = newStringSet("count")
-	eventDimensions  = newStringSet("tenant_id", "topic", "destination_id", "eligible_for_retry")
-	eventFilters     = newStringSet("tenant_id", "topic", "destination_id", "eligible_for_retry")
+	eventMeasures   = newStringSet("count")
+	eventDimensions = newStringSet("tenant_id", "topic", "destination_id", "eligible_for_retry")
+	eventFilters    = newStringSet("tenant_id", "topic", "destination_id", "eligible_for_retry")
 
-	attemptMeasures    = newStringSet("count", "successful_count", "failed_count", "error_rate", "first_attempt_count", "retry_count", "manual_retry_count", "avg_attempt_number")
-	attemptDimensions  = newStringSet("tenant_id", "destination_id", "topic", "status", "code", "manual", "attempt_number")
-	attemptFilters     = newStringSet("tenant_id", "destination_id", "topic", "status", "code", "manual", "attempt_number")
+	attemptMeasures   = newStringSet("count", "successful_count", "failed_count", "error_rate", "first_attempt_count", "retry_count", "manual_retry_count", "avg_attempt_number")
+	attemptDimensions = newStringSet("tenant_id", "destination_id", "topic", "status", "code", "manual", "attempt_number")
+	attemptFilters    = newStringSet("tenant_id", "destination_id", "topic", "status", "code", "manual", "attempt_number")
 )
 
 // --- API response types ---
 
 type APIMetricsDataPoint struct {
-	TimeBucket *time.Time        `json:"time_bucket"`
-	Dimensions map[string]any    `json:"dimensions"`
-	Metrics    map[string]any    `json:"metrics"`
+	TimeBucket *time.Time     `json:"time_bucket"`
+	Dimensions map[string]any `json:"dimensions"`
+	Metrics    map[string]any `json:"metrics"`
 }
 
 type APIMetricsResponse struct {
@@ -396,4 +396,3 @@ func derefBool(p *bool) bool {
 	}
 	return false
 }
-
