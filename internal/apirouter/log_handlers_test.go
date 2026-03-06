@@ -377,7 +377,7 @@ func TestAPI_Events(t *testing.T) {
 				// TODO(list-event-destination-filter): Re-enable once we implement proper destination tracking for events.
 				t.Skip("ListEvent with DestinationIDs filter is not implemented")
 
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?destination_id[0]=d1", nil)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?destination_id=d1", nil)
 				resp := h.do(h.withAPIKey(req))
 
 				require.Equal(t, http.StatusOK, resp.Code)
@@ -832,7 +832,7 @@ func TestAPI_Attempts(t *testing.T) {
 			})
 
 			t.Run("event_id filter", func(t *testing.T) {
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?event_id[0]=e1", nil)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?event_id=e1", nil)
 				resp := h.do(h.withAPIKey(req))
 
 				require.Equal(t, http.StatusOK, resp.Code)
@@ -844,7 +844,7 @@ func TestAPI_Attempts(t *testing.T) {
 			})
 
 			t.Run("destination_id filter", func(t *testing.T) {
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?destination_id[0]=d1", nil)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?destination_id=d1", nil)
 				resp := h.do(h.withAPIKey(req))
 
 				require.Equal(t, http.StatusOK, resp.Code)
@@ -886,7 +886,7 @@ func TestAPI_Attempts(t *testing.T) {
 			})
 
 			t.Run("topic filter", func(t *testing.T) {
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?topic[0]=user.created", nil)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?topic=user.created", nil)
 				resp := h.do(h.withAPIKey(req))
 
 				require.Equal(t, http.StatusOK, resp.Code)
@@ -1011,7 +1011,7 @@ func TestAPI_Attempts(t *testing.T) {
 				{Event: e, Attempt: a},
 			}))
 
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?include[0]=event", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?include=event", nil)
 			resp := h.do(h.withAPIKey(req))
 
 			require.Equal(t, http.StatusOK, resp.Code)
@@ -1041,7 +1041,7 @@ func TestAPI_Attempts(t *testing.T) {
 				{Event: e, Attempt: a},
 			}))
 
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?include[0]=event.data", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?include=event.data", nil)
 			resp := h.do(h.withAPIKey(req))
 
 			require.Equal(t, http.StatusOK, resp.Code)
@@ -1071,7 +1071,7 @@ func TestAPI_Attempts(t *testing.T) {
 				{Event: e, Attempt: a},
 			}))
 
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?include[0]=response_data", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?include=response_data", nil)
 			resp := h.do(h.withAPIKey(req))
 
 			require.Equal(t, http.StatusOK, resp.Code)

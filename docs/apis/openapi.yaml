@@ -2213,6 +2213,16 @@ paths:
         - AdminApiKey: []
         - TenantJwt: []
       parameters:
+        - name: id
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
         - name: limit
           in: query
           required: false

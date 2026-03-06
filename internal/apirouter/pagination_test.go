@@ -390,6 +390,12 @@ func TestParseArrayQueryParam(t *testing.T) {
 			want:        []string{"foo", "bar"},
 		},
 		{
+			name:        "unindexed format no brackets",
+			fieldName:   "tag",
+			queryString: "tag=foo&tag=bar",
+			want:        []string{"foo", "bar"},
+		},
+		{
 			name:        "sparse indices",
 			fieldName:   "item",
 			queryString: "item[0]=first&item[5]=sixth",
