@@ -1,0 +1,26 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24
+    environment:
+      CLICKHOUSE_DB: bench
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+    ports:
+      - "9009:9000"   # native protocol
+      - "8124:8123"   # HTTP
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 8g
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - ./config/users.xml:/etc/clickhouse-server/users.d/bench.xml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1'"]
+      interval: 2s
+      timeout: 5s
+      retries: 10

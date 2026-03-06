@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: outpost
+      POSTGRES_PASSWORD: outpost
+      POSTGRES_DB: bench
+    ports:
+      - "5488:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 8g
+    command:
+      - postgres
+      - -c
+      - shared_buffers=2GB
+      - -c
+      - work_mem=512MB
+      - -c
+      - effective_cache_size=6GB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U outpost -d bench"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
