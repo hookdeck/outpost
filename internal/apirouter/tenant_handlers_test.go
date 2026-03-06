@@ -181,6 +181,24 @@ func TestAPI_Tenants(t *testing.T) {
 			assert.Len(t, result.Models, 2)
 		})
 
+		t.Run("id filter returns only matching tenants", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t3")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=100&id[0]=t2", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var result tenantstore.TenantPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			assert.Equal(t, 1, result.Count)
+			require.Len(t, result.Models, 1)
+			assert.Equal(t, "t2", result.Models[0].ID)
+		})
+
 		t.Run("jwt returns only own tenant", func(t *testing.T) {
 			h := newAPITest(t)
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))

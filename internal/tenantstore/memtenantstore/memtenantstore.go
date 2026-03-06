@@ -169,6 +169,21 @@ func (s *store) ListTenant(ctx context.Context, req driver.ListTenantRequest) (*
 		}
 		activeTenants = append(activeTenants, rec.tenant)
 	}
+
+	// Filter by ID when specified
+	if len(req.ID) > 0 {
+		idSet := make(map[string]struct{}, len(req.ID))
+		for _, id := range req.ID {
+			idSet[id] = struct{}{}
+		}
+		filtered := activeTenants[:0]
+		for _, t := range activeTenants {
+			if _, ok := idSet[t.ID]; ok {
+				filtered = append(filtered, t)
+			}
+		}
+		activeTenants = filtered
+	}
 	totalCount := len(activeTenants)
 
 	result, err := pagination.Run(ctx, pagination.Config[models.Tenant]{

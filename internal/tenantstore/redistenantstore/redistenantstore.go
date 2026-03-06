@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/cursor"
@@ -289,6 +290,14 @@ func (s *store) ListTenant(ctx context.Context, req driver.ListTenantRequest) (*
 	}
 
 	baseFilter := "@entity:{tenant} -@deleted_at:[1 +inf]"
+	if len(req.ID) > 0 {
+		// RediSearch TAG: @id:{val1|val2} matches any of the IDs; escape \ | } in values
+		escaped := make([]string, len(req.ID))
+		for i, id := range req.ID {
+			escaped[i] = strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(id, `\`, `\\`), "|", `\|`), "}", `\}`)
+		}
+		baseFilter += " @id:{" + strings.Join(escaped, "|") + "}"
+	}
 
 	result, err := pagination.Run(ctx, pagination.Config[models.Tenant]{
 		Limit: limit,
