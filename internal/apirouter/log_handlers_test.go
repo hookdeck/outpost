@@ -565,6 +565,43 @@ func TestAPI_Events(t *testing.T) {
 
 			require.Equal(t, http.StatusNotFound, resp.Code)
 		})
+
+		t.Run("jwt with tenant_id query param on retrieve is ignored", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e)},
+			}))
+
+			// tenant_id query param is ignored on retrieve — ACL uses JWT tenant only
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events/e1?tenant_id[0]=t1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var event apirouter.APIEvent
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &event))
+			assert.Equal(t, "e1", event.ID)
+		})
+
+		t.Run("jwt retrieve other tenant event returns 404 not 403", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t2"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e)},
+			}))
+
+			// Even with tenant_id param pointing to the event's actual tenant,
+			// ACL is enforced via JWT tenant — returns 404 not 403
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events/e1?tenant_id[0]=t2", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
 	})
 
 	t.Run("no auth returns 401", func(t *testing.T) {
@@ -997,6 +1034,42 @@ func TestAPI_Attempts(t *testing.T) {
 			}))
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("jwt with tenant_id query param on retrieve is ignored", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			e := ef.AnyPointer(ef.WithTenantID("t1"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?tenant_id[0]=t1", nil)
+			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var attempt apirouter.APIAttempt
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &attempt))
+			assert.Equal(t, "a1", attempt.ID)
+		})
+
+		t.Run("jwt retrieve other tenant attempt returns 404 not 403", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			e := ef.AnyPointer(ef.WithTenantID("t2"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?tenant_id[0]=t2", nil)
 			resp := h.do(h.withJWT(req, "t1"))
 
 			require.Equal(t, http.StatusNotFound, resp.Code)
