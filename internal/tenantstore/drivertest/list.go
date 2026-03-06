@@ -428,6 +428,36 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
+	t.Run("IDFilter", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		require.NoError(t, store.Init(ctx))
+
+		id1 := `tenant-'alpha'-(beta)-[gamma]-{delta}|omega`
+		id2 := `tenant\path-'prod'-(v2)-[blue]-{green}|canary`
+
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: id1, CreatedAt: time.Now(), UpdatedAt: time.Now()}))
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: id2, CreatedAt: time.Now().Add(time.Second), UpdatedAt: time.Now().Add(time.Second)}))
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: "plain-tenant", CreatedAt: time.Now().Add(2 * time.Second), UpdatedAt: time.Now().Add(2 * time.Second)}))
+
+		resp, err := store.ListTenant(ctx, driver.ListTenantRequest{
+			Limit: 100,
+			ID:    []string{id1, id2},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Models, 2)
+		assert.Equal(t, 2, resp.Count)
+		assert.ElementsMatch(t, []string{id1, id2}, []string{
+			resp.Models[0].ID,
+			resp.Models[1].ID,
+		})
+	})
+
 	t.Run("KeysetPagination", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)

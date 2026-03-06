@@ -24,6 +24,11 @@ const (
 	maxListTenantLimit     = 100
 )
 
+var rediSearchQuotedTagEscaper = strings.NewReplacer(
+	`\`, `\\`,
+	`"`, `\"`,
+)
+
 type store struct {
 	redisClient              redis.Cmdable
 	cipher                   *aesCipher
@@ -291,10 +296,10 @@ func (s *store) ListTenant(ctx context.Context, req driver.ListTenantRequest) (*
 
 	baseFilter := "@entity:{tenant} -@deleted_at:[1 +inf]"
 	if len(req.ID) > 0 {
-		// RediSearch TAG: @id:{val1|val2} matches any of the IDs; escape \ | } in values
+		// Use DIALECT 2 quoted tags so IDs with punctuation are matched exactly.
 		escaped := make([]string, len(req.ID))
 		for i, id := range req.ID {
-			escaped[i] = strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(id, `\`, `\\`), "|", `\|`), "}", `\}`)
+			escaped[i] = `"` + rediSearchQuotedTagEscaper.Replace(id) + `"`
 		}
 		baseFilter += " @id:{" + strings.Join(escaped, "|") + "}"
 	}
@@ -350,6 +355,7 @@ func (s *store) ListTenant(ctx context.Context, req driver.ListTenantRequest) (*
 	countResult, err := s.doCmd(ctx, "FT.SEARCH", s.tenantIndexName(),
 		baseFilter,
 		"LIMIT", 0, 0,
+		"DIALECT", 2,
 	).Result()
 	if err == nil {
 		_, totalCount, _ = parseSearchResult(countResult)
@@ -402,6 +408,7 @@ func (s *store) fetchTenants(ctx context.Context, baseFilter string, q paginatio
 		query,
 		"SORTBY", "created_at", sortDir,
 		"LIMIT", 0, q.Limit,
+		"DIALECT", 2,
 	).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to search tenants: %w", err)
