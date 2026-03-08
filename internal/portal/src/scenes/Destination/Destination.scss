@@ -127,20 +127,53 @@
   margin-top: var(--spacing-14);
   margin-bottom: var(--spacing-14);
 
-  h2 {
-    margin-top: 0;
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: var(--spacing-4);
+
+    h2 {
+      margin: 0;
+    }
   }
 
-  &__metrics {
+  &__timeframe {
     display: flex;
+    gap: var(--spacing-1);
+  }
+
+  &__tf-btn {
+    padding: var(--spacing-1) var(--spacing-3);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--colors-foreground-neutral-3);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-s);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--colors-foreground-neutral);
+      background: var(--colors-background-neutral-2);
+    }
+
+    &--active {
+      color: var(--colors-foreground-neutral);
+      background: var(--colors-background-neutral-2);
+      border-color: var(--colors-outline-neutral);
+    }
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: var(--spacing-6);
   }
 
-  &__metric {
+  &__cell {
     border: 1px solid var(--colors-outline-neutral);
     height: 348px;
-    width: 100%;
     background: var(--colors-background);
     border-radius: var(--radius-m);
     padding: var(--spacing-6);
