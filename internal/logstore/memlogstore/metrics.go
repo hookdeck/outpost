@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logstore/bucket"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
 )
@@ -39,7 +40,7 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 	for _, event := range matched {
 		key := groupKey{}
 		if req.Granularity != nil {
-			tb := truncateTime(event.Time, req.Granularity)
+			tb := bucket.TruncateTime(event.Time, req.Granularity)
 			key.timeBucket = tb.Format(time.RFC3339)
 		}
 		for _, dim := range req.Dimensions {
@@ -106,6 +107,8 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 		data = []driver.EventMetricsDataPoint{}
 	}
 
+	data = bucket.FillEventBuckets(data, req)
+
 	elapsed := time.Since(start)
 	return &driver.EventMetricsResponse{
 		Data: data,
@@ -152,7 +155,7 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 	for _, ae := range matched {
 		key := groupKey{}
 		if req.Granularity != nil {
-			tb := truncateTime(ae.attempt.Time, req.Granularity)
+			tb := bucket.TruncateTime(ae.attempt.Time, req.Granularity)
 			key.timeBucket = tb.Format(time.RFC3339)
 		}
 		for _, dim := range req.Dimensions {
@@ -281,6 +284,8 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 		data = []driver.AttemptMetricsDataPoint{}
 	}
 
+	data = bucket.FillAttemptBuckets(data, req)
+
 	elapsed := time.Since(start)
 	return &driver.AttemptMetricsResponse{
 		Data: data,
@@ -355,30 +360,6 @@ func countByStatus(attempts []attemptWithEvent, status string) int {
 		}
 	}
 	return c
-}
-
-func truncateTime(t time.Time, g *driver.Granularity) time.Time {
-	t = t.UTC()
-	switch g.Unit {
-	case "s":
-		d := time.Duration(g.Value) * time.Second
-		return t.Truncate(d)
-	case "m":
-		d := time.Duration(g.Value) * time.Minute
-		return t.Truncate(d)
-	case "h":
-		d := time.Duration(g.Value) * time.Hour
-		return t.Truncate(d)
-	case "d":
-		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
-	case "w":
-		weekday := int(t.Weekday())
-		return time.Date(t.Year(), t.Month(), t.Day()-weekday, 0, 0, 0, 0, time.UTC)
-	case "M":
-		return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
-	default:
-		return t
-	}
 }
 
 type attemptWithEvent struct {

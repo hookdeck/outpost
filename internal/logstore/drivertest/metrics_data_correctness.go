@@ -196,19 +196,22 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 				Measures:    []string{"count"},
 			})
 			require.NoError(t, err)
-			assert.Len(t, resp.Data, 5)
+			assert.Len(t, resp.Data, 24)
 
 			hourly := map[int]int{}
+			total := 0
 			for _, dp := range resp.Data {
 				require.NotNil(t, dp.TimeBucket)
 				require.NotNil(t, dp.Count)
 				hourly[dp.TimeBucket.Hour()] = *dp.Count
+				total += *dp.Count
 			}
 			assert.Equal(t, 25, hourly[10])
 			assert.Equal(t, 50, hourly[11])
 			assert.Equal(t, 100, hourly[12])
 			assert.Equal(t, 50, hourly[13])
 			assert.Equal(t, 25, hourly[14])
+			assert.Equal(t, 250, total)
 		})
 
 		t.Run("granularity 1m on dense day hour 10", func(t *testing.T) {
@@ -223,8 +226,8 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 				Measures:    []string{"count"},
 			})
 			require.NoError(t, err)
-			// 25 events at i*144s → minutes 0,2,4,...,57 → 25 distinct minutes (no collisions)
-			assert.Len(t, resp.Data, 25)
+			// 60 minutes in the hour, bucket filling produces all 60
+			assert.Len(t, resp.Data, 60)
 
 			total := 0
 			for _, dp := range resp.Data {
@@ -247,9 +250,8 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 				Measures:    []string{"count"},
 			})
 			require.NoError(t, err)
-			// 100 events at i*36s → multiple events per minute
-			require.NotEmpty(t, resp.Data)
-			require.True(t, len(resp.Data) < 100, "should have fewer buckets than events due to minute collisions")
+			// 60 minutes in the hour, bucket filling produces all 60
+			assert.Len(t, resp.Data, 60)
 
 			total := 0
 			for _, dp := range resp.Data {
@@ -420,19 +422,22 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 				Measures:    []string{"count"},
 			})
 			require.NoError(t, err)
-			assert.Len(t, resp.Data, 5)
+			assert.Len(t, resp.Data, 24)
 
 			hourly := map[int]int{}
+			total := 0
 			for _, dp := range resp.Data {
 				require.NotNil(t, dp.TimeBucket)
 				require.NotNil(t, dp.Count)
 				hourly[dp.TimeBucket.Hour()] = *dp.Count
+				total += *dp.Count
 			}
 			assert.Equal(t, 25, hourly[10])
 			assert.Equal(t, 50, hourly[11])
 			assert.Equal(t, 100, hourly[12])
 			assert.Equal(t, 50, hourly[13])
 			assert.Equal(t, 25, hourly[14])
+			assert.Equal(t, 250, total)
 		})
 
 		t.Run("tenant isolation", func(t *testing.T) {

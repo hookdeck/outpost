@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logstore/bucket"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 )
 
@@ -209,6 +210,8 @@ func (s *logStore) QueryEventMetrics(ctx context.Context, req driver.MetricsRequ
 	if truncated {
 		data = data[:defaultRowLimit]
 	}
+
+	data = bucket.FillEventBuckets(data, req)
 
 	elapsed := time.Since(start)
 	return &driver.EventMetricsResponse{
@@ -476,6 +479,8 @@ func (s *logStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRe
 	if truncated {
 		data = data[:defaultRowLimit]
 	}
+
+	data = bucket.FillAttemptBuckets(data, req)
 
 	elapsed := time.Since(start)
 	return &driver.AttemptMetricsResponse{
