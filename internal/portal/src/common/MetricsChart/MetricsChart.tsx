@@ -2,7 +2,6 @@ import "./MetricsChart.scss";
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ResponsiveContainer,
   BarChart,
   Bar,
   LineChart,
@@ -13,6 +12,35 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+
+// Replaces recharts' ResponsiveContainer which fires its internal ResizeObserver
+// before flex layout resolves, measuring -1px and spamming console warnings.
+// This hook waits for positive dimensions before we render the chart.
+function useContainerSize(ref: React.RefObject<HTMLDivElement | null>) {
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        const { width, height } = entry.contentRect;
+        setSize((prev) =>
+          prev.width === width && prev.height === height
+            ? prev
+            : { width, height },
+        );
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return size;
+}
 
 import { Loading } from "../Icons";
 
@@ -77,8 +105,9 @@ const MetricsChart: React.FC<MetricsChartProps> = ({
   tooltipFormatter,
 }) => {
   const colorRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const [colors, setColors] = useState<Record<string, string>>({});
-
+  const { width: chartWidth, height: chartHeight } = useContainerSize(bodyRef);
   const css_vars_key = series.map((s) => s.cssVar).join(",");
 
   useEffect(() => {
@@ -112,6 +141,10 @@ const MetricsChart: React.FC<MetricsChartProps> = ({
       return <div className="metrics-chart__empty">No data</div>;
     }
 
+    if (chartWidth <= 0 || chartHeight <= 0) {
+      return null;
+    }
+
     const tick_style = {
       fontSize: 12,
       fill: "var(--colors-foreground-neutral-2)",
@@ -140,8 +173,7 @@ const MetricsChart: React.FC<MetricsChartProps> = ({
 
     if (type === "bar" || type === "stacked-bar") {
       return (
-        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-          <BarChart data={data} margin={CHART_MARGIN} barCategoryGap="4%">
+        <BarChart width={chartWidth} height={chartHeight} data={data} margin={CHART_MARGIN} barCategoryGap="4%">
             <CartesianGrid
               strokeDasharray="3 3"
               vertical={false}
@@ -178,13 +210,11 @@ const MetricsChart: React.FC<MetricsChartProps> = ({
               />
             ))}
           </BarChart>
-        </ResponsiveContainer>
       );
     }
 
     return (
-      <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-        <LineChart data={data} margin={CHART_MARGIN}>
+      <LineChart width={chartWidth} height={chartHeight} data={data} margin={CHART_MARGIN}>
           <CartesianGrid
             strokeDasharray="3 3"
             vertical={false}
@@ -222,7 +252,6 @@ const MetricsChart: React.FC<MetricsChartProps> = ({
             />
           ))}
         </LineChart>
-      </ResponsiveContainer>
     );
   };
 
@@ -231,7 +260,7 @@ const MetricsChart: React.FC<MetricsChartProps> = ({
       <div className="metrics-chart__header">
         <span className="metrics-chart__title">{title}</span>
       </div>
-      <div className="metrics-chart__body">{renderBody()}</div>
+      <div className="metrics-chart__body" ref={bodyRef}>{renderBody()}</div>
     </div>
   );
 };
