@@ -1,0 +1,112 @@
+.metrics-breakdown {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  &__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-4);
+  }
+
+  &__title {
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--colors-foreground-neutral);
+  }
+
+  &__rows {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+
+  }
+
+  &__dimension {
+    font-size: 13px;
+    font-family: var(--font-family-monospace);
+    color: var(--colors-foreground-neutral);
+    min-width: 80px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__bar-container {
+    flex: 1;
+    height: 8px;
+    background: var(--colors-background-neutral-2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  &__bar {
+    height: 100%;
+    background: var(--colors-foreground-primary);
+    border-radius: 4px;
+    transition: width 0.2s ease;
+  }
+
+  &__bar--success {
+    background: var(--colors-dataviz-success);
+  }
+
+  &__bar--error {
+    background: var(--colors-dataviz-error);
+  }
+
+  &__column-headers {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-3);
+    font-size: 11px;
+    color: var(--colors-foreground-neutral-3);
+    margin-bottom: var(--spacing-1);
+
+    span:first-child {
+      min-width: 40px;
+      text-align: right;
+    }
+
+    span:last-child {
+      min-width: 48px;
+      text-align: right;
+    }
+  }
+
+  &__count {
+    font-size: 13px;
+    font-family: var(--font-family-monospace);
+    color: var(--colors-foreground-neutral-2);
+    min-width: 40px;
+    text-align: right;
+  }
+
+  &__rate {
+    font-size: 13px;
+    color: var(--colors-foreground-neutral-3);
+    min-width: 48px;
+    text-align: right;
+  }
+
+  &__empty,
+  &__loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: var(--colors-foreground-neutral-3);
+    font-size: 14px;
+  }
+}
