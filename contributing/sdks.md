@@ -4,7 +4,7 @@ This guide covers the complete process for updating, generating, testing, and pu
 
 ## Overview
 
-Outpost SDKs are automatically generated from the [OpenAPI specification](../docs/apis/openapi.yaml) using [Speakeasy](https://www.speakeasyapi.dev/). The SDK generation, testing, and publishing process is managed through GitHub Actions workflows, but currently requires manual triggering and careful coordination to ensure quality.
+Outpost SDKs are automatically generated from the [OpenAPI specification](../docs/apis/openapi.yaml) using [Speakeasy](https://www.speakeasyapi.dev/). The SDK generation, testing, and publishing process is managed through GitHub Actions workflows that run automatically on version tag pushes, with manual triggering also available per SDK.
 
 **Key Point**: SDK generation runs **automatically when you push a version tag** (e.g. `v0.13.2`). The [release process](release.md) is the primary guide. You can also trigger generation manually per SDK (see below). SDK versions are determined by Speakeasy detection (breaking vs non-breaking); for Outpost v1.0.0 the workflow sets all SDKs to 1.0.0.
 
