@@ -30,6 +30,7 @@ interface BreakdownRow {
 
 interface MetricsBreakdownProps {
   title: string;
+  subtitle?: string;
   data: MetricsDataPoint[] | undefined;
   dimensionKey: string;
   loading: boolean;
@@ -54,6 +55,7 @@ function toRows(
 
 const MetricsBreakdown: React.FC<MetricsBreakdownProps> = ({
   title,
+  subtitle,
   data,
   dimensionKey,
   loading,
@@ -111,7 +113,10 @@ const MetricsBreakdown: React.FC<MetricsBreakdownProps> = ({
   return (
     <div className="metrics-breakdown">
       <div className="metrics-breakdown__header">
-        <span className="metrics-breakdown__title">{title}</span>
+        <span className="metrics-breakdown__title">
+          {title}
+          {subtitle && <span className="metrics-breakdown__subtitle"> / {subtitle}</span>}
+        </span>
         {showErrorRate && (
           <div className="metrics-breakdown__column-headers">
             <span>Count</span>

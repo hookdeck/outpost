@@ -56,6 +56,7 @@ export type ChartSeries = {
 
 interface MetricsChartProps {
   title: string;
+  subtitle?: string;
   data: ChartDataPoint[];
   series: ChartSeries[];
   type: "bar" | "stacked-bar" | "line" | "multi-line";
@@ -94,6 +95,7 @@ const TOOLTIP_STYLE = {
 
 const MetricsChart: React.FC<MetricsChartProps> = ({
   title,
+  subtitle,
   data,
   series,
   type,
@@ -258,7 +260,10 @@ const MetricsChart: React.FC<MetricsChartProps> = ({
   return (
     <div className="metrics-chart" ref={colorRef}>
       <div className="metrics-chart__header">
-        <span className="metrics-chart__title">{title}</span>
+        <span className="metrics-chart__title">
+          {title}
+          {subtitle && <span className="metrics-chart__subtitle"> / {subtitle}</span>}
+        </span>
       </div>
       <div className="metrics-chart__body" ref={bodyRef}>{renderBody()}</div>
     </div>

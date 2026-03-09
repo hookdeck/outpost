@@ -167,15 +167,20 @@
 
   &__grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(6, 1fr);
     gap: var(--spacing-6);
   }
 
   &__cell {
+    grid-column: span 3;
     border: 1px solid var(--colors-outline-neutral);
     height: 348px;
     background: var(--colors-background);
     border-radius: var(--radius-m);
     padding: var(--spacing-6);
+
+    &--row2 {
+      grid-column: span 2;
+    }
   }
 }
