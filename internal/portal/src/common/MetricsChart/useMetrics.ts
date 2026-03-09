@@ -65,16 +65,23 @@ export function useMetrics({
   destinationId,
   timeframe,
   dimensions,
+  filters,
 }: {
   measures: string[];
   destinationId: string;
   timeframe: Timeframe;
   dimensions?: string[];
+  filters?: Record<string, string>;
 }) {
   const apiClient = useContext(ApiContext);
 
   const measuresKey = measures.join(",");
   const dimensionsKey = dimensions?.join(",") ?? "";
+  const filtersKey = filters
+    ? Object.entries(filters)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(",")
+    : "";
 
   const url = useMemo(() => {
     const { start, end } = getDateRange(timeframe);
@@ -85,6 +92,13 @@ export function useMetrics({
     params.set("filters[destination_id]", destinationId);
     for (const m of measuresKey.split(",")) {
       params.append("measures[]", m);
+    }
+
+    if (filtersKey) {
+      for (const pair of filtersKey.split(",")) {
+        const [k, v] = pair.split("=");
+        params.set(`filters[${k}]`, v);
+      }
     }
 
     if (dimensionsKey) {
@@ -98,7 +112,7 @@ export function useMetrics({
     }
 
     return `metrics/attempts?${params.toString()}`;
-  }, [measuresKey, dimensionsKey, destinationId, timeframe]);
+  }, [measuresKey, dimensionsKey, filtersKey, destinationId, timeframe]);
 
   const { data, error, isLoading } = useSWR<MetricsResponse>(
     url,

@@ -56,35 +56,29 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
   const [timeframe, setTimeframe] = useState<Timeframe>("24h");
 
   // Row 1
+  const event_count = useMetrics({
+    measures: ["count"],
+    destinationId,
+    timeframe,
+    filters: { attempt_number: "0" },
+  });
+
   const delivery = useMetrics({
     measures: ["successful_count", "failed_count"],
     destinationId,
     timeframe,
   });
 
+  // Derive from delivery data — if no deliveries happened, all time-series are empty
+  const has_activity = hasActivity(delivery.data?.data);
+
+  // Row 2
   const error_rate = useMetrics({
     measures: ["error_rate"],
     destinationId,
     timeframe,
   });
 
-  // Row 2
-  const retries = useMetrics({
-    measures: ["first_attempt_count", "retry_count"],
-    destinationId,
-    timeframe,
-  });
-
-  const avg_attempt = useMetrics({
-    measures: ["avg_attempt_number"],
-    destinationId,
-    timeframe,
-  });
-
-  // Derive from delivery volume — if no deliveries happened, all time-series are empty
-  const has_activity = hasActivity(delivery.data?.data);
-
-  // Row 3 (aggregate)
   const by_status = useMetrics({
     measures: ["count"],
     destinationId,
@@ -97,6 +91,19 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
     destinationId,
     timeframe,
     dimensions: ["topic"],
+  });
+
+  // Row 3
+  const retries = useMetrics({
+    measures: ["first_attempt_count", "retry_count"],
+    destinationId,
+    timeframe,
+  });
+
+  const avg_attempt = useMetrics({
+    measures: ["avg_attempt_number"],
+    destinationId,
+    timeframe,
   });
 
   return (
@@ -116,10 +123,36 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
         </div>
       </div>
       <div className="metrics-container__grid">
-        {/* Row 1 — The Big Picture */}
+        {/* Row 1 — Volume */}
         <div className="metrics-container__cell">
           <MetricsChart
-            title="Delivery volume"
+            title="Events"
+            subtitle="count"
+            type="bar"
+            series={[
+              {
+                key: "count",
+                label: "Events",
+                cssVar: "--colors-dataviz-info",
+              },
+            ]}
+            data={
+              has_activity
+                ? toTimeSeriesData(
+                    event_count.data?.data,
+                    ["count"],
+                    timeframe,
+                  )
+                : []
+            }
+            loading={event_count.isLoading}
+            error={!!event_count.error}
+          />
+        </div>
+        <div className="metrics-container__cell">
+          <MetricsChart
+            title="Event deliveries"
+            subtitle="count"
             type="stacked-bar"
             series={[
               {
@@ -146,9 +179,12 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
             error={!!delivery.error}
           />
         </div>
-        <div className="metrics-container__cell">
+
+        {/* Row 2 — Error Breakdown (3 columns) */}
+        <div className="metrics-container__cell metrics-container__cell--row2">
           <MetricsChart
-            title="Error rate"
+            title="Errors"
+            subtitle="rate"
             type="line"
             series={[
               {
@@ -177,11 +213,37 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
             ]}
           />
         </div>
+        <div className="metrics-container__cell metrics-container__cell--row2">
+          <MetricsBreakdown
+            title="By status code"
+            data={by_status.data?.data}
+            dimensionKey="code"
+            loading={by_status.isLoading}
+            error={!!by_status.error}
+            barColor={(code) => {
+              const n = Number(code);
+              if (n >= 200 && n < 300) return "success";
+              if (n >= 400) return "error";
+              return undefined;
+            }}
+          />
+        </div>
+        <div className="metrics-container__cell metrics-container__cell--row2">
+          <MetricsBreakdown
+            title="By topic"
+            data={by_topic.data?.data}
+            dimensionKey="topic"
+            loading={by_topic.isLoading}
+            error={!!by_topic.error}
+            showErrorRate
+          />
+        </div>
 
-        {/* Row 2 — Retry Pressure */}
+        {/* Row 3 — Retry Pressure */}
         <div className="metrics-container__cell">
           <MetricsChart
             title="Retries"
+            subtitle="count"
             type="multi-line"
             series={[
               {
@@ -211,6 +273,7 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
         <div className="metrics-container__cell">
           <MetricsChart
             title="Avg attempt number"
+            subtitle="avg"
             type="line"
             series={[
               {
@@ -231,33 +294,6 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
             loading={avg_attempt.isLoading}
             error={!!avg_attempt.error}
             yAllowDecimals={true}
-          />
-        </div>
-
-        {/* Row 3 — Dimension Breakdowns */}
-        <div className="metrics-container__cell">
-          <MetricsBreakdown
-            title="By status code"
-            data={by_status.data?.data}
-            dimensionKey="code"
-            loading={by_status.isLoading}
-            error={!!by_status.error}
-            barColor={(code) => {
-              const n = Number(code);
-              if (n >= 200 && n < 300) return "success";
-              if (n >= 400) return "error";
-              return undefined;
-            }}
-          />
-        </div>
-        <div className="metrics-container__cell">
-          <MetricsBreakdown
-            title="By topic"
-            data={by_topic.data?.data}
-            dimensionKey="topic"
-            loading={by_topic.isLoading}
-            error={!!by_topic.error}
-            showErrorRate
           />
         </div>
       </div>

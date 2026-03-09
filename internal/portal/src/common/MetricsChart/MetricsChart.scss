@@ -14,6 +14,11 @@
     color: var(--colors-foreground-neutral);
   }
 
+  &__subtitle {
+    font-weight: 400;
+    color: var(--colors-foreground-neutral-3);
+  }
+
   &__body {
     flex: 1;
     min-height: 0;
