@@ -348,6 +348,15 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 	if topics, ok := req.Filters["topic"]; ok {
 		conditions, args = addInFilter(conditions, args, "topic", topics)
 	}
+	if codes, ok := req.Filters["code"]; ok {
+		conditions, args = addInFilter(conditions, args, "code", codes)
+	}
+	if manuals, ok := req.Filters["manual"]; ok {
+		conditions, args = addInFilter(conditions, args, "manual", manuals)
+	}
+	if attemptNums, ok := req.Filters["attempt_number"]; ok {
+		conditions, args = addInFilter(conditions, args, "attempt_number", attemptNums)
+	}
 
 	// Build SQL
 	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s",

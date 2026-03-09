@@ -414,6 +414,45 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 			assert.Equal(t, 100, *resp.Data[0].Count)
 		})
 
+		t.Run("filter by code", func(t *testing.T) {
+			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
+				TenantID:  ds.tenant1,
+				DateRange: fullRange,
+				Measures:  []string{"count"},
+				Filters:   map[string][]string{"code": {"500"}},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Data, 1)
+			require.NotNil(t, resp.Data[0].Count)
+			assert.Equal(t, 60, *resp.Data[0].Count)
+		})
+
+		t.Run("filter by manual", func(t *testing.T) {
+			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
+				TenantID:  ds.tenant1,
+				DateRange: fullRange,
+				Measures:  []string{"count"},
+				Filters:   map[string][]string{"manual": {"true"}},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Data, 1)
+			require.NotNil(t, resp.Data[0].Count)
+			assert.Equal(t, 30, *resp.Data[0].Count)
+		})
+
+		t.Run("filter by attempt_number", func(t *testing.T) {
+			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
+				TenantID:  ds.tenant1,
+				DateRange: fullRange,
+				Measures:  []string{"count"},
+				Filters:   map[string][]string{"attempt_number": {"0"}},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Data, 1)
+			require.NotNil(t, resp.Data[0].Count)
+			assert.Equal(t, 75, *resp.Data[0].Count)
+		})
+
 		t.Run("granularity 1h on dense day", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:    ds.tenant1,

@@ -346,6 +346,15 @@ func (s *logStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRe
 	if topics, ok := req.Filters["topic"]; ok {
 		conditions = append(conditions, "topic = ANY("+arg(topics)+")")
 	}
+	if codes, ok := req.Filters["code"]; ok {
+		conditions = append(conditions, "code = ANY("+arg(codes)+")")
+	}
+	if manuals, ok := req.Filters["manual"]; ok {
+		conditions = append(conditions, "manual = ANY("+arg(manuals)+"::boolean[])")
+	}
+	if attemptNums, ok := req.Filters["attempt_number"]; ok {
+		conditions = append(conditions, "attempt_number = ANY("+arg(attemptNums)+"::integer[])")
+	}
 
 	// Build SQL
 	query := "SELECT " + strings.Join(selectExprs, ", ") +

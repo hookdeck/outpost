@@ -340,6 +340,25 @@ func matchesAttemptMetricsFilter(a *models.Attempt, event *models.Event, req dri
 			return false
 		}
 	}
+	if codes, ok := req.Filters["code"]; ok {
+		if !contains(codes, a.Code) {
+			return false
+		}
+	}
+	if manuals, ok := req.Filters["manual"]; ok {
+		manualStr := "false"
+		if a.Manual {
+			manualStr = "true"
+		}
+		if !contains(manuals, manualStr) {
+			return false
+		}
+	}
+	if attemptNums, ok := req.Filters["attempt_number"]; ok {
+		if !contains(attemptNums, fmt.Sprintf("%d", a.AttemptNumber)) {
+			return false
+		}
+	}
 	return true
 }
 
