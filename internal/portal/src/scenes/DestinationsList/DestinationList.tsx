@@ -15,6 +15,7 @@ import CONFIGS from "../../config";
 import { useDestinationTypes } from "../../destination-types";
 import { Destination } from "../../typings/Destination";
 import getLogo from "../../utils/logo";
+import DestinationEventsCell from "./DestinationEventsCell";
 
 const DestinationList: React.FC = () => {
   const { data: destinations } = useSWR<Destination[]>("destinations");
@@ -30,9 +31,7 @@ const DestinationList: React.FC = () => {
     { header: "Target" },
     CONFIGS.TOPICS ? { header: "Topics", width: 120 } : null,
     { header: "Status", width: 120 },
-    // TODO: Uncomment when metrics are implemented
-    // { header: "Success Rate", width: 120 },
-    // { header: "Events (24h)", width: 120 },
+    { header: "Events 24h", width: 200 },
   ].filter((column) => column !== null);
 
   const filtered_destinations =
@@ -123,9 +122,7 @@ const DestinationList: React.FC = () => {
         ) : (
           <Badge text="Active" success />
         ),
-        // TODO: Uncomment when metrics are implemented
-        // <span className="muted-variant">99.5% [TODO]</span>,
-        // <span className="muted-variant">100 [TODO]</span>,
+        <DestinationEventsCell destinationId={destination.id} />,
       ].filter((entry) => entry !== null),
       link: `/destinations/${destination.id}`,
     })) || [];

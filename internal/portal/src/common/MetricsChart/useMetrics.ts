@@ -66,12 +66,14 @@ export function useMetrics({
   timeframe,
   dimensions,
   filters,
+  granularity: granularityOverride,
 }: {
   measures: string[];
   destinationId: string;
   timeframe: Timeframe;
   dimensions?: string[];
   filters?: Record<string, string>;
+  granularity?: string;
 }) {
   const apiClient = useContext(ApiContext);
 
@@ -108,11 +110,11 @@ export function useMetrics({
       }
     } else {
       // Time-series query — include granularity
-      params.set("granularity", getGranularity(timeframe));
+      params.set("granularity", granularityOverride ?? getGranularity(timeframe));
     }
 
     return `metrics/attempts?${params.toString()}`;
-  }, [measuresKey, dimensionsKey, filtersKey, destinationId, timeframe]);
+  }, [measuresKey, dimensionsKey, filtersKey, granularityOverride, destinationId, timeframe]);
 
   const { data, error, isLoading } = useSWR<MetricsResponse>(
     url,
