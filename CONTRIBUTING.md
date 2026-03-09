@@ -20,3 +20,5 @@ The following guides are a work-in-progress with a focus on helping code contrib
 - [Configuration](contributing/config.md)
 - [Destinations](contributing/destinations.md)
 - [MQ](contributing/mq.md)
+- [Release process](contributing/release.md)
+- [SDKs](contributing/sdks.md)
