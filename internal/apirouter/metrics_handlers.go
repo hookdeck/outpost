@@ -284,9 +284,7 @@ func abortWithMetricsError(c *gin.Context, err error) {
 
 func buildAPIMetricsResponse(data []APIMetricsDataPoint, meta logstore.MetricsMetadata, reqGranularity *logstore.Granularity) APIMetricsResponse {
 	var gran *string
-	if meta.Granularity != "" {
-		gran = &meta.Granularity
-	} else if reqGranularity != nil {
+	if reqGranularity != nil {
 		s := fmt.Sprintf("%d%s", reqGranularity.Value, reqGranularity.Unit)
 		gran = &s
 	}

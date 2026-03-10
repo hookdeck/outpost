@@ -48,7 +48,6 @@ type MetricsRequest struct {
 }
 
 type MetricsMetadata struct {
-	Granularity string
 	QueryTimeMs int64
 	RowCount    int
 	RowLimit    int
