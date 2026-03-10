@@ -43,3 +43,24 @@
   display: block;
   padding: calc(var(--spacing-2) - 2px) var(--spacing-2);
 }
+
+.histogram-cell__loading {
+  background-color: var(--colors-background-neutral-3);
+  border-radius: var(--radius-s);
+  height: 16px;
+  width: 80px;
+  opacity: 0.6;
+  animation: histogram-pulse 1.5s ease-in-out 0.5s infinite;
+
+  @keyframes histogram-pulse {
+    0% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0.6;
+    }
+  }
+}

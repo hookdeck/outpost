@@ -90,8 +90,8 @@ export function useMetrics({
     const { start, end } = getDateRange(timeframe);
 
     const params = new URLSearchParams();
-    params.set("date_range[start]", start);
-    params.set("date_range[end]", end);
+    params.set("time[start]", start);
+    params.set("time[end]", end);
     params.set("filters[destination_id]", destinationId);
     for (const m of measures) {
       params.append("measures[]", m);
@@ -110,11 +110,21 @@ export function useMetrics({
       }
     } else {
       // Time-series query — include granularity
-      params.set("granularity", granularityOverride ?? getGranularity(timeframe));
+      params.set(
+        "granularity",
+        granularityOverride ?? getGranularity(timeframe),
+      );
     }
 
     return `metrics/attempts?${params.toString()}`;
-  }, [measuresKey, dimensionsKey, filtersKey, granularityOverride, destinationId, timeframe]);
+  }, [
+    measuresKey,
+    dimensionsKey,
+    filtersKey,
+    granularityOverride,
+    destinationId,
+    timeframe,
+  ]);
 
   const { data, error, isLoading } = useSWR<MetricsResponse>(
     url,

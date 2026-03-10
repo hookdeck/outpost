@@ -22,8 +22,8 @@ const DestinationEventsCell: React.FC<DestinationEventsCellProps> = ({
     filters: { attempt_number: "0" },
   });
 
-  if (isLoading || !data?.data) {
-    return <span className="muted-variant">—</span>;
+  if (isLoading || !data) {
+    return <span className="histogram-cell__loading"></span>;
   }
 
   const points = data.data.map((d) => ({
