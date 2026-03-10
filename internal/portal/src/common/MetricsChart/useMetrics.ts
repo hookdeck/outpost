@@ -77,6 +77,7 @@ export function useMetrics({
 }) {
   const apiClient = useContext(ApiContext);
 
+  // Stable keys for useMemo deps
   const measuresKey = measures.join(",");
   const dimensionsKey = dimensions?.join(",") ?? "";
   const filtersKey = filters
@@ -92,20 +93,19 @@ export function useMetrics({
     params.set("date_range[start]", start);
     params.set("date_range[end]", end);
     params.set("filters[destination_id]", destinationId);
-    for (const m of measuresKey.split(",")) {
+    for (const m of measures) {
       params.append("measures[]", m);
     }
 
-    if (filtersKey) {
-      for (const pair of filtersKey.split(",")) {
-        const [k, v] = pair.split("=");
+    if (filters) {
+      for (const [k, v] of Object.entries(filters)) {
         params.set(`filters[${k}]`, v);
       }
     }
 
-    if (dimensionsKey) {
+    if (dimensions && dimensions.length > 0) {
       // Aggregate query — no granularity
-      for (const d of dimensionsKey.split(",")) {
+      for (const d of dimensions) {
         params.append("dimensions[]", d);
       }
     } else {

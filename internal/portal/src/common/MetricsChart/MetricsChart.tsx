@@ -12,6 +12,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import { Loading } from "../Icons";
 
 // Replaces recharts' ResponsiveContainer which fires its internal ResizeObserver
 // before flex layout resolves, measuring -1px and spamming console warnings.
@@ -41,8 +42,6 @@ function useContainerSize(ref: React.RefObject<HTMLDivElement | null>) {
 
   return size;
 }
-
-import { Loading } from "../Icons";
 
 export type ChartDataPoint = Record<string, string | number> & {
   label: string;
