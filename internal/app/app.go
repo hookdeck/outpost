@@ -226,7 +226,7 @@ func (a *App) initializeInfrastructure(ctx context.Context) error {
 }
 
 func (a *App) initializeTelemetry(ctx context.Context) error {
-	installationID, err := getInstallation(ctx, a.redisClient, a.config.Telemetry.ToTelemetryConfig())
+	installationID, err := getInstallation(ctx, a.redisClient, a.config.Telemetry.ToTelemetryConfig(), a.config.DeploymentID)
 	if err != nil {
 		return err
 	}
