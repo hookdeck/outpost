@@ -39,7 +39,6 @@ type Granularity struct {
 }
 
 type MetricsRequest struct {
-	TenantID    string
 	TimeRange   TimeRange
 	Granularity *Granularity
 	Measures    []string

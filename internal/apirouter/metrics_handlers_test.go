@@ -151,15 +151,56 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, resp.Code)
 	})
 
-	t.Run("JWT rejected for tenant_id filter", func(t *testing.T) {
+	t.Run("JWT allowed with matching tenant_id filter", func(t *testing.T) {
 		h := newAPITest(t)
 		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+		e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+			{Event: e1, Attempt: attemptForEvent(e1)},
+		}))
 
 		req := httptest.NewRequest(http.MethodGet,
 			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count&filters[tenant_id][0]=t1", nil)
 		resp := h.do(h.withJWT(req, "t1"))
 
+		assert.Equal(t, http.StatusOK, resp.Code)
+	})
+
+	t.Run("JWT rejected for mismatched tenant_id filter", func(t *testing.T) {
+		h := newAPITest(t)
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count&filters[tenant_id][0]=t2", nil)
+		resp := h.do(h.withJWT(req, "t1"))
+
 		assert.Equal(t, http.StatusForbidden, resp.Code)
+	})
+
+	t.Run("API key with tenant_id filter", func(t *testing.T) {
+		h := newAPITest(t)
+
+		e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+		e2 := ef.AnyPointer(ef.WithTenantID("t2"))
+		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+			{Event: e1, Attempt: attemptForEvent(e1)},
+			{Event: e2, Attempt: attemptForEvent(e2)},
+		}))
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count&filters[tenant_id][0]=t1", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusOK, resp.Code)
+
+		var result apirouter.APIMetricsResponse
+		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+		if len(result.Data) > 0 {
+			count, ok := result.Data[0].Metrics["count"]
+			assert.True(t, ok)
+			assert.Equal(t, float64(1), count)
+		}
 	})
 
 	t.Run("missing time returns 400", func(t *testing.T) {

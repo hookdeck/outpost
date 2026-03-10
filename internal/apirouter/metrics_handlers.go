@@ -172,14 +172,9 @@ func isJWTCaller(c *gin.Context) bool {
 
 // MetricsEvents handles GET /metrics/events
 func (h *MetricsHandlers) MetricsEvents(c *gin.Context) {
-	tenantIDs, ok := resolveTenantIDsFilter(c)
-	if !ok {
-		return
-	}
-
-	// JWT callers cannot use tenant_id as dimension or filter
+	// JWT callers cannot use tenant_id as dimension
 	if isJWTCaller(c) {
-		if err := rejectTenantIDAccess(c); err != nil {
+		if rejectTenantIDDimension(c) {
 			return
 		}
 	}
@@ -189,8 +184,12 @@ func (h *MetricsHandlers) MetricsEvents(c *gin.Context) {
 		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 		return
 	}
-	if len(tenantIDs) > 0 {
-		req.TenantID = tenantIDs[0]
+
+	// JWT callers: validate/inject tenant_id filter
+	if isJWTCaller(c) {
+		if enforceJWTTenantFilter(c, req) {
+			return
+		}
 	}
 
 	resp, err := h.metricsStore.QueryEventMetrics(c.Request.Context(), *req)
@@ -209,13 +208,9 @@ func (h *MetricsHandlers) MetricsEvents(c *gin.Context) {
 
 // MetricsAttempts handles GET /metrics/attempts
 func (h *MetricsHandlers) MetricsAttempts(c *gin.Context) {
-	tenantIDs, ok := resolveTenantIDsFilter(c)
-	if !ok {
-		return
-	}
-
+	// JWT callers cannot use tenant_id as dimension
 	if isJWTCaller(c) {
-		if err := rejectTenantIDAccess(c); err != nil {
+		if rejectTenantIDDimension(c) {
 			return
 		}
 	}
@@ -225,8 +220,12 @@ func (h *MetricsHandlers) MetricsAttempts(c *gin.Context) {
 		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 		return
 	}
-	if len(tenantIDs) > 0 {
-		req.TenantID = tenantIDs[0]
+
+	// JWT callers: validate/inject tenant_id filter
+	if isJWTCaller(c) {
+		if enforceJWTTenantFilter(c, req) {
+			return
+		}
 	}
 
 	resp, err := h.metricsStore.QueryAttemptMetrics(c.Request.Context(), *req)
@@ -243,25 +242,41 @@ func (h *MetricsHandlers) MetricsAttempts(c *gin.Context) {
 	c.JSON(http.StatusOK, buildAPIMetricsResponse(apiData, resp.Metadata, req.Granularity))
 }
 
-// rejectTenantIDAccess aborts with 403 if the request includes tenant_id as a dimension or filter.
-func rejectTenantIDAccess(c *gin.Context) error {
+// rejectTenantIDDimension aborts with 403 if the request includes tenant_id as a dimension.
+// Returns true if the request was aborted.
+func rejectTenantIDDimension(c *gin.Context) bool {
 	for _, d := range ParseArrayQueryParam(c, "dimensions") {
 		if d == "tenant_id" {
 			AbortWithError(c, http.StatusForbidden, ErrorResponse{
 				Code:    http.StatusForbidden,
 				Message: "tenant_id dimension is not allowed for tenant-scoped requests",
 			})
-			return fmt.Errorf("forbidden")
+			return true
 		}
 	}
-	if vals := ParseArrayQueryParam(c, "filters[tenant_id]"); len(vals) > 0 {
-		AbortWithError(c, http.StatusForbidden, ErrorResponse{
-			Code:    http.StatusForbidden,
-			Message: "tenant_id filter is not allowed for tenant-scoped requests",
-		})
-		return fmt.Errorf("forbidden")
+	return false
+}
+
+// enforceJWTTenantFilter validates filters[tenant_id] for JWT callers.
+// If absent, injects the JWT tenant. If present but mismatched, aborts 403.
+// Returns true if the request was aborted.
+func enforceJWTTenantFilter(c *gin.Context, req *logstore.MetricsRequest) bool {
+	jwtTenantID := tenantIDFromContext(c)
+	if filterTenants, ok := req.Filters["tenant_id"]; ok {
+		if len(filterTenants) != 1 || filterTenants[0] != jwtTenantID {
+			AbortWithError(c, http.StatusForbidden, ErrorResponse{
+				Code:    http.StatusForbidden,
+				Message: "filters[tenant_id] does not match authenticated tenant",
+			})
+			return true
+		}
+	} else {
+		if req.Filters == nil {
+			req.Filters = make(map[string][]string)
+		}
+		req.Filters["tenant_id"] = []string{jwtTenantID}
 	}
-	return nil
+	return false
 }
 
 // abortWithMetricsError returns 400 for resource-limit and validation errors, 500 otherwise.

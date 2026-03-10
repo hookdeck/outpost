@@ -299,8 +299,10 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 }
 
 func matchesEventMetricsFilter(event *models.Event, req driver.MetricsRequest) bool {
-	if req.TenantID != "" && event.TenantID != req.TenantID {
-		return false
+	if tenantIDs, ok := req.Filters["tenant_id"]; ok {
+		if !contains(tenantIDs, event.TenantID) {
+			return false
+		}
 	}
 	if event.Time.Before(req.TimeRange.Start) || !event.Time.Before(req.TimeRange.End) {
 		return false
@@ -319,8 +321,10 @@ func matchesEventMetricsFilter(event *models.Event, req driver.MetricsRequest) b
 }
 
 func matchesAttemptMetricsFilter(a *models.Attempt, event *models.Event, req driver.MetricsRequest) bool {
-	if req.TenantID != "" && event.TenantID != req.TenantID {
-		return false
+	if tenantIDs, ok := req.Filters["tenant_id"]; ok {
+		if !contains(tenantIDs, event.TenantID) {
+			return false
+		}
 	}
 	if a.Time.Before(req.TimeRange.Start) || !a.Time.Before(req.TimeRange.End) {
 		return false
