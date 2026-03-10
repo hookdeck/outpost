@@ -360,8 +360,8 @@ func (h *messageHandler) shouldScheduleRetry(task models.DeliveryTask, err error
 	if !errors.As(err, &pubErr) {
 		return false
 	}
-	// Attempt starts at 0 for initial attempt, so we can compare directly
-	return task.Attempt < h.retryMaxLimit
+	// Attempt starts at 1 for initial attempt, so use <= to allow retryMaxLimit total attempts
+	return task.Attempt <= h.retryMaxLimit
 }
 
 func (h *messageHandler) shouldNackError(err error) bool {
@@ -410,7 +410,7 @@ func (h *messageHandler) shouldNackDeliveryError(err error) bool {
 }
 
 func (h *messageHandler) scheduleRetry(ctx context.Context, task models.DeliveryTask) error {
-	backoffDuration := h.retryBackoff.Duration(task.Attempt)
+	backoffDuration := h.retryBackoff.Duration(task.Attempt - 1)
 
 	retryTask := RetryTaskFromDeliveryTask(task)
 	retryTaskStr, err := retryTask.ToString()
