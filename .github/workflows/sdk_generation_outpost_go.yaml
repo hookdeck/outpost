@@ -1,11 +1,6 @@
 name: Generate OUTPOST-GO
-permissions:
-  checks: write
-  contents: write
-  pull-requests: write
-  statuses: write
-  id-token: write
-"on":
+
+on:
   workflow_dispatch:
     inputs:
       force:
@@ -15,14 +10,14 @@ permissions:
       set_version:
         description: optionally set a specific SDK version
         type: string
+
 jobs:
   generate:
-    uses: speakeasy-api/sdk-generation-action/.github/workflows/workflow-executor.yaml@v15
+    uses: ./.github/workflows/sdk-generate-one.yml
     with:
-      force: ${{ github.event.inputs.force }}
-      mode: pr
-      set_version: ${{ github.event.inputs.set_version }}
       target: outpost-go
+      force: ${{ github.event.inputs.force }}
+      set_version: ${{ github.event.inputs.set_version }}
     secrets:
       github_access_token: ${{ secrets.GITHUB_TOKEN }}
       speakeasy_api_key: ${{ secrets.SPEAKEASY_API_KEY }}

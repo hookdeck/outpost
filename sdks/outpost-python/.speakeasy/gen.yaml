@@ -21,7 +21,7 @@ generation:
     hoistGlobalSecurity: true
   schemas:
     allOfMergeStrategy: shallowMerge
-  requestBodyFieldName: params
+  requestBodyFieldName: body
   versioningStrategy: automatic
   persistentEdits: {}
   tests:
@@ -51,7 +51,7 @@ python:
     conflictResistantModelImportsFeb2026: false
     responseRequiredSep2024: true
   flattenGlobalSecurity: true
-  flattenRequests: true
+  flattenRequests: false
   flatteningOrder: parameters-first
   forwardCompatibleEnumsByDefault: false
   forwardCompatibleUnionsByDefault: "false"
@@ -66,8 +66,8 @@ python:
   inferUnionDiscriminators: true
   inputModelSuffix: input
   license: ""
-  maxMethodParams: 999
-  methodArguments: infer-optional-args
+  maxMethodParams: 4
+  methodArguments: require-security-and-request
   moduleName: ""
   multipartArrayFormat: legacy
   outputModelSuffix: output

@@ -1,0 +1,50 @@
+# Reusable workflow: generate one SDK target via Speakeasy.
+# Used by the manual per-language workflows and by sdk-generate-on-release.yml.
+# Callers pass target, optional set_version/force, and the required secrets.
+name: SDK generate one target
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        description: "Speakeasy target (outpost-go, outpost-python, or outpost-ts)"
+        required: true
+        type: string
+      set_version:
+        description: "Optional SDK version override (e.g. 1.0.0). Empty = Speakeasy detection."
+        required: false
+        type: string
+      force:
+        description: "Force generation even if no changes detected"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      github_access_token:
+        required: true
+      speakeasy_api_key:
+        required: true
+      pypi_token:
+        required: false
+      npm_token:
+        required: false
+
+jobs:
+  generate:
+    permissions:
+      checks: write
+      contents: write
+      pull-requests: write
+      statuses: write
+      id-token: write
+    uses: speakeasy-api/sdk-generation-action/.github/workflows/workflow-executor.yaml@v15
+    with:
+      force: ${{ inputs.force }}
+      mode: pr
+      target: ${{ inputs.target }}
+      set_version: ${{ inputs.set_version || '' }}
+    secrets:
+      github_access_token: ${{ secrets.github_access_token }}
+      speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+      pypi_token: ${{ secrets.pypi_token }}
+      npm_token: ${{ secrets.npm_token }}

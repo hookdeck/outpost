@@ -4,12 +4,9 @@ This guide covers the complete process for updating, generating, testing, and pu
 
 ## Overview
 
-Outpost SDKs are automatically generated from the [OpenAPI specification](../docs/apis/openapi.yaml) using [Speakeasy](https://www.speakeasyapi.dev/). The SDK generation, testing, and publishing process is managed through GitHub Actions workflows, but currently requires manual triggering and careful coordination to ensure quality.
+Outpost SDKs are automatically generated from the [OpenAPI specification](../docs/apis/openapi.yaml) using [Speakeasy](https://www.speakeasyapi.dev/). The SDK generation, testing, and publishing process is managed through GitHub Actions workflows that run automatically on version tag pushes, with manual triggering also available per SDK.
 
-**Key Point**: SDK generation is currently a **manual process** that requires explicit workflow triggering and version management. Future improvements may include:
-- Automatically triggering SDK generation when Outpost releases are published
-- Only generating SDKs if `docs/apis/openapi.yaml` has changed since the last release
-- Letting Speakeasy handle versioning automatically (it detects breaking vs non-breaking changes), testing and releasing
+**Key Point**: SDK generation runs **automatically when you push a version tag** (e.g. `v0.13.2`). The [release process](release.md) is the primary guide. You can also trigger generation manually per SDK (see below). SDK versions are determined by Speakeasy detection (breaking vs non-breaking); for Outpost v1.0.0 the workflow sets all SDKs to 1.0.0.
 
 ## Prerequisites
 
@@ -54,6 +51,24 @@ Outpost maintains three official SDKs, each in its own directory within the `sdk
 - **Publish Workflow**: `sdk_publish_outpost_ts.yaml`
 
 Each SDK is maintained as a sub-project within this repository and generated from the shared [OpenAPI specification](../docs/apis/openapi.yaml).
+
+### SDK generation and lock files
+
+When Speakeasy runs SDK generation, it updates the following:
+
+- **Root (shared):** `.speakeasy/workflow.lock` — updated when generation runs (observed when running multiple targets). This is a **shared file** across all three SDKs.
+- **Per-SDK:** Each target updates only its own directory, e.g.:
+  - `sdks/outpost-go/.speakeasy/gen.lock`, `sdks/outpost-go/.speakeasy/gen.yaml`, and all generated output under `sdks/outpost-go/`
+  - `sdks/outpost-python/.speakeasy/gen.lock`, `sdks/outpost-python/.speakeasy/gen.yaml`, and output under `sdks/outpost-python/`
+  - `sdks/outpost-typescript/.speakeasy/gen.lock`, `sdks/outpost-typescript/.speakeasy/gen.yaml`, and output under `sdks/outpost-typescript/`
+
+Because the root `.speakeasy/workflow.lock` is written by generation, **the three SDK generations must run sequentially** (not in parallel) to avoid overwriting or conflicting on that file. The tag-triggered workflow runs Go → Python → TypeScript in order. When using the Speakeasy action with `mode: pr`, each run opens its own PR, so **you will see three SDK PRs per release tag**; they can be merged in any order after review.
+
+All SDK generation (manual per-language and tag-triggered) goes through the same reusable workflow [sdk-generate-one.yml](../.github/workflows/sdk-generate-one.yml), which calls Speakeasy’s action once per target. The manual workflows (Generate OUTPOST-GO, etc.) and the release-tag workflow all use it, so behaviour and version handling stay in one place.
+
+### Outpost release and SDK generation
+
+The full release process (creating the tag, what runs on tag push, merging SDK PRs, creating the GitHub Release) is described in the **[Release process](release.md)** guide. When you push a version tag (e.g. `v0.13.2`), the [SDK generate on release tag](../.github/workflows/sdk-generate-on-release.yml) workflow runs and opens **three pull requests** (one for each SDK). Review and merge them in any order; see [Step 3: Review Generated SDK Pull Requests](#step-3-review-generated-sdk-pull-requests) and [Step 4: Test the Generated SDKs](#step-4-test-the-generated-sdks) below for review and testing.
 
 ## Updating the OpenAPI Specification
 

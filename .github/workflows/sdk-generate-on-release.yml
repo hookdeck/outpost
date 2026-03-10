@@ -1,0 +1,50 @@
+# Generate all three SDKs (Go, Python, TypeScript) when a version tag is pushed.
+# Runs sequentially to avoid conflicts on the shared .speakeasy/workflow.lock.
+# Uses the reusable sdk-generate-one.yml so logic lives in one place.
+# See contributing/release.md and contributing/sdks.md for the release process and lock file details.
+#
+# Outpost version from the tag is available as github.ref_name (e.g. v0.13.2) in the workflow context.
+# workflow_dispatch allows testing without pushing a tag (run from Actions UI; uses selected branch ref).
+name: SDK generate on release tag
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}   # Run from Actions UI to test without pushing a tag (uses selected branch ref)
+
+jobs:
+  generate-go:
+    uses: ./.github/workflows/sdk-generate-one.yml
+    with:
+      target: outpost-go
+      force: true
+      # SDK version override only when Outpost is released as v1.0.0
+      set_version: ${{ github.ref_name == 'v1.0.0' && '1.0.0' || '' }}
+    secrets:
+      github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      speakeasy_api_key: ${{ secrets.SPEAKEASY_API_KEY }}
+
+  generate-python:
+    needs: generate-go
+    uses: ./.github/workflows/sdk-generate-one.yml
+    with:
+      target: outpost-python
+      force: true
+      set_version: ${{ github.ref_name == 'v1.0.0' && '1.0.0' || '' }}
+    secrets:
+      github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      speakeasy_api_key: ${{ secrets.SPEAKEASY_API_KEY }}
+      pypi_token: ${{ secrets.PYPI_TOKEN }}
+
+  generate-ts:
+    needs: generate-python
+    uses: ./.github/workflows/sdk-generate-one.yml
+    with:
+      target: outpost-ts
+      force: true
+      set_version: ${{ github.ref_name == 'v1.0.0' && '1.0.0' || '' }}
+    secrets:
+      github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      speakeasy_api_key: ${{ secrets.SPEAKEASY_API_KEY }}
+      npm_token: ${{ secrets.NPM_TOKEN }}

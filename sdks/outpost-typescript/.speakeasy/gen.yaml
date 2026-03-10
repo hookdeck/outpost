@@ -21,7 +21,7 @@ generation:
     hoistGlobalSecurity: true
   schemas:
     allOfMergeStrategy: shallowMerge
-  requestBodyFieldName: params
+  requestBodyFieldName: body
   versioningStrategy: automatic
   persistentEdits: {}
   tests:
