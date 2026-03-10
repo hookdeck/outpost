@@ -52,6 +52,9 @@ func timeBucketExpr(col string, g *driver.Granularity) string {
 // ── Event Metrics ─────────────────────────────────────────────────────────
 
 func (s *logStore) QueryEventMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.EventMetricsResponse, error) {
+	if err := driver.ValidateMetricsRequest(req); err != nil {
+		return nil, err
+	}
 	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
 	ctx, cancel := metricsCtx(ctx)
 	defer cancel()
@@ -219,6 +222,9 @@ func (s *logStore) QueryEventMetrics(ctx context.Context, req driver.MetricsRequ
 // ── Attempt Metrics ───────────────────────────────────────────────────────
 
 func (s *logStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.AttemptMetricsResponse, error) {
+	if err := driver.ValidateMetricsRequest(req); err != nil {
+		return nil, err
+	}
 	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
 	ctx, cancel := metricsCtx(ctx)
 	defer cancel()

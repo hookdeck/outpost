@@ -60,6 +60,9 @@ func addInFilter(conditions []string, args []any, col string, vals []string) ([]
 // ── Event Metrics ─────────────────────────────────────────────────────────
 
 func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.EventMetricsResponse, error) {
+	if err := driver.ValidateMetricsRequest(req); err != nil {
+		return nil, err
+	}
 	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
 	ctx, cancel := metricsCtx(ctx)
 	defer cancel()
@@ -225,6 +228,9 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 // ── Attempt Metrics ───────────────────────────────────────────────────────
 
 func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.AttemptMetricsResponse, error) {
+	if err := driver.ValidateMetricsRequest(req); err != nil {
+		return nil, err
+	}
 	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
 	ctx, cancel := metricsCtx(ctx)
 	defer cancel()

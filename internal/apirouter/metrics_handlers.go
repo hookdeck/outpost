@@ -264,8 +264,12 @@ func rejectTenantIDAccess(c *gin.Context) error {
 	return nil
 }
 
-// abortWithMetricsError returns 400 for resource-limit errors, 500 otherwise.
+// abortWithMetricsError returns 400 for resource-limit and validation errors, 500 otherwise.
 func abortWithMetricsError(c *gin.Context, err error) {
+	if errors.Is(err, driver.ErrInvalidTimeRange) {
+		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+		return
+	}
 	if errors.Is(err, driver.ErrResourceLimit) {
 		AbortWithError(c, http.StatusBadRequest, ErrorResponse{
 			Code:    http.StatusBadRequest,

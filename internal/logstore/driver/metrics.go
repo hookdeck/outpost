@@ -11,6 +11,18 @@ import (
 // should surface this as a 400 rather than a 500.
 var ErrResourceLimit = errors.New("metrics query exceeded resource limits")
 
+// ErrInvalidTimeRange is returned when the time range is invalid
+// (e.g. start >= end). Callers should surface this as a 400.
+var ErrInvalidTimeRange = errors.New("invalid time range: start must be before end")
+
+// ValidateMetricsRequest checks that the metrics request is well-formed.
+func ValidateMetricsRequest(req MetricsRequest) error {
+	if !req.TimeRange.Start.Before(req.TimeRange.End) {
+		return ErrInvalidTimeRange
+	}
+	return nil
+}
+
 type Metrics interface {
 	QueryEventMetrics(ctx context.Context, req MetricsRequest) (*EventMetricsResponse, error)
 	QueryAttemptMetrics(ctx context.Context, req MetricsRequest) (*AttemptMetricsResponse, error)

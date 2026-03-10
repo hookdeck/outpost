@@ -13,6 +13,9 @@ import (
 const defaultRowLimit = 100000
 
 func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.EventMetricsResponse, error) {
+	if err := driver.ValidateMetricsRequest(req); err != nil {
+		return nil, err
+	}
 	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -114,6 +117,9 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 }
 
 func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.AttemptMetricsResponse, error) {
+	if err := driver.ValidateMetricsRequest(req); err != nil {
+		return nil, err
+	}
 	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
 	s.mu.RLock()
 	defer s.mu.RUnlock()

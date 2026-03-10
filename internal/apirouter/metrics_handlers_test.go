@@ -202,6 +202,32 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
 	})
 
+	t.Run("start equals end returns 400", func(t *testing.T) {
+		h := newAPITest(t)
+		sameTime := time.Now().UTC().Truncate(time.Second)
+		qs := "time[start]=" + sameTime.Format(time.RFC3339) +
+			"&time[end]=" + sameTime.Format(time.RFC3339)
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/metrics/events?"+qs+"&measures[0]=count", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+	})
+
+	t.Run("start after end returns 400", func(t *testing.T) {
+		h := newAPITest(t)
+		now := time.Now().UTC().Truncate(time.Second)
+		qs := "time[start]=" + now.Format(time.RFC3339) +
+			"&time[end]=" + now.Add(-1*time.Hour).Format(time.RFC3339)
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/metrics/events?"+qs+"&measures[0]=count", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+	})
+
 	t.Run("missing measures returns 400", func(t *testing.T) {
 		h := newAPITest(t)
 
@@ -417,6 +443,19 @@ func TestAPI_MetricsAttempts(t *testing.T) {
 			assert.True(t, ok)
 			assert.Equal(t, float64(1), count)
 		}
+	})
+
+	t.Run("start equals end returns 400", func(t *testing.T) {
+		h := newAPITest(t)
+		sameTime := time.Now().UTC().Truncate(time.Second)
+		qs := "time[start]=" + sameTime.Format(time.RFC3339) +
+			"&time[end]=" + sameTime.Format(time.RFC3339)
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/metrics/attempts?"+qs+"&measures[0]=count", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
 	})
 
 	t.Run("unknown attempt measure returns 400", func(t *testing.T) {
