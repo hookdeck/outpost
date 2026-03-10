@@ -4,53 +4,52 @@ This document is the **primary** guide for cutting an Outpost release. It covers
 
 ## Overview
 
-The release flow is: **tag to generate assets** → **merge the SDK PRs into main** → **create the release in GitHub**. We merge the SDK PRs before creating the release so the SDKs are in main when we publish. The tag stays on the commit you tagged; we do not move or rewrite the tag.
+**Step one: create the GitHub Release** (with the version tag). That is when Outpost is released. Following that, the tag triggers automatic SDK generation and creation of PRs for all three SDKs, **sequentially**. You then merge those PRs into main, and the SDKs are released. The tag stays on the commit you tagged; we do not move or rewrite the tag.
 
 **Order of operations:**
 
-1. **You:** Create and push a version tag (e.g. `v0.13.2`). This triggers the workflows that build assets and open the three SDK PRs (generated from that tag).
-2. **Automated:** Two workflows run — one builds Outpost binaries and Docker images, the other generates SDKs and opens PRs targeting your default branch (e.g. `main`).
-3. **You:** Review and merge the three SDK PRs into main.
-4. **You:** Create the GitHub Release (draft a new release, choose that tag, add notes, publish).
+1. **You:** Create the **GitHub Release** with the version tag (e.g. `v0.13.2`). That is when Outpost is released. (Create the tag from the target branch when drafting the release if it doesn’t exist yet, or push the tag first and select it.)
+2. **Automated:** The tag triggers two workflows — [release.yml](../.github/workflows/release.yml) builds Outpost binaries and Docker images; [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) auto-generates the Go, Python, and TypeScript SDKs **sequentially** and opens a PR for each, targeting your default branch (e.g. `main`).
+3. **You:** Merge the three SDK PRs into main.
+4. **Automated:** The SDKs are released when those PRs are merged.
 
 ## Process
 
-### 1. Create and push a version tag
+### 1. Create the GitHub Release (Outpost is released)
 
-From the branch you want to release (typically `main`):
+**You** create the release in GitHub; that is when Outpost is released.
 
-```bash
-git tag v0.13.2   # or your next version
-git push origin v0.13.2
-```
+1. Go to **Releases** → **Draft a new release**.
+2. Attach the version tag (e.g. `v0.13.2`). If the tag doesn’t exist yet, create it from the target branch (e.g. `main`) when drafting the release, or create and push the tag first:
+   ```bash
+   git tag v0.13.2
+   git push origin v0.13.2
+   ```
+   Use [Semantic Versioning](https://semver.org/): `vMAJOR.MINOR.PATCH`.
+3. Add release notes and publish.
 
-Use [Semantic Versioning](https://semver.org/): `vMAJOR.MINOR.PATCH`.
+The release is tied to that tag; GitHub associates the built assets (binaries, Docker) with the release once the tag exists and [release.yml](../.github/workflows/release.yml) has run.
 
-### 2. What runs automatically on tag push (asset generation)
+### 2. What runs automatically (SDK generation and PRs)
 
-When you push a tag, two workflows run (they do not depend on each other):
+Both workflows are triggered on **tag push** (`push: tags: v*`). When you publish the GitHub Release, you attach (or create) the version tag; creating the tag in the UI causes GitHub to fire that tag push, so the workflows run right after the release is published. No change to Actions is needed: listening for the tag is equivalent for this process.
+
+The tag triggers two workflows (they do not depend on each other):
 
 | Workflow | What it does |
 |----------|----------------|
 | [release.yml](../.github/workflows/release.yml) | Builds Outpost binaries and Docker images (via GoReleaser) and uploads binary assets so they are available for the tag. Pushes Docker images to Docker Hub (e.g. `hookdeck/outpost:{{ tag }}-amd64`). |
-| [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) | Generates the Go, Python, and TypeScript SDKs in sequence and opens **three pull requests** (one per SDK). Runs sequentially to avoid conflicts on the shared `.speakeasy/workflow.lock` (see [SDKs – SDK generation and lock files](sdks.md#sdk-generation-and-lock-files)). |
+| [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) | Auto-generates the Go, Python, and TypeScript SDKs **sequentially** and opens **three pull requests** (one per SDK), targeting your default branch (e.g. `main`). Sequential runs avoid conflicts on the shared `.speakeasy/workflow.lock` (see [SDKs – SDK generation and lock files](sdks.md#sdk-generation-and-lock-files)). |
 
-### 3. Merge the SDK PRs (before creating the release)
+### 3. Merge the SDK PRs into main
 
-The [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) workflow opens **three pull requests** (Go, Python, TypeScript), generated from the tag you pushed. Merge them into main **before** you create the GitHub Release so the SDKs are in main when we publish the release.
+Review and merge the **three pull requests** (Go, Python, TypeScript) opened by [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml). Merge order does not matter. See [sdks.md](sdks.md) for testing and review.
 
 - **SDK versions** are set by **Speakeasy detection** (breaking vs non-breaking), not by the Outpost tag. Exception: when you release **Outpost v1.0.0**, the workflow sets all three SDKs to **1.0.0**.
-- Review and merge the three SDK PRs (order does not matter). See [sdks.md](sdks.md) for testing and review.
 
-### 4. Create the GitHub Release
+### 4. SDKs are released
 
-**You** create the release in GitHub after the workflows have run and the SDK PRs are merged:
-
-1. Go to **Releases** → **Draft a new release**.
-2. Choose the **existing tag** (e.g. `v0.13.2`). The release is tied to that tag (the tag stays on the commit you originally tagged), so GitHub associates the built assets (binaries, etc.) with this release.
-3. Add release notes and publish.
-
-Order: **tag → workflows generate assets and open SDK PRs → merge SDK PRs → create the release in GitHub**.
+When the SDK PRs are merged into main, the SDKs are released (published).
 
 ### 5. Outpost binaries (when and where)
 
@@ -61,10 +60,10 @@ Order: **tag → workflows generate assets and open SDK PRs → merge SDK PRs �
 
 ## When cutting an Outpost release (checklist)
 
-1. **Create and push the version tag** (e.g. `v0.13.2`) from the correct branch. This triggers asset generation and opens the three SDK PRs.
-2. **Wait for workflows** — [release.yml](../.github/workflows/release.yml) (Outpost binaries + Docker) and [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) (SDK PRs) run automatically.
+1. **Create the GitHub Release** — In GitHub, draft a new release, attach the version tag (e.g. `v0.13.2`; create the tag from the target branch if needed), add release notes, and publish. **Outpost is released** when you publish the release.
+2. **Workflows run automatically** — The tag triggers [release.yml](../.github/workflows/release.yml) (Outpost binaries + Docker) and [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml), which generates the three SDKs **sequentially** and opens a PR for each.
 3. **Merge the SDK PRs** — Review and merge the three PRs (Go, Python, TypeScript) into main. See [SDKs](sdks.md) for testing and review guidance.
-4. **Create the GitHub Release** — In GitHub, draft a new release, choose the tag (it stays on the commit you tagged), add release notes, and publish. The built assets are associated with the release via that tag.
+4. **SDKs are released** when those PRs are merged to main.
 
 For more detail on SDK generation, versioning, and lock files, see [contributing/sdks.md](sdks.md).
 
