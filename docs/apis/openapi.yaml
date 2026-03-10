@@ -3805,7 +3805,7 @@ paths:
         Returns aggregated event publish metrics. Supports time bucketing via granularity,
         dimensional grouping, and filtering.
 
-        **Measures:** `count`
+        **Measures:** `count`, `rate`
 
         **Dimensions:** `tenant_id` (admin-only), `topic`, `destination_id`
 
@@ -3844,12 +3844,12 @@ paths:
           schema:
             oneOf:
               - type: string
-                enum: [count]
+                enum: [count, rate]
               - type: array
                 items:
                   type: string
-                  enum: [count]
-          description: Measures to compute. At least one required. Use bracket notation for multiple values (e.g., `measures[0]=count`).
+                  enum: [count, rate]
+          description: Measures to compute. At least one required. `rate` is events/second throughput. Use bracket notation for multiple values (e.g., `measures[0]=count`).
           example: ["count"]
         - name: dimensions
           in: query
@@ -3942,7 +3942,8 @@ paths:
         dimensional grouping, and filtering.
 
         **Measures:** `count`, `successful_count`, `failed_count`, `error_rate`,
-        `first_attempt_count`, `retry_count`, `manual_retry_count`, `avg_attempt_number`
+        `first_attempt_count`, `retry_count`, `manual_retry_count`, `avg_attempt_number`,
+        `rate`, `successful_rate`, `failed_rate`
 
         **Dimensions:** `tenant_id` (admin-only), `destination_id`, `topic`, `status`, `code`, `manual`, `attempt_number`
 
@@ -3981,12 +3982,12 @@ paths:
           schema:
             oneOf:
               - type: string
-                enum: [count, successful_count, failed_count, error_rate, first_attempt_count, retry_count, manual_retry_count, avg_attempt_number]
+                enum: [count, successful_count, failed_count, error_rate, first_attempt_count, retry_count, manual_retry_count, avg_attempt_number, rate, successful_rate, failed_rate]
               - type: array
                 items:
                   type: string
-                  enum: [count, successful_count, failed_count, error_rate, first_attempt_count, retry_count, manual_retry_count, avg_attempt_number]
-          description: Measures to compute. At least one required. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
+                  enum: [count, successful_count, failed_count, error_rate, first_attempt_count, retry_count, manual_retry_count, avg_attempt_number, rate, successful_rate, failed_rate]
+          description: Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
           example: ["count", "error_rate"]
         - name: dimensions
           in: query

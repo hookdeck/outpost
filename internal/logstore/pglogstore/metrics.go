@@ -52,6 +52,7 @@ func timeBucketExpr(col string, g *driver.Granularity) string {
 // ── Event Metrics ─────────────────────────────────────────────────────────
 
 func (s *logStore) QueryEventMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.EventMetricsResponse, error) {
+	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
 	ctx, cancel := metricsCtx(ctx)
 	defer cancel()
 
@@ -201,6 +202,7 @@ func (s *logStore) QueryEventMetrics(ctx context.Context, req driver.MetricsRequ
 	}
 
 	data = bucket.FillEventBuckets(data, req)
+	driver.ComputeEventRates(data, req)
 
 	elapsed := time.Since(start)
 	return &driver.EventMetricsResponse{
@@ -217,6 +219,7 @@ func (s *logStore) QueryEventMetrics(ctx context.Context, req driver.MetricsRequ
 // ── Attempt Metrics ───────────────────────────────────────────────────────
 
 func (s *logStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.AttemptMetricsResponse, error) {
+	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
 	ctx, cancel := metricsCtx(ctx)
 	defer cancel()
 
@@ -479,6 +482,7 @@ func (s *logStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRe
 	}
 
 	data = bucket.FillAttemptBuckets(data, req)
+	driver.ComputeAttemptRates(data, req)
 
 	elapsed := time.Since(start)
 	return &driver.AttemptMetricsResponse{

@@ -58,6 +58,7 @@ func addInFilter(conditions []string, args []any, col string, vals []string) ([]
 // ── Event Metrics ─────────────────────────────────────────────────────────
 
 func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.EventMetricsResponse, error) {
+	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
 	ctx, cancel := metricsCtx(ctx)
 	defer cancel()
 
@@ -204,6 +205,7 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 	}
 
 	data = bucket.FillEventBuckets(data, req)
+	driver.ComputeEventRates(data, req)
 
 	elapsed := time.Since(start)
 	return &driver.EventMetricsResponse{
@@ -220,6 +222,7 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 // ── Attempt Metrics ───────────────────────────────────────────────────────
 
 func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.AttemptMetricsResponse, error) {
+	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
 	ctx, cancel := metricsCtx(ctx)
 	defer cancel()
 
@@ -483,6 +486,7 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 	}
 
 	data = bucket.FillAttemptBuckets(data, req)
+	driver.ComputeAttemptRates(data, req)
 
 	elapsed := time.Since(start)
 	return &driver.AttemptMetricsResponse{

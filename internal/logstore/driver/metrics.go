@@ -43,6 +43,7 @@ type EventMetricsDataPoint struct {
 	TimeBucket *time.Time
 	// Measures
 	Count *int
+	Rate  *float64
 	// Dimensions
 	TenantID      *string
 	Topic         *string
@@ -67,6 +68,9 @@ type AttemptMetricsDataPoint struct {
 	RetryCount        *int
 	ManualRetryCount  *int
 	AvgAttemptNumber  *float64
+	Rate              *float64
+	SuccessfulRate    *float64
+	FailedRate        *float64
 	// Dimensions
 	TenantID      *string
 	DestinationID *string

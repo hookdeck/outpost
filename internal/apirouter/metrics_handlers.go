@@ -49,11 +49,11 @@ func (s stringSet) contains(v string) bool {
 }
 
 var (
-	eventMeasures   = newStringSet("count")
+	eventMeasures   = newStringSet("count", "rate")
 	eventDimensions = newStringSet("tenant_id", "topic", "destination_id")
 	eventFilters    = newStringSet("tenant_id", "topic", "destination_id")
 
-	attemptMeasures   = newStringSet("count", "successful_count", "failed_count", "error_rate", "first_attempt_count", "retry_count", "manual_retry_count", "avg_attempt_number")
+	attemptMeasures   = newStringSet("count", "successful_count", "failed_count", "error_rate", "first_attempt_count", "retry_count", "manual_retry_count", "avg_attempt_number", "rate", "successful_rate", "failed_rate")
 	attemptDimensions = newStringSet("tenant_id", "destination_id", "topic", "status", "code", "manual", "attempt_number")
 	attemptFilters    = newStringSet("tenant_id", "destination_id", "topic", "status", "code", "manual", "attempt_number")
 )
@@ -290,6 +290,8 @@ func eventDataPointToAPI(dp logstore.EventMetricsDataPoint, measures, dimensions
 		switch m {
 		case "count":
 			metrics["count"] = derefInt(dp.Count)
+		case "rate":
+			metrics["rate"] = derefFloat64(dp.Rate)
 		}
 	}
 
@@ -332,6 +334,12 @@ func attemptDataPointToAPI(dp logstore.AttemptMetricsDataPoint, measures, dimens
 			metrics["manual_retry_count"] = derefInt(dp.ManualRetryCount)
 		case "avg_attempt_number":
 			metrics["avg_attempt_number"] = derefFloat64(dp.AvgAttemptNumber)
+		case "rate":
+			metrics["rate"] = derefFloat64(dp.Rate)
+		case "successful_rate":
+			metrics["successful_rate"] = derefFloat64(dp.SuccessfulRate)
+		case "failed_rate":
+			metrics["failed_rate"] = derefFloat64(dp.FailedRate)
 		}
 	}
 

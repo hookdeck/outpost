@@ -111,6 +111,8 @@ func zeroEventDP(slot time.Time, measures []string) driver.EventMetricsDataPoint
 		switch m {
 		case "count":
 			dp.Count = new(0)
+		case "rate":
+			dp.Rate = new(0.0)
 		}
 	}
 	return dp
@@ -217,6 +219,12 @@ func zeroAttemptDP(slot time.Time, measures []string) driver.AttemptMetricsDataP
 			dp.ManualRetryCount = new(0)
 		case "avg_attempt_number":
 			dp.AvgAttemptNumber = new(0.0)
+		case "rate":
+			dp.Rate = new(0.0)
+		case "successful_rate":
+			dp.SuccessfulRate = new(0.0)
+		case "failed_rate":
+			dp.FailedRate = new(0.0)
 		}
 	}
 	return dp

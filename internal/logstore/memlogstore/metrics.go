@@ -13,6 +13,7 @@ import (
 const defaultRowLimit = 100000
 
 func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.EventMetricsResponse, error) {
+	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -98,6 +99,7 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 	}
 
 	data = bucket.FillEventBuckets(data, req)
+	driver.ComputeEventRates(data, req)
 
 	elapsed := time.Since(start)
 	return &driver.EventMetricsResponse{
@@ -112,6 +114,7 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 }
 
 func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.AttemptMetricsResponse, error) {
+	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -275,6 +278,7 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 	}
 
 	data = bucket.FillAttemptBuckets(data, req)
+	driver.ComputeAttemptRates(data, req)
 
 	elapsed := time.Since(start)
 	return &driver.AttemptMetricsResponse{

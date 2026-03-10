@@ -250,6 +250,55 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
 		assert.Empty(t, result.Data)
 	})
+
+	t.Run("rate measure returns float", func(t *testing.T) {
+		h := newAPITest(t)
+
+		e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+			{Event: e1, Attempt: attemptForEvent(e1)},
+		}))
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=rate", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusOK, resp.Code)
+
+		var result apirouter.APIMetricsResponse
+		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+		if len(result.Data) > 0 {
+			rate, ok := result.Data[0].Metrics["rate"]
+			assert.True(t, ok)
+			rateVal, _ := rate.(float64)
+			assert.Greater(t, rateVal, 0.0)
+			// count should not appear since user didn't request it
+			_, hasCount := result.Data[0].Metrics["count"]
+			assert.False(t, hasCount)
+		}
+	})
+
+	t.Run("rate and count together", func(t *testing.T) {
+		h := newAPITest(t)
+
+		e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+			{Event: e1, Attempt: attemptForEvent(e1)},
+		}))
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count&measures[1]=rate", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusOK, resp.Code)
+
+		var result apirouter.APIMetricsResponse
+		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+		if len(result.Data) > 0 {
+			assert.Contains(t, result.Data[0].Metrics, "count")
+			assert.Contains(t, result.Data[0].Metrics, "rate")
+		}
+	})
 }
 
 func TestAPI_MetricsAttempts(t *testing.T) {
@@ -392,5 +441,58 @@ func TestAPI_MetricsAttempts(t *testing.T) {
 		var result apirouter.APIMetricsResponse
 		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
 		assert.Empty(t, result.Data)
+	})
+
+	t.Run("rate measures without counts", func(t *testing.T) {
+		h := newAPITest(t)
+
+		e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+		a1 := attemptForEvent(e1, af.WithStatus("successful"))
+		a2 := attemptForEvent(e1, af.WithStatus("failed"))
+		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+			{Event: e1, Attempt: a1},
+			{Event: e1, Attempt: a2},
+		}))
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/metrics/attempts?"+baseQS+"&measures[0]=rate&measures[1]=successful_rate&measures[2]=failed_rate", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusOK, resp.Code)
+
+		var result apirouter.APIMetricsResponse
+		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+		if len(result.Data) > 0 {
+			dp := result.Data[0]
+			assert.Contains(t, dp.Metrics, "rate")
+			assert.Contains(t, dp.Metrics, "successful_rate")
+			assert.Contains(t, dp.Metrics, "failed_rate")
+			// Injected dependencies should not appear
+			assert.NotContains(t, dp.Metrics, "count")
+			assert.NotContains(t, dp.Metrics, "successful_count")
+			assert.NotContains(t, dp.Metrics, "failed_count")
+		}
+	})
+
+	t.Run("rate with granularity", func(t *testing.T) {
+		h := newAPITest(t)
+
+		e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+			{Event: e1, Attempt: attemptForEvent(e1)},
+		}))
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/metrics/attempts?"+baseQS+"&measures[0]=count&measures[1]=rate&granularity=1h", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusOK, resp.Code)
+
+		var result apirouter.APIMetricsResponse
+		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+		for _, dp := range result.Data {
+			assert.Contains(t, dp.Metrics, "count")
+			assert.Contains(t, dp.Metrics, "rate")
+		}
 	})
 }
