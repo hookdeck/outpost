@@ -1,10 +1,17 @@
 package bucket
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 )
+
+const maxBuckets = 100000
+
+// ErrTooManyBuckets is returned when the granularity + time range would
+// produce more than maxBuckets time slots, which could cause OOM.
+var ErrTooManyBuckets = fmt.Errorf("time range produces more than %d buckets", maxBuckets)
 
 // TruncateTime truncates t to the boundary defined by granularity g.
 // This is the shared implementation used by all backends.
@@ -54,12 +61,20 @@ func AdvanceTime(t time.Time, g *driver.Granularity) time.Time {
 
 // GenerateTimeBuckets returns a slice of aligned time slots from the truncated
 // start up to (but not including) end, stepping by one granularity unit.
-func GenerateTimeBuckets(start, end time.Time, g *driver.Granularity) []time.Time {
+// Returns ErrTooManyBuckets if the result would exceed maxBuckets.
+func GenerateTimeBuckets(start, end time.Time, g *driver.Granularity) ([]time.Time, error) {
 	cur := TruncateTime(start, g)
 	var buckets []time.Time
 	for cur.Before(end) {
+		if len(buckets) >= maxBuckets {
+			return nil, ErrTooManyBuckets
+		}
 		buckets = append(buckets, cur)
-		cur = AdvanceTime(cur, g)
+		next := AdvanceTime(cur, g)
+		if !next.After(cur) {
+			break // safety: prevent infinite loop if time doesn't advance
+		}
+		cur = next
 	}
-	return buckets
+	return buckets, nil
 }

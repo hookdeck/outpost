@@ -9,37 +9,45 @@ import (
 
 // FillEventBuckets fills in missing time buckets with zero-valued data points
 // so that the response contains one entry per time slot (per dimension combo).
-func FillEventBuckets(data []driver.EventMetricsDataPoint, req driver.MetricsRequest) []driver.EventMetricsDataPoint {
+// Returns ErrTooManyBuckets if the time range + granularity produces too many slots.
+func FillEventBuckets(data []driver.EventMetricsDataPoint, req driver.MetricsRequest) ([]driver.EventMetricsDataPoint, error) {
 	if req.Granularity == nil {
-		return data
+		return data, nil
 	}
 
-	slots := GenerateTimeBuckets(req.TimeRange.Start, req.TimeRange.End, req.Granularity)
+	slots, err := GenerateTimeBuckets(req.TimeRange.Start, req.TimeRange.End, req.Granularity)
+	if err != nil {
+		return nil, err
+	}
 	if len(slots) == 0 {
-		return data
+		return data, nil
 	}
 
 	if len(req.Dimensions) == 0 {
-		return fillEventNoDims(data, slots, req)
+		return fillEventNoDims(data, slots, req), nil
 	}
-	return fillEventWithDims(data, slots, req)
+	return fillEventWithDims(data, slots, req), nil
 }
 
 // FillAttemptBuckets fills in missing time buckets with zero-valued data points.
-func FillAttemptBuckets(data []driver.AttemptMetricsDataPoint, req driver.MetricsRequest) []driver.AttemptMetricsDataPoint {
+// Returns ErrTooManyBuckets if the time range + granularity produces too many slots.
+func FillAttemptBuckets(data []driver.AttemptMetricsDataPoint, req driver.MetricsRequest) ([]driver.AttemptMetricsDataPoint, error) {
 	if req.Granularity == nil {
-		return data
+		return data, nil
 	}
 
-	slots := GenerateTimeBuckets(req.TimeRange.Start, req.TimeRange.End, req.Granularity)
+	slots, err := GenerateTimeBuckets(req.TimeRange.Start, req.TimeRange.End, req.Granularity)
+	if err != nil {
+		return nil, err
+	}
 	if len(slots) == 0 {
-		return data
+		return data, nil
 	}
 
 	if len(req.Dimensions) == 0 {
-		return fillAttemptNoDims(data, slots, req)
+		return fillAttemptNoDims(data, slots, req), nil
 	}
-	return fillAttemptWithDims(data, slots, req)
+	return fillAttemptWithDims(data, slots, req), nil
 }
 
 // ── Event filling ─────────────────────────────────────────────────────────

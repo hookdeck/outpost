@@ -220,7 +220,10 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 		data = data[:defaultRowLimit]
 	}
 
-	data = bucket.FillEventBuckets(data, req)
+	data, err = bucket.FillEventBuckets(data, req)
+	if err != nil {
+		return nil, fmt.Errorf("fill event buckets: %w: %w", driver.ErrResourceLimit, err)
+	}
 	driver.ComputeEventRates(data, req)
 
 	elapsed := time.Since(start)
@@ -526,7 +529,10 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 		data = data[:defaultRowLimit]
 	}
 
-	data = bucket.FillAttemptBuckets(data, req)
+	data, err = bucket.FillAttemptBuckets(data, req)
+	if err != nil {
+		return nil, fmt.Errorf("fill attempt buckets: %w: %w", driver.ErrResourceLimit, err)
+	}
 	driver.ComputeAttemptRates(data, req)
 
 	elapsed := time.Since(start)

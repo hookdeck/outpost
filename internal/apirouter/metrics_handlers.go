@@ -85,6 +85,17 @@ type APIMetricsMetadata struct {
 
 var granularityRegex = regexp.MustCompile(`^(\d+)([smhdwM])$`)
 
+// granularityMaxValues defines the maximum allowed value for each granularity
+// unit, per the metrics API spec.
+var granularityMaxValues = map[string]int{
+	"s": 60,
+	"m": 60,
+	"h": 24,
+	"d": 31,
+	"w": 4,
+	"M": 12,
+}
+
 func parseGranularity(raw string) (*logstore.Granularity, error) {
 	if raw == "" {
 		return nil, nil
@@ -97,7 +108,11 @@ func parseGranularity(raw string) (*logstore.Granularity, error) {
 	if val <= 0 {
 		return nil, fmt.Errorf("invalid granularity %q: value must be > 0", raw)
 	}
-	return &logstore.Granularity{Value: val, Unit: m[2]}, nil
+	unit := m[2]
+	if maxVal, ok := granularityMaxValues[unit]; ok && val > maxVal {
+		return nil, fmt.Errorf("invalid granularity %q: %s value must be between 1 and %d", raw, unit, maxVal)
+	}
+	return &logstore.Granularity{Value: val, Unit: unit}, nil
 }
 
 func parseMetricsRequest(c *gin.Context, allowedMeasures, allowedDimensions, allowedFilters stringSet) (*logstore.MetricsRequest, error) {

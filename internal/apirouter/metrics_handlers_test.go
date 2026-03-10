@@ -269,6 +269,35 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
 	})
 
+	t.Run("too many buckets returns 400 query too broad", func(t *testing.T) {
+		h := newAPITest(t)
+
+		// 1s granularity over 2 days = 172800 buckets > 100k limit
+		start := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+		end := time.Date(2000, 1, 3, 0, 0, 0, 0, time.UTC)
+		qs := "time[start]=" + start.Format(time.RFC3339) +
+			"&time[end]=" + end.Format(time.RFC3339)
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/metrics/events?"+qs+"&measures[0]=count&granularity=1s", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		assert.Equal(t, http.StatusBadRequest, resp.Code)
+		assert.Contains(t, resp.Body.String(), "query too broad")
+	})
+
+	t.Run("granularity value out of range returns 400", func(t *testing.T) {
+		h := newAPITest(t)
+
+		cases := []string{"61s", "61m", "25h", "32d", "5w", "13M"}
+		for _, gran := range cases {
+			req := httptest.NewRequest(http.MethodGet,
+				"/api/v1/metrics/events?"+baseQS+"&measures[0]=count&granularity="+gran, nil)
+			resp := h.do(h.withAPIKey(req))
+			assert.Equal(t, http.StatusBadRequest, resp.Code, "granularity %s should be rejected", gran)
+		}
+	})
+
 	t.Run("missing measures returns 400", func(t *testing.T) {
 		h := newAPITest(t)
 

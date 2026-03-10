@@ -33,6 +33,13 @@ type TimeRange struct {
 	End   time.Time
 }
 
+// Granularity defines the time-bucketing interval for metrics queries.
+// For sub-day units (s, m, h), Value controls both step size and alignment
+// (e.g. 5m → buckets at :00, :05, :10, …).
+// For calendar units (d, w, M), Value controls the step size but alignment
+// is always to the start of the natural period (start of day, Sunday-based
+// week, or first of month). This means the first bucket may be shorter than
+// the requested interval when the query start doesn't fall on a boundary.
 type Granularity struct {
 	Value int
 	Unit  string // s, m, h, d, w, M

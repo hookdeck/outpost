@@ -403,7 +403,39 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 		}
 	})
 
-	// ── 8. No granularity → no bucket filling ────────────────────────────
+	// ── 8. Too many buckets → ErrResourceLimit ──────────────────────────
+	// A granularity + time range that exceeds 100k buckets must be rejected.
+
+	t.Run("too many buckets returns ErrResourceLimit (events)", func(t *testing.T) {
+		// 1s granularity over ~2 days = 172800 buckets > 100k limit
+		_, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
+			Filters: map[string][]string{"tenant_id": {ds.tenant1}},
+			TimeRange: driver.TimeRange{
+				Start: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
+				End:   time.Date(2000, 1, 3, 0, 0, 0, 0, time.UTC),
+			},
+			Granularity: &driver.Granularity{Value: 1, Unit: "s"},
+			Measures:    []string{"count"},
+		})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, driver.ErrResourceLimit)
+	})
+
+	t.Run("too many buckets returns ErrResourceLimit (attempts)", func(t *testing.T) {
+		_, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
+			Filters: map[string][]string{"tenant_id": {ds.tenant1}},
+			TimeRange: driver.TimeRange{
+				Start: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
+				End:   time.Date(2000, 1, 3, 0, 0, 0, 0, time.UTC),
+			},
+			Granularity: &driver.Granularity{Value: 1, Unit: "s"},
+			Measures:    []string{"count"},
+		})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, driver.ErrResourceLimit)
+	})
+
+	// ── 9. No granularity → no bucket filling ────────────────────────────
 	// When granularity is omitted, bucket filling does not apply.
 	// Empty results remain empty (single aggregate row or none).
 

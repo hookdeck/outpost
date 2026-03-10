@@ -101,7 +101,10 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 		data = []driver.EventMetricsDataPoint{}
 	}
 
-	data = bucket.FillEventBuckets(data, req)
+	data, fillErr := bucket.FillEventBuckets(data, req)
+	if fillErr != nil {
+		return nil, fmt.Errorf("fill event buckets: %w: %w", driver.ErrResourceLimit, fillErr)
+	}
 	driver.ComputeEventRates(data, req)
 
 	elapsed := time.Since(start)
@@ -283,7 +286,10 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 		data = []driver.AttemptMetricsDataPoint{}
 	}
 
-	data = bucket.FillAttemptBuckets(data, req)
+	data, fillErr := bucket.FillAttemptBuckets(data, req)
+	if fillErr != nil {
+		return nil, fmt.Errorf("fill attempt buckets: %w: %w", driver.ErrResourceLimit, fillErr)
+	}
 	driver.ComputeAttemptRates(data, req)
 
 	elapsed := time.Since(start)
