@@ -3807,9 +3807,9 @@ paths:
 
         **Measures:** `count`
 
-        **Dimensions:** `tenant_id` (admin-only), `topic`, `destination_id`, `eligible_for_retry`
+        **Dimensions:** `tenant_id` (admin-only), `topic`, `destination_id`
 
-        **Filters:** `tenant_id` (admin-only), `topic`, `destination_id`, `eligible_for_retry`
+        **Filters:** `tenant_id` (admin-only), `topic`, `destination_id`
       operationId: getEventMetrics
       parameters:
         - name: time[start]
@@ -3855,7 +3855,7 @@ paths:
             type: array
             items:
               type: string
-              enum: [tenant_id, topic, destination_id, eligible_for_retry]
+              enum: [tenant_id, topic, destination_id]
           description: Dimensions to group results by.
         - name: filters[topic]
           in: query
@@ -3869,13 +3869,6 @@ paths:
           schema:
             type: string
           description: Filter by destination ID. Supports comma-separated values.
-        - name: filters[eligible_for_retry]
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: ["true", "false"]
-          description: Filter by retry eligibility.
         - name: filters[tenant_id]
           in: query
           required: false

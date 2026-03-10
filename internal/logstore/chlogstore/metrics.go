@@ -75,7 +75,6 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 		sfTimeBucket sf = iota
 		sfTopic
 		sfDestID
-		sfEligible
 		sfCount
 	)
 	var order []sf
@@ -99,10 +98,6 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 			selectExprs = append(selectExprs, "destination_id")
 			groupExprs = append(groupExprs, "destination_id")
 			order = append(order, sfDestID)
-		case "eligible_for_retry":
-			selectExprs = append(selectExprs, "eligible_for_retry")
-			groupExprs = append(groupExprs, "eligible_for_retry")
-			order = append(order, sfEligible)
 		}
 	}
 
@@ -155,11 +150,10 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 	defer rows.Close()
 
 	var (
-		tbVal       time.Time
-		topicVal    string
-		destIDVal   string
-		eligibleVal bool
-		countVal    uint64
+		tbVal     time.Time
+		topicVal  string
+		destIDVal string
+		countVal  uint64
 	)
 	scanDests := make([]any, len(order))
 	for i, f := range order {
@@ -170,8 +164,6 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 			scanDests[i] = &topicVal
 		case sfDestID:
 			scanDests[i] = &destIDVal
-		case sfEligible:
-			scanDests[i] = &eligibleVal
 		case sfCount:
 			scanDests[i] = &countVal
 		}
@@ -195,9 +187,6 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 			case sfDestID:
 				v := destIDVal
 				dp.DestinationID = &v
-			case sfEligible:
-				v := eligibleVal
-				dp.EligibleForRetry = &v
 			case sfCount:
 				v := int(countVal)
 				dp.Count = &v

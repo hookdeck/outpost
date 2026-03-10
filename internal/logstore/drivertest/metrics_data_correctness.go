@@ -71,26 +71,6 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 			assert.Equal(t, 150, dc[ds.dest1_2])
 		})
 
-		t.Run("by eligible_for_retry", func(t *testing.T) {
-			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
-				TenantID:   ds.tenant1,
-				TimeRange:  fullRange,
-				Measures:   []string{"count"},
-				Dimensions: []string{"eligible_for_retry"},
-			})
-			require.NoError(t, err)
-			assert.Len(t, resp.Data, 2)
-
-			ec := map[bool]int{}
-			for _, dp := range resp.Data {
-				require.NotNil(t, dp.EligibleForRetry)
-				require.NotNil(t, dp.Count)
-				ec[*dp.EligibleForRetry] = *dp.Count
-			}
-			assert.Equal(t, 200, ec[true])
-			assert.Equal(t, 100, ec[false])
-		})
-
 		t.Run("filter by topic", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,

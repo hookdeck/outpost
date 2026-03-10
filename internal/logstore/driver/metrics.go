@@ -44,10 +44,9 @@ type EventMetricsDataPoint struct {
 	// Measures
 	Count *int
 	// Dimensions
-	TenantID         *string
-	Topic            *string
-	DestinationID    *string
-	EligibleForRetry *bool
+	TenantID      *string
+	Topic         *string
+	DestinationID *string
 }
 
 type EventMetricsResponse struct {

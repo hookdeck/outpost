@@ -21,8 +21,6 @@ func EventDimKey(dp *driver.EventMetricsDataPoint, dims []string) DimKey {
 			parts[i] = derefStr(dp.Topic)
 		case "destination_id":
 			parts[i] = derefStr(dp.DestinationID)
-		case "eligible_for_retry":
-			parts[i] = derefBool(dp.EligibleForRetry)
 		}
 	}
 	return DimKey(strings.Join(parts, "\x00"))

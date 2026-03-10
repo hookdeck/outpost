@@ -33,7 +33,6 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 		tenantID   string
 		topic      string
 		destID     string
-		eligible   string
 	}
 
 	groups := map[groupKey][]*models.Event{}
@@ -51,12 +50,6 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 				key.topic = event.Topic
 			case "destination_id":
 				key.destID = event.DestinationID
-			case "eligible_for_retry":
-				if event.EligibleForRetry {
-					key.eligible = "true"
-				} else {
-					key.eligible = "false"
-				}
 			}
 		}
 		groups[key] = append(groups[key], event)
@@ -84,9 +77,6 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 			case "destination_id":
 				v := key.destID
 				dp.DestinationID = &v
-			case "eligible_for_retry":
-				v := key.eligible == "true"
-				dp.EligibleForRetry = &v
 			}
 		}
 

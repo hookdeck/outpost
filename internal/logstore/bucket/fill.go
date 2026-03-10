@@ -131,10 +131,6 @@ func copyEventDims(dst, src *driver.EventMetricsDataPoint, dims []string) {
 			if src.DestinationID != nil {
 				dst.DestinationID = new(*src.DestinationID)
 			}
-		case "eligible_for_retry":
-			if src.EligibleForRetry != nil {
-				dst.EligibleForRetry = new(*src.EligibleForRetry)
-			}
 		}
 	}
 }
