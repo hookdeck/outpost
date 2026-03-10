@@ -28,7 +28,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		}))
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/events?"+baseQS+"&measures[]=count&granularity=1h", nil)
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count&granularity=1h", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		require.Equal(t, http.StatusOK, resp.Code)
@@ -51,7 +51,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		}))
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/events?"+baseQS+"&measures[]=count&dimensions[]=topic", nil)
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count&dimensions[0]=topic", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		require.Equal(t, http.StatusOK, resp.Code)
@@ -74,7 +74,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		}))
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/events?"+baseQS+"&measures[]=count", nil)
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		require.Equal(t, http.StatusOK, resp.Code)
@@ -100,7 +100,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		}))
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/events?"+baseQS+"&measures[]=count", nil)
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count", nil)
 		resp := h.do(h.withJWT(req, "t1"))
 
 		require.Equal(t, http.StatusOK, resp.Code)
@@ -127,7 +127,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		}))
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/events?"+baseQS+"&measures[]=count&dimensions[]=tenant_id", nil)
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count&dimensions[0]=tenant_id", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		// Admin should be allowed to use tenant_id dimension (not rejected like JWT)
@@ -145,7 +145,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/events?"+baseQS+"&measures[]=count&dimensions[]=tenant_id", nil)
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count&dimensions[0]=tenant_id", nil)
 		resp := h.do(h.withJWT(req, "t1"))
 
 		assert.Equal(t, http.StatusForbidden, resp.Code)
@@ -156,7 +156,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/events?"+baseQS+"&measures[]=count&filters[tenant_id]=t1", nil)
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count&filters[tenant_id][0]=t1", nil)
 		resp := h.do(h.withJWT(req, "t1"))
 
 		assert.Equal(t, http.StatusForbidden, resp.Code)
@@ -166,7 +166,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		h := newAPITest(t)
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/events?measures[]=count", nil)
+			"/api/v1/metrics/events?measures[0]=count", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
@@ -176,7 +176,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		h := newAPITest(t)
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/events?"+baseQS+"&measures[]=count&granularity=invalid", nil)
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count&granularity=invalid", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
@@ -186,7 +186,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		h := newAPITest(t)
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/events?"+baseQS+"&measures[]=nonexistent", nil)
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=nonexistent", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
@@ -196,7 +196,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		h := newAPITest(t)
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/events?"+baseQS+"&measures[]=count&dimensions[]=nonexistent", nil)
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count&dimensions[0]=nonexistent", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
@@ -223,7 +223,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		}))
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/events?"+baseQS+"&measures[]=count&filters[topic]=user.created", nil)
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count&filters[topic][0]=user.created", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		require.Equal(t, http.StatusOK, resp.Code)
@@ -241,7 +241,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		h := newAPITest(t)
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/events?"+baseQS+"&measures[]=count", nil)
+			"/api/v1/metrics/events?"+baseQS+"&measures[0]=count", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		require.Equal(t, http.StatusOK, resp.Code)
@@ -268,7 +268,7 @@ func TestAPI_MetricsAttempts(t *testing.T) {
 		}))
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/attempts?"+baseQS+"&measures[]=count&measures[]=successful_count&measures[]=error_rate", nil)
+			"/api/v1/metrics/attempts?"+baseQS+"&measures[0]=count&measures[1]=successful_count&measures[2]=error_rate", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		require.Equal(t, http.StatusOK, resp.Code)
@@ -294,7 +294,7 @@ func TestAPI_MetricsAttempts(t *testing.T) {
 		}))
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/attempts?"+baseQS+"&measures[]=count&granularity=1h&dimensions[]=status", nil)
+			"/api/v1/metrics/attempts?"+baseQS+"&measures[0]=count&granularity=1h&dimensions[0]=status", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		require.Equal(t, http.StatusOK, resp.Code)
@@ -319,7 +319,7 @@ func TestAPI_MetricsAttempts(t *testing.T) {
 		}))
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/attempts?"+baseQS+"&measures[]=count", nil)
+			"/api/v1/metrics/attempts?"+baseQS+"&measures[0]=count", nil)
 		resp := h.do(h.withJWT(req, "t1"))
 
 		require.Equal(t, http.StatusOK, resp.Code)
@@ -338,7 +338,7 @@ func TestAPI_MetricsAttempts(t *testing.T) {
 		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/attempts?"+baseQS+"&measures[]=count&dimensions[]=tenant_id", nil)
+			"/api/v1/metrics/attempts?"+baseQS+"&measures[0]=count&dimensions[0]=tenant_id", nil)
 		resp := h.do(h.withJWT(req, "t1"))
 
 		assert.Equal(t, http.StatusForbidden, resp.Code)
@@ -356,7 +356,7 @@ func TestAPI_MetricsAttempts(t *testing.T) {
 		}))
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/attempts?"+baseQS+"&measures[]=count&filters[status]=successful", nil)
+			"/api/v1/metrics/attempts?"+baseQS+"&measures[0]=count&filters[status][0]=successful", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		require.Equal(t, http.StatusOK, resp.Code)
@@ -374,7 +374,7 @@ func TestAPI_MetricsAttempts(t *testing.T) {
 		h := newAPITest(t)
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/attempts?"+baseQS+"&measures[]=nonexistent", nil)
+			"/api/v1/metrics/attempts?"+baseQS+"&measures[0]=nonexistent", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
@@ -384,7 +384,7 @@ func TestAPI_MetricsAttempts(t *testing.T) {
 		h := newAPITest(t)
 
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/metrics/attempts?"+baseQS+"&measures[]=count", nil)
+			"/api/v1/metrics/attempts?"+baseQS+"&measures[0]=count", nil)
 		resp := h.do(h.withAPIKey(req))
 
 		require.Equal(t, http.StatusOK, resp.Code)

@@ -122,7 +122,7 @@ func parseMetricsRequest(c *gin.Context, allowedMeasures, allowedDimensions, all
 	}
 
 	// measures[] (required)
-	measures := parseQueryArray(c, "measures[]")
+	measures := ParseArrayQueryParam(c, "measures")
 	if len(measures) == 0 {
 		return nil, fmt.Errorf("at least one measures[] is required")
 	}
@@ -133,7 +133,7 @@ func parseMetricsRequest(c *gin.Context, allowedMeasures, allowedDimensions, all
 	}
 
 	// dimensions[] (optional)
-	dimensions := parseQueryArray(c, "dimensions[]")
+	dimensions := ParseArrayQueryParam(c, "dimensions")
 	for _, d := range dimensions {
 		if !allowedDimensions.contains(d) {
 			return nil, fmt.Errorf("unknown dimension %q", d)
@@ -143,7 +143,7 @@ func parseMetricsRequest(c *gin.Context, allowedMeasures, allowedDimensions, all
 	// filters[key]=val
 	filters := make(map[string][]string)
 	for key := range allowedFilters {
-		vals := parseQueryArray(c, "filters["+key+"]")
+		vals := ParseArrayQueryParam(c, "filters["+key+"]")
 		if len(vals) > 0 {
 			filters[key] = vals
 		}
@@ -170,7 +170,7 @@ func isJWTCaller(c *gin.Context) bool {
 
 // MetricsEvents handles GET /metrics/events
 func (h *MetricsHandlers) MetricsEvents(c *gin.Context) {
-	tenantID, ok := resolveTenantIDFilter(c)
+	tenantIDs, ok := resolveTenantIDsFilter(c)
 	if !ok {
 		return
 	}
@@ -187,7 +187,9 @@ func (h *MetricsHandlers) MetricsEvents(c *gin.Context) {
 		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 		return
 	}
-	req.TenantID = tenantID
+	if len(tenantIDs) > 0 {
+		req.TenantID = tenantIDs[0]
+	}
 
 	resp, err := h.metricsStore.QueryEventMetrics(c.Request.Context(), *req)
 	if err != nil {
@@ -205,7 +207,7 @@ func (h *MetricsHandlers) MetricsEvents(c *gin.Context) {
 
 // MetricsAttempts handles GET /metrics/attempts
 func (h *MetricsHandlers) MetricsAttempts(c *gin.Context) {
-	tenantID, ok := resolveTenantIDFilter(c)
+	tenantIDs, ok := resolveTenantIDsFilter(c)
 	if !ok {
 		return
 	}
@@ -221,7 +223,9 @@ func (h *MetricsHandlers) MetricsAttempts(c *gin.Context) {
 		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 		return
 	}
-	req.TenantID = tenantID
+	if len(tenantIDs) > 0 {
+		req.TenantID = tenantIDs[0]
+	}
 
 	resp, err := h.metricsStore.QueryAttemptMetrics(c.Request.Context(), *req)
 	if err != nil {
@@ -239,7 +243,7 @@ func (h *MetricsHandlers) MetricsAttempts(c *gin.Context) {
 
 // rejectTenantIDAccess aborts with 403 if the request includes tenant_id as a dimension or filter.
 func rejectTenantIDAccess(c *gin.Context) error {
-	for _, d := range parseQueryArray(c, "dimensions[]") {
+	for _, d := range ParseArrayQueryParam(c, "dimensions") {
 		if d == "tenant_id" {
 			AbortWithError(c, http.StatusForbidden, ErrorResponse{
 				Code:    http.StatusForbidden,
@@ -248,7 +252,7 @@ func rejectTenantIDAccess(c *gin.Context) error {
 			return fmt.Errorf("forbidden")
 		}
 	}
-	if vals := parseQueryArray(c, "filters[tenant_id]"); len(vals) > 0 {
+	if vals := ParseArrayQueryParam(c, "filters[tenant_id]"); len(vals) > 0 {
 		AbortWithError(c, http.StatusForbidden, ErrorResponse{
 			Code:    http.StatusForbidden,
 			Message: "tenant_id filter is not allowed for tenant-scoped requests",

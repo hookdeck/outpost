@@ -3838,43 +3838,61 @@ paths:
             Units: `s` (1-60), `m` (1-60), `h` (1-24), `d` (1-31), `w` (1-4), `M` (1-12).
             When omitted, returns a single aggregate row per dimension combination.
           example: "1h"
-        - name: measures[]
+        - name: measures
           in: query
           required: true
           schema:
-            type: array
-            items:
-              type: string
-              enum: [count]
-          description: Measures to compute. At least one required.
+            oneOf:
+              - type: string
+                enum: [count]
+              - type: array
+                items:
+                  type: string
+                  enum: [count]
+          description: Measures to compute. At least one required. Use bracket notation for multiple values (e.g., `measures[0]=count`).
           example: ["count"]
-        - name: dimensions[]
+        - name: dimensions
           in: query
           required: false
           schema:
-            type: array
-            items:
-              type: string
-              enum: [tenant_id, topic, destination_id]
-          description: Dimensions to group results by.
+            oneOf:
+              - type: string
+                enum: [tenant_id, topic, destination_id]
+              - type: array
+                items:
+                  type: string
+                  enum: [tenant_id, topic, destination_id]
+          description: Dimensions to group results by. Use bracket notation for multiple values (e.g., `dimensions[0]=topic&dimensions[1]=destination_id`).
         - name: filters[topic]
           in: query
           required: false
           schema:
-            type: string
-          description: Filter by topic name. Supports comma-separated values.
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter by topic name(s). Use bracket notation for multiple values (e.g., `filters[topic][0]=user.created&filters[topic][1]=user.updated`).
         - name: filters[destination_id]
           in: query
           required: false
           schema:
-            type: string
-          description: Filter by destination ID. Supports comma-separated values.
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter by destination ID(s). Use bracket notation for multiple values (e.g., `filters[destination_id][0]=d1&filters[destination_id][1]=d2`).
         - name: filters[tenant_id]
           in: query
           required: false
           schema:
-            type: string
-          description: Filter by tenant ID. Admin-only — rejected with 403 for JWT callers.
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter by tenant ID(s). Admin-only — rejected with 403 for JWT callers. Use bracket notation for multiple values (e.g., `filters[tenant_id][0]=t1&filters[tenant_id][1]=t2`).
       responses:
         "200":
           description: Aggregated event metrics.
@@ -3957,50 +3975,73 @@ paths:
             Units: `s` (1-60), `m` (1-60), `h` (1-24), `d` (1-31), `w` (1-4), `M` (1-12).
             When omitted, returns a single aggregate row per dimension combination.
           example: "1h"
-        - name: measures[]
+        - name: measures
           in: query
           required: true
           schema:
-            type: array
-            items:
-              type: string
-              enum: [count, successful_count, failed_count, error_rate, first_attempt_count, retry_count, manual_retry_count, avg_attempt_number]
-          description: Measures to compute. At least one required.
+            oneOf:
+              - type: string
+                enum: [count, successful_count, failed_count, error_rate, first_attempt_count, retry_count, manual_retry_count, avg_attempt_number]
+              - type: array
+                items:
+                  type: string
+                  enum: [count, successful_count, failed_count, error_rate, first_attempt_count, retry_count, manual_retry_count, avg_attempt_number]
+          description: Measures to compute. At least one required. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
           example: ["count", "error_rate"]
-        - name: dimensions[]
+        - name: dimensions
           in: query
           required: false
           schema:
-            type: array
-            items:
-              type: string
-              enum: [tenant_id, destination_id, topic, status, code, manual, attempt_number]
-          description: Dimensions to group results by.
+            oneOf:
+              - type: string
+                enum: [tenant_id, destination_id, topic, status, code, manual, attempt_number]
+              - type: array
+                items:
+                  type: string
+                  enum: [tenant_id, destination_id, topic, status, code, manual, attempt_number]
+          description: Dimensions to group results by. Use bracket notation for multiple values (e.g., `dimensions[0]=status&dimensions[1]=destination_id`).
         - name: filters[destination_id]
           in: query
           required: false
           schema:
-            type: string
-          description: Filter by destination ID. Supports comma-separated values.
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter by destination ID(s). Use bracket notation for multiple values (e.g., `filters[destination_id][0]=d1&filters[destination_id][1]=d2`).
         - name: filters[topic]
           in: query
           required: false
           schema:
-            type: string
-          description: Filter by topic name. Supports comma-separated values.
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter by topic name(s). Use bracket notation for multiple values (e.g., `filters[topic][0]=user.created&filters[topic][1]=user.updated`).
         - name: filters[status]
           in: query
           required: false
           schema:
-            type: string
-            enum: [success, failed]
-          description: Filter by attempt status.
+            oneOf:
+              - type: string
+                enum: [success, failed]
+              - type: array
+                items:
+                  type: string
+                  enum: [success, failed]
+          description: Filter by attempt status(es). Use bracket notation for multiple values (e.g., `filters[status][0]=success&filters[status][1]=failed`).
         - name: filters[code]
           in: query
           required: false
           schema:
-            type: string
-          description: Filter by HTTP status code. Supports comma-separated values.
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter by HTTP status code(s). Use bracket notation for multiple values (e.g., `filters[code][0]=200&filters[code][1]=500`).
         - name: filters[manual]
           in: query
           required: false
@@ -4012,14 +4053,22 @@ paths:
           in: query
           required: false
           schema:
-            type: string
-          description: Filter by attempt number.
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter by attempt number(s). Use bracket notation for multiple values (e.g., `filters[attempt_number][0]=1&filters[attempt_number][1]=2`).
         - name: filters[tenant_id]
           in: query
           required: false
           schema:
-            type: string
-          description: Filter by tenant ID. Admin-only — rejected with 403 for JWT callers.
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter by tenant ID(s). Admin-only — rejected with 403 for JWT callers. Use bracket notation for multiple values (e.g., `filters[tenant_id][0]=t1&filters[tenant_id][1]=t2`).
       responses:
         "200":
           description: Aggregated attempt metrics.
