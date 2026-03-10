@@ -2,8 +2,14 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrResourceLimit is returned when a metrics query exceeds server-side
+// resource limits (e.g. too many GROUP BY rows, query timeout). Callers
+// should surface this as a 400 rather than a 500.
+var ErrResourceLimit = errors.New("metrics query exceeded resource limits")
 
 type Metrics interface {
 	QueryEventMetrics(ctx context.Context, req MetricsRequest) (*EventMetricsResponse, error)

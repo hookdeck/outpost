@@ -10,6 +10,8 @@ import (
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 )
 
+const metricsSettings = " SETTINGS max_execution_time = 30, max_rows_to_group_by = 5000000, group_by_overflow_mode = 'throw'"
+
 const (
 	defaultRowLimit     = 100000
 	metricsQueryTimeout = 30 * time.Second
@@ -143,10 +145,11 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 		query += " ORDER BY " + strings.Join(groupExprs, ", ")
 	}
 	query += fmt.Sprintf(" LIMIT %d", defaultRowLimit+1)
+	query += metricsSettings
 
 	rows, err := s.chDB.Query(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query event metrics: %w", err)
+		return nil, wrapCHMetricsError("query event metrics", err)
 	}
 	defer rows.Close()
 
@@ -363,10 +366,11 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 		query += " ORDER BY " + strings.Join(groupExprs, ", ")
 	}
 	query += fmt.Sprintf(" LIMIT %d", defaultRowLimit+1)
+	query += metricsSettings
 
 	rows, err := s.chDB.Query(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query attempt metrics: %w", err)
+		return nil, wrapCHMetricsError("query attempt metrics", err)
 	}
 	defer rows.Close()
 
@@ -498,4 +502,17 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 			Truncated:   truncated,
 		},
 	}, nil
+}
+
+// wrapCHMetricsError detects ClickHouse resource-limit errors (TOO_MANY_ROWS,
+// TIMEOUT_EXCEEDED) and wraps them as driver.ErrResourceLimit so the handler
+// can return 400 instead of 500.
+func wrapCHMetricsError(op string, err error) error {
+	msg := err.Error()
+	if strings.Contains(msg, "TOO_MANY_ROWS") ||
+		strings.Contains(msg, "TIMEOUT_EXCEEDED") ||
+		strings.Contains(msg, "max_rows_to_group_by") {
+		return fmt.Errorf("%s: %w: %w", op, driver.ErrResourceLimit, err)
+	}
+	return fmt.Errorf("%s: %w", op, err)
 }

@@ -2,6 +2,7 @@ package apirouter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/logstore/driver"
 )
 
 // logMetricsStore is the subset of logstore.LogStore needed by metrics handlers.
@@ -193,7 +195,7 @@ func (h *MetricsHandlers) MetricsEvents(c *gin.Context) {
 
 	resp, err := h.metricsStore.QueryEventMetrics(c.Request.Context(), *req)
 	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		abortWithMetricsError(c, err)
 		return
 	}
 
@@ -229,7 +231,7 @@ func (h *MetricsHandlers) MetricsAttempts(c *gin.Context) {
 
 	resp, err := h.metricsStore.QueryAttemptMetrics(c.Request.Context(), *req)
 	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		abortWithMetricsError(c, err)
 		return
 	}
 
@@ -260,6 +262,18 @@ func rejectTenantIDAccess(c *gin.Context) error {
 		return fmt.Errorf("forbidden")
 	}
 	return nil
+}
+
+// abortWithMetricsError returns 400 for resource-limit errors, 500 otherwise.
+func abortWithMetricsError(c *gin.Context, err error) {
+	if errors.Is(err, driver.ErrResourceLimit) {
+		AbortWithError(c, http.StatusBadRequest, ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "query too broad: try fewer dimensions, more filters, or a shorter time range",
+		})
+		return
+	}
+	AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 }
 
 // --- Response transformation ---
