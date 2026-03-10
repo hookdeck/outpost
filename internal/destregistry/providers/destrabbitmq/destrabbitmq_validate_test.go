@@ -75,19 +75,53 @@ func TestRabbitMQDestination_Validate(t *testing.T) {
 		assert.Equal(t, "required", validationErr.Errors[0].Type)
 	})
 
-	t.Run("should validate malformed server_url", func(t *testing.T) {
+	t.Run("should accept valid server URLs", func(t *testing.T) {
 		t.Parallel()
-		dest := validDestination
-		dest.Config = map[string]string{
-			"server_url": "not-a-valid-url",
-			"exchange":   "test-exchange",
+		validURLs := []string{
+			"localhost:5672",
+			"127.0.0.1:5672",
+			"[::1]:5672",
+			// Docker service names
+			"rabbitmq:5672",
+			"my-rabbitmq:5672",
+			// FQDN
+			"rabbitmq.example.com:5672",
+			"mq.internal.local:5672",
+			// Without port
+			"rabbitmq.example.com",
+			"rabbitmq",
+			// IP addresses
+			"192.168.1.100:5672",
+			"10.0.0.1:5672",
 		}
-		dest.Credentials = maps.Clone(validDestination.Credentials)
-		err := rabbitmqDestination.Validate(context.Background(), &dest)
-		var validationErr *destregistry.ErrDestinationValidation
-		assert.ErrorAs(t, err, &validationErr)
-		assert.Equal(t, "config.server_url", validationErr.Errors[0].Field)
-		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
+		for _, url := range validURLs {
+			t.Run(url, func(t *testing.T) {
+				t.Parallel()
+				dest := validDestination
+				dest.Config = map[string]string{"server_url": url, "exchange": "test-exchange"}
+				dest.Credentials = maps.Clone(validDestination.Credentials)
+				assert.NoError(t, rabbitmqDestination.Validate(context.Background(), &dest))
+			})
+		}
+	})
+
+	t.Run("should reject invalid server URLs", func(t *testing.T) {
+		t.Parallel()
+		invalidURLs := []string{
+			"",
+			"host with spaces:5672",
+			"host name:5672",
+		}
+		for _, url := range invalidURLs {
+			t.Run(url, func(t *testing.T) {
+				t.Parallel()
+				dest := validDestination
+				dest.Config = map[string]string{"server_url": url, "exchange": "test-exchange"}
+				dest.Credentials = maps.Clone(validDestination.Credentials)
+				err := rabbitmqDestination.Validate(context.Background(), &dest)
+				assert.Error(t, err)
+			})
+		}
 	})
 
 	t.Run("should validate valid destination without exchange", func(t *testing.T) {

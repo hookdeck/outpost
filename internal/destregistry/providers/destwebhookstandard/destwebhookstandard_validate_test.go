@@ -73,6 +73,63 @@ func TestStandardWebhookDestination_Validate(t *testing.T) {
 		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
 	})
 
+	t.Run("should accept valid URLs", func(t *testing.T) {
+		t.Parallel()
+		validURLs := []string{
+			// Standard URLs
+			"https://example.com",
+			"http://example.com",
+			"https://example.com/path",
+			"https://example.com:8080/path",
+			"https://example.com/path?query=value",
+			"https://example.com/path#fragment",
+			"https://sub.example.com/path",
+			"http://localhost:3000/webhook",
+			// Basic Auth URLs
+			"https://user:pass@example.com",
+			"https://user:pass@example.com/path",
+			"https://user:pass@example.com:8080/path",
+			"https://token@example.com/webhook",
+			"https://sam:123444@example.com/api/message",
+			// Percent-encoded URLs (Azure Logic Apps, etc.)
+			"https://example.com/path?param=%2Fencoded%2Fslash",
+			"https://example.com/path%2Fwith%2Fencoded",
+			"https://logic.azure.com/workflows/abc123/triggers/manual?api-version=2016&sp=%2Ftriggers%2Fmanual%2Frun",
+			// IP addresses
+			"http://192.168.1.1:8080/webhook",
+			"http://127.0.0.1/webhook",
+		}
+		for _, url := range validURLs {
+			t.Run(url, func(t *testing.T) {
+				t.Parallel()
+				dest := validDestination
+				dest.Config = map[string]string{"url": url}
+				assert.NoError(t, provider.Validate(context.Background(), &dest))
+			})
+		}
+	})
+
+	t.Run("should reject invalid URLs", func(t *testing.T) {
+		t.Parallel()
+		invalidURLs := []string{
+			"not-a-url",
+			"ftp://example.com",
+			"://missing-scheme.com",
+			"https://",
+			"",
+			"example.com",
+		}
+		for _, url := range invalidURLs {
+			t.Run(url, func(t *testing.T) {
+				t.Parallel()
+				dest := validDestination
+				dest.Config = map[string]string{"url": url}
+				err := provider.Validate(context.Background(), &dest)
+				assert.Error(t, err)
+			})
+		}
+	})
+
 	t.Run("should validate secret without whsec prefix", func(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
