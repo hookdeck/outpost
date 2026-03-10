@@ -74,7 +74,7 @@ func executeRedisMigrations(ctx context.Context, redisClient redis.Cmdable, logg
 		client = &redisClientAdapter{Cmdable: redisClient}
 	}
 
-	runner := migratorredis.NewRunner(client, logger)
+	runner := migratorredis.NewRunner(client, logger, deploymentID)
 
 	// Register all migrations from the central registry
 	// Pass deployment ID to scope migrations to this deployment's keys

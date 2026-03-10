@@ -14,14 +14,15 @@ import (
 )
 
 const (
-	migrationLockKey = ".outpost:migration:lock"
+	migrationLockKey = ".outpost:migration_lock"
 )
 
 // Migrator handles Redis migrations
 type Migrator struct {
-	client     *redisClientWrapper
-	logger     MigrationLogger
-	migrations map[string]migratorredis.Migration // All available migrations
+	client       *redisClientWrapper
+	logger       MigrationLogger
+	migrations   map[string]migratorredis.Migration // All available migrations
+	deploymentID string
 }
 
 // Close cleans up resources (logger sync, redis connection, etc)
@@ -73,10 +74,26 @@ func NewMigrator(cfg *config.Config, logger MigrationLogger) (*Migrator, error) 
 	}
 
 	return &Migrator{
-		client:     client,
-		logger:     logger,
-		migrations: migrationMap,
+		client:       client,
+		logger:       logger,
+		migrations:   migrationMap,
+		deploymentID: cfg.DeploymentID,
 	}, nil
+}
+
+func (m *Migrator) deploymentPrefix() string {
+	if m.deploymentID == "" {
+		return ""
+	}
+	return m.deploymentID + ":"
+}
+
+func (m *Migrator) lockKey() string {
+	return m.deploymentPrefix() + migrationLockKey
+}
+
+func (m *Migrator) migrationKey(name string) string {
+	return fmt.Sprintf("%soutpost:migration:%s", m.deploymentPrefix(), name)
 }
 
 // ListMigrations lists all available migrations
@@ -98,14 +115,14 @@ func (m *Migrator) acquireLock(ctx context.Context, migrationName string) error 
 
 	// Try to set lock atomically with SetNX (only sets if not exists)
 	// Use 1 hour expiry in case process dies without cleanup
-	success, err := m.client.SetNX(ctx, migrationLockKey, lock, time.Hour).Result()
+	success, err := m.client.SetNX(ctx, m.lockKey(), lock, time.Hour).Result()
 	if err != nil {
 		return fmt.Errorf("failed to acquire lock: %w", err)
 	}
 
 	if !success {
 		// Lock already exists, get details for error message
-		lockData, err := m.client.Get(ctx, migrationLockKey).Result()
+		lockData, err := m.client.Get(ctx, m.lockKey()).Result()
 		if err != nil {
 			return fmt.Errorf("migration is already running (could not get lock details: %w)", err)
 		}
@@ -119,7 +136,7 @@ func (m *Migrator) acquireLock(ctx context.Context, migrationName string) error 
 
 // releaseLock releases the migration lock
 func (m *Migrator) releaseLock(ctx context.Context) error {
-	err := m.client.Del(ctx, migrationLockKey).Err()
+	err := m.client.Del(ctx, m.lockKey()).Err()
 	if err != nil {
 		return fmt.Errorf("failed to release lock: %w", err)
 	}
@@ -130,7 +147,7 @@ func (m *Migrator) releaseLock(ctx context.Context) error {
 // Unlock forcefully clears the migration lock (for stuck situations)
 func (m *Migrator) Unlock(ctx context.Context, autoApprove bool) error {
 	// Check if lock exists
-	lockData, err := m.client.Get(ctx, migrationLockKey).Result()
+	lockData, err := m.client.Get(ctx, m.lockKey()).Result()
 	if err != nil && err.Error() == "redis: nil" {
 		m.logger.LogLockStatus("", false)
 		return nil
@@ -155,7 +172,7 @@ func (m *Migrator) Unlock(ctx context.Context, autoApprove bool) error {
 		}
 	}
 
-	err = m.client.Del(ctx, migrationLockKey).Err()
+	err = m.client.Del(ctx, m.lockKey()).Err()
 	if err != nil {
 		return fmt.Errorf("failed to clear lock: %w", err)
 	}
@@ -221,7 +238,7 @@ func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
 
 		// Mark all migrations as applied
 		for name := range m.migrations {
-			if err := setMigrationAsApplied(ctx, m.client, name); err != nil {
+			if err := m.setMigrationAsApplied(ctx, name); err != nil {
 				return fmt.Errorf("failed to mark migration %s as applied: %w", name, err)
 			}
 		}
@@ -238,7 +255,7 @@ func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
 		// Get pending migrations count (not satisfied = not applied and not marked as not_applicable)
 		pendingCount := 0
 		for name := range m.migrations {
-			if !isSatisfied(ctx, m.client, name) {
+			if !m.isSatisfied(ctx, name) {
 				pendingCount++
 			}
 		}
@@ -255,8 +272,10 @@ func (m *Migrator) Init(ctx context.Context, currentCheck bool) error {
 
 // checkIfFreshInstallation checks if Redis is a fresh installation
 func (m *Migrator) checkIfFreshInstallation(ctx context.Context) (bool, error) {
+	prefix := m.deploymentPrefix()
+
 	// Check for any "outpost:*" keys (current format)
-	outpostKeys, err := m.client.Keys(ctx, "outpost:*").Result()
+	outpostKeys, err := m.client.Keys(ctx, prefix+"outpost:*").Result()
 	if err != nil {
 		return false, fmt.Errorf("failed to check outpost keys: %w", err)
 	}
@@ -264,8 +283,8 @@ func (m *Migrator) checkIfFreshInstallation(ctx context.Context) (bool, error) {
 		return false, nil // Has current data
 	}
 
-	// Check for any "tenant:*" keys (old format)
-	tenantKeys, err := m.client.Keys(ctx, "tenant:*").Result()
+	// Check for any "tenant:*" keys (old format, or deployment-scoped tenant keys)
+	tenantKeys, err := m.client.Keys(ctx, prefix+"tenant:*").Result()
 	if err != nil {
 		return false, fmt.Errorf("failed to check tenant keys: %w", err)
 	}
@@ -283,7 +302,7 @@ func (m *Migrator) Plan(ctx context.Context) error {
 	var satisfiedCount, pendingCount int
 
 	for name := range m.migrations {
-		if isSatisfied(ctx, m.client, name) {
+		if m.isSatisfied(ctx, name) {
 			satisfiedCount++
 		} else {
 			pendingCount++
@@ -453,7 +472,7 @@ func (m *Migrator) ApplyOne(ctx context.Context, autoApprove, rerun bool, migrat
 		if !ok {
 			return fmt.Errorf("migration not found: %s", migrationName)
 		}
-		alreadyApplied = isApplied(ctx, m.client, migrationName)
+		alreadyApplied = m.isApplied(ctx, migrationName)
 
 		if alreadyApplied && !rerun {
 			m.logger.LogInfo(fmt.Sprintf("migration %s already applied (use --rerun to re-run)", migrationName))
@@ -511,12 +530,12 @@ func (m *Migrator) ApplyOne(ctx context.Context, autoApprove, rerun bool, migrat
 	duration := time.Since(startTime)
 
 	// Mark migration as applied (or update applied_at if re-running)
-	if err := setMigrationAsApplied(ctx, m.client, mig.Name()); err != nil {
+	if err := m.setMigrationAsApplied(ctx, mig.Name()); err != nil {
 		return fmt.Errorf("failed to mark migration as applied: %w", err)
 	}
 
 	// Record run history
-	if err := recordMigrationRun(ctx, m.client, mig.Name(), state, rerun, duration); err != nil {
+	if err := m.recordMigrationRun(ctx, mig.Name(), state, rerun, duration); err != nil {
 		m.logger.LogWarning(fmt.Sprintf("failed to record run history: %v", err))
 		// Don't fail the migration for history recording errors
 	}
@@ -552,7 +571,7 @@ func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
 		applicable, reason := mig.IsApplicable(ctx)
 		if !applicable {
 			m.logger.LogInfo(fmt.Sprintf("  %s: Skipped (%s)", mig.Name(), reason))
-			if err := setMigrationNotApplicable(ctx, m.client, mig.Name(), reason); err != nil {
+			if err := m.setMigrationNotApplicable(ctx, mig.Name(), reason); err != nil {
 				return fmt.Errorf("failed to mark %s as not applicable: %w", mig.Name(), err)
 			}
 			skipped++
@@ -616,13 +635,13 @@ func (m *Migrator) Apply(ctx context.Context, autoApprove bool) error {
 		duration := time.Since(startTime)
 
 		// Mark as applied
-		if err := setMigrationAsApplied(ctx, m.client, mig.Name()); err != nil {
+		if err := m.setMigrationAsApplied(ctx, mig.Name()); err != nil {
 			m.releaseLock(ctx)
 			return fmt.Errorf("failed to mark %s as applied: %w", mig.Name(), err)
 		}
 
 		// Record run history
-		if err := recordMigrationRun(ctx, m.client, mig.Name(), state, false, duration); err != nil {
+		if err := m.recordMigrationRun(ctx, mig.Name(), state, false, duration); err != nil {
 			m.logger.LogWarning(fmt.Sprintf("failed to record run history: %v", err))
 		}
 
@@ -674,7 +693,7 @@ func (m *Migrator) getPendingMigrations(ctx context.Context) []migratorredis.Mig
 
 	var pending []migratorredis.Migration
 	for _, entry := range sorted {
-		if !isSatisfied(ctx, m.client, entry.name) {
+		if !m.isSatisfied(ctx, entry.name) {
 			pending = append(pending, entry.migration)
 		}
 	}
@@ -682,9 +701,8 @@ func (m *Migrator) getPendingMigrations(ctx context.Context) []migratorredis.Mig
 }
 
 // isSatisfied checks if a migration has been satisfied (applied or not applicable)
-func isSatisfied(ctx context.Context, client *redisClientWrapper, name string) bool {
-	key := fmt.Sprintf("outpost:migration:%s", name)
-	val, err := client.HGet(ctx, key, "status").Result()
+func (m *Migrator) isSatisfied(ctx context.Context, name string) bool {
+	val, err := m.client.HGet(ctx, m.migrationKey(name), "status").Result()
 	if err != nil {
 		return false
 	}
@@ -692,9 +710,8 @@ func isSatisfied(ctx context.Context, client *redisClientWrapper, name string) b
 }
 
 // isApplied checks if a migration has been applied (not just satisfied)
-func isApplied(ctx context.Context, client *redisClientWrapper, name string) bool {
-	key := fmt.Sprintf("outpost:migration:%s", name)
-	val, err := client.HGet(ctx, key, "status").Result()
+func (m *Migrator) isApplied(ctx context.Context, name string) bool {
+	val, err := m.client.HGet(ctx, m.migrationKey(name), "status").Result()
 	if err != nil {
 		return false
 	}
@@ -718,7 +735,7 @@ func (m *Migrator) getNextMigration(ctx context.Context) (migratorredis.Migratio
 
 	// Find first unsatisfied
 	for _, entry := range sorted {
-		if !isSatisfied(ctx, m.client, entry.name) {
+		if !m.isSatisfied(ctx, entry.name) {
 			return entry.migration, nil
 		}
 	}
@@ -743,7 +760,7 @@ func (m *Migrator) getLastAppliedMigration(ctx context.Context) (migratorredis.M
 
 	// Find last applied
 	for _, entry := range sorted {
-		if isApplied(ctx, m.client, entry.name) {
+		if m.isApplied(ctx, entry.name) {
 			return entry.migration, nil
 		}
 	}
@@ -752,23 +769,21 @@ func (m *Migrator) getLastAppliedMigration(ctx context.Context) (migratorredis.M
 }
 
 // setMigrationAsApplied marks a migration as applied
-func setMigrationAsApplied(ctx context.Context, client *redisClientWrapper, name string) error {
-	key := fmt.Sprintf("outpost:migration:%s", name)
+func (m *Migrator) setMigrationAsApplied(ctx context.Context, name string) error {
 	now := time.Now().Unix()
 
 	// Use Redis hash to store migration state
-	return client.HSet(ctx, key,
+	return m.client.HSet(ctx, m.migrationKey(name),
 		"status", "applied",
 		"applied_at", fmt.Sprintf("%d", now),
 	).Err()
 }
 
 // setMigrationNotApplicable marks a migration as not applicable
-func setMigrationNotApplicable(ctx context.Context, client *redisClientWrapper, name, reason string) error {
-	key := fmt.Sprintf("outpost:migration:%s", name)
+func (m *Migrator) setMigrationNotApplicable(ctx context.Context, name, reason string) error {
 	now := time.Now().Unix()
 
-	return client.HSet(ctx, key,
+	return m.client.HSet(ctx, m.migrationKey(name),
 		"status", "not_applicable",
 		"checked_at", fmt.Sprintf("%d", now),
 		"reason", reason,
@@ -776,12 +791,11 @@ func setMigrationNotApplicable(ctx context.Context, client *redisClientWrapper, 
 }
 
 // recordMigrationRun records a migration run in the history
-// Key format: outpost:migration:{name}:run:{timestamp}
-func recordMigrationRun(ctx context.Context, client *redisClientWrapper, name string, state *migratorredis.State, rerun bool, duration time.Duration) error {
+func (m *Migrator) recordMigrationRun(ctx context.Context, name string, state *migratorredis.State, rerun bool, duration time.Duration) error {
 	now := time.Now().Unix()
-	key := fmt.Sprintf("outpost:migration:%s:run:%d", name, now)
+	key := fmt.Sprintf("%soutpost:migration:%s:run:%d", m.deploymentPrefix(), name, now)
 
-	return client.HSet(ctx, key,
+	return m.client.HSet(ctx, key,
 		"processed", state.Progress.ProcessedItems,
 		"skipped", state.Progress.SkippedItems,
 		"failed", state.Progress.FailedItems,
