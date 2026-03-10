@@ -29,7 +29,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 			TenantID:    ds.tenant1,
 			TimeRange:   ds.denseDayRange.toDriver(),
 			Granularity: &driver.Granularity{Value: 1, Unit: "h"},
-			Measures:    []string{"count"},
+			Measures:    []string{"count", "rate"},
 		})
 		require.NoError(t, err)
 		require.Len(t, resp.Data, 24, "24h range with 1h granularity must produce 24 buckets")
@@ -37,11 +37,14 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 		for _, dp := range resp.Data {
 			require.NotNil(t, dp.TimeBucket, "every bucket must have a time_bucket")
 			require.NotNil(t, dp.Count, "every bucket must have a count")
+			require.NotNil(t, dp.Rate, "every bucket must have a rate")
 			h := dp.TimeBucket.Hour()
 			if h < 10 || h > 14 {
 				assert.Equal(t, 0, *dp.Count, "hour %d should have count=0", h)
+				assert.Equal(t, 0.0, *dp.Rate, "hour %d should have rate=0.0", h)
 			} else {
 				assert.Greater(t, *dp.Count, 0, "hour %d should have count>0", h)
+				assert.Greater(t, *dp.Rate, 0.0, "hour %d should have rate>0", h)
 			}
 		}
 	})
@@ -51,7 +54,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 			TenantID:    ds.tenant1,
 			TimeRange:   ds.denseDayRange.toDriver(),
 			Granularity: &driver.Granularity{Value: 1, Unit: "h"},
-			Measures:    []string{"count", "error_rate"},
+			Measures:    []string{"count", "error_rate", "rate", "successful_rate", "failed_rate"},
 		})
 		require.NoError(t, err)
 		require.Len(t, resp.Data, 24, "24h range with 1h granularity must produce 24 buckets")
@@ -60,10 +63,16 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 			require.NotNil(t, dp.TimeBucket)
 			require.NotNil(t, dp.Count)
 			require.NotNil(t, dp.ErrorRate, "error_rate must be present in every bucket")
+			require.NotNil(t, dp.Rate, "rate must be present in every bucket")
+			require.NotNil(t, dp.SuccessfulRate, "successful_rate must be present in every bucket")
+			require.NotNil(t, dp.FailedRate, "failed_rate must be present in every bucket")
 			h := dp.TimeBucket.Hour()
 			if h < 10 || h > 14 {
 				assert.Equal(t, 0, *dp.Count, "hour %d should have count=0", h)
 				assert.Equal(t, 0.0, *dp.ErrorRate, "hour %d should have error_rate=0.0", h)
+				assert.Equal(t, 0.0, *dp.Rate, "hour %d should have rate=0.0", h)
+				assert.Equal(t, 0.0, *dp.SuccessfulRate, "hour %d should have successful_rate=0.0", h)
+				assert.Equal(t, 0.0, *dp.FailedRate, "hour %d should have failed_rate=0.0", h)
 			}
 		}
 	})
@@ -184,7 +193,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 			TenantID:    ds.tenant1,
 			TimeRange:   ds.denseDayRange.toDriver(),
 			Granularity: &driver.Granularity{Value: 1, Unit: "h"},
-			Measures:    []string{"count"},
+			Measures:    []string{"count", "rate"},
 		})
 		require.NoError(t, err)
 		// Guard: need 24 buckets for this test to be meaningful (not vacuously pass).
@@ -193,7 +202,9 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 		for _, dp := range resp.Data {
 			if dp.TimeBucket != nil && (dp.TimeBucket.Hour() < 10 || dp.TimeBucket.Hour() > 14) {
 				require.NotNil(t, dp.Count, "count must not be nil in empty bucket at %s", dp.TimeBucket)
+				require.NotNil(t, dp.Rate, "rate must not be nil in empty bucket at %s", dp.TimeBucket)
 				assert.Equal(t, 0, *dp.Count)
+				assert.Equal(t, 0.0, *dp.Rate)
 			}
 		}
 	})
@@ -203,7 +214,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 			TenantID:    ds.tenant1,
 			TimeRange:   ds.denseDayRange.toDriver(),
 			Granularity: &driver.Granularity{Value: 1, Unit: "h"},
-			Measures:    []string{"count", "successful_count", "failed_count", "error_rate", "first_attempt_count", "retry_count", "manual_retry_count", "avg_attempt_number"},
+			Measures:    []string{"count", "successful_count", "failed_count", "error_rate", "first_attempt_count", "retry_count", "manual_retry_count", "avg_attempt_number", "rate", "successful_rate", "failed_rate"},
 		})
 		require.NoError(t, err)
 		// Guard: need 24 buckets for this test to be meaningful (not vacuously pass).
@@ -219,6 +230,9 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 				require.NotNil(t, dp.RetryCount, "retry_count must not be nil at %s", dp.TimeBucket)
 				require.NotNil(t, dp.ManualRetryCount, "manual_retry_count must not be nil at %s", dp.TimeBucket)
 				require.NotNil(t, dp.AvgAttemptNumber, "avg_attempt_number must not be nil at %s", dp.TimeBucket)
+				require.NotNil(t, dp.Rate, "rate must not be nil at %s", dp.TimeBucket)
+				require.NotNil(t, dp.SuccessfulRate, "successful_rate must not be nil at %s", dp.TimeBucket)
+				require.NotNil(t, dp.FailedRate, "failed_rate must not be nil at %s", dp.TimeBucket)
 				assert.Equal(t, 0, *dp.Count)
 				assert.Equal(t, 0, *dp.SuccessfulCount)
 				assert.Equal(t, 0, *dp.FailedCount)
@@ -227,6 +241,9 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 				assert.Equal(t, 0, *dp.RetryCount)
 				assert.Equal(t, 0, *dp.ManualRetryCount)
 				assert.Equal(t, 0.0, *dp.AvgAttemptNumber, "avg_attempt_number must be 0.0, not NaN")
+				assert.Equal(t, 0.0, *dp.Rate, "rate must be 0.0")
+				assert.Equal(t, 0.0, *dp.SuccessfulRate, "successful_rate must be 0.0")
+				assert.Equal(t, 0.0, *dp.FailedRate, "failed_rate must be 0.0")
 			}
 		}
 	})

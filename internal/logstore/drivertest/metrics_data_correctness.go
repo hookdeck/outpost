@@ -122,6 +122,40 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 			assert.Empty(t, resp.Data)
 		})
 
+		t.Run("rate no granularity", func(t *testing.T) {
+			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
+				TenantID:  ds.tenant1,
+				TimeRange: fullRange,
+				Measures:  []string{"rate"},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Data, 1)
+			require.NotNil(t, resp.Data[0].Rate)
+			// rate = count / total_seconds = 300 / (31 days * 86400)
+			assert.InDelta(t, 300.0/2678400.0, *resp.Data[0].Rate, 0.0000001)
+		})
+
+		t.Run("rate with 1h granularity on dense day", func(t *testing.T) {
+			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
+				TenantID:    ds.tenant1,
+				TimeRange:   denseRange,
+				Granularity: &driver.Granularity{Value: 1, Unit: "h"},
+				Measures:    []string{"count", "rate"},
+			})
+			require.NoError(t, err)
+			assert.Len(t, resp.Data, 24)
+
+			for _, dp := range resp.Data {
+				require.NotNil(t, dp.TimeBucket)
+				require.NotNil(t, dp.Count)
+				require.NotNil(t, dp.Rate)
+				// rate = count / 3600 (1h bucket)
+				expected := float64(*dp.Count) / 3600.0
+				assert.InDelta(t, expected, *dp.Rate, 0.0000001,
+					"hour %d: rate should be count/3600", dp.TimeBucket.Hour())
+			}
+		})
+
 		t.Run("granularity 1M", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:    ds.tenant1,
@@ -304,6 +338,44 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 			assert.Equal(t, 225, *dp.RetryCount)
 			assert.Equal(t, 30, *dp.ManualRetryCount)
 			assert.InDelta(t, 1.5, *dp.AvgAttemptNumber, 0.001)
+		})
+
+		t.Run("rate no granularity", func(t *testing.T) {
+			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
+				TenantID:  ds.tenant1,
+				TimeRange: fullRange,
+				Measures:  []string{"rate", "successful_rate", "failed_rate"},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Data, 1)
+			dp := resp.Data[0]
+			require.NotNil(t, dp.Rate)
+			require.NotNil(t, dp.SuccessfulRate)
+			require.NotNil(t, dp.FailedRate)
+			// total_seconds = 31 days * 86400 = 2678400
+			assert.InDelta(t, 300.0/2678400.0, *dp.Rate, 0.0000001)
+			assert.InDelta(t, 180.0/2678400.0, *dp.SuccessfulRate, 0.0000001)
+			assert.InDelta(t, 120.0/2678400.0, *dp.FailedRate, 0.0000001)
+		})
+
+		t.Run("rate with 1h granularity on dense day", func(t *testing.T) {
+			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
+				TenantID:    ds.tenant1,
+				TimeRange:   denseRange,
+				Granularity: &driver.Granularity{Value: 1, Unit: "h"},
+				Measures:    []string{"count", "rate"},
+			})
+			require.NoError(t, err)
+			assert.Len(t, resp.Data, 24)
+
+			for _, dp := range resp.Data {
+				require.NotNil(t, dp.TimeBucket)
+				require.NotNil(t, dp.Count)
+				require.NotNil(t, dp.Rate)
+				expected := float64(*dp.Count) / 3600.0
+				assert.InDelta(t, expected, *dp.Rate, 0.0000001,
+					"hour %d: rate should be count/3600", dp.TimeBucket.Hour())
+			}
 		})
 
 		t.Run("by status", func(t *testing.T) {

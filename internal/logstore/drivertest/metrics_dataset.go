@@ -75,6 +75,9 @@ import (
 //   successful (i%5 in {0,1,2}):  180
 //   failed (i%5 in {3,4}):        120
 //   error_rate:                    120/300 = 0.4
+//   rate (no gran):                300/2678400 (per second over full range)
+//   successful_rate (no gran):     180/2678400
+//   failed_rate (no gran):         120/2678400
 //   by code:                       200=90, 201=90, 500=60, 422=60
 //   first_attempt (i%4==0):        75
 //   retry (i%4>0):                225
