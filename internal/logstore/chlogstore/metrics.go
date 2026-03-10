@@ -36,12 +36,22 @@ func chTimeBucketExpr(col string, g *driver.Granularity) string {
 	case "h":
 		return fmt.Sprintf("toStartOfInterval(%s, INTERVAL %d HOUR)", col, g.Value)
 	case "d":
-		return fmt.Sprintf("toStartOfDay(%s)", col)
+		if g.Value == 1 {
+			return fmt.Sprintf("toStartOfDay(%s)", col)
+		}
+		return fmt.Sprintf("toStartOfInterval(%s, INTERVAL %d DAY)", col, g.Value)
 	case "w":
-		// mode 0 = Sunday-based weeks, matching Go's time.Weekday convention.
-		return fmt.Sprintf("toStartOfWeek(%s, 0)", col)
+		if g.Value == 1 {
+			// mode 0 = Sunday-based weeks, matching Go's time.Weekday convention.
+			return fmt.Sprintf("toStartOfWeek(%s, 0)", col)
+		}
+		// Multi-week: use N*7 day intervals anchored to 1970-01-04 (Sunday).
+		return fmt.Sprintf("toStartOfInterval(%s, INTERVAL %d DAY, toDateTime('1970-01-04'))", col, g.Value*7)
 	case "M":
-		return fmt.Sprintf("toStartOfMonth(%s)", col)
+		if g.Value == 1 {
+			return fmt.Sprintf("toStartOfMonth(%s)", col)
+		}
+		return fmt.Sprintf("toStartOfInterval(%s, INTERVAL %d MONTH)", col, g.Value)
 	default:
 		return col
 	}

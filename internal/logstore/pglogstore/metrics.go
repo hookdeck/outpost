@@ -37,13 +37,24 @@ func timeBucketExpr(col string, g *driver.Granularity) string {
 	case "h":
 		return fmt.Sprintf("date_bin('%d hours'::interval, %s, '2000-01-01T00:00:00Z'::timestamptz)", g.Value, col)
 	case "d":
-		return fmt.Sprintf("date_trunc('day', %s AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'", col)
+		if g.Value == 1 {
+			return fmt.Sprintf("date_trunc('day', %s AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'", col)
+		}
+		return fmt.Sprintf("date_bin('%d days'::interval, %s, '1970-01-01T00:00:00Z'::timestamptz)", g.Value, col)
 	case "w":
-		// Sunday-based weeks. 2000-01-02 is a Sunday, anchoring 7-day bins
-		// to week boundaries that start on Sunday (matching Go's time.Weekday).
-		return fmt.Sprintf("date_bin('7 days'::interval, %s, '2000-01-02T00:00:00Z'::timestamptz)", col)
+		// Sunday-based weeks. Anchor to 1970-01-04 (Sunday) for consistent
+		// alignment matching Go's time.Weekday convention.
+		return fmt.Sprintf("date_bin('%d days'::interval, %s, '1970-01-04T00:00:00Z'::timestamptz)", g.Value*7, col)
 	case "M":
-		return fmt.Sprintf("date_trunc('month', %s AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'", col)
+		if g.Value == 1 {
+			return fmt.Sprintf("date_trunc('month', %s AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'", col)
+		}
+		// PG date_bin doesn't support month intervals. Compute epoch-aligned
+		// month boundary: floor month number to nearest multiple of Value.
+		return fmt.Sprintf(
+			"('1970-01-01'::timestamptz + ((((EXTRACT(YEAR FROM %s AT TIME ZONE 'UTC')::int - 1970) * 12 + EXTRACT(MONTH FROM %s AT TIME ZONE 'UTC')::int - 1) / %d) * %d) * INTERVAL '1 month')",
+			col, col, g.Value, g.Value,
+		)
 	default:
 		return col
 	}

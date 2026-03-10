@@ -13,8 +13,19 @@ const maxBuckets = 100000
 // produce more than maxBuckets time slots, which could cause OOM.
 var ErrTooManyBuckets = fmt.Errorf("time range produces more than %d buckets", maxBuckets)
 
+// epochDay is the anchor for epoch-based day/week alignment (1970-01-01 UTC).
+var epochDay = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// epochSunday is the first Sunday on or after the Unix epoch (1970-01-04 UTC),
+// used as the anchor for Sunday-based week alignment.
+var epochSunday = time.Date(1970, 1, 4, 0, 0, 0, 0, time.UTC)
+
 // TruncateTime truncates t to the boundary defined by granularity g.
 // This is the shared implementation used by all backends.
+//
+// For sub-day units (s, m, h), Value controls both step size and alignment.
+// For calendar units (d, w, M), Value > 1 uses epoch-anchored alignment so
+// that multi-day/week/month intervals aggregate data correctly.
 func TruncateTime(t time.Time, g *driver.Granularity) time.Time {
 	t = t.UTC()
 	switch g.Unit {
@@ -28,12 +39,31 @@ func TruncateTime(t time.Time, g *driver.Granularity) time.Time {
 		d := time.Duration(g.Value) * time.Hour
 		return t.Truncate(d)
 	case "d":
-		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+		dayStart := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+		if g.Value == 1 {
+			return dayStart
+		}
+		days := int(dayStart.Sub(epochDay).Hours() / 24)
+		aligned := (days / g.Value) * g.Value
+		return epochDay.AddDate(0, 0, aligned)
 	case "w":
 		weekday := int(t.Weekday())
-		return time.Date(t.Year(), t.Month(), t.Day()-weekday, 0, 0, 0, 0, time.UTC)
+		sunday := time.Date(t.Year(), t.Month(), t.Day()-weekday, 0, 0, 0, 0, time.UTC)
+		if g.Value == 1 {
+			return sunday
+		}
+		weeks := int(sunday.Sub(epochSunday).Hours() / (7 * 24))
+		aligned := (weeks / g.Value) * g.Value
+		return epochSunday.AddDate(0, 0, aligned*7)
 	case "M":
-		return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
+		if g.Value == 1 {
+			return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
+		}
+		totalMonths := (t.Year()-1970)*12 + int(t.Month()-1)
+		aligned := (totalMonths / g.Value) * g.Value
+		y := 1970 + aligned/12
+		m := time.Month(aligned%12 + 1)
+		return time.Date(y, m, 1, 0, 0, 0, 0, time.UTC)
 	default:
 		return t
 	}
