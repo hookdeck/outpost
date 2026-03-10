@@ -206,6 +206,26 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 			assert.Equal(t, 300, total)
 		})
 
+		t.Run("granularity 2d preserves total count", func(t *testing.T) {
+			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
+				Filters:     map[string][]string{"tenant_id": {ds.tenant1}},
+				TimeRange:   fullRange,
+				Granularity: &driver.Granularity{Value: 2, Unit: "d"},
+				Measures:    []string{"count"},
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, resp.Data)
+
+			total := 0
+			for _, dp := range resp.Data {
+				require.NotNil(t, dp.TimeBucket)
+				require.NotNil(t, dp.Count)
+				total += *dp.Count
+			}
+			// All 300 events must be accounted for — none silently dropped.
+			assert.Equal(t, 300, total)
+		})
+
 		t.Run("granularity 1d on dense day range", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				Filters:     map[string][]string{"tenant_id": {ds.tenant1}},
