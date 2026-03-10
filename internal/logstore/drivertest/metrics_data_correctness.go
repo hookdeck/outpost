@@ -71,6 +71,25 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 			assert.Equal(t, 150, dc[ds.dest1_2])
 		})
 
+		t.Run("by tenant_id", func(t *testing.T) {
+			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
+				TimeRange:  fullRange,
+				Measures:   []string{"count"},
+				Dimensions: []string{"tenant_id"},
+			})
+			require.NoError(t, err)
+			assert.Len(t, resp.Data, 2)
+
+			tc := map[string]int{}
+			for _, dp := range resp.Data {
+				require.NotNil(t, dp.TenantID)
+				require.NotNil(t, dp.Count)
+				tc[*dp.TenantID] = *dp.Count
+			}
+			assert.Equal(t, 300, tc[ds.tenant1])
+			assert.Equal(t, 5, tc[ds.tenant2])
+		})
+
 		t.Run("filter by topic", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,
@@ -416,6 +435,48 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 			}
 			assert.Equal(t, 150, dc[ds.dest1_1])
 			assert.Equal(t, 150, dc[ds.dest1_2])
+		})
+
+		t.Run("by tenant_id", func(t *testing.T) {
+			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
+				TimeRange:  fullRange,
+				Measures:   []string{"count"},
+				Dimensions: []string{"tenant_id"},
+			})
+			require.NoError(t, err)
+			assert.Len(t, resp.Data, 2)
+
+			tc := map[string]int{}
+			for _, dp := range resp.Data {
+				require.NotNil(t, dp.TenantID)
+				require.NotNil(t, dp.Count)
+				tc[*dp.TenantID] = *dp.Count
+			}
+			assert.Equal(t, 300, tc[ds.tenant1])
+			assert.Equal(t, 5, tc[ds.tenant2])
+		})
+
+		t.Run("by attempt_number", func(t *testing.T) {
+			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
+				TenantID:   ds.tenant1,
+				TimeRange:  fullRange,
+				Measures:   []string{"count"},
+				Dimensions: []string{"attempt_number"},
+			})
+			require.NoError(t, err)
+			assert.Len(t, resp.Data, 4)
+
+			ac := map[int]int{}
+			for _, dp := range resp.Data {
+				require.NotNil(t, dp.AttemptNumber)
+				require.NotNil(t, dp.Count)
+				ac[*dp.AttemptNumber] = *dp.Count
+			}
+			// attempt_number = i % 4 → each value appears 75 times
+			assert.Equal(t, 75, ac[0])
+			assert.Equal(t, 75, ac[1])
+			assert.Equal(t, 75, ac[2])
+			assert.Equal(t, 75, ac[3])
 		})
 
 		t.Run("by code", func(t *testing.T) {

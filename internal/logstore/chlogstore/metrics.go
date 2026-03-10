@@ -79,6 +79,7 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 	type sf int
 	const (
 		sfTimeBucket sf = iota
+		sfTenantID
 		sfTopic
 		sfDestID
 		sfCount
@@ -96,6 +97,10 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 	// Dimensions
 	for _, dim := range req.Dimensions {
 		switch dim {
+		case "tenant_id":
+			selectExprs = append(selectExprs, "tenant_id")
+			groupExprs = append(groupExprs, "tenant_id")
+			order = append(order, sfTenantID)
 		case "topic":
 			selectExprs = append(selectExprs, "topic")
 			groupExprs = append(groupExprs, "topic")
@@ -157,16 +162,19 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 	defer rows.Close()
 
 	var (
-		tbVal     time.Time
-		topicVal  string
-		destIDVal string
-		countVal  uint64
+		tbVal       time.Time
+		tenantIDVal string
+		topicVal    string
+		destIDVal   string
+		countVal    uint64
 	)
 	scanDests := make([]any, len(order))
 	for i, f := range order {
 		switch f {
 		case sfTimeBucket:
 			scanDests[i] = &tbVal
+		case sfTenantID:
+			scanDests[i] = &tenantIDVal
 		case sfTopic:
 			scanDests[i] = &topicVal
 		case sfDestID:
@@ -188,6 +196,9 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 			case sfTimeBucket:
 				t := tbVal.UTC()
 				dp.TimeBucket = &t
+			case sfTenantID:
+				v := tenantIDVal
+				dp.TenantID = &v
 			case sfTopic:
 				v := topicVal
 				dp.Topic = &v
@@ -247,11 +258,13 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 	type sf int
 	const (
 		sfTimeBucket sf = iota
+		sfTenantID
 		sfDestID
 		sfTopic
 		sfStatus
 		sfCode
 		sfManual
+		sfAttemptNumber
 		sfCount
 		sfSuccessCount
 		sfFailedCount
@@ -274,6 +287,10 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 	// Dimensions
 	for _, dim := range req.Dimensions {
 		switch dim {
+		case "tenant_id":
+			selectExprs = append(selectExprs, "tenant_id")
+			groupExprs = append(groupExprs, "tenant_id")
+			order = append(order, sfTenantID)
 		case "destination_id":
 			selectExprs = append(selectExprs, "destination_id")
 			groupExprs = append(groupExprs, "destination_id")
@@ -294,6 +311,10 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 			selectExprs = append(selectExprs, "manual")
 			groupExprs = append(groupExprs, "manual")
 			order = append(order, sfManual)
+		case "attempt_number":
+			selectExprs = append(selectExprs, "attempt_number")
+			groupExprs = append(groupExprs, "attempt_number")
+			order = append(order, sfAttemptNumber)
 		}
 	}
 
@@ -381,20 +402,22 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 	defer rows.Close()
 
 	var (
-		tbVal         time.Time
-		destIDVal     string
-		topicVal      string
-		statusVal     string
-		codeVal       string
-		manualVal     bool
-		countVal      uint64
-		successCount  uint64
-		failedCount   uint64
-		errorRate     float64
-		firstAttempt  uint64
-		retryCount    uint64
-		manualRetry   uint64
-		avgAttemptNum float64
+		tbVal            time.Time
+		tenantIDVal      string
+		destIDVal        string
+		topicVal         string
+		statusVal        string
+		codeVal          string
+		manualVal        bool
+		attemptNumberVal uint32
+		countVal         uint64
+		successCount     uint64
+		failedCount      uint64
+		errorRate        float64
+		firstAttempt     uint64
+		retryCount       uint64
+		manualRetry      uint64
+		avgAttemptNum    float64
 	)
 
 	scanDests := make([]any, len(order))
@@ -402,6 +425,8 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 		switch f {
 		case sfTimeBucket:
 			scanDests[i] = &tbVal
+		case sfTenantID:
+			scanDests[i] = &tenantIDVal
 		case sfDestID:
 			scanDests[i] = &destIDVal
 		case sfTopic:
@@ -412,6 +437,8 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 			scanDests[i] = &codeVal
 		case sfManual:
 			scanDests[i] = &manualVal
+		case sfAttemptNumber:
+			scanDests[i] = &attemptNumberVal
 		case sfCount:
 			scanDests[i] = &countVal
 		case sfSuccessCount:
@@ -443,6 +470,9 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 			case sfTimeBucket:
 				t := tbVal.UTC()
 				dp.TimeBucket = &t
+			case sfTenantID:
+				v := tenantIDVal
+				dp.TenantID = &v
 			case sfDestID:
 				v := destIDVal
 				dp.DestinationID = &v
@@ -458,6 +488,9 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 			case sfManual:
 				v := manualVal
 				dp.Manual = &v
+			case sfAttemptNumber:
+				v := int(attemptNumberVal)
+				dp.AttemptNumber = &v
 			case sfCount:
 				v := int(countVal)
 				dp.Count = &v
