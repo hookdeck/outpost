@@ -31,7 +31,7 @@ const DestinationList: React.FC = () => {
     { header: "Target" },
     CONFIGS.TOPICS ? { header: "Topics", width: 120 } : null,
     { header: "Status", width: 120 },
-    { header: "Events 24h", width: 200 },
+    { header: "Events 24h", width: 140 },
   ].filter((column) => column !== null);
 
   const filtered_destinations =
