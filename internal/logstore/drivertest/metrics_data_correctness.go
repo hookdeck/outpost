@@ -12,7 +12,7 @@ import (
 )
 
 func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driver.LogStore, ds *metricsDataset) {
-	fullRange := ds.dateRange.toDriver()
+	fullRange := ds.timeRange.toDriver()
 	denseRange := ds.denseDayRange.toDriver()
 
 	// ── Event Metrics ──────────────────────────────────────────────────
@@ -21,7 +21,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("count all", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"count"},
 			})
 			require.NoError(t, err)
@@ -33,7 +33,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("by topic", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:   ds.tenant1,
-				DateRange:  fullRange,
+				TimeRange:  fullRange,
 				Measures:   []string{"count"},
 				Dimensions: []string{"topic"},
 			})
@@ -54,7 +54,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("by destination_id", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:   ds.tenant1,
-				DateRange:  fullRange,
+				TimeRange:  fullRange,
 				Measures:   []string{"count"},
 				Dimensions: []string{"destination_id"},
 			})
@@ -74,7 +74,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("by eligible_for_retry", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:   ds.tenant1,
-				DateRange:  fullRange,
+				TimeRange:  fullRange,
 				Measures:   []string{"count"},
 				Dimensions: []string{"eligible_for_retry"},
 			})
@@ -94,7 +94,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("filter by topic", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"count"},
 				Filters:   map[string][]string{"topic": {testutil.TestTopics[0]}},
 			})
@@ -107,7 +107,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("filter by destination_id", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"count"},
 				Filters:   map[string][]string{"destination_id": {ds.dest1_1}},
 			})
@@ -120,7 +120,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("tenant isolation", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant2,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"count"},
 			})
 			require.NoError(t, err)
@@ -129,10 +129,10 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 			assert.Equal(t, 5, *resp.Data[0].Count)
 		})
 
-		t.Run("empty date range", func(t *testing.T) {
+		t.Run("empty time range", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID: ds.tenant1,
-				DateRange: driver.DateRange{
+				TimeRange: driver.TimeRange{
 					Start: time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC),
 					End:   time.Date(1999, 2, 1, 0, 0, 0, 0, time.UTC),
 				},
@@ -145,7 +145,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("granularity 1M", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:    ds.tenant1,
-				DateRange:   fullRange,
+				TimeRange:   fullRange,
 				Granularity: &driver.Granularity{Value: 1, Unit: "M"},
 				Measures:    []string{"count"},
 			})
@@ -159,7 +159,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("granularity 1w", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:    ds.tenant1,
-				DateRange:   fullRange,
+				TimeRange:   fullRange,
 				Granularity: &driver.Granularity{Value: 1, Unit: "w"},
 				Measures:    []string{"count"},
 			})
@@ -178,7 +178,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("granularity 1d on dense day range", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:    ds.tenant1,
-				DateRange:   denseRange,
+				TimeRange:   denseRange,
 				Granularity: &driver.Granularity{Value: 1, Unit: "d"},
 				Measures:    []string{"count"},
 			})
@@ -191,7 +191,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("granularity 1h on dense day", func(t *testing.T) {
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:    ds.tenant1,
-				DateRange:   denseRange,
+				TimeRange:   denseRange,
 				Granularity: &driver.Granularity{Value: 1, Unit: "h"},
 				Measures:    []string{"count"},
 			})
@@ -215,13 +215,13 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		})
 
 		t.Run("granularity 1m on dense day hour 10", func(t *testing.T) {
-			hour10Range := driver.DateRange{
+			hour10Range := driver.TimeRange{
 				Start: time.Date(2000, 1, 15, 10, 0, 0, 0, time.UTC),
 				End:   time.Date(2000, 1, 15, 11, 0, 0, 0, time.UTC),
 			}
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:    ds.tenant1,
-				DateRange:   hour10Range,
+				TimeRange:   hour10Range,
 				Granularity: &driver.Granularity{Value: 1, Unit: "m"},
 				Measures:    []string{"count"},
 			})
@@ -239,13 +239,13 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		})
 
 		t.Run("granularity 1m on dense day hour 12", func(t *testing.T) {
-			hour12Range := driver.DateRange{
+			hour12Range := driver.TimeRange{
 				Start: time.Date(2000, 1, 15, 12, 0, 0, 0, time.UTC),
 				End:   time.Date(2000, 1, 15, 13, 0, 0, 0, time.UTC),
 			}
 			resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 				TenantID:    ds.tenant1,
-				DateRange:   hour12Range,
+				TimeRange:   hour12Range,
 				Granularity: &driver.Granularity{Value: 1, Unit: "m"},
 				Measures:    []string{"count"},
 			})
@@ -269,7 +269,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("count all", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"count"},
 			})
 			require.NoError(t, err)
@@ -281,7 +281,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("successful and failed counts", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"count", "successful_count", "failed_count"},
 			})
 			require.NoError(t, err)
@@ -298,7 +298,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("error rate", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"error_rate"},
 			})
 			require.NoError(t, err)
@@ -310,7 +310,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("retry measures", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"first_attempt_count", "retry_count", "manual_retry_count", "avg_attempt_number"},
 			})
 			require.NoError(t, err)
@@ -329,7 +329,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("by status", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:   ds.tenant1,
-				DateRange:  fullRange,
+				TimeRange:  fullRange,
 				Measures:   []string{"count"},
 				Dimensions: []string{"status"},
 			})
@@ -349,7 +349,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("by destination_id", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:   ds.tenant1,
-				DateRange:  fullRange,
+				TimeRange:  fullRange,
 				Measures:   []string{"count"},
 				Dimensions: []string{"destination_id"},
 			})
@@ -369,7 +369,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("by code", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:   ds.tenant1,
-				DateRange:  fullRange,
+				TimeRange:  fullRange,
 				Measures:   []string{"count"},
 				Dimensions: []string{"code"},
 			})
@@ -391,7 +391,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("filter by status", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"count"},
 				Filters:   map[string][]string{"status": {"failed"}},
 			})
@@ -404,7 +404,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("filter by topic", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"count"},
 				Filters:   map[string][]string{"topic": {testutil.TestTopics[0]}},
 			})
@@ -417,7 +417,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("filter by code", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"count"},
 				Filters:   map[string][]string{"code": {"500"}},
 			})
@@ -430,7 +430,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("filter by manual", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"count"},
 				Filters:   map[string][]string{"manual": {"true"}},
 			})
@@ -443,7 +443,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("filter by attempt_number", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant1,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"count"},
 				Filters:   map[string][]string{"attempt_number": {"0"}},
 			})
@@ -456,7 +456,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("granularity 1h on dense day", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:    ds.tenant1,
-				DateRange:   denseRange,
+				TimeRange:   denseRange,
 				Granularity: &driver.Granularity{Value: 1, Unit: "h"},
 				Measures:    []string{"count"},
 			})
@@ -482,7 +482,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 		t.Run("tenant isolation", func(t *testing.T) {
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TenantID:  ds.tenant2,
-				DateRange: fullRange,
+				TimeRange: fullRange,
 				Measures:  []string{"count"},
 			})
 			require.NoError(t, err)
@@ -497,7 +497,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 	t.Run("Metadata", func(t *testing.T) {
 		resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 			TenantID:  ds.tenant1,
-			DateRange: fullRange,
+			TimeRange: fullRange,
 			Measures:  []string{"count"},
 		})
 		require.NoError(t, err)

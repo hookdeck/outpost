@@ -122,8 +122,8 @@ func (s *logStore) QueryEventMetrics(ctx context.Context, req driver.MetricsRequ
 	if req.TenantID != "" {
 		conditions = append(conditions, "tenant_id = "+arg(req.TenantID))
 	}
-	conditions = append(conditions, "time >= "+arg(req.DateRange.Start))
-	conditions = append(conditions, "time < "+arg(req.DateRange.End))
+	conditions = append(conditions, "time >= "+arg(req.TimeRange.Start))
+	conditions = append(conditions, "time < "+arg(req.TimeRange.End))
 
 	if topics, ok := req.Filters["topic"]; ok {
 		conditions = append(conditions, "topic = ANY("+arg(topics)+")")
@@ -334,8 +334,8 @@ func (s *logStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRe
 	if req.TenantID != "" {
 		conditions = append(conditions, "tenant_id = "+arg(req.TenantID))
 	}
-	conditions = append(conditions, "time >= "+arg(req.DateRange.Start))
-	conditions = append(conditions, "time < "+arg(req.DateRange.End))
+	conditions = append(conditions, "time >= "+arg(req.TimeRange.Start))
+	conditions = append(conditions, "time < "+arg(req.TimeRange.End))
 
 	if statuses, ok := req.Filters["status"]; ok {
 		conditions = append(conditions, "status = ANY("+arg(statuses)+")")

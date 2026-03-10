@@ -110,20 +110,20 @@ type metricsDataset struct {
 	dest2_1 string // tenant 2's destination
 	entries []*models.LogEntry
 
-	// Full date range covering all data.
-	dateRange dateRange
+	// Full time range covering all data.
+	timeRange timeRange
 
-	// Dense day date range (Jan 15 only).
-	denseDayRange dateRange
+	// Dense day time range (Jan 15 only).
+	denseDayRange timeRange
 }
 
-type dateRange struct {
+type timeRange struct {
 	start time.Time
 	end   time.Time
 }
 
-func (d dateRange) toDriver() driver.DateRange {
-	return driver.DateRange{Start: d.start, End: d.end}
+func (d timeRange) toDriver() driver.TimeRange {
+	return driver.TimeRange{Start: d.start, End: d.end}
 }
 
 var (
@@ -257,11 +257,11 @@ func buildMetricsDataset() *metricsDataset {
 		dest1_2: mDest1_2,
 		dest2_1: mDest2_1,
 		entries: entries,
-		dateRange: dateRange{
+		timeRange: timeRange{
 			start: dsStart,
 			end:   dsEnd,
 		},
-		denseDayRange: dateRange{
+		denseDayRange: timeRange{
 			start: dsDenseDay,
 			end:   dsDenseDay.Add(24 * time.Hour),
 		},

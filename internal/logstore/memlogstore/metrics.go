@@ -302,7 +302,7 @@ func matchesEventMetricsFilter(event *models.Event, req driver.MetricsRequest) b
 	if req.TenantID != "" && event.TenantID != req.TenantID {
 		return false
 	}
-	if event.Time.Before(req.DateRange.Start) || !event.Time.Before(req.DateRange.End) {
+	if event.Time.Before(req.TimeRange.Start) || !event.Time.Before(req.TimeRange.End) {
 		return false
 	}
 	if topics, ok := req.Filters["topic"]; ok {
@@ -322,7 +322,7 @@ func matchesAttemptMetricsFilter(a *models.Attempt, event *models.Event, req dri
 	if req.TenantID != "" && event.TenantID != req.TenantID {
 		return false
 	}
-	if a.Time.Before(req.DateRange.Start) || !a.Time.Before(req.DateRange.End) {
+	if a.Time.Before(req.TimeRange.Start) || !a.Time.Before(req.TimeRange.End) {
 		return false
 	}
 	if statuses, ok := req.Filters["status"]; ok {

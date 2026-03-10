@@ -3812,21 +3812,21 @@ paths:
         **Filters:** `tenant_id` (admin-only), `topic`, `destination_id`, `eligible_for_retry`
       operationId: getEventMetrics
       parameters:
-        - name: date_range[start]
+        - name: time[start]
           in: query
           required: true
           schema:
             type: string
             format: date-time
-          description: Start of the date range (inclusive). ISO 8601 timestamp.
+          description: Start of the time range (inclusive). ISO 8601 timestamp.
           example: "2026-03-02T00:00:00Z"
-        - name: date_range[end]
+        - name: time[end]
           in: query
           required: true
           schema:
             type: string
             format: date-time
-          description: End of the date range (exclusive). ISO 8601 timestamp.
+          description: End of the time range (exclusive). ISO 8601 timestamp.
           example: "2026-03-03T00:00:00Z"
         - name: granularity
           in: query
@@ -3938,21 +3938,21 @@ paths:
         **Filters:** `tenant_id` (admin-only), `destination_id`, `topic`, `status`, `code`, `manual`, `attempt_number`
       operationId: getAttemptMetrics
       parameters:
-        - name: date_range[start]
+        - name: time[start]
           in: query
           required: true
           schema:
             type: string
             format: date-time
-          description: Start of the date range (inclusive). ISO 8601 timestamp.
+          description: Start of the time range (inclusive). ISO 8601 timestamp.
           example: "2026-03-02T00:00:00Z"
-        - name: date_range[end]
+        - name: time[end]
           in: query
           required: true
           schema:
             type: string
             format: date-time
-          description: End of the date range (exclusive). ISO 8601 timestamp.
+          description: End of the time range (exclusive). ISO 8601 timestamp.
           example: "2026-03-03T00:00:00Z"
         - name: granularity
           in: query

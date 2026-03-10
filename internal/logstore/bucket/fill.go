@@ -14,7 +14,7 @@ func FillEventBuckets(data []driver.EventMetricsDataPoint, req driver.MetricsReq
 		return data
 	}
 
-	slots := GenerateTimeBuckets(req.DateRange.Start, req.DateRange.End, req.Granularity)
+	slots := GenerateTimeBuckets(req.TimeRange.Start, req.TimeRange.End, req.Granularity)
 	if len(slots) == 0 {
 		return data
 	}
@@ -31,7 +31,7 @@ func FillAttemptBuckets(data []driver.AttemptMetricsDataPoint, req driver.Metric
 		return data
 	}
 
-	slots := GenerateTimeBuckets(req.DateRange.Start, req.DateRange.End, req.Granularity)
+	slots := GenerateTimeBuckets(req.TimeRange.Start, req.TimeRange.End, req.Granularity)
 	if len(slots) == 0 {
 		return data
 	}

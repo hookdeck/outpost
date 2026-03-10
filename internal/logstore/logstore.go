@@ -25,7 +25,7 @@ type LogEntry = models.LogEntry
 
 type MetricsRequest = driver.MetricsRequest
 type MetricsMetadata = driver.MetricsMetadata
-type DateRange = driver.DateRange
+type TimeRange = driver.TimeRange
 type Granularity = driver.Granularity
 type EventMetricsDataPoint = driver.EventMetricsDataPoint
 type EventMetricsResponse = driver.EventMetricsResponse

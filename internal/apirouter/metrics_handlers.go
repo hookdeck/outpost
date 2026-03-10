@@ -99,20 +99,20 @@ func parseGranularity(raw string) (*logstore.Granularity, error) {
 }
 
 func parseMetricsRequest(c *gin.Context, allowedMeasures, allowedDimensions, allowedFilters stringSet) (*logstore.MetricsRequest, error) {
-	// date_range[start] and date_range[end] are required
-	startStr := c.Query("date_range[start]")
-	endStr := c.Query("date_range[end]")
+	// time[start] and time[end] are required
+	startStr := c.Query("time[start]")
+	endStr := c.Query("time[end]")
 	if startStr == "" || endStr == "" {
-		return nil, fmt.Errorf("date_range[start] and date_range[end] are required")
+		return nil, fmt.Errorf("time[start] and time[end] are required")
 	}
 
 	start, err := time.Parse(time.RFC3339, startStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid date_range[start]: %w", err)
+		return nil, fmt.Errorf("invalid time[start]: %w", err)
 	}
 	end, err := time.Parse(time.RFC3339, endStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid date_range[end]: %w", err)
+		return nil, fmt.Errorf("invalid time[end]: %w", err)
 	}
 
 	// granularity (optional)
@@ -150,7 +150,7 @@ func parseMetricsRequest(c *gin.Context, allowedMeasures, allowedDimensions, all
 	}
 
 	return &logstore.MetricsRequest{
-		DateRange: logstore.DateRange{
+		TimeRange: logstore.TimeRange{
 			Start: start,
 			End:   end,
 		},

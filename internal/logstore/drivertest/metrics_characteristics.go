@@ -27,7 +27,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 	t.Run("empty bucket filling (events)", func(t *testing.T) {
 		resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 			TenantID:    ds.tenant1,
-			DateRange:   ds.denseDayRange.toDriver(),
+			TimeRange:   ds.denseDayRange.toDriver(),
 			Granularity: &driver.Granularity{Value: 1, Unit: "h"},
 			Measures:    []string{"count"},
 		})
@@ -49,7 +49,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 	t.Run("empty bucket filling (attempts)", func(t *testing.T) {
 		resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 			TenantID:    ds.tenant1,
-			DateRange:   ds.denseDayRange.toDriver(),
+			TimeRange:   ds.denseDayRange.toDriver(),
 			Granularity: &driver.Granularity{Value: 1, Unit: "h"},
 			Measures:    []string{"count", "error_rate"},
 		})
@@ -74,7 +74,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 	t.Run("chronological ordering (events)", func(t *testing.T) {
 		resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 			TenantID:    ds.tenant1,
-			DateRange:   ds.dateRange.toDriver(),
+			TimeRange:   ds.timeRange.toDriver(),
 			Granularity: &driver.Granularity{Value: 1, Unit: "d"},
 			Measures:    []string{"count"},
 		})
@@ -95,7 +95,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 	t.Run("chronological ordering (attempts)", func(t *testing.T) {
 		resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 			TenantID:    ds.tenant1,
-			DateRange:   ds.dateRange.toDriver(),
+			TimeRange:   ds.timeRange.toDriver(),
 			Granularity: &driver.Granularity{Value: 1, Unit: "d"},
 			Measures:    []string{"count"},
 		})
@@ -114,7 +114,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 	})
 
 	// ── 3. Deterministic bucket count ────────────────────────────────────
-	// The number of buckets depends only on the date range and granularity,
+	// The number of buckets depends only on the time range and granularity,
 	// never on the density of data.
 
 	t.Run("deterministic bucket count", func(t *testing.T) {
@@ -166,7 +166,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 			t.Run(tc.name, func(t *testing.T) {
 				resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 					TenantID:    ds.tenant1,
-					DateRange:   driver.DateRange{Start: tc.start, End: tc.end},
+					TimeRange:   driver.TimeRange{Start: tc.start, End: tc.end},
 					Granularity: &tc.gran,
 					Measures:    []string{"count"},
 				})
@@ -182,7 +182,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 	t.Run("explicit zero measures (events)", func(t *testing.T) {
 		resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 			TenantID:    ds.tenant1,
-			DateRange:   ds.denseDayRange.toDriver(),
+			TimeRange:   ds.denseDayRange.toDriver(),
 			Granularity: &driver.Granularity{Value: 1, Unit: "h"},
 			Measures:    []string{"count"},
 		})
@@ -201,7 +201,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 	t.Run("explicit zero measures (attempts)", func(t *testing.T) {
 		resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 			TenantID:    ds.tenant1,
-			DateRange:   ds.denseDayRange.toDriver(),
+			TimeRange:   ds.denseDayRange.toDriver(),
 			Granularity: &driver.Granularity{Value: 1, Unit: "h"},
 			Measures:    []string{"count", "successful_count", "failed_count", "error_rate", "first_attempt_count", "retry_count", "manual_retry_count", "avg_attempt_number"},
 		})
@@ -239,7 +239,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 		// Feb 2000 is 29 days (leap year).
 		resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 			TenantID: ds.tenant1,
-			DateRange: driver.DateRange{
+			TimeRange: driver.TimeRange{
 				Start: time.Date(2000, 2, 1, 0, 0, 0, 0, time.UTC),
 				End:   time.Date(2000, 3, 1, 0, 0, 0, 0, time.UTC),
 			},
@@ -258,7 +258,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 	t.Run("no-data range (attempts)", func(t *testing.T) {
 		resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 			TenantID: ds.tenant1,
-			DateRange: driver.DateRange{
+			TimeRange: driver.TimeRange{
 				Start: time.Date(2000, 2, 1, 0, 0, 0, 0, time.UTC),
 				End:   time.Date(2000, 3, 1, 0, 0, 0, 0, time.UTC),
 			},
@@ -281,7 +281,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 	t.Run("bucket alignment (1h)", func(t *testing.T) {
 		resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 			TenantID: ds.tenant1,
-			DateRange: driver.DateRange{
+			TimeRange: driver.TimeRange{
 				Start: time.Date(2000, 1, 15, 3, 17, 42, 0, time.UTC),
 				End:   time.Date(2000, 1, 15, 8, 0, 0, 0, time.UTC),
 			},
@@ -308,7 +308,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 	t.Run("bucket alignment (1d)", func(t *testing.T) {
 		resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 			TenantID: ds.tenant1,
-			DateRange: driver.DateRange{
+			TimeRange: driver.TimeRange{
 				Start: time.Date(2000, 1, 3, 14, 30, 0, 0, time.UTC),
 				End:   time.Date(2000, 1, 6, 0, 0, 0, 0, time.UTC),
 			},
@@ -347,7 +347,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 		// that specific topic never appears anywhere in the query range.
 		resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 			TenantID:    ds.tenant1,
-			DateRange:   ds.denseDayRange.toDriver(),
+			TimeRange:   ds.denseDayRange.toDriver(),
 			Granularity: &driver.Granularity{Value: 1, Unit: "h"},
 			Measures:    []string{"count"},
 			Dimensions:  []string{"topic"},
@@ -393,7 +393,7 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 	t.Run("no granularity no filling", func(t *testing.T) {
 		resp, err := logStore.QueryEventMetrics(ctx, driver.MetricsRequest{
 			TenantID: ds.tenant1,
-			DateRange: driver.DateRange{
+			TimeRange: driver.TimeRange{
 				Start: time.Date(2000, 2, 1, 0, 0, 0, 0, time.UTC),
 				End:   time.Date(2000, 3, 1, 0, 0, 0, 0, time.UTC),
 			},

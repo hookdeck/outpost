@@ -16,8 +16,8 @@ import (
 func TestAPI_MetricsEvents(t *testing.T) {
 	baseStart := time.Now().Add(-1 * time.Hour).UTC().Truncate(time.Second)
 	baseEnd := time.Now().UTC().Truncate(time.Second)
-	baseQS := "date_range[start]=" + baseStart.Format(time.RFC3339) +
-		"&date_range[end]=" + baseEnd.Format(time.RFC3339)
+	baseQS := "time[start]=" + baseStart.Format(time.RFC3339) +
+		"&time[end]=" + baseEnd.Format(time.RFC3339)
 
 	t.Run("happy path with granularity", func(t *testing.T) {
 		h := newAPITest(t)
@@ -162,7 +162,7 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, resp.Code)
 	})
 
-	t.Run("missing date_range returns 400", func(t *testing.T) {
+	t.Run("missing time returns 400", func(t *testing.T) {
 		h := newAPITest(t)
 
 		req := httptest.NewRequest(http.MethodGet,
@@ -255,8 +255,8 @@ func TestAPI_MetricsEvents(t *testing.T) {
 func TestAPI_MetricsAttempts(t *testing.T) {
 	baseStart := time.Now().Add(-1 * time.Hour).UTC().Truncate(time.Second)
 	baseEnd := time.Now().UTC().Truncate(time.Second)
-	baseQS := "date_range[start]=" + baseStart.Format(time.RFC3339) +
-		"&date_range[end]=" + baseEnd.Format(time.RFC3339)
+	baseQS := "time[start]=" + baseStart.Format(time.RFC3339) +
+		"&time[end]=" + baseEnd.Format(time.RFC3339)
 
 	t.Run("happy path with multiple measures", func(t *testing.T) {
 		h := newAPITest(t)

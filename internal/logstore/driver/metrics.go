@@ -10,7 +10,7 @@ type Metrics interface {
 	QueryAttemptMetrics(ctx context.Context, req MetricsRequest) (*AttemptMetricsResponse, error)
 }
 
-type DateRange struct {
+type TimeRange struct {
 	Start time.Time
 	End   time.Time
 }
@@ -22,7 +22,7 @@ type Granularity struct {
 
 type MetricsRequest struct {
 	TenantID    string
-	DateRange   DateRange
+	TimeRange   TimeRange
 	Granularity *Granularity
 	Measures    []string
 	Dimensions  []string

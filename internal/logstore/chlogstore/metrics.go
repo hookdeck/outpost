@@ -122,9 +122,9 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 		args = append(args, req.TenantID)
 	}
 	conditions = append(conditions, "event_time >= ?")
-	args = append(args, req.DateRange.Start)
+	args = append(args, req.TimeRange.Start)
 	conditions = append(conditions, "event_time < ?")
-	args = append(args, req.DateRange.End)
+	args = append(args, req.TimeRange.End)
 
 	if topics, ok := req.Filters["topic"]; ok {
 		conditions, args = addInFilter(conditions, args, "topic", topics)
@@ -335,9 +335,9 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 		args = append(args, req.TenantID)
 	}
 	conditions = append(conditions, "attempt_time >= ?")
-	args = append(args, req.DateRange.Start)
+	args = append(args, req.TimeRange.Start)
 	conditions = append(conditions, "attempt_time < ?")
-	args = append(args, req.DateRange.End)
+	args = append(args, req.TimeRange.End)
 
 	if statuses, ok := req.Filters["status"]; ok {
 		conditions, args = addInFilter(conditions, args, "status", statuses)
