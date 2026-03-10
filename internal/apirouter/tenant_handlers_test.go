@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -179,6 +180,54 @@ func TestAPI_Tenants(t *testing.T) {
 			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
 			assert.Equal(t, 2, result.Count)
 			assert.Len(t, result.Models, 2)
+		})
+
+		t.Run("id filter returns only matching tenants", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t3")))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?limit=100&id[0]=t2", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var result tenantstore.TenantPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			assert.Equal(t, 1, result.Count)
+			require.Len(t, result.Models, 1)
+			assert.Equal(t, "t2", result.Models[0].ID)
+		})
+
+		t.Run("id filter escapes RediSearch tag characters", func(t *testing.T) {
+			h := newAPITest(t)
+
+			id1 := `tenant-'alpha'-(beta)-[gamma]-{delta}|omega`
+			id2 := `tenant\path-'prod'-(v2)-[blue]-{green}|canary`
+
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID(id1)))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID(id2)))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("plain-tenant")))
+
+			params := url.Values{}
+			params.Add("limit", "100")
+			params.Add("id[]", id1)
+			params.Add("id[]", id2)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?"+params.Encode(), nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var result tenantstore.TenantPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			require.Len(t, result.Models, 2)
+			assert.Equal(t, 2, result.Count)
+			assert.ElementsMatch(t, []string{id1, id2}, []string{
+				result.Models[0].ID,
+				result.Models[1].ID,
+			})
 		})
 
 		t.Run("jwt returns only own tenant", func(t *testing.T) {

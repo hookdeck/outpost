@@ -123,9 +123,15 @@ func buildEventQuery(req driver.ListEventRequest, q pagination.QueryInput) (stri
 	var args []any
 	argNum := 1
 
-	if req.TenantID != "" {
-		conditions = append(conditions, fmt.Sprintf("tenant_id = $%d", argNum))
-		args = append(args, req.TenantID)
+	if len(req.TenantIDs) > 0 {
+		conditions = append(conditions, fmt.Sprintf("tenant_id = ANY($%d)", argNum))
+		args = append(args, req.TenantIDs)
+		argNum++
+	}
+
+	if len(req.EventIDs) > 0 {
+		conditions = append(conditions, fmt.Sprintf("id = ANY($%d)", argNum))
+		args = append(args, req.EventIDs)
 		argNum++
 	}
 
@@ -327,15 +333,15 @@ func buildAttemptQuery(req driver.ListAttemptRequest, q pagination.QueryInput) (
 	var args []any
 	argNum := 1
 
-	if req.TenantID != "" {
-		conditions = append(conditions, fmt.Sprintf("tenant_id = $%d", argNum))
-		args = append(args, req.TenantID)
+	if len(req.TenantIDs) > 0 {
+		conditions = append(conditions, fmt.Sprintf("tenant_id = ANY($%d)", argNum))
+		args = append(args, req.TenantIDs)
 		argNum++
 	}
 
-	if req.EventID != "" {
-		conditions = append(conditions, fmt.Sprintf("event_id = $%d", argNum))
-		args = append(args, req.EventID)
+	if len(req.EventIDs) > 0 {
+		conditions = append(conditions, fmt.Sprintf("event_id = ANY($%d)", argNum))
+		args = append(args, req.EventIDs)
 		argNum++
 	}
 

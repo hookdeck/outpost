@@ -177,3 +177,22 @@ network:
 
 logs:
 	docker logs $$(docker ps -f name=outpost-${SERVICE} --format "{{.ID}}") -f $(ARGS)
+
+# Build Docker image for current branch with a version tag (e.g. make docker/build TAG=v0.13.3-beta).
+# Produces hookdeck/outpost:<TAG>-amd64 and hookdeck/outpost:<TAG>-arm64.
+# Use docker/push to push to Docker Hub: DOCKER_USER=<your-username> make docker/push TAG=v0.13.3-beta
+docker/build:
+	@if [ -z "$(TAG)" ]; then echo "Usage: make docker/build TAG=v0.13.3-beta"; exit 1; fi
+	GORELEASER_CURRENT_TAG=$(TAG) goreleaser release -f ./build/.goreleaser.yaml --snapshot --clean
+
+# Tag and push image to Docker Hub under DOCKER_USER (e.g. make docker/push DOCKER_USER=alexbouchard TAG=v0.13.3-beta).
+# Requires: docker login first.
+docker/push:
+	@if [ -z "$(DOCKER_USER)" ] || [ -z "$(TAG)" ]; then echo "Usage: make docker/push DOCKER_USER=<your-dockerhub-username> TAG=v0.13.3-beta"; exit 1; fi
+	docker tag hookdeck/outpost:$(TAG)-amd64 $(DOCKER_USER)/outpost:$(TAG)-amd64
+	docker tag hookdeck/outpost:$(TAG)-arm64 $(DOCKER_USER)/outpost:$(TAG)-arm64
+	docker push $(DOCKER_USER)/outpost:$(TAG)-amd64
+	docker push $(DOCKER_USER)/outpost:$(TAG)-arm64
+	docker manifest create $(DOCKER_USER)/outpost:$(TAG) --amend $(DOCKER_USER)/outpost:$(TAG)-amd64 --amend $(DOCKER_USER)/outpost:$(TAG)-arm64
+	docker manifest push $(DOCKER_USER)/outpost:$(TAG)
+	@echo "Pushed $(DOCKER_USER)/outpost:$(TAG) (amd64, arm64, and multi-arch manifest)"

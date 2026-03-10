@@ -428,6 +428,36 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
+	t.Run("IDFilter", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		require.NoError(t, store.Init(ctx))
+
+		id1 := `tenant-'alpha'-(beta)-[gamma]-{delta}|omega`
+		id2 := `tenant\path-'prod'-(v2)-[blue]-{green}|canary`
+
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: id1, CreatedAt: time.Now(), UpdatedAt: time.Now()}))
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: id2, CreatedAt: time.Now().Add(time.Second), UpdatedAt: time.Now().Add(time.Second)}))
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: "plain-tenant", CreatedAt: time.Now().Add(2 * time.Second), UpdatedAt: time.Now().Add(2 * time.Second)}))
+
+		resp, err := store.ListTenant(ctx, driver.ListTenantRequest{
+			Limit: 100,
+			ID:    []string{id1, id2},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Models, 2)
+		assert.Equal(t, 2, resp.Count)
+		assert.ElementsMatch(t, []string{id1, id2}, []string{
+			resp.Models[0].ID,
+			resp.Models[1].ID,
+		})
+	})
+
 	t.Run("KeysetPagination", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)
@@ -565,5 +595,177 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 		}
 
 		suite.Run(t)
+	})
+
+	t.Run("IDFilterSpecialChars", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		require.NoError(t, store.Init(ctx))
+
+		// Each entry is a test name + tenant ID with characters that could break
+		// RediSearch TAG queries if not properly escaped.
+		weirdIDs := []struct {
+			name string
+			id   string
+		}{
+			// Separator characters
+			{"dots", "tnt.dots.here"},
+			{"dashes", "tnt-dashes-here"},
+			{"colons", "tnt:colons:here"},
+			// TODO: edge case — comma is the default RediSearch TAG separator, so "tnt,comma" gets
+			// indexed as two tags ("tnt" and "comma") instead of one. Fixing requires changing the
+			// index SEPARATOR to "\x00" via a Redis migration (FT.DROPINDEX + recreate).
+			// {"comma", "tnt,comma"},
+			{"semicolon", "tnt;semi"},
+			{"slash", "tnt/slash"},
+
+			// Query syntax characters
+			{"at_sign", "tnt@at"},
+			{"star", "tnt*star"},
+			{"bang", "tnt!bang"},
+			{"tilde", "tnt~tilde"},
+			{"hash", "tnt#hash"},
+			{"dollar", "tnt$dollar"},
+			{"percent", "tnt%pct"},
+			{"caret", "tnt^caret"},
+			{"ampersand", "tnt&amp"},
+			{"plus", "tnt+plus"},
+			{"equals", "tnt=equals"},
+
+			// TAG structural characters
+			{"open_brace", "tnt{brace"},
+			{"close_brace", "tnt}brace"},
+			{"pipe", "tnt|pipe"},
+			{"backslash", `tnt\backslash`},
+			{"open_bracket", "tnt[bracket"},
+			{"close_bracket", "tnt]bracket"},
+			{"open_paren", "tnt(paren"},
+			{"close_paren", "tnt)paren"},
+
+			// Quoting characters
+			{"double_quote", `tnt"quote`},
+			{"single_quote", "tnt'quote"},
+			{"backtick", "tnt`tick"},
+
+			// Whitespace
+			{"space", "tnt with spaces"},
+
+			// Angle brackets
+			{"angle_brackets", "tnt<>angle"},
+			{"question_mark", "tnt?question"},
+
+			// Injection-style IDs that mimic RediSearch query syntax
+			{"injection_tag_breakout", `tnt" @entity:{hack}`},
+			{"injection_negation", "-@deleted_at:[1 +inf]"},
+			{"injection_field_ref", "@id:{evil}"},
+
+			// Combinatorial stress: many special chars together
+			{"kitchen_sink", `a]b[c{d}e"f\g|h.i-j@k`},
+		}
+
+		// Create all tenants plus a "normal" control tenant.
+		controlID := fmt.Sprintf("tnt_control_%d", time.Now().UnixNano())
+		baseTime := time.Now().Add(30 * time.Hour) // offset to avoid collision with other subtests
+		var allIDs []string
+
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{
+			ID:        controlID,
+			CreatedAt: baseTime,
+			UpdatedAt: baseTime,
+		}))
+		allIDs = append(allIDs, controlID)
+
+		for i, tc := range weirdIDs {
+			tenant := models.Tenant{
+				ID:        tc.id,
+				CreatedAt: baseTime.Add(time.Duration(i+1) * time.Second),
+				UpdatedAt: baseTime.Add(time.Duration(i+1) * time.Second),
+			}
+			require.NoError(t, store.UpsertTenant(ctx, tenant), "failed to upsert tenant %q", tc.name)
+			allIDs = append(allIDs, tc.id)
+		}
+
+		t.Cleanup(func() {
+			for _, id := range allIDs {
+				_ = store.DeleteTenant(ctx, id)
+			}
+		})
+
+		t.Run("single ID filter", func(t *testing.T) {
+			for _, tc := range weirdIDs {
+				t.Run(tc.name, func(t *testing.T) {
+					resp, err := store.ListTenant(ctx, driver.ListTenantRequest{
+						Limit: 100,
+						ID:    []string{tc.id},
+					})
+					require.NoError(t, err, "ListTenant with ID %q should not error", tc.id)
+					require.Len(t, resp.Models, 1, "expected exactly 1 tenant for ID %q", tc.id)
+					assert.Equal(t, tc.id, resp.Models[0].ID)
+				})
+			}
+		})
+
+		t.Run("multi ID filter with mixed special chars", func(t *testing.T) {
+			ids := []string{
+				"tnt.dots.here",
+				"tnt-dashes-here",
+				`tnt"quote`,
+				`tnt\backslash`,
+				"tnt|pipe",
+				controlID,
+			}
+			resp, err := store.ListTenant(ctx, driver.ListTenantRequest{
+				Limit: 100,
+				ID:    ids,
+			})
+			require.NoError(t, err)
+			assert.Len(t, resp.Models, len(ids))
+
+			gotIDs := make(map[string]bool)
+			for _, m := range resp.Models {
+				gotIDs[m.ID] = true
+			}
+			for _, id := range ids {
+				assert.True(t, gotIDs[id], "expected ID %q in results", id)
+			}
+		})
+
+		t.Run("ID filter does not match unrelated tenants", func(t *testing.T) {
+			resp, err := store.ListTenant(ctx, driver.ListTenantRequest{
+				Limit: 100,
+				ID:    []string{"tnt.dots.here"},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Models, 1)
+			assert.Equal(t, "tnt.dots.here", resp.Models[0].ID)
+			// Ensure the control tenant is NOT returned
+			for _, m := range resp.Models {
+				assert.NotEqual(t, controlID, m.ID)
+			}
+		})
+
+		t.Run("ID filter with nonexistent weird ID returns empty", func(t *testing.T) {
+			resp, err := store.ListTenant(ctx, driver.ListTenantRequest{
+				Limit: 100,
+				ID:    []string{`nonexistent"weird|id`},
+			})
+			require.NoError(t, err)
+			assert.Empty(t, resp.Models)
+		})
+
+		t.Run("count reflects filtered set", func(t *testing.T) {
+			ids := []string{"tnt.dots.here", "tnt-dashes-here"}
+			resp, err := store.ListTenant(ctx, driver.ListTenantRequest{
+				Limit: 100,
+				ID:    ids,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, 2, resp.Count)
+		})
 	})
 }

@@ -3,6 +3,7 @@ package memlogstore
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -158,7 +159,11 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 }
 
 func (s *memLogStore) matchesEventFilter(event *models.Event, req driver.ListEventRequest) bool {
-	if req.TenantID != "" && event.TenantID != req.TenantID {
+	if len(req.TenantIDs) > 0 && !slices.Contains(req.TenantIDs, event.TenantID) {
+		return false
+	}
+
+	if len(req.EventIDs) > 0 && !slices.Contains(req.EventIDs, event.ID) {
 		return false
 	}
 
@@ -384,11 +389,11 @@ func (s *memLogStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAt
 
 func (s *memLogStore) matchesAttemptFilter(a *models.Attempt, event *models.Event, req driver.ListAttemptRequest) bool {
 	// Filter by event's tenant ID since attempts don't have tenant_id in the database
-	if req.TenantID != "" && event.TenantID != req.TenantID {
+	if len(req.TenantIDs) > 0 && !slices.Contains(req.TenantIDs, event.TenantID) {
 		return false
 	}
 
-	if req.EventID != "" && a.EventID != req.EventID {
+	if len(req.EventIDs) > 0 && !slices.Contains(req.EventIDs, a.EventID) {
 		return false
 	}
 

@@ -84,7 +84,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*driver.AttemptRecord], error) {
 				res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-					TenantID:   tenantID,
+					TenantIDs:  []string{tenantID},
 					Limit:      opts.Limit,
 					SortOrder:  opts.Order,
 					Next:       opts.Next,
@@ -173,7 +173,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*driver.AttemptRecord], error) {
 				res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-					TenantID:       tenantID,
+					TenantIDs:      []string{tenantID},
 					DestinationIDs: []string{targetDestID},
 					Limit:          opts.Limit,
 					SortOrder:      opts.Order,
@@ -257,7 +257,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*models.Event], error) {
 				res, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-					TenantID:   eventTenantID,
+					TenantIDs:  []string{eventTenantID},
 					Limit:      opts.Limit,
 					SortOrder:  opts.Order,
 					Next:       opts.Next,
@@ -295,7 +295,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 		destID := idgen.Destination()
 
 		_, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-			TenantID:       tenantID,
+			TenantIDs:      []string{tenantID},
 			DestinationIDs: []string{destID},
 			Limit:          10,
 			TimeFilter:     driver.TimeFilter{GTE: &farPast},
@@ -363,7 +363,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			List: func(ctx context.Context, opts paginationtest.ListOpts) (paginationtest.ListResult[*models.Event], error) {
 				res, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-					TenantID:       tenantID,
+					TenantIDs:      []string{tenantID},
 					DestinationIDs: []string{targetDestID},
 					Limit:          opts.Limit,
 					SortOrder:      opts.Order,
@@ -487,7 +487,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			for {
 				res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-					TenantID:   tenantID,
+					TenantIDs:  []string{tenantID},
 					Limit:      3,
 					SortOrder:  "asc",
 					Next:       nextCursor,
@@ -523,7 +523,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 		t.Run("cursor excludes attempts outside time filter", func(t *testing.T) {
 			// First page with no time filter gets all attempts
 			resAll, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      5,
 				SortOrder:  "asc",
 				TimeFilter: driver.TimeFilter{GTE: &farPast},
@@ -535,7 +535,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 			// The cursor points to position after attempt 4 (far past attempts)
 			// But with attemptWindowStart filter, we should start from attempt 5
 			res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      5,
 				SortOrder:  "asc",
 				Next:       resAll.Next,
@@ -561,7 +561,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			for {
 				res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-					TenantID:   tenantID,
+					TenantIDs:  []string{tenantID},
 					Limit:      3,
 					SortOrder:  "asc",
 					Next:       nextCursor,
@@ -599,7 +599,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			// First, retrieve all attempts to find attempt 10's time
 			res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:  tenantID,
+				TenantIDs: []string{tenantID},
 				Limit:     100,
 				SortOrder: "asc",
 				TimeFilter: driver.TimeFilter{
@@ -621,7 +621,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			// GT with exact time should exclude attempt 10
 			resGT, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      100,
 				SortOrder:  "asc",
 				TimeFilter: driver.TimeFilter{GT: &storedAttempt10Time},
@@ -637,7 +637,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			// LT with exact time should exclude attempt 10
 			resLT, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      100,
 				SortOrder:  "asc",
 				TimeFilter: driver.TimeFilter{LT: &storedAttempt10Time},
@@ -653,7 +653,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			// Verify attempt 10 is included with GTE/LTE (inclusive bounds)
 			resGTE, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      100,
 				SortOrder:  "asc",
 				TimeFilter: driver.TimeFilter{GTE: &storedAttempt10Time, LTE: &storedAttempt10Time},
@@ -665,7 +665,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 		t.Run("prev cursor respects time filter", func(t *testing.T) {
 			// Get first page (ListAttempt filters by attempt time)
 			res1, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      3,
 				SortOrder:  "asc",
 				TimeFilter: driver.TimeFilter{GTE: &attemptWindowStart, LTE: &attemptWindowEnd},
@@ -675,7 +675,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			// Get second page
 			res2, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      3,
 				SortOrder:  "asc",
 				Next:       res1.Next,
@@ -686,7 +686,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			// Go back to first page using prev cursor
 			resPrev, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      3,
 				SortOrder:  "asc",
 				Prev:       res2.Prev,
@@ -709,7 +709,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			for {
 				res, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-					TenantID:   tenantID,
+					TenantIDs:  []string{tenantID},
 					Limit:      3,
 					SortOrder:  "asc",
 					Next:       nextCursor,
@@ -752,7 +752,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			// First, retrieve event 10's stored time from the database
 			res, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantID:  tenantID,
+				TenantIDs: []string{tenantID},
 				Limit:     100,
 				SortOrder: "asc",
 				TimeFilter: driver.TimeFilter{
@@ -774,7 +774,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			// GT with exact time should exclude event 10
 			resGT, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      100,
 				SortOrder:  "asc",
 				TimeFilter: driver.TimeFilter{GT: &storedEvent10Time},
@@ -790,7 +790,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			// LT with exact time should exclude event 10
 			resLT, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      100,
 				SortOrder:  "asc",
 				TimeFilter: driver.TimeFilter{LT: &storedEvent10Time},
@@ -806,7 +806,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 
 			// Verify event 10 is included with GTE/LTE (inclusive bounds)
 			resGTE, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantID:   tenantID,
+				TenantIDs:  []string{tenantID},
 				Limit:      100,
 				SortOrder:  "asc",
 				TimeFilter: driver.TimeFilter{GTE: &storedEvent10Time, LTE: &storedEvent10Time},

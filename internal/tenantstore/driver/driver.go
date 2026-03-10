@@ -38,10 +38,11 @@ var (
 
 // ListTenantRequest contains parameters for listing tenants.
 type ListTenantRequest struct {
-	Limit int    // Number of results per page (default: 20)
-	Next  string // Cursor for next page
-	Prev  string // Cursor for previous page
-	Dir   string // Sort direction: "asc" or "desc" (default: "desc")
+	Limit int      // Number of results per page (default: 20)
+	Next  string   // Cursor for next page
+	Prev  string   // Cursor for previous page
+	Dir   string   // Sort direction: "asc" or "desc" (default: "desc")
+	ID    []string // If non-empty, only tenants with these IDs are returned
 }
 
 // SeekPagination represents cursor-based pagination metadata for list responses.

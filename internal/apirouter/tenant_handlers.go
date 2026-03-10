@@ -123,6 +123,11 @@ func (h *TenantHandlers) List(c *gin.Context) {
 		Dir:  dir,
 	}
 
+	// Parse id filter: id[0]=x&id[1]=y or id[]=x&id[]=y
+	if ids := ParseArrayQueryParam(c, "id"); len(ids) > 0 {
+		req.ID = ids
+	}
+
 	// Parse limit if provided
 	if limitStr := c.Query("limit"); limitStr != "" {
 		limit, err := strconv.Atoi(limitStr)

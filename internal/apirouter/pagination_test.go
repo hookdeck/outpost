@@ -358,7 +358,7 @@ func TestParseDateFilter_UnsupportedOperators(t *testing.T) {
 	}
 }
 
-func TestParseArrayParam(t *testing.T) {
+func TestParseArrayQueryParam(t *testing.T) {
 	tests := []struct {
 		name        string
 		fieldName   string
@@ -390,6 +390,12 @@ func TestParseArrayParam(t *testing.T) {
 			want:        []string{"foo", "bar"},
 		},
 		{
+			name:        "unindexed format no brackets",
+			fieldName:   "tag",
+			queryString: "tag=foo&tag=bar",
+			want:        []string{"foo", "bar"},
+		},
+		{
 			name:        "sparse indices",
 			fieldName:   "item",
 			queryString: "item[0]=first&item[5]=sixth",
@@ -407,7 +413,7 @@ func TestParseArrayParam(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c, _ := createTestContextWithQuery(tt.queryString)
 
-			result := apirouter.ParseArrayParam(c, tt.fieldName)
+			result := apirouter.ParseArrayQueryParam(c, tt.fieldName)
 
 			assert.Equal(t, tt.want, result)
 		})
