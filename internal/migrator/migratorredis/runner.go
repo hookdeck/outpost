@@ -13,28 +13,37 @@ import (
 )
 
 const (
-	migrationLockKey = ".outpost:migration:lock"
+	migrationLockKey = ".outpost:migration_lock"
 	lockTTL          = time.Hour // Lock expires after 1 hour in case process dies
 )
 
 // Runner handles automatic Redis migrations at startup
 type Runner struct {
-	client     redis.Client
-	logger     *logging.Logger
-	migrations []Migration
-	lock       redislock.Lock
+	client       redis.Client
+	logger       *logging.Logger
+	migrations   []Migration
+	lock         redislock.Lock
+	deploymentID string
 }
 
 // NewRunner creates a new migration runner
-func NewRunner(client redis.Client, logger *logging.Logger) *Runner {
+func NewRunner(client redis.Client, logger *logging.Logger, deploymentID string) *Runner {
 	return &Runner{
-		client: client,
-		logger: logger,
+		client:       client,
+		logger:       logger,
+		deploymentID: deploymentID,
 		lock: redislock.New(client,
-			redislock.WithKey(migrationLockKey),
+			redislock.WithKey(deploymentPrefix(deploymentID)+migrationLockKey),
 			redislock.WithTTL(lockTTL),
 		),
 	}
+}
+
+func deploymentPrefix(deploymentID string) string {
+	if deploymentID == "" {
+		return ""
+	}
+	return deploymentID + ":"
 }
 
 // RegisterMigration adds a migration to the runner
@@ -72,8 +81,10 @@ func (r *Runner) Run(ctx context.Context) error {
 
 // checkIfFreshInstallation checks if Redis has any existing Outpost data
 func (r *Runner) checkIfFreshInstallation(ctx context.Context) (bool, error) {
+	prefix := deploymentPrefix(r.deploymentID)
+
 	// Check for any "outpost:*" keys (current format)
-	outpostKeys, err := r.client.Keys(ctx, "outpost:*").Result()
+	outpostKeys, err := r.client.Keys(ctx, prefix+"outpost:*").Result()
 	if err != nil {
 		return false, fmt.Errorf("failed to check outpost keys: %w", err)
 	}
@@ -81,8 +92,8 @@ func (r *Runner) checkIfFreshInstallation(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	// Check for any "tenant:*" keys (old format)
-	tenantKeys, err := r.client.Keys(ctx, "tenant:*").Result()
+	// Check for any "tenant:*" keys (old format, or deployment-scoped tenant keys)
+	tenantKeys, err := r.client.Keys(ctx, prefix+"tenant:*").Result()
 	if err != nil {
 		return false, fmt.Errorf("failed to check tenant keys: %w", err)
 	}
@@ -302,10 +313,13 @@ func (r *Runner) waitForInitialization(ctx context.Context) error {
 	return fmt.Errorf("timeout waiting for redis initialization")
 }
 
+func (r *Runner) migrationKey(name string) string {
+	return fmt.Sprintf("%soutpost:migration:%s", deploymentPrefix(r.deploymentID), name)
+}
+
 // isMigrationSatisfied checks if a migration has been satisfied (applied or not applicable)
 func (r *Runner) isMigrationSatisfied(ctx context.Context, name string) bool {
-	key := fmt.Sprintf("outpost:migration:%s", name)
-	val, err := r.client.HGet(ctx, key, "status").Result()
+	val, err := r.client.HGet(ctx, r.migrationKey(name), "status").Result()
 	if err != nil {
 		return false
 	}
@@ -314,8 +328,7 @@ func (r *Runner) isMigrationSatisfied(ctx context.Context, name string) bool {
 
 // setMigrationApplied marks a migration as applied
 func (r *Runner) setMigrationApplied(ctx context.Context, name string) error {
-	key := fmt.Sprintf("outpost:migration:%s", name)
-	return r.client.HSet(ctx, key,
+	return r.client.HSet(ctx, r.migrationKey(name),
 		"status", "applied",
 		"applied_at", time.Now().Format(time.RFC3339),
 	).Err()
@@ -323,8 +336,7 @@ func (r *Runner) setMigrationApplied(ctx context.Context, name string) error {
 
 // setMigrationNotApplicable marks a migration as not applicable
 func (r *Runner) setMigrationNotApplicable(ctx context.Context, name, reason string) error {
-	key := fmt.Sprintf("outpost:migration:%s", name)
-	return r.client.HSet(ctx, key,
+	return r.client.HSet(ctx, r.migrationKey(name),
 		"status", "not_applicable",
 		"checked_at", time.Now().Format(time.RFC3339),
 		"reason", reason,
