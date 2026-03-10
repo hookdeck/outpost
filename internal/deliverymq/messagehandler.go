@@ -410,7 +410,11 @@ func (h *messageHandler) shouldNackDeliveryError(err error) bool {
 }
 
 func (h *messageHandler) scheduleRetry(ctx context.Context, task models.DeliveryTask) error {
-	backoffDuration := h.retryBackoff.Duration(task.Attempt - 1)
+	// Backoff expects a 0-based index (0 for first retry, 1 for second, etc.).
+	// attempt_number changed from 0-based to 1-based without migrating in-flight
+	// tasks, so clamp to 0 to safely handle any leftover Attempt=0 tasks.
+	backoffIndex := max(task.Attempt-1, 0)
+	backoffDuration := h.retryBackoff.Duration(backoffIndex)
 
 	retryTask := RetryTaskFromDeliveryTask(task)
 	retryTaskStr, err := retryTask.ToString()
