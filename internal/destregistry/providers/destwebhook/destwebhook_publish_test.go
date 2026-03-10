@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/models"
@@ -568,7 +567,7 @@ func TestWebhookPublisher_CustomHeaders(t *testing.T) {
 		assert.Equal(t, "delivery-metadata-value", req.Header.Get("x-outpost-source"))
 	})
 
-	t.Run("should fail CreatePublisher when custom_headers is empty object", func(t *testing.T) {
+	t.Run("should accept CreatePublisher when custom_headers is empty object", func(t *testing.T) {
 		t.Parallel()
 
 		provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
@@ -585,12 +584,9 @@ func TestWebhookPublisher_CustomHeaders(t *testing.T) {
 			}),
 		)
 
-		_, err = provider.CreatePublisher(context.Background(), &destination)
-		require.Error(t, err)
-		var validationErr *destregistry.ErrDestinationValidation
-		assert.ErrorAs(t, err, &validationErr)
-		assert.Equal(t, "config.custom_headers", validationErr.Errors[0].Field)
-		assert.Equal(t, "invalid", validationErr.Errors[0].Type)
+		publisher, err := provider.CreatePublisher(context.Background(), &destination)
+		require.NoError(t, err)
+		defer publisher.Close()
 	})
 
 	t.Run("should work without custom_headers field", func(t *testing.T) {

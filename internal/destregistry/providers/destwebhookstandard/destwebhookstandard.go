@@ -264,12 +264,8 @@ func (d *StandardWebhookDestination) resolveConfig(ctx context.Context, destinat
 			}})
 		}
 		if len(config.CustomHeaders) == 0 {
-			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
-				Field: "config.custom_headers",
-				Type:  "invalid",
-			}})
-		}
-		if err := destwebhook.ValidateCustomHeaders(config.CustomHeaders); err != nil {
+			config.CustomHeaders = nil
+		} else if err := destwebhook.ValidateCustomHeaders(config.CustomHeaders); err != nil {
 			return nil, nil, err
 		}
 	}
