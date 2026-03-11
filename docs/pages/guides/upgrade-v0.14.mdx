@@ -1,0 +1,104 @@
+---
+title: "Upgrade to v0.14"
+---
+
+This guide covers breaking changes and migration steps when upgrading from v0.13 to v0.14.
+
+## Breaking Changes Overview
+
+| Change | Impact | Action Required |
+| --- | --- | --- |
+| [PostgreSQL data columns migrated to TEXT](#postgresql-data-columns-migrated-to-text) | Direct queries against Postgres `events` and `attempts` tables | Update any SQL that relies on JSONB operators for `data` / `event_data` columns |
+| [Array query parameters](#array-query-parameters) | API query filters & SDK method signatures | Use bracket notation for array filters; update SDK calls |
+
+## PostgreSQL Data Columns Migrated to TEXT
+
+The `events.data` and `attempts.event_data` columns have been migrated from `JSONB` to `TEXT`. This change preserves the original JSON key ordering of webhook payloads, which JSONB normalizes alphabetically.
+
+**The migration runs automatically when Outpost starts.** No manual migration steps are required.
+
+If you only interact with Outpost through the API or SDKs, **no action is needed** — the API response format is unchanged.
+
+If you have custom SQL queries, dashboards, or tooling that reads directly from the Outpost PostgreSQL database, you will need to update any queries that use JSONB-specific operators on these columns.
+
+## Array Query Parameters
+
+API query parameters now accept arrays using bracket notation. This affects filters like `tenant_id`, `status`, and `topic` on list endpoints.
+
+**Single values continue to work as before.** This is a non-breaking addition for API users who don't use arrays. However, the SDK method signatures have changed to accommodate the new array types.
+
+### API usage
+
+```
+# Single value (unchanged)
+GET /events?tenant_id=tenant_123&topic=user.created
+
+# Array filter (new)
+GET /events?tenant_id[]=tenant_123&tenant_id[]=tenant_456&topic[]=user.created&topic[]=user.updated
+```
+
+### SDK changes
+
+The SDKs have been updated to accept both single values and arrays for filter parameters.
+
+**TypeScript:**
+
+```ts
+// Single value (unchanged)
+const events = await outpost.events.list({
+  tenantId: "tenant_123",
+  topic: "user.created",
+});
+
+// Array filter (new)
+const events = await outpost.events.list({
+  tenantId: ["tenant_123", "tenant_456"],
+  topic: ["user.created", "user.updated"],
+});
+```
+
+**Go:**
+
+Because Go is statically typed, parameters that accept both a single string and an array use tagged union constructors:
+
+```go
+// Array filter
+res, err := s.Events.List(ctx, operations.ListEventsRequest{
+    TenantID: operations.CreateListEventsTenantIDArrayOfStr(
+        []string{"tenant_123", "tenant_456"},
+    ).Pointer(),
+    Topic: operations.CreateListEventsTopicArrayOfStr(
+        []string{"user.created", "user.updated"},
+    ).Pointer(),
+    Limit: outpostgo.Int64(50),
+})
+```
+
+**Action:** Update SDK dependencies to the latest version. If you pass filter parameters that previously accepted only a single string, verify that your code still works with the updated type signatures.
+
+## Other Notable Changes
+
+These changes are **not breaking** but may be useful to know about.
+
+### Relaxed destination URL validation
+
+Destination URL validation has been relaxed to allow:
+- URLs with Basic Auth credentials (e.g., `https://user:pass@example.com/webhook`)
+- RabbitMQ server URLs with Docker service names (e.g., `amqp://guest:guest@rabbitmq:5672`)
+
+### Empty `custom_headers` accepted
+
+Empty `custom_headers` on webhook destinations are now treated as absent instead of triggering validation errors. If you previously worked around the v0.13 validation by omitting `custom_headers`, you can now safely pass an empty object again.
+
+## Upgrade Checklist
+
+1. **Before upgrading:**
+   - [ ] Back up your PostgreSQL database
+   - [ ] Audit any direct SQL queries against `events.data` or `attempts.event_data` for JSONB operators
+   - [ ] Update SDK dependencies to the latest version
+
+2. **Upgrade:**
+   - [ ] Update Outpost to v0.14 and restart — the PostgreSQL migration runs automatically on startup
+
+3. **After upgrading:**
+   - [ ] Verify any direct SQL queries against Outpost tables are working as expected
