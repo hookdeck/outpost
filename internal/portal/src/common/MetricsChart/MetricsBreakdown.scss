@@ -41,7 +41,8 @@
     font-size: 13px;
     font-family: var(--font-family-monospace);
     color: var(--colors-foreground-neutral);
-    min-width: 80px;
+    min-width: 100px;
+    max-width: 100px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
