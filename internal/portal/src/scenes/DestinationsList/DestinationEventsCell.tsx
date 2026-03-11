@@ -19,7 +19,7 @@ const DestinationEventsCell: React.FC<DestinationEventsCellProps> = ({
     destinationId,
     timeframe: "24h",
     granularity: "4h",
-    filters: { attempt_number: "0" },
+    filters: { attempt_number: "0", manual: "false" },
   });
 
   if (isLoading || !data) {
