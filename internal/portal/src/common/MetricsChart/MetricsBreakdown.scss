@@ -35,7 +35,6 @@
     display: flex;
     align-items: center;
     gap: var(--spacing-3);
-
   }
 
   &__dimension {
@@ -58,7 +57,7 @@
 
   &__bar {
     height: 100%;
-    background: var(--colors-foreground-primary);
+    background: var(--colors-dataviz-info);
     border-radius: 4px;
     transition: width 0.2s ease;
   }
