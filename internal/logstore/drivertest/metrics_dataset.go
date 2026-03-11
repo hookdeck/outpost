@@ -62,6 +62,10 @@ import (
 //   manual:             i % 10 == 9
 //   eligible_for_retry: i % 3 != 2
 //
+// FIXME: manual retries should always have attempt_number=0 (they start a new
+// chain), but this dataset assigns them independently. Update the formula so
+// manual=true implies attempt_number=0, then fix derived totals and assertions.
+//
 // ── Derived Totals (Tenant 1, all 300) ───────────────────────────────────
 //
 // Event metrics:

@@ -88,6 +88,12 @@ type AttemptMetricsDataPoint struct {
 	SuccessfulCount   *int
 	FailedCount       *int
 	ErrorRate         *float64
+	// NOTE: The following three measures are equivalent to using "count" with
+	// the corresponding filters (attempt_number=0 AND manual=false, attempt_number>0,
+	// manual=true). They exist for composability — callers can request multiple
+	// measures in a single query instead of issuing separate filtered queries.
+	// Consider whether they're worth the added surface area or if callers should
+	// use count+filters.
 	FirstAttemptCount *int
 	RetryCount        *int
 	ManualRetryCount  *int

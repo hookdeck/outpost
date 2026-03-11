@@ -245,7 +245,7 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 			case "first_attempt_count":
 				c := 0
 				for _, ae := range attempts {
-					if ae.attempt.AttemptNumber == 0 {
+					if ae.attempt.AttemptNumber == 0 && !ae.attempt.Manual {
 						c++
 					}
 				}
