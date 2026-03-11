@@ -141,13 +141,18 @@
   &__timeframe {
     display: flex;
     gap: var(--spacing-1);
+    border: 1px solid var(--colors-outline-neutral);
+    border-radius: var(--radius-m);
+    padding: 2px;
+    background: var(--colors-background-neutral-1);
   }
 
   &__tf-btn {
-    padding: var(--spacing-1) var(--spacing-3);
+    padding: var(--spacing-1) var(--spacing-2);
     font-size: 13px;
     font-weight: 500;
     color: var(--colors-foreground-neutral-3);
+
     background: transparent;
     border: 1px solid transparent;
     border-radius: var(--radius-s);
@@ -159,9 +164,13 @@
     }
 
     &--active {
+      box-shadow: var(--colors-shadow-button);
       color: var(--colors-foreground-neutral);
-      background: var(--colors-background-neutral-2);
-      border-color: var(--colors-outline-neutral);
+      background: var(--colors-background);
+
+      &:hover {
+        background: var(--colors-background);
+      }
     }
   }
 
