@@ -4,6 +4,7 @@ import MetricsChart, {
 } from "../../common/MetricsChart/MetricsChart";
 import MetricsBreakdown from "../../common/MetricsChart/MetricsBreakdown";
 import { Timeframe, useMetrics } from "../../common/MetricsChart/useMetrics";
+import { Destination } from "../../typings/Destination";
 
 const TIMEFRAMES: Timeframe[] = ["1h", "24h", "7d", "30d"];
 
@@ -47,25 +48,25 @@ function hasActivity(
 }
 
 interface DestinationMetricsProps {
-  destinationId: string;
+  destination: Destination;
 }
 
 const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
-  destinationId,
+  destination,
 }) => {
   const [timeframe, setTimeframe] = useState<Timeframe>("24h");
 
   // Row 1
   const event_count = useMetrics({
     measures: ["count"],
-    destinationId,
+    destinationId: destination.id,
     timeframe,
     filters: { attempt_number: "0" },
   });
 
   const delivery = useMetrics({
     measures: ["successful_count", "failed_count"],
-    destinationId,
+    destinationId: destination.id,
     timeframe,
   });
 
@@ -75,35 +76,22 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
   // Row 2
   const error_rate = useMetrics({
     measures: ["error_rate"],
-    destinationId,
+    destinationId: destination.id,
     timeframe,
   });
 
   const by_status = useMetrics({
     measures: ["count"],
-    destinationId,
+    destinationId: destination.id,
     timeframe,
     dimensions: ["code"],
   });
 
   const by_topic = useMetrics({
     measures: ["count", "error_rate"],
-    destinationId,
+    destinationId: destination.id,
     timeframe,
     dimensions: ["topic"],
-  });
-
-  // Row 3
-  const retries = useMetrics({
-    measures: ["first_attempt_count", "retry_count"],
-    destinationId,
-    timeframe,
-  });
-
-  const avg_attempt = useMetrics({
-    measures: ["avg_attempt_number"],
-    destinationId,
-    timeframe,
   });
 
   return (
@@ -138,11 +126,7 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
             ]}
             data={
               has_activity
-                ? toTimeSeriesData(
-                    event_count.data?.data,
-                    ["count"],
-                    timeframe,
-                  )
+                ? toTimeSeriesData(event_count.data?.data, ["count"], timeframe)
                 : []
             }
             loading={event_count.isLoading}
@@ -213,87 +197,31 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
             ]}
           />
         </div>
+        {destination.type === "webhook" && (
+          <div className="metrics-container__cell metrics-container__cell--row2">
+            <MetricsBreakdown
+              title="Events count by status code"
+              data={by_status.data?.data}
+              dimensionKey="code"
+              loading={by_status.isLoading}
+              error={!!by_status.error}
+              barColor={(code) => {
+                const n = Number(code);
+                if (n >= 200 && n < 300) return "success";
+                if (n >= 400) return "error";
+                return undefined;
+              }}
+            />
+          </div>
+        )}
         <div className="metrics-container__cell metrics-container__cell--row2">
           <MetricsBreakdown
-            title="By status code"
-            data={by_status.data?.data}
-            dimensionKey="code"
-            loading={by_status.isLoading}
-            error={!!by_status.error}
-            barColor={(code) => {
-              const n = Number(code);
-              if (n >= 200 && n < 300) return "success";
-              if (n >= 400) return "error";
-              return undefined;
-            }}
-          />
-        </div>
-        <div className="metrics-container__cell metrics-container__cell--row2">
-          <MetricsBreakdown
-            title="By topic"
+            title="Events count by topic"
             data={by_topic.data?.data}
             dimensionKey="topic"
             loading={by_topic.isLoading}
             error={!!by_topic.error}
             showErrorRate
-          />
-        </div>
-
-        {/* Row 3 — Retry Pressure */}
-        <div className="metrics-container__cell">
-          <MetricsChart
-            title="Retries"
-            subtitle="count"
-            type="multi-line"
-            series={[
-              {
-                key: "first_attempt_count",
-                label: "First attempt",
-                cssVar: "--colors-dataviz-info",
-              },
-              {
-                key: "retry_count",
-                label: "Retry",
-                cssVar: "--colors-dataviz-warning",
-              },
-            ]}
-            data={
-              has_activity
-                ? toTimeSeriesData(
-                    retries.data?.data,
-                    ["first_attempt_count", "retry_count"],
-                    timeframe,
-                  )
-                : []
-            }
-            loading={retries.isLoading}
-            error={!!retries.error}
-          />
-        </div>
-        <div className="metrics-container__cell">
-          <MetricsChart
-            title="Avg attempt number"
-            subtitle="avg"
-            type="line"
-            series={[
-              {
-                key: "avg_attempt_number",
-                label: "Avg attempt number",
-                cssVar: "--colors-dataviz-info",
-              },
-            ]}
-            data={
-              has_activity
-                ? toTimeSeriesData(
-                    avg_attempt.data?.data,
-                    ["avg_attempt_number"],
-                    timeframe,
-                  )
-                : []
-            }
-            loading={avg_attempt.isLoading}
-            error={!!avg_attempt.error}
-            yAllowDecimals={true}
           />
         </div>
       </div>

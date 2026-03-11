@@ -52,11 +52,11 @@ function getGranularity(timeframe: Timeframe) {
     case "1h":
       return "1m";
     case "24h":
-      return "1h";
+      return "30m";
     case "7d":
-      return "1d";
+      return "3h";
     case "30d":
-      return "1d";
+      return "12h";
   }
 }
 

@@ -230,7 +230,7 @@ const Destination = () => {
                         </pre>
                       </div>
                     )}
-                  <DestinationMetrics destinationId={destination.id} />
+                  <DestinationMetrics destination={destination} />
                 </>
               }
             />

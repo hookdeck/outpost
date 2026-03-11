@@ -115,7 +115,9 @@ const MetricsBreakdown: React.FC<MetricsBreakdownProps> = ({
       <div className="metrics-breakdown__header">
         <span className="metrics-breakdown__title">
           {title}
-          {subtitle && <span className="metrics-breakdown__subtitle"> / {subtitle}</span>}
+          {subtitle && (
+            <span className="metrics-breakdown__subtitle"> / {subtitle}</span>
+          )}
         </span>
         {showErrorRate && (
           <div className="metrics-breakdown__column-headers">

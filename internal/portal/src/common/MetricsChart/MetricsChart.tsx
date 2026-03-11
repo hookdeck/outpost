@@ -10,7 +10,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
 } from "recharts";
 import { Loading } from "../Icons";
 
@@ -123,7 +122,8 @@ const MetricsChart: React.FC<MetricsChartProps> = ({
     }
   }, [css_vars_key]);
 
-  const getColor = (css_var: string) => colors[css_var] ?? "#888";
+  const getColor = (css_var: string) =>
+    colors[css_var] ?? "var(--colors-background-neutral-1)";
 
   const renderBody = () => {
     if (loading) {
@@ -170,52 +170,15 @@ const MetricsChart: React.FC<MetricsChartProps> = ({
       ...(yTickFormatter ? { tickFormatter: yTickFormatter } : {}),
     };
 
-    const show_legend = type === "stacked-bar" || type === "multi-line";
-
     if (type === "bar" || type === "stacked-bar") {
       return (
-        <BarChart width={chartWidth} height={chartHeight} data={data} margin={CHART_MARGIN} barCategoryGap="4%">
-            <CartesianGrid
-              strokeDasharray="3 3"
-              vertical={false}
-              stroke="var(--colors-outline-neutral)"
-            />
-            <XAxis {...x_axis_props} />
-            <YAxis {...y_axis_props} />
-            <Tooltip
-              contentStyle={TOOLTIP_STYLE}
-              labelFormatter={(label) => label}
-              formatter={
-                tooltipFormatter ??
-                ((value: any, name: any) => [String(value), String(name)])
-              }
-            />
-            {show_legend && (
-              <Legend
-                iconSize={8}
-                wrapperStyle={{
-                  fontSize: 12,
-                  color: "var(--colors-foreground-neutral-2)",
-                }}
-              />
-            )}
-            {series.map((s) => (
-              <Bar
-                key={s.key}
-                dataKey={s.key}
-                name={s.label}
-                fill={getColor(s.cssVar)}
-                radius={[2, 2, 0, 0]}
-                isAnimationActive={false}
-                stackId={type === "stacked-bar" ? "stack" : undefined}
-              />
-            ))}
-          </BarChart>
-      );
-    }
-
-    return (
-      <LineChart width={chartWidth} height={chartHeight} data={data} margin={CHART_MARGIN}>
+        <BarChart
+          width={chartWidth}
+          height={chartHeight}
+          data={data}
+          margin={CHART_MARGIN}
+          barCategoryGap="2px"
+        >
           <CartesianGrid
             strokeDasharray="3 3"
             vertical={false}
@@ -225,34 +188,62 @@ const MetricsChart: React.FC<MetricsChartProps> = ({
           <YAxis {...y_axis_props} />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
-            labelFormatter={(label) => label}
+            labelFormatter={(label: string) => label}
             formatter={
               tooltipFormatter ??
               ((value: any, name: any) => [String(value), String(name)])
             }
           />
-          {show_legend && (
-            <Legend
-              iconSize={8}
-              wrapperStyle={{
-                fontSize: 12,
-                color: "var(--colors-foreground-neutral-2)",
-              }}
-            />
-          )}
           {series.map((s) => (
-            <Line
+            <Bar
               key={s.key}
-              type="linear"
               dataKey={s.key}
               name={s.label}
-              stroke={getColor(s.cssVar)}
-              strokeWidth={2}
-              dot={false}
+              fill={getColor(s.cssVar)}
+              radius={[0, 0, 0, 0]}
               isAnimationActive={false}
+              stackId={type === "stacked-bar" ? "stack" : undefined}
             />
           ))}
-        </LineChart>
+        </BarChart>
+      );
+    }
+
+    return (
+      <LineChart
+        width={chartWidth}
+        height={chartHeight}
+        data={data}
+        margin={CHART_MARGIN}
+      >
+        <CartesianGrid
+          strokeDasharray="3 3"
+          vertical={false}
+          stroke="var(--colors-outline-neutral)"
+        />
+        <XAxis {...x_axis_props} />
+        <YAxis {...y_axis_props} />
+        <Tooltip
+          contentStyle={TOOLTIP_STYLE}
+          labelFormatter={(label: string) => label}
+          formatter={
+            tooltipFormatter ??
+            ((value: any, name: any) => [String(value), String(name)])
+          }
+        />
+        {series.map((s) => (
+          <Line
+            key={s.key}
+            type="linear"
+            dataKey={s.key}
+            name={s.label}
+            stroke={getColor(s.cssVar)}
+            strokeWidth={2}
+            dot={false}
+            isAnimationActive={false}
+          />
+        ))}
+      </LineChart>
     );
   };
 
@@ -261,10 +252,14 @@ const MetricsChart: React.FC<MetricsChartProps> = ({
       <div className="metrics-chart__header">
         <span className="metrics-chart__title">
           {title}
-          {subtitle && <span className="metrics-chart__subtitle"> / {subtitle}</span>}
+          {subtitle && (
+            <span className="metrics-chart__subtitle"> / {subtitle}</span>
+          )}
         </span>
       </div>
-      <div className="metrics-chart__body" ref={bodyRef}>{renderBody()}</div>
+      <div className="metrics-chart__body" ref={bodyRef}>
+        {renderBody()}
+      </div>
     </div>
   );
 };
