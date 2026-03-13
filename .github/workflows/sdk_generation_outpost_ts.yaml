@@ -16,7 +16,7 @@ jobs:
     uses: ./.github/workflows/sdk-generate-one.yml
     with:
       target: outpost-ts
-      force: ${{ github.event.inputs.force }}
+      force: ${{ github.event.inputs.force == 'true' }}
       set_version: ${{ github.event.inputs.set_version }}
     secrets:
       github_access_token: ${{ secrets.GITHUB_TOKEN }}
