@@ -7,5 +7,5 @@ A collection of codes that generally means the end user got something wrong in m
 
 | Field                  | Type                   | Required               | Description            |
 | ---------------------- | ---------------------- | ---------------------- | ---------------------- |
-| `Message`              | **string*              | :heavy_minus_sign:     | N/A                    |
-| `AdditionalProperties` | map[string]*any*       | :heavy_minus_sign:     | N/A                    |
+| `Message`              | `*string`              | :heavy_minus_sign:     | N/A                    |
+| `AdditionalProperties` | map[string]`any`       | :heavy_minus_sign:     | N/A                    |

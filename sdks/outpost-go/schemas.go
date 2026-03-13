@@ -476,7 +476,7 @@ func (s *Schemas) ListDestinationTypes(ctx context.Context, opts ...operations.O
 
 // GetDestinationType - Get Destination Type Schema
 // Returns the input schema for a specific destination type.
-func (s *Schemas) GetDestinationType(ctx context.Context, type_ operations.GetDestinationTypeSchemaType, opts ...operations.Option) (*operations.GetDestinationTypeSchemaResponse, error) {
+func (s *Schemas) GetDestinationType(ctx context.Context, type_ operations.Type, opts ...operations.Option) (*operations.GetDestinationTypeSchemaResponse, error) {
 	request := operations.GetDestinationTypeSchemaRequest{
 		Type: type_,
 	}

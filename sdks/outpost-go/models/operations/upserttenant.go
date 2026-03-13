@@ -10,7 +10,7 @@ type UpsertTenantRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
 	TenantID string `pathParam:"style=simple,explode=false,name=tenant_id"`
 	// Optional tenant metadata
-	Params *components.TenantUpsert `request:"mediaType=application/json"`
+	Body *components.TenantUpsert `request:"mediaType=application/json"`
 }
 
 func (u *UpsertTenantRequest) GetTenantID() string {
@@ -20,11 +20,11 @@ func (u *UpsertTenantRequest) GetTenantID() string {
 	return u.TenantID
 }
 
-func (u *UpsertTenantRequest) GetParams() *components.TenantUpsert {
+func (u *UpsertTenantRequest) GetBody() *components.TenantUpsert {
 	if u == nil {
 		return nil
 	}
-	return u.Params
+	return u.Body
 }
 
 type UpsertTenantResponse struct {

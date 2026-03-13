@@ -119,3 +119,6 @@ func (d *DestinationCreateAwss3) GetMetadata() map[string]string {
 	}
 	return d.Metadata
 }
+
+// #region class-body-destinationcreateawss3
+// #endregion class-body-destinationcreateawss3

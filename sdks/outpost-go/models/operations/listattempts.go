@@ -4,7 +4,6 @@ package operations
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
@@ -36,137 +35,6 @@ func (e *ListAttemptsStatus) UnmarshalJSON(data []byte) error {
 	default:
 		return fmt.Errorf("invalid value for ListAttemptsStatus: %v", v)
 	}
-}
-
-type ListAttemptsTopicType string
-
-const (
-	ListAttemptsTopicTypeStr        ListAttemptsTopicType = "str"
-	ListAttemptsTopicTypeArrayOfStr ListAttemptsTopicType = "arrayOfStr"
-)
-
-// ListAttemptsTopic - Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
-type ListAttemptsTopic struct {
-	Str        *string  `queryParam:"inline" union:"member"`
-	ArrayOfStr []string `queryParam:"inline" union:"member"`
-
-	Type ListAttemptsTopicType
-}
-
-func CreateListAttemptsTopicStr(str string) ListAttemptsTopic {
-	typ := ListAttemptsTopicTypeStr
-
-	return ListAttemptsTopic{
-		Str:  &str,
-		Type: typ,
-	}
-}
-
-func CreateListAttemptsTopicArrayOfStr(arrayOfStr []string) ListAttemptsTopic {
-	typ := ListAttemptsTopicTypeArrayOfStr
-
-	return ListAttemptsTopic{
-		ArrayOfStr: arrayOfStr,
-		Type:       typ,
-	}
-}
-
-func (u *ListAttemptsTopic) UnmarshalJSON(data []byte) error {
-
-	var str string = ""
-	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
-		u.Str = &str
-		u.Type = ListAttemptsTopicTypeStr
-		return nil
-	}
-
-	var arrayOfStr []string = []string{}
-	if err := utils.UnmarshalJSON(data, &arrayOfStr, "", true, nil); err == nil {
-		u.ArrayOfStr = arrayOfStr
-		u.Type = ListAttemptsTopicTypeArrayOfStr
-		return nil
-	}
-
-	return fmt.Errorf("could not unmarshal `%s` into any supported union types for ListAttemptsTopic", string(data))
-}
-
-func (u ListAttemptsTopic) MarshalJSON() ([]byte, error) {
-	if u.Str != nil {
-		return utils.MarshalJSON(u.Str, "", true)
-	}
-
-	if u.ArrayOfStr != nil {
-		return utils.MarshalJSON(u.ArrayOfStr, "", true)
-	}
-
-	return nil, errors.New("could not marshal union type ListAttemptsTopic: all fields are null")
-}
-
-type ListAttemptsIncludeType string
-
-const (
-	ListAttemptsIncludeTypeStr        ListAttemptsIncludeType = "str"
-	ListAttemptsIncludeTypeArrayOfStr ListAttemptsIncludeType = "arrayOfStr"
-)
-
-// ListAttemptsInclude - Fields to include in the response. Can be specified multiple times or comma-separated.
-// - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
-// - `event.data`: Include full event with payload data
-// - `response_data`: Include response body and headers
-type ListAttemptsInclude struct {
-	Str        *string  `queryParam:"inline" union:"member"`
-	ArrayOfStr []string `queryParam:"inline" union:"member"`
-
-	Type ListAttemptsIncludeType
-}
-
-func CreateListAttemptsIncludeStr(str string) ListAttemptsInclude {
-	typ := ListAttemptsIncludeTypeStr
-
-	return ListAttemptsInclude{
-		Str:  &str,
-		Type: typ,
-	}
-}
-
-func CreateListAttemptsIncludeArrayOfStr(arrayOfStr []string) ListAttemptsInclude {
-	typ := ListAttemptsIncludeTypeArrayOfStr
-
-	return ListAttemptsInclude{
-		ArrayOfStr: arrayOfStr,
-		Type:       typ,
-	}
-}
-
-func (u *ListAttemptsInclude) UnmarshalJSON(data []byte) error {
-
-	var str string = ""
-	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
-		u.Str = &str
-		u.Type = ListAttemptsIncludeTypeStr
-		return nil
-	}
-
-	var arrayOfStr []string = []string{}
-	if err := utils.UnmarshalJSON(data, &arrayOfStr, "", true, nil); err == nil {
-		u.ArrayOfStr = arrayOfStr
-		u.Type = ListAttemptsIncludeTypeArrayOfStr
-		return nil
-	}
-
-	return fmt.Errorf("could not unmarshal `%s` into any supported union types for ListAttemptsInclude", string(data))
-}
-
-func (u ListAttemptsInclude) MarshalJSON() ([]byte, error) {
-	if u.Str != nil {
-		return utils.MarshalJSON(u.Str, "", true)
-	}
-
-	if u.ArrayOfStr != nil {
-		return utils.MarshalJSON(u.ArrayOfStr, "", true)
-	}
-
-	return nil, errors.New("could not marshal union type ListAttemptsInclude: all fields are null")
 }
 
 // ListAttemptsOrderBy - Field to sort by.
@@ -221,32 +89,39 @@ func (e *ListAttemptsDir) UnmarshalJSON(data []byte) error {
 }
 
 type ListAttemptsRequest struct {
-	// Filter attempts by tenant ID. If not provided, returns attempts from all tenants.
-	TenantID *string `queryParam:"style=form,explode=true,name=tenant_id"`
-	// Filter attempts by event ID.
-	EventID *string `queryParam:"style=form,explode=true,name=event_id"`
-	// Filter attempts by destination ID.
-	DestinationID *string `queryParam:"style=form,explode=true,name=destination_id"`
+	// Filter attempts by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
+	// When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
+	// If not provided with API key auth, returns attempts from all tenants.
+	//
+	TenantID []string `queryParam:"style=form,explode=true,name=tenant_id"`
+	// Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
+	EventID []string `queryParam:"style=form,explode=true,name=event_id"`
+	// Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
+	DestinationID []string `queryParam:"style=form,explode=true,name=destination_id"`
 	// Filter attempts by status.
 	Status *ListAttemptsStatus `queryParam:"style=form,explode=true,name=status"`
-	// Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
-	Topic *ListAttemptsTopic `queryParam:"style=form,explode=true,name=topic"`
+	// Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
+	Topic []string `queryParam:"style=form,explode=true,name=topic"`
 	// Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format).
 	TimeGte *time.Time `queryParam:"style=form,explode=true,name=time[gte]"`
 	// Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
 	TimeLte *time.Time `queryParam:"style=form,explode=true,name=time[lte]"`
+	// Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format).
+	TimeGt *time.Time `queryParam:"style=form,explode=true,name=time[gt]"`
+	// Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format).
+	TimeLt *time.Time `queryParam:"style=form,explode=true,name=time[lt]"`
 	// Number of items per page (default 100, max 1000).
 	Limit *int64 `default:"100" queryParam:"style=form,explode=true,name=limit"`
 	// Cursor for next page of results.
 	Next *string `queryParam:"style=form,explode=true,name=next"`
 	// Cursor for previous page of results.
 	Prev *string `queryParam:"style=form,explode=true,name=prev"`
-	// Fields to include in the response. Can be specified multiple times or comma-separated.
+	// Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
 	// - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 	// - `event.data`: Include full event with payload data
 	// - `response_data`: Include response body and headers
 	//
-	Include *ListAttemptsInclude `queryParam:"style=form,explode=true,name=include"`
+	Include []string `queryParam:"style=form,explode=true,name=include"`
 	// Field to sort by.
 	OrderBy *ListAttemptsOrderBy `default:"time" queryParam:"style=form,explode=true,name=order_by"`
 	// Sort direction.
@@ -264,21 +139,21 @@ func (l *ListAttemptsRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (l *ListAttemptsRequest) GetTenantID() *string {
+func (l *ListAttemptsRequest) GetTenantID() []string {
 	if l == nil {
 		return nil
 	}
 	return l.TenantID
 }
 
-func (l *ListAttemptsRequest) GetEventID() *string {
+func (l *ListAttemptsRequest) GetEventID() []string {
 	if l == nil {
 		return nil
 	}
 	return l.EventID
 }
 
-func (l *ListAttemptsRequest) GetDestinationID() *string {
+func (l *ListAttemptsRequest) GetDestinationID() []string {
 	if l == nil {
 		return nil
 	}
@@ -292,7 +167,7 @@ func (l *ListAttemptsRequest) GetStatus() *ListAttemptsStatus {
 	return l.Status
 }
 
-func (l *ListAttemptsRequest) GetTopic() *ListAttemptsTopic {
+func (l *ListAttemptsRequest) GetTopic() []string {
 	if l == nil {
 		return nil
 	}
@@ -311,6 +186,20 @@ func (l *ListAttemptsRequest) GetTimeLte() *time.Time {
 		return nil
 	}
 	return l.TimeLte
+}
+
+func (l *ListAttemptsRequest) GetTimeGt() *time.Time {
+	if l == nil {
+		return nil
+	}
+	return l.TimeGt
+}
+
+func (l *ListAttemptsRequest) GetTimeLt() *time.Time {
+	if l == nil {
+		return nil
+	}
+	return l.TimeLt
 }
 
 func (l *ListAttemptsRequest) GetLimit() *int64 {
@@ -334,7 +223,7 @@ func (l *ListAttemptsRequest) GetPrev() *string {
 	return l.Prev
 }
 
-func (l *ListAttemptsRequest) GetInclude() *ListAttemptsInclude {
+func (l *ListAttemptsRequest) GetInclude() []string {
 	if l == nil {
 		return nil
 	}
@@ -359,6 +248,8 @@ type ListAttemptsResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
 	// A paginated list of attempts.
 	AttemptPaginatedResult *components.AttemptPaginatedResult
+
+	Next func() (*ListAttemptsResponse, error)
 }
 
 func (l *ListAttemptsResponse) GetHTTPMeta() components.HTTPMetadata {

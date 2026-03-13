@@ -3,78 +3,8 @@
 package operations
 
 import (
-	"errors"
-	"fmt"
-	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
-
-type GetTenantDestinationAttemptIncludeType string
-
-const (
-	GetTenantDestinationAttemptIncludeTypeStr        GetTenantDestinationAttemptIncludeType = "str"
-	GetTenantDestinationAttemptIncludeTypeArrayOfStr GetTenantDestinationAttemptIncludeType = "arrayOfStr"
-)
-
-// GetTenantDestinationAttemptInclude - Fields to include in the response. Can be specified multiple times or comma-separated.
-// - `event`: Include event summary
-// - `event.data`: Include full event with payload data
-// - `response_data`: Include response body and headers
-type GetTenantDestinationAttemptInclude struct {
-	Str        *string  `queryParam:"inline" union:"member"`
-	ArrayOfStr []string `queryParam:"inline" union:"member"`
-
-	Type GetTenantDestinationAttemptIncludeType
-}
-
-func CreateGetTenantDestinationAttemptIncludeStr(str string) GetTenantDestinationAttemptInclude {
-	typ := GetTenantDestinationAttemptIncludeTypeStr
-
-	return GetTenantDestinationAttemptInclude{
-		Str:  &str,
-		Type: typ,
-	}
-}
-
-func CreateGetTenantDestinationAttemptIncludeArrayOfStr(arrayOfStr []string) GetTenantDestinationAttemptInclude {
-	typ := GetTenantDestinationAttemptIncludeTypeArrayOfStr
-
-	return GetTenantDestinationAttemptInclude{
-		ArrayOfStr: arrayOfStr,
-		Type:       typ,
-	}
-}
-
-func (u *GetTenantDestinationAttemptInclude) UnmarshalJSON(data []byte) error {
-
-	var str string = ""
-	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
-		u.Str = &str
-		u.Type = GetTenantDestinationAttemptIncludeTypeStr
-		return nil
-	}
-
-	var arrayOfStr []string = []string{}
-	if err := utils.UnmarshalJSON(data, &arrayOfStr, "", true, nil); err == nil {
-		u.ArrayOfStr = arrayOfStr
-		u.Type = GetTenantDestinationAttemptIncludeTypeArrayOfStr
-		return nil
-	}
-
-	return fmt.Errorf("could not unmarshal `%s` into any supported union types for GetTenantDestinationAttemptInclude", string(data))
-}
-
-func (u GetTenantDestinationAttemptInclude) MarshalJSON() ([]byte, error) {
-	if u.Str != nil {
-		return utils.MarshalJSON(u.Str, "", true)
-	}
-
-	if u.ArrayOfStr != nil {
-		return utils.MarshalJSON(u.ArrayOfStr, "", true)
-	}
-
-	return nil, errors.New("could not marshal union type GetTenantDestinationAttemptInclude: all fields are null")
-}
 
 type GetTenantDestinationAttemptRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
@@ -83,12 +13,12 @@ type GetTenantDestinationAttemptRequest struct {
 	DestinationID string `pathParam:"style=simple,explode=false,name=destination_id"`
 	// The ID of the attempt.
 	AttemptID string `pathParam:"style=simple,explode=false,name=attempt_id"`
-	// Fields to include in the response. Can be specified multiple times or comma-separated.
+	// Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
 	// - `event`: Include event summary
 	// - `event.data`: Include full event with payload data
 	// - `response_data`: Include response body and headers
 	//
-	Include *GetTenantDestinationAttemptInclude `queryParam:"style=form,explode=true,name=include"`
+	Include []string `queryParam:"style=form,explode=true,name=include"`
 }
 
 func (g *GetTenantDestinationAttemptRequest) GetTenantID() string {
@@ -112,7 +42,7 @@ func (g *GetTenantDestinationAttemptRequest) GetAttemptID() string {
 	return g.AttemptID
 }
 
-func (g *GetTenantDestinationAttemptRequest) GetInclude() *GetTenantDestinationAttemptInclude {
+func (g *GetTenantDestinationAttemptRequest) GetInclude() []string {
 	if g == nil {
 		return nil
 	}

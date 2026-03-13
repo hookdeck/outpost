@@ -13,8 +13,11 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"github.com/hookdeck/outpost/sdks/outpost-go/retry"
+	"github.com/spyzhov/ajson"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 )
 
 // Tenants - The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
@@ -34,21 +37,14 @@ func newTenants(rootSDK *Outpost, sdkConfig config.SDKConfiguration, hooks *hook
 	}
 }
 
-// ListTenants - List Tenants
+// List Tenants
 // List all tenants with cursor-based pagination.
 //
 // **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
 // If RediSearch is not available, this endpoint returns `501 Not Implemented`.
 //
 // When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
-func (s *Tenants) ListTenants(ctx context.Context, limit *int64, dir *operations.ListTenantsDir, next *string, prev *string, opts ...operations.Option) (*operations.ListTenantsResponse, error) {
-	request := operations.ListTenantsRequest{
-		Limit: limit,
-		Dir:   dir,
-		Next:  next,
-		Prev:  prev,
-	}
-
+func (s *Tenants) List(ctx context.Context, request operations.ListTenantsRequest, opts ...operations.Option) (*operations.ListTenantsResponse, error) {
 	o := operations.Options{}
 	supportedOptions := []string{
 		operations.SupportedOptionRetries,
@@ -209,6 +205,72 @@ func (s *Tenants) ListTenants(ctx context.Context, limit *int64, dir *operations
 			Response: httpRes,
 		},
 	}
+	res.Next = func() (*operations.ListTenantsResponse, error) {
+		rawBody, err := utils.ConsumeRawBody(httpRes)
+		if err != nil {
+			return nil, err
+		}
+
+		b, err := ajson.Unmarshal(rawBody)
+		if err != nil {
+			return nil, err
+		}
+		nC, err := ajson.Eval(b, "$.pagination.next")
+		if err != nil {
+			return nil, err
+		}
+		var nCVal string
+
+		if nC.IsNumeric() {
+			numVal, err := nC.GetNumeric()
+			if err != nil {
+				return nil, err
+			}
+			// GetNumeric returns as float64 so convert to the appropriate type.
+			nCVal = strconv.FormatFloat(numVal, 'f', 0, 64)
+		} else {
+			val, err := nC.Value()
+			if err != nil {
+				return nil, err
+			}
+			if val == nil {
+				return nil, nil
+			}
+			nCVal = val.(string)
+			if strings.TrimSpace(nCVal) == "" {
+				return nil, nil
+			}
+		}
+		r, err := ajson.Eval(b, "$.models")
+		if err != nil {
+			return nil, err
+		}
+		if !r.IsArray() {
+			return nil, nil
+		}
+		arr, err := r.GetArray()
+		if err != nil {
+			return nil, err
+		}
+		if len(arr) == 0 {
+			return nil, nil
+		}
+
+		l := 0
+		if request.Limit != nil {
+			l = int(*request.Limit)
+		}
+		if len(arr) < l {
+			return nil, nil
+		}
+		request.Next = &nCVal
+
+		return s.List(
+			ctx,
+			request,
+			opts...,
+		)
+	}
 
 	switch {
 	case httpRes.StatusCode == 200:
@@ -346,10 +408,10 @@ func (s *Tenants) ListTenants(ctx context.Context, limit *int64, dir *operations
 
 // Upsert - Create or Update Tenant
 // Idempotently creates or updates a tenant. Required before associating destinations.
-func (s *Tenants) Upsert(ctx context.Context, tenantID string, params *components.TenantUpsert, opts ...operations.Option) (*operations.UpsertTenantResponse, error) {
+func (s *Tenants) Upsert(ctx context.Context, tenantID string, body *components.TenantUpsert, opts ...operations.Option) (*operations.UpsertTenantResponse, error) {
 	request := operations.UpsertTenantRequest{
 		TenantID: tenantID,
-		Params:   params,
+		Body:     body,
 	}
 
 	o := operations.Options{}
@@ -384,7 +446,7 @@ func (s *Tenants) Upsert(ctx context.Context, tenantID string, params *component
 		OAuth2Scopes:     nil,
 		SecuritySource:   s.sdkConfiguration.Security,
 	}
-	bodyReader, reqContentType, err := utils.SerializeRequestBody(ctx, request, false, true, "Params", "json", `request:"mediaType=application/json"`)
+	bodyReader, reqContentType, err := utils.SerializeRequestBody(ctx, request, false, true, "Body", "json", `request:"mediaType=application/json"`)
 	if err != nil {
 		return nil, err
 	}
