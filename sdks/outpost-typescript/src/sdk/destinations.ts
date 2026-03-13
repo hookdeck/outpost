@@ -46,13 +46,13 @@ export class Destinations extends ClientSDK {
    */
   async create(
     tenantId: string,
-    params: components.DestinationCreate,
+    body: components.DestinationCreate,
     options?: RequestOptions,
   ): Promise<components.Destination> {
     return unwrapAsync(destinationsCreate(
       this,
       tenantId,
-      params,
+      body,
       options,
     ));
   }
@@ -85,14 +85,14 @@ export class Destinations extends ClientSDK {
   async update(
     tenantId: string,
     destinationId: string,
-    params: components.DestinationUpdate,
+    body: components.DestinationUpdate,
     options?: RequestOptions,
   ): Promise<operations.UpdateTenantDestinationResponse> {
     return unwrapAsync(destinationsUpdate(
       this,
       tenantId,
       destinationId,
-      params,
+      body,
       options,
     ));
   }

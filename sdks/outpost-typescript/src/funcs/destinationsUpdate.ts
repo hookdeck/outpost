@@ -36,7 +36,7 @@ export function destinationsUpdate(
   client: OutpostCore,
   tenantId: string,
   destinationId: string,
-  params: components.DestinationUpdate,
+  body: components.DestinationUpdate,
   options?: RequestOptions,
 ): APIPromise<
   Result<
@@ -59,7 +59,7 @@ export function destinationsUpdate(
     client,
     tenantId,
     destinationId,
-    params,
+    body,
     options,
   ));
 }
@@ -68,7 +68,7 @@ async function $do(
   client: OutpostCore,
   tenantId: string,
   destinationId: string,
-  params: components.DestinationUpdate,
+  body: components.DestinationUpdate,
   options?: RequestOptions,
 ): Promise<
   [
@@ -93,7 +93,7 @@ async function $do(
   const input: operations.UpdateTenantDestinationRequest = {
     tenantId: tenantId,
     destinationId: destinationId,
-    params: params,
+    body: body,
   };
 
   const parsed = safeParse(
@@ -106,7 +106,7 @@ async function $do(
     return [parsed, { status: "invalid" }];
   }
   const payload = parsed.value;
-  const body = encodeJSON("body", payload.params, { explode: true });
+  const body$ = encodeJSON("body", payload.body, { explode: true });
 
   const pathParams = {
     destination_id: encodeSimple("destination_id", payload.destination_id, {
@@ -153,7 +153,7 @@ async function $do(
     baseURL: options?.serverURL,
     path: path,
     headers: headers,
-    body: body,
+    body: body$,
     userAgent: client._options.userAgent,
     timeoutMs: options?.timeoutMs || client._options.timeoutMs || -1,
   }, options);

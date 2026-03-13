@@ -107,7 +107,9 @@ async function $do(
     "prev": payload.prev,
     "status": payload.status,
     "tenant_id": payload.tenant_id,
+    "time[gt]": payload["time[gt]"],
     "time[gte]": payload["time[gte]"],
+    "time[lt]": payload["time[lt]"],
     "time[lte]": payload["time[lte]"],
     "topic": payload.topic,
   });

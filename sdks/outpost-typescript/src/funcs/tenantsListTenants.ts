@@ -39,10 +39,7 @@ import { Result } from "../types/fp.js";
  */
 export function tenantsListTenants(
   client: OutpostCore,
-  limit?: number | undefined,
-  dir?: operations.ListTenantsDir | undefined,
-  next?: string | undefined,
-  prev?: string | undefined,
+  request: operations.ListTenantsRequest,
   options?: RequestOptions,
 ): APIPromise<
   Result<
@@ -63,20 +60,14 @@ export function tenantsListTenants(
 > {
   return new APIPromise($do(
     client,
-    limit,
-    dir,
-    next,
-    prev,
+    request,
     options,
   ));
 }
 
 async function $do(
   client: OutpostCore,
-  limit?: number | undefined,
-  dir?: operations.ListTenantsDir | undefined,
-  next?: string | undefined,
-  prev?: string | undefined,
+  request: operations.ListTenantsRequest,
   options?: RequestOptions,
 ): Promise<
   [
@@ -98,15 +89,8 @@ async function $do(
     APICall,
   ]
 > {
-  const input: operations.ListTenantsRequest = {
-    limit: limit,
-    dir: dir,
-    next: next,
-    prev: prev,
-  };
-
   const parsed = safeParse(
-    input,
+    request,
     (value) => operations.ListTenantsRequest$outboundSchema.parse(value),
     "Input validation failed",
   );
@@ -120,6 +104,7 @@ async function $do(
 
   const query = encodeFormQuery({
     "dir": payload.dir,
+    "id": payload.id,
     "limit": payload.limit,
     "next": payload.next,
     "prev": payload.prev,

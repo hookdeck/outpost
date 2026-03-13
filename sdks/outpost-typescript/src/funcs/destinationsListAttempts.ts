@@ -120,7 +120,9 @@ async function $do(
     "order_by": payload.order_by,
     "prev": payload.prev,
     "status": payload.status,
+    "time[gt]": payload["time[gt]"],
     "time[gte]": payload["time[gte]"],
+    "time[lt]": payload["time[lt]"],
     "time[lte]": payload["time[lte]"],
     "topic": payload.topic,
   });

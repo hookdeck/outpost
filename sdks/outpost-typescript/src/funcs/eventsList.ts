@@ -98,12 +98,15 @@ async function $do(
 
   const query = encodeFormQuery({
     "dir": payload.dir,
+    "id": payload.id,
     "limit": payload.limit,
     "next": payload.next,
     "order_by": payload.order_by,
     "prev": payload.prev,
     "tenant_id": payload.tenant_id,
+    "time[gt]": payload["time[gt]"],
     "time[gte]": payload["time[gte]"],
+    "time[lt]": payload["time[lt]"],
     "time[lte]": payload["time[lte]"],
     "topic": payload.topic,
   });

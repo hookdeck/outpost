@@ -10,6 +10,11 @@ import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 /**
+ * Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
+ */
+export type ListTenantDestinationAttemptsEventId = string | Array<string>;
+
+/**
  * Filter attempts by status.
  */
 export const ListTenantDestinationAttemptsStatus = {
@@ -24,12 +29,12 @@ export type ListTenantDestinationAttemptsStatus = ClosedEnum<
 >;
 
 /**
- * Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
+ * Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
  */
 export type ListTenantDestinationAttemptsTopic = string | Array<string>;
 
 /**
- * Fields to include in the response. Can be specified multiple times or comma-separated.
+ * Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
  *
  * @remarks
  * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -75,15 +80,15 @@ export type ListTenantDestinationAttemptsRequest = {
    */
   destinationId: string;
   /**
-   * Filter attempts by event ID.
+   * Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
    */
-  eventId?: string | undefined;
+  eventId?: string | Array<string> | undefined;
   /**
    * Filter attempts by status.
    */
   status?: ListTenantDestinationAttemptsStatus | undefined;
   /**
-   * Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
+   * Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
    */
   topic?: string | Array<string> | undefined;
   /**
@@ -94,6 +99,14 @@ export type ListTenantDestinationAttemptsRequest = {
    * Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
    */
   timeLte?: Date | undefined;
+  /**
+   * Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format).
+   */
+  timeGt?: Date | undefined;
+  /**
+   * Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format).
+   */
+  timeLt?: Date | undefined;
   /**
    * Number of items per page (default 100, max 1000).
    */
@@ -107,7 +120,7 @@ export type ListTenantDestinationAttemptsRequest = {
    */
   prev?: string | undefined;
   /**
-   * Fields to include in the response. Can be specified multiple times or comma-separated.
+   * Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
    *
    * @remarks
    * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -124,6 +137,44 @@ export type ListTenantDestinationAttemptsRequest = {
    */
   dir?: ListTenantDestinationAttemptsDir | undefined;
 };
+
+/** @internal */
+export const ListTenantDestinationAttemptsEventId$inboundSchema: z.ZodType<
+  ListTenantDestinationAttemptsEventId,
+  z.ZodTypeDef,
+  unknown
+> = z.union([z.string(), z.array(z.string())]);
+/** @internal */
+export type ListTenantDestinationAttemptsEventId$Outbound =
+  | string
+  | Array<string>;
+
+/** @internal */
+export const ListTenantDestinationAttemptsEventId$outboundSchema: z.ZodType<
+  ListTenantDestinationAttemptsEventId$Outbound,
+  z.ZodTypeDef,
+  ListTenantDestinationAttemptsEventId
+> = z.union([z.string(), z.array(z.string())]);
+
+export function listTenantDestinationAttemptsEventIdToJSON(
+  listTenantDestinationAttemptsEventId: ListTenantDestinationAttemptsEventId,
+): string {
+  return JSON.stringify(
+    ListTenantDestinationAttemptsEventId$outboundSchema.parse(
+      listTenantDestinationAttemptsEventId,
+    ),
+  );
+}
+export function listTenantDestinationAttemptsEventIdFromJSON(
+  jsonString: string,
+): SafeParseResult<ListTenantDestinationAttemptsEventId, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) =>
+      ListTenantDestinationAttemptsEventId$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListTenantDestinationAttemptsEventId' from JSON`,
+  );
+}
 
 /** @internal */
 export const ListTenantDestinationAttemptsStatus$inboundSchema: z.ZodNativeEnum<
@@ -237,12 +288,16 @@ export const ListTenantDestinationAttemptsRequest$inboundSchema: z.ZodType<
 > = z.object({
   tenant_id: z.string(),
   destination_id: z.string(),
-  event_id: z.string().optional(),
+  event_id: z.union([z.string(), z.array(z.string())]).optional(),
   status: ListTenantDestinationAttemptsStatus$inboundSchema.optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
   "time[gte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
     .optional(),
   "time[lte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
+    .optional(),
+  "time[gt]": z.string().datetime({ offset: true }).transform(v => new Date(v))
+    .optional(),
+  "time[lt]": z.string().datetime({ offset: true }).transform(v => new Date(v))
     .optional(),
   limit: z.number().int().default(100),
   next: z.string().optional(),
@@ -257,6 +312,8 @@ export const ListTenantDestinationAttemptsRequest$inboundSchema: z.ZodType<
     "event_id": "eventId",
     "time[gte]": "timeGte",
     "time[lte]": "timeLte",
+    "time[gt]": "timeGt",
+    "time[lt]": "timeLt",
     "order_by": "orderBy",
   });
 });
@@ -264,11 +321,13 @@ export const ListTenantDestinationAttemptsRequest$inboundSchema: z.ZodType<
 export type ListTenantDestinationAttemptsRequest$Outbound = {
   tenant_id: string;
   destination_id: string;
-  event_id?: string | undefined;
+  event_id?: string | Array<string> | undefined;
   status?: string | undefined;
   topic?: string | Array<string> | undefined;
   "time[gte]"?: string | undefined;
   "time[lte]"?: string | undefined;
+  "time[gt]"?: string | undefined;
+  "time[lt]"?: string | undefined;
   limit: number;
   next?: string | undefined;
   prev?: string | undefined;
@@ -285,11 +344,13 @@ export const ListTenantDestinationAttemptsRequest$outboundSchema: z.ZodType<
 > = z.object({
   tenantId: z.string(),
   destinationId: z.string(),
-  eventId: z.string().optional(),
+  eventId: z.union([z.string(), z.array(z.string())]).optional(),
   status: ListTenantDestinationAttemptsStatus$outboundSchema.optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
   timeGte: z.date().transform(v => v.toISOString()).optional(),
   timeLte: z.date().transform(v => v.toISOString()).optional(),
+  timeGt: z.date().transform(v => v.toISOString()).optional(),
+  timeLt: z.date().transform(v => v.toISOString()).optional(),
   limit: z.number().int().default(100),
   next: z.string().optional(),
   prev: z.string().optional(),
@@ -303,6 +364,8 @@ export const ListTenantDestinationAttemptsRequest$outboundSchema: z.ZodType<
     eventId: "event_id",
     timeGte: "time[gte]",
     timeLte: "time[lte]",
+    timeGt: "time[gt]",
+    timeLt: "time[lt]",
     orderBy: "order_by",
   });
 });

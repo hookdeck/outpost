@@ -10,7 +10,21 @@ import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 /**
- * Filter events by topic(s). Can be specified multiple times or comma-separated.
+ * Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`).
+ */
+export type ListEventsId = string | Array<string>;
+
+/**
+ * Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
+ *
+ * @remarks
+ * When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
+ * If not provided with API key auth, returns events from all tenants.
+ */
+export type ListEventsTenantId = string | Array<string>;
+
+/**
+ * Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
  */
 export type ListEventsTopic = string | Array<string>;
 
@@ -39,11 +53,19 @@ export type ListEventsDir = ClosedEnum<typeof ListEventsDir>;
 
 export type ListEventsRequest = {
   /**
-   * Filter events by tenant ID. If not provided, returns events from all tenants.
+   * Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`).
    */
-  tenantId?: string | undefined;
+  id?: string | Array<string> | undefined;
   /**
-   * Filter events by topic(s). Can be specified multiple times or comma-separated.
+   * Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
+   *
+   * @remarks
+   * When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
+   * If not provided with API key auth, returns events from all tenants.
+   */
+  tenantId?: string | Array<string> | undefined;
+  /**
+   * Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
    */
   topic?: string | Array<string> | undefined;
   /**
@@ -54,6 +76,14 @@ export type ListEventsRequest = {
    * Filter events with time <= value (RFC3339 or YYYY-MM-DD format).
    */
   timeLte?: Date | undefined;
+  /**
+   * Filter events with time > value (RFC3339 or YYYY-MM-DD format).
+   */
+  timeGt?: Date | undefined;
+  /**
+   * Filter events with time < value (RFC3339 or YYYY-MM-DD format).
+   */
+  timeLt?: Date | undefined;
   /**
    * Number of items per page (default 100, max 1000).
    */
@@ -75,6 +105,68 @@ export type ListEventsRequest = {
    */
   dir?: ListEventsDir | undefined;
 };
+
+/** @internal */
+export const ListEventsId$inboundSchema: z.ZodType<
+  ListEventsId,
+  z.ZodTypeDef,
+  unknown
+> = z.union([z.string(), z.array(z.string())]);
+/** @internal */
+export type ListEventsId$Outbound = string | Array<string>;
+
+/** @internal */
+export const ListEventsId$outboundSchema: z.ZodType<
+  ListEventsId$Outbound,
+  z.ZodTypeDef,
+  ListEventsId
+> = z.union([z.string(), z.array(z.string())]);
+
+export function listEventsIdToJSON(listEventsId: ListEventsId): string {
+  return JSON.stringify(ListEventsId$outboundSchema.parse(listEventsId));
+}
+export function listEventsIdFromJSON(
+  jsonString: string,
+): SafeParseResult<ListEventsId, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => ListEventsId$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListEventsId' from JSON`,
+  );
+}
+
+/** @internal */
+export const ListEventsTenantId$inboundSchema: z.ZodType<
+  ListEventsTenantId,
+  z.ZodTypeDef,
+  unknown
+> = z.union([z.string(), z.array(z.string())]);
+/** @internal */
+export type ListEventsTenantId$Outbound = string | Array<string>;
+
+/** @internal */
+export const ListEventsTenantId$outboundSchema: z.ZodType<
+  ListEventsTenantId$Outbound,
+  z.ZodTypeDef,
+  ListEventsTenantId
+> = z.union([z.string(), z.array(z.string())]);
+
+export function listEventsTenantIdToJSON(
+  listEventsTenantId: ListEventsTenantId,
+): string {
+  return JSON.stringify(
+    ListEventsTenantId$outboundSchema.parse(listEventsTenantId),
+  );
+}
+export function listEventsTenantIdFromJSON(
+  jsonString: string,
+): SafeParseResult<ListEventsTenantId, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => ListEventsTenantId$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListEventsTenantId' from JSON`,
+  );
+}
 
 /** @internal */
 export const ListEventsTopic$inboundSchema: z.ZodType<
@@ -131,11 +223,16 @@ export const ListEventsRequest$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  tenant_id: z.string().optional(),
+  id: z.union([z.string(), z.array(z.string())]).optional(),
+  tenant_id: z.union([z.string(), z.array(z.string())]).optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
   "time[gte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
     .optional(),
   "time[lte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
+    .optional(),
+  "time[gt]": z.string().datetime({ offset: true }).transform(v => new Date(v))
+    .optional(),
+  "time[lt]": z.string().datetime({ offset: true }).transform(v => new Date(v))
     .optional(),
   limit: z.number().int().default(100),
   next: z.string().optional(),
@@ -147,15 +244,20 @@ export const ListEventsRequest$inboundSchema: z.ZodType<
     "tenant_id": "tenantId",
     "time[gte]": "timeGte",
     "time[lte]": "timeLte",
+    "time[gt]": "timeGt",
+    "time[lt]": "timeLt",
     "order_by": "orderBy",
   });
 });
 /** @internal */
 export type ListEventsRequest$Outbound = {
-  tenant_id?: string | undefined;
+  id?: string | Array<string> | undefined;
+  tenant_id?: string | Array<string> | undefined;
   topic?: string | Array<string> | undefined;
   "time[gte]"?: string | undefined;
   "time[lte]"?: string | undefined;
+  "time[gt]"?: string | undefined;
+  "time[lt]"?: string | undefined;
   limit: number;
   next?: string | undefined;
   prev?: string | undefined;
@@ -169,10 +271,13 @@ export const ListEventsRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   ListEventsRequest
 > = z.object({
-  tenantId: z.string().optional(),
+  id: z.union([z.string(), z.array(z.string())]).optional(),
+  tenantId: z.union([z.string(), z.array(z.string())]).optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
   timeGte: z.date().transform(v => v.toISOString()).optional(),
   timeLte: z.date().transform(v => v.toISOString()).optional(),
+  timeGt: z.date().transform(v => v.toISOString()).optional(),
+  timeLt: z.date().transform(v => v.toISOString()).optional(),
   limit: z.number().int().default(100),
   next: z.string().optional(),
   prev: z.string().optional(),
@@ -183,6 +288,8 @@ export const ListEventsRequest$outboundSchema: z.ZodType<
     tenantId: "tenant_id",
     timeGte: "time[gte]",
     timeLte: "time[lte]",
+    timeGt: "time[gt]",
+    timeLt: "time[lt]",
     orderBy: "order_by",
   });
 });

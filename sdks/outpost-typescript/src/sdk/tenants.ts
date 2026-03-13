@@ -26,18 +26,12 @@ export class Tenants extends ClientSDK {
    * When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
    */
   async listTenants(
-    limit?: number | undefined,
-    dir?: operations.ListTenantsDir | undefined,
-    next?: string | undefined,
-    prev?: string | undefined,
+    request: operations.ListTenantsRequest,
     options?: RequestOptions,
   ): Promise<components.TenantPaginatedResult> {
     return unwrapAsync(tenantsListTenants(
       this,
-      limit,
-      dir,
-      next,
-      prev,
+      request,
       options,
     ));
   }
@@ -50,13 +44,13 @@ export class Tenants extends ClientSDK {
    */
   async upsert(
     tenantId: string,
-    params?: components.TenantUpsert | undefined,
+    body?: components.TenantUpsert | undefined,
     options?: RequestOptions,
   ): Promise<components.Tenant> {
     return unwrapAsync(tenantsUpsert(
       this,
       tenantId,
-      params,
+      body,
       options,
     ));
   }

@@ -7,7 +7,7 @@ import { CreateTenantDestinationRequest } from "@hookdeck/outpost-sdk/models/ope
 
 let value: CreateTenantDestinationRequest = {
   tenantId: "<id>",
-  params: {
+  body: {
     type: "aws_s3",
     topics: "*",
     config: {
@@ -31,4 +31,4 @@ let value: CreateTenantDestinationRequest = {
 | Field                                                                 | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `tenantId`                                                            | *string*                                                              | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
-| `params`                                                              | *components.DestinationCreate*                                        | :heavy_check_mark:                                                    | N/A                                                                   |
+| `body`                                                                | *components.DestinationCreate*                                        | :heavy_check_mark:                                                    | N/A                                                                   |
