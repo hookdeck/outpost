@@ -33,7 +33,7 @@ run_go() {
   unset GOCACHE
   speakeasy run -t outpost-go
   echo "Building Go SDK..."
-  (cd "$REPO_ROOT/sdks/outpost-go" && go build .)
+  (cd "$REPO_ROOT/sdks/outpost-go" && go build ./...)
   echo "Go SDK regeneration and build complete."
 }
 
