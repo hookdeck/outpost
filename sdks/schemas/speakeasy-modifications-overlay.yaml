@@ -206,6 +206,16 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
+  - target: $["paths"]["/tenants"]["get"]
+    update:
+      x-speakeasy-name-override: list
+      x-speakeasy-max-method-params: 0
+    x-speakeasy-metadata:
+      after: sdk.tenants.list()
+      before: sdk.Tenants.listTenants()
+      created_at: 1745611620645
+      reviewed_at: 1745611624395
+      type: method-name
   - target: $["paths"]["/tenants/{tenant_id}"]["get"]
     update:
       x-speakeasy-name-override: get

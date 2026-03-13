@@ -545,6 +545,10 @@ cd ../..
 # Regenerate SDK (optional, requires Speakeasy CLI)
 cd spec-sdk-tests
 ./scripts/regenerate-sdk.sh
+# For Go: the script unsets GOMODCACHE/GOCACHE so Go uses your default module cache.
+# If you run Speakeasy for Go directly and see "module found but does not contain package",
+# unset GOMODCACHE and GOCACHE and retry (e.g. in Cursor the sandbox can set a cache path
+# that breaks module resolution).
 
 # Run spec-sdk-tests (RECOMMENDED - includes pre-flight checks)
 cd spec-sdk-tests
