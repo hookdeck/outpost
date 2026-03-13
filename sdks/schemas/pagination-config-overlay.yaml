@@ -1,0 +1,85 @@
+overlay: 1.0.0
+x-speakeasy-jsonpath: rfc9535
+info:
+  title: Pagination Config
+  version: 0.0.1
+  x-speakeasy-metadata:
+    type: pagination-config
+    description: "Configures cursor-based pagination for all list endpoints (shared across all SDKs)"
+extends: ../../docs/apis/openapi.yaml
+actions:
+  # Pagination config: GET /tenants
+  - target: $["paths"]["/tenants"]["get"]
+    update:
+      x-speakeasy-pagination:
+        type: cursor
+        inputs:
+          - name: next
+            in: parameters
+            type: cursor
+          - name: limit
+            in: parameters
+            type: limit
+        outputs:
+          nextCursor: $.pagination.next
+          results: $.models
+    x-speakeasy-metadata:
+      type: pagination-config
+      description: "Configure cursor-based pagination for tenants listing"
+
+  # Pagination config: GET /events
+  - target: $["paths"]["/events"]["get"]
+    update:
+      x-speakeasy-pagination:
+        type: cursor
+        inputs:
+          - name: next
+            in: parameters
+            type: cursor
+          - name: limit
+            in: parameters
+            type: limit
+        outputs:
+          nextCursor: $.pagination.next
+          results: $.models
+    x-speakeasy-metadata:
+      type: pagination-config
+      description: "Configure cursor-based pagination for events listing"
+
+  # Pagination config: GET /attempts
+  - target: $["paths"]["/attempts"]["get"]
+    update:
+      x-speakeasy-pagination:
+        type: cursor
+        inputs:
+          - name: next
+            in: parameters
+            type: cursor
+          - name: limit
+            in: parameters
+            type: limit
+        outputs:
+          nextCursor: $.pagination.next
+          results: $.models
+    x-speakeasy-metadata:
+      type: pagination-config
+      description: "Configure cursor-based pagination for attempts listing"
+
+  # Pagination config: GET /tenants/.../destinations/.../attempts
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]
+    update:
+      x-speakeasy-pagination:
+        type: cursor
+        inputs:
+          - name: next
+            in: parameters
+            type: cursor
+          - name: limit
+            in: parameters
+            type: limit
+        outputs:
+          nextCursor: $.pagination.next
+          results: $.models
+    x-speakeasy-metadata:
+      type: pagination-config
+      description: "Configure cursor-based pagination for destination attempts listing"
