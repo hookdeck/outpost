@@ -23,6 +23,7 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
   * [SDK Example Usage](#sdk-example-usage)
   * [Authentication](#authentication)
   * [Available Resources and Operations](#available-resources-and-operations)
+  * [Pagination](#pagination)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
   * [Server Selection](#server-selection)
@@ -157,7 +158,7 @@ func main() {
 
 ### [Tenants](docs/sdks/tenants/README.md)
 
-* [ListTenants](docs/sdks/tenants/README.md#listtenants) - List Tenants
+* [List](docs/sdks/tenants/README.md#list) - List Tenants
 * [Upsert](docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
 * [Get](docs/sdks/tenants/README.md#get) - Get Tenant
 * [Delete](docs/sdks/tenants/README.md#delete) - Delete Tenant
@@ -170,6 +171,55 @@ func main() {
 
 </details>
 <!-- End Available Resources and Operations [operations] -->
+
+<!-- Start Pagination [pagination] -->
+## Pagination
+
+Some of the endpoints in this SDK support pagination. To use pagination, you make your SDK calls as usual, but the
+returned response object will have a `Next` method that can be called to pull down the next group of results. If the
+return value of `Next` is `nil`, then there are no more pages to be fetched.
+
+Here's an example of one such pagination call:
+```go
+package main
+
+import (
+	"context"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
+	"log"
+)
+
+func main() {
+	ctx := context.Background()
+
+	s := outpostgo.New(
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
+	)
+
+	res, err := s.Tenants.List(ctx, operations.ListTenantsRequest{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	if res.TenantPaginatedResult != nil {
+		for {
+			// handle items
+
+			res, err = res.Next()
+
+			if err != nil {
+				// handle error
+			}
+
+			if res == nil {
+				break
+			}
+		}
+	}
+}
+
+```
+<!-- End Pagination [pagination] -->
 
 <!-- Start Retries [retries] -->
 ## Retries

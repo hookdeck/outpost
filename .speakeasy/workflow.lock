@@ -1,9 +1,16 @@
-speakeasyVersion: 1.741.7
+speakeasyVersion: 1.753.0
 sources:
     Outpost API:
         sourceNamespace: outpost-api
         sourceRevisionDigest: sha256:837c1ec11841961c17673ee40729959fce25fb87c9ca09f822e2d88805b5556a
         sourceBlobDigest: sha256:0210b5211be69672b9fdb4ed35188fd778a0fc3fad0a7f426d2f0f7d0fb86067
+        tags:
+            - latest
+            - 0.0.1
+    Outpost API (Go):
+        sourceNamespace: outpost-api
+        sourceRevisionDigest: sha256:649255030a0e1120fe4b710d403293016bd61346e5fb0a94e38454114cf424eb
+        sourceBlobDigest: sha256:5a43dbd084bff3cb38217baf4d335f968a2c0014b63e98da5342a074f1ad19ac
         tags:
             - latest
             - 0.0.1
@@ -16,12 +23,12 @@ sources:
             - 0.0.1
 targets:
     outpost-go:
-        source: Outpost API
+        source: Outpost API (Go)
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:837c1ec11841961c17673ee40729959fce25fb87c9ca09f822e2d88805b5556a
-        sourceBlobDigest: sha256:0210b5211be69672b9fdb4ed35188fd778a0fc3fad0a7f426d2f0f7d0fb86067
+        sourceRevisionDigest: sha256:649255030a0e1120fe4b710d403293016bd61346e5fb0a94e38454114cf424eb
+        sourceBlobDigest: sha256:5a43dbd084bff3cb38217baf4d335f968a2c0014b63e98da5342a074f1ad19ac
         codeSamplesNamespace: outpost-api-go-code-samples
-        codeSamplesRevisionDigest: sha256:23dd5f36760106a03d1683e94c80a2a1299b2b2564c20e0e97c98df856f9d822
+        codeSamplesRevisionDigest: sha256:5497485cd20e7b373d04847082f3154b2e0697617fa0cb05f18e0ecf734cd660
     outpost-python:
         source: Outpost API (Python)
         sourceNamespace: outpost-api
@@ -47,6 +54,18 @@ workflow:
                 - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
                 - location: ./sdks/schemas/security-collapse-overlay.yaml
                 - location: ./sdks/schemas/error-types.yaml
+                - location: ./sdks/schemas/pagination-config-overlay.yaml
+            registry:
+                location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api
+        Outpost API (Go):
+            inputs:
+                - location: ./docs/apis/openapi.yaml
+            overlays:
+                - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
+                - location: ./sdks/schemas/security-collapse-overlay.yaml
+                - location: ./sdks/schemas/error-types.yaml
+                - location: ./sdks/schemas/pagination-config-overlay.yaml
+                - location: ./sdks/schemas/go-array-params-overlay.yaml
             registry:
                 location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api
         Outpost API (Python):
@@ -56,13 +75,14 @@ workflow:
                 - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
                 - location: ./sdks/schemas/security-collapse-overlay.yaml
                 - location: ./sdks/schemas/error-types.yaml
-                - location: ./sdks/schemas/pagination-fixes-overlay.yaml
+                - location: ./sdks/schemas/pagination-config-overlay.yaml
+                - location: ./sdks/schemas/python-pagination-fixes-overlay.yaml
             registry:
                 location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api
     targets:
         outpost-go:
             target: go
-            source: Outpost API
+            source: Outpost API (Go)
             output: ./sdks/outpost-go
             codeSamples:
                 registry:
