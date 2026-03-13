@@ -82,7 +82,7 @@ func NewDeliveryTask(event Event, destinationID string) DeliveryTask {
 	return DeliveryTask{
 		Event:         event,
 		DestinationID: destinationID,
-		Attempt:       0,
+		Attempt:       1,
 	}
 }
 

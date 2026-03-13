@@ -34,8 +34,8 @@ func (s *basicSuite) TestRetry_FailedDeliveryAutoRetries() {
 	s.Require().GreaterOrEqual(len(resp.Models), 2)
 
 	for i, atm := range resp.Models {
-		s.Equal(float64(i), atm["attempt_number"],
-			"attempt %d should have attempt_number=%d (automated retry increments)", i, i)
+		s.Equal(float64(i+1), atm["attempt_number"],
+			"attempt %d should have attempt_number=%d (automated retry increments)", i, i+1)
 	}
 }
 
@@ -51,14 +51,14 @@ func (s *basicSuite) TestRetry_ManualRetryCreatesNewAttempt() {
 	// Wait for initial delivery
 	s.waitForNewAttempts(tenant.ID, 1)
 
-	// Verify first attempt has attempt_number=0
+	// Verify first attempt has attempt_number=1
 	var attResp struct {
 		Models []map[string]any `json:"models"`
 	}
 	status := s.doJSON(http.MethodGet, s.apiURL("/attempts?tenant_id="+tenant.ID+"&event_id="+eventID), nil, &attResp)
 	s.Require().Equal(http.StatusOK, status)
 	s.Require().NotEmpty(attResp.Models)
-	s.Equal(float64(0), attResp.Models[0]["attempt_number"])
+	s.Equal(float64(1), attResp.Models[0]["attempt_number"])
 
 	// Manual retry
 	retryStatus := s.retryEvent(eventID, dest.ID)
@@ -75,9 +75,9 @@ func (s *basicSuite) TestRetry_ManualRetryCreatesNewAttempt() {
 	s.Require().Equal(http.StatusOK, status)
 	s.Require().Len(verifyResp.Models, 2)
 
-	// Both should have attempt_number=0 (manual retry resets)
+	// Both should have attempt_number=1 (manual retry resets)
 	for _, atm := range verifyResp.Models {
-		s.Equal(float64(0), atm["attempt_number"])
+		s.Equal(float64(1), atm["attempt_number"])
 	}
 
 	// Verify one manual=true
