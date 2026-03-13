@@ -58,13 +58,13 @@ import (
 //   status:             i % 5  → 0,1,2=success, 3,4=failed
 //   code:               success → i%2==0 ? "200" : "201"
 //                       failed  → i%2==0 ? "500" : "422"
-//   attempt_number:     i % 4  → 0,1,2,3
+//   attempt_number:     i % 4 + 1  → 1,2,3,4
 //   manual:             i % 10 == 9
 //   eligible_for_retry: i % 3 != 2
 //
-// FIXME: manual retries should always have attempt_number=0 (they start a new
+// FIXME: manual retries should always have attempt_number=1 (they start a new
 // chain), but this dataset assigns them independently. Update the formula so
-// manual=true implies attempt_number=0, then fix derived totals and assertions.
+// manual=true implies attempt_number=1, then fix derived totals and assertions.
 //
 // ── Derived Totals (Tenant 1, all 300) ───────────────────────────────────
 //
@@ -83,10 +83,10 @@ import (
 //   successful_rate (no gran):     180/2678400
 //   failed_rate (no gran):         120/2678400
 //   by code:                       200=90, 201=90, 500=60, 422=60
-//   first_attempt (i%4==0):        75
-//   retry (i%4>0):                225
+//   first_attempt (i%4+1==1):      75
+//   retry (i%4+1>1):              225
 //   manual (i%10==9):              30
-//   avg_attempt_number:            450/300 = 1.5
+//   avg_attempt_number:            750/300 = 2.5
 //
 // Dense day — Jan 15 (250 events, indices 50..299):
 //   hourly buckets:  10:00→25, 11:00→50, 12:00→100, 13:00→50, 14:00→25
@@ -94,7 +94,7 @@ import (
 // ── Tenant 2 ─────────────────────────────────────────────────────────────
 //
 //   5 events, all topic=user.created, dest=dest_2.1, status=success, code=200,
-//   attempt_number=0, manual=false, eligible_for_retry=true
+//   attempt_number=1, manual=false, eligible_for_retry=true
 //
 //   Jan 5 09:00, Jan 10 09:00, Jan 15 12:15, Jan 22 09:00, Jan 27 09:00
 //
@@ -179,7 +179,7 @@ func buildMetricsDataset() *metricsDataset {
 			status = "failed"
 		}
 		code := codes[status][idx%2]
-		attemptNum := idx % 4
+		attemptNum := idx%4 + 1
 		manual := idx%10 == 9
 		eligible := idx%3 != 2
 
@@ -251,7 +251,7 @@ func buildMetricsDataset() *metricsDataset {
 			testutil.AttemptFactory.WithStatus("success"),
 			testutil.AttemptFactory.WithCode("200"),
 			testutil.AttemptFactory.WithTime(bt.Add(time.Millisecond)),
-			testutil.AttemptFactory.WithAttemptNumber(0),
+			testutil.AttemptFactory.WithAttemptNumber(1),
 			testutil.AttemptFactory.WithManual(false),
 		)
 		entries = append(entries, &models.LogEntry{Event: event, Attempt: attempt})

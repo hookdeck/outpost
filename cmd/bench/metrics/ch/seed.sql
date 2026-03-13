@@ -55,10 +55,10 @@ FROM numbers({rows:UInt64});
 -- ============================================================================
 --
 -- Each attempt's time = event_time + (attempt_number * 1 second).
--- manual: only attempt_number >= 2 AND n%10=9 (10% of late retries).
+-- manual: only attempt_number >= 3 AND n%10=9 (10% of late retries).
 -- Code: success->200/201, failed->500/422 (alternating on n%2).
 
-SELECT '[2/7] Inserting attempt 0 (all events)...' AS message;
+SELECT '[2/7] Inserting attempt 1 (all events)...' AS message;
 
 INSERT INTO attempts (
   event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
@@ -95,10 +95,10 @@ SELECT
   )                                                             AS code,
   ''                                                            AS response_data,
   false                                                         AS manual,
-  toUInt32(0)                                                   AS attempt_number
+  toUInt32(1)                                                   AS attempt_number
 FROM numbers({rows:UInt64});
 
-SELECT '[3/7] Inserting attempt 1 (20% of events)...' AS message;
+SELECT '[3/7] Inserting attempt 2 (20% of events)...' AS message;
 
 INSERT INTO attempts (
   event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
@@ -135,11 +135,11 @@ SELECT
   )                                                             AS code,
   ''                                                            AS response_data,
   false                                                         AS manual,
-  toUInt32(1)                                                   AS attempt_number
+  toUInt32(2)                                                   AS attempt_number
 FROM numbers({rows:UInt64})
 WHERE number % 5 = 0;
 
-SELECT '[4/7] Inserting attempt 2 (5% of events)...' AS message;
+SELECT '[4/7] Inserting attempt 3 (5% of events)...' AS message;
 
 INSERT INTO attempts (
   event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
@@ -176,11 +176,11 @@ SELECT
   )                                                             AS code,
   ''                                                            AS response_data,
   number % 10 = 9                                               AS manual,
-  toUInt32(2)                                                   AS attempt_number
+  toUInt32(3)                                                   AS attempt_number
 FROM numbers({rows:UInt64})
 WHERE number % 20 = 0;
 
-SELECT '[5/7] Inserting attempt 3 (1% of events)...' AS message;
+SELECT '[5/7] Inserting attempt 4 (1% of events)...' AS message;
 
 INSERT INTO attempts (
   event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
@@ -217,7 +217,7 @@ SELECT
   )                                                             AS code,
   ''                                                            AS response_data,
   number % 10 = 9                                               AS manual,
-  toUInt32(3)                                                   AS attempt_number
+  toUInt32(4)                                                   AS attempt_number
 FROM numbers({rows:UInt64})
 WHERE number % 100 = 0;
 

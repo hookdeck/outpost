@@ -66,10 +66,10 @@ FROM generate_series(0, :'rows_count'::int - 1) AS n;
 --
 -- Shared columns reuse the same expressions as events.
 -- Each attempt's time = event_time + (attempt_number * 1 second).
--- manual: only attempt_number >= 2 AND n%10=9 (10% of late retries).
+-- manual: only attempt_number >= 3 AND n%10=9 (10% of late retries).
 -- Code: success→200/201, failed→500/422 (alternating on n%2).
 
-\echo [2/7] Inserting attempt 0 (all events)...
+\echo [2/7] Inserting attempt 1 (all events)...
 
 INSERT INTO attempts (
   id, event_id, tenant_id, destination_id, topic, status, time,
@@ -93,7 +93,7 @@ SELECT
     * ('2000-02-01'::timestamptz - '2000-01-01'::timestamptz)
     + interval '1 second'
                                                         AS time,
-  0                                                     AS attempt_number,
+  1                                                     AS attempt_number,
   false                                                 AS manual,
   CASE
     WHEN n % 5 != 0 THEN CASE WHEN n%2=0 THEN '200' ELSE '201' END
@@ -109,7 +109,7 @@ SELECT
   '{}'::jsonb                                           AS event_metadata
 FROM generate_series(0, :'rows_count'::int - 1) AS n;
 
-\echo [3/7] Inserting attempt 1 (20% of events)...
+\echo [3/7] Inserting attempt 2 (20% of events)...
 
 INSERT INTO attempts (
   id, event_id, tenant_id, destination_id, topic, status, time,
@@ -133,7 +133,7 @@ SELECT
     * ('2000-02-01'::timestamptz - '2000-01-01'::timestamptz)
     + interval '2 seconds'
                                                         AS time,
-  1                                                     AS attempt_number,
+  2                                                     AS attempt_number,
   false                                                 AS manual,
   CASE
     WHEN n % 20 != 0 THEN CASE WHEN n%2=0 THEN '200' ELSE '201' END
@@ -150,7 +150,7 @@ SELECT
 FROM generate_series(0, :'rows_count'::int - 1) AS n
 WHERE n % 5 = 0;
 
-\echo [4/7] Inserting attempt 2 (5% of events)...
+\echo [4/7] Inserting attempt 3 (5% of events)...
 
 INSERT INTO attempts (
   id, event_id, tenant_id, destination_id, topic, status, time,
@@ -174,7 +174,7 @@ SELECT
     * ('2000-02-01'::timestamptz - '2000-01-01'::timestamptz)
     + interval '3 seconds'
                                                         AS time,
-  2                                                     AS attempt_number,
+  3                                                     AS attempt_number,
   (n % 10 = 9)                                          AS manual,
   CASE
     WHEN n % 100 != 0 THEN CASE WHEN n%2=0 THEN '200' ELSE '201' END
@@ -191,7 +191,7 @@ SELECT
 FROM generate_series(0, :'rows_count'::int - 1) AS n
 WHERE n % 20 = 0;
 
-\echo [5/7] Inserting attempt 3 (1% of events)...
+\echo [5/7] Inserting attempt 4 (1% of events)...
 
 INSERT INTO attempts (
   id, event_id, tenant_id, destination_id, topic, status, time,
@@ -215,7 +215,7 @@ SELECT
     * ('2000-02-01'::timestamptz - '2000-01-01'::timestamptz)
     + interval '4 seconds'
                                                         AS time,
-  3                                                     AS attempt_number,
+  4                                                     AS attempt_number,
   (n % 10 = 9)                                          AS manual,
   CASE
     WHEN n % 200 != 0 THEN CASE WHEN n%2=0 THEN '200' ELSE '201' END

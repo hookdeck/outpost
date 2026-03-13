@@ -11,10 +11,10 @@
 # event→attempt chains (retries share event_id), and prints a checklist.
 #
 # Dashboard layout (2 rows, 5 API calls):
-#   Row 1: Event count (attempt_number=0)  |  Delivery events (stacked success/failed)
+#   Row 1: Event count (attempt_number=1)  |  Delivery events (stacked success/failed)
 #   Row 2: Error rate  |  By status code (webhook only)  |  By topic
 #
-# Destinations list: 24h sparkline per row (attempt_number=0, 4h granularity)
+# Destinations list: 24h sparkline per row (attempt_number=1, 4h granularity)
 
 set -euo pipefail
 
@@ -291,7 +291,7 @@ run_retry_heavy() {
     [ ] Event count bars are SHORTER than delivery events bars
     [ ] Ratio: delivery_events should be ~2-3x event_count
   KEY CHECK:
-    This scenario exists to verify that the event_count (attempt_number=0)
+    This scenario exists to verify that the event_count (attempt_number=1)
     chart shows fewer items than the delivery events (all attempts) chart.
     If they look identical, the retry chains are not working correctly.
 EOF

@@ -349,10 +349,10 @@ func (s *logStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRe
 			selectExprs = append(selectExprs, "COUNT(*) FILTER (WHERE status = 'failed')::float8 / COUNT(*)")
 			order = append(order, sfErrorRate)
 		case "first_attempt_count":
-			selectExprs = append(selectExprs, "COUNT(*) FILTER (WHERE attempt_number = 0 AND NOT manual)")
+			selectExprs = append(selectExprs, "COUNT(*) FILTER (WHERE attempt_number = 1 AND NOT manual)")
 			order = append(order, sfFirstAttempt)
 		case "retry_count":
-			selectExprs = append(selectExprs, "COUNT(*) FILTER (WHERE attempt_number > 0)")
+			selectExprs = append(selectExprs, "COUNT(*) FILTER (WHERE attempt_number > 1)")
 			order = append(order, sfRetryCount)
 		case "manual_retry_count":
 			selectExprs = append(selectExprs, "COUNT(*) FILTER (WHERE manual = true)")

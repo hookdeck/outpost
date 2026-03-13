@@ -3,7 +3,7 @@
 # Seed metrics data for local testing.
 #
 # Generates realistic event→attempt chains: each event gets a first attempt
-# (attempt_number=0) and optionally 1-3 retries (attempt_number=1,2,3).
+# (attempt_number=1) and optionally 1-3 retries (attempt_number=2,3,4).
 # Earlier attempts in a retry chain fail; the final attempt may succeed or fail.
 #
 # Usage:
@@ -202,10 +202,10 @@ HEADER
     local total_chain=$(( num_retries + 1 ))  # first attempt + retries
 
     # ── Generate attempts for this event ──
-    # Pattern: first attempt (attempt_number=0), then retries (1,2,...)
+    # Pattern: first attempt (attempt_number=1), then retries (2,3,...)
     # All attempts except the last one FAIL (that's why we retry).
     # The last attempt succeeds or fails based on error_rate.
-    for (( a = 0; a < total_chain; a++ )); do
+    for (( a = 1; a <= total_chain; a++ )); do
       local atm_id="seed_atm_$(printf '%05d' $atm_seq)"
       atm_seq=$(( atm_seq + 1 ))
 
@@ -228,9 +228,9 @@ HEADER
         code="${OK_CODES[$(( atm_seq % NUM_OK_CODES ))]}"
       fi
 
-      # Manual: only retries (attempt_number > 0) can be manual
+      # Manual: only retries (attempt_number > 1) can be manual
       manual="false"
-      if (( a > 0 )); then
+      if (( a > 1 )); then
         local manual_hash=$(( (atm_seq * 31 + 17) % 100 ))
         if (( manual_hash < manual_thresh )); then
           manual="true"
@@ -295,9 +295,9 @@ COUNTS=$(docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" -t -A -c \
    UNION ALL
    SELECT 'attempts=' || count(*) FROM attempts WHERE id LIKE 'seed_%'
    UNION ALL
-   SELECT 'first_attempts=' || count(*) FROM attempts WHERE id LIKE 'seed_%' AND attempt_number = 0
+   SELECT 'first_attempts=' || count(*) FROM attempts WHERE id LIKE 'seed_%' AND attempt_number = 1
    UNION ALL
-   SELECT 'retries=' || count(*) FROM attempts WHERE id LIKE 'seed_%' AND attempt_number > 0;")
+   SELECT 'retries=' || count(*) FROM attempts WHERE id LIKE 'seed_%' AND attempt_number > 1;")
 
 echo ""
 echo "── Done ──"

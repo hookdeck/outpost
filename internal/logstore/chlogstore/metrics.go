@@ -349,10 +349,10 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 			selectExprs = append(selectExprs, "uniqExactIf(attempt_id, status = 'failed') / uniqExact(attempt_id)")
 			order = append(order, sfErrorRate)
 		case "first_attempt_count":
-			selectExprs = append(selectExprs, "uniqExactIf(attempt_id, attempt_number = 0 AND NOT manual)")
+			selectExprs = append(selectExprs, "uniqExactIf(attempt_id, attempt_number = 1 AND NOT manual)")
 			order = append(order, sfFirstAttempt)
 		case "retry_count":
-			selectExprs = append(selectExprs, "uniqExactIf(attempt_id, attempt_number > 0)")
+			selectExprs = append(selectExprs, "uniqExactIf(attempt_id, attempt_number > 1)")
 			order = append(order, sfRetryCount)
 		case "manual_retry_count":
 			selectExprs = append(selectExprs, "uniqExactIf(attempt_id, manual)")

@@ -384,7 +384,7 @@ var attemptCases = []struct {
 		req: driver.MetricsRequest{
 			TimeRange: fullMonth,
 			Measures:  []string{"count"},
-			Filters:   withTenant0(map[string][]string{"attempt_number": {"0"}}),
+			Filters:   withTenant0(map[string][]string{"attempt_number": {"1"}}),
 		},
 	},
 	{

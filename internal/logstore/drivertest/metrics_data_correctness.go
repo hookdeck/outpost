@@ -374,7 +374,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 			assert.Equal(t, 75, *dp.FirstAttemptCount)
 			assert.Equal(t, 225, *dp.RetryCount)
 			assert.Equal(t, 30, *dp.ManualRetryCount)
-			assert.InDelta(t, 1.5, *dp.AvgAttemptNumber, 0.001)
+			assert.InDelta(t, 2.5, *dp.AvgAttemptNumber, 0.001)
 		})
 
 		t.Run("rate no granularity", func(t *testing.T) {
@@ -490,11 +490,11 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 				require.NotNil(t, dp.Count)
 				ac[*dp.AttemptNumber] = *dp.Count
 			}
-			// attempt_number = i % 4 → each value appears 75 times
-			assert.Equal(t, 75, ac[0])
+			// attempt_number = i % 4 + 1 → each value appears 75 times
 			assert.Equal(t, 75, ac[1])
 			assert.Equal(t, 75, ac[2])
 			assert.Equal(t, 75, ac[3])
+			assert.Equal(t, 75, ac[4])
 		})
 
 		t.Run("by code", func(t *testing.T) {
@@ -571,7 +571,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
 				TimeRange: fullRange,
 				Measures:  []string{"count"},
-				Filters:   map[string][]string{"tenant_id": {ds.tenant1}, "attempt_number": {"0"}},
+				Filters:   map[string][]string{"tenant_id": {ds.tenant1}, "attempt_number": {"1"}},
 			})
 			require.NoError(t, err)
 			require.Len(t, resp.Data, 1)
