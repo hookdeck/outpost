@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - go</title>
+    <title>SDK Changelog - python</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,48 +95,35 @@
         }
     </style>
 </head>
-<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
+<body><h2 id="python-sdk-changes">Python SDK Changes:</h2>
 
 <ul>
-<li><code>Outpost.Events.List()</code>: <code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.events.list()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>Id</code> <strong>Added</strong></li>
-<li><code>TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>Time[gt]</code> <strong>Added</strong></li>
-<li><code>Time[lt]</code> <strong>Added</strong></li>
-<li><code>Topic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>id</code> <strong>Added</strong></li>
+<li><code>tenant_id</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>time[gt]</code> <strong>Added</strong></li>
+<li><code>time[lt]</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>Outpost.Attempts.List()</code>: <code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.attempts.list()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>DestinationId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>EventId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>Include</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>TenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>Time[gt]</code> <strong>Added</strong></li>
-<li><code>Time[lt]</code> <strong>Added</strong></li>
-<li><code>Topic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destination_id</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>event_id</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>tenant_id</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>time[gt]</code> <strong>Added</strong></li>
+<li><code>time[lt]</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>Outpost.Attempts.Get()</code>:  <code>request.Include</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>Outpost.Destinations.List()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.destinations.list_attempts()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>Topics</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>Type</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>event_id</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>time[gt]</code> <strong>Added</strong></li>
+<li><code>time[lt]</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>Outpost.Destinations.ListAttempts()</code>: <code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
-
-<ul>
-<li><code>EventId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>Include</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>Time[gt]</code> <strong>Added</strong></li>
-<li><code>Time[lt]</code> <strong>Added</strong></li>
-<li><code>Topic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-</ul></li>
-<li><code>Outpost.Destinations.GetAttempt()</code>:  <code>request.Include</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>Outpost.Tenants.List()</code>: <strong>Added</strong></li>
-<li><code>Outpost.Tenants.ListTenants()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>outpost.tenants.list()</code>: <strong>Added</strong></li>
+<li><code>outpost.tenants.list_tenants()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
 </ul>
 </body>
 </html>

@@ -24,11 +24,19 @@ with Outpost(
     api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.publish.event(data={
-        "user_id": "userid",
-        "status": "active",
-    }, id="evt_custom_123", tenant_id="<TENANT_ID>", destination_id="<DESTINATION_ID>", topic="topic.name", time=parse_datetime("2024-01-15T10:30:00Z"), metadata={
-        "source": "crm",
+    res = outpost.publish.event(request={
+        "id": "evt_custom_123",
+        "tenant_id": "<TENANT_ID>",
+        "destination_id": "<DESTINATION_ID>",
+        "topic": "topic.name",
+        "time": parse_datetime("2024-01-15T10:30:00Z"),
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
     })
 
     # Handle response
@@ -38,17 +46,10 @@ with Outpost(
 
 ### Parameters
 
-| Parameter                                                                                | Type                                                                                     | Required                                                                                 | Description                                                                              | Example                                                                                  |
-| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `data`                                                                                   | Dict[str, *Any*]                                                                         | :heavy_check_mark:                                                                       | Any JSON payload for the event data.                                                     | {<br/>"user_id": "userid",<br/>"status": "active"<br/>}                                  |
-| `id`                                                                                     | *Optional[str]*                                                                          | :heavy_minus_sign:                                                                       | Optional. A unique identifier for the event. If not provided, a UUID will be generated.  | evt_custom_123                                                                           |
-| `tenant_id`                                                                              | *Optional[str]*                                                                          | :heavy_minus_sign:                                                                       | The ID of the tenant to publish for.                                                     | <TENANT_ID>                                                                              |
-| `destination_id`                                                                         | *Optional[str]*                                                                          | :heavy_minus_sign:                                                                       | Optional. Route event to a specific destination.                                         | <DESTINATION_ID>                                                                         |
-| `topic`                                                                                  | *Optional[str]*                                                                          | :heavy_minus_sign:                                                                       | Topic name for the event. Required if Outpost has been configured with topics.           | topic.name                                                                               |
-| `eligible_for_retry`                                                                     | *Optional[bool]*                                                                         | :heavy_minus_sign:                                                                       | Should event delivery be retried on failure.                                             |                                                                                          |
-| `time`                                                                                   | [date](https://docs.python.org/3/library/datetime.html#date-objects)                     | :heavy_minus_sign:                                                                       | Optional. Custom timestamp for the event. If not provided, defaults to the current time. | 2024-01-15T10:30:00Z                                                                     |
-| `metadata`                                                                               | Dict[str, *str*]                                                                         | :heavy_minus_sign:                                                                       | Any key-value string pairs for metadata.                                                 | {<br/>"source": "crm"<br/>}                                                              |
-| `retries`                                                                                | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                         | :heavy_minus_sign:                                                                       | Configuration to override the default retry behavior of the client.                      |                                                                                          |
+| Parameter                                                           | Type                                                                | Required                                                            | Description                                                         |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `request`                                                           | [models.PublishRequest](../../models/publishrequest.md)             | :heavy_check_mark:                                                  | The request object to use for the request.                          |
+| `retries`                                                           | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)    | :heavy_minus_sign:                                                  | Configuration to override the default retry behavior of the client. |
 
 ### Response
 

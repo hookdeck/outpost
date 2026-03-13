@@ -225,7 +225,7 @@ with Outpost(
 
 ### [Tenants](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md)
 
-* [list_tenants](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#list_tenants) - List Tenants
+* [list](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#list) - List Tenants
 * [upsert](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
 * [get](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#get) - Get Tenant
 * [delete](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#delete) - Delete Tenant
@@ -248,14 +248,14 @@ return value of `Next` is `None`, then there are no more pages to be fetched.
 
 Here's an example of one such pagination call:
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
     api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.tenants.list_tenants(limit=20, dir=models.ListTenantsDir.DESC)
+    res = outpost.tenants.list(request={})
 
     while res is not None:
         # Handle items

@@ -21,14 +21,14 @@ When authenticated with Admin API Key, returns events across all tenants. Use `t
 
 <!-- UsageSnippet language="python" operationID="listEvents" method="get" path="/events" example="AdminEventsListExample" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
     api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.events.list(limit=100, order_by=models.ListEventsOrderBy.TIME, direction=models.ListEventsDir.DESC)
+    res = outpost.events.list(request={})
 
     while res is not None:
         # Handle items
@@ -39,18 +39,10 @@ with Outpost(
 
 ### Parameters
 
-| Parameter                                                                      | Type                                                                           | Required                                                                       | Description                                                                    |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| `tenant_id`                                                                    | *Optional[str]*                                                                | :heavy_minus_sign:                                                             | Filter events by tenant ID. If not provided, returns events from all tenants.  |
-| `topic`                                                                        | [Optional[models.ListEventsTopic]](../../models/listeventstopic.md)            | :heavy_minus_sign:                                                             | Filter events by topic(s). Can be specified multiple times or comma-separated. |
-| `time_gte`                                                                     | [date](https://docs.python.org/3/library/datetime.html#date-objects)           | :heavy_minus_sign:                                                             | Filter events with time >= value (RFC3339 or YYYY-MM-DD format).               |
-| `time_lte`                                                                     | [date](https://docs.python.org/3/library/datetime.html#date-objects)           | :heavy_minus_sign:                                                             | Filter events with time <= value (RFC3339 or YYYY-MM-DD format).               |
-| `limit`                                                                        | *Optional[int]*                                                                | :heavy_minus_sign:                                                             | Number of items per page (default 100, max 1000).                              |
-| `next_cursor`                                                                  | *Optional[str]*                                                                | :heavy_minus_sign:                                                             | Cursor for next page of results.                                               |
-| `prev_cursor`                                                                  | *Optional[str]*                                                                | :heavy_minus_sign:                                                             | Cursor for previous page of results.                                           |
-| `order_by`                                                                     | [Optional[models.ListEventsOrderBy]](../../models/listeventsorderby.md)        | :heavy_minus_sign:                                                             | Field to sort by.                                                              |
-| `direction`                                                                    | [Optional[models.ListEventsDir]](../../models/listeventsdir.md)                | :heavy_minus_sign:                                                             | Sort direction.                                                                |
-| `retries`                                                                      | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)               | :heavy_minus_sign:                                                             | Configuration to override the default retry behavior of the client.            |
+| Parameter                                                           | Type                                                                | Required                                                            | Description                                                         |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `request`                                                           | [models.ListEventsRequest](../../models/listeventsrequest.md)       | :heavy_check_mark:                                                  | The request object to use for the request.                          |
+| `retries`                                                           | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)    | :heavy_minus_sign:                                                  | Configuration to override the default retry behavior of the client. |
 
 ### Response
 
