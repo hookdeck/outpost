@@ -4,9 +4,9 @@ from .basesdk import BaseSDK
 from jsonpath import JSONPath
 from outpost_sdk import errors, models, utils
 from outpost_sdk._hooks import HookContext
-from outpost_sdk.types import OptionalNullable, UNSET
+from outpost_sdk.types import BaseModel, OptionalNullable, UNSET
 from outpost_sdk.utils.unmarshal_json_response import unmarshal_json_response
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Union, cast
 
 
 class Tenants(BaseSDK):
@@ -19,10 +19,7 @@ class Tenants(BaseSDK):
     def list_tenants(
         self,
         *,
-        limit: Optional[int] = 20,
-        dir: Optional[models.ListTenantsDir] = models.ListTenantsDir.DESC,
-        direction: Optional[str] = None,
-        prev: Optional[str] = None,
+        request: Union[models.ListTenantsRequest, models.ListTenantsRequestTypedDict],
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -38,10 +35,7 @@ class Tenants(BaseSDK):
         When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
 
 
-        :param limit: Number of tenants to return per page (1-100, default 20).
-        :param dir: Sort direction.
-        :param direction: Cursor for the next page of results. Mutually exclusive with `prev`.
-        :param prev: Cursor for the previous page of results. Mutually exclusive with `next`.
+        :param request: The request object to send.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -57,12 +51,9 @@ class Tenants(BaseSDK):
         else:
             base_url = self._get_url(base_url, url_variables)
 
-        request = models.ListTenantsRequest(
-            limit=limit,
-            dir=dir,
-            direction=direction,
-            prev=prev,
-        )
+        if not isinstance(request, BaseModel):
+            request = utils.unmarshal(request, models.ListTenantsRequest)
+        request = cast(models.ListTenantsRequest, request)
 
         req = self._build_request(
             method="GET",
@@ -120,10 +111,13 @@ class Tenants(BaseSDK):
                 return None
 
             return self.list_tenants(
-                limit=limit,
-                dir=dir,
-                direction=direction,
-                prev=prev,
+                request=models.ListTenantsRequest(
+                    id=request.id,
+                    limit=request.limit,
+                    direction=request.direction,
+                    next_cursor=request.next_cursor,
+                    prev_cursor=request.prev_cursor,
+                ),
                 retries=retries,
             )
 
@@ -165,10 +159,7 @@ class Tenants(BaseSDK):
     async def list_tenants_async(
         self,
         *,
-        limit: Optional[int] = 20,
-        dir: Optional[models.ListTenantsDir] = models.ListTenantsDir.DESC,
-        direction: Optional[str] = None,
-        prev: Optional[str] = None,
+        request: Union[models.ListTenantsRequest, models.ListTenantsRequestTypedDict],
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -184,10 +175,7 @@ class Tenants(BaseSDK):
         When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
 
 
-        :param limit: Number of tenants to return per page (1-100, default 20).
-        :param dir: Sort direction.
-        :param direction: Cursor for the next page of results. Mutually exclusive with `prev`.
-        :param prev: Cursor for the previous page of results. Mutually exclusive with `next`.
+        :param request: The request object to send.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -203,12 +191,9 @@ class Tenants(BaseSDK):
         else:
             base_url = self._get_url(base_url, url_variables)
 
-        request = models.ListTenantsRequest(
-            limit=limit,
-            dir=dir,
-            direction=direction,
-            prev=prev,
-        )
+        if not isinstance(request, BaseModel):
+            request = utils.unmarshal(request, models.ListTenantsRequest)
+        request = cast(models.ListTenantsRequest, request)
 
         req = self._build_request_async(
             method="GET",
@@ -266,10 +251,13 @@ class Tenants(BaseSDK):
                 return None
 
             return self.list_tenants(
-                limit=limit,
-                dir=dir,
-                direction=direction,
-                prev=prev,
+                request=models.ListTenantsRequest(
+                    id=request.id,
+                    limit=request.limit,
+                    direction=request.direction,
+                    next_cursor=request.next_cursor,
+                    prev_cursor=request.prev_cursor,
+                ),
                 retries=retries,
             )
 
@@ -312,7 +300,7 @@ class Tenants(BaseSDK):
         self,
         *,
         tenant_id: str,
-        metadata: OptionalNullable[Dict[str, str]] = UNSET,
+        body: Optional[Union[models.TenantUpsert, models.TenantUpsertTypedDict]] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -323,7 +311,7 @@ class Tenants(BaseSDK):
         Idempotently creates or updates a tenant. Required before associating destinations.
 
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param metadata: Optional metadata to store with the tenant.
+        :param body: Optional tenant metadata
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -341,9 +329,7 @@ class Tenants(BaseSDK):
 
         request = models.UpsertTenantRequest(
             tenant_id=tenant_id,
-            params=models.TenantUpsert(
-                metadata=metadata,
-            ),
+            body=utils.get_pydantic_model(body, Optional[models.TenantUpsert]),
         )
 
         req = self._build_request(
@@ -360,7 +346,7 @@ class Tenants(BaseSDK):
             http_headers=http_headers,
             security=self.sdk_configuration.security,
             get_serialized_body=lambda: utils.serialize_request_body(
-                request.params if request is not None else None,
+                request.body if request is not None else None,
                 False,
                 True,
                 "json",
@@ -422,7 +408,7 @@ class Tenants(BaseSDK):
         self,
         *,
         tenant_id: str,
-        metadata: OptionalNullable[Dict[str, str]] = UNSET,
+        body: Optional[Union[models.TenantUpsert, models.TenantUpsertTypedDict]] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -433,7 +419,7 @@ class Tenants(BaseSDK):
         Idempotently creates or updates a tenant. Required before associating destinations.
 
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param metadata: Optional metadata to store with the tenant.
+        :param body: Optional tenant metadata
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -451,9 +437,7 @@ class Tenants(BaseSDK):
 
         request = models.UpsertTenantRequest(
             tenant_id=tenant_id,
-            params=models.TenantUpsert(
-                metadata=metadata,
-            ),
+            body=utils.get_pydantic_model(body, Optional[models.TenantUpsert]),
         )
 
         req = self._build_request_async(
@@ -470,7 +454,7 @@ class Tenants(BaseSDK):
             http_headers=http_headers,
             security=self.sdk_configuration.security,
             get_serialized_body=lambda: utils.serialize_request_body(
-                request.params if request is not None else None,
+                request.body if request is not None else None,
                 False,
                 True,
                 "json",

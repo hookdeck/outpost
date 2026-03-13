@@ -1,6 +1,6 @@
 # ListAttemptsTopic
 
-Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
+Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
 
 
 ## Supported Types

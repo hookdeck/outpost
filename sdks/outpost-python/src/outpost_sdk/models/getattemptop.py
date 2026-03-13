@@ -11,7 +11,7 @@ from typing_extensions import Annotated, NotRequired, TypeAliasType, TypedDict
 GetAttemptIncludeTypedDict = TypeAliasType(
     "GetAttemptIncludeTypedDict", Union[str, List[str]]
 )
-r"""Fields to include in the response. Can be specified multiple times or comma-separated.
+r"""Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
 - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 - `event.data`: Include full event with payload data
 - `response_data`: Include response body and headers
@@ -20,7 +20,7 @@ r"""Fields to include in the response. Can be specified multiple times or comma-
 
 
 GetAttemptInclude = TypeAliasType("GetAttemptInclude", Union[str, List[str]])
-r"""Fields to include in the response. Can be specified multiple times or comma-separated.
+r"""Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
 - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 - `event.data`: Include full event with payload data
 - `response_data`: Include response body and headers
@@ -32,7 +32,7 @@ class GetAttemptRequestTypedDict(TypedDict):
     attempt_id: str
     r"""The ID of the attempt."""
     include: NotRequired[GetAttemptIncludeTypedDict]
-    r"""Fields to include in the response. Can be specified multiple times or comma-separated.
+    r"""Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
     - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
     - `event.data`: Include full event with payload data
     - `response_data`: Include response body and headers
@@ -50,7 +50,7 @@ class GetAttemptRequest(BaseModel):
         Optional[GetAttemptInclude],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
-    r"""Fields to include in the response. Can be specified multiple times or comma-separated.
+    r"""Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
     - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
     - `event.data`: Include full event with payload data
     - `response_data`: Include response body and headers
@@ -65,7 +65,7 @@ class GetAttemptRequest(BaseModel):
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
-            val = serialized.get(k)
+            val = serialized.get(k, serialized.get(n))
 
             if val != UNSET_SENTINEL:
                 if val is not None or k not in optional_fields:

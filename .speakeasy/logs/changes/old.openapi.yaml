@@ -2,14 +2,12 @@ openapi: 3.1.0
 info:
   title: Outpost API
   version: "0.0.1"
-  description: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
+  description: |
+    The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
   contact:
     name: Outpost Support
     email: support@hookdeck.com
     url: https://outpost.hookdeck.com/docs
-security:
-  - AdminApiKey: []
-  - TenantJwt: []
 servers:
   - url: https://api.outpost.hookdeck.com/2025-07-01
     description: Outpost API (production)
@@ -17,33 +15,61 @@ servers:
     description: Local development server base path
 components:
   securitySchemes:
-    AdminApiKey:
+    BearerAuth:
       type: http
       scheme: bearer
-      description: Admin API Key configured via API_KEY environment variable.
-    TenantJwt:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
+      x-speakeasy-name-override: apiKey
       description: |
-        Per-tenant JWT token valid for 24 hours.
+        Bearer token for authentication. The SDK exposes a single "apiKey" parameter; its value can be either:
 
-        **JWT Structure:**
-        The token is a standard JWT signed with HS256 algorithm containing the following claims:
-        - `iss` (issuer): Always "outpost"
-        - `sub` (subject): The tenant_id this token is scoped to
-        - `iat` (issued at): Unix timestamp when the token was created
-        - `exp` (expiration): Unix timestamp when the token expires (24 hours after issuance)
+        **Admin API Key:** Static key configured via the `API_KEY` environment variable.
+        Required for admin operations (publishing events, managing tenants, generating tenant tokens).
 
-        **Example decoded payload:**
-        ```json
-        {
-          "iss": "outpost",
-          "sub": "tenant_123",
-          "iat": 1704067200,
-          "exp": 1704153600
-        }
-        ```
+        **JWT (tenant token):** Obtained via GET /tenants/{tenant_id}/token (requires Admin API Key). Valid for 24 hours, scoped to one tenant.
+        Use for tenant-scoped operations (e.g. listing destinations for that tenant).
+  responses:
+    BadRequest:
+      description: A collection of codes that generally means the end user got something wrong in making the request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/BadRequest"
+    Unauthorized:
+      description: A collection of codes that generally means the client was not authenticated correctly for the request they want to make
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Unauthorized"
+    NotFound:
+      description: Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/NotFound"
+    ValidationError:
+      description: Request body fails validation.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
+    InternalServerError:
+      description: A collection of status codes that generally mean the server failed in an unexpected way
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/InternalServerError"
+    RateLimited:
+      description: Status codes relating to the client being rate limited by the server
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RateLimited'
+    Timeout:
+      description: Timeouts occurred with the request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Timeout'
   schemas:
     # Base Schemas
     Tenant:
@@ -1678,12 +1704,6 @@ components:
           format: date-time
           description: Time the event was received/processed.
           example: "2024-01-01T00:00:00Z"
-        successful_at:
-          type: string
-          format: date-time
-          nullable: true
-          description: Time the event was successfully delivered.
-          example: "2024-01-01T00:00:00Z"
         metadata:
           type: object
           nullable: true
@@ -1968,43 +1988,6 @@ components:
         message:
           type: string
       additionalProperties: true
-  responses:
-    BadRequest:
-      description: A collection of codes that generally means the end user got something wrong in making the request
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/BadRequest'
-    Unauthorized:
-      description: A collection of codes that generally means the client was not authenticated correctly for the request they want to make
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Unauthorized'
-    NotFound:
-      description: Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/NotFound'
-    RateLimited:
-      description: Status codes relating to the client being rate limited by the server
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/RateLimited'
-    InternalServerError:
-      description: A collection of status codes that generally mean the server failed in an unexpected way
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/InternalServerError'
-    Timeout:
-      description: Timeouts occurred with the request
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Timeout'
 # Security is applied per-operation based on AuthScope
 tags:
   - name: Health
@@ -2184,11 +2167,8 @@ paths:
         **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
         If RediSearch is not available, this endpoint returns `501 Not Implemented`.
 
-        The response includes lightweight tenant objects without computed fields like `destinations_count` and `topics`.
-        Use `GET /tenants/{tenant_id}` to retrieve full tenant details including these fields.
+        When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
       operationId: listTenants
-      security:
-        - AdminApiKey: []
       parameters:
         - name: limit
           in: query
@@ -2199,14 +2179,6 @@ paths:
             maximum: 100
             default: 20
           description: Number of tenants to return per page (1-100, default 20).
-        - name: order_by
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [created_at]
-            default: created_at
-          description: Field to sort by.
         - name: dir
           in: query
           required: false
@@ -2215,35 +2187,19 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort direction.
-          x-speakeasy-name-override: "direction"
-        - name: created_at[gte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter tenants created at or after this time (RFC3339 or YYYY-MM-DD format).
-        - name: created_at[lte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter tenants created at or before this time (RFC3339 or YYYY-MM-DD format).
         - name: next
           in: query
           required: false
           schema:
             type: string
           description: Cursor for the next page of results. Mutually exclusive with `prev`.
-          x-speakeasy-name-override: "next_cursor"
+          x-speakeasy-name-override: "direction"
         - name: prev
           in: query
           required: false
           schema:
             type: string
           description: Cursor for the previous page of results. Mutually exclusive with `next`.
-          x-speakeasy-name-override: "prev_cursor"
       responses:
         "200":
           description: List of tenants.
@@ -2270,17 +2226,11 @@ paths:
                   prev: null
                 count: 42
         "400":
-          description: Invalid request parameters (e.g., invalid cursor, both next and prev provided).
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "invalid cursor format"
+          $ref: "#/components/responses/BadRequest"
         "401":
-          description: Unauthorized (Admin API Key missing or invalid).
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
         "501":
           description: List Tenants feature is not available. Requires Redis with RediSearch module.
           content:
@@ -2291,6 +2241,8 @@ paths:
                   error:
                     type: string
                     example: "list tenant not supported"
+      security:
+        - BearerAuth: []
       x-speakeasy-pagination:
         type: cursor
         inputs:
@@ -2336,7 +2288,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
-                # Add error responses
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: upsert
     get:
       tags: [Tenants]
@@ -2350,9 +2307,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant not found.
-          # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: get
     delete:
       tags: [Tenants]
@@ -2370,22 +2330,23 @@ paths:
                 SuccessExample:
                   value:
                     success: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant not found.
-          # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: delete
-  # Admin-only endpoints (cross-tenant)
   /events:
     get:
       tags: [Events]
-      summary: List Events (Admin)
+      summary: List Events
       description: |
-        Retrieves a list of events across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+        Retrieves a list of events.
 
-        When `tenant_id` is not provided, returns events from all tenants. When `tenant_id` is provided, returns only events for that tenant.
-      operationId: adminListEvents
-      security:
-        - AdminApiKey: []
+        When authenticated with a Tenant JWT, returns only events belonging to that tenant.
+        When authenticated with Admin API Key, returns events across all tenants. Use `tenant_id` query parameter to filter by tenant.
+      operationId: listEvents
       parameters:
         - name: tenant_id
           in: query
@@ -2487,14 +2448,12 @@ paths:
                       next: "MTcwNDA2NzIwMA=="
                       prev: null
         "401":
-          description: Unauthorized (Admin API Key missing or invalid).
-        "422":
-          description: Validation error (invalid query parameters).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/APIErrorResponse"
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: list
+      security:
+        - BearerAuth: []
       x-speakeasy-pagination:
         type: cursor
         inputs:
@@ -2540,20 +2499,23 @@ paths:
                     eligible_for_retry: false
                     metadata: {"source": "crm"}
                     data: {"user_id": "userid", "status": "active"}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Event not found.
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: get
   /attempts:
     get:
       tags: [Attempts]
-      summary: List Attempts (Admin)
+      summary: List Attempts
       description: |
-        Retrieves a paginated list of attempts across all tenants. This is an admin-only endpoint that requires the Admin API Key.
+        Retrieves a paginated list of attempts.
 
-        When `tenant_id` is not provided, returns attempts from all tenants. When `tenant_id` is provided, returns only attempts for that tenant.
-      operationId: adminListAttempts
-      security:
-        - AdminApiKey: []
+        When authenticated with a Tenant JWT, returns only attempts belonging to that tenant.
+        When authenticated with Admin API Key, returns attempts across all tenants. Use `tenant_id` query parameter to filter by tenant.
+      operationId: listAttempts
       parameters:
         - name: tenant_id
           in: query
@@ -2713,14 +2675,12 @@ paths:
                       next: null
                       prev: null
         "401":
-          description: Unauthorized (Admin API Key missing or invalid).
-        "422":
-          description: Validation error (invalid query parameters).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/APIErrorResponse"
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: list
+      security:
+        - BearerAuth: []
       x-speakeasy-pagination:
         type: cursor
         inputs:
@@ -2803,8 +2763,12 @@ paths:
                       eligible_for_retry: false
                       metadata: {"source": "crm"}
                       data: {"user_id": "userid", "status": "active"}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Attempt not found.
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: get
   /tenants/{tenant_id}/portal:
     parameters:
@@ -2817,7 +2781,7 @@ paths:
     get:
       tags: [Tenants]
       summary: Get Portal Redirect URL
-      description: Returns a redirect URL containing a JWT to authenticate the user with the portal.
+      description: Returns a redirect URL containing a JWT to authenticate the user with the portal. Requires Admin API Key.
       operationId: getTenantPortalUrl
       parameters:
         - name: theme
@@ -2839,10 +2803,15 @@ paths:
                   value:
                     redirect_url: "https://webhooks.acme.com/?token=JWT_TOKEN&tenant_id=tenant_123"
                     tenant_id: "tenant_123"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant not found.
-          # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: getPortalUrl
+      security:
+        - BearerAuth: []
   /tenants/{tenant_id}/token:
     parameters:
       - name: tenant_id
@@ -2854,7 +2823,7 @@ paths:
     get:
       tags: [Tenants]
       summary: Get Tenant JWT Token
-      description: Returns a JWT token scoped to the tenant for safe browser API calls.
+      description: Returns a JWT token scoped to the tenant for safe browser API calls. Requires Admin API Key.
       operationId: getTenantToken
       responses:
         "200":
@@ -2868,10 +2837,15 @@ paths:
                   value:
                     token: "SOME_JWT_TOKEN"
                     tenant_id: "tenant_123"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant not found.
-          # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: getToken
+      security:
+        - BearerAuth: []
   # Destinations
   /tenants/{tenant_id}/destinations:
     description: |
@@ -2958,9 +2932,12 @@ paths:
                       credentials:
                         key: "AKIAIOSFODNN7EXAMPLE"
                         secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant not found.
-          # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: list
     post:
       tags: [Destinations]
@@ -2994,11 +2971,14 @@ paths:
                     credentials:
                       secret: "whsec_abc123def456"
                       # previous_secret and previous_secret_invalid_at are absent on creation
-        "400":
-          description: Invalid request body or configuration.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant not found.
-          # Add other error responses (e.g., max destinations reached)
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: create
   /tenants/{tenant_id}/destinations/{destination_id}:
     parameters:
@@ -3041,8 +3021,12 @@ paths:
                       secret: "whsec_abc123def456"
                       previous_secret: "whsec_prev789xyz012"
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant or Destination not found.
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: get
     patch:
       tags: [Destinations]
@@ -3079,11 +3063,14 @@ paths:
                       secret: "whsec_abc123def456"
                       previous_secret: "whsec_prev789xyz012"
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
-        "400":
-          description: Invalid request body or configuration.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant or Destination not found.
-          # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: update
     delete:
       tags: [Destinations]
@@ -3101,9 +3088,12 @@ paths:
                 SuccessExample:
                   value:
                     success: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant or Destination not found.
-          # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: delete
   /tenants/{tenant_id}/destinations/{destination_id}/enable:
     parameters:
@@ -3146,9 +3136,12 @@ paths:
                       secret: "whsec_abc123def456"
                       previous_secret: "whsec_prev789xyz012"
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant or Destination not found.
-          # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: enable
   /tenants/{tenant_id}/destinations/{destination_id}/disable:
     parameters:
@@ -3191,9 +3184,12 @@ paths:
                       secret: "whsec_abc123def456"
                       previous_secret: "whsec_prev789xyz012"
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant or Destination not found.
-          # Add other error responses
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: disable
   # Destination-scoped Attempts
   /tenants/{tenant_id}/destinations/{destination_id}/attempts:
@@ -3338,14 +3334,12 @@ paths:
                       limit: 100
                       next: "MTcwNDA2NzIwMA=="
                       prev: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant or Destination not found.
-        "422":
-          description: Validation error (invalid query parameters).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/APIErrorResponse"
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: listAttempts
       x-speakeasy-pagination:
         type: cursor
@@ -3416,8 +3410,12 @@ paths:
                     attempt_number: 1
                     event_id: "evt_123"
                     destination_id: "des_456"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Tenant, Destination, or Attempt not found.
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: getAttempt
   # Publish (Admin Only)
   /publish:
@@ -3439,17 +3437,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublishResponse"
-        "400":
-          description: Invalid request body.
         "401":
-          description: Unauthorized (Admin API Key missing or invalid).
+          $ref: "#/components/responses/Unauthorized"
         "409":
           description: Conflict. An event with the provided `id` already exists.
         "422":
-          description: Unprocessable Entity. The event topic was either required or was invalid.
-          # Add other error responses
-
+          description: The event topic was either required or was invalid.
           $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: "#/components/responses/InternalServerError"
         '413':
           $ref: '#/components/responses/BadRequest'
         '414':
@@ -3474,8 +3470,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/RateLimited'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
         '502':
           $ref: '#/components/responses/InternalServerError'
         '503':
@@ -3491,6 +3485,8 @@ paths:
         '504':
           $ref: '#/components/responses/Timeout'
       x-speakeasy-name-override: event
+      security:
+        - BearerAuth: []
   # Retry
   /retry:
     post:
@@ -3524,14 +3520,12 @@ paths:
             Bad request. This can happen when:
             - The destination is disabled
             - The destination does not match the event's topic
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Event or destination not found.
-        "422":
-          description: Validation error (missing required fields).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/APIErrorResponse"
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: retry
   /destination-types:
     get:
@@ -3568,7 +3562,9 @@ paths:
                       config_fields: [{type: "text", label: "Queue URL", description: "The URL of the SQS queue.", required: true}, {type: "text", label: "Endpoint", description: "Optional custom AWS endpoint URL.", required: false}]
                       credential_fields: [{type: "text", label: "Key", description: "AWS Access Key ID.", required: true, sensitive: true}, {type: "text", label: "Secret", description: "AWS Secret Access Key.", required: true, sensitive: true}, {type: "text", label: "Session", description: "Optional AWS Session Token.", required: false, sensitive: true}]
         "401":
-          description: Unauthorized (Tenant JWT missing or invalid).
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
         '400':
           $ref: '#/components/responses/BadRequest'
         '413':
@@ -3597,8 +3593,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/RateLimited'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
         '502':
           $ref: '#/components/responses/InternalServerError'
         '503':
@@ -3613,7 +3607,7 @@ paths:
           $ref: '#/components/responses/Timeout'
         '504':
           $ref: '#/components/responses/Timeout'
-      x-speakeasy-name-override: listDestinationTypesJwt
+      x-speakeasy-name-override: listDestinationTypes
   /destination-types/{type}:
     parameters:
       - name: type
@@ -3621,7 +3615,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, aws_s3]
+          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub]
         description: The type of the destination.
     get:
       tags: [Schemas]
@@ -3649,9 +3643,11 @@ paths:
                     credential_fields: [{type: "text", label: "Secret", description: "Optional signing secret.", required: false, sensitive: true, # Added sensitive
 }]
         "401":
-          description: Unauthorized (Tenant JWT missing or invalid).
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Destination type not found.
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
         '400':
           $ref: '#/components/responses/BadRequest'
         '413':
@@ -3678,8 +3674,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/RateLimited'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
         '502':
           $ref: '#/components/responses/InternalServerError'
         '503':
@@ -3694,7 +3688,7 @@ paths:
           $ref: '#/components/responses/Timeout'
         '504':
           $ref: '#/components/responses/Timeout'
-      x-speakeasy-name-override: getDestinationTypeJwt
+      x-speakeasy-name-override: getDestinationType
   /topics:
     get:
       tags: [Topics]
@@ -3714,7 +3708,9 @@ paths:
                 TopicsListExample: # Same as /{tenant_id}/topics example
                   value: ["user.created", "user.updated", "order.shipped", "inventory.updated"]
         "401":
-          description: Unauthorized (Tenant JWT missing or invalid).
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
         '400':
           $ref: '#/components/responses/BadRequest'
         '413':
@@ -3743,8 +3739,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/RateLimited'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
         '502':
           $ref: '#/components/responses/InternalServerError'
         '503':
@@ -3760,9 +3754,5 @@ paths:
         '504':
           $ref: '#/components/responses/Timeout'
       x-speakeasy-name-override: list
-x-speakeasy-globals:
-  parameters:
-    - name: tenant_id
-      in: path
-      schema:
-        type: string
+security:
+  - BearerAuth: []

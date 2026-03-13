@@ -248,14 +248,14 @@ return value of `Next` is `None`, then there are no more pages to be fetched.
 
 Here's an example of one such pagination call:
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
     api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.tenants.list_tenants(limit=20, dir=models.ListTenantsDir.DESC)
+    res = outpost.tenants.list_tenants(request={})
 
     while res is not None:
         # Handle items

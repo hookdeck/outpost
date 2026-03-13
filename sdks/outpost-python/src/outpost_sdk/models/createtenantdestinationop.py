@@ -10,7 +10,7 @@ from typing_extensions import Annotated, TypedDict
 class CreateTenantDestinationRequestTypedDict(TypedDict):
     tenant_id: str
     r"""The ID of the tenant. Required when using AdminApiKey authentication."""
-    params: DestinationCreateTypedDict
+    body: DestinationCreateTypedDict
 
 
 class CreateTenantDestinationRequest(BaseModel):
@@ -19,7 +19,7 @@ class CreateTenantDestinationRequest(BaseModel):
     ]
     r"""The ID of the tenant. Required when using AdminApiKey authentication."""
 
-    params: Annotated[
+    body: Annotated[
         DestinationCreate,
         FieldMetadata(request=RequestMetadata(media_type="application/json")),
     ]
