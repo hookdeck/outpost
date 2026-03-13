@@ -61,18 +61,21 @@ const events = await outpost.events.list({
 
 **Go:**
 
-Because Go is statically typed, parameters that accept both a single string and an array use tagged union constructors:
+Filter parameters that accept single or multiple values are represented as `[]string`. Pass a slice with one or more values:
 
 ```go
+// Single value
+res, err := s.Events.List(ctx, operations.ListEventsRequest{
+    TenantID: []string{"tenant_123"},
+    Topic:    []string{"user.created"},
+    Limit:    outpostgo.Int64(50),
+})
+
 // Array filter
 res, err := s.Events.List(ctx, operations.ListEventsRequest{
-    TenantID: operations.CreateListEventsTenantIDArrayOfStr(
-        []string{"tenant_123", "tenant_456"},
-    ).Pointer(),
-    Topic: operations.CreateListEventsTopicArrayOfStr(
-        []string{"user.created", "user.updated"},
-    ).Pointer(),
-    Limit: outpostgo.Int64(50),
+    TenantID: []string{"tenant_123", "tenant_456"},
+    Topic:    []string{"user.created", "user.updated"},
+    Limit:    outpostgo.Int64(50),
 })
 ```
 
