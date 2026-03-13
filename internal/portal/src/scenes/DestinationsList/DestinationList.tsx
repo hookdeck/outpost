@@ -32,7 +32,7 @@ const DestinationList: React.FC = () => {
       destinationIds,
       timeframe: "24h",
       granularity: "4h",
-      filters: { attempt_number: "0", manual: "false" },
+      filters: { attempt_number: "1", manual: "false" },
     });
 
   const [searchTerm, setSearchTerm] = useState("");

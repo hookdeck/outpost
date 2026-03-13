@@ -61,7 +61,7 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
     measures: ["count"],
     destinationId: destination.id,
     timeframe,
-    filters: { attempt_number: "0", manual: "false" },
+    filters: { attempt_number: "1", manual: "false" },
   });
 
   const delivery = useMetrics({
