@@ -93,7 +93,7 @@ func main() {
         outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Schemas.GetDestinationType(ctx, operations.GetDestinationTypeSchemaTypeRabbitmq)
+    res, err := s.Schemas.GetDestinationType(ctx, operations.TypeRabbitmq)
     if err != nil {
         log.Fatal(err)
     }
@@ -105,11 +105,11 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                          | Type                                                                                               | Required                                                                                           | Description                                                                                        |
-| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `ctx`                                                                                              | [context.Context](https://pkg.go.dev/context#Context)                                              | :heavy_check_mark:                                                                                 | The context to use for the request.                                                                |
-| `type_`                                                                                            | [operations.GetDestinationTypeSchemaType](../../models/operations/getdestinationtypeschematype.md) | :heavy_check_mark:                                                                                 | The type of the destination.                                                                       |
-| `opts`                                                                                             | [][operations.Option](../../models/operations/option.md)                                           | :heavy_minus_sign:                                                                                 | The options for this request.                                                                      |
+| Parameter                                                | Type                                                     | Required                                                 | Description                                              |
+| -------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| `ctx`                                                    | [context.Context](https://pkg.go.dev/context#Context)    | :heavy_check_mark:                                       | The context to use for the request.                      |
+| `type_`                                                  | [operations.Type](../../models/operations/type.md)       | :heavy_check_mark:                                       | The type of the destination.                             |
+| `opts`                                                   | [][operations.Option](../../models/operations/option.md) | :heavy_minus_sign:                                       | The options for this request.                            |
 
 ### Response
 

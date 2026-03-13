@@ -8,24 +8,24 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
-// GetDestinationTypeSchemaType - The type of the destination.
-type GetDestinationTypeSchemaType string
+// Type - The type of the destination.
+type Type string
 
 const (
-	GetDestinationTypeSchemaTypeWebhook         GetDestinationTypeSchemaType = "webhook"
-	GetDestinationTypeSchemaTypeAwsSqs          GetDestinationTypeSchemaType = "aws_sqs"
-	GetDestinationTypeSchemaTypeRabbitmq        GetDestinationTypeSchemaType = "rabbitmq"
-	GetDestinationTypeSchemaTypeHookdeck        GetDestinationTypeSchemaType = "hookdeck"
-	GetDestinationTypeSchemaTypeAwsKinesis      GetDestinationTypeSchemaType = "aws_kinesis"
-	GetDestinationTypeSchemaTypeAzureServicebus GetDestinationTypeSchemaType = "azure_servicebus"
-	GetDestinationTypeSchemaTypeAwsS3           GetDestinationTypeSchemaType = "aws_s3"
-	GetDestinationTypeSchemaTypeGcpPubsub       GetDestinationTypeSchemaType = "gcp_pubsub"
+	TypeWebhook         Type = "webhook"
+	TypeAwsSqs          Type = "aws_sqs"
+	TypeRabbitmq        Type = "rabbitmq"
+	TypeHookdeck        Type = "hookdeck"
+	TypeAwsKinesis      Type = "aws_kinesis"
+	TypeAzureServicebus Type = "azure_servicebus"
+	TypeAwsS3           Type = "aws_s3"
+	TypeGcpPubsub       Type = "gcp_pubsub"
 )
 
-func (e GetDestinationTypeSchemaType) ToPointer() *GetDestinationTypeSchemaType {
+func (e Type) ToPointer() *Type {
 	return &e
 }
-func (e *GetDestinationTypeSchemaType) UnmarshalJSON(data []byte) error {
+func (e *Type) UnmarshalJSON(data []byte) error {
 	var v string
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
@@ -46,21 +46,21 @@ func (e *GetDestinationTypeSchemaType) UnmarshalJSON(data []byte) error {
 	case "aws_s3":
 		fallthrough
 	case "gcp_pubsub":
-		*e = GetDestinationTypeSchemaType(v)
+		*e = Type(v)
 		return nil
 	default:
-		return fmt.Errorf("invalid value for GetDestinationTypeSchemaType: %v", v)
+		return fmt.Errorf("invalid value for Type: %v", v)
 	}
 }
 
 type GetDestinationTypeSchemaRequest struct {
 	// The type of the destination.
-	Type GetDestinationTypeSchemaType `pathParam:"style=simple,explode=false,name=type"`
+	Type Type `pathParam:"style=simple,explode=false,name=type"`
 }
 
-func (g *GetDestinationTypeSchemaRequest) GetType() GetDestinationTypeSchemaType {
+func (g *GetDestinationTypeSchemaRequest) GetType() Type {
 	if g == nil {
-		return GetDestinationTypeSchemaType("")
+		return Type("")
 	}
 	return g.Type
 }

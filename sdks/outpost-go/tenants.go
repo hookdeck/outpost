@@ -41,14 +41,7 @@ func newTenants(rootSDK *Outpost, sdkConfig config.SDKConfiguration, hooks *hook
 // If RediSearch is not available, this endpoint returns `501 Not Implemented`.
 //
 // When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
-func (s *Tenants) ListTenants(ctx context.Context, limit *int64, dir *operations.ListTenantsDir, next *string, prev *string, opts ...operations.Option) (*operations.ListTenantsResponse, error) {
-	request := operations.ListTenantsRequest{
-		Limit: limit,
-		Dir:   dir,
-		Next:  next,
-		Prev:  prev,
-	}
-
+func (s *Tenants) ListTenants(ctx context.Context, request operations.ListTenantsRequest, opts ...operations.Option) (*operations.ListTenantsResponse, error) {
 	o := operations.Options{}
 	supportedOptions := []string{
 		operations.SupportedOptionRetries,
@@ -346,10 +339,10 @@ func (s *Tenants) ListTenants(ctx context.Context, limit *int64, dir *operations
 
 // Upsert - Create or Update Tenant
 // Idempotently creates or updates a tenant. Required before associating destinations.
-func (s *Tenants) Upsert(ctx context.Context, tenantID string, params *components.TenantUpsert, opts ...operations.Option) (*operations.UpsertTenantResponse, error) {
+func (s *Tenants) Upsert(ctx context.Context, tenantID string, body *components.TenantUpsert, opts ...operations.Option) (*operations.UpsertTenantResponse, error) {
 	request := operations.UpsertTenantRequest{
 		TenantID: tenantID,
-		Params:   params,
+		Body:     body,
 	}
 
 	o := operations.Options{}
@@ -384,7 +377,7 @@ func (s *Tenants) Upsert(ctx context.Context, tenantID string, params *component
 		OAuth2Scopes:     nil,
 		SecuritySource:   s.sdkConfiguration.Security,
 	}
-	bodyReader, reqContentType, err := utils.SerializeRequestBody(ctx, request, false, true, "Params", "json", `request:"mediaType=application/json"`)
+	bodyReader, reqContentType, err := utils.SerializeRequestBody(ctx, request, false, true, "Body", "json", `request:"mediaType=application/json"`)
 	if err != nil {
 		return nil, err
 	}

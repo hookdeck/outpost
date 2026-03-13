@@ -45,6 +45,14 @@ func UnmarshalJsonFromResponseBody(body io.Reader, out interface{}, tag string) 
 	return nil
 }
 
+func UnmarshalJsonFromString(json string, out interface{}, tag string) error {
+	if err := UnmarshalJSON([]byte(json), out, reflect.StructTag(tag), true, nil); err != nil {
+		return fmt.Errorf("error unmarshalling json response body: %w", err)
+	}
+
+	return nil
+}
+
 func ReplaceParameters(stringWithParams string, params map[string]string) string {
 	if len(params) == 0 {
 		return stringWithParams

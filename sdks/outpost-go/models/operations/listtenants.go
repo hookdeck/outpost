@@ -37,6 +37,8 @@ func (e *ListTenantsDir) UnmarshalJSON(data []byte) error {
 }
 
 type ListTenantsRequest struct {
+	// Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
+	ID []string `queryParam:"style=form,explode=true,name=id"`
 	// Number of tenants to return per page (1-100, default 20).
 	Limit *int64 `default:"20" queryParam:"style=form,explode=true,name=limit"`
 	// Sort direction.
@@ -56,6 +58,13 @@ func (l *ListTenantsRequest) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	return nil
+}
+
+func (l *ListTenantsRequest) GetID() []string {
+	if l == nil {
+		return nil
+	}
+	return l.ID
 }
 
 func (l *ListTenantsRequest) GetLimit() *int64 {

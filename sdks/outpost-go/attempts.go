@@ -306,7 +306,7 @@ func (s *Attempts) List(ctx context.Context, request operations.ListAttemptsRequ
 //
 // When authenticated with a Tenant JWT, only attempts belonging to that tenant can be accessed.
 // When authenticated with Admin API Key, attempts from any tenant can be accessed.
-func (s *Attempts) Get(ctx context.Context, attemptID string, include *operations.GetAttemptInclude, opts ...operations.Option) (*operations.GetAttemptResponse, error) {
+func (s *Attempts) Get(ctx context.Context, attemptID string, include []string, opts ...operations.Option) (*operations.GetAttemptResponse, error) {
 	request := operations.GetAttemptRequest{
 		AttemptID: attemptID,
 		Include:   include,

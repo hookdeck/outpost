@@ -3,88 +3,18 @@
 package operations
 
 import (
-	"errors"
-	"fmt"
-	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
-
-type GetAttemptIncludeType string
-
-const (
-	GetAttemptIncludeTypeStr        GetAttemptIncludeType = "str"
-	GetAttemptIncludeTypeArrayOfStr GetAttemptIncludeType = "arrayOfStr"
-)
-
-// GetAttemptInclude - Fields to include in the response. Can be specified multiple times or comma-separated.
-// - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
-// - `event.data`: Include full event with payload data
-// - `response_data`: Include response body and headers
-type GetAttemptInclude struct {
-	Str        *string  `queryParam:"inline" union:"member"`
-	ArrayOfStr []string `queryParam:"inline" union:"member"`
-
-	Type GetAttemptIncludeType
-}
-
-func CreateGetAttemptIncludeStr(str string) GetAttemptInclude {
-	typ := GetAttemptIncludeTypeStr
-
-	return GetAttemptInclude{
-		Str:  &str,
-		Type: typ,
-	}
-}
-
-func CreateGetAttemptIncludeArrayOfStr(arrayOfStr []string) GetAttemptInclude {
-	typ := GetAttemptIncludeTypeArrayOfStr
-
-	return GetAttemptInclude{
-		ArrayOfStr: arrayOfStr,
-		Type:       typ,
-	}
-}
-
-func (u *GetAttemptInclude) UnmarshalJSON(data []byte) error {
-
-	var str string = ""
-	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
-		u.Str = &str
-		u.Type = GetAttemptIncludeTypeStr
-		return nil
-	}
-
-	var arrayOfStr []string = []string{}
-	if err := utils.UnmarshalJSON(data, &arrayOfStr, "", true, nil); err == nil {
-		u.ArrayOfStr = arrayOfStr
-		u.Type = GetAttemptIncludeTypeArrayOfStr
-		return nil
-	}
-
-	return fmt.Errorf("could not unmarshal `%s` into any supported union types for GetAttemptInclude", string(data))
-}
-
-func (u GetAttemptInclude) MarshalJSON() ([]byte, error) {
-	if u.Str != nil {
-		return utils.MarshalJSON(u.Str, "", true)
-	}
-
-	if u.ArrayOfStr != nil {
-		return utils.MarshalJSON(u.ArrayOfStr, "", true)
-	}
-
-	return nil, errors.New("could not marshal union type GetAttemptInclude: all fields are null")
-}
 
 type GetAttemptRequest struct {
 	// The ID of the attempt.
 	AttemptID string `pathParam:"style=simple,explode=false,name=attempt_id"`
-	// Fields to include in the response. Can be specified multiple times or comma-separated.
+	// Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
 	// - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 	// - `event.data`: Include full event with payload data
 	// - `response_data`: Include response body and headers
 	//
-	Include *GetAttemptInclude `queryParam:"style=form,explode=true,name=include"`
+	Include []string `queryParam:"style=form,explode=true,name=include"`
 }
 
 func (g *GetAttemptRequest) GetAttemptID() string {
@@ -94,7 +24,7 @@ func (g *GetAttemptRequest) GetAttemptID() string {
 	return g.AttemptID
 }
 
-func (g *GetAttemptRequest) GetInclude() *GetAttemptInclude {
+func (g *GetAttemptRequest) GetInclude() []string {
 	if g == nil {
 		return nil
 	}

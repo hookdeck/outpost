@@ -4,76 +4,11 @@ package operations
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"time"
 )
-
-type ListEventsTopicType string
-
-const (
-	ListEventsTopicTypeStr        ListEventsTopicType = "str"
-	ListEventsTopicTypeArrayOfStr ListEventsTopicType = "arrayOfStr"
-)
-
-// ListEventsTopic - Filter events by topic(s). Can be specified multiple times or comma-separated.
-type ListEventsTopic struct {
-	Str        *string  `queryParam:"inline" union:"member"`
-	ArrayOfStr []string `queryParam:"inline" union:"member"`
-
-	Type ListEventsTopicType
-}
-
-func CreateListEventsTopicStr(str string) ListEventsTopic {
-	typ := ListEventsTopicTypeStr
-
-	return ListEventsTopic{
-		Str:  &str,
-		Type: typ,
-	}
-}
-
-func CreateListEventsTopicArrayOfStr(arrayOfStr []string) ListEventsTopic {
-	typ := ListEventsTopicTypeArrayOfStr
-
-	return ListEventsTopic{
-		ArrayOfStr: arrayOfStr,
-		Type:       typ,
-	}
-}
-
-func (u *ListEventsTopic) UnmarshalJSON(data []byte) error {
-
-	var str string = ""
-	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
-		u.Str = &str
-		u.Type = ListEventsTopicTypeStr
-		return nil
-	}
-
-	var arrayOfStr []string = []string{}
-	if err := utils.UnmarshalJSON(data, &arrayOfStr, "", true, nil); err == nil {
-		u.ArrayOfStr = arrayOfStr
-		u.Type = ListEventsTopicTypeArrayOfStr
-		return nil
-	}
-
-	return fmt.Errorf("could not unmarshal `%s` into any supported union types for ListEventsTopic", string(data))
-}
-
-func (u ListEventsTopic) MarshalJSON() ([]byte, error) {
-	if u.Str != nil {
-		return utils.MarshalJSON(u.Str, "", true)
-	}
-
-	if u.ArrayOfStr != nil {
-		return utils.MarshalJSON(u.ArrayOfStr, "", true)
-	}
-
-	return nil, errors.New("could not marshal union type ListEventsTopic: all fields are null")
-}
 
 // ListEventsOrderBy - Field to sort by.
 type ListEventsOrderBy string
@@ -127,14 +62,23 @@ func (e *ListEventsDir) UnmarshalJSON(data []byte) error {
 }
 
 type ListEventsRequest struct {
-	// Filter events by tenant ID. If not provided, returns events from all tenants.
-	TenantID *string `queryParam:"style=form,explode=true,name=tenant_id"`
-	// Filter events by topic(s). Can be specified multiple times or comma-separated.
-	Topic *ListEventsTopic `queryParam:"style=form,explode=true,name=topic"`
+	// Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`).
+	ID []string `queryParam:"style=form,explode=true,name=id"`
+	// Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
+	// When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
+	// If not provided with API key auth, returns events from all tenants.
+	//
+	TenantID []string `queryParam:"style=form,explode=true,name=tenant_id"`
+	// Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
+	Topic []string `queryParam:"style=form,explode=true,name=topic"`
 	// Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
 	TimeGte *time.Time `queryParam:"style=form,explode=true,name=time[gte]"`
 	// Filter events with time <= value (RFC3339 or YYYY-MM-DD format).
 	TimeLte *time.Time `queryParam:"style=form,explode=true,name=time[lte]"`
+	// Filter events with time > value (RFC3339 or YYYY-MM-DD format).
+	TimeGt *time.Time `queryParam:"style=form,explode=true,name=time[gt]"`
+	// Filter events with time < value (RFC3339 or YYYY-MM-DD format).
+	TimeLt *time.Time `queryParam:"style=form,explode=true,name=time[lt]"`
 	// Number of items per page (default 100, max 1000).
 	Limit *int64 `default:"100" queryParam:"style=form,explode=true,name=limit"`
 	// Cursor for next page of results.
@@ -158,14 +102,21 @@ func (l *ListEventsRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (l *ListEventsRequest) GetTenantID() *string {
+func (l *ListEventsRequest) GetID() []string {
+	if l == nil {
+		return nil
+	}
+	return l.ID
+}
+
+func (l *ListEventsRequest) GetTenantID() []string {
 	if l == nil {
 		return nil
 	}
 	return l.TenantID
 }
 
-func (l *ListEventsRequest) GetTopic() *ListEventsTopic {
+func (l *ListEventsRequest) GetTopic() []string {
 	if l == nil {
 		return nil
 	}
@@ -184,6 +135,20 @@ func (l *ListEventsRequest) GetTimeLte() *time.Time {
 		return nil
 	}
 	return l.TimeLte
+}
+
+func (l *ListEventsRequest) GetTimeGt() *time.Time {
+	if l == nil {
+		return nil
+	}
+	return l.TimeGt
+}
+
+func (l *ListEventsRequest) GetTimeLt() *time.Time {
+	if l == nil {
+		return nil
+	}
+	return l.TimeLt
 }
 
 func (l *ListEventsRequest) GetLimit() *int64 {

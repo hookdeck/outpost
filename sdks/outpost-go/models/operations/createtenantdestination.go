@@ -9,7 +9,7 @@ import (
 type CreateTenantDestinationRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
 	TenantID string                       `pathParam:"style=simple,explode=false,name=tenant_id"`
-	Params   components.DestinationCreate `request:"mediaType=application/json"`
+	Body     components.DestinationCreate `request:"mediaType=application/json"`
 }
 
 func (c *CreateTenantDestinationRequest) GetTenantID() string {
@@ -19,43 +19,43 @@ func (c *CreateTenantDestinationRequest) GetTenantID() string {
 	return c.TenantID
 }
 
-func (c *CreateTenantDestinationRequest) GetParams() components.DestinationCreate {
+func (c *CreateTenantDestinationRequest) GetBody() components.DestinationCreate {
 	if c == nil {
 		return components.DestinationCreate{}
 	}
-	return c.Params
+	return c.Body
 }
 
-func (c *CreateTenantDestinationRequest) GetParamsWebhook() *components.DestinationCreateWebhook {
-	return c.GetParams().DestinationCreateWebhook
+func (c *CreateTenantDestinationRequest) GetBodyWebhook() *components.DestinationCreateWebhook {
+	return c.GetBody().DestinationCreateWebhook
 }
 
-func (c *CreateTenantDestinationRequest) GetParamsAwsSqs() *components.DestinationCreateAWSSQS {
-	return c.GetParams().DestinationCreateAWSSQS
+func (c *CreateTenantDestinationRequest) GetBodyAwsSqs() *components.DestinationCreateAWSSQS {
+	return c.GetBody().DestinationCreateAWSSQS
 }
 
-func (c *CreateTenantDestinationRequest) GetParamsRabbitmq() *components.DestinationCreateRabbitMQ {
-	return c.GetParams().DestinationCreateRabbitMQ
+func (c *CreateTenantDestinationRequest) GetBodyRabbitmq() *components.DestinationCreateRabbitMQ {
+	return c.GetBody().DestinationCreateRabbitMQ
 }
 
-func (c *CreateTenantDestinationRequest) GetParamsHookdeck() *components.DestinationCreateHookdeck {
-	return c.GetParams().DestinationCreateHookdeck
+func (c *CreateTenantDestinationRequest) GetBodyHookdeck() *components.DestinationCreateHookdeck {
+	return c.GetBody().DestinationCreateHookdeck
 }
 
-func (c *CreateTenantDestinationRequest) GetParamsAwsKinesis() *components.DestinationCreateAWSKinesis {
-	return c.GetParams().DestinationCreateAWSKinesis
+func (c *CreateTenantDestinationRequest) GetBodyAwsKinesis() *components.DestinationCreateAWSKinesis {
+	return c.GetBody().DestinationCreateAWSKinesis
 }
 
-func (c *CreateTenantDestinationRequest) GetParamsAzureServicebus() *components.DestinationCreateAzureServiceBus {
-	return c.GetParams().DestinationCreateAzureServiceBus
+func (c *CreateTenantDestinationRequest) GetBodyAzureServicebus() *components.DestinationCreateAzureServiceBus {
+	return c.GetBody().DestinationCreateAzureServiceBus
 }
 
-func (c *CreateTenantDestinationRequest) GetParamsAwsS3() *components.DestinationCreateAwss3 {
-	return c.GetParams().DestinationCreateAwss3
+func (c *CreateTenantDestinationRequest) GetBodyAwsS3() *components.DestinationCreateAwss3 {
+	return c.GetBody().DestinationCreateAwss3
 }
 
-func (c *CreateTenantDestinationRequest) GetParamsGcpPubsub() *components.DestinationCreateGCPPubSub {
-	return c.GetParams().DestinationCreateGCPPubSub
+func (c *CreateTenantDestinationRequest) GetBodyGcpPubsub() *components.DestinationCreateGCPPubSub {
+	return c.GetBody().DestinationCreateGCPPubSub
 }
 
 type CreateTenantDestinationResponse struct {
