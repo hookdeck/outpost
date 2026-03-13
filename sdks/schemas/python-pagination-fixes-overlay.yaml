@@ -1,11 +1,11 @@
 overlay: 1.0.0
 x-speakeasy-jsonpath: rfc9535
 info:
-  title: Pagination Field Fixes
-  version: 0.0.3
+  title: Python Pagination Fixes
+  version: 0.0.4
   x-speakeasy-metadata:
-    type: pagination-fixes
-    description: "Fixes pagination field conflicts with Python built-ins; uses filter expressions instead of positional indices for resilience to parameter reordering"
+    type: python-pagination-fixes
+    description: "Renames fields that conflict with Python built-ins (dir, next, prev); uses filter expressions for resilience to parameter reordering"
 extends: ../../docs/apis/openapi.yaml
 actions:
   # Fix 'next' field in SeekPagination to avoid Python built-in next() conflict
@@ -110,79 +110,3 @@ actions:
     x-speakeasy-metadata:
       type: parameter-name-override
       description: "Rename 'prev' query parameter to 'prev_cursor'"
-
-  # Pagination config: GET /tenants (v0.13 envelope: models + pagination.next/prev)
-  - target: $["paths"]["/tenants"]["get"]
-    update:
-      x-speakeasy-pagination:
-        type: cursor
-        inputs:
-          - name: next
-            in: parameters
-            type: cursor
-          - name: limit
-            in: parameters
-            type: limit
-        outputs:
-          nextCursor: $.pagination.next
-          results: $.models
-    x-speakeasy-metadata:
-      type: pagination-config
-      description: "Configure cursor-based pagination for tenants listing"
-
-  # Pagination config: GET /events
-  - target: $["paths"]["/events"]["get"]
-    update:
-      x-speakeasy-pagination:
-        type: cursor
-        inputs:
-          - name: next
-            in: parameters
-            type: cursor
-          - name: limit
-            in: parameters
-            type: limit
-        outputs:
-          nextCursor: $.pagination.next
-          results: $.models
-    x-speakeasy-metadata:
-      type: pagination-config
-      description: "Configure cursor-based pagination for events listing"
-
-  # Pagination config: GET /attempts
-  - target: $["paths"]["/attempts"]["get"]
-    update:
-      x-speakeasy-pagination:
-        type: cursor
-        inputs:
-          - name: next
-            in: parameters
-            type: cursor
-          - name: limit
-            in: parameters
-            type: limit
-        outputs:
-          nextCursor: $.pagination.next
-          results: $.models
-    x-speakeasy-metadata:
-      type: pagination-config
-      description: "Configure cursor-based pagination for attempts listing"
-
-  # Pagination config: GET /tenants/.../destinations/.../attempts
-  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]
-    update:
-      x-speakeasy-pagination:
-        type: cursor
-        inputs:
-          - name: next
-            in: parameters
-            type: cursor
-          - name: limit
-            in: parameters
-            type: limit
-        outputs:
-          nextCursor: $.pagination.next
-          results: $.models
-    x-speakeasy-metadata:
-      type: pagination-config
-      description: "Configure cursor-based pagination for destination attempts listing"
