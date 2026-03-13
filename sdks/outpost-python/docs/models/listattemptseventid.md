@@ -1,6 +1,6 @@
-# ListEventsTopic
+# ListAttemptsEventID
 
-Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
+Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
 
 
 ## Supported Types
