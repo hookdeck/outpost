@@ -15,6 +15,18 @@ from typing import Callable, List, Optional, Union
 from typing_extensions import Annotated, NotRequired, TypeAliasType, TypedDict
 
 
+ListTenantDestinationAttemptsEventIDTypedDict = TypeAliasType(
+    "ListTenantDestinationAttemptsEventIDTypedDict", Union[str, List[str]]
+)
+r"""Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`)."""
+
+
+ListTenantDestinationAttemptsEventID = TypeAliasType(
+    "ListTenantDestinationAttemptsEventID", Union[str, List[str]]
+)
+r"""Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`)."""
+
+
 class ListTenantDestinationAttemptsStatus(str, Enum):
     r"""Filter attempts by status."""
 
@@ -25,19 +37,19 @@ class ListTenantDestinationAttemptsStatus(str, Enum):
 ListTenantDestinationAttemptsTopicTypedDict = TypeAliasType(
     "ListTenantDestinationAttemptsTopicTypedDict", Union[str, List[str]]
 )
-r"""Filter attempts by event topic(s). Can be specified multiple times or comma-separated."""
+r"""Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`)."""
 
 
 ListTenantDestinationAttemptsTopic = TypeAliasType(
     "ListTenantDestinationAttemptsTopic", Union[str, List[str]]
 )
-r"""Filter attempts by event topic(s). Can be specified multiple times or comma-separated."""
+r"""Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`)."""
 
 
 ListTenantDestinationAttemptsIncludeTypedDict = TypeAliasType(
     "ListTenantDestinationAttemptsIncludeTypedDict", Union[str, List[str]]
 )
-r"""Fields to include in the response. Can be specified multiple times or comma-separated.
+r"""Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
 - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 - `event.data`: Include full event with payload data
 - `response_data`: Include response body and headers
@@ -48,7 +60,7 @@ r"""Fields to include in the response. Can be specified multiple times or comma-
 ListTenantDestinationAttemptsInclude = TypeAliasType(
     "ListTenantDestinationAttemptsInclude", Union[str, List[str]]
 )
-r"""Fields to include in the response. Can be specified multiple times or comma-separated.
+r"""Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
 - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 - `event.data`: Include full event with payload data
 - `response_data`: Include response body and headers
@@ -74,16 +86,20 @@ class ListTenantDestinationAttemptsRequestTypedDict(TypedDict):
     r"""The ID of the tenant. Required when using AdminApiKey authentication."""
     destination_id: str
     r"""The ID of the destination."""
-    event_id: NotRequired[str]
-    r"""Filter attempts by event ID."""
+    event_id: NotRequired[ListTenantDestinationAttemptsEventIDTypedDict]
+    r"""Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`)."""
     status: NotRequired[ListTenantDestinationAttemptsStatus]
     r"""Filter attempts by status."""
     topic: NotRequired[ListTenantDestinationAttemptsTopicTypedDict]
-    r"""Filter attempts by event topic(s). Can be specified multiple times or comma-separated."""
+    r"""Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`)."""
     time_gte: NotRequired[datetime]
     r"""Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format)."""
     time_lte: NotRequired[datetime]
     r"""Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format)."""
+    time_gt: NotRequired[datetime]
+    r"""Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format)."""
+    time_lt: NotRequired[datetime]
+    r"""Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format)."""
     limit: NotRequired[int]
     r"""Number of items per page (default 100, max 1000)."""
     next_cursor: NotRequired[str]
@@ -91,7 +107,7 @@ class ListTenantDestinationAttemptsRequestTypedDict(TypedDict):
     prev_cursor: NotRequired[str]
     r"""Cursor for previous page of results."""
     include: NotRequired[ListTenantDestinationAttemptsIncludeTypedDict]
-    r"""Fields to include in the response. Can be specified multiple times or comma-separated.
+    r"""Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
     - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
     - `event.data`: Include full event with payload data
     - `response_data`: Include response body and headers
@@ -115,10 +131,10 @@ class ListTenantDestinationAttemptsRequest(BaseModel):
     r"""The ID of the destination."""
 
     event_id: Annotated[
-        Optional[str],
+        Optional[ListTenantDestinationAttemptsEventID],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
-    r"""Filter attempts by event ID."""
+    r"""Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`)."""
 
     status: Annotated[
         Optional[ListTenantDestinationAttemptsStatus],
@@ -130,7 +146,7 @@ class ListTenantDestinationAttemptsRequest(BaseModel):
         Optional[ListTenantDestinationAttemptsTopic],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
-    r"""Filter attempts by event topic(s). Can be specified multiple times or comma-separated."""
+    r"""Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`)."""
 
     time_gte: Annotated[
         Optional[datetime],
@@ -145,6 +161,20 @@ class ListTenantDestinationAttemptsRequest(BaseModel):
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format)."""
+
+    time_gt: Annotated[
+        Optional[datetime],
+        pydantic.Field(alias="time[gt]"),
+        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
+    ] = None
+    r"""Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format)."""
+
+    time_lt: Annotated[
+        Optional[datetime],
+        pydantic.Field(alias="time[lt]"),
+        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
+    ] = None
+    r"""Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format)."""
 
     limit: Annotated[
         Optional[int],
@@ -170,7 +200,7 @@ class ListTenantDestinationAttemptsRequest(BaseModel):
         Optional[ListTenantDestinationAttemptsInclude],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
-    r"""Fields to include in the response. Can be specified multiple times or comma-separated.
+    r"""Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
     - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
     - `event.data`: Include full event with payload data
     - `response_data`: Include response body and headers
@@ -199,6 +229,8 @@ class ListTenantDestinationAttemptsRequest(BaseModel):
                 "topic",
                 "time[gte]",
                 "time[lte]",
+                "time[gt]",
+                "time[lt]",
                 "limit",
                 "next_cursor",
                 "prev_cursor",
@@ -212,7 +244,7 @@ class ListTenantDestinationAttemptsRequest(BaseModel):
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
-            val = serialized.get(k)
+            val = serialized.get(k, serialized.get(n))
 
             if val != UNSET_SENTINEL:
                 if val is not None or k not in optional_fields:

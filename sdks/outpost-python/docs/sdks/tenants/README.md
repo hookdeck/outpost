@@ -9,14 +9,14 @@ If your system is not multi-tenant, create a single tenant with a hard-code tena
 
 ### Available Operations
 
-* [list_tenants](#list_tenants) - List Tenants
+* [list](#list) - List Tenants
 * [upsert](#upsert) - Create or Update Tenant
 * [get](#get) - Get Tenant
 * [delete](#delete) - Delete Tenant
 * [get_portal_url](#get_portal_url) - Get Portal Redirect URL
 * [get_token](#get_token) - Get Tenant JWT Token
 
-## list_tenants
+## list
 
 List all tenants with cursor-based pagination.
 
@@ -30,14 +30,14 @@ When authenticated with a Tenant JWT, returns only the authenticated tenant. Pag
 
 <!-- UsageSnippet language="python" operationID="listTenants" method="get" path="/tenants" -->
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
     api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.tenants.list_tenants(limit=20, dir=models.ListTenantsDir.DESC)
+    res = outpost.tenants.list(request={})
 
     while res is not None:
         # Handle items
@@ -48,13 +48,10 @@ with Outpost(
 
 ### Parameters
 
-| Parameter                                                                | Type                                                                     | Required                                                                 | Description                                                              |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `limit`                                                                  | *Optional[int]*                                                          | :heavy_minus_sign:                                                       | Number of tenants to return per page (1-100, default 20).                |
-| `dir`                                                                    | [Optional[models.ListTenantsDir]](../../models/listtenantsdir.md)        | :heavy_minus_sign:                                                       | Sort direction.                                                          |
-| `direction`                                                              | *Optional[str]*                                                          | :heavy_minus_sign:                                                       | Cursor for the next page of results. Mutually exclusive with `prev`.     |
-| `prev`                                                                   | *Optional[str]*                                                          | :heavy_minus_sign:                                                       | Cursor for the previous page of results. Mutually exclusive with `next`. |
-| `retries`                                                                | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)         | :heavy_minus_sign:                                                       | Configuration to override the default retry behavior of the client.      |
+| Parameter                                                           | Type                                                                | Required                                                            | Description                                                         |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `request`                                                           | [models.ListTenantsRequest](../../models/listtenantsrequest.md)     | :heavy_check_mark:                                                  | The request object to use for the request.                          |
+| `retries`                                                           | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)    | :heavy_minus_sign:                                                  | Configuration to override the default retry behavior of the client. |
 
 ### Response
 
@@ -97,7 +94,7 @@ with Outpost(
 | Parameter                                                             | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `tenant_id`                                                           | *str*                                                                 | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
-| `metadata`                                                            | Dict[str, *str*]                                                      | :heavy_minus_sign:                                                    | Optional metadata to store with the tenant.                           |
+| `body`                                                                | [Optional[models.TenantUpsert]](../../models/tenantupsert.md)         | :heavy_minus_sign:                                                    | Optional tenant metadata                                              |
 | `retries`                                                             | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)      | :heavy_minus_sign:                                                    | Configuration to override the default retry behavior of the client.   |
 
 ### Response

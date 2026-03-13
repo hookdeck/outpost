@@ -12,14 +12,40 @@ from typing import Callable, List, Optional, Union
 from typing_extensions import Annotated, NotRequired, TypeAliasType, TypedDict
 
 
+ListEventsIDTypedDict = TypeAliasType("ListEventsIDTypedDict", Union[str, List[str]])
+r"""Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`)."""
+
+
+ListEventsID = TypeAliasType("ListEventsID", Union[str, List[str]])
+r"""Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`)."""
+
+
+ListEventsTenantIDTypedDict = TypeAliasType(
+    "ListEventsTenantIDTypedDict", Union[str, List[str]]
+)
+r"""Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
+When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
+If not provided with API key auth, returns events from all tenants.
+
+"""
+
+
+ListEventsTenantID = TypeAliasType("ListEventsTenantID", Union[str, List[str]])
+r"""Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
+When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
+If not provided with API key auth, returns events from all tenants.
+
+"""
+
+
 ListEventsTopicTypedDict = TypeAliasType(
     "ListEventsTopicTypedDict", Union[str, List[str]]
 )
-r"""Filter events by topic(s). Can be specified multiple times or comma-separated."""
+r"""Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`)."""
 
 
 ListEventsTopic = TypeAliasType("ListEventsTopic", Union[str, List[str]])
-r"""Filter events by topic(s). Can be specified multiple times or comma-separated."""
+r"""Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`)."""
 
 
 class ListEventsOrderBy(str, Enum):
@@ -36,14 +62,24 @@ class ListEventsDir(str, Enum):
 
 
 class ListEventsRequestTypedDict(TypedDict):
-    tenant_id: NotRequired[str]
-    r"""Filter events by tenant ID. If not provided, returns events from all tenants."""
+    id: NotRequired[ListEventsIDTypedDict]
+    r"""Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`)."""
+    tenant_id: NotRequired[ListEventsTenantIDTypedDict]
+    r"""Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
+    When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
+    If not provided with API key auth, returns events from all tenants.
+
+    """
     topic: NotRequired[ListEventsTopicTypedDict]
-    r"""Filter events by topic(s). Can be specified multiple times or comma-separated."""
+    r"""Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`)."""
     time_gte: NotRequired[datetime]
     r"""Filter events with time >= value (RFC3339 or YYYY-MM-DD format)."""
     time_lte: NotRequired[datetime]
     r"""Filter events with time <= value (RFC3339 or YYYY-MM-DD format)."""
+    time_gt: NotRequired[datetime]
+    r"""Filter events with time > value (RFC3339 or YYYY-MM-DD format)."""
+    time_lt: NotRequired[datetime]
+    r"""Filter events with time < value (RFC3339 or YYYY-MM-DD format)."""
     limit: NotRequired[int]
     r"""Number of items per page (default 100, max 1000)."""
     next_cursor: NotRequired[str]
@@ -57,17 +93,27 @@ class ListEventsRequestTypedDict(TypedDict):
 
 
 class ListEventsRequest(BaseModel):
-    tenant_id: Annotated[
-        Optional[str],
+    id: Annotated[
+        Optional[ListEventsID],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
-    r"""Filter events by tenant ID. If not provided, returns events from all tenants."""
+    r"""Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`)."""
+
+    tenant_id: Annotated[
+        Optional[ListEventsTenantID],
+        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
+    ] = None
+    r"""Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
+    When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
+    If not provided with API key auth, returns events from all tenants.
+
+    """
 
     topic: Annotated[
         Optional[ListEventsTopic],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
-    r"""Filter events by topic(s). Can be specified multiple times or comma-separated."""
+    r"""Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`)."""
 
     time_gte: Annotated[
         Optional[datetime],
@@ -82,6 +128,20 @@ class ListEventsRequest(BaseModel):
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Filter events with time <= value (RFC3339 or YYYY-MM-DD format)."""
+
+    time_gt: Annotated[
+        Optional[datetime],
+        pydantic.Field(alias="time[gt]"),
+        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
+    ] = None
+    r"""Filter events with time > value (RFC3339 or YYYY-MM-DD format)."""
+
+    time_lt: Annotated[
+        Optional[datetime],
+        pydantic.Field(alias="time[lt]"),
+        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
+    ] = None
+    r"""Filter events with time < value (RFC3339 or YYYY-MM-DD format)."""
 
     limit: Annotated[
         Optional[int],
@@ -120,10 +180,13 @@ class ListEventsRequest(BaseModel):
     def serialize_model(self, handler):
         optional_fields = set(
             [
+                "id",
                 "tenant_id",
                 "topic",
                 "time[gte]",
                 "time[lte]",
+                "time[gt]",
+                "time[lt]",
                 "limit",
                 "next_cursor",
                 "prev_cursor",
@@ -136,7 +199,7 @@ class ListEventsRequest(BaseModel):
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
-            val = serialized.get(k)
+            val = serialized.get(k, serialized.get(n))
 
             if val != UNSET_SENTINEL:
                 if val is not None or k not in optional_fields:
