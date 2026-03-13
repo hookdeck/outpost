@@ -204,13 +204,11 @@ components:
           nullable: true
           description: Cursor for the next page of results. Null if no more results.
           example: "MTcwNDA2NzIwMA=="
-          x-speakeasy-name-override: "next_cursor"
         prev:
           type: string
           nullable: true
           description: Cursor for the previous page of results. Null if on first page.
           example: null
-          x-speakeasy-name-override: "prev_cursor"
     APIErrorResponse:
       type: object
       description: Standard error response format.
@@ -2193,7 +2191,6 @@ paths:
           schema:
             type: string
           description: Cursor for the next page of results. Mutually exclusive with `prev`.
-          x-speakeasy-name-override: "direction"
         - name: prev
           in: query
           required: false
@@ -2243,18 +2240,6 @@ paths:
                     example: "list tenant not supported"
       security:
         - BearerAuth: []
-      x-speakeasy-pagination:
-        type: cursor
-        inputs:
-          - name: next
-            in: parameters
-            type: cursor
-          - name: limit
-            in: parameters
-            type: limit
-        outputs:
-          nextCursor: $.pagination.next
-          results: $.models
   /tenants/{tenant_id}:
     parameters:
       - name: tenant_id
@@ -2393,14 +2378,12 @@ paths:
           schema:
             type: string
           description: Cursor for next page of results.
-          x-speakeasy-name-override: "next_cursor"
         - name: prev
           in: query
           required: false
           schema:
             type: string
           description: Cursor for previous page of results.
-          x-speakeasy-name-override: "prev_cursor"
         - name: order_by
           in: query
           required: false
@@ -2417,7 +2400,6 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort direction.
-          x-speakeasy-name-override: "direction"
       responses:
         "200":
           description: A paginated list of events.
@@ -2454,18 +2436,6 @@ paths:
       x-speakeasy-name-override: list
       security:
         - BearerAuth: []
-      x-speakeasy-pagination:
-        type: cursor
-        inputs:
-          - name: next
-            in: parameters
-            type: cursor
-          - name: limit
-            in: parameters
-            type: limit
-        outputs:
-          nextCursor: $.pagination.next
-          results: $.models
   /events/{event_id}:
     parameters:
       - name: event_id
@@ -2581,14 +2551,12 @@ paths:
           schema:
             type: string
           description: Cursor for next page of results.
-          x-speakeasy-name-override: "next_cursor"
         - name: prev
           in: query
           required: false
           schema:
             type: string
           description: Cursor for previous page of results.
-          x-speakeasy-name-override: "prev_cursor"
         - name: include
           in: query
           required: false
@@ -2619,7 +2587,6 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort direction.
-          x-speakeasy-name-override: "direction"
       responses:
         "200":
           description: A paginated list of attempts.
@@ -2681,18 +2648,6 @@ paths:
       x-speakeasy-name-override: list
       security:
         - BearerAuth: []
-      x-speakeasy-pagination:
-        type: cursor
-        inputs:
-          - name: next
-            in: parameters
-            type: cursor
-          - name: limit
-            in: parameters
-            type: limit
-        outputs:
-          nextCursor: $.pagination.next
-          results: $.models
   /attempts/{attempt_id}:
     parameters:
       - name: attempt_id
@@ -3264,14 +3219,12 @@ paths:
           schema:
             type: string
           description: Cursor for next page of results.
-          x-speakeasy-name-override: "next_cursor"
         - name: prev
           in: query
           required: false
           schema:
             type: string
           description: Cursor for previous page of results.
-          x-speakeasy-name-override: "prev_cursor"
         - name: include
           in: query
           required: false
@@ -3302,7 +3255,6 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort direction.
-          x-speakeasy-name-override: "direction"
       responses:
         "200":
           description: A paginated list of attempts for the destination.
@@ -3341,18 +3293,6 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: listAttempts
-      x-speakeasy-pagination:
-        type: cursor
-        inputs:
-          - name: next
-            in: parameters
-            type: cursor
-          - name: limit
-            in: parameters
-            type: limit
-        outputs:
-          nextCursor: $.pagination.next
-          results: $.models
   /tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}:
     parameters:
       - name: tenant_id

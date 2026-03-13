@@ -9,6 +9,7 @@ import { ClientSDK, RequestOptions } from "../lib/sdks.js";
 import * as components from "../models/components/index.js";
 import * as operations from "../models/operations/index.js";
 import { unwrapAsync } from "../types/fp.js";
+import { PageIterator, unwrapResultIterator } from "../types/operations.js";
 
 export class Attempts extends ClientSDK {
   /**
@@ -23,8 +24,10 @@ export class Attempts extends ClientSDK {
   async list(
     request: operations.ListAttemptsRequest,
     options?: RequestOptions,
-  ): Promise<components.AttemptPaginatedResult> {
-    return unwrapAsync(attemptsList(
+  ): Promise<
+    PageIterator<operations.ListAttemptsResponse, { cursor: string }>
+  > {
+    return unwrapResultIterator(attemptsList(
       this,
       request,
       options,

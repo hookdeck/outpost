@@ -14,7 +14,7 @@ export type CreateTenantDestinationRequest = {
    * The ID of the tenant. Required when using AdminApiKey authentication.
    */
   tenantId: string;
-  params: components.DestinationCreate;
+  body: components.DestinationCreate;
 };
 
 /** @internal */
@@ -24,7 +24,7 @@ export const CreateTenantDestinationRequest$inboundSchema: z.ZodType<
   unknown
 > = z.object({
   tenant_id: z.string(),
-  params: components.DestinationCreate$inboundSchema,
+  body: components.DestinationCreate$inboundSchema,
 }).transform((v) => {
   return remap$(v, {
     "tenant_id": "tenantId",
@@ -33,7 +33,7 @@ export const CreateTenantDestinationRequest$inboundSchema: z.ZodType<
 /** @internal */
 export type CreateTenantDestinationRequest$Outbound = {
   tenant_id: string;
-  params: components.DestinationCreate$Outbound;
+  body: components.DestinationCreate$Outbound;
 };
 
 /** @internal */
@@ -43,7 +43,7 @@ export const CreateTenantDestinationRequest$outboundSchema: z.ZodType<
   CreateTenantDestinationRequest
 > = z.object({
   tenantId: z.string(),
-  params: components.DestinationCreate$outboundSchema,
+  body: components.DestinationCreate$outboundSchema,
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",

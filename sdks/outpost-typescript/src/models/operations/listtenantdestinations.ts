@@ -10,14 +10,14 @@ import * as components from "../components/index.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 /**
- * Filter destinations by type(s).
+ * Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).
  */
 export type ListTenantDestinationsType =
   | components.DestinationType
   | Array<components.DestinationType>;
 
 /**
- * Filter destinations by supported topic(s).
+ * Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`).
  */
 export type Topics = string | Array<string>;
 
@@ -27,14 +27,14 @@ export type ListTenantDestinationsRequest = {
    */
   tenantId: string;
   /**
-   * Filter destinations by type(s).
+   * Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).
    */
   type?:
     | components.DestinationType
     | Array<components.DestinationType>
     | undefined;
   /**
-   * Filter destinations by supported topic(s).
+   * Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`).
    */
   topics?: string | Array<string> | undefined;
 };

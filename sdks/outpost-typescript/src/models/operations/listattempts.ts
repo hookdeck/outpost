@@ -7,7 +7,27 @@ import { remap as remap$ } from "../../lib/primitives.js";
 import { safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
+import * as components from "../components/index.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
+
+/**
+ * Filter attempts by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
+ *
+ * @remarks
+ * When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
+ * If not provided with API key auth, returns attempts from all tenants.
+ */
+export type ListAttemptsTenantId = string | Array<string>;
+
+/**
+ * Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
+ */
+export type ListAttemptsEventId = string | Array<string>;
+
+/**
+ * Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
+ */
+export type DestinationId = string | Array<string>;
 
 /**
  * Filter attempts by status.
@@ -22,12 +42,12 @@ export const ListAttemptsStatus = {
 export type ListAttemptsStatus = ClosedEnum<typeof ListAttemptsStatus>;
 
 /**
- * Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
+ * Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
  */
 export type ListAttemptsTopic = string | Array<string>;
 
 /**
- * Fields to include in the response. Can be specified multiple times or comma-separated.
+ * Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
  *
  * @remarks
  * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -61,23 +81,27 @@ export type ListAttemptsDir = ClosedEnum<typeof ListAttemptsDir>;
 
 export type ListAttemptsRequest = {
   /**
-   * Filter attempts by tenant ID. If not provided, returns attempts from all tenants.
+   * Filter attempts by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
+   *
+   * @remarks
+   * When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
+   * If not provided with API key auth, returns attempts from all tenants.
    */
-  tenantId?: string | undefined;
+  tenantId?: string | Array<string> | undefined;
   /**
-   * Filter attempts by event ID.
+   * Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
    */
-  eventId?: string | undefined;
+  eventId?: string | Array<string> | undefined;
   /**
-   * Filter attempts by destination ID.
+   * Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
    */
-  destinationId?: string | undefined;
+  destinationId?: string | Array<string> | undefined;
   /**
    * Filter attempts by status.
    */
   status?: ListAttemptsStatus | undefined;
   /**
-   * Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
+   * Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
    */
   topic?: string | Array<string> | undefined;
   /**
@@ -88,6 +112,14 @@ export type ListAttemptsRequest = {
    * Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
    */
   timeLte?: Date | undefined;
+  /**
+   * Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format).
+   */
+  timeGt?: Date | undefined;
+  /**
+   * Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format).
+   */
+  timeLt?: Date | undefined;
   /**
    * Number of items per page (default 100, max 1000).
    */
@@ -101,7 +133,7 @@ export type ListAttemptsRequest = {
    */
   prev?: string | undefined;
   /**
-   * Fields to include in the response. Can be specified multiple times or comma-separated.
+   * Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
    *
    * @remarks
    * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -118,6 +150,105 @@ export type ListAttemptsRequest = {
    */
   dir?: ListAttemptsDir | undefined;
 };
+
+export type ListAttemptsResponse = {
+  result: components.AttemptPaginatedResult;
+};
+
+/** @internal */
+export const ListAttemptsTenantId$inboundSchema: z.ZodType<
+  ListAttemptsTenantId,
+  z.ZodTypeDef,
+  unknown
+> = z.union([z.string(), z.array(z.string())]);
+/** @internal */
+export type ListAttemptsTenantId$Outbound = string | Array<string>;
+
+/** @internal */
+export const ListAttemptsTenantId$outboundSchema: z.ZodType<
+  ListAttemptsTenantId$Outbound,
+  z.ZodTypeDef,
+  ListAttemptsTenantId
+> = z.union([z.string(), z.array(z.string())]);
+
+export function listAttemptsTenantIdToJSON(
+  listAttemptsTenantId: ListAttemptsTenantId,
+): string {
+  return JSON.stringify(
+    ListAttemptsTenantId$outboundSchema.parse(listAttemptsTenantId),
+  );
+}
+export function listAttemptsTenantIdFromJSON(
+  jsonString: string,
+): SafeParseResult<ListAttemptsTenantId, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => ListAttemptsTenantId$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListAttemptsTenantId' from JSON`,
+  );
+}
+
+/** @internal */
+export const ListAttemptsEventId$inboundSchema: z.ZodType<
+  ListAttemptsEventId,
+  z.ZodTypeDef,
+  unknown
+> = z.union([z.string(), z.array(z.string())]);
+/** @internal */
+export type ListAttemptsEventId$Outbound = string | Array<string>;
+
+/** @internal */
+export const ListAttemptsEventId$outboundSchema: z.ZodType<
+  ListAttemptsEventId$Outbound,
+  z.ZodTypeDef,
+  ListAttemptsEventId
+> = z.union([z.string(), z.array(z.string())]);
+
+export function listAttemptsEventIdToJSON(
+  listAttemptsEventId: ListAttemptsEventId,
+): string {
+  return JSON.stringify(
+    ListAttemptsEventId$outboundSchema.parse(listAttemptsEventId),
+  );
+}
+export function listAttemptsEventIdFromJSON(
+  jsonString: string,
+): SafeParseResult<ListAttemptsEventId, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => ListAttemptsEventId$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListAttemptsEventId' from JSON`,
+  );
+}
+
+/** @internal */
+export const DestinationId$inboundSchema: z.ZodType<
+  DestinationId,
+  z.ZodTypeDef,
+  unknown
+> = z.union([z.string(), z.array(z.string())]);
+/** @internal */
+export type DestinationId$Outbound = string | Array<string>;
+
+/** @internal */
+export const DestinationId$outboundSchema: z.ZodType<
+  DestinationId$Outbound,
+  z.ZodTypeDef,
+  DestinationId
+> = z.union([z.string(), z.array(z.string())]);
+
+export function destinationIdToJSON(destinationId: DestinationId): string {
+  return JSON.stringify(DestinationId$outboundSchema.parse(destinationId));
+}
+export function destinationIdFromJSON(
+  jsonString: string,
+): SafeParseResult<DestinationId, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => DestinationId$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'DestinationId' from JSON`,
+  );
+}
 
 /** @internal */
 export const ListAttemptsStatus$inboundSchema: z.ZodNativeEnum<
@@ -218,14 +349,18 @@ export const ListAttemptsRequest$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  tenant_id: z.string().optional(),
-  event_id: z.string().optional(),
-  destination_id: z.string().optional(),
+  tenant_id: z.union([z.string(), z.array(z.string())]).optional(),
+  event_id: z.union([z.string(), z.array(z.string())]).optional(),
+  destination_id: z.union([z.string(), z.array(z.string())]).optional(),
   status: ListAttemptsStatus$inboundSchema.optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
   "time[gte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
     .optional(),
   "time[lte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
+    .optional(),
+  "time[gt]": z.string().datetime({ offset: true }).transform(v => new Date(v))
+    .optional(),
+  "time[lt]": z.string().datetime({ offset: true }).transform(v => new Date(v))
     .optional(),
   limit: z.number().int().default(100),
   next: z.string().optional(),
@@ -240,18 +375,22 @@ export const ListAttemptsRequest$inboundSchema: z.ZodType<
     "destination_id": "destinationId",
     "time[gte]": "timeGte",
     "time[lte]": "timeLte",
+    "time[gt]": "timeGt",
+    "time[lt]": "timeLt",
     "order_by": "orderBy",
   });
 });
 /** @internal */
 export type ListAttemptsRequest$Outbound = {
-  tenant_id?: string | undefined;
-  event_id?: string | undefined;
-  destination_id?: string | undefined;
+  tenant_id?: string | Array<string> | undefined;
+  event_id?: string | Array<string> | undefined;
+  destination_id?: string | Array<string> | undefined;
   status?: string | undefined;
   topic?: string | Array<string> | undefined;
   "time[gte]"?: string | undefined;
   "time[lte]"?: string | undefined;
+  "time[gt]"?: string | undefined;
+  "time[lt]"?: string | undefined;
   limit: number;
   next?: string | undefined;
   prev?: string | undefined;
@@ -266,13 +405,15 @@ export const ListAttemptsRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   ListAttemptsRequest
 > = z.object({
-  tenantId: z.string().optional(),
-  eventId: z.string().optional(),
-  destinationId: z.string().optional(),
+  tenantId: z.union([z.string(), z.array(z.string())]).optional(),
+  eventId: z.union([z.string(), z.array(z.string())]).optional(),
+  destinationId: z.union([z.string(), z.array(z.string())]).optional(),
   status: ListAttemptsStatus$outboundSchema.optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
   timeGte: z.date().transform(v => v.toISOString()).optional(),
   timeLte: z.date().transform(v => v.toISOString()).optional(),
+  timeGt: z.date().transform(v => v.toISOString()).optional(),
+  timeLt: z.date().transform(v => v.toISOString()).optional(),
   limit: z.number().int().default(100),
   next: z.string().optional(),
   prev: z.string().optional(),
@@ -286,6 +427,8 @@ export const ListAttemptsRequest$outboundSchema: z.ZodType<
     destinationId: "destination_id",
     timeGte: "time[gte]",
     timeLte: "time[lte]",
+    timeGt: "time[gt]",
+    timeLt: "time[lt]",
     orderBy: "order_by",
   });
 });
@@ -304,5 +447,52 @@ export function listAttemptsRequestFromJSON(
     jsonString,
     (x) => ListAttemptsRequest$inboundSchema.parse(JSON.parse(x)),
     `Failed to parse 'ListAttemptsRequest' from JSON`,
+  );
+}
+
+/** @internal */
+export const ListAttemptsResponse$inboundSchema: z.ZodType<
+  ListAttemptsResponse,
+  z.ZodTypeDef,
+  unknown
+> = z.object({
+  Result: components.AttemptPaginatedResult$inboundSchema,
+}).transform((v) => {
+  return remap$(v, {
+    "Result": "result",
+  });
+});
+/** @internal */
+export type ListAttemptsResponse$Outbound = {
+  Result: components.AttemptPaginatedResult$Outbound;
+};
+
+/** @internal */
+export const ListAttemptsResponse$outboundSchema: z.ZodType<
+  ListAttemptsResponse$Outbound,
+  z.ZodTypeDef,
+  ListAttemptsResponse
+> = z.object({
+  result: components.AttemptPaginatedResult$outboundSchema,
+}).transform((v) => {
+  return remap$(v, {
+    result: "Result",
+  });
+});
+
+export function listAttemptsResponseToJSON(
+  listAttemptsResponse: ListAttemptsResponse,
+): string {
+  return JSON.stringify(
+    ListAttemptsResponse$outboundSchema.parse(listAttemptsResponse),
+  );
+}
+export function listAttemptsResponseFromJSON(
+  jsonString: string,
+): SafeParseResult<ListAttemptsResponse, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => ListAttemptsResponse$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListAttemptsResponse' from JSON`,
   );
 }
