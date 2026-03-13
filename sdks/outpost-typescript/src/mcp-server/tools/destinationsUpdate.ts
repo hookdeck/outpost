@@ -10,7 +10,7 @@ import { formatResult, ToolDefinition } from "../tools.js";
 const args = {
   tenantId: z.string(),
   destinationId: z.string(),
-  params: components.DestinationUpdate$inboundSchema,
+  body: components.DestinationUpdate$inboundSchema,
 };
 
 export const tool$destinationsUpdate: ToolDefinition<typeof args> = {
@@ -24,7 +24,7 @@ Updates the configuration of an existing destination. The request body structure
       client,
       args.tenantId,
       args.destinationId,
-      args.params,
+      args.body,
       { fetchOptions: { signal: ctx.signal } },
     ).$inspect();
 

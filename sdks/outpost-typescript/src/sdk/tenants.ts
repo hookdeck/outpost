@@ -12,6 +12,7 @@ import { ClientSDK, RequestOptions } from "../lib/sdks.js";
 import * as components from "../models/components/index.js";
 import * as operations from "../models/operations/index.js";
 import { unwrapAsync } from "../types/fp.js";
+import { PageIterator, unwrapResultIterator } from "../types/operations.js";
 
 export class Tenants extends ClientSDK {
   /**
@@ -26,18 +27,12 @@ export class Tenants extends ClientSDK {
    * When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
    */
   async listTenants(
-    limit?: number | undefined,
-    dir?: operations.ListTenantsDir | undefined,
-    next?: string | undefined,
-    prev?: string | undefined,
+    request: operations.ListTenantsRequest,
     options?: RequestOptions,
-  ): Promise<components.TenantPaginatedResult> {
-    return unwrapAsync(tenantsListTenants(
+  ): Promise<PageIterator<operations.ListTenantsResponse, { cursor: string }>> {
+    return unwrapResultIterator(tenantsListTenants(
       this,
-      limit,
-      dir,
-      next,
-      prev,
+      request,
       options,
     ));
   }
@@ -50,13 +45,13 @@ export class Tenants extends ClientSDK {
    */
   async upsert(
     tenantId: string,
-    params?: components.TenantUpsert | undefined,
+    body?: components.TenantUpsert | undefined,
     options?: RequestOptions,
   ): Promise<components.Tenant> {
     return unwrapAsync(tenantsUpsert(
       this,
       tenantId,
-      params,
+      body,
       options,
     ));
   }

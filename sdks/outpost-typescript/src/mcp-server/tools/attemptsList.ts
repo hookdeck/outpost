@@ -34,7 +34,7 @@ When authenticated with Admin API Key, returns attempts across all tenants. Use 
       };
     }
 
-    const value = result.value;
+    const value = result.value.result;
 
     return formatResult(value, apiCall);
   },

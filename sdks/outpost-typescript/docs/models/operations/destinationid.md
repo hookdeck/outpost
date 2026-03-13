@@ -1,6 +1,6 @@
-# ListEventsTopic
+# DestinationId
 
-Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
+Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
 
 
 ## Supported Types

@@ -9,7 +9,7 @@ import { formatResult, ToolDefinition } from "../tools.js";
 
 const args = {
   tenantId: z.string(),
-  params: components.DestinationCreate$inboundSchema,
+  body: components.DestinationCreate$inboundSchema,
 };
 
 export const tool$destinationsCreate: ToolDefinition<typeof args> = {
@@ -22,7 +22,7 @@ Creates a new destination for the tenant. The request body structure depends on 
     const [result, apiCall] = await destinationsCreate(
       client,
       args.tenantId,
-      args.params,
+      args.body,
       { fetchOptions: { signal: ctx.signal } },
     ).$inspect();
 

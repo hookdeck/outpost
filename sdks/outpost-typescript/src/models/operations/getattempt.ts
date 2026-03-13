@@ -9,7 +9,7 @@ import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 /**
- * Fields to include in the response. Can be specified multiple times or comma-separated.
+ * Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
  *
  * @remarks
  * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -24,7 +24,7 @@ export type GetAttemptRequest = {
    */
   attemptId: string;
   /**
-   * Fields to include in the response. Can be specified multiple times or comma-separated.
+   * Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
    *
    * @remarks
    * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)

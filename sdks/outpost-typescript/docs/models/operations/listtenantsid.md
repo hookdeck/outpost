@@ -1,6 +1,6 @@
-# ListEventsTopic
+# ListTenantsId
 
-Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
+Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
 
 
 ## Supported Types
