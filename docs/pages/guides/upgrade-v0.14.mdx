@@ -10,6 +10,7 @@ This guide covers breaking changes and migration steps when upgrading from v0.13
 | --- | --- | --- |
 | [PostgreSQL data columns migrated to TEXT](#postgresql-data-columns-migrated-to-text) | Direct queries against Postgres `events` and `attempts` tables | Update any SQL that relies on JSONB operators for `data` / `event_data` columns |
 | [Array query parameters](#array-query-parameters) | API query filters & SDK method signatures | Use bracket notation for array filters; update SDK calls |
+| [Python SDK: request body and method signatures](#python-sdk-request-body-and-method-signatures) | Python SDK methods that send a request body | Change `params=` to `body=`; use new positional + `body=` signature |
 
 ## PostgreSQL Data Columns Migrated to TEXT
 
@@ -76,6 +77,31 @@ res, err := s.Events.List(ctx, operations.ListEventsRequest{
 
 **Action:** Update SDK dependencies to the latest version. If you pass filter parameters that previously accepted only a single string, verify that your code still works with the updated type signatures.
 
+## Python SDK: request body and method signatures
+
+The Python SDK has two breaking changes for methods that send a request body (`destinations.create`, `destinations.update`, `tenants.upsert`):
+
+1. **Request body parameter renamed:** The keyword argument for the request body is now `body` instead of `params`. You must update every call site.
+2. **Method signature shape:** Methods now take path parameters positionally and the request body as the named argument `body=`, instead of a single request object containing `params`.
+
+**Before (v0.13):**
+
+```py
+# Keyword argument was params=
+sdk.destinations.create(tenant_id="acme", params=models.DestinationCreateWebhook(...))
+sdk.destinations.update(tenant_id="acme", destination_id="des_123", params=models.DestinationUpdate(...))
+```
+
+**After (v0.14):**
+
+```py
+# Use body= and (for create/update) positional path params + body=
+sdk.destinations.create(tenant_id="acme", body=models.DestinationCreateWebhook(...))
+sdk.destinations.update(tenant_id="acme", destination_id="des_123", body=models.DestinationUpdate(...))
+```
+
+**TypeScript and Go:** The request body parameter in the method signature is now named `body` (was `params`). This is a type/signature rename only; call sites that pass the body positionally do not need to change.
+
 ## Other Notable Changes
 
 These changes are **not breaking** but may be useful to know about.
@@ -96,6 +122,7 @@ Empty `custom_headers` on webhook destinations are now treated as absent instead
    - [ ] Back up your PostgreSQL database
    - [ ] Audit any direct SQL queries against `events.data` or `attempts.event_data` for JSONB operators
    - [ ] Update SDK dependencies to the latest version
+   - [ ] **(Python only)** Replace `params=` with `body=` for `destinations.create`, `destinations.update`, and `tenants.upsert`
 
 2. **Upgrade:**
    - [ ] Update Outpost to v0.14 and restart — the PostgreSQL migration runs automatically on startup
